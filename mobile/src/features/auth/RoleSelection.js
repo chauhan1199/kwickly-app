@@ -12,6 +12,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { User, Wrench, CheckCircle2, Store, Info, ChevronLeft } from 'lucide-react-native';
 import Button from '../../components/ui/Button';

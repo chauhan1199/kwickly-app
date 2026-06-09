@@ -3,18 +3,30 @@ const Product    = require('./product.model');
 const Shop       = require('../shop/shop.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
+const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
+
+const PRODUCT_CACHE_PREFIX = 'products_list';
 
 /**
  * GET /api/v1/products?shopId=xxx
  */
 exports.getProducts = catchAsync(async (req, res) => {
     const { shopId, search, isActive } = req.query;
+
+    // Attempt cache fetch if simple fetch
+    const cacheKey = `${PRODUCT_CACHE_PREFIX}_${shopId || 'all'}_${search || ''}_${isActive !== undefined ? isActive : 'all'}`;
+    const cachedData = await getCache(cacheKey);
+    if (cachedData) {
+        return successResponse(res, cachedData, 'Products fetched from cache');
+    }
+
     const query = {};
     if (shopId)   query.shopId = shopId;
     if (search)   query.name   = { $regex: search, $options: 'i' };
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
     const products = await Product.find(query).sort('-createdAt');
+    await setCache(cacheKey, products, 300); // cache for 5 min
     return successResponse(res, products, 'Products fetched');
 });
 
@@ -68,6 +80,15 @@ exports.createProduct = catchAsync(async (req, res) => {
     }
 
     const product = await Product.create({ shopId: targetShopId, ...productData });
+
+    // Invalidate product caches
+    const { getRedis } = require('../../helpers/redis.helper');
+    const redisClient = getRedis();
+    if (redisClient) {
+        const keys = await redisClient.keys(`*${PRODUCT_CACHE_PREFIX}*`);
+        if (keys.length > 0) await redisClient.del(keys);
+    }
+
     return successResponse(res, product, 'Product created', StatusCodes.CREATED);
 });
 
@@ -103,6 +124,15 @@ exports.updateProduct = catchAsync(async (req, res) => {
         { new: true, runValidators: true }
     );
     if (!product) return errorResponse(res, 'Product not found or not yours', StatusCodes.NOT_FOUND);
+
+    // Invalidate product caches
+    const { getRedis } = require('../../helpers/redis.helper');
+    const redisClient = getRedis();
+    if (redisClient) {
+        const keys = await redisClient.keys(`*${PRODUCT_CACHE_PREFIX}*`);
+        if (keys.length > 0) await redisClient.del(keys);
+    }
+
     return successResponse(res, product, 'Product updated');
 });
 
@@ -119,5 +149,14 @@ exports.deleteProduct = catchAsync(async (req, res) => {
 
     const product = await Product.findOneAndDelete(query);
     if (!product) return errorResponse(res, 'Product not found', StatusCodes.NOT_FOUND);
+
+    // Invalidate product caches
+    const { getRedis } = require('../../helpers/redis.helper');
+    const redisClient = getRedis();
+    if (redisClient) {
+        const keys = await redisClient.keys(`*${PRODUCT_CACHE_PREFIX}*`);
+        if (keys.length > 0) await redisClient.del(keys);
+    }
+
     return successResponse(res, null, 'Product deleted');
 });

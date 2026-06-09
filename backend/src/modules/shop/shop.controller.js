@@ -5,6 +5,9 @@ const WalletTxn  = require('../wallet/wallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
+const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
+
+const SHOP_CACHE_PREFIX = 'shops_list';
 
 /**
  * POST /api/v1/shops
@@ -16,6 +19,14 @@ exports.createShop = catchAsync(async (req, res) => {
     if (existing) return errorResponse(res, 'You already have a registered shop', StatusCodes.CONFLICT);
 
     const shop = await Shop.create({ ownerId, ...req.body });
+
+    // Invalidate shop caches
+    const { getRedis } = require('../../helpers/redis.helper');
+    const redisClient = getRedis();
+    if (redisClient) {
+        const keys = await redisClient.keys(`*${SHOP_CACHE_PREFIX}*`);
+        if (keys.length > 0) await redisClient.del(keys);
+    }
 
     emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SHOP', id: shop._id });
     return successResponse(res, shop, 'Shop created', StatusCodes.CREATED);
@@ -56,6 +67,15 @@ exports.updateMyShop = catchAsync(async (req, res) => {
         { new: true, runValidators: true }
     );
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    // Invalidate shop caches
+    const { getRedis } = require('../../helpers/redis.helper');
+    const redisClient = getRedis();
+    if (redisClient) {
+        const keys = await redisClient.keys(`*${SHOP_CACHE_PREFIX}*`);
+        if (keys.length > 0) await redisClient.del(keys);
+    }
+
     return successResponse(res, shop, 'Shop updated');
 });
 
@@ -65,6 +85,11 @@ exports.updateMyShop = catchAsync(async (req, res) => {
  */
 exports.getAllShops = catchAsync(async (req, res) => {
     const { kycStatus, search, page = 1, limit = 20 } = req.query;
+
+    const cacheKey = `${SHOP_CACHE_PREFIX}_${kycStatus || 'all'}_${search || ''}_${page}_${limit}`;
+    const cachedData = await getCache(cacheKey);
+    if (cachedData) return successResponse(res, cachedData, 'Shops fetched from cache');
+
     const query = {};
     if (kycStatus) query['kyc.status'] = kycStatus.toUpperCase();
     if (search) query.name = { $regex: search, $options: 'i' };
@@ -76,7 +101,10 @@ exports.getAllShops = catchAsync(async (req, res) => {
         .limit(limit * 1)
         .skip((page - 1) * limit);
 
-    return successResponse(res, { shops, total, page, totalPages: Math.ceil(total / limit) }, 'Shops fetched');
+    const result = { shops, total, page, totalPages: Math.ceil(total / limit) };
+    await setCache(cacheKey, result, 300);
+
+    return successResponse(res, result, 'Shops fetched');
 });
 
 /**
@@ -172,34 +200,53 @@ exports.deletePayoutMethod = catchAsync(async (req, res) => {
 exports.requestWithdrawal = catchAsync(async (req, res) => {
     const { amount, payoutMethod } = req.body; // payoutMethod is label/details string
 
-    const shop = await Shop.findOne({ ownerId: req.user._id });
-    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-    if (shop.wallet.balance < amount) {
-        return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
+    const mongoose = require('mongoose');
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const shop = await Shop.findOne({ ownerId: req.user._id }).session(session);
+        if (!shop) {
+            await session.abortTransaction();
+            session.endSession();
+            return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+        }
+        if (shop.wallet.balance < amount) {
+            await session.abortTransaction();
+            session.endSession();
+            return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
+        }
+
+        // Deduct from wallet
+        shop.wallet.balance -= amount;
+        await shop.save({ session });
+
+        const [txn] = await WalletTxn.create([{
+            userId:      req.user._id,
+            type:        'WITHDRAWAL',
+            amount,
+            balance:     shop.wallet.balance,
+            status:      'PENDING',
+            description: `Shop Withdrawal to ${payoutMethod || 'bank'}`
+        }], { session });
+
+        const paymentMethodType = (payoutMethod || '').toLowerCase().includes('upi') ? 'UPI' : 'BANK';
+        await Payout.create([{
+            shopId: shop._id,
+            amount,
+            paymentMethod: paymentMethodType,
+            paymentDetails: payoutMethod || 'bank'
+        }], { session });
+
+        await session.commitTransaction();
+        session.endSession();
+        return successResponse(res, txn, 'Withdrawal initiated');
+    } catch (error) {
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
+        session.endSession();
+        throw error;
     }
-
-    // Deduct from wallet
-    shop.wallet.balance -= amount;
-    await shop.save();
-
-    const txn = await WalletTxn.create({
-        userId:      req.user._id,
-        type:        'WITHDRAWAL',
-        amount,
-        balance:     shop.wallet.balance,
-        status:      'PENDING',
-        description: `Shop Withdrawal to ${payoutMethod || 'bank'}`
-    });
-
-    const paymentMethodType = (payoutMethod || '').toLowerCase().includes('upi') ? 'UPI' : 'BANK';
-    await Payout.create({
-        shopId: shop._id,
-        amount,
-        paymentMethod: paymentMethodType,
-        paymentDetails: payoutMethod || 'bank'
-    });
-
-    return successResponse(res, txn, 'Withdrawal initiated');
 });
 
 /**

@@ -9,6 +9,8 @@ import {
   TextInput,
   StatusBar
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 
 const RateExperienceScreen = ({ route, navigation }) => {
@@ -72,12 +74,7 @@ const RateExperienceScreen = ({ route, navigation }) => {
           textAlignVertical="top"
         />
 
-        <TouchableOpacity 
-          style={styles.submitBtn}
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Text style={styles.submitBtnText}>Submit Rating</Text>
-        </TouchableOpacity>
+        <Button title="Submit Rating" onPress={() => {}} />
 
         <TouchableOpacity 
           style={styles.skipBtn}

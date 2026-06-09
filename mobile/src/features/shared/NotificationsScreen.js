@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, SafeAreaView, FlatList,
   TouchableOpacity, StatusBar
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { Bell, CheckCheck, Briefcase, ShoppingBag, Wallet, Star } from 'lucide-react-native';
 import AppBar from '../../components/AppBar';

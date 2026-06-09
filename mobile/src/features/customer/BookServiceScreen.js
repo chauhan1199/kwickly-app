@@ -10,6 +10,8 @@ import {
   StatusBar,
   ActivityIndicator
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { jobService } from '../../services/jobService';

@@ -10,6 +10,8 @@ import {
   TextInput,
   Alert
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
@@ -41,7 +43,7 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
     setIsSubmitting(true);
     try {
       const res = await jobService.placeQuote({
-        jobId: job?._id || 'mock-id',
+        jobId: job?._id,
         amount: Number(price),
         description,
         timeToReach

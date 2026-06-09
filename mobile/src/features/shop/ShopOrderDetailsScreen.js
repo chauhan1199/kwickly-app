@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   StatusBar
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { ChevronLeft, Bell, FileText, Phone, CheckCircle2, Box, Truck } from 'lucide-react-native';
 

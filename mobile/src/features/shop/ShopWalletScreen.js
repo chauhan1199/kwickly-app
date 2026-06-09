@@ -14,6 +14,8 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { ArrowDown, ArrowUp, Landmark, Smartphone, Bell, ReceiptText, RefreshCw, Moon, Sun } from 'lucide-react-native';
 import api from '../../services/api';
@@ -179,12 +181,7 @@ const ShopWalletScreen = ({ navigation }) => {
               <Text style={styles.topUpBtnText}>+ Top Up</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={[styles.actionBtn, styles.withdrawBtn]} 
-              onPress={() => setWithdrawModalVisible(true)}
-            >
-              <Text style={styles.withdrawBtnText}>Withdraw</Text>
-            </TouchableOpacity>
+            <Button variant="outline" title="Withdraw" onPress={() => setWithdrawModalVisible(true)} />
           </View>
         </View>
 

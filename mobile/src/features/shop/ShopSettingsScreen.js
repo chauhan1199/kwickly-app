@@ -19,6 +19,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
 import { launchImageLibrary } from 'react-native-image-picker';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';

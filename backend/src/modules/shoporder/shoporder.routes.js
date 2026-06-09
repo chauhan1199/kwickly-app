@@ -3,14 +3,16 @@ const router  = express.Router();
 const ctrl    = require('./shoporder.controller');
 const { authMiddleware } = require('../../middleware/auth.middleware');
 const authorize          = require('../../middleware/role.middleware');
+const validate           = require('../../middleware/validate.middleware');
+const { placeOrderSchema, updateOrderStatusSchema } = require('../../validators/shoporder.validator');
 
 // Customer
-router.post('/',            authMiddleware, authorize('CUSTOMER'), ctrl.placeOrder);
+router.post('/',            authMiddleware, authorize('CUSTOMER'), validate(placeOrderSchema), ctrl.placeOrder);
 router.get('/customer',     authMiddleware, authorize('CUSTOMER'), ctrl.getCustomerOrders);
 
 // Shop owner
 router.get('/shop',         authMiddleware, authorize('SHOP'),     ctrl.getShopOrders);
-router.patch('/:id/status', authMiddleware, authorize('SHOP'),     ctrl.updateOrderStatus);
+router.patch('/:id/status', authMiddleware, authorize('SHOP'),     validate(updateOrderStatusSchema), ctrl.updateOrderStatus);
 
 // Admin
 router.get('/all',          authMiddleware, authorize('ADMIN'),    ctrl.getAllOrders);

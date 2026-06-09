@@ -11,6 +11,8 @@ import {
   Image,
   ActivityIndicator
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { customerService } from '../../services/customerService';

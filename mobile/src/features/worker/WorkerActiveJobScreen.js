@@ -11,6 +11,8 @@ import {
   Alert,
   ActivityIndicator
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
@@ -20,7 +22,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const styles = createStyles(theme, isDarkMode);
   
-  const { jobId } = route.params || { jobId: 'mock-id' };
+  const { jobId } = route.params;
   
   const [seconds, setSeconds] = useState(1458); 
   const [completing, setCompleting] = useState(false);

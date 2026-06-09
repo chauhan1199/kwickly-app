@@ -18,6 +18,8 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import MapView, { Marker } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
