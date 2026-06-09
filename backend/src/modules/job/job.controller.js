@@ -3,7 +3,7 @@ const Job = require('./job.model');
 const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { emitToAll } = require('../../helpers/socket.helper');
+const { emitToAll, emitToRoom } = require('../../helpers/socket.helper');
 const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
 
 exports.createJob = catchAsync(async (req, res) => {
@@ -140,6 +140,9 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
     if (!worker || worker.kyc?.status !== 'APPROVED') {
         return errorResponse(res, 'KYC must be approved to view jobs', StatusCodes.FORBIDDEN);
     }
+    if (!worker.subscription?.isTrial && (!worker.subscription?.expiryDate || new Date(worker.subscription.expiryDate) < new Date())) {
+        return errorResponse(res, 'Subscription has expired. Please renew to view jobs.', StatusCodes.PAYMENT_REQUIRED);
+    }
     if (!worker.isOnline) {
         return errorResponse(res, 'You must be online to view available jobs', StatusCodes.FORBIDDEN);
     }
@@ -256,25 +259,39 @@ exports.payJob = catchAsync(async (req, res) => {
     // If cash, Customer paid Worker the full amount. Kwickly deducts `platformFee` from worker wallet.
     // Assuming CASH for simplicity of MVP based on user request (worker gets service charge, platform fee to admin).
     
-    const worker = await Customer.findById(job.workerId);
-    if (worker) {
-        worker.wallet.balance -= platformFee; // Deduct Kwickly's cut from their pre-paid wallet balance
-        await worker.save();
-    }
-    
-    // Log transaction for worker (fee deduction)
-    const WalletTxn = require('../wallet/wallet.model');
-    await WalletTxn.create({
-        userId: worker._id,
-        type: 'JOB_DEBIT',
-        amount: platformFee,
-        balance: worker.wallet.balance,
-        refId: job._id.toString(),
-        description: `Platform fee deduction for Job ${job._id}`
-    });
+    const mongoose = require('mongoose');
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const worker = await Customer.findById(job.workerId).session(session);
+        if (worker) {
+            worker.wallet.balance -= platformFee; // Deduct Kwickly's cut from their pre-paid wallet balance
+            await worker.save({ session });
 
-    emitToRoom(`worker_${job.workerId}`, 'JOB_PAID', { jobId: job._id });
-    return successResponse(res, job, 'Payment completed successfully');
+            // Log transaction for worker (fee deduction)
+            const WalletTxn = require('../wallet/wallet.model');
+            await WalletTxn.create([{
+                userId: worker._id,
+                type: 'JOB_DEBIT',
+                amount: platformFee,
+                balance: worker.wallet.balance,
+                refId: job._id.toString(),
+                description: `Platform fee deduction for Job ${job._id}`
+            }], { session });
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+
+        emitToRoom(`worker_${job.workerId}`, 'JOB_PAID', { jobId: job._id });
+        return successResponse(res, job, 'Payment completed successfully');
+    } catch (error) {
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
+        session.endSession();
+        throw error;
+    }
 });
 
 exports.rateJob = catchAsync(async (req, res) => {

@@ -9,6 +9,8 @@ import {
   TextInput,
   StatusBar
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
 import { ActivityIndicator } from 'react-native';

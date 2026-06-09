@@ -13,6 +13,8 @@ import {
   Image,
   ActivityIndicator
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { Bell, Search, Image as ImageIcon, X, RefreshCw, Moon, Sun } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';

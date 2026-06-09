@@ -21,6 +21,11 @@ exports.placeQuote = catchAsync(async (req, res) => {
     if (!worker || worker.kyc.status !== 'APPROVED') {
         return errorResponse(res, 'KYC must be approved before you can place quotes.', StatusCodes.FORBIDDEN);
     }
+
+    // Check Subscription
+    if (!worker.subscription?.isTrial && (!worker.subscription?.expiryDate || new Date(worker.subscription.expiryDate) < new Date())) {
+        return errorResponse(res, 'Subscription has expired. Please renew to place quotes.', StatusCodes.PAYMENT_REQUIRED);
+    }
     
     // Check Minimum Balance
     let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });

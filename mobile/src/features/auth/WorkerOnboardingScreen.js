@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   StatusBar, TextInput, Alert, KeyboardAvoidingView, Platform
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { ShieldCheck, Wrench, Landmark, ChevronRight, Check, Upload } from 'lucide-react-native';

@@ -22,6 +22,49 @@ exports.getDisputes = catchAsync(async (req, res) => {
     return successResponse(res, disputes, 'Disputes fetched');
 });
 
+exports.openDispute = catchAsync(async (req, res) => {
+    const { jobId, shopOrderId, reason, description } = req.body;
+    const customerId = req.user._id;
+
+    let targetId, model, field;
+    if (jobId) {
+        targetId = jobId;
+        model = require('../job/job.model');
+        field = 'jobId';
+    } else {
+        targetId = shopOrderId;
+        model = require('../shoporder/shoporder.model');
+        field = 'shopOrderId'; // Assuming you might add this to dispute model or rely on jobId field as generic ref
+    }
+
+    const item = await model.findById(targetId);
+    if (!item) return errorResponse(res, 'Reference item not found', StatusCodes.NOT_FOUND);
+    if (String(item.customerId) !== String(customerId)) {
+        return errorResponse(res, 'Unauthorized to open dispute for this item', StatusCodes.FORBIDDEN);
+    }
+
+    const existingDispute = await Dispute.findOne({ customerId, [field]: targetId, status: { $ne: 'resolved' } });
+    if (existingDispute) {
+        return errorResponse(res, 'An active dispute already exists for this item', StatusCodes.CONFLICT);
+    }
+
+    const workerId = item.workerId || item.shopId; // Store shopId in workerId if shop order
+
+    const dispute = await Dispute.create({
+        [field]: targetId,
+        customerId,
+        workerId,
+        reason,
+        description,
+        status: 'open'
+    });
+
+    await delCache(CACHE_KEY);
+    triggerDashboardUpdate();
+
+    return successResponse(res, dispute, 'Dispute opened successfully', StatusCodes.CREATED);
+});
+
 exports.updateDisputeStatus = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { status, resolutionNotes } = req.body;

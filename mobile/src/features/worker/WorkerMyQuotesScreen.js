@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, FlatList, ActivityIndicator, Alert
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { Briefcase, CheckCircle, XCircle, Clock, ChevronRight } from 'lucide-react-native';
 import AppBar from '../../components/AppBar';

@@ -13,6 +13,8 @@ import {
   Keyboard,
   Alert
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { Star } from 'lucide-react-native';
@@ -88,9 +90,7 @@ const WorkerRateCustomerScreen = ({ navigation }) => {
               textAlignVertical="top"
             />
 
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-              <Text style={styles.submitBtnText}>Submit Rating</Text>
-            </TouchableOpacity>
+            <Button title="Submit Rating" onPress={() => {}} />
 
           </View>
         </TouchableWithoutFeedback>

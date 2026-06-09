@@ -3,8 +3,11 @@ const mongoose = require('mongoose');
 const DisputeSchema = new mongoose.Schema({
     jobId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Job',
-        required: true
+        ref: 'Job'
+    },
+    shopOrderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ShopOrder'
     },
     customerId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -15,7 +18,11 @@ const DisputeSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Customer'
     },
-    issue: {
+    reason: {
+        type: String,
+        required: true
+    },
+    description: {
         type: String,
         required: true
     },

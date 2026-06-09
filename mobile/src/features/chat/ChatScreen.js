@@ -12,6 +12,8 @@ import {
   Platform,
   ActivityIndicator
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { chatService } from '../../services/chatService';
 import { Send, Phone, MoreVertical, ChevronLeft, Image as ImageIcon } from 'lucide-react-native';

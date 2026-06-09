@@ -25,9 +25,14 @@ const initSocketHandlers = () => {
             logger.info(`[Socket] Customer ${userId} joined room`);
         });
 
-        socket.on('JOIN_WORKER_ROOM', ({ userId }) => {
+        socket.on('JOIN_WORKER_ROOM', async ({ userId }) => {
             socket.join(`worker_${userId}`);
             logger.info(`[Socket] Worker ${userId} joined room`);
+
+            // On reconnection, worker might have missed a broadcast.
+            // In a production environment, you'd send pending broadcasts here, or
+            // trigger a signal for the client to run a "fetch active state" API call.
+            socket.emit('SYNC_STATE_REQUIRED', { message: 'Please sync active jobs' });
         });
 
         socket.on('JOIN_SHOP_ROOM', ({ shopId }) => {

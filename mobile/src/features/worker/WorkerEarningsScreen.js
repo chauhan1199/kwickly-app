@@ -14,6 +14,8 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { ArrowDown, ArrowUp, Gift, Landmark, Smartphone } from 'lucide-react-native';
@@ -22,10 +24,6 @@ import AppBar from '../../components/AppBar';
 import { walletService } from '../../services/walletService';
 import { workerService } from '../../services/workerService';
 import api from '../../services/api';
-
-const fallbackTransactions = [];
-
-// Remove static plans array
 
 const WorkerEarningsScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -318,9 +316,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 ))}
               </View>
 
-              <TouchableOpacity style={styles.proceedBtn} onPress={handleTopup}>
-                <Text style={styles.proceedBtnText}>Proceed to Pay</Text>
-              </TouchableOpacity>
+              <Button title="Proceed to Pay" onPress={() => {}} />
             </View>
           </TouchableWithoutFeedback>
         </TouchableOpacity>
@@ -413,9 +409,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
                   />
                   <Text style={styles.processingNote}>Processing time: 1-2 business days</Text>
 
-                  <TouchableOpacity style={styles.submitBtn} onPress={handleSubmitWithdrawal}>
-                    <Text style={styles.submitBtnText}>Submit Request</Text>
-                  </TouchableOpacity>
+                  <Button title="Submit Request" onPress={() => {}} />
                 </View>
               </TouchableWithoutFeedback>
             </View>

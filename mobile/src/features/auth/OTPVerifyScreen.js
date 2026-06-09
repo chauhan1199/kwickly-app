@@ -12,6 +12,8 @@ import {
   StatusBar,
   ScrollView
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { ChevronLeft } from 'lucide-react-native';
 import api from '../../services/api';

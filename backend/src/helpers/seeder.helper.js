@@ -109,17 +109,17 @@ const seedData = async () => {
         const workers = [
             { 
               name: 'Amit Kumar', phone: '9876543210', role: 'WORKER', isVerified: true, password: workerPwd, 
-              city: 'Mumbai', wallet: { balance: 500 }, kyc: { status: 'APPROVED', documents: ['https://placehold.co/400x250/blue/white?text=PAN+Card', 'https://placehold.co/400x250/purple/white?text=Selfie'] }, plan: 'pro',
+              city: 'Mumbai', wallet: { balance: 500 }, kyc: { status: 'APPROVED', documents: [{ type: 'PAN', url: 'https://placehold.co/400x250/blue/white?text=PAN+Card'}, { type: 'OTHER', url: 'https://placehold.co/400x250/purple/white?text=Selfie' }] }, plan: 'pro',
               profileImage: 'https://i.pravatar.cc/150?img=11'
             },
             { 
               name: 'Rajan Verma', phone: '9876543211', role: 'WORKER', isVerified: true, password: workerPwd, 
-              city: 'Delhi', wallet: { balance: 250 }, kyc: { status: 'PENDING', documents: ['https://placehold.co/600x400/orange/white?text=Aadhar+Front', 'https://placehold.co/600x400/orange/white?text=Aadhar+Back'] }, plan: 'free',
+              city: 'Delhi', wallet: { balance: 250 }, kyc: { status: 'PENDING', documents: [{ type: 'AADHAR', url: 'https://placehold.co/600x400/orange/white?text=Aadhar+Front'}, { type: 'AADHAR', url: 'https://placehold.co/600x400/orange/white?text=Aadhar+Back' }] }, plan: 'free',
               profileImage: 'https://i.pravatar.cc/150?img=12'
             },
             { 
               name: 'Vikram Singh', phone: '9876543212', role: 'WORKER', isVerified: false, password: workerPwd, 
-              city: 'Bangalore', wallet: { balance: 0 }, kyc: { status: 'PENDING', documents: ['https://placehold.co/600x400/purple/white?text=Aadhar+Front'] }, plan: 'free',
+              city: 'Bangalore', wallet: { balance: 0 }, kyc: { status: 'PENDING', documents: [{ type: 'AADHAR', url: 'https://placehold.co/600x400/purple/white?text=Aadhar+Front' }] }, plan: 'free',
               profileImage: 'https://i.pravatar.cc/150?img=13'
             }
         ];

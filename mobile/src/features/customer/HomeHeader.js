@@ -7,6 +7,8 @@ import {
   TextInput
 } from 'react-native';
 import Theme from '../../constants/Theme';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { MapPin, ChevronDown, Bell, Search, Moon, Sun } from 'lucide-react-native';
 

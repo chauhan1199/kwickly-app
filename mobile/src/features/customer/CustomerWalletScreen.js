@@ -4,6 +4,8 @@ import {
   TouchableOpacity, StatusBar, Modal, TextInput,
   TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';

@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, SafeAreaView,
   TouchableOpacity, StatusBar, FlatList, Alert
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { ShoppingCart, Minus, Plus, Trash2, MapPin, CreditCard } from 'lucide-react-native';
 import AppBar from '../../components/AppBar';

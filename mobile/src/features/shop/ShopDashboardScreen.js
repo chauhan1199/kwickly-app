@@ -10,6 +10,8 @@ import {
   Switch
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
 import { Store, ChevronRight, Package, Box, TrendingUp, Wallet, Star, MessageSquare, Clock, Repeat, Bell, Moon, Sun } from 'lucide-react-native';

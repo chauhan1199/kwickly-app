@@ -17,6 +17,10 @@ exports.placeOrder = catchAsync(async (req, res) => {
     const shop = await Shop.findById(shopId);
     if (!shop || !shop.isOnline) return errorResponse(res, 'Shop is not available', StatusCodes.BAD_REQUEST);
 
+    if (shop.kyc?.status !== 'APPROVED') {
+        return errorResponse(res, 'Shop is not approved to receive orders.', StatusCodes.FORBIDDEN);
+    }
+
     const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
     const deliveryFee = subtotal >= shop.delivery.freeAbove ? 0 : shop.delivery.fee;
     const total = subtotal + deliveryFee;
@@ -100,24 +104,44 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
 
     // On delivery, credit shop wallet
     if (status === 'DELIVERED') {
-        order.payment.status = 'PAID';
-        const settings = require('../settings/settings.model');
-        const cfg = await settings.findOne() || { commissionPercent: 10 };
-        const commission = Math.round(order.total * cfg.commissionPercent / 100);
-        const shopPayout = order.total - commission;
+        const mongoose = require('mongoose');
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            order.payment.status = 'PAID';
+            const settings = require('../settings/settings.model');
+            const cfg = await settings.findOne().session(session) || { commissionPercent: 10 };
+            const commission = Math.round(order.total * cfg.commissionPercent / 100);
+            const shopPayout = order.total - commission;
 
-        await Shop.findByIdAndUpdate(order.shopId, { $inc: { 'wallet.balance': shopPayout, totalOrders: 1 } });
-        await WalletTxn.create({
-            userId:      order.shopId,
-            type:        'ORDER_CREDIT',
-            amount:      shopPayout,
-            balance:     0,           // update after fetch
-            refId:       String(order._id),
-            description: `Order #${String(order._id).slice(-6)} payout`
-        });
+            const updatedShop = await Shop.findByIdAndUpdate(
+                order.shopId,
+                { $inc: { 'wallet.balance': shopPayout, totalOrders: 1 } },
+                { new: true, session }
+            );
+
+            await WalletTxn.create([{
+                userId:      order.shopId, // Will need to be mapped to customerId or keep as shop ID depending on WalletTxn schema
+                type:        'ORDER_CREDIT',
+                amount:      shopPayout,
+                balance:     updatedShop.wallet.balance,
+                refId:       String(order._id),
+                description: `Order #${String(order._id).slice(-6)} payout`
+            }], { session });
+
+            await order.save({ session });
+            await session.commitTransaction();
+            session.endSession();
+        } catch (error) {
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
+        session.endSession();
+            throw error;
+        }
+    } else {
+        await order.save();
     }
-
-    await order.save();
 
     // Notify customer
     emitToRoom(`customer_${order.customerId}`, 'ORDER_STATUS', { orderId: order._id, status });

@@ -11,6 +11,8 @@ import {
   Switch,
   Alert
 } from 'react-native';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';

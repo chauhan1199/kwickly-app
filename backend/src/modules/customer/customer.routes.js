@@ -5,10 +5,16 @@ const { authMiddleware } = require('../../middleware/auth.middleware');
 const jobController = require('../job/job.controller');
 const customerController = require('./customer.controller');
 const workerController = require('../worker/worker.controller');
+const disputeController = require('../dispute/dispute.controller');
+const validate = require('../../middleware/validate.middleware');
+const { openDisputeSchema } = require('../../validators/dispute.validator');
 const upload = require('../../middleware/upload.middleware');
 
 router.post('/jobs', authMiddleware, jobController.createJob);
 router.get('/top-pros', customerController.getTopPros);
+
+// Disputes
+router.post('/disputes', authMiddleware, validate(openDisputeSchema), disputeController.openDispute);
 
 // Shared Profile & Address Management (Accessible to Customers)
 router.patch('/me/profile', authMiddleware, upload.single('profileImage'), workerController.updateProfile);
