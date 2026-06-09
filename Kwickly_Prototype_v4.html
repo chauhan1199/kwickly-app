@@ -1,0 +1,2864 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Kwickly – Mobile Prototype v4</title>
+<meta name="description" content="Kwickly – Every Service. Anytime. Near You. Interactive mobile prototype."/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f8fb;--surface:#ffffff;--surface-2:#f1f4f8;--text:#0b1422;--muted:#5b6776;--border:#e5eaf0;
+  --brand:#0e9aa7;--brand-2:#43e3eb;--accent:#7ed957;--navy:#0f1b3d;
+  --warn:#f59e0b;--err:#ef4444;--ok:#10b981;
+  --shadow:0 6px 20px rgba(15,27,61,.08);
+  --radius:16px;
+}
+[data-theme="dark"]{
+  --bg:#070b14;--surface:#101826;--surface-2:#0a121e;--text:#e8eef7;--muted:#8a99ad;--border:#1c2738;
+  --brand:#43e3eb;--brand-2:#7ed957;--navy:#0a1530;
+  --shadow:0 6px 24px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#0a121e;color:var(--text);font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:16px 8px 32px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:14px;max-width:760px}
+.toolbar button{background:#101826;color:#e8eef7;border:1px solid #1c2738;border-radius:10px;padding:8px 12px;font:600 13px 'Plus Jakarta Sans';cursor:pointer;transition:.15s}
+.toolbar button:hover{background:#1c2738}
+.toolbar button.active{background:var(--brand);color:#001016;border-color:var(--brand)}
+.toolbar .group{display:flex;gap:4px;background:#101826;border:1px solid #1c2738;border-radius:12px;padding:4px}
+
+/* Phone frame */
+.phone{width:390px;max-width:96vw;height:844px;max-height:92vh;background:var(--bg);border-radius:42px;border:10px solid #0c1422;box-shadow:0 30px 80px rgba(0,0,0,.6);position:relative;overflow:hidden;color:var(--text)}
+.notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:130px;height:26px;background:#0c1422;border-radius:0 0 18px 18px;z-index:50}
+.statusbar{position:absolute;top:0;left:0;right:0;height:38px;display:flex;align-items:center;justify-content:space-between;padding:10px 22px;font-size:12px;font-weight:700;z-index:40;color:var(--text)}
+.screen{position:absolute;inset:0;padding:46px 0 90px;overflow-y:auto;background:var(--bg);display:none;flex-direction:column}
+.screen.show{display:flex}
+.appbar{display:flex;align-items:center;gap:10px;padding:10px 16px 8px;background:var(--bg);position:sticky;top:0;z-index:5}
+.appbar h1{font-size:18px;margin:0;font-weight:800}
+.appbar .sub{font-size:12px;color:var(--muted);font-weight:500}
+.appbar .back{width:36px;height:36px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;cursor:pointer;font-size:18px;color:var(--text);flex-shrink:0}
+.appbar .spacer{flex:1}
+.appbar .icon-btn{width:36px;height:36px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;cursor:pointer;color:var(--text);position:relative;flex-shrink:0}
+.dot{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--err)}
+
+.body{padding:8px 16px 24px;flex:1}
+/* Base tabbar */
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:72px;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;align-items:center;padding:6px 8px calc(8px + env(safe-area-inset-bottom));z-index:6;overflow:visible}
+.tabbar button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font:600 10px 'Plus Jakarta Sans';cursor:pointer;padding:6px 10px;border-radius:12px;transition:.15s}
+.tabbar button.active{color:var(--brand);background:color-mix(in oklab,var(--brand) 12%,transparent)}
+.tabbar button svg{width:22px;height:22px}
+/* Customer FAB tab bar */
+.cust-tabbar{width:100%;height:100%;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;position:relative;overflow:visible}
+.cust-tab{background:none;border:none;flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);font:600 10px 'Plus Jakarta Sans';cursor:pointer;padding:8px 4px;border-radius:12px;transition:.15s;height:100%}
+.cust-tab.active{color:var(--brand);background:color-mix(in oklab,var(--brand) 10%,transparent)}
+.cust-fab-wrap{flex:0 0 68px;display:flex;justify-content:center;align-items:flex-end;position:relative;height:100%;overflow:visible}
+.cust-fab{width:58px;height:58px;border-radius:50%;background:linear-gradient(145deg,#0e9aa7,#43e3eb);border:4px solid var(--surface);box-shadow:0 -6px 22px rgba(14,154,167,.5),0 4px 16px rgba(14,154,167,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#001016;cursor:pointer;font:800 9px 'Plus Jakarta Sans';gap:1px;position:absolute;bottom:10px;left:50%;transform:translateX(-50%);transition:.2s;z-index:12}
+.cust-fab:hover{transform:translateX(-50%) scale(1.08);box-shadow:0 -8px 28px rgba(14,154,167,.7)}
+.cust-fab:active{transform:translateX(-50%) scale(.95)}
+.cust-fab.active{background:linear-gradient(145deg,#07737e,#1eb8c2)}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);margin-bottom:12px}
+.row{display:flex;align-items:center;gap:10px}
+.btn{background:var(--brand);color:#001016;border:none;border-radius:12px;padding:12px 16px;font:700 14px 'Plus Jakarta Sans';cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;transition:.15s}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:scale(.98)}
+.btn.secondary{background:var(--surface-2);color:var(--text);border:1px solid var(--border)}
+.btn.outline{background:transparent;border:1.5px solid var(--brand);color:var(--brand)}
+.btn.danger{background:var(--err);color:#fff}
+.btn.ok{background:var(--ok);color:#fff}
+.btn.sm{padding:8px 12px;font-size:12px;width:auto;border-radius:10px}
+.input,.select,textarea.input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font:500 14px 'Plus Jakarta Sans';color:var(--text);outline:none;transition:.15s}
+.input:focus,.select:focus{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in oklab,var(--brand) 15%,transparent)}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:6px 10px;font:600 12px 'Plus Jakarta Sans';color:var(--text);cursor:pointer;transition:.15s}
+.chip:hover{background:var(--surface)}
+.chip.brand{background:color-mix(in oklab,var(--brand) 14%,transparent);border-color:transparent;color:var(--brand)}
+.chip.ok{background:color-mix(in oklab,var(--ok) 16%,transparent);color:var(--ok);border-color:transparent}
+.chip.warn{background:color-mix(in oklab,var(--warn) 16%,transparent);color:var(--warn);border-color:transparent}
+.chip.err{background:color-mix(in oklab,var(--err) 16%,transparent);color:var(--err);border-color:transparent}
+.badge{background:var(--err);color:#fff;border-radius:999px;font-size:10px;font-weight:800;padding:2px 6px;min-width:18px;text-align:center}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+
+.cat-tile{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;text-align:center;font-size:11px;font-weight:600;transition:.15s}
+.cat-tile:active{transform:scale(.96)}
+.cat-tile:hover{border-color:var(--brand);background:color-mix(in oklab,var(--brand) 5%,transparent)}
+.cat-icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:color-mix(in oklab,var(--brand) 12%,transparent)}
+
+.avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;color:#001016;font-weight:800;flex-shrink:0}
+.stars{color:#f5b300;font-size:12px;letter-spacing:1px}
+
+.banner{background:linear-gradient(135deg,var(--navy),#1a2a5c);color:#fff;border-radius:16px;padding:14px;margin-bottom:12px;position:relative;overflow:hidden}
+.banner h3{margin:0 0 4px;font-size:16px}
+.banner p{margin:0;font-size:12px;opacity:.9}
+.banner .pill{position:absolute;top:10px;right:10px;background:var(--brand-2);color:#001016;font-size:10px;font-weight:800;padding:4px 8px;border-radius:8px}
+
+/* Modal */
+.modal-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end;justify-content:center;z-index:80;backdrop-filter:blur(2px)}
+.modal-bg.show{display:flex}
+.modal{background:var(--surface);width:100%;border-radius:24px 24px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom));max-height:80%;overflow-y:auto;animation:slideup .25s ease}
+@keyframes slideup{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal h3{margin:4px 0 12px;font-size:17px}
+.handle{width:36px;height:4px;background:var(--border);border-radius:99px;margin:0 auto 12px}
+
+/* Toast */
+.toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#0b1422;color:#fff;padding:10px 14px;border-radius:12px;font:600 13px 'Plus Jakarta Sans';opacity:0;transition:.3s;z-index:100;max-width:80%;text-align:center;pointer-events:none}
+.toast.show{opacity:1;bottom:100px}
+
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:18px}
+.logo svg{width:28px;height:28px}
+
+.list-item{display:flex;align-items:center;gap:12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.list-item:hover{border-color:var(--brand);background:color-mix(in oklab,var(--brand) 4%,transparent)}
+.muted{color:var(--muted);font-size:12px}
+.price{font-weight:800;color:var(--brand)}
+hr.sep{border:none;border-top:1px solid var(--border);margin:10px 0}
+
+.timeline{display:flex;flex-direction:column;gap:14px;position:relative;padding-left:22px}
+.timeline::before{content:"";position:absolute;left:8px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.tl-item{position:relative}
+.tl-item::before{content:"";position:absolute;left:-22px;top:6px;width:14px;height:14px;border-radius:50%;background:var(--surface);border:2px solid var(--border)}
+.tl-item.done::before{background:var(--ok);border-color:var(--ok)}
+.tl-item.active::before{background:var(--brand);border-color:var(--brand);box-shadow:0 0 0 4px color-mix(in oklab,var(--brand) 25%,transparent)}
+
+.map{background:linear-gradient(135deg,#a8d8ea,#aab8d8);height:200px;border-radius:14px;position:relative;overflow:hidden;margin-bottom:12px}
+[data-theme="dark"] .map{background:linear-gradient(135deg,#13355c,#0a1b34)}
+.map .pin{position:absolute;width:24px;height:24px;border-radius:50% 50% 50% 0;background:var(--err);transform:rotate(-45deg);box-shadow:0 4px 10px rgba(0,0,0,.3)}
+.map .pin.you{background:var(--brand);left:30%;top:50%}
+.map .pin.worker{left:65%;top:30%}
+.map-label{position:absolute;bottom:8px;left:8px;background:rgba(255,255,255,.95);color:#000;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;backdrop-filter:blur(4px)}
+.map-route{position:absolute;left:32%;top:48%;width:38%;height:2px;background:var(--brand);transform-origin:left center;transform:rotate(-18deg)}
+
+.media-tile{aspect-ratio:1;background:var(--surface-2);border:1px dashed var(--border);border-radius:12px;display:grid;place-items:center;color:var(--muted);font-size:11px;cursor:pointer;transition:.15s}
+.media-tile:hover{border-color:var(--brand)}
+.media-tile.filled{background:linear-gradient(135deg,#8b5cf6,#06b6d4);color:#fff;border-style:solid;border-color:transparent;font-weight:700}
+
+.tag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted)}
+.tag.new{background:color-mix(in oklab,var(--brand) 18%,transparent);color:var(--brand)}
+
+/* Toggle switch */
+.toggle-wrap{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:6px 12px}
+.toggle{position:relative;width:44px;height:24px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-slider{position:absolute;inset:0;border-radius:99px;background:var(--border);transition:.25s}
+.toggle input:checked+.toggle-slider{background:var(--ok)}
+.toggle-slider::before{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;left:3px;top:3px;transition:.25s;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.toggle input:checked+.toggle-slider::before{left:23px}
+
+/* Star rating interactive */
+.star-input{font-size:40px;letter-spacing:8px;cursor:pointer;color:#ccc;margin:20px 0}
+.star-input .star{transition:.15s;display:inline-block}
+.star-input .star.on{color:#f5b300}
+.star-input .star:hover{transform:scale(1.2)}
+
+/* Search bar */
+.search-bar{position:relative;margin-bottom:12px}
+.search-bar .input{padding-left:38px}
+.search-bar::before{content:"🔍";position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;z-index:1}
+
+/* Progress bar */
+.prog-bar{height:6px;background:var(--border);border-radius:99px;overflow:hidden;margin:8px 0}
+.prog-bar-fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-2));border-radius:99px;transition:width .5s}
+
+/* Pulsing dot */
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.9)}}
+.pulse{animation:pulse 1.5s infinite}
+
+/* Scroll chips */
+.chips-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none}
+.chips-scroll::-webkit-scrollbar{display:none}
+
+/* ---- Auth specific ---- */
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes logoPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+@keyframes splashBg{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.splash-screen{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:0;overflow:hidden;background:linear-gradient(145deg,#0a1628 0%,#0e2040 40%,#071520 100%)}
+.splash-circles{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.splash-circle{position:absolute;border-radius:50%;filter:blur(40px);opacity:.35}
+.splash-c1{width:300px;height:300px;background:radial-gradient(circle,#0e9aa7,transparent);top:-80px;right:-60px}
+.splash-c2{width:260px;height:260px;background:radial-gradient(circle,#43e3eb,transparent);bottom:100px;left:-80px}
+.splash-c3{width:180px;height:180px;background:radial-gradient(circle,#7ed957,transparent);top:40%;left:40%}
+.splash-top{text-align:center;padding-top:80px;animation:fadeSlideUp .6s .2s both}
+.splash-logo-wrap{width:110px;height:110px;margin:0 auto 20px;background:#0b0b0a;border-radius:28px;overflow:hidden;box-shadow:0 0 0 2.5px rgba(67,227,235,.35),0 0 48px rgba(67,227,235,.2),0 24px 60px rgba(0,0,0,.6);animation:logoPop .7s .1s both}
+.splash-title{font-size:40px;font-weight:800;color:#fff;letter-spacing:-1.5px;margin:0}
+.splash-title span{color:#43e3eb}
+.splash-sub{font-size:13px;font-weight:600;color:rgba(255,255,255,.6);margin:6px 0 0;letter-spacing:.5px}
+.splash-mid{display:flex;gap:20px;justify-content:center;animation:fadeSlideUp .6s .35s both}
+.splash-stat{text-align:center}
+.splash-stat-val{font-size:22px;font-weight:800;color:#43e3eb}
+.splash-stat-lbl{font-size:10px;color:rgba(255,255,255,.5);font-weight:600;letter-spacing:.5px}
+.splash-bot{width:100%;padding:24px 24px 36px;animation:fadeSlideUp .6s .5s both}
+.splash-btn{width:100%;background:linear-gradient(135deg,#0e9aa7,#43e3eb);color:#001016;border:none;border-radius:16px;padding:16px;font:800 16px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 8px 32px rgba(14,154,167,.4);transition:.2s}
+.splash-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(14,154,167,.5)}
+.splash-login-link{text-align:center;margin-top:14px;font-size:13px;color:rgba(255,255,255,.5)}
+.splash-login-link b{color:#43e3eb;cursor:pointer}
+
+/* Role select cards */
+.role-card{background:var(--surface);border:2px solid var(--border);border-radius:18px;padding:16px;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.role-card:hover{border-color:var(--brand);transform:translateY(-2px);box-shadow:0 8px 24px rgba(14,154,167,.15)}
+.role-card.selected{border-color:var(--brand);background:color-mix(in oklab,var(--brand) 8%,transparent)}
+.role-icon-box{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:26px;flex-shrink:0}
+.role-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);display:grid;place-items:center;flex-shrink:0;transition:.2s}
+.role-check.on{background:var(--brand);border-color:var(--brand)}
+
+/* OTP method select */
+.otp-method{border:2px solid var(--border);border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:10px;transition:.2s;background:var(--surface)}
+.otp-method:hover{border-color:var(--brand)}
+.otp-method.selected{border-color:var(--brand);background:color-mix(in oklab,var(--brand) 8%,transparent)}
+.otp-method-icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;flex-shrink:0}
+
+/* Password input */
+.pwd-wrap{position:relative}
+.pwd-wrap .input{padding-right:44px}
+.pwd-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;color:var(--muted);user-select:none}
+
+/* Step indicator */
+.step-dots{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
+.step-dot{width:8px;height:8px;border-radius:99px;background:var(--border);transition:.3s}
+.step-dot.active{width:24px;background:var(--brand)}
+.step-dot.done{background:var(--ok)}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="group" id="roleSwitcher"></div>
+  <button id="themeToggle">🌙 Dark</button>
+  <button onclick="goHome()">🏠 Home</button>
+</div>
+
+<div class="phone" id="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span>9:41</span><span>● ● ● 100%</span></div>
+  <div id="screens"></div>
+  <div id="tabbar" style="position:absolute;bottom:0;left:0;right:0;height:80px;z-index:6;overflow:visible"></div>
+  <div class="modal-bg" id="modalBg"><div class="modal" id="modalEl"></div></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* ============================================================
+   KWICKLY – v4 Fully Interactive Prototype
+   ============================================================ */
+/* ---- Kwickly Logo — uses actual logo.jpeg image ---- */
+/* Small logo for appbars (32x32) */
+const LOGO_SVG = `<img src="logo.jpeg" width="100%" height="100%" style="object-fit:cover;border-radius:7px;display:block;" alt="Kwickly" />`;
+/* Large logo for splash screen (110x110) */
+const LOGO_SVG_LARGE = `<img src="logo.jpeg" width="100%" height="100%" style="object-fit:cover;border-radius:24px;display:block;" alt="Kwickly" />`;
+
+
+
+const CATEGORIES = [
+  {id:'cleaning',name:'Cleaning',icon:'🧹',subs:['Home Cleaning','Sofa Cleaning','Kitchen Deep Clean','Bathroom Cleaning']},
+  {id:'plumbing',name:'Plumbing',icon:'🔧',subs:['Tap Repair','Leak Fix','Drain Cleaning','Bathroom Fitting']},
+  {id:'electrical',name:'Electrical',icon:'⚡',subs:['Switch/Socket','Fan Install','Wiring','MCB Issue']},
+  {id:'ac',name:'AC & HVAC',icon:'❄️',subs:['AC Service','AC Install','Gas Refill','Repair']},
+  {id:'appliance',name:'Appliance',icon:'🔌',subs:['Washing Machine','Refrigerator','Microwave','Geyser']},
+  {id:'pest',name:'Pest Control',icon:'🐜',subs:['General','Cockroach','Termite','Bed Bugs']},
+  {id:'car',name:'Car Services',icon:'🚗',subs:['Wash','Service','Battery','Tyre']},
+  {id:'painting',name:'Painting',icon:'🎨',subs:['Interior','Exterior','Texture','Waterproofing']},
+  {id:'carpentry',name:'Carpentry',icon:'🪚',subs:['Furniture Repair','New Furniture','Door Repair','Polish']},
+  {id:'beauty',name:'Beauty',icon:'💄',subs:['Salon at Home','Spa','Bridal','Hair']},
+  {id:'movers',name:'Packers & Movers',icon:'📦',subs:['Local','Intercity','Office','Storage']},
+  {id:'tutor',name:'Home Tuition',icon:'📚',subs:['Primary','High School','Music','Coding']},
+];
+
+const WORKERS_SAMPLE = [
+  {id:'w1',name:'Ramesh Kumar',rating:4.8,jobs:312,price:399,eta:25,verified:true,dist:'1.2 km',cat:'AC & HVAC'},
+  {id:'w2',name:'Sunil Verma',rating:4.6,jobs:188,price:349,eta:35,verified:true,dist:'2.4 km',cat:'Cleaning'},
+  {id:'w3',name:'Aman Singh',rating:4.9,jobs:540,price:499,eta:20,verified:true,dist:'0.8 km',cat:'Plumbing'},
+  {id:'w4',name:'Vijay Yadav',rating:4.5,jobs:96,price:299,eta:45,verified:false,dist:'3.1 km',cat:'Electrical'},
+];
+
+const SHOPS_SAMPLE = [
+  {id:'s1',name:'Sharma General Store',rating:4.7,dist:'0.6 km',items:42,delivery:'30 min',minFree:1000},
+  {id:'s2',name:'Fresh Mart',rating:4.5,dist:'1.1 km',items:120,delivery:'45 min',minFree:800},
+  {id:'s3',name:'Daily Needs',rating:4.8,dist:'1.5 km',items:88,delivery:'40 min',minFree:1200},
+];
+
+const PRODUCTS_SAMPLE = [
+  {id:'p1',shop:'s1',name:'Basmati Rice 5kg',price:550,minFree:1000,stock:24,minQty:1,img:'🍚'},
+  {id:'p2',shop:'s1',name:'Sunflower Oil 1L',price:160,minFree:1000,stock:50,minQty:1,img:'🫒'},
+  {id:'p3',shop:'s1',name:'Atta 10kg',price:450,minFree:1000,stock:15,minQty:1,img:'🌾'},
+  {id:'p4',shop:'s1',name:'Sugar 1kg',price:48,minFree:1000,stock:80,minQty:2,img:'🧂'},
+];
+
+/* ---------- State ---------- */
+const state = {
+  role:'customer',
+  tab:'home',
+  stack:[],
+  screen:'splash',
+  theme:'light',
+  wallet:{customer:1240, worker:8650, shop:23400},
+  booking:null,
+  bids:[],
+  acceptedWorker:null,
+  arrivalOTP:'4729',
+  workerOnline:true,
+  workerJobAlert:null,
+  workerActiveJob:null,
+  cart:[],
+  cartQty:{},
+  activeShop:null,
+  activeOrder:null,
+  shopOrders:[
+    {id:'SO1023',customer:'Anita S.',items:3,total:758,status:'new',products:['Basmati Rice','Sunflower Oil','Sugar']},
+    {id:'SO1022',customer:'Rahul M.',items:5,total:1240,status:'packing',products:['Atta','Rice','Oil','Salt','Sugar']},
+    {id:'SO1021',customer:'Kiran P.',items:2,total:340,status:'out',products:['Basmati Rice','Sugar']},
+  ],
+  myProducts:[...PRODUCTS_SAMPLE],
+  notifications:[
+    {t:'New booking nearby: AC Service – ₹499 budget',time:'2m'},
+    {t:'Your bid was accepted by Anita S.',time:'1h'},
+    {t:'Payment ₹450 credited to wallet',time:'3h'},
+  ],
+  ratingStars:5,
+  custRatingStars:5,
+  userFilter:'All',
+  activeUser:null,
+  editProduct:null,
+  shopFilter:'All',
+  bookingFilter:'All',
+  profileImg:null,
+  profileName:'Anita Sharma',
+  profilePhone:'+91 98765 43210',
+  profileEmail:'anita@email.com',
+  addresses:[
+    {id:'a1',label:'Home',icon:'\ud83c\udfe0',full:'A-12, Sector 21, Delhi 110085',primary:true},
+    {id:'a2',label:'Office',icon:'\ud83c\udfe2',full:'Block B, Connaught Place, New Delhi 110001',primary:false},
+  ],
+  payments:[
+    {id:'p1',type:'UPI',icon:'\ud83d\udcf1',detail:'anita@upi',primary:true},
+    {id:'p2',type:'HDFC Debit Card',icon:'\ud83d\udcb3',detail:'****4321',primary:false},
+  ],
+  // Registration state
+  reg:{
+    role:'customer',
+    phone:'',
+    name:'',
+    otpMethod:'sms',
+    otp:'',
+    password:'',
+  },
+  users:[
+    {phone:'9876543210',name:'Anita Sharma',role:'customer',password:'pass123'},
+    {phone:'9123456789',name:'Ramesh Kumar',role:'worker',password:'worker123'},
+    {phone:'9988776655',name:'Sharma Store',role:'shop',password:'shop123'},
+  ],
+  loggedIn:false,
+  currentUser:null,
+  pwdVisible:false,
+  setPwdVisible:false,
+  loginRole:'customer',
+};
+
+/* ---------- Helpers ---------- */
+const $ = s=>document.querySelector(s);
+function toast(msg){
+  const t=$('#toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t=setTimeout(()=>t.classList.remove('show'),2000);
+}
+function openModal(html){
+  $('#modalEl').innerHTML='<div class="handle"></div>'+html;
+  $('#modalBg').classList.add('show');
+}
+function closeModal(){$('#modalBg').classList.remove('show')}
+$('#modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
+
+function go(screen,push=true){
+  if(push && state.screen) state.stack.push(state.screen);
+  state.screen=screen;
+  render();
+}
+function back(){
+  if(state.stack.length){state.screen=state.stack.pop();render()}
+}
+function goHome(){
+  state.stack=[];
+  state.screen=rootScreenFor(state.role);
+  state.tab='home';
+  render();
+}
+function rootScreenFor(role){
+  return {customer:'c_home',worker:'w_home',shop:'sh_home',admin:'a_home'}[role];
+}
+function setRole(r){
+  state.role=r;
+  state.stack=[];
+  state.screen=rootScreenFor(r);
+  state.tab='home';
+  renderRoleSwitcher();
+  render();
+}
+function setTheme(t){
+  state.theme=t;
+  $('#phone').setAttribute('data-theme',t);
+  $('#themeToggle').textContent=t==='dark'?'☀️ Light':'🌙 Dark';
+}
+function navTab(tab,screen){
+  state.tab=tab;
+  state.stack=[];
+  go(screen,false);
+}
+
+/* ---------- Role switcher ---------- */
+function renderRoleSwitcher(){
+  const roles=[['customer','👤 Customer'],['worker','🛠 Worker'],['shop','🏪 Shop'],['admin','🛡 Admin']];
+  $('#roleSwitcher').innerHTML=roles.map(([k,l])=>`<button class="${state.role===k?'active':''}" onclick="setRole('${k}')">${l}</button>`).join('');
+}
+
+/* ---------- App bar ---------- */
+function appbar(title,sub,opts={}){
+  const backBtn=opts.back?`<button class="back" onclick="back()">‹</button>`:'';
+  const right=opts.right!==undefined?opts.right:`<button class="icon-btn" onclick="openNotifs()">🔔${state.notifications.length?'<span class="dot"></span>':''}</button>`;
+  return `<div class="appbar">${backBtn}<div><h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div><div class="spacer"></div>${right}</div>`;
+}
+function openNotifs(){
+  openModal(`<h3>Notifications</h3>${state.notifications.map(n=>`<div class="list-item"><div class="avatar">🔔</div><div style="flex:1"><div style="font-weight:600;font-size:13px">${n.t}</div><div class="muted">${n.time} ago</div></div></div>`).join('')||'<p class="muted">No notifications</p>'}`);
+}
+
+/* ---------- Tab bar ---------- */
+const TABS = {
+  customer:[['home','🏠','Home','c_home'],['shop','🛒','Shop','c_shop'],['book','➕','Book','c_book'],['quotes','💬','Quotes','c_bookings'],['profile','👤','Profile','c_profile']],
+  worker:[['home','🏠','Jobs','w_home'],['mybids','💬','My Bids','w_bids'],['earnings','💰','Earnings','w_earnings'],['services','🛠','Services','w_services'],['profile','👤','Profile','w_profile']],
+  shop:[['home','🏠','Dashboard','sh_home'],['orders','📦','Orders','sh_orders'],['products','🛍','Products','sh_products'],['wallet','💰','Wallet','sh_wallet'],['profile','🏪','Settings','sh_profile']],
+  admin:[['home','📊','Overview','a_home'],['users','👥','Users','a_users'],['cats','🗂','Categories','a_cats'],['payouts','💸','Payouts','a_payouts'],['settings','⚙️','Settings','a_settings']],
+};
+function renderTabbar(){
+  const authScreens=['splash','login','register','reg_mobile','reg_otp','reg_setpwd'];
+  if(authScreens.includes(state.screen)){$('#tabbar').innerHTML='';return}
+  const tabs=TABS[state.role];
+
+  if(state.role==='customer'){
+    // Split tabs into left-2 and right-2, FAB in middle
+    const left=tabs.filter(([k])=>k!=='book').slice(0,2);
+    const right=tabs.filter(([k])=>k!=='book').slice(2);
+    const isBookActive=state.tab==='book';
+    $('#tabbar').innerHTML=`
+      <div class="cust-tabbar">
+        ${left.map(([k,i,l,scr])=>`
+          <button class="cust-tab ${state.tab===k?'active':''}" id="tab_${k}" onclick="navTab('${k}','${scr}')">
+            <span style="font-size:22px">${i}</span>
+            <span>${l}</span>
+          </button>`).join('')}
+
+        <!-- FAB centre -->
+        <div class="cust-fab-wrap">
+          <button class="cust-fab ${isBookActive?'active':''}" id="tab_book" onclick="navTab('book','c_book')">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#001016" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>Book</span>
+          </button>
+        </div>
+
+        ${right.map(([k,i,l,scr])=>`
+          <button class="cust-tab ${state.tab===k?'active':''}" id="tab_${k}" onclick="navTab('${k}','${scr}')">
+            <span style="font-size:22px">${i}</span>
+            <span>${l}</span>
+          </button>`).join('')}
+      </div>`;
+  } else {
+    $('#tabbar').innerHTML=`<div class="tabbar">${tabs.map(([k,i,l,scr])=>`<button class="${state.tab===k?'active':''}" id="tab_${k}" onclick="navTab('${k}','${scr}')"><span style="font-size:20px">${i}</span><span>${l}</span></button>`).join('')}</div>`;
+  }
+}
+
+/* ============================================================
+   SCREENS
+   ============================================================ */
+const screens={};
+
+/* ============================================================
+   AUTH SCREENS — Splash · Login · Register Flow
+   ============================================================ */
+
+/* ---- SPLASH ---- */
+screens.splash=()=>`
+  <div class="screen show" style="padding:0">
+    <div class="splash-screen">
+      <div class="splash-circles">
+        <div class="splash-circle splash-c1"></div>
+        <div class="splash-circle splash-c2"></div>
+        <div class="splash-circle splash-c3"></div>
+      </div>
+
+      <div class="splash-top">
+        <div class="splash-logo-wrap">
+          <div style="width:110px;height:110px">${LOGO_SVG_LARGE}</div>
+        </div>
+        <h1 class="splash-title">KWIC<span>KLY</span></h1>
+        <p class="splash-sub">EVERY SERVICE · ANYTIME · NEAR YOU</p>
+      </div>
+
+      <div class="splash-mid">
+        <div class="splash-stat"><div class="splash-stat-val">50+</div><div class="splash-stat-lbl">CATEGORIES</div></div>
+        <div style="width:1px;background:rgba(255,255,255,.12);height:40px"></div>
+        <div class="splash-stat"><div class="splash-stat-val">1M+</div><div class="splash-stat-lbl">USERS</div></div>
+        <div style="width:1px;background:rgba(255,255,255,.12);height:40px"></div>
+        <div class="splash-stat"><div class="splash-stat-val">4.8★</div><div class="splash-stat-lbl">RATING</div></div>
+      </div>
+
+      <div class="splash-bot">
+        <button class="splash-btn" onclick="go('register')">Create Account →</button>
+        <div class="splash-login-link">Already have an account? <b onclick="go('login')">Sign In</b></div>
+      </div>
+    </div>
+  </div>`;
+
+/* ---- LOGIN ---- */
+screens.login=()=>{
+  const u=state.loginRole;
+  return `<div class="screen show">
+    <div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 16px 0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <button class="back" onclick="go('splash')">‹</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:34px;height:34px;border-radius:9px;overflow:hidden;flex-shrink:0">${LOGO_SVG}</div>
+          <b style="font-size:17px">Sign In to <span style="color:var(--brand)">Kwickly</span></b>
+        </div>
+      </div>
+      <div style="display:flex;background:var(--surface-2);border-radius:12px;padding:4px;gap:4px;margin-bottom:2px">
+        ${[['customer','👤 Customer'],['worker','🛠 Worker'],['shop','🏪 Shop'],['admin','🛡 Admin']].map(([r,l])=>`<button style="flex:1;border:none;border-radius:9px;padding:8px 4px;font:700 11px 'Plus Jakarta Sans';cursor:pointer;transition:.2s;background:${state.loginRole===r?'var(--brand)':'transparent'};color:${state.loginRole===r?'#001016':'var(--muted)'}" onclick="state.loginRole='${r}';render()">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="body">
+      <div style="background:color-mix(in oklab,var(--brand) 8%,transparent);border:1px solid color-mix(in oklab,var(--brand) 25%,transparent);border-radius:14px;padding:12px;margin-bottom:18px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:22px">${{customer:'👤',worker:'🛠',shop:'🏪',admin:'🛡'}[state.loginRole]}</span>
+        <div><b style="font-size:13px">Sign in as ${{customer:'Customer',worker:'Worker / Pro',shop:'Shop Owner',admin:'Admin'}[state.loginRole]}</b><div class="muted">Use your registered mobile & password</div></div>
+      </div>
+      <label class="muted" style="font-size:12px;font-weight:600">📱 Mobile Number</label>
+      <input class="input" id="loginPhone" placeholder="10-digit mobile number" value="9876543210" style="margin:6px 0 14px" type="tel" maxlength="10"/>
+      <label class="muted" style="font-size:12px;font-weight:600">🔒 Password</label>
+      <div class="pwd-wrap" style="margin:6px 0 18px">
+        <input class="input" id="loginPwd" placeholder="Enter your password" value="pass123" type="${state.pwdVisible?'text':'password'}"/>
+        <span class="pwd-eye" onclick="state.pwdVisible=!state.pwdVisible;render()">${state.pwdVisible?'🙈':'👁'}</span>
+      </div>
+      <button class="btn" onclick="doLogin()">Sign In →</button>
+      <p style="text-align:right;margin:10px 0"><span class="muted" style="cursor:pointer;color:var(--brand);font-size:13px" onclick="toast('OTP reset sent to your number')">Forgot password?</span></p>
+      <div style="text-align:center;margin:14px 0;position:relative"><div style="position:absolute;inset:50% 0 auto;height:1px;background:var(--border)"></div><span style="background:var(--bg);padding:0 12px;position:relative;color:var(--muted);font-size:12px">or</span></div>
+      <div class="grid-2" style="gap:8px">
+        <button class="btn secondary" onclick="toast('Google sign-in')">🇬 Google</button>
+        <button class="btn secondary" onclick="toast('Apple sign-in')">🍎 Apple</button>
+      </div>
+      <p class="muted" style="text-align:center;margin-top:20px">New here? <b style="color:var(--brand);cursor:pointer" onclick="go('register')">Create account</b></p>
+    </div>
+  </div>`;
+};
+
+function doLogin(){
+  const phone=($('#loginPhone')?.value||'').replace(/\D/g,'').slice(-10);
+  const pwd=$('#loginPwd')?.value||'';
+  const role=state.loginRole;
+  // admin shortcut
+  if(role==='admin'&&phone==='0000000000'&&pwd==='admin123'){
+    state.loggedIn=true;state.role='admin';goHome();toast('Welcome, Admin! 🛡');return;
+  }
+  const user=state.users.find(u=>u.phone===phone&&u.password===pwd&&u.role===role);
+  if(user){
+    state.loggedIn=true;
+    state.currentUser=user;
+    state.role=user.role;
+    goHome();
+    toast('Welcome back, '+user.name.split(' ')[0]+'! 👋');
+  } else {
+    toast('❌ Invalid number or password');
+  }
+}
+
+/* ---- REGISTER: Step 1 — Role Selection ---- */
+screens.register=()=>{
+  const r=state.reg.role;
+  return `<div class="screen show">
+    <div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 16px 8px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <button class="back" onclick="go('splash')">‹</button>
+        <div><b style="font-size:17px">Create Account</b></div>
+      </div>
+      <div class="step-dots">
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+      </div>
+    </div>
+    <div class="body">
+      <h2 style="font-size:22px;margin:0 0 4px;font-weight:800">I want to join as...</h2>
+      <p class="muted" style="margin:0 0 20px">Choose your role to get started</p>
+
+      <div class="role-card ${r==='customer'?'selected':''}" onclick="state.reg.role='customer';render()">
+        <div class="role-icon-box" style="background:color-mix(in oklab,#0e9aa7 15%,transparent)">👤</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:15px">Customer</div>
+          <div class="muted">Book home services & shop nearby</div>
+        </div>
+        <div class="role-check ${r==='customer'?'on':''}">${r==='customer'?'<span style="color:#fff;font-size:12px">✓</span>':''}</div>
+      </div>
+
+      <div class="role-card ${r==='worker'?'selected':''}" onclick="state.reg.role='worker';render()">
+        <div class="role-icon-box" style="background:color-mix(in oklab,#7ed957 15%,transparent)">🛠</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:15px">Worker / Pro</div>
+          <div class="muted">Offer skilled services & earn daily</div>
+        </div>
+        <div class="role-check ${r==='worker'?'on':''}">${r==='worker'?'<span style="color:#fff;font-size:12px">✓</span>':''}</div>
+      </div>
+
+      <div class="role-card ${r==='shop'?'selected':''}" onclick="state.reg.role='shop';render()">
+        <div class="role-icon-box" style="background:color-mix(in oklab,#f59e0b 15%,transparent)">🏪</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:15px">Shop Owner</div>
+          <div class="muted">List products & take online orders</div>
+        </div>
+        <div class="role-check ${r==='shop'?'on':''}">${r==='shop'?'<span style="color:#fff;font-size:12px">✓</span>':''}</div>
+      </div>
+
+      <div style="background:color-mix(in oklab,var(--brand) 8%,transparent);border:1px solid color-mix(in oklab,var(--brand) 20%,transparent);border-radius:12px;padding:10px 12px;margin:10px 0 20px;font-size:12px;color:var(--muted)">
+        ℹ️ You can add more roles later from your profile settings.
+      </div>
+
+      <button class="btn" onclick="go('reg_mobile')">Continue →</button>
+      <p class="muted" style="text-align:center;margin-top:14px">Already registered? <b style="color:var(--brand);cursor:pointer" onclick="go('login')">Sign In</b></p>
+    </div>
+  </div>`;
+};
+
+/* ---- REGISTER: Step 2 — Mobile & Name ---- */
+screens.reg_mobile=()=>`
+  <div class="screen show">
+    <div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 16px 8px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <button class="back" onclick="back()">‹</button>
+        <div><b style="font-size:17px">Your Details</b></div>
+      </div>
+      <div class="step-dots">
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+      </div>
+    </div>
+    <div class="body">
+      <h2 style="font-size:22px;margin:0 0 4px;font-weight:800">Enter your details</h2>
+      <p class="muted" style="margin:0 0 22px">We'll send an OTP to verify your number</p>
+
+      <label class="muted" style="font-size:12px;font-weight:600">Full Name</label>
+      <input class="input" id="regName" placeholder="Your full name" style="margin:6px 0 16px" value="${state.reg.name}"/>
+
+      <label class="muted" style="font-size:12px;font-weight:600">📱 Mobile Number</label>
+      <div style="display:flex;gap:8px;margin:6px 0 10px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font:500 14px 'Plus Jakarta Sans';color:var(--text);white-space:nowrap">🇮🇳 +91</div>
+        <input class="input" id="regPhone" placeholder="10-digit mobile number" type="tel" maxlength="10" value="${state.reg.phone}" style="flex:1"/>
+      </div>
+
+      <div style="background:var(--surface-2);border-radius:12px;padding:12px;margin-bottom:20px;font-size:12px;color:var(--muted)">
+        📲 How would you like to receive the OTP?
+      </div>
+
+      <div class="otp-method ${state.reg.otpMethod==='sms'?'selected':''}" onclick="state.reg.otpMethod='sms';render()">
+        <div class="otp-method-icon" style="background:color-mix(in oklab,#0e9aa7 15%,transparent)">📱</div>
+        <div style="flex:1">
+          <div style="font-weight:700">SMS</div>
+          <div class="muted">Receive OTP via text message</div>
+        </div>
+        <div class="role-check ${state.reg.otpMethod==='sms'?'on':''}">${state.reg.otpMethod==='sms'?'<span style="color:#fff;font-size:12px">✓</span>':''}</div>
+      </div>
+
+      <div class="otp-method ${state.reg.otpMethod==='whatsapp'?'selected':''}" onclick="state.reg.otpMethod='whatsapp';render()">
+        <div class="otp-method-icon" style="background:color-mix(in oklab,#25d366 15%,transparent)">💬</div>
+        <div style="flex:1">
+          <div style="font-weight:700">WhatsApp</div>
+          <div class="muted">Receive OTP on WhatsApp</div>
+        </div>
+        <div class="role-check ${state.reg.otpMethod==='whatsapp'?'on':''}">${state.reg.otpMethod==='whatsapp'?'<span style="color:#fff;font-size:12px">✓</span>':''}</div>
+      </div>
+
+      <button class="btn" style="margin-top:20px" onclick="sendRegOTP()">Send OTP →</button>
+    </div>
+  </div>`;
+
+function sendRegOTP(){
+  const name=$('#regName')?.value?.trim();
+  const phone=($('#regPhone')?.value||'').replace(/\D/g,'');
+  if(!name){toast('Please enter your full name');return;}
+  if(phone.length!==10){toast('Enter a valid 10-digit mobile number');return;}
+  if(state.users.find(u=>u.phone===phone)){toast('Number already registered! Please sign in.');return;}
+  state.reg.name=name;
+  state.reg.phone=phone;
+  const method=state.reg.otpMethod==='whatsapp'?'WhatsApp':'SMS';
+  toast('OTP sent via '+method+' to +91 '+phone.slice(0,5)+'XXXXX 📲');
+  setTimeout(()=>go('reg_otp'),400);
+}
+
+/* ---- REGISTER: Step 3 — OTP Verification ---- */
+screens.reg_otp=()=>{
+  const method=state.reg.otpMethod;
+  return `<div class="screen show">
+    <div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 16px 8px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <button class="back" onclick="back()">‹</button>
+        <div><b style="font-size:17px">Verify OTP</b></div>
+      </div>
+      <div class="step-dots">
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+      </div>
+    </div>
+    <div class="body" style="text-align:center;padding-top:10px">
+      <div style="font-size:56px;margin-bottom:12px">${method==='whatsapp'?'💬':'📱'}</div>
+      <h2 style="font-size:22px;margin:0 0 6px;font-weight:800">Check your ${method==='whatsapp'?'WhatsApp':'messages'}</h2>
+      <p class="muted" style="margin:0 0 6px">OTP sent to <b>+91 ${state.reg.phone.slice(0,5)}XXXXX</b></p>
+      <p class="muted" style="margin:0 0 28px;font-size:11px">(Demo OTP: <b style="color:var(--brand)">4 7 2 9</b>)</p>
+
+      <div style="display:flex;gap:10px;justify-content:center;margin:0 auto 24px">
+        <input class="input" id="otp1" maxlength="1" style="width:58px;text-align:center;font-size:28px;font-weight:800;padding:12px 0" oninput="otpNext(this,'otp2')"/>
+        <input class="input" id="otp2" maxlength="1" style="width:58px;text-align:center;font-size:28px;font-weight:800;padding:12px 0" oninput="otpNext(this,'otp3')"/>
+        <input class="input" id="otp3" maxlength="1" style="width:58px;text-align:center;font-size:28px;font-weight:800;padding:12px 0" oninput="otpNext(this,'otp4')"/>
+        <input class="input" id="otp4" maxlength="1" style="width:58px;text-align:center;font-size:28px;font-weight:800;padding:12px 0"/>
+      </div>
+
+      <button class="btn" onclick="verifyRegOTP()">Verify & Continue →</button>
+      <div style="margin-top:16px">
+        <span class="muted">Didn't get it? </span>
+        <b style="color:var(--brand);cursor:pointer" onclick="toast('OTP resent via ${method==='whatsapp'?'WhatsApp':'SMS'}!')">Resend OTP</b>
+        <span class="muted"> or </span>
+        <b style="color:var(--muted);cursor:pointer" onclick="state.reg.otpMethod=state.reg.otpMethod==='sms'?'whatsapp':'sms';toast('Switched to '+(state.reg.otpMethod==='sms'?'SMS':'WhatsApp'));render()">Try ${method==='whatsapp'?'SMS':'WhatsApp'}</b>
+      </div>
+    </div>
+  </div>`;
+};
+
+function otpNext(el,nextId){
+  if(el.value.length>=1){const next=$('#'+nextId);if(next)next.focus();}
+}
+function verifyRegOTP(){
+  const otp=[$('#otp1'),$('#otp2'),$('#otp3'),$('#otp4')].map(i=>i?.value||'').join('');
+  if(otp==='4729'){
+    toast('✅ Number verified!');
+    setTimeout(()=>go('reg_setpwd'),400);
+  } else {
+    toast('❌ Wrong OTP. Use 4729 for demo');
+  }
+}
+
+/* ---- REGISTER: Step 4 — Set Password ---- */
+screens.reg_setpwd=()=>{
+  const roleLabels={customer:'Customer',worker:'Worker / Pro',shop:'Shop Owner'};
+  const roleIcons={customer:'👤',worker:'🛠',shop:'🏪'};
+  return `<div class="screen show">
+    <div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 16px 8px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <button class="back" onclick="back()">‹</button>
+        <div><b style="font-size:17px">Set Password</b></div>
+      </div>
+      <div class="step-dots">
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+      </div>
+    </div>
+    <div class="body">
+      <div style="background:color-mix(in oklab,var(--brand) 8%,transparent);border:1px solid color-mix(in oklab,var(--brand) 20%,transparent);border-radius:14px;padding:12px;margin-bottom:20px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px">${roleIcons[state.reg.role]}</span>
+        <div>
+          <div style="font-weight:700">${state.reg.name}</div>
+          <div class="muted">+91 ${state.reg.phone} · ${roleLabels[state.reg.role]}</div>
+        </div>
+      </div>
+
+      <h2 style="font-size:20px;margin:0 0 4px;font-weight:800">Create your password</h2>
+      <p class="muted" style="margin:0 0 20px">Use this to login next time</p>
+
+      <label class="muted" style="font-size:12px;font-weight:600">New Password</label>
+      <div class="pwd-wrap" style="margin:6px 0 14px">
+        <input class="input" id="newPwd1" placeholder="Minimum 6 characters" type="${state.setPwdVisible?'text':'password'}"/>
+        <span class="pwd-eye" onclick="state.setPwdVisible=!state.setPwdVisible;render()">${state.setPwdVisible?'🙈':'👁'}</span>
+      </div>
+
+      <label class="muted" style="font-size:12px;font-weight:600">Confirm Password</label>
+      <div class="pwd-wrap" style="margin:6px 0 20px">
+        <input class="input" id="newPwd2" placeholder="Re-enter password" type="${state.setPwdVisible?'text':'password'}"/>
+        <span class="pwd-eye" onclick="state.setPwdVisible=!state.setPwdVisible;render()">${state.setPwdVisible?'🙈':'👁'}</span>
+      </div>
+
+      <div style="background:var(--surface-2);border-radius:12px;padding:12px;margin-bottom:20px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px">Password strength tips:</div>
+        ${['At least 6 characters','Mix letters & numbers','Avoid your phone number'].map(t=>`<div class="muted" style="font-size:11px;margin-top:3px">• ${t}</div>`).join('')}
+      </div>
+
+      <button class="btn" onclick="completeRegistration()">🎉 Create My Account</button>
+      <p class="muted" style="text-align:center;margin-top:14px;font-size:11px">By registering you agree to our <b style="color:var(--brand)">Terms & Privacy Policy</b></p>
+    </div>
+  </div>`;
+};
+
+function completeRegistration(){
+  const p1=$('#newPwd1')?.value||'';
+  const p2=$('#newPwd2')?.value||'';
+  if(p1.length<6){toast('Password must be at least 6 characters');return;}
+  if(p1!==p2){toast('Passwords do not match');return;}
+  state.reg.password=p1;
+  // Add user to simulated DB
+  state.users.push({
+    phone:state.reg.phone,
+    name:state.reg.name,
+    role:state.reg.role,
+    password:p1,
+  });
+  state.loggedIn=true;
+  state.currentUser={phone:state.reg.phone,name:state.reg.name,role:state.reg.role};
+  state.role=state.reg.role;
+  toast('🎉 Account created! Welcome, '+state.reg.name.split(' ')[0]+'!');
+  setTimeout(()=>goHome(),600);
+}
+
+/* ---- Legacy OTP screen (kept for login flow compatibility) ---- */
+screens.otp=()=>`
+  <div class="screen show">
+    ${appbar('Verify OTP','Sent to +91 98765 43210',{back:true,right:''})}
+    <div class="body">
+      <div style="text-align:center;margin:24px 0 8px;font-size:14px;color:var(--muted)">Enter the 4-digit code</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin:12px 0 24px">
+        ${[4,7,2,9].map(d=>`<input class="input" value="${d}" maxlength="1" style="width:58px;text-align:center;font-size:26px;font-weight:800;padding:12px 0"/>`).join('')}
+      </div>
+      <button class="btn" onclick="goHome();toast('Welcome to Kwickly! 🎉')">Verify & Continue</button>
+      <p class="muted" style="text-align:center;margin-top:14px">Didn't get it? <b style="color:var(--brand);cursor:pointer" onclick="toast('OTP resent!')">Resend OTP</b></p>
+    </div>
+  </div>`;
+
+/* ---- Legacy onboard screen (role switcher, kept for toolbar) ---- */
+screens.onboard=()=>`
+  <div class="screen show">
+    ${appbar('Choose your role','How will you use Kwickly?',{back:true,right:''})}
+    <div class="body">
+      ${[['customer','👤','Customer','Book trusted services & shop nearby'],['worker','🛠','Worker / Pro','Offer services & earn daily'],['shop','🏪','Shop Owner','List products, get orders & grow']].map(([k,i,t,d])=>`
+        <div class="list-item" onclick="setRole('${k}');toast('Welcome, ${t}! 👋')">
+          <div class="avatar" style="font-size:22px;width:52px;height:52px">${i}</div>
+          <div style="flex:1"><div style="font-weight:700;font-size:15px">${t}</div><div class="muted" style="margin-top:2px">${d}</div></div>
+          <span style="color:var(--brand);font-size:24px">›</span>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+/* ============================================================
+   CUSTOMER FLOW
+   ============================================================ */
+
+/* Active bookings for the home screen */
+const ACTIVE_BOOKINGS = [
+  {id:'BK2041',title:'AC Repair — Gas Leak',sub:'Worker arriving in ~12 min',worker:'Raj Kumar',rating:4.8,price:880,status:'inprogress',progress:65},
+  {id:'BK2039',title:'Plumber — Pipe Leakage',sub:'3 quotes received',worker:null,fromPrice:300,status:'quoted',progress:40},
+];
+const PAST_BOOKINGS = [
+  {id:'BK2033',title:'Home Cleaning',worker:'Priya Sharma',price:599,rating:5,date:'28 May'},
+  {id:'BK2028',title:'Electrician — Switch Repair',worker:'Arun Das',price:349,rating:4,date:'20 May'},
+];
+
+screens.c_home=()=>`
+  <div class="screen show">
+    <!-- App bar: logo | name | spacer | theme toggle | profile -->
+    <div class="appbar" style="padding:10px 14px 8px;gap:8px">
+      <!-- Logo icon: fixed 36x36, no shrink -->
+      <div style="width:36px;height:36px;flex-shrink:0;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(67,227,235,.2)">
+        ${LOGO_SVG}
+      </div>
+      <!-- Brand name: truncates if needed -->
+      <span style="font-size:15px;font-weight:800;color:var(--brand);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Kwickly</span>
+      <!-- Flexible spacer -->
+      <div style="flex:1;min-width:0"></div>
+      <!-- Theme toggle -->
+      <button class="icon-btn" style="flex-shrink:0" onclick="state.theme=state.theme==='dark'?'light':'dark';setTheme(state.theme)" title="Toggle theme">
+        ${state.theme==='dark'?'☀️':'🌙'}
+      </button>
+      <!-- Profile -->
+      <button class="icon-btn" style="flex-shrink:0" onclick="navTab('profile','c_profile')" title="Profile">👤</button>
+    </div>
+
+    <div class="body" style="padding-top:0">
+      <!-- Hero Banner -->
+      <div style="background:linear-gradient(135deg,#1a237e 0%,#283593 60%,#1565c0 100%);border-radius:16px;padding:16px;margin-bottom:14px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:-10px;top:-10px;width:100px;height:100px;background:rgba(255,255,255,.05);border-radius:50%"></div>
+        <div style="position:absolute;right:20px;top:20px;width:60px;height:60px;background:rgba(255,255,255,.04);border-radius:50%"></div>
+        <h2 style="font-size:18px;font-weight:800;color:#fff;margin:0 0 4px">What do you need fixed? 🔧</h2>
+        <p style="color:rgba(255,255,255,.75);font-size:11px;margin:0 0 12px">Verified workers • Transparent pricing • Same-day</p>
+        <div style="display:flex;gap:8px">
+          <input class="input" id="homeSearch" placeholder="Search plumber, electrician, AC..." style="flex:1;font-size:13px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.2);color:#fff" onclick="navTab('book','c_book')"/>
+          <button class="btn" style="width:auto;padding:10px 14px;border-radius:10px;font-size:13px;white-space:nowrap" onclick="navTab('book','c_book')">Search</button>
+        </div>
+      </div>
+
+      <!-- Shop Products Quick Link -->
+      <div class="list-item" style="background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);border:none;margin-bottom:14px" onclick="navTab('shop','c_shop')">
+        <div style="width:42px;height:42px;background:rgba(67,227,235,.15);border-radius:10px;display:grid;place-items:center;font-size:22px">🛒</div>
+        <div style="flex:1">
+          <div style="font-weight:700;color:#fff">Shop Products &amp; Services</div>
+          <div style="color:rgba(255,255,255,.6);font-size:12px">LED bulbs, tools, plumbing &amp; more</div>
+        </div>
+        <span style="color:#43e3eb;font-size:20px">→</span>
+      </div>
+
+      <!-- Active Jobs -->
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <div class="row" style="gap:8px">
+          <b style="font-size:15px">Active Jobs</b>
+          <span class="badge" style="background:var(--brand);color:#001016">${ACTIVE_BOOKINGS.length}</span>
+          <button class="icon-btn" style="width:28px;height:28px;font-size:14px" onclick="openNotifs()">🔔</button>
+        </div>
+        <button class="btn" style="width:auto;padding:8px 12px;font-size:12px;border-radius:10px" onclick="navTab('book','c_book')">+ New Request</button>
+      </div>
+
+      ${ACTIVE_BOOKINGS.map(b=>{
+        const isIP=b.status==='inprogress';
+        const statusColor=isIP?'var(--brand)':'var(--warn)';
+        const statusLabel=isIP?'In Progress':'Quoted';
+        const catIcon=isIP?'❄️':'🔧';
+        return `<div class="card" style="cursor:pointer;margin-bottom:10px" onclick="state.booking={id:'${b.id}',catName:'${b.title}',status:'${b.status}'};go('c_bidding')">
+          <div class="row" style="margin-bottom:8px">
+            <div style="width:42px;height:42px;background:color-mix(in oklab,${statusColor} 15%,transparent);border-radius:12px;display:grid;place-items:center;font-size:22px;flex-shrink:0">${catIcon}</div>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:14px">${b.title}</div>
+              <div class="muted" style="font-size:11px">${b.sub}</div>
+            </div>
+            <span class="chip" style="background:color-mix(in oklab,${statusColor} 18%,transparent);color:${statusColor};border:none;font-size:11px">${statusLabel}</span>
+          </div>
+          <div class="prog-bar" style="margin-bottom:8px"><div class="prog-bar-fill" style="width:${b.progress}%;background:${isIP?'linear-gradient(90deg,var(--brand),var(--brand-2))':'linear-gradient(90deg,var(--warn),#fbbf24)'}"></div></div>
+          <div class="row" style="justify-content:space-between">
+            <span class="muted" style="font-size:12px">${b.worker?'👤 '+b.worker:'📋 Awaiting your selection'}</span>
+            <span class="price">${b.worker?'Rs. '+b.price:'From Rs. '+b.fromPrice}</span>
+          </div>
+        </div>`;
+      }).join('')}
+
+      <!-- Browse Services -->
+      <div class="row" style="justify-content:space-between;margin:4px 0 10px">
+        <b style="font-size:15px">Browse Services</b>
+        <span style="color:var(--brand);font-weight:700;cursor:pointer;font-size:13px" onclick="navTab('book','c_book')">View All ›</span>
+      </div>
+      <div class="grid-4" style="margin-bottom:14px">
+        ${[
+          {id:'plumbing',icon:'🔧',label:'Plumber',color:'#2196f3'},
+          {id:'electrical',icon:'⚡',label:'Electrician',color:'#ff9800'},
+          {id:'carpentry',icon:'🪚',label:'Carpenter',color:'#795548'},
+          {id:'ac',icon:'❄️',label:'AC Repair',color:'#00bcd4'},
+          {id:'painting',icon:'🖌️',label:'Painter',color:'#e91e63'},
+          {id:'cleaning',icon:'🧹',label:'Cleaning',color:'#9c27b0'},
+          {id:'appliance',icon:'🔌',label:'Appliance',color:'#607d8b'},
+          {id:'pest',icon:'🐜',label:'Other',color:'#4caf50'},
+        ].map(s=>`<div class="cat-tile" onclick="selectCategory('${s.id}')" style="background:var(--surface)">
+          <div style="width:44px;height:44px;border-radius:12px;background:color-mix(in oklab,${s.color} 18%,transparent);display:grid;place-items:center;font-size:22px">${s.icon}</div>
+          <span style="font-size:11px;margin-top:2px">${s.label}</span>
+        </div>`).join('')}
+      </div>
+
+      <!-- Past Jobs -->
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <b style="font-size:15px">Past Jobs</b>
+        <span style="color:var(--brand);font-weight:700;cursor:pointer;font-size:13px" onclick="navTab('quotes','c_bookings')">View All ›</span>
+      </div>
+      ${PAST_BOOKINGS.map(b=>`
+        <div class="list-item" style="margin-bottom:8px" onclick="toast('Booking ${b.id} details')">
+          <div style="width:40px;height:40px;background:color-mix(in oklab,var(--ok) 15%,transparent);border-radius:10px;display:grid;place-items:center;font-size:18px">✅</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:13px">${b.title}</div>
+            <div class="muted" style="font-size:11px">${b.worker} · ${b.date}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="price" style="font-size:13px">₹${b.price}</div>
+            <div style="color:#f5b300;font-size:12px">${'★'.repeat(b.rating)}${'☆'.repeat(5-b.rating)}</div>
+          </div>
+        </div>`).join('')}
+      <div style="height:8px"></div>
+    </div>
+  </div>`;
+
+/* ---- Book Screen (central booking hub) ---- */
+screens.c_book=()=>`
+  <div class="screen show">
+    <!-- Proper appbar: back + title + notification -->
+    <div class="appbar" style="padding:10px 14px 8px;gap:8px">
+      <button class="back" onclick="goHome()">‹</button>
+      <h1 style="font-size:17px;margin:0;font-weight:800;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Book a Service</h1>
+      <button class="icon-btn" style="flex-shrink:0" onclick="openNotifs()">🔔${state.notifications.length?'<span class="dot"></span>':''}</button>
+    </div>
+    <div class="body" style="padding-top:0">
+      <!-- Search -->
+      <div class="search-bar" style="margin-bottom:14px">
+        <input class="input" id="bookSearch" placeholder="Search plumber, AC, cleaning..."/>
+      </div>
+      <!-- Quick chips -->
+      <div class="chips-scroll" style="margin-bottom:14px">
+        ${['🔥 Popular','🏠 Home','🚗 Vehicle','💄 Beauty','🌿 Garden','💻 Tech'].map(c=>`<span class="chip" onclick="toast('Filter: ${c}')">${c}</span>`).join('')}
+      </div>
+      <!-- All Categories grid -->
+      <div style="font-weight:700;font-size:14px;margin-bottom:10px">All Service Categories</div>
+      <div class="grid-3">
+        ${CATEGORIES.map(c=>`
+          <div class="cat-tile" onclick="selectCategory('${c.id}')" style="padding:14px 6px">
+            <div class="cat-icon" style="width:50px;height:50px;font-size:26px">${c.icon}</div>
+            <span style="font-size:11px;margin-top:4px;text-align:center;line-height:1.3">${c.name}</span>
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:14px;font-weight:700;font-size:14px;margin-bottom:10px">Top Pros Near You</div>
+      ${WORKERS_SAMPLE.map(w=>workerCard(w,false)).join('')}
+    </div>
+  </div>`;
+
+screens.c_categories=()=>`
+  <div class="screen show">
+    ${appbar('All Categories','50+ services',{back:true})}
+    <div class="body">
+      <div class="search-bar" style="margin-bottom:14px">
+        <input class="input" placeholder="Search category..."/>
+      </div>
+      <div class="grid-3">${CATEGORIES.map(c=>`<div class="cat-tile" onclick="selectCategory('${c.id}')" style="padding:14px 6px"><div class="cat-icon" style="width:54px;height:54px;font-size:26px">${c.icon}</div>${c.name}</div>`).join('')}</div>
+    </div>
+  </div>`;
+
+function selectCategory(id){
+  const cat=CATEGORIES.find(c=>c.id===id);
+  state.booking={cat:cat.id,catName:cat.name,sub:null};
+  go('c_subcats');
+}
+
+screens.c_subcats=()=>{
+  const cat=CATEGORIES.find(c=>c.id===state.booking.cat);
+  return `<div class="screen show">
+    ${appbar(cat.name,'Choose service type',{back:true})}
+    <div class="body">
+      ${cat.subs.map(s=>`<div class="list-item" onclick="state.booking.sub='${s}';go('c_describe')">
+        <div class="avatar" style="background:color-mix(in oklab,var(--brand) 15%,transparent);color:var(--brand);font-size:22px">${cat.icon}</div>
+        <div style="flex:1"><b>${s}</b><div class="muted">Starting ₹199 · Avg 30–60 min</div></div>
+        <span style="color:var(--brand);font-size:22px">›</span>
+      </div>`).join('')}
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn outline" onclick="openModal('<h3>Suggest a Sub-service</h3><p class=muted>Describe the service you need — we\\'ll add it!</p><input class=input placeholder=\\'e.g. CCTV Install\\' style=\\'margin:8px 0\\'/><button class=btn onclick=\\'closeModal();toast(\\'Sent to admin for review ✓\\')\\'>Submit Suggestion</button>')">+ Missing? Suggest one</button>
+      </div>
+    </div>
+  </div>`;
+};
+
+screens.c_describe=()=>`
+  <div class="screen show">
+    ${appbar('Describe your job',state.booking.catName+' · '+state.booking.sub,{back:true})}
+    <div class="body">
+
+      <!-- Describe the issue -->
+      <label class="muted" style="font-weight:600;font-size:12px">Describe the issue</label>
+      <textarea class="input" id="jobDesc" rows="3" placeholder="E.g. AC not cooling, makes loud noise, leaking pipe..." style="margin:6px 0 14px">AC not cooling properly since 2 days</textarea>
+
+      <!-- Add photos / video -->
+      <label class="muted" style="font-weight:600;font-size:12px">Add photos / video</label>
+      <div class="grid-4" style="margin:6px 0 14px">
+        <div class="media-tile filled">📷</div>
+        <div class="media-tile filled">📷</div>
+        <div class="media-tile filled">🎥</div>
+        <div class="media-tile" onclick="toast('📷 Camera opened')">+</div>
+      </div>
+
+      <!-- Service Address -->
+      <label class="muted" style="font-weight:600;font-size:12px">Service address</label>
+      <div style="margin:6px 0 6px">
+        <!-- Saved address quick-select -->
+        <div style="display:flex;gap:6px;margin-bottom:8px;overflow-x:auto;padding-bottom:2px">
+          ${(state.addresses||[]).map((a,i)=>`
+            <div onclick="document.getElementById('svcAddr').value='${a.full}';document.querySelectorAll('.addr-chip').forEach(c=>c.classList.remove('brand'));this.classList.add('brand')"
+              class="chip addr-chip ${i===0?'brand':''}"
+              style="white-space:nowrap;flex-shrink:0">${a.icon} ${a.label}</div>`).join('')}
+          <div class="chip addr-chip" onclick="document.getElementById('svcAddr').value='';document.querySelectorAll('.addr-chip').forEach(c=>c.classList.remove('brand'));this.classList.add('brand')" style="white-space:nowrap;flex-shrink:0">➕ Other</div>
+        </div>
+        <!-- Text input for address -->
+        <input class="input" id="svcAddr" value="${(state.addresses||[{full:'A-12, Sector 21, Delhi'}])[0].full}" placeholder="Enter service address..." style="margin-bottom:8px"/>
+        <!-- Location from map button -->
+        <button class="btn secondary" style="width:100%;padding:10px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px"
+          onclick="toast('📍 Opening map to pick location...');setTimeout(()=>{document.getElementById('svcAddr').value='📍 Location picked: Sector 21, Delhi 110085';toast('Location selected ✓');},1200)">
+          📍 Pick from Map
+        </button>
+      </div>
+
+      <!-- Preferred Date -->
+      <label class="muted" style="font-weight:600;font-size:12px;margin-top:8px;display:block">Preferred date</label>
+      <input class="input" id="jobDate" type="date" value="${new Date().toISOString().slice(0,10)}" style="margin:6px 0 14px"/>
+
+      <!-- Time Slot -->
+      <label class="muted" style="font-weight:600;font-size:12px">Time slot</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 14px">
+        ${[
+          {id:'ts_urgent',icon:'⚡',label:'Urgent / ASAP',sub:'Within 1–2 hrs',color:'#e53935'},
+          {id:'ts_morning',icon:'🌅',label:'Morning',sub:'8 AM – 12 PM',color:'#fb8c00'},
+          {id:'ts_afternoon',icon:'☀️',label:'Afternoon',sub:'12 PM – 4 PM',color:'#fdd835'},
+          {id:'ts_evening',icon:'🌆',label:'Evening',sub:'4 PM – 8 PM',color:'#7b1fa2'},
+        ].map((s,i)=>`
+          <div id="${s.id}" onclick="selectTimeSlot('${s.id}')"
+            style="border:2px solid ${i===0?'var(--brand)':'var(--border)'};border-radius:12px;padding:10px;cursor:pointer;background:${i===0?'color-mix(in oklab,var(--brand) 10%,transparent)':'var(--surface)'};transition:.15s">
+            <div style="font-size:20px">${s.icon}</div>
+            <div style="font-weight:700;font-size:12px;margin-top:4px">${s.label}</div>
+            <div style="font-size:10px;color:var(--muted)">${s.sub}</div>
+          </div>`).join('')}
+      </div>
+
+      <button class="btn" onclick="submitBooking()">🚀 Post Job · Get Bids</button>
+    </div>
+  </div>`;
+
+function selectTimeSlot(id){
+  ['ts_urgent','ts_morning','ts_afternoon','ts_evening'].forEach(tid=>{
+    const el=document.getElementById(tid);
+    if(!el)return;
+    const active=tid===id;
+    el.style.borderColor=active?'var(--brand)':'var(--border)';
+    el.style.background=active?'color-mix(in oklab,var(--brand) 10%,transparent)':'var(--surface)';
+  });
+  state.booking.timeSlot=id.replace('ts_','');
+}
+
+function submitBooking(){
+  const addr=document.getElementById('svcAddr')?.value||'A-12 Sector 21, Delhi';
+  const date=document.getElementById('jobDate')?.value||'Today';
+  const desc=document.getElementById('jobDesc')?.value||'';
+  state.booking.id='BK'+Math.floor(1000+Math.random()*9000);
+  state.booking.status='bidding';
+  state.booking.address=addr;
+  state.booking.date=date;
+  state.booking.desc=desc;
+  state.bids=[];
+  state.acceptedWorker=null;
+  toast('Job posted! Notifying nearby pros 📡');
+  go('c_bidding');
+  const arrival=[800,1600,2500,3500];
+  arrival.forEach((d,idx)=>setTimeout(()=>{
+    if(idx<WORKERS_SAMPLE.length) state.bids.push(WORKERS_SAMPLE[idx]);
+    if(state.screen==='c_bidding') render();
+  },d));
+}
+
+
+screens.c_bidding=()=>`
+  <div class="screen show">
+    ${appbar('Live Bids','Job #'+state.booking.id,{back:true})}
+    <div class="body">
+      <div class="card" style="background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#001016;border:none">
+        <div class="row"><div style="flex:1"><b>${state.booking.catName} · ${state.booking.sub}</b><div style="font-size:12px;margin-top:2px">Budget ₹499 · ASAP · A-12 Sector 21</div></div><span class="chip" style="background:rgba(0,0,0,.2);color:#fff;border:none">${state.bids.length} bids</span></div>
+      </div>
+      ${state.bids.length===0?`<div class="card" style="text-align:center;padding:24px"><div style="font-size:36px" class="pulse">📡</div><b style="display:block;margin-top:8px">Waiting for bids...</b><div class="muted">Nearby pros are being notified</div></div>`:''}
+      ${state.bids.map(w=>workerCard(w,true)).join('')}
+    </div>
+  </div>`;
+
+function workerCard(w,withAccept){
+  return `<div class="card" style="${withAccept?'border:1px solid var(--border)':''}">
+    <div class="row">
+      <div class="avatar">${w.name[0]}</div>
+      <div style="flex:1">
+        <div class="row" style="gap:6px"><b>${w.name}</b>${w.verified?'<span class="chip ok" style="font-size:10px;padding:3px 8px">✓ KYC</span>':''}</div>
+        <div class="stars">★★★★★ <span class="muted">${w.rating} · ${w.jobs} jobs</span></div>
+        <div class="muted">📍 ${w.dist} · ⏱ ${w.eta} min away</div>
+      </div>
+      <div style="text-align:right">
+        <div class="price" style="font-size:18px">₹${w.price}</div>
+        ${withAccept
+          ?`<button class="btn sm" style="margin-top:4px" onclick="acceptWorker('${w.id}')">Accept</button>`
+          :`<button class="btn sm secondary" style="margin-top:4px" onclick="openModal('<h3>${w.name}</h3><div class=stars style=margin-bottom:8px>★★★★★ ${w.rating}</div><p class=muted>${w.jobs} jobs completed · Specializes in ${w.cat||'on-site service'}</p><p class=muted>📍 ${w.dist} · ⏱ ${w.eta} min away</p><button class=btn onclick=closeModal()>Close</button>')">View</button>`
+        }
+      </div>
+    </div>
+  </div>`;
+}
+
+function acceptWorker(id){
+  state.acceptedWorker=state.bids.find(w=>w.id===id)||WORKERS_SAMPLE.find(w=>w.id===id);
+  state.booking.status='accepted';
+  toast(state.acceptedWorker.name+' accepted! Other pros notified 📲');
+  go('c_tracking');
+}
+
+screens.c_tracking=()=>{
+  const w=state.acceptedWorker||WORKERS_SAMPLE[0];
+  return `<div class="screen show">
+    ${appbar('Live Tracking',w.name+' is on the way',{back:true})}
+    <div class="body">
+      <div class="map">
+        <div class="map-route"></div>
+        <div class="pin you"></div>
+        <div class="pin worker"></div>
+        <div class="map-label">⏱ ETA ${w.eta} min</div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div class="avatar">${w.name[0]}</div>
+          <div style="flex:1"><b>${w.name}</b><div class="muted">★ ${w.rating} · ${w.dist}</div></div>
+          <button class="btn sm secondary" onclick="toast('Calling ${w.name}...')">📞</button>
+          <button class="btn sm secondary" onclick="toast('Chat opened')">💬</button>
+        </div>
+      </div>
+      <div class="card">
+        <b>Arrival OTP</b><div class="muted">Share with worker when they arrive</div>
+        <div style="text-align:center;font-size:40px;font-weight:800;letter-spacing:12px;color:var(--brand);margin:12px 0;background:color-mix(in oklab,var(--brand) 8%,transparent);border-radius:12px;padding:12px">${state.arrivalOTP}</div>
+      </div>
+      <div class="card">
+        <b>Job Progress</b>
+        <div class="timeline" style="margin-top:10px">
+          <div class="tl-item done"><b>Job Posted</b><div class="muted">Just now</div></div>
+          <div class="tl-item done"><b>Pro Accepted</b><div class="muted">${w.name}</div></div>
+          <div class="tl-item active"><b>On the Way</b><div class="muted">ETA ${w.eta} min</div></div>
+          <div class="tl-item"><b>Arrived (OTP)</b></div>
+          <div class="tl-item"><b>Work in Progress</b></div>
+          <div class="tl-item"><b>Payment & Rating</b></div>
+        </div>
+      </div>
+      <button class="btn" onclick="state.booking.status='completed';go('c_complete')">⚡ Simulate: Work Completed</button>
+    </div>
+  </div>`;
+};
+
+screens.c_complete=()=>`
+  <div class="screen show">
+    ${appbar('Work Completed','Review & Pay',{back:true})}
+    <div class="body">
+      <div class="card">
+        <b>Completion media by ${(state.acceptedWorker||WORKERS_SAMPLE[0]).name}</b>
+        <div class="grid-3" style="margin-top:8px">
+          <div class="media-tile filled">✓ Before</div>
+          <div class="media-tile filled">✓ After</div>
+          <div class="media-tile filled">🎥 Video</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><span>Service charge</span><b>₹499</b></div>
+        <div class="row" style="justify-content:space-between"><span class="muted">Platform fee (10%)</span><span class="muted">₹49</span></div>
+        <div class="row" style="justify-content:space-between"><span class="muted">GST (5%)</span><span class="muted">₹27</span></div>
+        <hr class="sep"/>
+        <div class="row" style="justify-content:space-between"><b>Total</b><b class="price" style="font-size:20px">₹575</b></div>
+        <div class="muted" style="margin-top:8px;font-size:11px">Auto-split: Worker gets ₹450 · Platform ₹125 (instant wallet credit)</div>
+      </div>
+      <div class="grid-2">
+        <button class="btn secondary" onclick="payOnline('wallet')">💰 Wallet (₹1240)</button>
+        <button class="btn" onclick="payOnline('upi')">Pay UPI ₹575</button>
+      </div>
+      <button class="btn outline" style="margin-top:8px" onclick="payOnline('card')">💳 Credit/Debit Card</button>
+    </div>
+  </div>`;
+
+function payOnline(method){
+  state.wallet.worker+=450;
+  toast(`✅ Payment via ${method.toUpperCase()} success! ₹450 credited to ${(state.acceptedWorker||WORKERS_SAMPLE[0]).name}`);
+  setTimeout(()=>go('c_rate'),700);
+}
+
+screens.c_rate=()=>{
+  const w=state.acceptedWorker||WORKERS_SAMPLE[0];
+  return `<div class="screen show">
+    ${appbar('Rate your experience','',{back:false,right:''})}
+    <div class="body" style="text-align:center;padding-top:24px">
+      <div class="avatar" style="width:80px;height:80px;font-size:32px;margin:auto">${w.name[0]}</div>
+      <h3 style="margin:12px 0 4px">${w.name}</h3>
+      <div class="muted">${state.booking?state.booking.catName+' · '+state.booking.sub:''}</div>
+      <div style="font-size:13px;color:var(--ok);margin-top:6px">✅ Job Completed Successfully</div>
+      <div class="star-input" id="ratingStars">
+        ${[1,2,3,4,5].map(s=>`<span class="star ${s<=state.ratingStars?'on':''}" onclick="setRating(${s})">${s<=state.ratingStars?'★':'☆'}</span>`).join('')}
+      </div>
+      <textarea class="input" rows="3" placeholder="Write a review (optional)" style="margin-bottom:14px;text-align:left"></textarea>
+      <button class="btn" onclick="toast('Thanks for your review! 🙏');setTimeout(()=>goHome(),700)">Submit Rating</button>
+      <button class="btn outline" style="margin-top:8px" onclick="goHome()">Skip for now</button>
+    </div>
+  </div>`;
+};
+function setRating(s){state.ratingStars=s;render();}
+
+const ALL_SERVICE_BOOKINGS=[
+  {id:'SV001',t:'AC Service',sub:'Gas Refill',s:'Active',w:'Aman Singh',amt:'₹499',icon:'❄️',color:'var(--brand)'},
+  {id:'SV002',t:'Home Cleaning',sub:'Deep Clean',s:'Completed',w:'Sunil Verma',amt:'₹450',icon:'🧹',color:'var(--ok)'},
+  {id:'SV003',t:'Plumbing – Tap Fix',sub:'Tap Repair',s:'Cancelled',w:'—',amt:'₹0',icon:'🔧',color:'var(--err)'},
+  {id:'SV004',t:'Electrician – Fan',sub:'Fan Install',s:'Completed',w:'Rahul Das',amt:'₹349',icon:'⚡',color:'var(--ok)'},
+];
+const ALL_SHOP_ORDERS=[
+  {id:'SO1040',shop:'Sharma General Store',s:'Delivered',amt:'₹758',icon:'🏪'},
+  {id:'SO1038',shop:'Fresh Mart',s:'Out for Delivery',amt:'₹340',icon:'🥦'},
+  {id:'SO1035',shop:'Daily Needs',s:'Cancelled',amt:'₹0',icon:'🥛'},
+];
+function setBookingFilter(f){state.bookingFilter=f;render();}
+
+screens.c_bookings=()=>{
+  const f=state.bookingFilter||'All';
+  const svcAllow={All:null,Active:['Active'],Completed:['Completed'],Cancelled:['Cancelled']};
+  const ordAllow={All:null,Active:['Out for Delivery'],Completed:['Delivered'],Cancelled:['Cancelled']};
+  const svcs=svcAllow[f]?ALL_SERVICE_BOOKINGS.filter(b=>svcAllow[f].includes(b.s)):ALL_SERVICE_BOOKINGS;
+  const ords=ordAllow[f]?ALL_SHOP_ORDERS.filter(o=>ordAllow[f].includes(o.s)):ALL_SHOP_ORDERS;
+  const sc={Active:'var(--brand)',Completed:'var(--ok)',Cancelled:'var(--err)',Delivered:'var(--ok)','Out for Delivery':'var(--warn)'};
+  return `<div class="screen show">
+    ${appbar('My Bookings','Services & orders')}
+    <div class="body">
+      <div class="chips-scroll" style="margin-bottom:14px">
+        ${['All','Active','Completed','Cancelled'].map(t=>`
+          <span class="chip ${f===t?'brand':''}" onclick="setBookingFilter('${t}')">${t}</span>`).join('')}
+      </div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px">Services</div>
+      ${svcs.length===0?`<div style="text-align:center;padding:16px 0;color:var(--muted);font-size:13px">No ${f==='All'?'':f.toLowerCase()+' '}services</div>`:''}
+      ${svcs.map(b=>`
+        <div class="card" style="cursor:pointer;margin-bottom:10px" onclick="openBookingDetail('${b.id}')">
+          <div class="row">
+            <div style="width:44px;height:44px;border-radius:12px;background:color-mix(in oklab,${b.color} 14%,transparent);display:grid;place-items:center;font-size:22px;flex-shrink:0">${b.icon}</div>
+            <div style="flex:1;min-width:0">
+              <b style="font-size:13px">${b.t}</b>
+              <div class="muted" style="font-size:11px">${b.sub} · ${b.w}</div>
+              <div style="font-weight:700;font-size:13px;color:var(--brand);margin-top:2px">${b.amt}</div>
+            </div>
+            <span style="background:color-mix(in oklab,${b.color} 15%,transparent);color:${b.color};border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0">${b.s}</span>
+          </div>
+        </div>`).join('')}
+      <div style="font-weight:700;font-size:14px;margin:12px 0 8px">Shop Orders</div>
+      ${ords.length===0?`<div style="text-align:center;padding:16px 0;color:var(--muted);font-size:13px">No ${f==='All'?'':f.toLowerCase()+' '}orders</div>`:''}
+      ${ords.map(o=>`
+        <div class="card" style="cursor:pointer;margin-bottom:10px" onclick="openBookingDetail('${o.id}')">
+          <div class="row">
+            <div style="width:44px;height:44px;border-radius:12px;background:color-mix(in oklab,var(--ok) 12%,transparent);display:grid;place-items:center;font-size:22px;flex-shrink:0">${o.icon}</div>
+            <div style="flex:1;min-width:0">
+              <b style="font-size:13px">${o.shop}</b>
+              <div class="muted" style="font-size:11px">Order ${o.id} · ${o.amt}</div>
+            </div>
+            <span style="background:color-mix(in oklab,${sc[o.s]||'var(--muted)'} 15%,transparent);color:${sc[o.s]||'var(--muted)'};border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0">${o.s}</span>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+};
+
+
+
+/* Shop filter state */
+if(!state.shopFilter) state.shopFilter='All';
+const SHOP_FILTER_TAGS={All:null,Groceries:'general',Pharmacy:'pharmacy',Dairy:'dairy',Bakery:'bakery'};
+const SHOPS_EXTENDED=[
+  {id:'s1',name:'Sharma General Store',rating:4.7,dist:'0.6 km',items:42,delivery:'30 min',minFree:1000,tag:'general',icon:'🏪',color:'#7ed957'},
+  {id:'s2',name:'Fresh Mart',rating:4.5,dist:'1.1 km',items:120,delivery:'45 min',minFree:800,tag:'general',icon:'🥦',color:'#43a047'},
+  {id:'s3',name:'Daily Needs',rating:4.8,dist:'1.5 km',items:88,delivery:'40 min',minFree:1200,tag:'dairy',icon:'🥛',color:'#0288d1'},
+  {id:'s4',name:'MediPlus Pharmacy',rating:4.9,dist:'0.8 km',items:300,delivery:'20 min',minFree:500,tag:'pharmacy',icon:'💊',color:'#e53935'},
+  {id:'s5',name:'City Dairy',rating:4.6,dist:'2.0 km',items:30,delivery:'35 min',minFree:600,tag:'dairy',icon:'🧈',color:'#f9a825'},
+  {id:'s6',name:'Sweet Bakery',rating:4.4,dist:'1.8 km',items:55,delivery:'50 min',minFree:400,tag:'bakery',icon:'🍞',color:'#6d4c41'},
+];
+function filterShops(f){
+  state.shopFilter=f;
+  render();
+}
+
+screens.c_shop=()=>{
+  const activeFilter=state.shopFilter||'All';
+  const tag=SHOP_FILTER_TAGS[activeFilter];
+  const shops=tag?SHOPS_EXTENDED.filter(s=>s.tag===tag):SHOPS_EXTENDED;
+  return `<div class="screen show">
+    ${appbar('Nearby Shops','Buy daily essentials')}
+    <div class="body">
+      <div class="search-bar">
+        <input class="input" placeholder="Search shops, products..." oninput="filterShopsSearch(this.value)"/>
+      </div>
+      <div class="chips-scroll" style="margin-bottom:4px">
+        ${Object.keys(SHOP_FILTER_TAGS).map(t=>`
+          <span class="chip ${activeFilter===t?'brand':''}" onclick="filterShops('${t}')">${t}</span>
+        `).join('')}
+      </div>
+      ${shops.length===0
+        ?`<div style="text-align:center;padding:40px 20px"><div style="font-size:40px">🔍</div><div style="font-weight:700;margin-top:8px">No shops in this category</div><div class="muted">Try a different filter</div></div>`
+        :shops.map(s=>`
+          <div class="list-item" onclick="state.activeShop='${s.id}';go('c_shop_detail')">
+            <div style="width:50px;height:50px;border-radius:14px;background:${s.color}22;display:grid;place-items:center;font-size:26px;flex-shrink:0">${s.icon}</div>
+            <div style="flex:1;min-width:0">
+              <b style="font-size:13px">${s.name}</b>
+              <div class="muted" style="font-size:11px">★ ${s.rating} · 📍 ${s.dist} · 🕒 ${s.delivery}</div>
+              <div class="muted" style="font-size:11px">Free delivery over ₹${s.minFree}</div>
+            </div>
+            <span style="color:var(--brand);font-size:22px;flex-shrink:0">›</span>
+          </div>`).join('')}
+    </div>
+  </div>`;
+};
+function filterShopsSearch(q){
+  // Simple search: re-render with query
+  const els=document.querySelectorAll('#screens .list-item');
+  els.forEach(el=>{
+    const txt=el.textContent.toLowerCase();
+    el.style.display=txt.includes(q.toLowerCase())||q===''?'':'none';
+  });
+}
+
+
+screens.c_shop_detail=()=>{
+  const shop=SHOPS_SAMPLE.find(s=>s.id===state.activeShop)||SHOPS_SAMPLE[0];
+  const cartCount=state.cart.length;
+  return `<div class="screen show">
+    ${appbar(shop.name,'★ '+shop.rating+' · Free delivery over ₹'+shop.minFree,{back:true})}
+    <div class="body">
+      <div class="search-bar" style="margin-bottom:10px">
+        <input class="input" placeholder="Search products..."/>
+      </div>
+      ${state.myProducts.map(p=>`
+        <div class="card">
+          <div class="row">
+            <div class="avatar" style="background:var(--surface-2);font-size:28px;width:52px;height:52px">${p.img}</div>
+            <div style="flex:1">
+              <b>${p.name}</b>
+              <div class="muted">Min qty: ${p.minQty} · ${p.stock} in stock</div>
+              <div class="price">₹${p.price}</div>
+            </div>
+            ${state.cart.find(c=>c.id===p.id)
+              ?`<div style="display:flex;align-items:center;gap:6px">
+                  <button class="btn sm secondary" onclick="removeFromCart('${p.id}')">−</button>
+                  <b>${state.cart.filter(c=>c.id===p.id).length}</b>
+                  <button class="btn sm" onclick="addToCart('${p.id}')">+</button>
+                </div>`
+              :`<button class="btn sm" onclick="addToCart('${p.id}')">+ Add</button>`
+            }
+          </div>
+        </div>`).join('')}
+      ${cartCount?`<div style="position:sticky;bottom:0;padding-top:8px"><button class="btn" onclick="go('c_cart')">🛒 View Cart (${cartCount} items) →</button></div>`:''}
+    </div>
+  </div>`;
+};
+
+function addToCart(id){
+  const p=state.myProducts.find(p=>p.id===id);
+  state.cart.push(p);
+  toast(p.name+' added to cart 🛒');
+  render();
+}
+function removeFromCart(id){
+  const idx=state.cart.findLastIndex(c=>c.id===id);
+  if(idx>=0){state.cart.splice(idx,1);render();}
+}
+
+screens.c_cart=()=>{
+  const total=state.cart.reduce((s,p)=>s+p.price,0);
+  const minFree=1000;
+  const delivery=total>=minFree?0:40;
+  const grouped={};
+  state.cart.forEach(p=>{grouped[p.id]={...p,qty:(grouped[p.id]?.qty||0)+1}});
+  return `<div class="screen show">
+    ${appbar('Your Cart','Sharma General Store',{back:true})}
+    <div class="body">
+      ${state.cart.length===0?'<div class="card" style="text-align:center;padding:32px"><div style="font-size:48px">🛒</div><b>Cart is empty</b><div class="muted">Add items from a shop</div></div>':
+        Object.values(grouped).map(p=>`
+          <div class="card">
+            <div class="row">
+              <div class="avatar" style="background:var(--surface-2);font-size:24px">${p.img}</div>
+              <div style="flex:1"><b>${p.name}</b><div class="price">₹${p.price} × ${p.qty}</div></div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <button class="btn sm secondary" onclick="removeFromCart('${p.id}')">−</button>
+                <b>${p.qty}</b>
+                <button class="btn sm" onclick="addToCart('${p.id}')">+</button>
+              </div>
+            </div>
+          </div>`).join('')}
+      ${state.cart.length?`
+        <div class="card">
+          <div class="row" style="justify-content:space-between"><span>Subtotal</span><b>₹${total}</b></div>
+          <div class="row" style="justify-content:space-between"><span class="muted">Delivery</span><span class="muted">${delivery===0?'FREE 🎉':'₹'+delivery+' (add ₹'+(minFree-total)+' for free)'}</span></div>
+          <hr class="sep"/>
+          <div class="row" style="justify-content:space-between"><b>Total</b><b class="price" style="font-size:18px">₹${total+delivery}</b></div>
+        </div>
+        <button class="btn" onclick="state.cart=[];toast('Order placed! 🎉 Estimated 30 min');setTimeout(()=>{navTab('bookings','c_bookings')},700)">Place Order ₹${total+delivery}</button>
+        <button class="btn outline" style="margin-top:8px" onclick="state.cart=[];render()">Clear Cart</button>
+      `:''}
+    </div>
+  </div>`;
+};
+
+screens.c_wallet=()=>walletScreen('Customer Wallet',state.wallet.customer,[
+  {t:'AC Service refund',a:'+₹50',d:'Yesterday'},
+  {t:'Cleaning – paid',a:'-₹450',d:'2 days ago'},
+  {t:'Top up via UPI',a:'+₹1000',d:'3 days ago'},
+  {t:'Shop order SO1040',a:'-₹758',d:'4 days ago'},
+]);
+
+/* ============================================================
+   CUSTOMER PROFILE — Full screens (no modals)
+   ============================================================ */
+
+/* ---- Address CRUD functions ---- */
+function addAddress(){
+  openModal(`
+    <h3 style="margin:0 0 14px">Add New Address</h3>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      ${['\ud83c\udfe0 Home','\ud83c\udfe2 Office','\ud83d\udccd Other'].map(l=>`<button onclick="document.getElementById('aLabel').value='${l.replace(/^\S+\s/,'')}';document.getElementById('aIcon').value='${l.split(' ')[0]}'" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:12px">${l}</button>`).join('')}
+    </div>
+    <input type="hidden" id="aIcon" value="\ud83d\udccd"/>
+    <label class="muted" style="font-size:11px;font-weight:600">Label</label>
+    <input class="input" id="aLabel" placeholder="e.g. Home, Office, Parents..." style="margin:4px 0 10px"/>
+    <label class="muted" style="font-size:11px;font-weight:600">Full Address</label>
+    <input class="input" id="aFull" placeholder="Street, Area, City, Pincode" style="margin:4px 0 10px"/>
+    <button class="btn secondary" style="width:100%;padding:9px;font-size:12px;margin-bottom:10px"
+      onclick="toast('\ud83d\udccd Fetching GPS location...');setTimeout(()=>{document.getElementById('aFull').value='Current Location · Sector 21, Delhi 110085';toast('Location picked \u2713');},1000)">\ud83d\udccd Use Current Location</button>
+    <button class="btn" onclick="saveNewAddress()">Save Address</button>
+  `);
+}
+function saveNewAddress(){
+  const icon=document.getElementById('aIcon')?.value||'\ud83d\udccd';
+  const label=document.getElementById('aLabel')?.value.trim();
+  const full=document.getElementById('aFull')?.value.trim();
+  if(!label||!full){toast('Please fill all fields');return;}
+  state.addresses.push({id:'a'+Date.now(),label,icon,full,primary:false});
+  closeModal();toast('Address saved \u2714');render();
+}
+function editAddress(id){
+  const a=state.addresses.find(x=>x.id===id);
+  if(!a)return;
+  openModal(`
+    <h3 style="margin:0 0 14px">Edit Address</h3>
+    <label class="muted" style="font-size:11px;font-weight:600">Label</label>
+    <input class="input" id="eaLabel" value="${a.label}" style="margin:4px 0 10px"/>
+    <label class="muted" style="font-size:11px;font-weight:600">Full Address</label>
+    <input class="input" id="eaFull" value="${a.full}" style="margin:4px 0 10px"/>
+    <button class="btn secondary" style="width:100%;padding:9px;font-size:12px;margin-bottom:10px"
+      onclick="toast('\ud83d\udccd Fetching GPS...');setTimeout(()=>{document.getElementById('eaFull').value='GPS \u00b7 Sector 21, Delhi 110085';toast('Location updated \u2713');},900)">\ud83d\udccd Pick from Map</button>
+    <button class="btn" onclick="updateAddress('${id}')">Update Address</button>
+  `);
+}
+function updateAddress(id){
+  const a=state.addresses.find(x=>x.id===id);
+  if(!a)return;
+  a.label=document.getElementById('eaLabel')?.value.trim()||a.label;
+  a.full=document.getElementById('eaFull')?.value.trim()||a.full;
+  closeModal();toast('Address updated \u2714');render();
+}
+function deleteAddress(id){
+  if(!confirm('Delete this address?'))return;
+  state.addresses=state.addresses.filter(a=>a.id!==id);
+  if(!state.addresses.some(a=>a.primary)&&state.addresses.length) state.addresses[0].primary=true;
+  toast('Address deleted');render();
+}
+function setPrimaryAddress(id){
+  state.addresses.forEach(a=>a.primary=a.id===id);
+  toast('Primary address updated \u2714');render();
+}
+
+/* ---- Payment CRUD functions ---- */
+function addPayment(){
+  openModal(`
+    <h3 style="margin:0 0 14px">Add Payment Method</h3>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      ${['\ud83d\udcf1 UPI','\ud83d\udcb3 Debit Card','\ud83d\udcb3 Credit Card','\ud83d\udcb5 Cash on Delivery'].map(t=>`<button onclick="document.getElementById('pType').value='${t}'" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:11px">${t}</button>`).join('')}
+    </div>
+    <label class="muted" style="font-size:11px;font-weight:600">Type / Name</label>
+    <input class="input" id="pType" placeholder="e.g. UPI, HDFC Credit Card" style="margin:4px 0 10px"/>
+    <label class="muted" style="font-size:11px;font-weight:600">UPI ID / Card number (last 4) / Details</label>
+    <input class="input" id="pDetail" placeholder="e.g. name@upi or ****1234" style="margin:4px 0 14px"/>
+    <button class="btn" onclick="savePayment()">Add Method</button>
+  `);
+}
+function savePayment(){
+  const type=document.getElementById('pType')?.value.trim();
+  const detail=document.getElementById('pDetail')?.value.trim();
+  if(!type||!detail){toast('Please fill all fields');return;}
+  const icon=type.toLowerCase().includes('upi')?'\ud83d\udcf1':type.toLowerCase().includes('cash')?'\ud83d\udcb5':'\ud83d\udcb3';
+  state.payments.push({id:'p'+Date.now(),type,icon,detail,primary:false});
+  closeModal();toast('Payment method added \u2714');render();
+}
+function deletePayment(id){
+  if(!confirm('Remove this payment method?'))return;
+  state.payments=state.payments.filter(p=>p.id!==id);
+  if(!state.payments.some(p=>p.primary)&&state.payments.length) state.payments[0].primary=true;
+  toast('Payment method removed');render();
+}
+function setPrimaryPayment(id){
+  state.payments.forEach(p=>p.primary=p.id===id);
+  toast('Default payment updated \u2714');render();
+}
+function pickProfilePhoto(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';
+  inp.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=ev=>{state.profileImg=ev.target.result;render();toast('Photo updated \u2714');};
+    r.readAsDataURL(f);
+  };
+  inp.click();
+}
+function saveProfile(){
+  state.profileName=document.getElementById('epName')?.value.trim()||state.profileName;
+  state.profileEmail=document.getElementById('epEmail')?.value.trim()||state.profileEmail;
+  toast('Profile saved \u2714');back();
+}
+
+/* ---- c_profile ---- */
+screens.c_profile=()=>{
+  const initials=state.profileName.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  return `<div class="screen show">
+    ${appbar('My Profile','',{right:'<button class="icon-btn" onclick="openNotifs()">\ud83d\udd14</button>'})}
+    <div class="body">
+      <div class="card" style="text-align:center;padding:20px 16px;background:linear-gradient(135deg,var(--surface),var(--surface-2))">
+        <div style="position:relative;display:inline-block;margin-bottom:10px">
+          ${state.profileImg
+            ?`<img src="${state.profileImg}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--brand)"/>`
+            :`<div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;font-size:28px;font-weight:800;color:#001016">${initials}</div>`}
+          <button onclick="pickProfilePhoto()" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--brand);border:2px solid var(--surface);display:grid;place-items:center;cursor:pointer;font-size:13px">\ud83d\udcf7</button>
+        </div>
+        <div style="font-weight:800;font-size:17px">${state.profileName}</div>
+        <div class="muted" style="font-size:12px;margin-bottom:12px">Customer since 2024 · ${state.profilePhone}</div>
+        <div class="row" style="justify-content:center;gap:24px;margin-bottom:14px">
+          <div style="text-align:center"><div style="font-weight:800;color:var(--brand)">48</div><div class="muted" style="font-size:11px">Jobs</div></div>
+          <div style="text-align:center"><div style="font-weight:800;color:var(--brand)">4.8\u2605</div><div class="muted" style="font-size:11px">Rating</div></div>
+          <div style="text-align:center"><div style="font-weight:800;color:var(--brand)">2yr</div><div class="muted" style="font-size:11px">Member</div></div>
+        </div>
+        <button class="btn secondary" style="width:auto;padding:8px 20px;font-size:13px" onclick="go('c_edit_profile')">✏️ Edit Profile</button>
+      </div>
+      ${[
+        {icon:'\ud83d\udccd',color:'#e53935',t:'Saved Addresses',v:state.addresses.length+' saved',scr:'c_addresses'},
+        {icon:'\ud83d\udcb3',color:'#1565c0',t:'Payment Methods',v:state.payments.length+' methods',scr:'c_payments'},
+        {icon:'\ud83c\udf81',color:'#7b1fa2',t:'Refer & Earn',v:'₹100 per friend',scr:'c_refer'},
+        {icon:'\ud83c\udf9f\ufe0f',color:'#00695c',t:'Help & Support',v:'24/7 available',scr:'c_help'},
+        {icon:'\ud83d\udcdc',color:'#e65100',t:'T&C / Privacy',v:'',scr:'c_tnc'},
+      ].map(m=>`
+        <div class="list-item" style="cursor:pointer" onclick="go('${m.scr}')">
+          <div style="width:40px;height:40px;border-radius:12px;background:${m.color}22;display:grid;place-items:center;font-size:20px;flex-shrink:0">${m.icon}</div>
+          <div style="flex:1"><div style="font-weight:700;font-size:14px">${m.t}</div>${m.v?`<div class="muted" style="font-size:12px">${m.v}</div>`:''}</div>
+          <span style="color:var(--muted);font-size:20px">\u203a</span>
+        </div>`).join('')}
+      <div class="list-item" style="cursor:pointer;margin-top:4px" onclick="state.screen='splash';state.stack=[];render()">
+        <div style="width:40px;height:40px;border-radius:12px;background:#b71c1c22;display:grid;place-items:center;font-size:20px">\ud83d\udeaa</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px;color:var(--err)">Logout</div></div>
+        <span style="color:var(--muted);font-size:20px">\u203a</span>
+      </div>
+      <div style="height:8px"></div>
+    </div>
+  </div>`;
+};
+
+/* ---- Edit Profile ---- */
+screens.c_edit_profile=()=>`
+  <div class="screen show">
+    ${appbar('Edit Profile','',{back:true,right:''})}
+    <div class="body">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="position:relative;display:inline-block">
+          ${state.profileImg
+            ?`<img src="${state.profileImg}" style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid var(--brand)"/>`
+            :`<div style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;font-size:32px;font-weight:800;color:#001016">${state.profileName.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>`}
+          <button onclick="pickProfilePhoto()" style="position:absolute;bottom:4px;right:0;background:var(--brand);border:2px solid var(--surface);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;cursor:pointer;font-size:14px">\ud83d\udcf7</button>
+        </div>
+        <div class="muted" style="margin-top:6px;font-size:12px">Tap to change photo</div>
+      </div>
+      <label class="muted" style="font-size:12px;font-weight:600">Full Name</label>
+      <input class="input" id="epName" value="${state.profileName}" style="margin:6px 0 12px"/>
+      <label class="muted" style="font-size:12px;font-weight:600">\ud83d\udcf1 Mobile (cannot change)</label>
+      <input class="input" value="${state.profilePhone}" disabled style="margin:6px 0 12px;opacity:.5"/>
+      <label class="muted" style="font-size:12px;font-weight:600">\ud83d\udce7 Email</label>
+      <input class="input" id="epEmail" value="${state.profileEmail}" type="email" style="margin:6px 0 18px"/>
+      <button class="btn" onclick="saveProfile()">Save Changes</button>
+    </div>
+  </div>`;
+
+/* ---- Saved Addresses (full screen) ---- */
+screens.c_addresses=()=>`
+  <div class="screen show">
+    ${appbar('Saved Addresses',state.addresses.length+' saved',{back:true,right:''})}
+    <div class="body">
+      ${state.addresses.length===0?`<div class="card" style="text-align:center;padding:32px"><div style="font-size:40px">\ud83d\udccd</div><b>No addresses yet</b><div class="muted">Add your home or office address</div></div>`:''}
+      ${state.addresses.map(a=>`
+        <div class="card" style="margin-bottom:12px;${a.primary?'border:1.5px solid var(--brand)':''}">
+          <div class="row" style="margin-bottom:10px">
+            <div style="width:46px;height:46px;border-radius:14px;background:color-mix(in oklab,var(--brand) 14%,transparent);display:grid;place-items:center;font-size:24px;flex-shrink:0">${a.icon}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <b style="font-size:14px">${a.label}</b>
+                ${a.primary?`<span style="background:var(--brand);color:#001016;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700">\u2605 PRIMARY</span>`:''}
+              </div>
+              <div class="muted" style="font-size:12px;margin-top:3px;line-height:1.4">${a.full}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${!a.primary?`<button class="btn outline" style="flex:1;padding:8px;font-size:12px;min-width:80px" onclick="setPrimaryAddress('${a.id}')">\u2605 Set Primary</button>`:
+              `<div style="flex:1;padding:8px;font-size:12px;text-align:center;color:var(--brand);font-weight:700">\u2605 Primary address</div>`}
+            <button class="btn secondary" style="flex:1;padding:8px;font-size:12px;min-width:80px" onclick="editAddress('${a.id}')">✏️ Edit</button>
+            <button class="btn danger" style="flex:1;padding:8px;font-size:12px;min-width:80px" onclick="deleteAddress('${a.id}')">🗑 Delete</button>
+          </div>
+        </div>`).join('')}
+      <button class="btn" style="margin-top:4px" onclick="addAddress()">\ud83d\udccd Add New Address</button>
+      <div style="height:8px"></div>
+    </div>
+  </div>`;
+
+/* ---- Payment Methods (full screen) ---- */
+screens.c_payments=()=>`
+  <div class="screen show">
+    ${appbar('Payment Methods',state.payments.length+' methods',{back:true,right:''})}
+    <div class="body">
+      ${state.payments.length===0?`<div class="card" style="text-align:center;padding:32px"><div style="font-size:40px">\ud83d\udcb3</div><b>No payment methods</b><div class="muted">Add UPI, card or cash</div></div>`:''}
+      ${state.payments.map(p=>`
+        <div class="card" style="margin-bottom:12px;${p.primary?'border:1.5px solid var(--brand)':''}">
+          <div class="row" style="margin-bottom:10px">
+            <div style="width:46px;height:46px;border-radius:14px;background:color-mix(in oklab,var(--brand) 14%,transparent);display:grid;place-items:center;font-size:26px;flex-shrink:0">${p.icon}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <b style="font-size:14px">${p.type}</b>
+                ${p.primary?`<span style="background:var(--brand);color:#001016;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700">DEFAULT</span>`:''}
+              </div>
+              <div class="muted" style="font-size:12px;margin-top:3px">${p.detail}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${!p.primary?`<button class="btn outline" style="flex:1;padding:8px;font-size:12px;min-width:80px" onclick="setPrimaryPayment('${p.id}')">\u2605 Set Default</button>`:
+              `<div style="flex:1;padding:8px;font-size:12px;text-align:center;color:var(--brand);font-weight:700">✓ Default method</div>`}
+            <button class="btn danger" style="flex:1;padding:8px;font-size:12px;min-width:80px" onclick="deletePayment('${p.id}')">🗑 Remove</button>
+          </div>
+        </div>`).join('')}
+      <button class="btn" style="margin-top:4px" onclick="addPayment()">+ Add Payment Method</button>
+      <div style="height:8px"></div>
+    </div>
+  </div>`;
+
+/* ---- Booking Detail / Invoice (full screen) ---- */
+const BOOKING_DETAILS={
+  SV001:{type:'service',title:'AC Service',sub:'Gas Refill',worker:'Aman Singh',workerRating:4.8,workerJobs:312,date:'01 Jun 2025',time:'Afternoon · 2:30 PM',addr:'A-12, Sector 21, Delhi',status:'Active',service:499,platform:50,gst:27,paid:false,payMethod:'UPI'},
+  SV002:{type:'service',title:'Home Cleaning',sub:'Deep Clean',worker:'Sunil Verma',workerRating:4.6,workerJobs:188,date:'28 May 2025',time:'Morning · 10:00 AM',addr:'A-12, Sector 21, Delhi',status:'Completed',service:450,platform:45,gst:25,paid:true,payMethod:'UPI',txnId:'UPI2805A34'},
+  SV003:{type:'service',title:'Plumbing – Tap Fix',sub:'Tap Repair',worker:'—',date:'20 May 2025',time:'—',addr:'A-12, Sector 21, Delhi',status:'Cancelled',service:0,platform:0,gst:0,paid:false,payMethod:'—',cancelReason:'Worker unavailable in your area'},
+  SV004:{type:'service',title:'Electrician – Fan',sub:'Fan Install',worker:'Rahul Das',workerRating:4.9,workerJobs:540,date:'15 May 2025',time:'Evening · 5:00 PM',addr:'Office, Connaught Place',status:'Completed',service:349,platform:35,gst:19,paid:true,payMethod:'HDFC Debit Card',txnId:'HDFC1505C78'},
+  SO1040:{type:'order',shop:'Sharma General Store',date:'25 May 2025',time:'Delivered at 11:30 AM',addr:'A-12, Sector 21, Delhi',status:'Delivered',items:[{n:'Basmati Rice 5kg',q:1,p:340},{n:'Sunflower Oil 1L',q:2,p:160},{n:'Sugar 1kg',q:1,p:58}],delivery:0,discount:0,payMethod:'UPI',txnId:'UPI2505S40'},
+  SO1038:{type:'order',shop:'Fresh Mart',date:'01 Jun 2025',time:'Expected by 2:00 PM',addr:'A-12, Sector 21, Delhi',status:'Out for Delivery',items:[{n:'Atta 10kg',q:1,p:280},{n:'Salt 1kg',q:2,p:30}],delivery:40,discount:0,payMethod:'HDFC Debit Card'},
+  SO1035:{type:'order',shop:'Daily Needs',date:'18 May 2025',status:'Cancelled',items:[{n:'Milk 1L',q:2,p:60}],delivery:0,discount:0,payMethod:'—',cancelReason:'Shop was closed'},
+};
+function openBookingDetail(id){
+  state.activeBookingDetail=id;
+  go('c_booking_detail');
+}
+screens.c_booking_detail=()=>{
+  const id=state.activeBookingDetail;
+  const d=BOOKING_DETAILS[id];
+  if(!d) return `<div class="screen show">${appbar('Details','',{back:true})}<div class="body"><div class="card" style="text-align:center"><b>No details found</b></div></div></div>`;
+
+  if(d.type==='service'){
+    const total=d.service+d.platform+d.gst;
+    const stColor={Active:'var(--brand)',Completed:'var(--ok)',Cancelled:'var(--err)'}[d.status]||'var(--muted)';
+    return `<div class="screen show">
+      ${appbar(d.title,d.sub,{back:true})}
+      <div class="body">
+        <!-- Status banner -->
+        <div style="background:color-mix(in oklab,${stColor} 12%,transparent);border:1px solid color-mix(in oklab,${stColor} 30%,transparent);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+          <div style="font-size:24px">${d.status==='Completed'?'✅':d.status==='Active'?'⚡':'❌'}</div>
+          <div><div style="font-weight:700;color:${stColor}">${d.status}</div><div class="muted" style="font-size:11px">${d.date} · ${d.time}</div></div>
+          ${d.status==='Cancelled'?`<div style="flex:1;font-size:11px;color:var(--err);text-align:right">${d.cancelReason||''}</div>`:''}
+        </div>
+        <!-- Booking Info -->
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-weight:700;margin-bottom:10px">📋 Booking Details</div>
+          ${[['Booking ID',id],['Service',d.title+' · '+d.sub],['Date & Time',d.date+' · '+d.time],['Address',d.addr]].map(([k,v])=>`
+            <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+              <span class="muted" style="font-size:12px">${k}</span>
+              <span style="font-size:12px;font-weight:600;text-align:right;max-width:55%">${v}</span>
+            </div>`).join('')}
+        </div>
+        <!-- Worker Info -->
+        ${d.worker&&d.worker!=='—'?`
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-weight:700;margin-bottom:10px">👤 Service Professional</div>
+          <div class="row">
+            <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;font-weight:800;font-size:18px;color:#001016;flex-shrink:0">${d.worker[0]}</div>
+            <div style="flex:1">
+              <div style="font-weight:700">${d.worker}</div>
+              <div class="muted" style="font-size:11px">★ ${d.workerRating} · ${d.workerJobs} jobs completed</div>
+              <div style="display:flex;gap:8px;margin-top:6px">
+                <button class="btn sm secondary" onclick="toast('Calling ${d.worker}...')">📞 Call</button>
+                <button class="btn sm secondary" onclick="toast('Chat opened')">💬 Chat</button>
+              </div>
+            </div>
+          </div>
+        </div>`:''}
+        <!-- Bill / Invoice -->
+        ${d.status!=='Cancelled'?`
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-weight:700;margin-bottom:10px">🧾 Bill Summary</div>
+          <div class="row" style="justify-content:space-between;padding:6px 0"><span>Service charge</span><b>₹${d.service}</b></div>
+          <div class="row" style="justify-content:space-between;padding:6px 0"><span class="muted" style="font-size:12px">Platform fee (10%)</span><span class="muted">₹${d.platform}</span></div>
+          <div class="row" style="justify-content:space-between;padding:6px 0"><span class="muted" style="font-size:12px">GST (5%)</span><span class="muted">₹${d.gst}</span></div>
+          <hr class="sep"/>
+          <div class="row" style="justify-content:space-between;padding:6px 0"><b style="font-size:15px">Total</b><b class="price" style="font-size:18px">₹${total}</b></div>
+          <div class="row" style="justify-content:space-between;padding:6px 0;margin-top:4px">
+            <span class="muted" style="font-size:12px">Payment via</span>
+            <span style="font-size:12px;font-weight:600">${d.payMethod}</span>
+          </div>
+          ${d.txnId?`<div class="row" style="justify-content:space-between;padding:6px 0"><span class="muted" style="font-size:12px">Txn ID</span><span style="font-size:11px;font-family:monospace">${d.txnId}</span></div>`:''}
+          ${d.paid?`<div style="text-align:center;margin-top:10px"><span style="background:color-mix(in oklab,var(--ok) 14%,transparent);color:var(--ok);border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700">✅ Payment Successful</span></div>`:''}
+        </div>
+        ${d.status==='Completed'?`
+          <button class="btn" onclick="toast('\ud83d\udcc4 Invoice downloaded!')">📄 Download Invoice</button>
+          <button class="btn outline" style="margin-top:8px" onclick="toast('\ud83d\udcac Rate & Review opened')">⭐ Rate this Service</button>`:
+          d.status==='Active'?`<button class="btn outline" style="margin-top:4px" onclick="toast('Cancellation requested')">Cancel Booking</button>`:''}
+        `:`<div class="card" style="background:color-mix(in oklab,var(--err) 10%,transparent);border-color:var(--err)"><b style="color:var(--err)">❌ Booking Cancelled</b><div class="muted" style="font-size:12px;margin-top:4px">${d.cancelReason||'Cancelled by user'}</div></div>`}
+      </div>
+    </div>`;
+  } else {
+    // Shop order detail
+    const items=d.items||[];
+    const subtotal=items.reduce((s,i)=>s+i.p*i.q,0);
+    const total=subtotal+d.delivery-d.discount;
+    const stColor={Delivered:'var(--ok)','Out for Delivery':'var(--warn)',Cancelled:'var(--err)'}[d.status]||'var(--muted)';
+    return `<div class="screen show">
+      ${appbar(d.shop,'Order '+id,{back:true})}
+      <div class="body">
+        <div style="background:color-mix(in oklab,${stColor} 12%,transparent);border:1px solid color-mix(in oklab,${stColor} 30%,transparent);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+          <div style="font-size:24px">${d.status==='Delivered'?'✅':d.status==='Out for Delivery'?'🚚':'❌'}</div>
+          <div><div style="font-weight:700;color:${stColor}">${d.status}</div><div class="muted" style="font-size:11px">${d.date} · ${d.time||''}</div></div>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-weight:700;margin-bottom:10px">📦 Order Details</div>
+          ${[['Order ID',id],['Shop',d.shop],['Delivery Address',d.addr||'—']].map(([k,v])=>`
+            <div class="row" style="justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+              <span class="muted" style="font-size:12px">${k}</span><span style="font-size:12px;font-weight:600">${v}</span>
+            </div>`).join('')}
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-weight:700;margin-bottom:10px">🛒 Items Ordered</div>
+          ${items.map(i=>`
+            <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:13px">${i.n} × ${i.q}</span>
+              <b style="font-size:13px">₹${i.p*i.q}</b>
+            </div>`).join('')}
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-weight:700;margin-bottom:10px">🧾 Bill Summary</div>
+          <div class="row" style="justify-content:space-between;padding:6px 0"><span>Subtotal (${items.length} items)</span><b>₹${subtotal}</b></div>
+          <div class="row" style="justify-content:space-between;padding:6px 0"><span class="muted" style="font-size:12px">Delivery fee</span><span class="muted">${d.delivery===0?'FREE 🎉':'₹'+d.delivery}</span></div>
+          ${d.discount>0?`<div class="row" style="justify-content:space-between;padding:6px 0"><span class="muted" style="font-size:12px">Discount</span><span style="color:var(--ok)">-₹${d.discount}</span></div>`:''}
+          <hr class="sep"/>
+          <div class="row" style="justify-content:space-between;padding:6px 0"><b style="font-size:15px">Total Paid</b><b class="price" style="font-size:18px">₹${total}</b></div>
+          <div class="row" style="justify-content:space-between;padding:6px 0;margin-top:4px">
+            <span class="muted" style="font-size:12px">Payment via</span>
+            <span style="font-size:12px;font-weight:600">${d.payMethod}</span>
+          </div>
+          ${d.txnId?`<div class="row" style="justify-content:space-between;padding:4px 0"><span class="muted" style="font-size:12px">Txn ID</span><span style="font-size:11px;font-family:monospace">${d.txnId}</span></div>`:''}
+        </div>
+        ${d.status==='Delivered'?`<button class="btn" onclick="toast('\ud83d\udcc4 Invoice downloaded!')">📄 Download Invoice</button>`:''}
+        ${d.status==='Out for Delivery'?`<button class="btn secondary" style="margin-top:8px" onclick="toast('Support contacted for order '+id)">❓ Track / Help</button>`:''}
+      </div>
+    </div>`;
+  }
+};
+
+
+/* ============================================================
+   WORKER FLOW
+   ============================================================ */
+screens.w_home=()=>{
+  if(!state.workerJobAlert){
+    state.workerJobAlert={cat:'AC & HVAC',sub:'AC Service',budget:499,dist:'1.2 km',customer:'Anita',addr:'A-12 Sector 21',desc:'Not cooling since 2 days',photos:3};
+  }
+  const j=state.workerJobAlert;
+  return `<div class="screen show">
+    <div class="appbar">
+      <div style="width:36px;height:36px;background:#0e0e0d;border-radius:10px;display:grid;place-items:center">${LOGO_SVG}</div>
+      <div><h1 style="font-size:15px">Ramesh Kumar</h1><div class="sub">★ 4.8 · 312 jobs done</div></div>
+      <div class="spacer"></div>
+      <div class="toggle-wrap" onclick="state.workerOnline=!state.workerOnline;toast(state.workerOnline?'You are now Online ✅':'You are now Offline');render()" style="cursor:pointer">
+        <span class="dot" style="position:static;background:${state.workerOnline?'var(--ok)':'var(--err)'}"></span>
+        <span style="font-size:12px;font-weight:700">${state.workerOnline?'Online':'Offline'}</span>
+      </div>
+    </div>
+    <div class="body">
+      <div class="grid-3">
+        <div class="card" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:800;color:var(--brand)">12</div><div class="muted">Today's Jobs</div></div>
+        <div class="card" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:800;color:var(--brand)">₹3.4k</div><div class="muted">Earned</div></div>
+        <div class="card" style="text-align:center;margin:0;cursor:pointer" onclick="navTab('earnings','w_earnings')"><div style="font-size:18px;font-weight:800;color:var(--brand)">₹${state.wallet.worker.toLocaleString()}</div><div class="muted">Wallet</div></div>
+      </div>
+      ${state.wallet.worker<200?'<div class="card" style="background:color-mix(in oklab,var(--err) 14%,transparent);border-color:var(--err)"><b>⚠️ Low Wallet Balance</b><div class="muted">Top up to keep receiving job alerts</div><button class="btn sm" style="margin-top:8px" onclick="toast(\'Top up flow opened\')">Top Up Now</button></div>':''}
+      ${!state.workerOnline?'<div class="card" style="text-align:center;background:color-mix(in oklab,var(--warn) 14%,transparent);border-color:var(--warn)"><div style="font-size:28px">😴</div><b>You are Offline</b><div class="muted">Go online to receive job alerts</div></div>':
+        j?`<div style="margin:12px 0 8px"><div class="row" style="justify-content:space-between"><b>🔔 New Job Alert</b><span class="chip warn pulse">⏱ 1:42 left</span></div></div>
+        <div class="card" style="border:2px solid var(--brand)">
+          <div class="row" style="justify-content:space-between"><div><b>${j.cat} · ${j.sub}</b><div class="muted">${j.dist}</div></div><span class="chip brand">NEW</span></div>
+          <p style="margin:8px 0 6px;font-size:13px">"${j.desc}"</p>
+          <div class="row" style="gap:6px"><span class="chip">📷 ${j.photos} photos</span><span class="chip">📍 ${j.addr}</span></div>
+          <div class="grid-2" style="margin-top:10px">
+            <button class="btn secondary" onclick="state.workerJobAlert=null;toast('Skipped');render()">Skip</button>
+            <button class="btn" onclick="go('w_jobdetail')">View & Bid →</button>
+          </div>
+        </div>`
+        :'<div class="card" style="text-align:center;padding:24px"><div style="font-size:28px">😌</div><b>No new jobs nearby</b><div class="muted">We\'ll notify you instantly</div></div>'
+      }
+    </div>
+  </div>`;
+};
+
+screens.w_jobdetail=()=>{
+  const j=state.workerJobAlert;
+  if(!j) return `<div class="screen show">${appbar('Job Details','',{back:true})}<div class="body"><div class="card" style="text-align:center"><b>No active job alert</b></div></div></div>`;
+  return `<div class="screen show">
+    ${appbar('Job Details',j.cat+' · '+j.sub,{back:true})}
+    <div class="body">
+      <div class="card"><div class="row"><div class="avatar">${j.customer[0]}</div><div style="flex:1"><b>${j.customer}</b><div class="muted">${j.addr} · ${j.dist}</div></div></div></div>
+      <div class="card"><b>Problem Description</b><p style="margin:6px 0 0;font-size:13px;line-height:1.5">"${j.desc}"</p></div>
+      <div class="card"><b>Customer Media (${j.photos} files)</b>
+        <div class="grid-3" style="margin-top:8px">
+          <div class="media-tile filled" onclick="toast('Photo preview')">📷</div>
+          <div class="media-tile filled" onclick="toast('Photo preview')">📷</div>
+          <div class="media-tile filled" onclick="toast('Video preview')">🎥</div>
+        </div>
+      </div>
+      <div class="card"><b>Place Your Bid</b>
+        <div style="margin-top:10px">
+          <label class="muted" style="font-size:11px">Your price (₹)</label>
+          <input class="input" value="499" id="bidAmt" style="margin-top:4px" type="number"/>
+        </div>
+        <input class="input" placeholder="Short note to customer..." style="margin-top:8px" value="Can reach in 25 min, full service incl. gas check"/>
+        <div style="margin-top:12px">
+          <label class="muted" style="font-size:11px">Your starting location</label>
+          <div class="row" style="margin-top:4px;gap:6px">
+            <input class="input" id="workerLoc" value="${(state.addresses&&state.addresses.find(a=>a.primary)?.full)||(state.addresses&&state.addresses[0]?.full)||'Sector 21, Delhi'}" style="flex:1;font-size:12px"/>
+            <button class="btn secondary" style="width:auto;padding:8px" onclick="toast('📍 Fetching GPS location...');setTimeout(()=>{document.getElementById('workerLoc').value='Current Location (GPS)';toast('Location picked ✓');},1000)">📍 GPS</button>
+          </div>
+        </div>
+        <button class="btn" style="margin-top:14px" onclick="placeBid()">Submit Bid</button>
+      </div>
+    </div>
+  </div>`;
+};
+
+function placeBid(){
+  toast('Bid placed! Waiting for customer response...');
+  setTimeout(()=>{
+    state.workerActiveJob={...state.workerJobAlert,bid:parseInt(document.getElementById('bidAmt')?.value||499)};
+    state.workerJobAlert=null;
+    toast('🎉 Anita accepted your bid!');
+    go('w_navigate');
+  },1400);
+}
+
+screens.w_navigate=()=>{
+  const j=state.workerActiveJob||{customer:'Customer',addr:'Delhi',bid:499};
+  return `<div class="screen show">
+    ${appbar('Navigate to Job',j.customer,{back:true})}
+    <div class="body">
+      <div class="map">
+        <div class="map-route"></div>
+        <div class="pin you"></div>
+        <div class="pin worker"></div>
+        <div class="map-label">🧭 25 min · 4.2 km</div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div class="avatar">${(j.customer||'C')[0]}</div>
+          <div style="flex:1"><b>${j.customer}</b><div class="muted">📍 ${j.addr||''}</div></div>
+          <button class="btn sm secondary" onclick="toast('Calling customer...')">📞</button>
+          <button class="btn sm secondary" onclick="toast('Chat opened')">💬</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><b>Job amount</b><b class="price">₹${j.bid}</b></div>
+        <div class="row" style="justify-content:space-between"><span class="muted">Commission (10%)</span><span class="muted">-₹${Math.round(j.bid*0.1)}</span></div>
+        <hr class="sep"/>
+        <div class="row" style="justify-content:space-between"><b>Your earning</b><b class="price">₹${Math.round(j.bid*0.9)}</b></div>
+      </div>
+      <button class="btn" onclick="go('w_arrival')">✅ I've Arrived → Enter OTP</button>
+    </div>
+  </div>`;
+};
+
+screens.w_arrival=()=>`
+  <div class="screen show">
+    ${appbar('Arrival OTP','Ask customer for the 4-digit code',{back:true})}
+    <div class="body" style="text-align:center;padding-top:30px">
+      <div style="font-size:64px">🔐</div>
+      <h3>Enter Arrival OTP</h3>
+      <p class="muted">The customer has a 4-digit OTP — ask them to share it</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin:20px 0">
+        ${[4,7,2,9].map(d=>`<input class="input" value="${d}" maxlength="1" style="width:58px;text-align:center;font-size:26px;font-weight:800;padding:12px 0"/>`).join('')}
+      </div>
+      <button class="btn" onclick="toast('OTP Verified ✅ Work timer started!');setTimeout(()=>go('w_inprogress'),500)">Verify & Start Work</button>
+    </div>
+  </div>`;
+
+screens.w_inprogress=()=>{
+  const j=state.workerActiveJob||{sub:'AC Service'};
+  return `<div class="screen show">
+    ${appbar('Work in Progress',j.sub||'',{back:true})}
+    <div class="body">
+      <div class="card" style="background:linear-gradient(135deg,var(--ok),#16a34a);color:#fff;border:none;text-align:center">
+        <b style="font-size:12px;opacity:.9">⏱ WORK TIMER</b>
+        <div style="font-size:40px;font-weight:800;letter-spacing:4px;margin:6px 0" id="workTimer">00:24:18</div>
+        <div style="font-size:12px;opacity:.8">Job started successfully</div>
+      </div>
+      <div class="card">
+        <b>Upload Completion Media</b><div class="muted">Required before marking job complete</div>
+        <div class="grid-3" style="margin-top:10px">
+          <div class="media-tile filled">✓ Before</div>
+          <div class="media-tile filled">✓ After</div>
+          <div class="media-tile" onclick="toast('📹 Camera opened')">+ Video</div>
+        </div>
+        <div class="prog-bar" style="margin-top:10px"><div class="prog-bar-fill" style="width:66%"></div></div>
+        <div class="muted">2/3 files uploaded</div>
+      </div>
+      <div class="card">
+        <b>Job Checklist</b>
+        ${['Inspect the problem','Service/repair done','Test after completion','Customer sign-off'].map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:18px">${i<2?'✅':'⬜'}</span><span style="font-size:13px">${t}</span></div>`).join('')}
+      </div>
+      <button class="btn" onclick="go('w_done')">Mark Job Complete ✓</button>
+    </div>
+  </div>`;
+};
+
+screens.w_done=()=>{
+  const j=state.workerActiveJob||{bid:499};
+  const earn=Math.round((j.bid||499)*0.9);
+  return `<div class="screen show">
+    ${appbar('Job Complete!','Awaiting customer payment',{back:false,right:''})}
+    <div class="body" style="text-align:center;padding-top:20px">
+      <div style="font-size:72px">🎉</div>
+      <h3>Great work, Ramesh!</h3>
+      <p class="muted">Customer is reviewing the completion media</p>
+      <div class="card" style="text-align:left;margin-top:14px">
+        <div class="row" style="justify-content:space-between"><span>Bid amount</span><b>₹${j.bid||499}</b></div>
+        <div class="row" style="justify-content:space-between"><span class="muted">Commission (10%)</span><span class="muted">-₹${Math.round((j.bid||499)*0.1)}</span></div>
+        <hr class="sep"/>
+        <div class="row" style="justify-content:space-between"><b>Your earning</b><b class="price" style="font-size:20px">₹${earn}</b></div>
+        <div class="muted" style="margin-top:6px">Auto-credited on customer payment</div>
+      </div>
+      <button class="btn" style="margin-top:14px" onclick="state.wallet.worker+=earn;state.workerActiveJob=null;goHome();toast('₹${earn} credited to wallet! 💰')">Done · Back Home</button>
+      <button class="btn outline" style="margin-top:8px" onclick="go('w_ratecust')">Rate Customer →</button>
+    </div>
+  </div>`;
+};
+
+screens.w_ratecust=()=>`
+  <div class="screen show">
+    ${appbar('Rate the Customer','',{back:true,right:''})}
+    <div class="body" style="text-align:center;padding-top:30px">
+      <div class="avatar" style="width:80px;height:80px;font-size:32px;margin:auto">A</div>
+      <h3 style="margin:12px 0 4px">Anita Sharma</h3>
+      <div class="muted">How was the customer?</div>
+      <div class="star-input" id="custRating">
+        ${[1,2,3,4,5].map(s=>`<span class="star ${s<=state.custRatingStars?'on':''}" onclick="state.custRatingStars=${s};render()">${s<=state.custRatingStars?'★':'☆'}</span>`).join('')}
+      </div>
+      <textarea class="input" rows="3" placeholder="Optional note..." style="margin-bottom:14px;text-align:left"></textarea>
+      <button class="btn" onclick="toast('Rating submitted! 🙏');goHome()">Submit Rating</button>
+    </div>
+  </div>`;
+
+screens.w_bids=()=>{
+  state.workerBidsFilter = state.workerBidsFilter || 'All';
+  const allBids = [
+    {id:'wb1', t:'AC Service · ₹499',sub:'A-12 Sector 21',s:'⏳ Awaiting customer',c:'warn',status:'Pending'},
+    {id:'wb2', t:'Plumbing · ₹350',sub:'Connaught Place',s:'❌ Lost to another pro',c:'err',status:'Lost'},
+    {id:'wb3', t:'Cleaning · ₹450',sub:'Lajpat Nagar',s:'✅ Won & completed',c:'ok',status:'Won'},
+    {id:'wb4', t:'Electrical · ₹280',sub:'Karol Bagh',s:'✅ Won & completed',c:'ok',status:'Won'},
+  ];
+  const filtered = allBids.filter(b=>state.workerBidsFilter==='All'||b.status===state.workerBidsFilter);
+
+  return `<div class="screen show">
+    ${appbar('My Bids','Active and past bids')}
+    <div class="body">
+      <div class="chips-scroll">
+        ${['All','Pending','Won','Lost'].map(t=>`<span class="chip ${t===state.workerBidsFilter?'brand':''}" onclick="state.workerBidsFilter='${t}';render()">${t}</span>`).join('')}
+      </div>
+      ${filtered.map(b=>`
+        <div class="card" style="cursor:pointer" onclick="state.activeWorkerBid='${b.id}';go('w_bid_detail')">
+          <div class="row">
+            <div class="avatar">${b.t[0]}</div>
+            <div style="flex:1">
+              <b>${b.t}</b>
+              <div class="muted">${b.sub}</div>
+              <div class="muted">${b.s}</div>
+            </div>
+            <div style="text-align:right">
+              <span class="chip ${b.c}" style="font-size:10px">${b.status}</span>
+            </div>
+          </div>
+        </div>`).join('')}
+      ${filtered.length===0?'<div class="muted" style="text-align:center;padding:20px">No bids found</div>':''}
+    </div>
+  </div>`;
+};
+
+screens.w_bid_detail=()=>{
+  const allBids = {
+    wb1:{t:'AC Service · ₹499',sub:'A-12 Sector 21',s:'⏳ Awaiting customer',c:'warn',status:'Pending',desc:'AC not cooling since 2 days',date:'Today',addr:'A-12, Sector 21, Delhi'},
+    wb2:{t:'Plumbing · ₹350',sub:'Connaught Place',s:'❌ Lost to another pro',c:'err',status:'Lost',desc:'Leaking tap in kitchen',date:'Yesterday',addr:'Connaught Place'},
+    wb3:{t:'Cleaning · ₹450',sub:'Lajpat Nagar',s:'✅ Won & completed',c:'ok',status:'Won',desc:'Deep cleaning for 2BHK',date:'2 days ago',addr:'Lajpat Nagar'},
+    wb4:{t:'Electrical · ₹280',sub:'Karol Bagh',s:'✅ Won & completed',c:'ok',status:'Won',desc:'Fix ceiling fan',date:'3 days ago',addr:'Karol Bagh'}
+  };
+  const b = allBids[state.activeWorkerBid] || allBids.wb1;
+  return `<div class="screen show">
+    ${appbar('Bid Details',b.status,{back:true})}
+    <div class="body">
+      <div style="background:color-mix(in oklab,var(--${b.c}) 12%,transparent);border:1px solid color-mix(in oklab,var(--${b.c}) 30%,transparent);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+        <div style="font-size:24px">${b.status==='Won'?'✅':b.status==='Lost'?'❌':'⏳'}</div>
+        <div><div style="font-weight:700;color:var(--${b.c})">${b.status}</div><div class="muted" style="font-size:11px">${b.s}</div></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;margin-bottom:10px">📋 Job Details</div>
+        ${[['Service',b.t],['Date',b.date],['Address',b.addr],['Description',b.desc]].map(([k,v])=>`
+          <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span class="muted" style="font-size:12px">${k}</span>
+            <span style="font-size:12px;font-weight:600;text-align:right;max-width:60%">${v}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+};
+
+screens.w_earnings=()=>{
+  const daysLeft = state.workerDaysLeft || 180;
+  const txns = [
+    {t:'AC Service – Anita',a:'+₹450',d:'Today'},
+    {t:'Cleaning – Rahul',a:'+₹400',d:'Yesterday'},
+    {t:'Withdrawal to bank',a:'-₹2000',d:'2 days ago'},
+    {t:'Plumbing – Kiran',a:'+₹315',d:'3 days ago'},
+  ];
+  return `<div class="screen show">
+    ${appbar('Earnings & Plan','',{back:true})}
+    <div class="body">
+      <div class="card" style="background:linear-gradient(135deg,var(--navy),#1a2a5c);color:#fff;border:none">
+        <div class="muted" style="color:#aac">Available Balance</div>
+        <div style="font-size:36px;font-weight:800;margin:4px 0">₹${state.wallet.worker.toLocaleString()}</div>
+        <div class="grid-2" style="margin-top:12px">
+          <button class="btn secondary" onclick="openWithdrawModal()" style="background:rgba(255,255,255,.15);color:#fff;border:none">Withdraw</button>
+        </div>
+      </div>
+      <div class="card" style="background:color-mix(in oklab,var(--brand) 12%,transparent);border:1px solid color-mix(in oklab,var(--brand) 30%,transparent)">
+        <div class="row" style="justify-content:space-between"><b>🎁 Free Trial Active</b><span class="chip brand">${daysLeft} Days Left</span></div>
+        <div class="muted" style="font-size:12px;margin-top:4px">Your 6 months free trial is currently active. Top up your plan to extend.</div>
+        <button class="btn" style="margin-top:12px;padding:8px" onclick="openWorkerTopUpModal()">Select Plan & Top Up</button>
+      </div>
+      <b style="margin:8px 4px;display:block">Recent Transactions</b>
+      ${txns.map(t=>`
+        <div class="card" style="padding:10px 14px">
+          <div class="row">
+            <div class="avatar" style="background:${t.a.startsWith('+')?'color-mix(in oklab,var(--ok) 15%,transparent)':'color-mix(in oklab,var(--err) 15%,transparent)'};font-size:18px">${t.a.startsWith('+')?'⬇️':'⬆️'}</div>
+            <div style="flex:1"><b style="font-size:13px">${t.t}</b><div class="muted">${t.d}</div></div>
+            <b style="color:${t.a.startsWith('+')?'var(--ok)':'var(--err)'}">${t.a}</b>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+};
+
+function openWorkerTopUpModal(){
+  openModal(`
+    <h3 style="margin:0 0 4px">Top Up Plan</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:14px">Select a plan to extend your validity</div>
+    ${[
+      {n:'Monthly', r:'₹1.30/day', d:'30 days', c:39},
+      {n:'Quarterly', r:'₹1.25/day', d:'90 days', c:112.50},
+      {n:'Half-Yearly', r:'₹1.20/day', d:'180 days', c:216},
+      {n:'Yearly', r:'₹1.00/day', d:'365 days', c:365}
+    ].map(p=>`
+      <div class="card plan-card" style="margin-bottom:8px;cursor:pointer;border:1px solid var(--border);transition:.2s" onclick="document.querySelectorAll('.plan-card').forEach(c=>c.style.borderColor='var(--border)');this.style.borderColor='var(--brand)';window.selectedPlan=${p.c};window.selectedDays=${parseInt(p.d)}">
+        <div class="row" style="justify-content:space-between">
+          <div><b style="font-size:14px">${p.n}</b><div class="muted" style="font-size:11px">${p.r} · ${p.d}</div></div>
+          <b style="font-size:16px;color:var(--brand)">₹${p.c}</b>
+        </div>
+      </div>
+    `).join('')}
+    <button class="btn" style="margin-top:10px" onclick="if(!window.selectedPlan){toast('Please select a plan');return;} state.workerDaysLeft=(state.workerDaysLeft||180)+window.selectedDays; closeModal();toast('Plan extended by '+window.selectedDays+' days! 🎉');render()">Proceed to Pay</button>
+  `);
+}
+
+screens.w_services=()=>{
+  if(!state.workerCategories) state.workerCategories = [{name:'AC & HVAC', active:true}, {name:'Appliance Repair', active:true}, {name:'Electrical', active:true}];
+  return `<div class="screen show">
+    ${appbar('My Services','Categories you serve')}
+    <div class="body">
+      ${state.workerCategories.length===0?`<div class="muted" style="text-align:center;padding:20px">No categories added</div>`:''}
+      ${state.workerCategories.map((c,i)=>`
+        <div class="list-item" style="${!c.active?'opacity:0.6':''}">
+          <div class="avatar">🛠</div>
+          <div style="flex:1">
+            <b>${c.name}</b>
+            <div class="muted">${c.active?'Active · Receiving alerts':'Paused · No alerts'}</div>
+          </div>
+          <button class="btn sm secondary" onclick="manageWorkerCategory(${i})">Manage</button>
+        </div>`).join('')}
+      <button class="btn outline" style="margin-top:8px" onclick="openWorkerAddCategoryModal()">+ Add Category</button>
+      
+      <div class="card" style="margin-top:14px">
+        <b>Service Radius</b>
+        <div class="muted" style="margin-bottom:8px">Jobs within this distance will alert you</div>
+        <div class="row">
+          <input type="range" min="1" max="30" value="10" style="flex:1" oninput="this.nextElementSibling.textContent=this.value+' km'"/>
+          <b style="min-width:50px">10 km</b>
+        </div>
+        <button class="btn sm" style="margin-top:8px" onclick="toast('Radius updated!')">Save</button>
+      </div>
+    </div>
+  </div>`;
+};
+
+function manageWorkerCategory(idx){
+  const cat = state.workerCategories[idx];
+  openModal(`
+    <h3 style="margin-bottom:6px">Manage ${cat.name}</h3>
+    <p class="muted" style="font-size:12px">You are currently ${cat.active?'active':'paused'} in this category.</p>
+    <div class="grid-2" style="margin-top:16px">
+      <button class="btn secondary" onclick="state.workerCategories[${idx}].active=!${cat.active};closeModal();toast('Category ${cat.active?'paused':'activated'}');render()">${cat.active?'⏸ Pause':'▶️ Activate'}</button>
+      <button class="btn danger" onclick="state.workerCategories.splice(${idx},1);closeModal();toast('Category removed');render()">🗑 Delete</button>
+    </div>
+  `);
+}
+
+function openWorkerAddCategoryModal(){
+  const avail = CATEGORIES.filter(c => !state.workerCategories.some(wc => wc.name === c.name));
+  openModal(`
+    <h3 style="margin-bottom:6px">Add Service Category</h3>
+    <p class="muted" style="font-size:12px;margin-bottom:12px">Select a category to start receiving job alerts</p>
+    
+    <div style="max-height:220px;overflow-y:auto;margin-bottom:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)">
+      ${avail.length===0?'<div style="padding:16px;text-align:center;font-size:12px" class="muted">All known categories added</div>':''}
+      ${avail.map(c=>`<div class="list-item" style="border-bottom:1px solid var(--border);margin:0;cursor:pointer" onclick="state.workerCategories.push({name:'${c.name}',active:true});closeModal();toast('${c.name} added!');render()">
+        <div class="cat-icon" style="width:32px;height:32px;font-size:18px">${c.icon}</div>
+        <b style="font-size:13px">${c.name}</b>
+      </div>`).join('')}
+    </div>
+    
+    <div style="background:color-mix(in oklab,var(--brand) 10%,transparent);border:1px dashed var(--brand);padding:12px;border-radius:12px;margin-top:12px">
+      <b style="font-size:13px">Don't see your category?</b>
+      <p class="muted" style="font-size:11px;margin:4px 0 10px">Suggest a new one and our admin will review it.</p>
+      <input class="input" id="suggestCat" placeholder="Category (e.g. Carpentry)" style="margin-bottom:6px;font-size:12px"/>
+      <input class="input" id="suggestSubcat" placeholder="Subcategory (e.g. Furniture Assembly)" style="margin-bottom:8px;font-size:12px"/>
+      <button class="btn" style="padding:8px;font-size:12px" onclick="
+        const c=document.getElementById('suggestCat').value.trim();
+        const s=document.getElementById('suggestSubcat').value.trim();
+        if(!c||!s){toast('Please fill both fields');return;}
+        closeModal();
+        toast('Suggestion sent to admin for approval ✅');
+      ">Submit Suggestion</button>
+    </div>
+  `);
+}
+
+screens.w_profile=()=>profileScreen('Ramesh Kumar','Worker · AC & HVAC Specialist',[
+  {icon:'🆔',t:'KYC & Documents',v:'Verified ✓',action:`openModal('<h3>KYC Status</h3><div class=chip ok style=margin-bottom:12px>✓ Fully Verified</div><div class=list-item><div class=avatar>🪪</div><b>Aadhaar Card</b></div><div class=list-item><div class=avatar>📄</div><b>PAN Card</b></div><button class=btn onclick=closeModal()>Close</button>')`},
+  {icon:'🏦',t:'Bank Account',v:'SBI ****4321',action:`openModal('<h3>Bank Account</h3><div class=card><b>State Bank of India</b><div class=muted>Account: ****4321 · IFSC: SBIN0001234</div></div><button class=btn onclick=\\'closeModal();toast(\\'Update flow\\')\\'>Update Account</button>')`},
+  {icon:'⭐',t:'My Ratings',v:'4.8 · 312 reviews',action:`openModal('<h3>My Ratings</h3><div style=text-align:center><div style=\\'font-size:48px;font-weight:800;color:var(--brand)\\'>4.8</div><div class=stars>★★★★★</div><div class=muted>312 reviews</div></div><button class=btn onclick=closeModal()>Close</button>')`},
+  {icon:'🛠',t:'My Services',v:'3 categories',action:`navTab('services','w_services')`},
+  {icon:'💰',t:'Earnings & Wallet',v:'₹'+state.wallet.worker.toLocaleString(),action:`navTab('earnings','w_earnings')`},
+  {icon:'🆘',t:'Help & Support',v:'',action:`toast('Support chat opened')`},
+  {icon:'🚪',t:'Logout',v:'',action:`setRole('customer');state.screen='splash';render()`},
+]);
+
+/* ============================================================
+   SHOP FLOW
+   ============================================================ */
+screens.sh_home=()=>`
+  <div class="screen show">
+    <div class="appbar">
+      <div style="width:36px;height:36px;background:#0e0e0d;border-radius:10px;display:grid;place-items:center">${LOGO_SVG}</div>
+      <div><h1 style="font-size:15px">Sharma General Store</h1><div class="sub">📍 A-Block Market, Delhi</div></div>
+      <div class="spacer"></div>
+      <button class="icon-btn" onclick="openNotifs()">🔔<span class="dot"></span></button>
+    </div>
+    <div class="body">
+      <div class="grid-2">
+        ${[
+          ['Today\'s Orders','3','+2 new'],
+          ['Revenue','₹2,238','Today'],
+          ['Total Products',state.myProducts.length+'','In catalog'],
+          ['Wallet','₹'+state.wallet.shop.toLocaleString(),'Available'],
+        ].map(([t,v,d])=>`<div class="card" style="margin:0;cursor:pointer" onclick="toast('${t}')"><div class="muted" style="font-size:11px">${t}</div><div style="font-size:22px;font-weight:800;color:var(--brand)">${v}</div><div class="muted" style="font-size:10px">${d}</div></div>`).join('')}
+      </div>
+      <div style="margin-top:14px">
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><b>🔥 Pending Orders</b><span style="color:var(--brand);cursor:pointer;font-weight:700" onclick="navTab('orders','sh_orders')">View all ›</span></div>
+        ${state.shopOrders.filter(o=>o.status!=='delivered').map(o=>`
+          <div class="list-item" onclick="state.activeOrder='${o.id}';go('sh_order_detail')">
+            <div class="avatar" style="background:color-mix(in oklab,var(--warn) 15%,transparent);font-size:22px">📦</div>
+            <div style="flex:1"><b>${o.id}</b><div class="muted">${o.customer} · ${o.items} items · ₹${o.total}</div></div>
+            <span class="chip ${o.status==='new'?'brand':o.status==='packing'?'warn':'ok'}">${o.status}</span>
+          </div>`).join('')}
+      </div>
+      <div class="card" style="margin-top:6px">
+        <b>📊 Quick Stats</b>
+        <div class="grid-2" style="margin-top:10px">
+          ${[['Rating','★ 4.7'],['Reviews','128'],['Delivery','30 min'],['Repeat','68%']].map(([t,v])=>`<div style="text-align:center;padding:10px;background:var(--surface-2);border-radius:10px"><div style="font-weight:800;font-size:16px">${v}</div><div class="muted">${t}</div></div>`).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+screens.sh_orders=()=>{
+  state.shopOrdersFilter = state.shopOrdersFilter || 'All';
+  const filter = state.shopOrdersFilter;
+  const filtered = state.shopOrders.filter(o => filter==='All' || o.status.toLowerCase()===filter.toLowerCase());
+  return `<div class="screen show">
+    ${appbar('Orders','All customer orders')}
+    <div class="body">
+      <div class="chips-scroll">
+        ${['All','New','Packing','Out','Delivered'].map(t=>`<span class="chip ${t===filter?'brand':''}" onclick="state.shopOrdersFilter='${t}';render()">${t}</span>`).join('')}
+      </div>
+      ${filtered.map(o=>`
+        <div class="list-item" onclick="state.activeOrder='${o.id}';go('sh_order_detail')">
+          <div class="avatar" style="background:${o.status==='new'?'color-mix(in oklab,var(--brand) 15%,transparent)':o.status==='packing'?'color-mix(in oklab,var(--warn) 15%,transparent)':o.status==='out'?'color-mix(in oklab,var(--ok) 15%,transparent)':'var(--surface-2)'};font-size:22px">📦</div>
+          <div style="flex:1">
+            <b>${o.id}</b>
+            <div class="muted">${o.customer} · ${o.items} items · ₹${o.total}</div>
+          </div>
+          <span class="chip ${o.status==='new'?'brand':o.status==='packing'?'warn':o.status==='out'?'ok':''}">${o.status}</span>
+        </div>`).join('')}
+      ${filtered.length===0?'<div class="muted" style="text-align:center;padding:20px">No orders found</div>':''}
+    </div>
+  </div>`;
+};
+
+screens.sh_order_detail=()=>{
+  const order=state.shopOrders.find(o=>o.id===state.activeOrder)||state.shopOrders[0];
+  const statusFlow=['new','packing','out','delivered'];
+  const si=statusFlow.indexOf(order.status);
+  const nextStatus=statusFlow[si+1];
+  const nextLabel={new:'Start Packing',packing:'Mark Out for Delivery',out:'Mark Delivered',delivered:null}[order.status];
+  return `<div class="screen show">
+    ${appbar('Order '+order.id,order.customer,{back:true})}
+    <div class="body">
+      <div class="timeline" style="margin-bottom:16px">
+        ${statusFlow.map((s,i)=>`<div class="tl-item ${i<=si?i===si?'active':'done':''}">${['📋 New Order','📦 Packing','🚚 Out for Delivery','✅ Delivered'][i]}</div>`).join('')}
+      </div>
+      <div class="card">
+        <b>Customer</b>
+        <div class="row" style="margin-top:8px">
+          <div class="avatar">${order.customer[0]}</div>
+          <div style="flex:1"><b>${order.customer}</b><div class="muted">Customer</div></div>
+          <button class="btn sm secondary" onclick="toast('Calling customer...')">📞</button>
+        </div>
+      </div>
+      <div class="card">
+        <b>Items (${order.items})</b>
+        ${(order.products||[]).map(p=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${p}</span><span class="price">₹${(Math.random()*300+50).toFixed(0)}</span></div>`).join('')}
+        <div class="row" style="justify-content:space-between;margin-top:10px"><b>Total</b><b class="price" style="font-size:18px">₹${order.total}</b></div>
+      </div>
+      ${nextLabel?`<button class="btn" onclick="updateOrderStatus('${order.id}','${nextStatus}')">${nextLabel} →</button>`:'<div class="chip ok" style="width:100%;justify-content:center;padding:12px">✅ Order Delivered</div>'}
+      <button class="btn outline" style="margin-top:8px" onclick="toast('Customer notified')">📲 Notify Customer</button>
+    </div>
+  </div>`;
+};
+
+function updateOrderStatus(id,newStatus){
+  const order=state.shopOrders.find(o=>o.id===id);
+  if(order){
+    order.status=newStatus;
+    toast('Order '+id+' → '+newStatus+' ✅');
+    render();
+  }
+}
+
+screens.sh_products=()=>`
+  <div class="screen show">
+    ${appbar('Products','Manage your catalog')}
+    <div class="body">
+      <button class="btn" style="margin-bottom:12px" onclick="openAddProductModal()">+ Add New Product</button>
+      <div class="search-bar" style="margin-bottom:10px">
+        <input class="input" placeholder="Search products..."/>
+      </div>
+      ${state.myProducts.map(p=>`
+        <div class="card">
+          <div class="row">
+            <div class="avatar" style="background:var(--surface-2);font-size:24px;width:52px;height:52px">${p.img}</div>
+            <div style="flex:1">
+              <b>${p.name}</b>
+              <div class="muted">Stock: ${p.stock} · Min qty: ${p.minQty}</div>
+              <div class="price">₹${p.price}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="btn sm secondary" onclick="openEditProductModal('${p.id}')">Edit</button>
+              <button class="btn sm danger" onclick="confirmDeleteProduct('${p.id}')">Delete</button>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+function openAddProductModal(){
+  openModal(`
+    <h3>Add New Product</h3>
+    <label class="muted" style="font-weight:600">Product Name</label>
+    <input class="input" id="newProdName" placeholder="e.g. Tata Salt 1kg" style="margin:6px 0 10px"/>
+    <div class="grid-2" style="margin-bottom:10px">
+      <div><label class="muted" style="font-weight:600">Price (₹)</label><input class="input" id="newProdPrice" value="99" type="number" style="margin-top:4px"/></div>
+      <div><label class="muted" style="font-weight:600">Stock</label><input class="input" id="newProdStock" value="50" type="number" style="margin-top:4px"/></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:14px">
+      <div><label class="muted" style="font-weight:600">Min Qty</label><input class="input" id="newProdMinQty" value="1" type="number" style="margin-top:4px"/></div>
+      <div>
+        <label class="muted" style="font-weight:600">Image</label>
+        <div id="newProdImgWrap" style="margin-top:4px;border:1px dashed var(--brand);border-radius:10px;padding:8px;text-align:center;cursor:pointer;font-size:12px;color:var(--brand);font-weight:600" onclick="toast('📸 Camera / Gallery opened');setTimeout(()=>{document.getElementById('newProdImgWrap').innerHTML='<span style=\\'font-size:24px\\'>📦</span>';document.getElementById('newProdImgWrap').dataset.val='📦';toast('Image uploaded ✅');},1000)">+ Upload Image</div>
+      </div>
+    </div>
+    <button class="btn" onclick="addProduct()">Add Product</button>
+  `);
+}
+
+function addProduct(){
+  const name=$('#newProdName')?.value;
+  const price=parseInt($('#newProdPrice')?.value||99);
+  const stock=parseInt($('#newProdStock')?.value||50);
+  const minQty=parseInt($('#newProdMinQty')?.value||1);
+  const img=$('#newProdImgWrap')?.dataset.val||'🛍';
+  if(!name){toast('Please enter a product name');return;}
+  state.myProducts.push({id:'p'+Date.now(),shop:'s1',name,price,stock,minQty,img,minFree:1000});
+  closeModal();
+  toast(name+' added ✅');
+  render();
+}
+
+function openEditProductModal(id){
+  const p=state.myProducts.find(p=>p.id===id);
+  if(!p) return;
+  openModal(`
+    <h3>Edit: ${p.name}</h3>
+    <div style="display:flex;gap:12px;margin-bottom:10px">
+      <div id="editProdImgWrap" style="width:60px;height:60px;border-radius:12px;background:var(--surface-2);border:1px dashed var(--brand);display:grid;place-items:center;font-size:28px;cursor:pointer" data-val="${p.img}" onclick="toast('📸 Camera / Gallery opened');setTimeout(()=>{document.getElementById('editProdImgWrap').innerHTML='<span style=\\'font-size:24px\\'>📦</span>';document.getElementById('editProdImgWrap').dataset.val='📦';toast('Image updated ✅');},1000)">${p.img}</div>
+      <div style="flex:1">
+        <label class="muted" style="font-weight:600">Product Name</label>
+        <input class="input" id="editProdName" value="${p.name}" style="margin-top:6px"/>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:10px">
+      <div><label class="muted" style="font-weight:600">Price (₹)</label><input class="input" id="editProdPrice" value="${p.price}" type="number" style="margin-top:4px"/></div>
+      <div><label class="muted" style="font-weight:600">Stock</label><input class="input" id="editProdStock" value="${p.stock}" type="number" style="margin-top:4px"/></div>
+    </div>
+    <button class="btn" onclick="saveProduct('${id}')">Save Changes</button>
+    <button class="btn danger" style="margin-top:8px" onclick="confirmDeleteProduct('${id}')">Delete Product</button>
+  `);
+}
+
+function saveProduct(id){
+  const p=state.myProducts.find(p=>p.id===id);
+  if(!p) return;
+  p.name=$('#editProdName')?.value||p.name;
+  p.price=parseInt($('#editProdPrice')?.value||p.price);
+  p.stock=parseInt($('#editProdStock')?.value||p.stock);
+  p.img=$('#editProdImgWrap')?.dataset.val||p.img;
+  closeModal();
+  toast('Product updated ✅');
+  render();
+}
+
+function confirmDeleteProduct(id){
+  const p=state.myProducts.find(p=>p.id===id);
+  openModal(`
+    <h3>Delete Product?</h3>
+    <p class="muted">Are you sure you want to delete "${p?.name}"? This cannot be undone.</p>
+    <button class="btn danger" onclick="deleteProduct('${id}')">Yes, Delete</button>
+    <button class="btn secondary" style="margin-top:8px" onclick="closeModal()">Cancel</button>
+  `);
+}
+
+function deleteProduct(id){
+  state.myProducts=state.myProducts.filter(p=>p.id!==id);
+  closeModal();
+  toast('Product deleted');
+  render();
+}
+
+screens.sh_wallet=()=>walletScreen('Shop Wallet',state.wallet.shop,[
+  {t:'Order SO1023 payout',a:'+₹682',d:'Today'},
+  {t:'Order SO1022 payout',a:'+₹1116',d:'Today'},
+  {t:'Withdrawal to bank',a:'-₹5000',d:'Yesterday'},
+  {t:'Platform fee',a:'-₹120',d:'Yesterday'},
+  {t:'Order SO1020 payout',a:'+₹612',d:'2 days ago'},
+]);
+
+function openShopDetailsModal(){
+  openModal(`
+    <h3 style="margin-bottom:8px">Shop Details</h3>
+    <div style="text-align:center;margin-bottom:14px">
+      <div id="shopProfileImg" style="width:80px;height:80px;background:#7ed957;border-radius:14px;margin:0 auto 10px;display:grid;place-items:center;font-size:36px;cursor:pointer" onclick="toast('📸 Camera / Gallery opened');setTimeout(()=>{this.innerHTML='🏪';toast('Image updated ✅')},1000)">🏪</div>
+      <div class="muted" style="font-size:11px">Tap image to update</div>
+    </div>
+    <label class="muted" style="font-weight:600">Shop Name</label>
+    <input class="input" value="Sharma General Store" style="margin:6px 0 10px"/>
+    <label class="muted" style="font-weight:600">Description</label>
+    <textarea class="input" rows="2" placeholder="Description..." style="margin:6px 0 10px">Best grocery store in the area</textarea>
+    <button class="btn" onclick="closeModal();toast('Shop details saved! ✅')">Save Changes</button>
+  `);
+}
+
+function openShopAddressModal(){
+  openModal(`
+    <h3 style="margin-bottom:8px">Shop Address</h3>
+    <div class="row" style="margin-bottom:12px;gap:8px">
+      <button class="btn secondary" style="flex:1;padding:8px;font-size:12px" onclick="toast('📍 Fetching GPS...');setTimeout(()=>{document.getElementById('shopAddrInput').value='Sector 21, New Delhi (Auto-detected)';toast('Location fetched ✅')},1000)">📍 Use GPS</button>
+      <button class="btn secondary" style="flex:1;padding:8px;font-size:12px" onclick="toast('Map view opened 🗺️')">🗺 Pick on Map</button>
+    </div>
+    <label class="muted" style="font-weight:600">Complete Address</label>
+    <textarea class="input" id="shopAddrInput" rows="3" style="margin:6px 0 10px">A-Block Market, Delhi</textarea>
+    <div class="grid-2" style="margin-top:10px">
+      <button class="btn" onclick="closeModal();toast('Address updated! ✅')">Save Address</button>
+      <button class="btn danger outline" onclick="closeModal();toast('Address removed 🗑️')">Delete</button>
+    </div>
+  `);
+}
+
+function openShopKycModal(){
+  openModal(`
+    <h3 style="margin-bottom:8px">KYC & Documents</h3>
+    <div class="chip ok" style="margin-bottom:12px;justify-content:center;padding:6px">✓ Fully Verified</div>
+    <div class="list-item" style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px">
+      <div class="avatar" style="font-size:18px;background:var(--surface-2)">📄</div>
+      <div style="flex:1"><b>GST Certificate</b><div class="muted" style="font-size:11px">gst_cert.pdf (1.2 MB)</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn sm secondary" onclick="toast('Viewing PDF...')">👁 View</button>
+        <button class="btn sm secondary" onclick="toast('Downloading PDF ⬇️')">⬇️ Save</button>
+      </div>
+    </div>
+    <div class="list-item" style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px">
+      <div class="avatar" style="font-size:18px;background:var(--surface-2)">🪪</div>
+      <div style="flex:1"><b>Shop Registration</b><div class="muted" style="font-size:11px">reg_doc.jpg (800 KB)</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn sm secondary" onclick="toast('Viewing Image...')">👁 View</button>
+        <button class="btn sm secondary" onclick="toast('Downloading ⬇️')">⬇️ Save</button>
+      </div>
+    </div>
+    <button class="btn outline" style="margin-top:8px" onclick="toast('File picker opened');setTimeout(()=>toast('File uploaded successfully ✅'),1500)">+ Upload New Document</button>
+  `);
+}
+
+function openShopBankModal(){
+  state.shopPayoutMethods = state.shopPayoutMethods || [
+    {id:'pm1',type:'bank',name:'SBI Savings Account',num:'****5678',primary:true},
+    {id:'pm2',type:'upi',name:'GPay',num:'shop@upi',primary:false}
+  ];
+  const pmHtml = state.shopPayoutMethods.map(pm=>`
+    <div class="list-item" style="margin-bottom:8px;border:1px solid ${pm.primary?'var(--brand)':'var(--border)'};border-radius:10px;padding:10px">
+      <div class="avatar" style="font-size:18px;background:var(--surface-2)">${pm.type==='bank'?'🏦':'📱'}</div>
+      <div style="flex:1">
+        <b>${pm.name}</b><div class="muted">${pm.num}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        ${pm.primary?'<span class="chip brand" style="padding:2px 6px">Primary</span>':`<button class="btn sm secondary" onclick="state.shopPayoutMethods.forEach(m=>m.primary=false);state.shopPayoutMethods.find(m=>m.id==='${pm.id}').primary=true;openShopBankModal()">Set Primary</button>`}
+        <button class="btn sm danger" onclick="state.shopPayoutMethods=state.shopPayoutMethods.filter(m=>m.id!=='${pm.id}');openShopBankModal()">Delete</button>
+      </div>
+    </div>
+  `).join('');
+
+  openModal(`
+    <h3 style="margin-bottom:12px">Payout Methods</h3>
+    <div style="max-height:220px;overflow-y:auto;margin-bottom:14px">
+      ${state.shopPayoutMethods.length===0?'<div class="muted" style="text-align:center;padding:16px">No payout methods added</div>':pmHtml}
+    </div>
+    <button class="btn" onclick="toast('Add bank/UPI flow started');setTimeout(()=>{state.shopPayoutMethods.push({id:'pm'+Date.now(),type:'upi',name:'PhonePe',num:'new@ybl',primary:false});openShopBankModal();},1000)">+ Add New Bank or UPI</button>
+  `);
+}
+
+function openShopAnalyticsModal(){
+  openModal(`
+    <h3 style="margin-bottom:4px">Shop Analytics</h3>
+    <div class="row" style="gap:8px;margin-bottom:12px">
+      <select class="input" style="flex:1;padding:6px;font-size:12px" onchange="toast('Filter: '+this.value)"><option>This Week</option><option>This Month</option><option>This Year</option></select>
+      <select class="input" style="flex:1;padding:6px;font-size:12px" onchange="toast('Sort: '+this.value)"><option>Date (Newest)</option><option>Order Value</option><option>Status</option></select>
+    </div>
+    <div class="grid-2" style="gap:10px;margin-bottom:14px">
+      ${[['₹23,400','Revenue'],['128','Orders'],['4.7 ★','Rating'],['68%','Repeat']].map(([v,l])=>`<div class="card" style="margin:0;text-align:center;padding:12px"><div style="font-size:20px;font-weight:800;color:var(--brand)">${v}</div><div class="muted" style="font-size:11px">${l}</div></div>`).join('')}
+    </div>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:14px">
+      <div style="font-weight:700;margin-bottom:8px">Top Selling Categories</div>
+      <div class="row" style="justify-content:space-between;margin-bottom:4px"><span class="muted" style="font-size:12px">Groceries</span><b>65%</b></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:4px"><span class="muted" style="font-size:12px">Dairy</span><b>20%</b></div>
+      <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12px">Snacks</span><b>15%</b></div>
+    </div>
+    <button class="btn outline" onclick="toast('Generating PDF report...');setTimeout(()=>toast('Report downloaded ⬇️'),1500)">⬇️ Download PDF Report</button>
+  `);
+}
+
+screens.sh_profile=()=>`
+  <div class="screen show">
+    ${appbar('Shop Settings','Sharma General Store')}
+    <div class="body">
+      <div class="card"><div class="row"><div class="avatar" style="background:#7ed957;color:#000;font-size:22px;width:52px;height:52px">🏪</div><div style="flex:1"><b>Sharma General Store</b><div class="muted">📍 A-Block Market, Delhi · ★ 4.7</div></div><button class="btn sm secondary" onclick="openShopDetailsModal()">Edit</button></div></div>
+      ${[
+        {icon:'🏪',t:'Shop Details',v:'Name, description, photos',action:`openShopDetailsModal()`},
+        {icon:'📍',t:'Address & Map',v:'A-Block Market, Delhi',action:`openShopAddressModal()`},
+        {icon:'🕒',t:'Business Hours',v:'9 AM – 10 PM',action:`openModal('<h3>Business Hours</h3>${['Mon-Fri','Sat','Sun'].map(d=>`<div class=row style=justify-content:space-between;padding:10px 0;border-bottom:1px_solid_var(--border)><b>${d}</b><input class=input value=\\'9 AM – 10 PM\\' style=\\'width:140px\\'/></div>`).join('')}<button class=btn onclick=\\'closeModal();toast(\\'Hours saved!\\')\\' style=\\'margin-top:12px\\'>Save</button>')`},
+        {icon:'🚚',t:'Delivery Settings',v:'3 km radius · ₹40 fee',action:`openModal('<h3>Delivery Settings</h3><label class=muted>Service Radius (km)</label><input class=input value=3 type=number style=\\'margin:6px 0 10px\\'/><label class=muted>Delivery Fee (₹)</label><input class=input value=40 type=number style=\\'margin:6px 0 10px\\'/><label class=muted>Free Delivery Above (₹)</label><input class=input value=1000 type=number style=\\'margin:6px 0 14px\\'/><button class=btn onclick=\\'closeModal();toast(\\'Settings saved!\\')\\'>Save</button>')`},
+        {icon:'🆔',t:'KYC / GST',v:'Verified ✓',action:`openShopKycModal()`},
+        {icon:'🏦',t:'Payout Methods',v:'Bank & UPI',action:`openShopBankModal()`},
+        {icon:'📊',t:'Analytics & Reports',v:'Revenue, insights, PDF',action:`openShopAnalyticsModal()`},
+        {icon:'🚪',t:'Logout',v:'',action:`setRole('customer');state.screen='splash';render()`},
+      ].map(item=>`
+        <div class="list-item" onclick="${item.action}">
+          <div class="avatar" style="background:var(--surface-2);font-size:20px">${item.icon}</div>
+          <div style="flex:1"><b>${item.t}</b>${item.v?`<div class="muted">${item.v}</div>`:''}</div>
+          <span style="color:var(--brand)">›</span>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+/* ============================================================
+   ADMIN FLOW
+   ============================================================ */
+screens.a_home=()=>`
+  <div class="screen show">
+    ${appbar('Admin Overview','Platform health',{right:`<button class="icon-btn" onclick="openNotifs()">🔔<span class="dot"></span></button>`})}
+    <div class="body">
+      <div class="grid-2">
+        ${[['Total Users','12,480','+8%','ok'],['Active Workers','1,206','+12%','ok'],['Shops','342','+5%','ok'],['Today Revenue','₹84.2k','+18%','ok']].map(([t,v,d,c])=>`
+          <div class="card" style="margin:0;cursor:pointer" onclick="toast('${t}: ${v}')">
+            <div class="muted" style="font-size:11px">${t}</div>
+            <div style="font-size:22px;font-weight:800">${v}</div>
+            <span class="chip ${c}" style="font-size:10px;margin-top:4px">${d} this week</span>
+          </div>`).join('')}
+      </div>
+      <div class="card" style="margin-top:12px">
+        <b>📈 Bookings – Last 7 Days</b>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:80px;margin-top:12px">
+          ${[40,55,70,50,80,90,75].map((v,i)=>`
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+              <div style="font-size:9px;color:var(--muted)">${v}</div>
+              <div style="width:100%;background:linear-gradient(180deg,var(--brand),var(--brand-2));border-radius:6px 6px 0 0;height:${v}%;cursor:pointer" onclick="toast('${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]}: ${v*12} bookings')"></div>
+              <div style="font-size:9px;color:var(--muted)">${['M','T','W','T','F','S','S'][i]}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <b>🚨 Pending Approvals</b>
+        ${[['Worker KYC',24,'a_users'],['Shop Registration',6,'a_users'],['Payout Requests',8,'a_payouts'],['Category Suggestions',12,'a_cats']].map(([t,n,scr])=>`
+          <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="navTab('${scr.replace('a_','').split('_')[0]}','${scr}')">
+            <span>${t}</span>
+            <div class="row" style="gap:6px"><span class="chip warn">${n}</span><span style="color:var(--brand)">›</span></div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+
+screens.a_users=()=>`
+  <div class="screen show">
+    ${appbar('Users','12,480 total registered')}
+    <div class="body">
+      <div class="search-bar" style="margin-bottom:10px">
+        <input class="input" placeholder="Search by name, phone, email..."/>
+      </div>
+      <div class="chips-scroll">
+        ${['All','Customers','Workers','Shops','Pending KYC','Blocked'].map((t,i)=>`<span class="chip ${state.userFilter===t?'brand':''}" onclick="state.userFilter='${t}';render()">${t}</span>`).join('')}
+      </div>
+      <div class="muted" style="margin-bottom:8px">Showing: ${state.userFilter}</div>
+      ${[
+        {n:'Anita Sharma',r:'Customer',s:'✓ Active',c:'ok',phone:'+91 98765 43210'},
+        {n:'Ramesh Kumar',r:'Worker · AC & HVAC · ★4.8',s:'✓ KYC Verified',c:'ok',phone:'+91 91234 56789'},
+        {n:'Sharma Store',r:'Shop Owner · Delhi',s:'✓ Active',c:'ok',phone:'+91 99887 76655'},
+        {n:'Vijay Yadav',r:'Worker · Electrical · Pending',s:'⏳ KYC Pending',c:'warn',phone:'+91 97654 32109'},
+        {n:'Priya Singh',r:'Customer',s:'🚫 Blocked',c:'err',phone:'+91 95555 44444'},
+      ].map(u=>`
+        <div class="card" style="cursor:pointer" onclick="openModal('<h3>${u.n}</h3><p class=muted>${u.r}</p><p class=muted>${u.phone}</p><div class=grid-2 style=gap:8px><button class=btn onclick=\\'closeModal();toast(\\'User verified!\\')\\'>Verify</button><button class=btn danger onclick=\\'closeModal();toast(\\'User blocked\\')\\'>Block</button></div>')">
+          <div class="row">
+            <div class="avatar">${u.n[0]}</div>
+            <div style="flex:1">
+              <b>${u.n}</b>
+              <div class="muted">${u.r}</div>
+            </div>
+            <span class="chip ${u.c}" style="font-size:10px">${u.s}</span>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+screens.a_cats=()=>`
+  <div class="screen show">
+    ${appbar('Categories','Manage service categories')}
+    <div class="body">
+      <button class="btn" style="margin-bottom:12px" onclick="openModal('<h3>Add New Category</h3><label class=muted style=font-weight:600>Category Name</label><input class=input id=newCatName placeholder=\\'e.g. CCTV Install\\' style=\\'margin:6px 0 10px\\'/><label class=muted style=font-weight:600>Icon Emoji</label><input class=input id=newCatIcon value=🔧 style=\\'margin:6px 0 14px\\'/><button class=btn onclick=\\'addCategory()\\'>Add Category</button>')">+ Add New Category</button>
+      ${CATEGORIES.map(c=>`
+        <div class="card">
+          <div class="row">
+            <div class="cat-icon">${c.icon}</div>
+            <div style="flex:1">
+              <b>${c.name}</b>
+              <div class="muted">${c.subs.length} sub-services</div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn sm secondary" onclick="openModal('<h3>Edit: ${c.name}</h3><input class=input value=\\'${c.name}\\' style=\\'margin:8px 0\\'/><b style=\\'display:block;margin:8px 0 4px\\'>Sub-services</b>${c.subs.map(s=>`<input class=input value=\\'${s}\\' style=\\'margin:4px 0\\'/>`).join('')}<button class=btn onclick=\\'closeModal();toast(\\'Saved!\\')\\' style=\\'margin-top:10px\\'>Save Changes</button>')">Edit</button>
+              <button class="btn sm danger" onclick="toast('Category deleted')">Del</button>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+function addCategory(){
+  const name=$('#newCatName')?.value;
+  const icon=$('#newCatIcon')?.value||'🔧';
+  if(!name){toast('Enter category name');return;}
+  CATEGORIES.push({id:'cat'+Date.now(),name,icon,subs:[]});
+  closeModal();
+  toast(name+' added ✅');
+  render();
+}
+
+screens.a_payouts=()=>`
+  <div class="screen show">
+    ${appbar('Payouts','Worker & shop withdrawals')}
+    <div class="body">
+      <div class="grid-2" style="margin-bottom:12px">
+        <div class="card" style="margin:0"><div class="muted">Pending</div><div style="font-size:24px;font-weight:800;color:var(--warn)">₹1.24L</div></div>
+        <div class="card" style="margin:0"><div class="muted">Processed Today</div><div style="font-size:24px;font-weight:800;color:var(--ok)">₹3.8L</div></div>
+      </div>
+      <button class="btn secondary" style="margin-bottom:12px" onclick="toast('Batch processing all pending payouts...')">⚡ Batch Approve All Pending</button>
+      ${[
+        {n:'Ramesh Kumar',a:'₹2,000',b:'HDFC ****1234',s:'pending'},
+        {n:'Sharma Store',a:'₹5,000',b:'SBI ****5678',s:'approved'},
+        {n:'Aman Singh',a:'₹3,500',b:'ICICI ****9999',s:'pending'},
+        {n:'Sunil Verma',a:'₹1,200',b:'Kotak ****1111',s:'pending'},
+      ].map(p=>`
+        <div class="card">
+          <div class="row">
+            <div class="avatar">${p.n[0]}</div>
+            <div style="flex:1"><b>${p.n}</b><div class="muted">${p.b}</div></div>
+            <div style="text-align:right">
+              <b class="price" style="display:block">${p.a}</b>
+              ${p.s==='pending'
+                ?`<button class="btn sm" style="margin-top:6px" onclick="this.parentElement.innerHTML='<span class=chip ok>Approved ✓</span>';toast('${p.n} payout approved')">Approve</button>`
+                :'<span class="chip ok" style="margin-top:6px;display:inline-flex">Approved ✓</span>'}
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+screens.a_settings=()=>`
+  <div class="screen show">
+    ${appbar('Platform Settings','')}
+    <div class="body">
+      ${[
+        {icon:'💼',t:'Commission %',v:'10%',action:`openModal('<h3>Commission Rate</h3><p class=muted>Deducted from worker payout on each job</p><input class=input value=10 type=number style=\\'margin:8px 0\\'/><span class=muted>%</span><button class=btn onclick=\\'closeModal();toast(\\'Commission updated!\\')\\' style=\\'margin-top:10px\\'>Save</button>')`},
+        {icon:'💰',t:'Worker Bid Fee',v:'₹20 per bid',action:`openModal('<h3>Bid Fee</h3><p class=muted>Charged at bid placement from worker wallet</p><input class=input value=20 type=number style=\\'margin:8px 0\\'/><button class=btn onclick=\\'closeModal();toast(\\'Bid fee updated!\\')\\' style=\\'margin-top:10px\\'>Save</button>')`},
+        {icon:'🚚',t:'Default Free Delivery',v:'₹1,000 cart value',action:`openModal('<h3>Free Delivery Threshold</h3><p class=muted>Default minimum cart value for free delivery</p><input class=input value=1000 type=number style=\\'margin:8px 0\\'/><button class=btn onclick=\\'closeModal();toast(\\'Threshold updated!\\')\\' style=\\'margin-top:10px\\'>Save</button>')`},
+        {icon:'🎁',t:'Referral Bonus',v:'₹100 per referral',action:`openModal('<h3>Referral Bonus</h3><p class=muted>Amount credited when a referred user completes first booking</p><input class=input value=100 type=number style=\\'margin:8px 0\\'/><button class=btn onclick=\\'closeModal();toast(\\'Bonus updated!\\')\\' style=\\'margin-top:10px\\'>Save</button>')`},
+        {icon:'🆓',t:'Worker Free Trial',v:'3 months zero commission',action:`openModal('<h3>Worker Free Trial</h3><p class=muted>New workers get zero commission for this many months</p><input class=input value=3 type=number style=\\'margin:8px 0\\'/><button class=btn onclick=\\'closeModal();toast(\\'Trial period updated!\\')\\' style=\\'margin-top:10px\\'>Save</button>')`},
+        {icon:'🌐',t:'Languages',v:'English · Hindi',action:`openModal('<h3>Supported Languages</h3>${['English','Hindi','Tamil','Telugu','Bengali','Marathi'].map(l=>`<div class=list-item onclick=toast(\\'${l} toggled\\')><b>${l}</b><span style=color:var(--brand)>✓</span></div>`).join('')}')`},
+        {icon:'📜',t:'T&C / Policies',v:'Last updated May 2026',action:`openModal('<h3>Terms & Conditions</h3><p class=muted style=line-height:1.6>Platform terms govern all service bookings, payments, and worker agreements. Commission structure and policies may change with 30-day notice.</p><button class=btn onclick=closeModal()>Close</button>')`},
+        {icon:'🔐',t:'Admin Roles',v:'3 active admins',action:`openModal('<h3>Admin Users</h3>${['Super Admin · You','Finance Admin','Support Admin'].map(a=>`<div class=list-item><div class=avatar>🛡</div><b>${a}</b></div>`).join('')}<button class=btn onclick=\\'closeModal();toast(\\'Invite admin flow\\')\\'> + Invite Admin</button>')`},
+      ].map(item=>`
+        <div class="list-item" onclick="${item.action}">
+          <div class="avatar" style="background:var(--surface-2);font-size:20px">${item.icon}</div>
+          <div style="flex:1"><b>${item.t}</b>${item.v?`<div class="muted">${item.v}</div>`:''}</div>
+          <span style="color:var(--brand)">›</span>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+/* ---------- Shared screens ---------- */
+function walletScreen(title,bal,txns){
+  return `<div class="screen show">
+    ${appbar(title,'')}
+    <div class="body">
+      <div class="card" style="background:linear-gradient(135deg,var(--navy),#1a2a5c);color:#fff;border:none">
+        <div class="muted" style="color:#aac">Available balance</div>
+        <div style="font-size:36px;font-weight:800;margin:4px 0">₹${bal.toLocaleString()}</div>
+        <div class="grid-2" style="margin-top:12px">
+          <button class="btn" style="background:var(--brand-2);color:#001016" onclick="openTopUpModal()">+ Top Up</button>
+          <button class="btn secondary" onclick="openWithdrawModal()" style="background:rgba(255,255,255,.15);color:#fff;border:none">Withdraw</button>
+        </div>
+      </div>
+      <b style="margin:8px 4px;display:block">Recent Transactions</b>
+      ${txns.map(t=>`
+        <div class="card" style="padding:10px 14px;cursor:pointer" onclick="openTxnInvoice('${t.t}','${t.a}','${t.d}')">
+          <div class="row">
+            <div class="avatar" style="background:${t.a.startsWith('+')?'color-mix(in oklab,var(--ok) 15%,transparent)':'color-mix(in oklab,var(--err) 15%,transparent)'};font-size:18px">${t.a.startsWith('+')?'⬇️':'⬆️'}</div>
+            <div style="flex:1"><b style="font-size:13px">${t.t}</b><div class="muted">${t.d}</div></div>
+            <b style="color:${t.a.startsWith('+')?'var(--ok)':'var(--err)'}">${t.a}</b>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function openTxnInvoice(title, amt, date){
+  openModal(`
+    <div style="text-align:center;padding:10px 0">
+      <div style="font-size:32px;margin-bottom:8px">🧾</div>
+      <h3 style="margin:0">${title}</h3>
+      <div class="muted" style="margin:4px 0 12px">${date}</div>
+      <div style="font-size:28px;font-weight:800;color:${amt.startsWith('+')?'var(--ok)':'var(--err)'}">${amt}</div>
+    </div>
+    <div class="card" style="margin-top:10px;text-align:left">
+      <div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="muted">Transaction ID</span><b>TXN${Math.floor(Math.random()*1000000)}</b></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="muted">Status</span><b style="color:var(--ok)">Successful</b></div>
+      <div class="row" style="justify-content:space-between"><span class="muted">Payment Method</span><b>Wallet</b></div>
+    </div>
+    <button class="btn" style="margin-top:14px" onclick="toast('Invoice downloaded ⬇️');closeModal()">Download Invoice</button>
+  `);
+}
+
+function openTopUpModal(){
+  openModal(`
+    <h3>Top Up Wallet</h3>
+    <div class="grid-3" style="margin-bottom:14px">
+      ${[100,200,500,1000,2000,5000].map(a=>`<button class="btn secondary" onclick="toast('₹${a} top up initiated')">₹${a}</button>`).join('')}
+    </div>
+    <input class="input" placeholder="Custom amount..." type="number" style="margin-bottom:10px"/>
+    <button class="btn" onclick="closeModal();toast('Top up successful! 🎉')">Proceed to Pay</button>
+  `);
+}
+
+function openWithdrawModal(){
+  state.shopPayoutMethods = state.shopPayoutMethods || [
+    {id:'pm1',type:'bank',name:'SBI Savings Account',num:'****5678',primary:true},
+    {id:'pm2',type:'upi',name:'GPay',num:'shop@upi',primary:false}
+  ];
+  const pmHtml = state.shopPayoutMethods.map(pm=>`
+    <div class="list-item" style="margin-bottom:8px;padding:10px">
+      <div class="avatar" style="font-size:18px">${pm.type==='bank'?'🏦':'📱'}</div>
+      <div style="flex:1">
+        <b>${pm.name}</b><div class="muted">${pm.num}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        ${pm.primary?'<span class="chip ok" style="padding:2px 6px">Primary</span>':`<button class="btn sm secondary" onclick="state.shopPayoutMethods.forEach(m=>m.primary=false);state.shopPayoutMethods.find(m=>m.id==='${pm.id}').primary=true;openWithdrawModal()">Set Primary</button>`}
+        <button class="btn sm danger" onclick="state.shopPayoutMethods=state.shopPayoutMethods.filter(m=>m.id!=='${pm.id}');openWithdrawModal()">Delete</button>
+      </div>
+    </div>
+  `).join('');
+
+  openModal(`
+    <h3 style="margin-bottom:4px">Withdraw Funds</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">Select destination account</div>
+    <div style="max-height:180px;overflow-y:auto;margin-bottom:10px;border:1px solid var(--border);border-radius:10px">
+      ${state.shopPayoutMethods.length===0?'<div class="muted" style="text-align:center;padding:16px">No payout methods</div>':pmHtml}
+    </div>
+    <button class="btn outline" style="margin-bottom:14px" onclick="toast('Add new payout method flow...')">+ Add Bank or UPI</button>
+    <input class="input" placeholder="Amount to withdraw (₹)" type="number" style="margin-bottom:6px"/>
+    <div class="muted" style="margin-bottom:12px;font-size:11px">Processing time: 1–2 business days</div>
+    <button class="btn" onclick="closeModal();toast('Withdrawal request submitted ✅')">Submit Request</button>
+  `);
+}
+
+function profileScreen(name,sub,items){
+  return `<div class="screen show">
+    ${appbar('My Profile','')}
+    <div class="body">
+      <div class="card" style="text-align:center;padding:20px">
+        <div class="avatar" style="width:72px;height:72px;font-size:28px;margin:0 auto 12px">${name[0]}</div>
+        <b style="font-size:18px">${name}</b>
+        <div class="muted">${sub}</div>
+        <div class="row" style="justify-content:center;gap:16px;margin-top:12px">
+          <div style="text-align:center"><div style="font-weight:800;color:var(--brand)">48</div><div class="muted" style="font-size:10px">Jobs</div></div>
+          <div style="text-align:center"><div style="font-weight:800;color:var(--brand)">★4.8</div><div class="muted" style="font-size:10px">Rating</div></div>
+          <div style="text-align:center"><div style="font-weight:800;color:var(--brand)">2yr</div><div class="muted" style="font-size:10px">Member</div></div>
+        </div>
+        <button class="btn sm secondary" style="margin-top:12px" onclick="openModal('<h3>Edit Profile</h3><input class=input value=\\'${name}\\' style=\\'margin:8px 0\\'/><input class=input value=\\'+91 98765 43210\\' style=\\'margin:8px 0\\'/><input class=input value=\\'user@email.com\\' style=\\'margin:8px 0\\'/><button class=btn onclick=\\'closeModal();toast(\\'Profile updated!\\')\\'>Save Changes</button>')">Edit Profile</button>
+      </div>
+      ${items.map(item=>`
+        <div class="list-item" onclick="${item.action}">
+          <span style="font-size:22px">${item.icon}</span>
+          <div style="flex:1"><b>${item.t}</b>${item.v?`<div class="muted">${item.v}</div>`:''}</div>
+          <span style="color:var(--brand)">›</span>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   Render
+   ============================================================ */
+function render(){
+  closeModal();
+  const fn=screens[state.screen]||(()=>`<div class="screen show"><div class="body" style="text-align:center;padding-top:40px"><div style="font-size:48px">🔧</div><p class="muted">Screen "<b>${state.screen}</b>" coming soon</p><button class="btn" onclick="goHome()">Go Home</button></div></div>`);
+  $('#screens').innerHTML=fn();
+  renderTabbar();
+}
+
+renderRoleSwitcher();
+setTheme('light');
+$('#themeToggle').addEventListener('click',()=>setTheme(state.theme==='dark'?'light':'dark'));
+state.screen='splash';
+render();
+</script>
+</body>
+</html>

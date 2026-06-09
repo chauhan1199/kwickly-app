@@ -1,0 +1,2168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kwickly — Interactive Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #2563EB;
+    --primary-dark: #1D4ED8;
+    --primary-light: #EFF6FF;
+    --secondary: #F97316;
+    --success: #16A34A;
+    --warning: #D97706;
+    --danger: #DC2626;
+    --dark: #1E293B;
+    --mid: #64748B;
+    --border: #CBD5E1;
+    --bg: #F1F5F9;
+    --white: #FFFFFF;
+    --card-shadow: 0 4px 24px rgba(30,41,59,0.10);
+    --card-shadow-lg: 0 8px 40px rgba(30,41,59,0.16);
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 999px;
+    --font: 'Plus Jakarta Sans', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  body {
+    font-family: var(--font);
+    background: #0F172A;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+  }
+
+  /* ── PROTOTYPE SHELL ── */
+  .prototype-shell {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── TOP NAVIGATION BAR ── */
+  .proto-topbar {
+    background: #0F172A;
+    border-bottom: 1px solid #1E293B;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    flex-shrink: 0;
+  }
+  .proto-logo {
+    font-family: var(--font);
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--primary);
+    letter-spacing: -0.5px;
+  }
+  .proto-logo span { color: #F97316; }
+  .proto-divider { width: 1px; height: 24px; background: #1E293B; }
+  .proto-label { color: #64748B; font-size: 12px; font-weight: 500; font-family: var(--font-body); }
+  
+  .flow-tabs {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    background: #1E293B;
+    border-radius: var(--radius-full);
+    padding: 4px;
+  }
+  .flow-tab {
+    padding: 6px 16px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748B;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    background: none;
+    font-family: var(--font);
+  }
+  .flow-tab.active { background: var(--primary); color: white; }
+  .flow-tab:hover:not(.active) { color: white; }
+
+  /* ── MAIN CONTENT AREA ── */
+  .proto-content {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    height: calc(100vh - 57px);
+  }
+
+  /* ── SCREEN SIDEBAR ── */
+  .screen-sidebar {
+    width: 200px;
+    background: #0F172A;
+    border-right: 1px solid #1E293B;
+    overflow-y: auto;
+    flex-shrink: 0;
+    padding: 12px 8px;
+  }
+  .screen-sidebar::-webkit-scrollbar { width: 4px; }
+  .screen-sidebar::-webkit-scrollbar-track { background: transparent; }
+  .screen-sidebar::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 2px; }
+
+  .sidebar-section { margin-bottom: 16px; }
+  .sidebar-section-title {
+    font-size: 9px;
+    font-weight: 700;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0 8px;
+    margin-bottom: 6px;
+    font-family: var(--font-body);
+  }
+  .screen-thumb {
+    padding: 8px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+  }
+  .screen-thumb:hover { background: #1E293B; }
+  .screen-thumb.active { background: #1E3A5F; border-color: var(--primary); }
+  .screen-thumb-id { font-size: 9px; color: #475569; font-weight: 600; font-family: var(--font-body); margin-bottom: 2px; }
+  .screen-thumb-name { font-size: 11px; color: #CBD5E1; font-weight: 500; line-height: 1.3; }
+
+  /* ── PHONE VIEWPORT ── */
+  .phone-viewport {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0A0F1E;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .phone-viewport::before {
+    content: '';
+    position: absolute;
+    top: -100px;
+    left: -100px;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .phone-frame {
+    width: 393px;
+    height: 852px;
+    background: var(--white);
+    border-radius: 44px;
+    box-shadow: 0 0 0 10px #1E293B, 0 0 0 12px #334155, 0 40px 80px rgba(0,0,0,0.6);
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* Status bar */
+  .status-bar {
+    height: 44px;
+    background: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    position: relative;
+    z-index: 10;
+  }
+  .status-time { font-size: 15px; font-weight: 600; color: var(--dark); }
+  .status-icons { display: flex; gap: 6px; align-items: center; }
+  .status-icons svg { width: 16px; height: 16px; fill: var(--dark); }
+
+  /* ── SCREEN CONTAINER ── */
+  .screen {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    background: var(--white);
+    overflow: hidden;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    animation: screenIn 0.3s cubic-bezier(0.22,1,0.36,1);
+  }
+  .screen.active { display: flex; }
+
+  @keyframes screenIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .screen-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .screen-scroll::-webkit-scrollbar { width: 0; }
+
+  /* ── COMPONENTS ── */
+
+  /* App Bar */
+  .app-bar {
+    height: 56px;
+    background: var(--white);
+    border-bottom: 1px solid #F1F5F9;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 5;
+  }
+  .app-bar-title { font-size: 17px; font-weight: 700; color: var(--dark); flex: 1; }
+  .app-bar-center { text-align: center; }
+  .back-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--bg); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .back-btn svg { width: 18px; height: 18px; }
+
+  /* Bottom Nav */
+  .bottom-nav {
+    height: 72px;
+    background: var(--white);
+    border-top: 1px solid #F1F5F9;
+    display: flex;
+    flex-shrink: 0;
+    padding-bottom: 8px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    cursor: pointer;
+    position: relative;
+    padding-top: 8px;
+  }
+  .nav-item svg { width: 22px; height: 22px; stroke: var(--border); fill: none; stroke-width: 1.8; transition: stroke 0.2s; }
+  .nav-item span { font-size: 10px; color: var(--border); font-weight: 500; transition: color 0.2s; }
+  .nav-item.active svg { stroke: var(--primary); }
+  .nav-item.active span { color: var(--primary); font-weight: 700; }
+  .nav-dot { width: 4px; height: 4px; border-radius: 2px; background: var(--primary); position: absolute; top: 4px; display: none; }
+  .nav-item.active .nav-dot { display: block; }
+
+  /* Buttons */
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 0 24px;
+    height: 52px;
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.2s;
+    letter-spacing: -0.2px;
+  }
+  .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--primary);
+    border: 2px solid var(--primary);
+    border-radius: var(--radius-full);
+    padding: 0 24px;
+    height: 52px;
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.2s;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--primary);
+    border: none;
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 16px;
+  }
+  .btn-danger {
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 0 24px;
+    height: 52px;
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+  }
+
+  /* Input */
+  .input-group { margin-bottom: 16px; }
+  .input-label { font-size: 12px; font-weight: 600; color: var(--mid); margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
+  .input-field {
+    width: 100%;
+    height: 52px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0 16px;
+    font-family: var(--font);
+    font-size: 15px;
+    color: var(--dark);
+    outline: none;
+    transition: border-color 0.2s;
+    background: var(--white);
+  }
+  .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+
+  /* OTP Boxes */
+  .otp-boxes { display: flex; gap: 8px; justify-content: center; margin: 24px 0; }
+  .otp-box {
+    width: 46px;
+    height: 56px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: var(--font);
+    font-size: 28px;
+    font-weight: 800;
+    text-align: center;
+    color: var(--dark);
+    outline: none;
+  }
+  .otp-box.filled { border-color: var(--primary); background: var(--primary-light); }
+
+  /* Cards */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--card-shadow);
+    border: 1px solid #F1F5F9;
+  }
+  .card-elevated { box-shadow: var(--card-shadow-lg); }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badge-success { background: #DCFCE7; color: #15803D; }
+  .badge-warning { background: #FEF3C7; color: #92400E; }
+  .badge-danger { background: #FEE2E2; color: #B91C1C; }
+  .badge-primary { background: var(--primary-light); color: var(--primary); }
+  .badge-secondary { background: #FFF7ED; color: #C2410C; }
+  .badge-purple { background: #F3E8FF; color: #7C3AED; }
+
+  /* Star Rating */
+  .stars { color: #FBBF24; letter-spacing: 1px; font-size: 13px; }
+
+  /* Section Header */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .section-title { font-size: 16px; font-weight: 700; color: var(--dark); }
+  .section-link { font-size: 13px; color: var(--primary); font-weight: 600; cursor: pointer; }
+
+  /* Avatar */
+  .avatar {
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), #7C3AED);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .avatar-sm { width: 36px; height: 36px; font-size: 13px; }
+  .avatar-md { width: 48px; height: 48px; font-size: 18px; }
+  .avatar-lg { width: 72px; height: 72px; font-size: 28px; }
+
+  /* Progress Bar */
+  .progress-wrap { background: #F1F5F9; border-radius: var(--radius-full); height: 6px; overflow: hidden; }
+  .progress-bar { height: 100%; border-radius: var(--radius-full); background: var(--primary); transition: width 0.5s; }
+  .progress-bar.green { background: var(--success); }
+  .progress-bar.orange { background: var(--warning); }
+
+  /* Stat Card */
+  .stat-card {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    border: 1px solid #F1F5F9;
+    box-shadow: 0 2px 12px rgba(30,41,59,0.06);
+  }
+  .stat-value { font-size: 24px; font-weight: 800; color: var(--dark); letter-spacing: -0.5px; }
+  .stat-label { font-size: 11px; color: var(--mid); font-weight: 500; margin-top: 2px; }
+  .stat-icon { width: 36px; height: 36px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+
+  /* Step Indicator */
+  .step-indicator { display: flex; align-items: center; padding: 16px; gap: 0; }
+  .step-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; transition: all 0.3s; }
+  .step-dot.done { background: var(--success); color: white; }
+  .step-dot.active { background: var(--primary); color: white; box-shadow: 0 0 0 4px rgba(37,99,235,0.2); }
+  .step-dot.inactive { background: #F1F5F9; color: var(--border); border: 2px solid var(--border); }
+  .step-line { flex: 1; height: 2px; background: var(--border); }
+  .step-line.done { background: var(--success); }
+
+  /* Map placeholder */
+  .map-area {
+    background: linear-gradient(135deg, #E8F4FD 0%, #D4ECFF 50%, #E8F4FD 100%);
+    position: relative;
+    overflow: hidden;
+  }
+  .map-area::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(37,99,235,0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(37,99,235,0.08) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .map-pin { position: absolute; transform: translate(-50%, -100%); }
+  .map-pin-dot { width: 32px; height: 32px; border-radius: 50% 50% 50% 0; background: var(--primary); transform: rotate(-45deg); box-shadow: 0 4px 12px rgba(37,99,235,0.4); }
+  .map-pin-dot::after { content: ''; position: absolute; inset: 6px; background: white; border-radius: 50%; }
+  .map-route { position: absolute; top: 50%; left: 30%; width: 40%; height: 3px; background: var(--primary); border-radius: 2px; }
+  .map-worker { position: absolute; transform: translate(-50%, -50%); }
+  .map-worker-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--secondary); border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; }
+
+  /* ── SCREEN SPECIFIC ── */
+  .screen-padding { padding: 16px; }
+
+  /* ============================================================
+     ADMIN PANEL (Desktop-like inside phone, scrollable)
+     ============================================================ */
+  .admin-screen {
+    background: #F8FAFC;
+    flex: 1;
+    overflow-y: auto;
+    font-family: var(--font-body);
+  }
+  .admin-kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .admin-kpi-card {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    border: 1px solid #F1F5F9;
+    box-shadow: 0 2px 8px rgba(30,41,59,0.06);
+  }
+  .admin-kpi-value { font-size: 22px; font-weight: 800; color: var(--dark); letter-spacing: -0.5px; font-family: var(--font); }
+  .admin-kpi-label { font-size: 10px; color: var(--mid); font-weight: 500; margin-top: 2px; }
+  .admin-kpi-icon { font-size: 20px; margin-bottom: 6px; }
+
+  /* ── PROTOTYPE INFO PANEL ── */
+  .info-panel {
+    width: 280px;
+    background: #0F172A;
+    border-left: 1px solid #1E293B;
+    overflow-y: auto;
+    padding: 20px 16px;
+    flex-shrink: 0;
+  }
+  .info-panel::-webkit-scrollbar { width: 4px; }
+  .info-panel::-webkit-scrollbar-thumb { background: #1E293B; }
+  .info-section { margin-bottom: 24px; }
+  .info-section-title { font-size: 10px; font-weight: 700; color: #334155; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-family: var(--font-body); }
+  .info-screen-id { font-size: 20px; font-weight: 800; color: white; font-family: var(--font); letter-spacing: -0.5px; }
+  .info-screen-name { font-size: 12px; color: #64748B; margin-top: 4px; font-family: var(--font-body); }
+  .info-desc { font-size: 12px; color: #94A3B8; line-height: 1.6; font-family: var(--font-body); }
+
+  .proto-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #1E293B;
+    border-radius: var(--radius-md);
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .proto-link:hover { background: #263348; }
+  .proto-link-arrow { width: 6px; height: 6px; border-top: 2px solid var(--primary); border-right: 2px solid var(--primary); transform: rotate(45deg); flex-shrink: 0; }
+  .proto-link-text { font-size: 11px; color: #CBD5E1; font-family: var(--font-body); }
+
+  .token-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .token-swatch { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
+  .token-name { font-size: 10px; color: #94A3B8; font-family: var(--font-body); }
+  .token-value { font-size: 10px; color: #64748B; margin-left: auto; font-family: var(--font-body); }
+
+  /* ── ANIMATIONS ── */
+  @keyframes pulse-ring {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes bounce-in {
+    0% { transform: scale(0); opacity: 0; }
+    70% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes slide-up {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  .pulse-ring {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    border: 3px solid rgba(37,99,235,0.3);
+    position: absolute;
+    animation: pulse-ring 2s ease-out infinite;
+  }
+  .pulse-ring:nth-child(2) { animation-delay: 0.7s; }
+  .pulse-ring:nth-child(3) { animation-delay: 1.4s; }
+
+  /* Online toggle */
+  .toggle-wrap { display: flex; align-items: center; gap: 10px; }
+  .toggle { width: 52px; height: 28px; border-radius: 14px; background: #CBD5E1; position: relative; cursor: pointer; transition: background 0.3s; flex-shrink: 0; }
+  .toggle.on { background: var(--success); }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.2); transition: left 0.3s; }
+  .toggle.on::after { left: 27px; }
+  .toggle-label { font-size: 14px; font-weight: 700; color: var(--dark); }
+
+  /* Wallet gradient card */
+  .wallet-card {
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 50%, #7C3AED 100%);
+    border-radius: var(--radius-xl);
+    padding: 20px;
+    color: white;
+    margin-bottom: 16px;
+  }
+  .wallet-balance { font-size: 36px; font-weight: 800; letter-spacing: -1px; margin: 4px 0; }
+  .wallet-symbol { font-size: 20px; font-weight: 400; opacity: 0.7; }
+
+  /* Chart bars */
+  .chart-wrap { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+  .chart-bar { flex: 1; border-radius: 4px 4px 0 0; background: var(--primary-light); transition: all 0.3s; cursor: pointer; min-height: 8px; }
+  .chart-bar:hover { background: var(--primary); }
+  .chart-bar.active { background: var(--primary); }
+
+  /* QR code placeholder */
+  .qr-code {
+    width: 160px; height: 160px;
+    background: var(--dark);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+  }
+  .qr-code::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(0deg, transparent, transparent 6px, rgba(255,255,255,0.05) 6px, rgba(255,255,255,0.05) 8px),
+      repeating-linear-gradient(90deg, transparent, transparent 6px, rgba(255,255,255,0.05) 6px, rgba(255,255,255,0.05) 8px);
+    background-size: 20px 20px;
+  }
+
+  /* Service category icons */
+  .cat-icon { font-size: 28px; }
+
+  /* Job status timeline */
+  .timeline { display: flex; align-items: center; gap: 0; margin: 12px 0; }
+  .tl-step { display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .tl-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; z-index: 1; }
+  .tl-dot.done { background: var(--success); color: white; }
+  .tl-dot.active { background: var(--primary); color: white; box-shadow: 0 0 0 4px rgba(37,99,235,0.2); }
+  .tl-dot.pending { background: #F1F5F9; border: 2px solid var(--border); }
+  .tl-label { font-size: 8px; color: var(--mid); margin-top: 4px; text-align: center; font-weight: 500; }
+  .tl-line { height: 2px; flex: 1; background: var(--border); margin-top: -20px; }
+  .tl-line.done { background: var(--success); }
+
+  /* KYC upload zone */
+  .kyc-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+  }
+  .kyc-zone:hover { border-color: var(--primary); background: var(--primary-light); }
+  .kyc-zone.uploaded { border-color: var(--success); background: #DCFCE7; }
+
+  /* Photo grid */
+  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .photo-thumb { aspect-ratio: 1; border-radius: var(--radius-md); background: linear-gradient(135deg, #E2E8F0, #CBD5E1); display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; overflow: hidden; }
+
+  /* Notification badge */
+  .notif-badge { position: absolute; top: -4px; right: -4px; width: 16px; height: 16px; border-radius: 50%; background: var(--danger); color: white; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid white; }
+
+  /* Divider */
+  .divider { height: 1px; background: #F1F5F9; margin: 12px 0; }
+  .divider-8 { height: 8px; background: #F8FAFC; margin: 0 -16px; }
+
+  /* List item */
+  .list-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #F8FAFC; cursor: pointer; }
+  .list-item:last-child { border-bottom: none; }
+  .list-item-icon { width: 44px; height: 44px; border-radius: var(--radius-lg); background: var(--primary-light); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .list-item-content { flex: 1; min-width: 0; }
+  .list-item-title { font-size: 14px; font-weight: 600; color: var(--dark); }
+  .list-item-sub { font-size: 12px; color: var(--mid); margin-top: 2px; }
+  .chevron { width: 16px; height: 16px; stroke: var(--border); fill: none; stroke-width: 2; flex-shrink: 0; }
+
+  /* Quote card */
+  .quote-card {
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    padding: 16px;
+    border: 1px solid #F1F5F9;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .quote-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--primary);
+    border-radius: 2px 0 0 2px;
+  }
+  .quote-card:hover { transform: translateY(-2px); box-shadow: var(--card-shadow-lg); }
+
+  /* Active job banner */
+  .active-banner {
+    background: linear-gradient(135deg, #F97316, #EA580C);
+    border-radius: var(--radius-lg);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    cursor: pointer;
+  }
+  .active-banner-text { flex: 1; }
+  .active-banner-title { font-size: 13px; font-weight: 700; color: white; }
+  .active-banner-sub { font-size: 11px; color: rgba(255,255,255,0.8); margin-top: 2px; }
+  .active-banner-btn { background: white; color: var(--secondary); font-size: 12px; font-weight: 700; border: none; border-radius: var(--radius-full); padding: 6px 14px; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+
+  /* UPI shortcuts */
+  .upi-row { display: flex; gap: 10px; justify-content: center; margin: 16px 0; }
+  .upi-btn { width: 64px; height: 64px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; transition: all 0.2s; }
+  .upi-btn:hover { border-color: var(--primary); background: var(--primary-light); }
+  .upi-btn-icon { font-size: 24px; }
+  .upi-btn-label { font-size: 9px; font-weight: 600; color: var(--mid); }
+
+  /* Subscription cards */
+  .sub-card { border: 2px solid var(--border); border-radius: var(--radius-xl); padding: 16px; flex: 1; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .sub-card.selected { border-color: var(--primary); background: var(--primary-light); }
+  .sub-card:hover { border-color: var(--primary); }
+  .sub-price { font-size: 22px; font-weight: 800; color: var(--dark); }
+  .sub-period { font-size: 11px; color: var(--mid); }
+  .sub-label { font-size: 12px; font-weight: 600; color: var(--mid); margin-bottom: 6px; }
+
+  /* Setting row */
+  .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #F8FAFC; }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-title { font-size: 14px; font-weight: 600; color: var(--dark); }
+  .setting-value { font-size: 13px; color: var(--mid); }
+
+  /* Broadcast animation */
+  .broadcast-center { display: flex; align-items: center; justify-content: center; position: relative; height: 160px; }
+  .broadcast-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px; z-index: 1; box-shadow: 0 8px 24px rgba(37,99,235,0.4); }
+
+  /* Floating back (for modals) */
+  .floating-sheet {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-radius: 20px 20px 0 0;
+    padding: 16px;
+    box-shadow: 0 -8px 32px rgba(30,41,59,0.16);
+    z-index: 20;
+  }
+  .sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 16px; }
+
+  /* Scrollbar hidden globally */
+  * { scrollbar-width: none; }
+  *::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+
+<div class="prototype-shell">
+
+  <!-- TOP BAR -->
+  <div class="proto-topbar">
+    <div class="proto-logo">KWICK<span>LY</span></div>
+    <div class="proto-divider"></div>
+    <div class="proto-label">Interactive Prototype · Based on SRS v3.0</div>
+    <div class="flow-tabs">
+      <button class="flow-tab active" onclick="switchFlow('customer')">👤 Customer</button>
+      <button class="flow-tab" onclick="switchFlow('worker')">🔧 Worker</button>
+      <button class="flow-tab" onclick="switchFlow('admin')">⚙️ Admin</button>
+    </div>
+  </div>
+
+  <div class="proto-content">
+
+    <!-- SIDEBAR -->
+    <div class="screen-sidebar" id="screen-sidebar">
+      <!-- populated by JS -->
+    </div>
+
+    <!-- PHONE -->
+    <div class="phone-viewport">
+      <div class="phone-frame">
+        <!-- Status Bar -->
+        <div class="status-bar" id="status-bar" style="background:white;">
+          <span class="status-time">9:41</span>
+          <div class="status-icons">
+            <svg viewBox="0 0 24 24"><path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+            <svg viewBox="0 0 24 24"><rect x="2" y="7" width="18" height="10" rx="2" ry="2"/><line x1="22" y1="11" x2="22" y2="13"/></svg>
+          </div>
+        </div>
+
+        <!-- SCREENS CONTAINER -->
+        <div style="position:relative; flex:1; height: calc(100% - 44px); overflow:hidden;" id="screens-container">
+          <!-- Screens injected by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- INFO PANEL -->
+    <div class="info-panel" id="info-panel">
+      <div class="info-section">
+        <div class="info-section-title">Current Screen</div>
+        <div class="info-screen-id" id="info-id">CUST-01</div>
+        <div class="info-screen-name" id="info-name">Role Selection</div>
+      </div>
+      <div class="info-section">
+        <div class="info-section-title">Description</div>
+        <div class="info-desc" id="info-desc">First-launch screen. User selects Customer or Worker role to begin registration.</div>
+      </div>
+      <div class="info-section">
+        <div class="info-section-title">Prototype Connections</div>
+        <div id="info-links"></div>
+      </div>
+      <div class="info-section">
+        <div class="info-section-title">Design Tokens Used</div>
+        <div>
+          <div class="token-row"><div class="token-swatch" style="background:#2563EB"></div><span class="token-name">color/primary</span><span class="token-value">#2563EB</span></div>
+          <div class="token-row"><div class="token-swatch" style="background:#F97316"></div><span class="token-name">color/secondary</span><span class="token-value">#F97316</span></div>
+          <div class="token-row"><div class="token-swatch" style="background:#16A34A"></div><span class="token-name">color/success</span><span class="token-value">#16A34A</span></div>
+          <div class="token-row"><div class="token-swatch" style="background:#DC2626"></div><span class="token-name">color/danger</span><span class="token-value">#DC2626</span></div>
+          <div class="token-row"><div class="token-swatch" style="background:#1E293B"></div><span class="token-name">color/text-primary</span><span class="token-value">#1E293B</span></div>
+          <div class="token-row"><div class="token-swatch" style="background:#F1F5F9; border:1px solid #e2e8f0"></div><span class="token-name">color/bg</span><span class="token-value">#F1F5F9</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- proto-content -->
+</div><!-- prototype-shell -->
+
+<script>
+// ══════════════════════════════════════════════════════════
+// DATA: Screen definitions per flow
+// ══════════════════════════════════════════════════════════
+const flows = {
+  customer: [
+    { id:'CUST-01', name:'Role Selection', desc:'First-launch screen. User selects Customer or Worker role to begin registration.', links:[{label:'→ CUST-02 on "Continue"',target:'CUST-02'}], html: renderCust01 },
+    { id:'CUST-02', name:'OTP Login', desc:'10-digit mobile number entry + 6-digit OTP verification. New users set a password after OTP.', links:[{label:'→ CUST-03 on OTP verified',target:'CUST-03'}], html: renderCust02 },
+    { id:'CUST-03', name:'Home Screen', desc:'Main landing. Service category grid, search, active job banner (if in progress), recent jobs list.', links:[{label:'→ CUST-04 on category tap',target:'CUST-04'},{label:'→ CUST-07 on Track banner',target:'CUST-07'}], html: renderCust03 },
+    { id:'CUST-04', name:'Booking Wizard', desc:'5-step flow: Category → Subcategory → Describe Issue → Select Address → Priority & Confirm.', links:[{label:'→ CUST-05 on Confirm',target:'CUST-05'}], html: renderCust04 },
+    { id:'CUST-05', name:'Waiting for Quotes', desc:'Real-time broadcast. Expanding-radius animation while workers are notified. Quote cards appear live.', links:[{label:'→ CUST-06 on quote card tap',target:'CUST-06'},{label:'→ CUST-03 if no worker found',target:'CUST-03'}], html: renderCust05 },
+    { id:'CUST-06', name:'Worker Profile', desc:'Bottom sheet showing worker details, rating, completion rate, and Accept Quote button.', links:[{label:'→ CUST-07 on Accept Quote',target:'CUST-07'}], html: renderCust06 },
+    { id:'CUST-07', name:'Live Tracking', desc:'Map view with live worker location. Arrival OTP displayed when worker arrives. Job timeline.', links:[{label:'→ CUST-08 after Completion OTP',target:'CUST-08'}], html: renderCust07 },
+    { id:'CUST-08', name:'Payment', desc:'Price breakdown, Razorpay QR code (10-min expiry), UPI shortcuts, cash option. Post-payment rating.', links:[{label:'→ CUST-03 after rating submit',target:'CUST-03'}], html: renderCust08 },
+  ],
+  worker: [
+    { id:'WORK-01', name:'Registration & KYC', desc:'Same OTP login flow. Profile setup: name, city, categories. KYC: Aadhaar, PAN, selfie upload.', links:[{label:'→ WORK-02 after profile',target:'WORK-02'}], html: renderWork01 },
+    { id:'WORK-02', name:'Dashboard', desc:'Online/Offline toggle, wallet balance card, 4 stat cards, subscription status.', links:[{label:'→ WORK-03 on job alert',target:'WORK-03'},{label:'→ WORK-04 on Wallet tab',target:'WORK-04'}], html: renderWork02 },
+    { id:'WORK-03', name:'Job Alert & Quote', desc:'Push notification full-screen modal, job details with map, photo grid. Quote submission bottom sheet.', links:[{label:'→ WORK-05 on quote accepted',target:'WORK-05'}], html: renderWork03 },
+    { id:'WORK-04', name:'Wallet & Top-Up', desc:'Balance card with progress bar, preset top-up chips (₹50/100/200/500), transaction history.', links:[{label:'→ WORK-02 after top-up',target:'WORK-02'}], html: renderWork04 },
+    { id:'WORK-05', name:'Active Job – En Route', desc:'Navigation map to customer, I\'ve Arrived button, Arrival OTP entry (given by customer).', links:[{label:'→ WORK-06 on OTP verified',target:'WORK-06'}], html: renderWork05 },
+    { id:'WORK-06', name:'Complete Job', desc:'Job outcome: Fixed/Partial/Not Fixed. Completion OTP generated and shown to worker to read to customer.', links:[{label:'→ WORK-07 after payment received',target:'WORK-07'}], html: renderWork06 },
+    { id:'WORK-07', name:'Earnings', desc:'All-time/monthly/weekly stats, bar chart, transaction history, Withdraw Earnings button.', links:[{label:'→ WORK-02 via Dashboard tab',target:'WORK-02'}], html: renderWork07 },
+    { id:'WORK-08', name:'Worker Profile', desc:'Personal info, service categories, working hours, subscription plan selector, KYC status, logout.', links:[{label:'→ WORK-02 via Dashboard tab',target:'WORK-02'}], html: renderWork08 },
+  ],
+  admin: [
+    { id:'ADMIN-01', name:'Dashboard', desc:'Live KPI cards via Socket.io, revenue trend chart, job volume chart, activity feed, top workers.', links:[], html: renderAdmin01 },
+    { id:'ADMIN-02', name:'User Management', desc:'Paginated customer list, search/filter, customer detail drawer with full job history and admin actions.', links:[], html: renderAdmin02 },
+    { id:'ADMIN-03', name:'Worker Management', desc:'Worker list with KYC/wallet/subscription filters. Detail drawer with earnings, categories, rating.', links:[], html: renderAdmin03 },
+    { id:'ADMIN-04', name:'Job Management', desc:'Full job ledger, force cancel, reassign worker, disputes sub-tab with open→in review→resolved flow.', links:[], html: renderAdmin04 },
+    { id:'ADMIN-05', name:'KYC Verification', desc:'Queue sorted oldest-first with 24hr SLA highlight. Document viewer. Approve/Reject with reason.', links:[], html: renderAdmin05 },
+    { id:'ADMIN-06', name:'Platform Settings', desc:'Live config: fees, wallet minimums, subscription plans, radius rounds, OTP settings, maintenance mode.', links:[], html: renderAdmin06 },
+  ]
+};
+
+// ══════════════════════════════════════════════════════════
+// RENDER FUNCTIONS — CUSTOMER SCREENS
+// ══════════════════════════════════════════════════════════
+
+function renderCust01() { return `
+<div class="screen active" id="screen-CUST-01" style="padding:0; justify-content:center; background: linear-gradient(180deg, #EFF6FF 0%, white 60%);">
+  <div style="padding:40px 24px 24px; display:flex; flex-direction:column; align-items:center; text-align:center; flex:1; justify-content:center;">
+    <div style="width:72px; height:72px; border-radius:20px; background:var(--primary); display:flex; align-items:center; justify-content:center; font-size:36px; margin-bottom:16px; box-shadow: 0 12px 32px rgba(37,99,235,0.3);">🏠</div>
+    <div style="font-size:28px; font-weight:800; color:var(--dark); letter-spacing:-1px;">KWICKLY</div>
+    <div style="font-size:14px; color:var(--mid); margin-top:6px; margin-bottom:40px; font-family:var(--font-body);">Home services at your fingertips</div>
+
+    <div style="font-size:13px; font-weight:700; color:var(--mid); text-transform:uppercase; letter-spacing:1px; margin-bottom:16px;">I am a…</div>
+
+    <div style="display:flex; gap:16px; width:100%; margin-bottom:32px;">
+      <div id="role-customer" onclick="selectRole('customer')" style="flex:1; background:white; border:2px solid var(--border); border-radius:20px; padding:24px 16px; text-align:center; cursor:pointer; transition:all 0.2s;">
+        <div style="font-size:40px; margin-bottom:10px;">👤</div>
+        <div style="font-size:15px; font-weight:700; color:var(--dark);">Customer</div>
+        <div style="font-size:11px; color:var(--mid); margin-top:4px; font-family:var(--font-body);">Book home services</div>
+      </div>
+      <div id="role-worker" onclick="selectRole('worker')" style="flex:1; background:white; border:2px solid var(--border); border-radius:20px; padding:24px 16px; text-align:center; cursor:pointer; transition:all 0.2s;">
+        <div style="font-size:40px; margin-bottom:10px;">🔧</div>
+        <div style="font-size:15px; font-weight:700; color:var(--dark);">Worker</div>
+        <div style="font-size:11px; color:var(--mid); margin-top:4px; font-family:var(--font-body);">Provide services & earn</div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="role-continue-btn" style="opacity:0.4; pointer-events:none;" onclick="navigateTo('CUST-02')">Continue</button>
+    <div style="margin-top:16px; font-size:12px; color:var(--mid); font-family:var(--font-body);">Already have an account? <span style="color:var(--primary); font-weight:600; cursor:pointer;">Sign in</span></div>
+  </div>
+</div>
+`; }
+
+function renderCust02() { return `
+<div class="screen active" id="screen-CUST-02" style="background:white;">
+  <div class="app-bar">
+    <button class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+    <div class="app-bar-title">Verify Mobile</div>
+  </div>
+  <div class="screen-scroll screen-padding">
+    <div style="margin-bottom:32px; margin-top:16px;">
+      <div style="font-size:22px; font-weight:800; color:var(--dark); margin-bottom:6px;">Enter your mobile</div>
+      <div style="font-size:14px; color:var(--mid); font-family:var(--font-body);">We'll send a 6-digit OTP via SMS or WhatsApp</div>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Mobile Number</label>
+      <div style="display:flex; gap:8px;">
+        <div style="width:64px; height:52px; border:1.5px solid var(--border); border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; color:var(--dark); flex-shrink:0;">🇮🇳 +91</div>
+        <input class="input-field" placeholder="98765 43210" type="tel" maxlength="10" style="flex:1;" oninput="if(this.value.length===10) document.getElementById('otp-section').style.display='block'">
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px; margin-bottom:24px;">
+      <button class="btn-primary" onclick="document.getElementById('otp-section').style.display='block'" style="height:44px; font-size:14px;">Send OTP via SMS</button>
+      <button class="btn-secondary" style="height:44px; font-size:13px; white-space:nowrap;">📱 WhatsApp</button>
+    </div>
+
+    <div id="otp-section" style="display:none; animation: slide-up 0.3s ease;">
+      <div class="divider"></div>
+      <div style="margin-top:20px; text-align:center;">
+        <div style="font-size:15px; font-weight:700; color:var(--dark); margin-bottom:4px;">Enter OTP</div>
+        <div style="font-size:12px; color:var(--mid); font-family:var(--font-body);">Sent to +91 98765 43210</div>
+      </div>
+      <div class="otp-boxes">
+        <div class="otp-box filled">8</div>
+        <div class="otp-box filled">4</div>
+        <div class="otp-box filled">2</div>
+        <div class="otp-box">_</div>
+        <div class="otp-box">_</div>
+        <div class="otp-box">_</div>
+      </div>
+      <div style="text-align:center; font-size:13px; color:var(--mid); margin-bottom:8px; font-family:var(--font-body);">Resend in <span style="color:var(--primary); font-weight:700;">4:32</span></div>
+      <button class="btn-primary" onclick="navigateTo('CUST-03')">Verify & Continue</button>
+    </div>
+  </div>
+</div>
+`; }
+
+function renderCust03() { return `
+<div class="screen active" id="screen-CUST-03" style="background:#F8FAFC;">
+  <div style="background:white; padding:16px 16px 0;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+      <div>
+        <div style="font-size:13px; color:var(--mid); font-family:var(--font-body);">Good morning 👋</div>
+        <div style="font-size:20px; font-weight:800; color:var(--dark); letter-spacing:-0.5px;">Rahul Sharma</div>
+      </div>
+      <div style="position:relative;">
+        <div class="avatar avatar-md">RS</div>
+        <div class="notif-badge">3</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; background:#F1F5F9; border-radius:var(--radius-lg); padding:12px 16px; margin-bottom:16px; cursor:pointer;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <span style="font-size:14px; color:var(--mid); font-family:var(--font-body);">Search services…</span>
+    </div>
+  </div>
+
+  <div class="screen-scroll" style="padding:16px;">
+    <div onclick="navigateTo('CUST-07')" class="active-banner">
+      <div style="font-size:24px;">🔧</div>
+      <div class="active-banner-text">
+        <div class="active-banner-title">Plumber en route</div>
+        <div class="active-banner-sub">Amit K. · ETA 8 min</div>
+      </div>
+      <button class="active-banner-btn">Track →</button>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">Our Services</div>
+      <div class="section-link">See All</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:24px;">
+      ${[
+        {icon:'🔧',name:'Plumbing'}, {icon:'⚡',name:'Electrical'}, {icon:'🪵',name:'Carpentry'},
+        {icon:'❄️',name:'AC Repair'}, {icon:'🖌️',name:'Painting'}, {icon:'🧹',name:'Cleaning'},
+        {icon:'🪛',name:'Appliances'}, {icon:'🚿',name:'Bathroom'}, {icon:'🏠',name:'More'},
+      ].map(c => `
+        <div onclick="navigateTo('CUST-04')" style="background:white; border-radius:14px; padding:14px 8px; text-align:center; cursor:pointer; box-shadow:0 2px 8px rgba(30,41,59,0.06); border:1px solid #F1F5F9; transition:all 0.2s;" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+          <div style="font-size:28px; margin-bottom:6px;">${c.icon}</div>
+          <div style="font-size:11px; font-weight:600; color:var(--dark);">${c.name}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">Recent Jobs</div>
+      <div class="section-link">View All</div>
+    </div>
+
+    ${[
+      {icon:'🔧',cat:'Plumbing',id:'#JB-4821',status:'Completed',statusClass:'badge-success'},
+      {icon:'⚡',cat:'Electrical',id:'#JB-4798',status:'Cancelled',statusClass:'badge-danger'},
+    ].map(j => `
+      <div class="list-item">
+        <div class="list-item-icon">${j.icon}</div>
+        <div class="list-item-content">
+          <div class="list-item-title">${j.cat}</div>
+          <div class="list-item-sub">${j.id} · 3 days ago</div>
+        </div>
+        <span class="badge ${j.statusClass}">${j.status}</span>
+      </div>
+    `).join('')}
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item active" onclick="navigateTo('CUST-03')">
+      <div class="nav-dot"></div>
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>Home</span>
+    </div>
+    <div class="nav-item" onclick="navigateTo('CUST-07')">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <span>My Jobs</span>
+    </div>
+    <div class="nav-item" style="position:relative;">
+      <div class="notif-badge" style="top:-2px; right:20px; position:absolute;">3</div>
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span>Alerts</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>Profile</span>
+    </div>
+  </div>
+</div>
+`; }
+
+function renderCust04() { return `
+<div class="screen active" id="screen-CUST-04" style="background:white;">
+  <div class="app-bar">
+    <button class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+    <div class="app-bar-title">Book a Service</div>
+    <div style="width:36px;"></div>
+  </div>
+
+  <div class="step-indicator">
+    <div class="step-dot done">✓</div>
+    <div class="step-line done"></div>
+    <div class="step-dot done">✓</div>
+    <div class="step-line done"></div>
+    <div class="step-dot active">3</div>
+    <div class="step-line"></div>
+    <div class="step-dot inactive">4</div>
+    <div class="step-line"></div>
+    <div class="step-dot inactive">5</div>
+  </div>
+
+  <div class="screen-scroll screen-padding">
+    <div style="margin-bottom:20px;">
+      <div style="font-size:18px; font-weight:800; color:var(--dark); margin-bottom:4px;">Describe the issue</div>
+      <div style="font-size:13px; color:var(--mid); font-family:var(--font-body);">Step 3 of 5 — The more detail, the better quotes you'll get</div>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:16px;">
+      <span class="badge badge-primary">🔧 Plumbing</span>
+      <span class="badge badge-primary">Pipe Leakage</span>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Describe Your Problem</label>
+      <textarea class="input-field" style="height:100px; padding:12px; resize:none; font-family:var(--font-body);">Kitchen sink pipe is leaking under the counter. Water is dripping slowly.</textarea>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Add Photos (Optional)</label>
+      <div style="border:2px dashed var(--border); border-radius:var(--radius-lg); padding:16px; text-align:center; cursor:pointer; margin-bottom:10px;" onclick="this.style.borderColor='var(--primary)'">
+        <div style="font-size:28px; margin-bottom:6px;">📷</div>
+        <div style="font-size:13px; color:var(--mid); font-family:var(--font-body);">Tap to add photos</div>
+        <div style="font-size:11px; color:var(--border); margin-top:2px; font-family:var(--font-body);">Up to 5 photos · 10MB each</div>
+      </div>
+      <div class="photo-grid">
+        <div class="photo-thumb">🔧</div>
+        <div class="photo-thumb">💧</div>
+        <div class="photo-thumb" style="border:2px dashed var(--border); background:none; color:var(--border);">+</div>
+      </div>
+    </div>
+
+    <div style="margin-top:8px;">
+      <label class="input-label" style="margin-bottom:12px; display:block;">Priority</label>
+      <div style="display:flex; gap:10px; margin-bottom:8px;">
+        <div style="flex:1; border:2px solid var(--border); border-radius:14px; padding:16px; text-align:center; cursor:pointer;" onclick="this.parentElement.children[1].style.borderColor='var(--border)'; this.style.borderColor='var(--primary)'; this.style.background='var(--primary-light)'">
+          <div style="font-size:24px; margin-bottom:4px;">🕐</div>
+          <div style="font-size:13px; font-weight:700; color:var(--dark);">Normal</div>
+          <div style="font-size:10px; color:var(--mid); font-family:var(--font-body);">Regular priority</div>
+        </div>
+        <div style="flex:1; border:2px solid var(--secondary); border-radius:14px; padding:16px; text-align:center; cursor:pointer; background:#FFF7ED;">
+          <div style="font-size:24px; margin-bottom:4px;">⚡</div>
+          <div style="font-size:13px; font-weight:700; color:var(--dark);">Urgent</div>
+          <div style="font-size:10px; color:var(--mid); font-family:var(--font-body);">Highlighted to workers</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:12px 16px; background:white; border-top:1px solid #F1F5F9;">
+    <button class="btn-primary" onclick="navigateTo('CUST-05')">Continue to Address →</button>
+  </div>
+</div>
+`; }
+
+function renderCust05() { return `
+<div class="screen active" id="screen-CUST-05" style="background:#F8FAFC;">
+  <div class="app-bar" style="background:#F8FAFC;">
+    <button class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+    <div class="app-bar-title">Finding Workers</div>
+  </div>
+
+  <div class="screen-scroll" style="padding:0 16px 16px;">
+    <div style="text-align:center; padding:8px 0 16px;">
+      <div style="font-size:14px; color:var(--mid); font-family:var(--font-body);">Broadcasting to workers nearby…</div>
+      <div style="font-size:12px; color:var(--primary); font-weight:600; margin-top:2px;">Searching within 5–10 km (Round 1)</div>
+    </div>
+
+    <div class="broadcast-center" style="margin-bottom:16px;">
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <div class="broadcast-icon">🔧</div>
+    </div>
+
+    <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:12px;">Quotes Received (2)</div>
+
+    <div class="quote-card" onclick="navigateTo('CUST-06')">
+      <div style="display:flex; align-items:flex-start; gap:12px; margin-bottom:10px;">
+        <div class="avatar avatar-md">AK</div>
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+            <div style="font-size:15px; font-weight:700; color:var(--dark);">Amit Kumar</div>
+            <span class="badge badge-success">Top Rated</span>
+          </div>
+          <div class="stars">★★★★★</div><span style="font-size:11px; color:var(--mid); margin-left:4px; font-family:var(--font-body);">4.9 (182 jobs)</span>
+          <div style="font-size:12px; color:var(--mid); margin-top:4px; font-family:var(--font-body);">📍 2.4 km away · ⏱ 15 min ETA</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:22px; font-weight:800; color:var(--dark);">₹350</div>
+          <div style="font-size:10px; color:var(--mid); font-family:var(--font-body);">incl. platform fee</div>
+        </div>
+      </div>
+      <div style="font-size:12px; color:var(--mid); background:#F8FAFC; padding:8px 10px; border-radius:var(--radius-md); margin-bottom:10px; font-family:var(--font-body);">"Will fix the pipe within 1 hour, have all materials."</div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-size:11px; color:var(--warning); font-weight:600;">⏱ Expires in 12:34</span>
+        <button class="btn-primary" style="width:auto; height:36px; padding:0 20px; font-size:13px;" onclick="navigateTo('CUST-06')">View & Accept</button>
+      </div>
+    </div>
+
+    <div class="quote-card">
+      <div style="display:flex; align-items:flex-start; gap:12px;">
+        <div class="avatar avatar-md" style="background:linear-gradient(135deg,#16A34A,#15803D);">RV</div>
+        <div style="flex:1;">
+          <div style="font-size:15px; font-weight:700; color:var(--dark); margin-bottom:2px;">Rajan Verma</div>
+          <div class="stars">★★★★</div><span style="font-size:11px; color:var(--mid); margin-left:4px; font-family:var(--font-body);">4.6 (94 jobs)</span>
+          <div style="font-size:12px; color:var(--mid); margin-top:4px; font-family:var(--font-body);">📍 4.1 km away · ⏱ 22 min ETA</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:22px; font-weight:800; color:var(--dark);">₹280</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`; }
+
+function renderCust06() { return `
+<div class="screen active" id="screen-CUST-06" style="background:rgba(0,0,0,0.4);">
+  <div style="flex:1;" onclick="goBack()"></div>
+  <div style="background:white; border-radius:24px 24px 0 0; padding:16px; max-height:85%; overflow-y:auto;">
+    <div style="width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 20px;"></div>
+    <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
+      <div class="avatar" style="width:80px; height:80px; font-size:32px; margin-bottom:12px;">AK</div>
+      <div style="font-size:22px; font-weight:800; color:var(--dark);">Amit Kumar</div>
+      <div class="stars" style="font-size:16px; margin-top:4px;">★★★★★</div>
+      <div style="font-size:13px; color:var(--mid); margin-top:4px; font-family:var(--font-body);">4.9 · 182 jobs · Mumbai</div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <span class="badge badge-success">Verified KYC</span>
+        <span class="badge badge-primary">5+ yrs exp</span>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:20px;">
+      <div class="stat-card" style="text-align:center;"><div class="stat-value">98%</div><div class="stat-label">Completion</div></div>
+      <div class="stat-card" style="text-align:center;"><div class="stat-value">182</div><div class="stat-label">Jobs Done</div></div>
+      <div class="stat-card" style="text-align:center;"><div class="stat-value">4.9</div><div class="stat-label">Rating</div></div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px; font-weight:700; color:var(--dark); margin-bottom:8px;">Services Offered</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px;">
+        ${['Pipe Repair','Leak Fix','Bathroom Fitting','Tap Installation','Drain Cleaning'].map(s=>`<span class="badge badge-primary">${s}</span>`).join('')}
+      </div>
+    </div>
+    <div style="background:#F8FAFC; border-radius:var(--radius-lg); padding:14px; margin-bottom:20px;">
+      <div style="font-size:13px; font-weight:700; color:var(--dark); margin-bottom:4px;">Quote Details</div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+        <span style="font-size:13px; color:var(--mid); font-family:var(--font-body);">Service charge</span><span style="font-size:13px; font-weight:600; color:var(--dark);">₹300</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <span style="font-size:13px; color:var(--mid); font-family:var(--font-body);">Platform fee</span><span style="font-size:13px; font-weight:600; color:var(--dark);">₹50</span>
+      </div>
+      <div style="border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between;">
+        <span style="font-size:15px; font-weight:700; color:var(--dark);">Total</span><span style="font-size:18px; font-weight:800; color:var(--primary);">₹350</span>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="navigateTo('CUST-07')" style="margin-bottom:8px;">Accept Quote & Confirm</button>
+    <button class="btn-ghost" onclick="goBack()" style="width:100%; text-align:center;">Back to quotes</button>
+  </div>
+</div>
+`; }
+
+function renderCust07() { return `
+<div class="screen active" id="screen-CUST-07" style="background:#F8FAFC;">
+  <div class="app-bar">
+    <button class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+    <div class="app-bar-title">Live Tracking</div>
+    <button onclick="navigateTo('CUST-08')" class="btn-ghost" style="font-size:12px; padding:6px 10px;">Skip →</button>
+  </div>
+
+  <div class="map-area" style="height:340px; position:relative;">
+    <div style="position:absolute; inset:0;">
+      <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);">
+        <div class="map-pin-dot" style="border-radius:50% 50% 50% 0; transform:rotate(-45deg);"></div>
+      </div>
+      <div style="position:absolute; top:35%; left:35%;">
+        <div class="map-worker-avatar">AK</div>
+        <div style="text-align:center; font-size:10px; background:white; border-radius:4px; padding:2px 6px; margin-top:4px; font-weight:600; box-shadow:0 2px 8px rgba(0,0,0,0.1);">8 min</div>
+      </div>
+      <div style="position:absolute; top:42%; left:38%; width:120px; height:3px; background:var(--primary); border-radius:2px; transform:rotate(15deg);"></div>
+    </div>
+    <div style="position:absolute; top:12px; right:12px; background:white; border-radius:var(--radius-lg); padding:8px 14px; box-shadow:var(--card-shadow);">
+      <div style="font-size:18px; font-weight:800; color:var(--dark);">8 min</div>
+      <div style="font-size:10px; color:var(--mid); font-family:var(--font-body);">ETA arrival</div>
+    </div>
+  </div>
+
+  <div style="background:white; border-radius:20px 20px 0 0; padding:16px; margin-top:-12px; flex:1;">
+    <div style="width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 16px;"></div>
+
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+      <div class="avatar avatar-md">AK</div>
+      <div style="flex:1;">
+        <div style="font-size:16px; font-weight:700; color:var(--dark);">Amit Kumar</div>
+        <div class="stars" style="font-size:12px;">★★★★★</div><span style="font-size:11px; color:var(--mid); font-family:var(--font-body);"> 4.9</span>
+      </div>
+      <span class="badge badge-warning">En Route</span>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div style="font-size:12px; font-weight:700; color:var(--mid); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">Job Progress</div>
+      <div class="timeline">
+        <div class="tl-step">
+          <div class="tl-dot done">✓</div>
+          <div class="tl-label">Accepted</div>
+        </div>
+        <div class="tl-line done"></div>
+        <div class="tl-step">
+          <div class="tl-dot active">→</div>
+          <div class="tl-label">En Route</div>
+        </div>
+        <div class="tl-line"></div>
+        <div class="tl-step">
+          <div class="tl-dot pending"></div>
+          <div class="tl-label">Arrived</div>
+        </div>
+        <div class="tl-line"></div>
+        <div class="tl-step">
+          <div class="tl-dot pending"></div>
+          <div class="tl-label">Working</div>
+        </div>
+        <div class="tl-line"></div>
+        <div class="tl-step">
+          <div class="tl-dot pending"></div>
+          <div class="tl-label">Done</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:linear-gradient(135deg,#EFF6FF,#DBEAFE); border-radius:var(--radius-xl); padding:16px; border:1px solid #BFDBFE;">
+      <div style="font-size:12px; font-weight:700; color:var(--primary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">🔐 Arrival OTP</div>
+      <div style="font-size:36px; font-weight:900; color:var(--dark); letter-spacing:8px; text-align:center; margin:8px 0; font-variant-numeric:tabular-nums;">842 751</div>
+      <div style="font-size:11px; color:var(--mid); text-align:center; font-family:var(--font-body);">Share this code with the worker when they arrive</div>
+    </div>
+
+    <button class="btn-primary" onclick="navigateTo('CUST-08')" style="margin-top:16px;">Payment Ready →</button>
+  </div>
+</div>
+`; }
+
+function renderCust08() { return `
+<div class="screen active" id="screen-CUST-08" style="background:#F8FAFC;">
+  <div class="app-bar" style="background:#F8FAFC;">
+    <button class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+    <div class="app-bar-title">Payment</div>
+  </div>
+
+  <div class="screen-scroll screen-padding">
+    <div class="card" style="padding:16px; margin-bottom:16px;">
+      <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:12px;">Price Breakdown</div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <span style="font-size:14px; color:var(--mid); font-family:var(--font-body);">Service charge</span>
+        <span style="font-size:14px; font-weight:600; color:var(--dark);">₹300</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+        <span style="font-size:14px; color:var(--mid); font-family:var(--font-body);">Platform fee</span>
+        <span style="font-size:14px; font-weight:600; color:var(--dark);">₹50</span>
+      </div>
+      <div style="border-top:2px solid #F1F5F9; padding-top:12px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:16px; font-weight:800; color:var(--dark);">Total</span>
+        <span style="font-size:24px; font-weight:900; color:var(--primary);">₹350</span>
+      </div>
+    </div>
+
+    <div class="card" style="padding:20px; text-align:center; margin-bottom:16px;">
+      <div style="font-size:13px; font-weight:700; color:var(--dark); margin-bottom:4px;">Scan to Pay</div>
+      <div style="font-size:11px; color:var(--mid); margin-bottom:16px; font-family:var(--font-body);">Any UPI app · QR valid for <span style="color:var(--primary); font-weight:600;">09:47</span></div>
+      <div class="qr-code">
+        <svg width="120" height="120" viewBox="0 0 120 120" fill="white" opacity="0.9">
+          <rect x="10" y="10" width="40" height="40" rx="4" fill="none" stroke="white" stroke-width="4"/>
+          <rect x="18" y="18" width="24" height="24" rx="2"/>
+          <rect x="70" y="10" width="40" height="40" rx="4" fill="none" stroke="white" stroke-width="4"/>
+          <rect x="78" y="18" width="24" height="24" rx="2"/>
+          <rect x="10" y="70" width="40" height="40" rx="4" fill="none" stroke="white" stroke-width="4"/>
+          <rect x="18" y="78" width="24" height="24" rx="2"/>
+          <rect x="70" y="70" width="12" height="12" rx="2"/>
+          <rect x="86" y="70" width="12" height="12" rx="2"/>
+          <rect x="70" y="86" width="12" height="12" rx="2"/>
+          <rect x="86" y="86" width="12" height="12" rx="2"/>
+          <rect x="52" y="20" width="8" height="8" rx="1"/>
+          <rect x="52" y="36" width="8" height="8" rx="1"/>
+          <rect x="20" y="52" width="8" height="8" rx="1"/>
+          <rect x="36" y="52" width="8" height="8" rx="1"/>
+          <rect x="52" y="52" width="8" height="8" rx="1"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="upi-row">
+      <div class="upi-btn"><div class="upi-btn-icon">G</div><div class="upi-btn-label">GPay</div></div>
+      <div class="upi-btn"><div class="upi-btn-icon">📱</div><div class="upi-btn-label">PhonePe</div></div>
+      <div class="upi-btn"><div class="upi-btn-icon">P</div><div class="upi-btn-label">Paytm</div></div>
+    </div>
+
+    <button class="btn-secondary" style="margin-bottom:8px;">💵 Pay with Cash</button>
+    <button class="btn-primary" onclick="showPaymentSuccess()">✅ Payment Done</button>
+  </div>
+</div>
+`; }
+
+// ══════════════════════════════════════════════════════════
+// WORKER SCREENS
+// ══════════════════════════════════════════════════════════
+
+function renderWork01() { return `
+<div class="screen active" id="screen-WORK-01" style="background:white;">
+  <div class="app-bar">
+    <button class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+    <div class="app-bar-title">Worker Setup</div>
+  </div>
+  <div class="screen-scroll screen-padding">
+    <div style="margin-bottom:20px;">
+      <div style="font-size:18px; font-weight:800; color:var(--dark);">Complete Your Profile</div>
+      <div style="font-size:13px; color:var(--mid); font-family:var(--font-body); margin-top:4px;">Start your 90-day free trial today</div>
+      <div style="background:linear-gradient(135deg,#7C3AED,#4F46E5); border-radius:var(--radius-lg); padding:10px 14px; margin-top:12px; display:flex; align-items:center; gap:10px;">
+        <div style="font-size:20px;">🎁</div>
+        <div>
+          <div style="font-size:12px; font-weight:700; color:white;">FREE TRIAL — 90 Days</div>
+          <div style="font-size:10px; color:rgba(255,255,255,0.8); font-family:var(--font-body);">No subscription fees during trial</div>
+        </div>
+      </div>
+    </div>
+    <div class="input-group"><label class="input-label">Full Name</label><input class="input-field" value="Suresh Patel"></div>
+    <div class="input-group"><label class="input-label">City</label>
+      <select class="input-field" style="appearance:none; cursor:pointer;"><option>Mumbai</option><option>Delhi</option><option>Bangalore</option><option>Ahmedabad</option></select>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label class="input-label" style="display:block; margin-bottom:8px;">Primary Category</label>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        ${['🔧 Plumbing','⚡ Electrical','🪵 Carpentry','❄️ AC Repair'].map((s,i)=>`<div onclick="this.style.background=this.style.background?'':'var(--primary-light)'; this.style.borderColor=this.style.borderColor=='#2563EB'?'var(--border)':'#2563EB'" style="padding:8px 14px; border:2px solid ${i===0?'#2563EB':'var(--border)'}; border-radius:var(--radius-full); font-size:13px; font-weight:600; color:var(--dark); cursor:pointer; background:${i===0?'var(--primary-light)':''}; transition:all 0.2s;">${s}</div>`).join('')}
+      </div>
+    </div>
+
+    <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:12px;">KYC Documents</div>
+    <div class="kyc-zone"><div style="font-size:24px; margin-bottom:4px;">🪪</div><div style="font-size:12px; font-weight:600; color:var(--dark);">Aadhaar Front</div><div style="font-size:11px; color:var(--mid); font-family:var(--font-body);">Tap to upload</div></div>
+    <div class="kyc-zone uploaded"><div style="font-size:24px; margin-bottom:4px;">✅</div><div style="font-size:12px; font-weight:600; color:var(--success);">Aadhaar Back</div><div style="font-size:11px; color:var(--success); font-family:var(--font-body);">Uploaded successfully</div></div>
+    <div class="kyc-zone"><div style="font-size:24px; margin-bottom:4px;">🪪</div><div style="font-size:12px; font-weight:600; color:var(--dark);">PAN Card</div><div style="font-size:11px; color:var(--mid); font-family:var(--font-body);">Tap to upload</div></div>
+
+    <button class="btn-primary" onclick="navigateTo('WORK-02')" style="margin-top:8px;">Submit & Start Free Trial 🚀</button>
+  </div>
+</div>
+`; }
+
+function renderWork02() { return `
+<div class="screen active" id="screen-WORK-02" style="background:#F8FAFC;">
+  <div style="background:white; padding:16px 16px 0; border-bottom:1px solid #F1F5F9;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+      <div>
+        <div style="font-size:13px; color:var(--mid); font-family:var(--font-body);">Welcome back 👷</div>
+        <div style="font-size:20px; font-weight:800; color:var(--dark);">Suresh Patel</div>
+      </div>
+      <div class="toggle-wrap">
+        <div class="toggle on" id="worker-toggle" onclick="toggleWorker(this)"></div>
+        <span class="toggle-label" id="toggle-text" style="color:var(--success);">Online</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-scroll" style="padding:16px;">
+    <div class="wallet-card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div style="font-size:11px; font-weight:600; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:0.5px;">Wallet Balance</div>
+          <div class="wallet-balance"><span class="wallet-symbol">₹</span>247</div>
+        </div>
+        <span class="badge" style="background:rgba(255,255,255,0.2); color:white;">✅ ACTIVE</span>
+      </div>
+      <div style="margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:rgba(255,255,255,0.7); margin-bottom:4px; font-family:var(--font-body);">
+          <span>Balance</span><span>Minimum ₹100</span>
+        </div>
+        <div class="progress-wrap"><div class="progress-bar" style="width:100%; background:rgba(255,255,255,0.4);"></div></div>
+      </div>
+      <button onclick="navigateTo('WORK-04')" style="margin-top:12px; background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:var(--radius-full); padding:6px 16px; font-size:13px; font-weight:600; cursor:pointer; font-family:var(--font);">+ Top Up Wallet</button>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#EFF6FF;"><span style="font-size:18px;">💰</span></div>
+        <div class="stat-value">₹12,480</div>
+        <div class="stat-label">Total Earned</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#DCFCE7;"><span style="font-size:18px;">✅</span></div>
+        <div class="stat-value">6</div>
+        <div class="stat-label">Jobs This Week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#FEF3C7;"><span style="font-size:18px;">⭐</span></div>
+        <div class="stat-value">4.8</div>
+        <div class="stat-label">Avg Rating</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#F3E8FF;"><span style="font-size:18px;">🎯</span></div>
+        <div class="stat-value">94%</div>
+        <div class="stat-label">Completion</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px; margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div style="font-size:14px; font-weight:700; color:var(--dark);">Subscription</div>
+        <span class="badge badge-purple">TRIAL</span>
+      </div>
+      <div style="font-size:13px; color:var(--mid); font-family:var(--font-body); margin-bottom:8px;">90-Day Free Trial · 64 days remaining</div>
+      <div class="progress-wrap"><div class="progress-bar" style="width:29%;"></div></div>
+      <button onclick="navigateTo('WORK-08')" class="btn-secondary" style="height:36px; font-size:13px; margin-top:10px;">View Plans</button>
+    </div>
+
+    <div style="background:#FFF7ED; border:1px solid #FED7AA; border-radius:var(--radius-xl); padding:14px; text-align:center; cursor:pointer;" onclick="navigateTo('WORK-03')">
+      <div style="font-size:20px; margin-bottom:6px;">🔔</div>
+      <div style="font-size:14px; font-weight:700; color:#C2410C;">New Job Alert!</div>
+      <div style="font-size:12px; color:#92400E; font-family:var(--font-body); margin-top:2px;">Plumbing · 2.4 km away</div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item active"><div class="nav-dot"></div>
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Dashboard</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-05')">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Active Job</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-07')">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Earnings</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-04')">
+      <svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg><span>Wallet</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-08')">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+  </div>
+</div>
+`; }
+
+function renderWork03() { return `
+<div class="screen active" id="screen-WORK-03" style="background:#F8FAFC;">
+  <div style="background:linear-gradient(135deg,var(--primary),var(--primary-dark)); padding:20px 16px 16px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+      <div>
+        <div style="font-size:11px; color:rgba(255,255,255,0.7); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">New Job Alert 🔔</div>
+        <div style="font-size:22px; font-weight:800; color:white;">Plumbing Repair</div>
+        <div style="font-size:13px; color:rgba(255,255,255,0.8); margin-top:4px; font-family:var(--font-body);">Pipe leakage in kitchen</div>
+      </div>
+      <span class="badge badge-secondary" style="background:rgba(249,115,22,0.2); color:#FED7AA;">URGENT</span>
+    </div>
+    <div style="display:flex; gap:16px;">
+      <div style="text-align:center; color:white;">
+        <div style="font-size:20px; font-weight:800;">2.4 km</div>
+        <div style="font-size:10px; color:rgba(255,255,255,0.7); font-family:var(--font-body);">Distance</div>
+      </div>
+      <div style="width:1px; background:rgba(255,255,255,0.2);"></div>
+      <div style="text-align:center; color:white;">
+        <div style="font-size:20px; font-weight:800;">₹280–450</div>
+        <div style="font-size:10px; color:rgba(255,255,255,0.7); font-family:var(--font-body);">Est. Range</div>
+      </div>
+      <div style="width:1px; background:rgba(255,255,255,0.2);"></div>
+      <div style="text-align:center; color:white;">
+        <div style="font-size:20px; font-weight:800;" id="alert-timer">14:32</div>
+        <div style="font-size:10px; color:rgba(255,255,255,0.7); font-family:var(--font-body);">Response time</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-scroll" style="padding:16px;">
+    <div class="card" style="padding:14px; margin-bottom:12px;">
+      <div style="font-size:13px; font-weight:700; color:var(--dark); margin-bottom:8px;">Job Details</div>
+      <div style="font-size:13px; color:var(--mid); font-family:var(--font-body); margin-bottom:10px; line-height:1.5;">Kitchen sink pipe is leaking under the counter. Water dripping slowly. Needs urgent fix before evening.</div>
+      <div class="photo-grid" style="margin-bottom:10px;">
+        <div class="photo-thumb">🔧</div>
+        <div class="photo-thumb">💧</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mid); font-family:var(--font-body);">
+        📍 Satellite, Ahmedabad · 2.4 km from you
+      </div>
+    </div>
+
+    <div class="card" style="padding:16px; margin-bottom:16px;">
+      <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:12px;">Submit Your Quote</div>
+      <div class="input-group">
+        <label class="input-label">Your Price (₹)</label>
+        <input class="input-field" type="number" placeholder="350" style="font-size:22px; font-weight:700; height:60px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label class="input-label" style="display:block; margin-bottom:8px;">Estimated Time</label>
+        <div style="display:flex; gap:8px;">
+          ${['30 min','1 hr','2 hr','3+ hr'].map((t,i)=>`<div onclick="document.querySelectorAll('.eta-opt').forEach(e=>e.style.borderColor='var(--border)'); this.style.borderColor='var(--primary)'" class="eta-opt" style="flex:1; text-align:center; border:2px solid ${i===1?'var(--primary)':'var(--border)'}; border-radius:var(--radius-md); padding:8px 4px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; color:var(--dark);">${t}</div>`).join('')}
+        </div>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Note (Optional)</label>
+        <input class="input-field" placeholder="e.g. Will bring all tools…" style="height:44px;">
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="navigateTo('WORK-05')">Submit Quote</button>
+    <button class="btn-ghost" onclick="navigateTo('WORK-02')" style="width:100%; text-align:center; margin-top:6px; color:var(--danger);">Skip This Job</button>
+  </div>
+</div>
+`; }
+
+function renderWork04() { return `
+<div class="screen active" id="screen-WORK-04" style="background:#F8FAFC;">
+  <div class="app-bar" style="background:#F8FAFC;">
+    <button class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+    <div class="app-bar-title">Wallet</div>
+  </div>
+  <div class="screen-scroll screen-padding">
+    <div class="wallet-card">
+      <div style="font-size:11px; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-family:var(--font-body);">Available Balance</div>
+      <div class="wallet-balance"><span class="wallet-symbol">₹</span>247</div>
+      <div style="margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:rgba(255,255,255,0.7); margin-bottom:4px; font-family:var(--font-body);">
+          <span>Current: ₹247</span><span>Minimum: ₹100</span>
+        </div>
+        <div class="progress-wrap"><div class="progress-bar" style="width:100%; background:rgba(255,255,255,0.4);"></div></div>
+        <div style="font-size:10px; color:rgba(255,255,255,0.6); margin-top:4px; text-align:right; font-family:var(--font-body);">✅ Active — receiving job alerts</div>
+      </div>
+    </div>
+
+    <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:12px;">Quick Top Up</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+      ${['₹50','₹100','₹200','₹500'].map((a,i)=>`<div onclick="this.parentElement.querySelectorAll('div').forEach(e=>e.style.borderColor='var(--border)'); this.style.borderColor='var(--primary)'; this.style.background='var(--primary-light)'" style="border:2px solid ${i===1?'var(--primary)':'var(--border)'}; background:${i===1?'var(--primary-light)':'white'}; border-radius:var(--radius-xl); padding:18px; text-align:center; cursor:pointer; transition:all 0.2s;">
+        <div style="font-size:22px; font-weight:800; color:var(--dark); letter-spacing:-0.5px;">${a}</div>
+        <div style="font-size:10px; color:var(--mid); font-family:var(--font-body);">Instant credit</div>
+      </div>`).join('')}
+    </div>
+    <div style="display:flex; gap:8px; margin-bottom:20px;">
+      <input class="input-field" placeholder="Custom amount ₹" type="number" style="flex:1; height:44px;">
+      <button class="btn-primary" style="width:auto; height:44px; padding:0 16px; font-size:14px;">Add</button>
+    </div>
+
+    <div style="font-size:13px; font-weight:700; color:var(--mid); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Payment Method</div>
+    <div style="display:flex; gap:8px; margin-bottom:20px;">
+      <div style="flex:1; border:2px solid var(--primary); border-radius:var(--radius-lg); padding:10px; text-align:center; background:var(--primary-light);">
+        <div style="font-size:16px;">📱</div><div style="font-size:12px; font-weight:600; color:var(--primary);">UPI / QR</div>
+      </div>
+      <div style="flex:1; border:2px solid var(--border); border-radius:var(--radius-lg); padding:10px; text-align:center; cursor:pointer;">
+        <div style="font-size:16px;">💳</div><div style="font-size:12px; font-weight:600; color:var(--mid);">Card</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:10px;">Transaction History</div>
+    ${[
+      {type:'credit',label:'Top Up',amt:'+₹100',date:'Today 9:12 AM',color:'var(--success)'},
+      {type:'debit',label:'Platform fee deducted',amt:'-₹50',date:'Yesterday 3:45 PM',color:'var(--danger)'},
+      {type:'credit',label:'Job completed bonus',amt:'+₹20',date:'Apr 8',color:'var(--success)'},
+    ].map(t=>`
+      <div class="list-item">
+        <div class="list-item-icon" style="background:${t.type==='credit'?'#DCFCE7':'#FEE2E2'};">${t.type==='credit'?'⬆️':'⬇️'}</div>
+        <div class="list-item-content">
+          <div class="list-item-title">${t.label}</div>
+          <div class="list-item-sub">${t.date}</div>
+        </div>
+        <div style="font-size:15px; font-weight:700; color:${t.color};">${t.amt}</div>
+      </div>
+    `).join('')}
+  </div>
+</div>
+`; }
+
+function renderWork05() { return `
+<div class="screen active" id="screen-WORK-05" style="background:#F8FAFC;">
+  <div class="app-bar">
+    <button class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+    <div class="app-bar-title">Active Job</div>
+    <span class="badge badge-warning">EN ROUTE</span>
+  </div>
+
+  <div class="map-area" style="height:260px; position:relative;">
+    <div style="position:absolute; top:50%; left:60%; transform:translate(-50%,-50%);">
+      <div style="width:32px; height:32px; border-radius:50% 50% 50% 0; background:var(--danger); transform:rotate(-45deg); box-shadow:0 4px 12px rgba(220,38,38,0.4);"></div>
+    </div>
+    <div style="position:absolute; top:40%; left:30%;">
+      <div class="map-worker-avatar" style="background:var(--primary);">SP</div>
+    </div>
+    <div style="position:absolute; top:44%; left:32%; width:100px; height:3px; background:var(--primary); border-radius:2px; transform:rotate(5deg);"></div>
+    <div style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:white; border-radius:var(--radius-lg); padding:6px 14px; box-shadow:var(--card-shadow); display:flex; align-items:center; gap:8px;">
+      <span style="font-size:18px; font-weight:800; color:var(--dark);">8 min</span>
+      <span style="font-size:12px; color:var(--mid); font-family:var(--font-body);">to customer</span>
+    </div>
+  </div>
+
+  <div style="background:white; flex:1; border-radius:20px 20px 0 0; padding:16px; margin-top:-8px; overflow-y:auto;">
+    <div style="width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 16px;"></div>
+    <div class="card" style="padding:14px; margin-bottom:16px;">
+      <div style="font-size:12px; color:var(--mid); font-family:var(--font-body); margin-bottom:4px;">Customer</div>
+      <div style="font-size:16px; font-weight:700; color:var(--dark); margin-bottom:2px;">Rahul Sharma</div>
+      <div style="font-size:13px; color:var(--mid); font-family:var(--font-body);">📍 Satellite, Ahmedabad</div>
+    </div>
+
+    <div style="background:linear-gradient(135deg,#DCFCE7,#BBF7D0); border-radius:var(--radius-xl); padding:16px; margin-bottom:16px;">
+      <div style="font-size:12px; font-weight:700; color:#15803D; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">🔐 Enter Arrival OTP</div>
+      <div style="font-size:12px; color:#166534; font-family:var(--font-body); margin-bottom:12px;">Ask the customer for their 6-digit code</div>
+      <div class="otp-boxes" style="margin:0 0 12px;">
+        <div class="otp-box" style="border-color:#16A34A;">8</div>
+        <div class="otp-box" style="border-color:#16A34A;">4</div>
+        <div class="otp-box" style="border-color:#16A34A;">2</div>
+        <div class="otp-box">_</div>
+        <div class="otp-box">_</div>
+        <div class="otp-box">_</div>
+      </div>
+      <button class="btn-primary" style="height:44px; font-size:14px; background:#16A34A;" onclick="navigateTo('WORK-06')">Verify & Start Job</button>
+    </div>
+
+    <button style="width:100%; height:52px; border-radius:var(--radius-full); border:none; background:var(--primary); color:white; font-size:15px; font-weight:700; cursor:pointer; font-family:var(--font); margin-bottom:8px;" onclick="navigateTo('WORK-06')">I've Arrived ✅</button>
+  </div>
+</div>
+`; }
+
+function renderWork06() { return `
+<div class="screen active" id="screen-WORK-06" style="background:#F8FAFC;">
+  <div class="app-bar" style="background:#F8FAFC;">
+    <div class="app-bar-title">Complete Job</div>
+    <span class="badge badge-primary">IN PROGRESS</span>
+  </div>
+  <div class="screen-scroll screen-padding">
+    <div class="card" style="padding:14px; margin-bottom:16px;">
+      <div style="font-size:13px; color:var(--mid); font-family:var(--font-body); margin-bottom:2px;">Job #JB-4832</div>
+      <div style="font-size:16px; font-weight:700; color:var(--dark); margin-bottom:4px;">Plumbing Repair · Pipe Leakage</div>
+      <div style="font-size:13px; color:var(--mid); font-family:var(--font-body);">Rahul Sharma · Satellite, Ahmedabad</div>
+    </div>
+
+    <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:12px;">Job Outcome</div>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+      ${[
+        {icon:'✅',label:'Fixed',sub:'Issue fully resolved',color:'#16A34A',bg:'#DCFCE7',selected:true},
+        {icon:'⚠️',label:'Partially Fixed',sub:'Some work remains',color:'#D97706',bg:'#FEF3C7',selected:false},
+        {icon:'❌',label:'Not Fixed',sub:'Could not resolve',color:'#DC2626',bg:'#FEE2E2',selected:false},
+      ].map(o=>`
+        <div onclick="document.querySelectorAll('.outcome-opt').forEach(e=>{e.style.borderColor='var(--border)'; e.style.background='white'}); this.style.borderColor='${o.color}'; this.style.background='${o.bg}'" class="outcome-opt" style="display:flex; align-items:center; gap:12px; border:2px solid ${o.selected?o.color:'var(--border)'}; background:${o.selected?o.bg:'white'}; border-radius:var(--radius-xl); padding:14px 16px; cursor:pointer; transition:all 0.2s;">
+          <div style="font-size:24px;">${o.icon}</div>
+          <div><div style="font-size:15px; font-weight:700; color:var(--dark);">${o.label}</div><div style="font-size:12px; color:var(--mid); font-family:var(--font-body);">${o.sub}</div></div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div style="background:linear-gradient(135deg,#EFF6FF,#DBEAFE); border-radius:var(--radius-xl); padding:20px; text-align:center; margin-bottom:20px; border:1px solid #BFDBFE;">
+      <div style="font-size:12px; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">🔐 Completion OTP</div>
+      <div style="font-size:38px; font-weight:900; color:var(--dark); letter-spacing:8px; margin:8px 0; font-variant-numeric:tabular-nums;">517 293</div>
+      <div style="font-size:12px; color:var(--mid); font-family:var(--font-body);">Read this code to your customer to confirm job completion</div>
+    </div>
+
+    <button class="btn-primary" onclick="navigateTo('WORK-07')">Complete & Get Paid 💰</button>
+  </div>
+</div>
+`; }
+
+function renderWork07() { return `
+<div class="screen active" id="screen-WORK-07" style="background:#F8FAFC;">
+  <div class="app-bar" style="background:#F8FAFC;">
+    <div class="app-bar-title">My Earnings</div>
+  </div>
+  <div class="screen-scroll screen-padding">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+      <div class="stat-card" style="grid-column:span 2;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div><div style="font-size:11px; color:var(--mid); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Total Earned</div>
+          <div style="font-size:32px; font-weight:900; color:var(--dark); letter-spacing:-1px;">₹12,480</div></div>
+          <button class="btn-primary" style="width:auto; height:40px; padding:0 16px; font-size:13px;">Withdraw</button>
+        </div>
+      </div>
+      <div class="stat-card"><div class="stat-value">₹3,240</div><div class="stat-label">This Month</div></div>
+      <div class="stat-card"><div class="stat-value">₹840</div><div class="stat-label">This Week</div></div>
+    </div>
+
+    <div class="card" style="padding:14px; margin-bottom:16px;">
+      <div class="section-header" style="margin-bottom:10px;">
+        <div style="font-size:14px; font-weight:700; color:var(--dark);">Weekly Earnings</div>
+        <div style="display:flex; gap:4px;">
+          ${['W','M','All'].map((t,i)=>`<div style="padding:4px 10px; border-radius:var(--radius-full); font-size:11px; font-weight:600; background:${i===0?'var(--primary)':'transparent'}; color:${i===0?'white':'var(--mid)'}; cursor:pointer;">${t}</div>`).join('')}
+        </div>
+      </div>
+      <div class="chart-wrap">
+        ${[40,70,55,90,65,80,95].map((h,i)=>`<div class="chart-bar ${i===6?'active':''}" style="height:${h}%;"></div>`).join('')}
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:6px;">
+        ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<div style="font-size:9px; color:var(--mid); font-family:var(--font-body); flex:1; text-align:center;">${d}</div>`).join('')}
+      </div>
+    </div>
+
+    <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:10px;">Transaction History</div>
+    ${[
+      {icon:'🔧',cat:'Plumbing',amt:'₹300',date:'Today',status:'Paid'},
+      {icon:'⚡',cat:'Electrical',amt:'₹450',date:'Yesterday',status:'Paid'},
+      {icon:'🪵',cat:'Carpentry',amt:'₹200',date:'Apr 8',status:'Paid'},
+    ].map(t=>`
+      <div class="list-item">
+        <div class="list-item-icon">${t.icon}</div>
+        <div class="list-item-content">
+          <div class="list-item-title">${t.cat}</div>
+          <div class="list-item-sub">${t.date}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:15px; font-weight:700; color:var(--success);">+${t.amt}</div>
+          <span class="badge badge-success" style="font-size:9px;">${t.status}</span>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="navigateTo('WORK-02')"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Dashboard</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-05')"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Active Job</span></div>
+    <div class="nav-item active"><div class="nav-dot"></div><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Earnings</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-04')"><svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg><span>Wallet</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-08')"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+  </div>
+</div>
+`; }
+
+function renderWork08() { return `
+<div class="screen active" id="screen-WORK-08" style="background:#F8FAFC;">
+  <div class="app-bar" style="background:#F8FAFC;"><div class="app-bar-title">My Profile</div></div>
+  <div class="screen-scroll screen-padding">
+    <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
+      <div class="avatar" style="width:80px; height:80px; font-size:32px; margin-bottom:10px; background:linear-gradient(135deg,#F97316,#DC2626);">SP</div>
+      <div style="font-size:20px; font-weight:800; color:var(--dark);">Suresh Patel</div>
+      <div style="font-size:13px; color:var(--mid); font-family:var(--font-body); margin-top:2px;">🔧 Plumber · Mumbai</div>
+      <div style="display:flex; gap:8px; margin-top:8px;"><span class="badge badge-success">KYC Verified</span><span class="badge badge-purple">Trial</span></div>
+    </div>
+
+    <div class="card" style="padding:14px; margin-bottom:12px;">
+      <div style="font-size:13px; font-weight:700; color:var(--dark); margin-bottom:12px;">Subscription Plan</div>
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <div class="sub-card selected"><div class="sub-label">Monthly</div><div class="sub-price">₹38</div><div class="sub-period">/mo</div></div>
+        <div class="sub-card"><div class="sub-label">Semi</div><div class="sub-price">₹198</div><div class="sub-period">/6mo</div></div>
+        <div class="sub-card"><div class="sub-label">Annual</div><div class="sub-price">₹365</div><div class="sub-period">/yr</div></div>
+      </div>
+      <button class="btn-primary" style="height:40px; font-size:13px;">Activate Plan</button>
+    </div>
+
+    <div class="card" style="padding:14px; margin-bottom:12px;">
+      <div style="font-size:13px; font-weight:700; color:var(--dark); margin-bottom:8px;">Settings</div>
+      ${[
+        {icon:'✏️', title:'Edit Profile'},
+        {icon:'📂', title:'Service Categories'},
+        {icon:'🕐', title:'Working Hours'},
+        {icon:'🔔', title:'Notifications'},
+        {icon:'🔒', title:'Change Password'},
+        {icon:'💡', title:'Suggest a Category'},
+      ].map(s=>`
+        <div class="setting-row">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:18px;">${s.icon}</span>
+            <div class="setting-title">${s.title}</div>
+          </div>
+          <svg class="chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      `).join('')}
+    </div>
+
+    <button class="btn-danger" style="margin-bottom:8px;">Logout</button>
+    <button class="btn-secondary" style="color:var(--danger); border-color:var(--danger);">Delete Account</button>
+  </div>
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="navigateTo('WORK-02')"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Dashboard</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-05')"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Active Job</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-07')"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>Earnings</span></div>
+    <div class="nav-item" onclick="navigateTo('WORK-04')"><svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg><span>Wallet</span></div>
+    <div class="nav-item active"><div class="nav-dot"></div><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+  </div>
+</div>
+`; }
+
+// ══════════════════════════════════════════════════════════
+// ADMIN SCREENS
+// ══════════════════════════════════════════════════════════
+
+function renderAdmin01() { return `
+<div class="screen active" id="screen-ADMIN-01" style="background:#F8FAFC;">
+  <div class="app-bar" style="border-bottom:1px solid #E2E8F0;">
+    <div style="width:28px; height:28px; border-radius:6px; background:var(--primary); display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:12px;">K</div>
+    <div class="app-bar-title" style="font-size:15px;">Dashboard</div>
+    <div class="avatar avatar-sm">A</div>
+  </div>
+  <div class="admin-screen screen-padding">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <div style="font-size:14px; font-weight:700; color:var(--dark);">Live Overview</div>
+      <span style="font-size:10px; color:var(--success); font-weight:600; background:#DCFCE7; padding:3px 8px; border-radius:var(--radius-full);">● LIVE</span>
+    </div>
+    <div class="admin-kpi-grid">
+      ${[
+        {icon:'👥',val:'2,847',label:'Total Users',color:'#EFF6FF'},
+        {icon:'🟢',val:'143',label:'Workers Online',color:'#DCFCE7'},
+        {icon:'📋',val:'38',label:'Jobs Today',color:'#F3E8FF'},
+        {icon:'💰',val:'₹18,240',label:'Revenue Today',color:'#FEF3C7'},
+        {icon:'🪪',val:'12',label:'Pending KYC',color:'#FEE2E2'},
+        {icon:'⚠️',val:'3',label:'Open Disputes',color:'#FFF7ED'},
+      ].map(k=>`
+        <div class="admin-kpi-card" style="background:${k.color};">
+          <div class="admin-kpi-icon">${k.icon}</div>
+          <div class="admin-kpi-value">${k.val}</div>
+          <div class="admin-kpi-label">${k.label}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="card" style="padding:14px; margin-bottom:12px;">
+      <div style="font-size:13px; font-weight:700; color:var(--dark); margin-bottom:10px;">Revenue — Last 7 Days</div>
+      <div class="chart-wrap" style="height:70px;">
+        ${[55,72,61,88,76,95,80].map((h,i)=>`<div class="chart-bar ${i===5?'active':''}" style="height:${h}%;"></div>`).join('')}
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:6px;">
+        ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<div style="font-size:9px; color:var(--mid); flex:1; text-align:center; font-family:var(--font-body);">${d}</div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px; margin-bottom:12px;">
+      <div style="font-size:13px; font-weight:700; color:var(--dark); margin-bottom:10px;">Live Activity</div>
+      ${[
+        {icon:'✅',text:'Job #4832 completed · Plumbing',time:'1m ago',color:'#DCFCE7'},
+        {icon:'💰',text:'Payment ₹350 received',time:'2m ago',color:'#EFF6FF'},
+        {icon:'🪪',text:'New KYC submission — Ramesh V.',time:'5m ago',color:'#FEF3C7'},
+        {icon:'👤',text:'New customer registered',time:'8m ago',color:'#F3E8FF'},
+      ].map(a=>`
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #F8FAFC;">
+          <div style="width:32px; height:32px; border-radius:var(--radius-md); background:${a.color}; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0;">${a.icon}</div>
+          <div style="flex:1; font-size:12px; color:var(--dark); font-family:var(--font-body);">${a.text}</div>
+          <div style="font-size:10px; color:var(--mid); white-space:nowrap; font-family:var(--font-body);">${a.time}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="card" style="padding:14px;">
+      <div style="font-size:13px; font-weight:700; color:var(--dark); margin-bottom:10px;">Top Workers This Month</div>
+      ${[
+        {name:'Amit Kumar',cat:'Plumbing',earn:'₹8,240',rating:'4.9'},
+        {name:'Rajan Verma',cat:'Electrical',earn:'₹6,180',rating:'4.7'},
+        {name:'Suresh Patel',cat:'Plumbing',earn:'₹5,900',rating:'4.8'},
+      ].map((w,i)=>`
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #F8FAFC;">
+          <div style="font-size:14px; font-weight:800; color:var(--mid); width:16px;">${i+1}</div>
+          <div class="avatar avatar-sm" style="background:linear-gradient(135deg,${['#2563EB','#16A34A','#F97316'][i]},${['#7C3AED','#0891B2','#DC2626'][i]});">${w.name[0]}</div>
+          <div style="flex:1;"><div style="font-size:12px; font-weight:600; color:var(--dark);">${w.name}</div><div style="font-size:10px; color:var(--mid); font-family:var(--font-body);">${w.cat}</div></div>
+          <div style="text-align:right;"><div style="font-size:13px; font-weight:700; color:var(--success);">${w.earn}</div><div style="font-size:10px; color:var(--mid);">⭐${w.rating}</div></div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+</div>
+`; }
+
+function renderAdmin02() { return `
+<div class="screen active" id="screen-ADMIN-02" style="background:#F8FAFC;">
+  <div class="app-bar" style="border-bottom:1px solid #E2E8F0;">
+    <div style="width:28px; height:28px; border-radius:6px; background:var(--primary); display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:12px;">K</div>
+    <div class="app-bar-title" style="font-size:15px;">Users</div>
+    <button class="btn-primary" style="width:auto; height:32px; padding:0 12px; font-size:12px;">+ Export</button>
+  </div>
+  <div class="admin-screen screen-padding">
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <input class="input-field" placeholder="🔍 Search by name, mobile…" style="height:40px; flex:1; font-size:13px;">
+      <button class="btn-secondary" style="height:40px; width:auto; padding:0 12px; font-size:13px;">Filter</button>
+    </div>
+    <div style="display:flex; gap:6px; margin-bottom:12px;">
+      ${['All','Active','Suspended'].map((f,i)=>`<div style="padding:5px 12px; border-radius:var(--radius-full); font-size:11px; font-weight:600; background:${i===0?'var(--primary)':'#F1F5F9'}; color:${i===0?'white':'var(--mid)'}; cursor:pointer;">${f}</div>`).join('')}
+    </div>
+    ${[
+      {name:'Rahul Sharma',phone:'98765 43210',jobs:12,spend:'₹4,200',status:'Active'},
+      {name:'Priya Singh',phone:'87654 32109',jobs:7,spend:'₹2,100',status:'Active'},
+      {name:'Deepak Gupta',phone:'76543 21098',jobs:2,spend:'₹600',status:'Suspended'},
+    ].map(u=>`
+      <div class="card" style="padding:14px; margin-bottom:8px; cursor:pointer;" onclick="this.style.borderColor='var(--primary)'">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <div class="avatar avatar-md">${u.name[0]}</div>
+          <div style="flex:1;">
+            <div style="font-size:14px; font-weight:700; color:var(--dark);">${u.name}</div>
+            <div style="font-size:12px; color:var(--mid); font-family:var(--font-body);">📱 +91 ${u.phone}</div>
+          </div>
+          <span class="badge ${u.status==='Active'?'badge-success':'badge-danger'}">${u.status}</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div style="background:#F8FAFC; border-radius:var(--radius-md); padding:8px; text-align:center;">
+            <div style="font-size:14px; font-weight:700; color:var(--dark);">${u.jobs}</div>
+            <div style="font-size:10px; color:var(--mid); font-family:var(--font-body);">Total Jobs</div>
+          </div>
+          <div style="background:#F8FAFC; border-radius:var(--radius-md); padding:8px; text-align:center;">
+            <div style="font-size:14px; font-weight:700; color:var(--dark);">${u.spend}</div>
+            <div style="font-size:10px; color:var(--mid); font-family:var(--font-body);">Total Spend</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button class="btn-secondary" style="flex:1; height:32px; font-size:12px;">View Details</button>
+          <button style="flex:1; height:32px; border-radius:var(--radius-full); border:none; background:#FEE2E2; color:var(--danger); font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font);">${u.status==='Active'?'Suspend':'Unsuspend'}</button>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+</div>
+`; }
+
+function renderAdmin03() { return `
+<div class="screen active" id="screen-ADMIN-03" style="background:#F8FAFC;">
+  <div class="app-bar" style="border-bottom:1px solid #E2E8F0;">
+    <div style="width:28px; height:28px; border-radius:6px; background:var(--primary); display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:12px;">K</div>
+    <div class="app-bar-title" style="font-size:15px;">Workers</div>
+  </div>
+  <div class="admin-screen screen-padding">
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <input class="input-field" placeholder="🔍 Search workers…" style="height:40px; flex:1; font-size:13px;">
+    </div>
+    <div style="display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px;">
+      ${['All','Online','KYC Pending','Trial','Suspended'].map((f,i)=>`<div style="padding:5px 12px; border-radius:var(--radius-full); font-size:11px; font-weight:600; white-space:nowrap; background:${i===0?'var(--primary)':'#F1F5F9'}; color:${i===0?'white':'var(--mid)'}; cursor:pointer;">${f}</div>`).join('')}
+    </div>
+    ${[
+      {name:'Amit Kumar',cat:'Plumbing',wallet:'₹347',kyc:'Verified',status:'Online',rating:'4.9'},
+      {name:'Rajan Verma',cat:'Electrical',wallet:'₹89',kyc:'Pending',status:'Offline',rating:'4.6'},
+      {name:'Suresh Patel',cat:'Plumbing',wallet:'₹247',kyc:'Verified',status:'Online',rating:'4.8'},
+    ].map(w=>`
+      <div class="card" style="padding:14px; margin-bottom:8px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <div class="avatar avatar-md" style="position:relative;">
+            ${w.name[0]}
+            <div style="position:absolute; bottom:0; right:0; width:12px; height:12px; border-radius:50%; background:${w.status==='Online'?'var(--success)':'var(--border)'}; border:2px solid white;"></div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:14px; font-weight:700; color:var(--dark);">${w.name}</div>
+            <div style="font-size:12px; color:var(--mid); font-family:var(--font-body);">🔧 ${w.cat} · Wallet: ${w.wallet}</div>
+          </div>
+          <span class="badge ${w.kyc==='Verified'?'badge-success':'badge-warning'}">${w.kyc}</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-secondary" style="flex:1; height:32px; font-size:12px;">View</button>
+          <button style="flex:1; height:32px; border-radius:var(--radius-full); border:none; background:#EFF6FF; color:var(--primary); font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font);">+ Credit Wallet</button>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+</div>
+`; }
+
+function renderAdmin04() { return `
+<div class="screen active" id="screen-ADMIN-04" style="background:#F8FAFC;">
+  <div class="app-bar" style="border-bottom:1px solid #E2E8F0;">
+    <div style="width:28px; height:28px; border-radius:6px; background:var(--primary); display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:12px;">K</div>
+    <div class="app-bar-title" style="font-size:15px;">Jobs</div>
+  </div>
+  <div class="admin-screen screen-padding">
+    <div style="display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px;">
+      ${['All','Active','Completed','Cancelled','Disputed'].map((f,i)=>`<div style="padding:5px 12px; border-radius:var(--radius-full); font-size:11px; font-weight:600; white-space:nowrap; background:${i===0?'var(--primary)':'#F1F5F9'}; color:${i===0?'white':'var(--mid)'}; cursor:pointer;">${f}</div>`).join('')}
+    </div>
+    ${[
+      {id:'#JB-4832',cat:'Plumbing',customer:'Rahul S.',worker:'Amit K.',amt:'₹350',status:'Completed',statusClass:'badge-success'},
+      {id:'#JB-4831',cat:'Electrical',customer:'Priya S.',worker:'Rajan V.',amt:'₹600',status:'In Progress',statusClass:'badge-primary'},
+      {id:'#JB-4828',cat:'Carpentry',customer:'Deepak G.',worker:'—',amt:'₹400',status:'Disputed',statusClass:'badge-danger'},
+    ].map(j=>`
+      <div class="card" style="padding:14px; margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+          <div>
+            <div style="font-size:13px; font-weight:700; color:var(--dark);">${j.cat}</div>
+            <div style="font-size:11px; color:var(--mid); font-family:var(--font-body);">${j.id} · ${j.customer} → ${j.worker}</div>
+          </div>
+          <span class="badge ${j.statusClass}">${j.status}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:16px; font-weight:800; color:var(--dark);">${j.amt}</div>
+          <div style="display:flex; gap:6px;">
+            <button style="height:28px; border-radius:var(--radius-full); border:1px solid var(--border); background:white; font-size:11px; font-weight:600; padding:0 10px; cursor:pointer; color:var(--dark); font-family:var(--font);">Details</button>
+            ${j.status==='Disputed'?`<button style="height:28px; border-radius:var(--radius-full); border:none; background:#FEE2E2; color:var(--danger); font-size:11px; font-weight:600; padding:0 10px; cursor:pointer; font-family:var(--font);">Resolve</button>`:''}
+          </div>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+</div>
+`; }
+
+function renderAdmin05() { return `
+<div class="screen active" id="screen-ADMIN-05" style="background:#F8FAFC;">
+  <div class="app-bar" style="border-bottom:1px solid #E2E8F0;">
+    <div style="width:28px; height:28px; border-radius:6px; background:var(--primary); display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:12px;">K</div>
+    <div class="app-bar-title" style="font-size:15px;">KYC Verification</div>
+    <span class="badge badge-danger">12 Pending</span>
+  </div>
+  <div class="admin-screen screen-padding">
+    <div style="background:#FEF3C7; border:1px solid #FCD34D; border-radius:var(--radius-lg); padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+      <span style="font-size:14px;">⚠️</span>
+      <div style="font-size:12px; color:#92400E; font-family:var(--font-body);">3 submissions are past 24-hour SLA</div>
+    </div>
+    ${[
+      {name:'Ramesh Verma',cat:'Plumber',time:'2h ago',sla:false,docs:['🪪','🪪','🪙','🤳']},
+      {name:'Vikram Shah',cat:'Electrician',time:'26h ago',sla:true,docs:['🪪','🪪','🪙','🤳']},
+    ].map(k=>`
+      <div class="card" style="padding:14px; margin-bottom:12px; border:${k.sla?'2px solid #FCA5A5':''}" >
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+          <div class="avatar avatar-md">${k.name[0]}</div>
+          <div style="flex:1;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <div style="font-size:14px; font-weight:700; color:var(--dark);">${k.name}</div>
+              ${k.sla?`<span class="badge badge-danger">SLA Breach</span>`:''}
+            </div>
+            <div style="font-size:12px; color:var(--mid); font-family:var(--font-body);">🔧 ${k.cat} · Submitted ${k.time}</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:12px;">
+          ${k.docs.map((d,i)=>`<div style="aspect-ratio:1; background:#F1F5F9; border-radius:var(--radius-md); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:zoom-in; font-size:20px;">${d}<div style="font-size:8px; color:var(--mid); margin-top:2px; font-family:var(--font-body);">${['Front','Back','PAN','Selfie'][i]}</div></div>`).join('')}
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-primary" style="flex:1; height:40px; font-size:13px; background:var(--success);">✅ Approve</button>
+          <button style="flex:1; height:40px; border-radius:var(--radius-full); border:2px solid var(--danger); background:white; color:var(--danger); font-size:13px; font-weight:700; cursor:pointer; font-family:var(--font);">❌ Reject</button>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+</div>
+`; }
+
+function renderAdmin06() { return `
+<div class="screen active" id="screen-ADMIN-06" style="background:#F8FAFC;">
+  <div class="app-bar" style="border-bottom:1px solid #E2E8F0;">
+    <div style="width:28px; height:28px; border-radius:6px; background:var(--primary); display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:12px;">K</div>
+    <div class="app-bar-title" style="font-size:15px;">Platform Settings</div>
+  </div>
+  <div class="admin-screen screen-padding">
+    <div style="background:#DCFCE7; border:1px solid #86EFAC; border-radius:var(--radius-lg); padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+      <span style="font-size:14px;">⚡</span>
+      <div style="font-size:12px; color:#166534; font-family:var(--font-body);">Changes push live to all connected clients instantly via Socket.io</div>
+    </div>
+
+    ${[
+      {title:'Platform Fee',icon:'💰',content:`<div class="input-group" style="margin-bottom:0;"><label class="input-label">Amount (₹) — Flat per job</label><input class="input-field" value="50" style="height:44px;"></div>`},
+      {title:'Wallet Settings',icon:'💳',content:`<div class="input-group" style="margin-bottom:8px;"><label class="input-label">Minimum Balance (₹)</label><input class="input-field" value="100" style="height:44px;"></div><div style="display:flex; gap:8px;">${['₹50','₹100','₹200','₹500'].map(a=>`<div style="flex:1; border:2px solid var(--primary); border-radius:var(--radius-md); padding:8px; text-align:center; font-size:13px; font-weight:700; color:var(--primary); cursor:pointer;">${a}</div>`).join('')}</div>`},
+      {title:'Maintenance Mode',icon:'🔧',content:`<div style="display:flex; align-items:center; justify-content:space-between;"><div><div style="font-size:14px; font-weight:600; color:var(--dark);">Block new bookings</div><div style="font-size:12px; color:var(--mid); font-family:var(--font-body);">Shows maintenance message to all users</div></div><div class="toggle" id="maint-toggle" onclick="this.classList.toggle('on')"></div></div>`},
+      {title:'OTP Settings',icon:'🔐',content:`<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"><div class="input-group" style="margin-bottom:0;"><label class="input-label">Validity (min)</label><input class="input-field" value="5" style="height:44px;"></div><div class="input-group" style="margin-bottom:0;"><label class="input-label">Max Attempts</label><input class="input-field" value="6" style="height:44px;"></div></div>`},
+    ].map(s=>`
+      <div class="card" style="padding:14px; margin-bottom:10px;">
+        <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:12px;">${s.icon} ${s.title}</div>
+        ${s.content}
+        <button class="btn-primary" style="height:40px; font-size:13px; margin-top:12px;">Save & Push Live ⚡</button>
+      </div>
+    `).join('')}
+  </div>
+</div>
+`; }
+
+// ══════════════════════════════════════════════════════════
+// APP STATE & NAVIGATION
+// ══════════════════════════════════════════════════════════
+let currentFlow = 'customer';
+let currentScreen = 'CUST-01';
+let history = [];
+
+function switchFlow(flow) {
+  currentFlow = flow;
+  document.querySelectorAll('.flow-tab').forEach((t,i) => t.classList.toggle('active', ['customer','worker','admin'][i]===flow));
+  const firstScreen = flows[flow][0];
+  history = [];
+  renderSidebar();
+  navigateTo(firstScreen.id);
+}
+
+function renderSidebar() {
+  const sidebar = document.getElementById('screen-sidebar');
+  sidebar.innerHTML = flows[currentFlow].map(s => `
+    <div class="screen-thumb ${s.id===currentScreen?'active':''}" id="thumb-${s.id}" onclick="navigateTo('${s.id}')">
+      <div class="screen-thumb-id">${s.id}</div>
+      <div class="screen-thumb-name">${s.name}</div>
+    </div>
+  `).join('');
+}
+
+function navigateTo(id) {
+  const allFlows = {...flows};
+  let screen = null;
+  for (const f of Object.values(allFlows)) {
+    screen = f.find(s => s.id === id);
+    if (screen) break;
+  }
+  if (!screen) return;
+
+  if (currentScreen) history.push(currentScreen);
+  currentScreen = id;
+
+  // Update container
+  const container = document.getElementById('screens-container');
+  container.innerHTML = screen.html();
+
+  // Update sidebar
+  renderSidebar();
+
+  // Update info panel
+  document.getElementById('info-id').textContent = screen.id;
+  document.getElementById('info-name').textContent = screen.name;
+  document.getElementById('info-desc').textContent = screen.desc;
+  document.getElementById('info-links').innerHTML = screen.links.length
+    ? screen.links.map(l => `<div class="proto-link" onclick="navigateTo('${l.target}')"><div class="proto-link-arrow"></div><span class="proto-link-text">${l.label}</span></div>`).join('')
+    : '<div style="font-size:11px; color:#475569; font-family:var(--font-body);">End of flow</div>';
+
+  // Update status bar color
+  const bar = document.getElementById('status-bar');
+  if (id.startsWith('ADMIN')) {
+    bar.style.background = 'white';
+    bar.style.borderBottom = '1px solid #E2E8F0';
+  } else {
+    bar.style.background = 'white';
+    bar.style.borderBottom = 'none';
+  }
+}
+
+function goBack() {
+  if (history.length > 0) {
+    const prev = history.pop();
+    currentScreen = null;
+    navigateTo(prev);
+    history.pop(); // remove the duplicate added by navigateTo
+  }
+}
+
+function selectRole(role) {
+  document.getElementById('role-customer').style.borderColor = role==='customer' ? 'var(--primary)' : 'var(--border)';
+  document.getElementById('role-customer').style.background = role==='customer' ? 'var(--primary-light)' : 'white';
+  document.getElementById('role-worker').style.borderColor = role==='worker' ? 'var(--primary)' : 'var(--border)';
+  document.getElementById('role-worker').style.background = role==='worker' ? 'var(--primary-light)' : 'white';
+  const btn = document.getElementById('role-continue-btn');
+  btn.style.opacity = '1';
+  btn.style.pointerEvents = 'auto';
+}
+
+function toggleWorker(el) {
+  el.classList.toggle('on');
+  const lbl = document.getElementById('toggle-text');
+  const on = el.classList.contains('on');
+  lbl.textContent = on ? 'Online' : 'Offline';
+  lbl.style.color = on ? 'var(--success)' : 'var(--mid)';
+}
+
+function showPaymentSuccess() {
+  const container = document.getElementById('screens-container');
+  container.innerHTML = `
+    <div class="screen active" style="background:white; align-items:center; justify-content:center; text-align:center; padding:40px 24px;">
+      <div style="font-size:80px; margin-bottom:16px; animation:bounce-in 0.5s ease;">✅</div>
+      <div style="font-size:26px; font-weight:800; color:var(--dark); margin-bottom:8px;">Payment Successful!</div>
+      <div style="font-size:14px; color:var(--mid); font-family:var(--font-body); margin-bottom:32px;">₹350 paid to Amit Kumar</div>
+      <div style="font-size:14px; font-weight:700; color:var(--dark); margin-bottom:12px;">Rate your experience</div>
+      <div style="font-size:48px; letter-spacing:4px; cursor:pointer; margin-bottom:24px;">⭐⭐⭐⭐⭐</div>
+      <button class="btn-primary" onclick="navigateTo('CUST-03')" style="margin-bottom:8px;">Submit Review</button>
+      <button class="btn-ghost" onclick="navigateTo('CUST-03')">Skip</button>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+renderSidebar();
+navigateTo('CUST-01');
+</script>
+</body>
+</html>
