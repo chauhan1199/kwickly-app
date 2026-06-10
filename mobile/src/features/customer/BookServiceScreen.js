@@ -16,6 +16,7 @@ import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { jobService } from '../../services/jobService';
 import { customerService } from '../../services/customerService';
+import GlassCard from '../../components/ui/GlassCard';
 
 const BookServiceScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -93,11 +94,10 @@ const BookServiceScreen = ({ navigation }) => {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
         {/* Search */}
-        <View style={styles.searchBar}>
-          <TextInput 
+        <View style={{ paddingHorizontal: 14, marginBottom: 12 }}>
+          <Input
             placeholder="Search plumber, AC, cleaning..."
-            placeholderTextColor={theme.colors.textDim}
-            style={styles.searchInput}
+            containerStyle={{ marginBottom: 0 }}
           />
         </View>
 
@@ -118,12 +118,12 @@ const BookServiceScreen = ({ navigation }) => {
               <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20, width: '100%' }} />
             ) : (
               categories.map((cat, index) => (
-                <TouchableOpacity key={cat.id || index} style={styles.catTile} onPress={() => navigation.navigate('SubCategories', cat)}>
+                <GlassCard key={cat.id || index} style={styles.catTile} isDarkMode={isDarkMode} onPress={() => navigation.navigate('SubCategories', cat)}>
                   <View style={styles.catIconBox}>
                     <Text style={styles.catIconText}>{cat.icon || '📌'}</Text>
                   </View>
                   <Text style={styles.catNameText}>{cat.name}</Text>
-                </TouchableOpacity>
+                </GlassCard>
               ))
             )}
           </View>
@@ -136,9 +136,10 @@ const BookServiceScreen = ({ navigation }) => {
             <Text style={{ textAlign: 'center', marginTop: 10, color: theme.colors.textDim }}>No top pros available.</Text>
           ) : (
             workers.map((worker) => (
-              <TouchableOpacity 
+              <GlassCard
                 key={worker.id} 
                 style={styles.workerCard}
+                isDarkMode={isDarkMode}
                 onPress={() => navigation.navigate('WorkerProfile', { worker })}
               >
                 <View style={styles.row}>
@@ -170,7 +171,7 @@ const BookServiceScreen = ({ navigation }) => {
                     </TouchableOpacity>
                   </View>
                 </View>
-              </TouchableOpacity>
+              </GlassCard>
             ))
           )}
 

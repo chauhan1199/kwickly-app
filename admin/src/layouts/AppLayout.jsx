@@ -105,19 +105,17 @@ export default function AppLayout({ onLogout }) {
       ]
     },
     {
-      label: 'Marketing & Comms',
-      items: [
-        { path: '/banners',      label: 'Banners & Promotions', icon: '📢' },
-        { path: '/coupons',      label: 'Coupons & Offers',     icon: '🎟️' },
-        { path: '/notifications', label: 'Push Notifications',   icon: '🔔' },
-      ]
-    },
-    {
       label: 'Finance',
       items: [
         { path: '/payouts',       label: 'Payouts',        icon: '💰', badge: badges.payouts },
         { path: '/ledger',        label: 'Ledger',         icon: '📖' },
         { path: '/subscriptions', label: 'Subscriptions',  icon: '🎯' },
+      ],
+    },
+    {
+      label: 'Communications',
+      items: [
+        { path: '/notifications', label: 'Notifications',  icon: '📣' },
       ],
     },
     {
