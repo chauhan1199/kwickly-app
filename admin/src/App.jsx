@@ -18,6 +18,8 @@ import Suggestions    from './modules/suggestions/Suggestions'
 import Ledger         from './modules/ledger/Ledger'
 import Reports        from './modules/reports/Reports'
 import Shops          from './modules/shops/Shops'
+import Banners        from './modules/banners/Banners'
+import Coupons        from './modules/coupons/Coupons'
 import './index.css'
 
 function App() {
@@ -57,7 +59,9 @@ function App() {
           <Route path="disputes"     element={<Disputes />} />
           <Route path="suggestions"  element={<Suggestions />} />
           
-          {/* Communications */}
+          {/* Marketing & Comms */}
+          <Route path="banners"       element={<Banners />} />
+          <Route path="coupons"       element={<Coupons />} />
           <Route path="notifications" element={<Notifications />} />
           
           {/* System & Analytics */}

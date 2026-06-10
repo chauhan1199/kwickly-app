@@ -52,6 +52,8 @@ app.use('/api/v1/subscriptions', require('./modules/subscription/subscription.ro
 app.use('/api/v1/wallet',        require('./modules/wallet/wallet.routes'));
 app.use('/api/v1/workers',       require('./modules/worker/worker.routes'));
 app.use('/api/v1/chat',          require('./modules/chat/chat.routes'));
+app.use('/api/v1/banners',       require('./modules/banner/banner.routes'));
+app.use('/api/v1/coupons',       require('./modules/coupon/coupon.routes'));
 
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', message: 'Kwickly API is running' });
