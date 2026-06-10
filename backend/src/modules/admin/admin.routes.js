@@ -58,7 +58,5 @@ router.use('/jobs', require('../job/job.routes'));
 router.use('/notifications', require('../notification/notification.routes'));
 router.use('/payouts', require('../payout/payout.routes'));
 router.use('/settings', require('../settings/settings.routes'));
-router.use('/banners', require('../banner/banner.routes'));
-router.use('/coupons', require('../coupon/coupon.routes'));
 
 module.exports = router;

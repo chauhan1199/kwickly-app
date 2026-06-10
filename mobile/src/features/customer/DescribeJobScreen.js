@@ -169,15 +169,14 @@ const DescribeJobScreen = ({ route, navigation }) => {
         
         {/* Describe Issue */}
         <Text style={styles.label}>Describe the issue</Text>
-        <TextInput 
-          style={styles.textArea}
+        <Input
+          containerStyle={{ marginBottom: 14 }}
+          inputStyle={{ minHeight: 80, textAlignVertical: 'top' }}
           multiline={true}
           numberOfLines={3}
-          textAlignVertical="top"
           value={description}
           onChangeText={setDescription}
           placeholder="E.g. AC not cooling, makes loud noise..."
-          placeholderTextColor={theme.colors.textDim}
         />
 
         {/* Photos / Video */}
@@ -217,12 +216,11 @@ const DescribeJobScreen = ({ route, navigation }) => {
             <Text style={[styles.addrChipText, addressType === 'Other' && styles.addrChipTextActive]}>➕ Other</Text>
           </TouchableOpacity>
         </ScrollView>
-        <TextInput 
-          style={styles.inputField}
+        <Input
+          containerStyle={{ marginBottom: 14 }}
           value={address}
           onChangeText={setAddress}
           placeholder="Enter service address..."
-          placeholderTextColor={theme.colors.textDim}
         />
         <TouchableOpacity style={styles.mapBtn} onPress={handlePickMap}>
           <Text style={styles.mapBtnText}>📍 Pick from Map</Text>

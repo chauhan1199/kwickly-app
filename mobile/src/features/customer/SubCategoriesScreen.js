@@ -11,6 +11,7 @@ import {
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import GlassCard from '../../components/ui/GlassCard';
 
 const SubCategoriesScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -50,23 +51,26 @@ const SubCategoriesScreen = ({ route, navigation }) => {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
         {subs.map((sub, index) => (
-          <TouchableOpacity 
+          <GlassCard
             key={index} 
-            style={styles.listItem}
+            isDarkMode={isDarkMode}
+            style={{ marginBottom: 12 }}
             onPress={() => navigation.navigate('DescribeJob', { 
               category: route.params, 
               subcategory: sub 
             })}
           >
-            <View style={styles.listIconBox}>
-              <Text style={styles.listIconText}>{icon}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={styles.listIconBox}>
+                <Text style={styles.listIconText}>{icon}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.listTitle}>{sub}</Text>
+                <Text style={styles.listDesc}>Starting ₹199 · Avg 30-60 min</Text>
+              </View>
+              <Text style={styles.listArrow}>›</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.listTitle}>{sub}</Text>
-              <Text style={styles.listDesc}>Starting ₹199 · Avg 30-60 min</Text>
-            </View>
-            <Text style={styles.listArrow}>›</Text>
-          </TouchableOpacity>
+          </GlassCard>
         ))}
 
         <TouchableOpacity style={styles.suggestBtn}>
