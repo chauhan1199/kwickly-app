@@ -167,7 +167,7 @@ const RoleSelection = ({ navigation }) => {
                 <Text style={styles.btnText}>Continue →</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.footerLink} onPress={() => navigation.navigate('Login')}>
+              <TouchableOpacity style={styles.footerLink} onPress={() => navigation.navigate('Login', { role: selectedRole })}>
                 <Text style={styles.footerText}>Already registered? <Text style={styles.footerLinkText}>Sign In</Text></Text>
               </TouchableOpacity>
             </View>

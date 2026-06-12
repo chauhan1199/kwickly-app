@@ -10,7 +10,7 @@ const SubscriptionPlanSchema = new mongoose.Schema({
 
 const WorkerSubscriptionSchema = new mongoose.Schema({
     workerId:  { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
-    planId:    { type: mongoose.Schema.Types.ObjectId, ref: 'SubscriptionPlan', required: true },
+    planId:    { type: String, required: true },
     planName:  { type: String },
     amount:    { type: Number, required: true },
 

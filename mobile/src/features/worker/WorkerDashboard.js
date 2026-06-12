@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { 
   ScrollView, 
   View, 
@@ -23,14 +24,19 @@ import { Bell, Moon, Sun } from 'lucide-react-native';
 const WorkerDashboard = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, socket, signOut, fetchUser } = useAuth();
-  const isOnline = user?.isOnline ?? true;
+  const [isOnline, setIsOnline] = useState(user?.isOnline ?? false);
   const [refreshing, setRefreshing] = useState(false);
   const [availableJobs, setAvailableJobs] = useState([]);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchData();
+    }, [isOnline]) // Re-fetch when online status changes or screen is focused
+  );
 
   useEffect(() => {
-    fetchData();
-
     if (socket) {
       // Listen for new jobs globally broadcasted
       const handleNewJob = (jobAlert) => {
@@ -44,9 +50,10 @@ const WorkerDashboard = ({ navigation }) => {
             category: jobAlert.category,
             description: jobAlert.description,
             location: jobAlert.location,
-            addressDetails: jobAlert.location?.addressDetails, // rough map
+            addressDetails: jobAlert.location?.addressDetails,
             preferredDate: jobAlert.preferredDate,
             timeSlot: jobAlert.timeSlot,
+            customerId: jobAlert.customerId, // Capture customer data for display
             createdAt: new Date()
           }, ...prev];
         });
@@ -74,18 +81,34 @@ const WorkerDashboard = ({ navigation }) => {
     }
   }, [socket, isOnline]);
 
+  const handleToggleOnline = async (value) => {
+    setIsOnline(value);
+    try {
+      await api.patch('/workers/me/online', { isOnline: value });
+      if (value) {
+        // Fetch available jobs immediately when going online
+        fetchData();
+      } else {
+        setAvailableJobs([]);
+        setErrorMsg('');
+      }
+    } catch (e) {
+      // Revert on error
+      setIsOnline(!value);
+      Alert.alert('Error', 'Could not update online status');
+    }
+  };
+
   const fetchData = async () => {
     try {
       setRefreshing(true);
-      // Fetch available broadcasted jobs
-      // We will just use api.get directly for now.
+      setErrorMsg('');
       const jobsRes = await api.get('/jobs/available');
       if (jobsRes.data?.status === 'success') {
         setAvailableJobs(jobsRes.data.data);
       }
 
-      // Fetch wallet (user profile)
-      const userRes = await api.get('/auth/me'); // Assuming there's a me endpoint or we use the context user.
+      const userRes = await api.get('/auth/me');
       if (userRes.data?.data?.wallet) {
          setWalletBalance(userRes.data.data.wallet.balance || 0);
       } else if (user?.wallet) {
@@ -93,10 +116,11 @@ const WorkerDashboard = ({ navigation }) => {
       }
     } catch (e) {
       if (e.response?.status === 403 || e.response?.status === 402) {
-        // Expected error when KYC is pending, wallet is low, or worker is offline
         setAvailableJobs([]);
+        setErrorMsg(e.response?.data?.message || 'Action restricted.');
       } else {
         console.log('Fetching worker data failed:', e.message);
+        setErrorMsg('Failed to load jobs. Please check connection.');
       }
     } finally {
       setRefreshing(false);
@@ -131,6 +155,21 @@ const WorkerDashboard = ({ navigation }) => {
               <Text style={styles.workerName}>{user?.name || 'Worker'}</Text>
               <Text style={styles.workerStats}>★ 4.8 · {user?.jobsCompleted || 0} jobs done</Text>
             </View>
+          </View>
+          
+          <View style={styles.onlineToggleRow}>
+            <View>
+              <Text style={styles.onlineToggleLabel}>Duty Status</Text>
+              <Text style={[styles.onlineToggleStatus, { color: isOnline ? '#10b981' : theme.colors.textDim }]}>
+                {isOnline ? 'You are Online' : 'You are Offline'}
+              </Text>
+            </View>
+            <Switch
+              trackColor={{ false: theme.colors.border, true: '#10b981' }}
+              thumbColor={'#ffffff'}
+              onValueChange={handleToggleOnline}
+              value={isOnline}
+            />
           </View>
 
           {/* Stats Row */}
@@ -193,8 +232,10 @@ const WorkerDashboard = ({ navigation }) => {
         
         {isOnline && availableJobs.length === 0 && (
           <View style={{ padding: 30, alignItems: 'center' }}>
-            <Text style={{ fontSize: 40, marginBottom: 10 }}>📡</Text>
-            <Text style={{ color: theme.colors.textDim }}>Looking for jobs near you...</Text>
+            <Text style={{ fontSize: 40, marginBottom: 10 }}>{errorMsg ? '⚠️' : '📡'}</Text>
+            <Text style={{ color: errorMsg ? '#ef4444' : theme.colors.textDim, textAlign: 'center', lineHeight: 22, fontWeight: errorMsg ? '600' : '400' }}>
+              {errorMsg ? errorMsg : 'Looking for jobs near you...'}
+            </Text>
           </View>
         )}
 
@@ -246,6 +287,27 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   workerStats: {
     fontSize: 13,
     color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  onlineToggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  onlineToggleLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  onlineToggleStatus: {
+    fontSize: 13,
+    fontWeight: '600',
     marginTop: 2,
   },
   profileStats: {

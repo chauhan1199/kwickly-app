@@ -11,12 +11,15 @@ import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp } from 'lucide-react-nativ
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import { walletService } from '../../services/walletService';
+import { useAuth } from '../../context/AuthContext';
 
 const CustomerWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const { fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
   const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
   
@@ -56,20 +59,29 @@ const CustomerWalletScreen = ({ navigation }) => {
       return Alert.alert('Invalid', 'Please enter a valid amount.');
     }
     
-    setAddMoneyModal(false);
+    setIsProcessing(true);
     
     try {
       const amount = Number(topupAmount);
-      // We simulate payment gateway success
-      const res = await walletService.topupWallet(amount, { method: "UPI", status: "SUCCESS" }, null);
+      // Simulate payment gateway delay
+      await new Promise(res => setTimeout(res, 1200));
+      
+      const res = await walletService.topupWallet(amount, { method: "UPI" });
       if (res.data.status === 'success') {
-        Alert.alert('Success', `₹${amount} added to your wallet successfully!`);
+        if (fetchUser) await fetchUser(); // Sync globally
+        fetchWallet();                    // Refresh local lists
+        setAddMoneyModal(false);
         setTopupAmount('');
-        fetchWallet();
+        
+        setTimeout(() => {
+          Alert.alert('Payment Successful 🎉', `₹${amount} was securely added to your Kwickly Wallet!`);
+        }, 300);
       }
     } catch (error) {
       console.log('Topup failed', error);
       Alert.alert('Error', error.response?.data?.message || 'Failed to add money. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -102,7 +114,7 @@ const CustomerWalletScreen = ({ navigation }) => {
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : (
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
 
         {/* Balance Card */}
         <LinearGradient
@@ -185,10 +197,15 @@ const CustomerWalletScreen = ({ navigation }) => {
                     ))}
                   </View>
                   <TouchableOpacity
-                    style={styles.payBtn}
+                    style={[styles.payBtn, isProcessing && { opacity: 0.7 }]}
                     onPress={handleTopup}
+                    disabled={isProcessing}
                   >
-                    <Text style={styles.payBtnText}>Proceed to Pay</Text>
+                    {isProcessing ? (
+                      <ActivityIndicator size="small" color="#001016" />
+                    ) : (
+                      <Text style={styles.payBtnText}>Proceed to Pay</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </TouchableWithoutFeedback>
@@ -235,23 +252,23 @@ const CustomerWalletScreen = ({ navigation }) => {
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:      { flex: 1, backgroundColor: theme.colors.background },
   scroll:         { padding: 20 },
-  balanceCard:    { borderRadius: 24, padding: 24, marginBottom: 20 },
+  balanceCard:    { borderRadius: 28, padding: 28, marginBottom: 24, elevation: 8, shadowColor: '#0e9aa7', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10 },
   balanceCardInner:{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  balanceLabel:   { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontWeight: '600' },
-  balanceAmount:  { fontSize: 40, fontWeight: '900', color: '#fff', marginBottom: 4 },
-  balanceSub:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 20 },
-  addBtn:         { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24 },
+  balanceLabel:   { fontSize: 15, color: 'rgba(255,255,255,0.9)', fontWeight: '700' },
+  balanceAmount:  { fontSize: 44, fontWeight: '900', color: '#fff', marginBottom: 4, letterSpacing: -1 },
+  balanceSub:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 24, fontWeight: '500' },
+  addBtn:         { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', alignSelf: 'flex-start', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
   addBtnText:     { fontSize: 14, fontWeight: '800', color: '#0e9aa7' },
-  statsRow:       { flexDirection: 'row', backgroundColor: theme.colors.surface, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 28 },
-  statBox:        { flex: 1, alignItems: 'center', paddingVertical: 16, gap: 6 },
-  statNum:        { fontSize: 16, fontWeight: '900', color: theme.colors.text },
-  statLabel:      { fontSize: 11, color: theme.colors.textDim, fontWeight: '600' },
-  sectionTitle:   { fontSize: 18, fontWeight: '800', color: theme.colors.text, marginBottom: 14 },
-  txCard:         { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.colors.border, gap: 14 },
-  txIcon:         { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  txTitle:        { fontSize: 14, fontWeight: '700', color: theme.colors.text, marginBottom: 2 },
-  txDesc:         { fontSize: 12, color: theme.colors.textDim },
-  txAmount:       { fontSize: 15, fontWeight: '900' },
+  statsRow:       { flexDirection: 'row', backgroundColor: theme.colors.surface, borderRadius: 24, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 32, paddingVertical: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  statBox:        { flex: 1, alignItems: 'center', paddingVertical: 16, gap: 8 },
+  statNum:        { fontSize: 17, fontWeight: '900', color: theme.colors.text },
+  statLabel:      { fontSize: 12, color: theme.colors.textDim, fontWeight: '600' },
+  sectionTitle:   { fontSize: 19, fontWeight: '800', color: theme.colors.text, marginBottom: 16 },
+  txCard:         { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: theme.colors.border, gap: 14, marginBottom: 4 },
+  txIcon:         { width: 46, height: 46, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  txTitle:        { fontSize: 15, fontWeight: '800', color: theme.colors.text, marginBottom: 4 },
+  txDesc:         { fontSize: 13, color: theme.colors.textDim, fontWeight: '500' },
+  txAmount:       { fontSize: 16, fontWeight: '900', letterSpacing: -0.5 },
   overlay:        { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet:          { backgroundColor: theme.colors.background, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
   handle:         { width: 40, height: 5, backgroundColor: theme.colors.border, borderRadius: 3, alignSelf: 'center', marginBottom: 20 },

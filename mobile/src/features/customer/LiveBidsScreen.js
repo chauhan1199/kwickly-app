@@ -72,7 +72,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
       if (res.data?.status === 'success') {
         const { job, quote } = res.data.data;
         // Navigate to Live Tracking with the real worker data
-        navigation.replace('LiveTracking', { 
+        navigation.navigate('LiveTracking', { 
           job, 
           worker: bid.workerId, 
           amount: quote.amount 

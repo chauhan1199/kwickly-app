@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -6,44 +6,142 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity,
-  StatusBar
+  StatusBar,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import { TextInput } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { ChevronLeft, Bell, FileText, Phone, CheckCircle2, Box, Truck } from 'lucide-react-native';
+import api from '../../services/api';
 
 const ShopOrderDetailsScreen = ({ navigation, route }) => {
   const { theme, isDarkMode } = useTheme();
   const styles = createStyles(theme, isDarkMode);
   
-  const order = route.params?.order || {
-    id: 'SO1023',
-    customer: 'Anita S.',
-    items: 3,
-    total: 758,
-    status: 'new' // 'new', 'packing', 'out', 'delivered'
+  const { orderId } = route.params || {};
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
+
+  useEffect(() => {
+    if (!orderId) return;
+    fetchOrder(true);
+    const interval = setInterval(() => fetchOrder(false), 3000);
+    return () => clearInterval(interval);
+  }, [orderId]);
+
+  const fetchOrder = async (showLoader = true) => {
+    try {
+      if (showLoader) setLoading(true);
+      const res = await api.get(`/shoporders/${orderId}`);
+      if (res.data?.status === 'success') {
+        setOrder(res.data.data);
+      }
+    } catch (e) {
+      console.log('Error fetching order', e);
+    } finally {
+      if (showLoader) setLoading(false);
+    }
   };
 
-  const mockItems = [
-    { name: 'Basmati Rice', price: 138 },
-    { name: 'Sunflower Oil', price: 284 },
-    { name: 'Sugar', price: 326 },
-  ];
+  const updateStatus = async (status, otp = null) => {
+    try {
+      setProcessing(true);
+      const payload = { status };
+      if (otp) payload.otp = otp;
+      
+      const res = await api.patch(`/shoporders/${orderId}/status`, payload);
+      if (res.data?.status === 'success') {
+        fetchOrder();
+      }
+    } catch (e) {
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to update order status');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
-  // Map status to step index
+  if (loading || !order) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  const o = {
+    id: order._id.slice(-6).toUpperCase(),
+    customer: order.customerId?.name || 'Customer',
+    items: order.items?.length || 0,
+    total: order.total,
+    status: order.status.toLowerCase() // 'new', 'packing', 'out_for_delivery', 'delivered'
+  };
+
+  const mockItems = order.items || [];
+  const subtotal = order.subtotal || 0;
+  const deliveryFee = order.deliveryFee || 0;
+
   const statusToStep = {
     'new': 0,
     'packing': 1,
-    'out': 2,
+    'out_for_delivery': 2,
     'delivered': 3
   };
-  const currentStepIndex = statusToStep[order.status] || 0;
+  const currentStepIndex = statusToStep[o.status] || 0;
+
+  const mapHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      <style>
+        body { padding: 0; margin: 0; }
+        html, body, #map { height: 100%; width: 100%; border-radius: 16px; overflow: hidden; }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        const lat = 19.0760;
+        const lng = 72.8777;
+        const sLat = 19.0800;
+        const sLng = 72.8800;
+
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 14);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 20
+        }).addTo(map);
+
+        const homeIcon = L.divIcon({
+          html: '<div style="background-color: #ef4444; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+          className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+        });
+        L.marker([lat, lng], {icon: homeIcon}).addTo(map).bindPopup("Customer Location");
+
+        const shopIcon = L.divIcon({
+          html: '<div style="background-color: #0e9aa7; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+          className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+        });
+        L.marker([sLat, sLng], {icon: shopIcon}).addTo(map).bindPopup("Your Location").openPopup();
+        
+        map.fitBounds(L.latLngBounds([[lat, lng], [sLat, sLng]]), { padding: [30, 30] });
+      </script>
+    </body>
+    </html>
+  `;
 
   const timelineSteps = [
     { key: 'new', label: 'New Order', icon: FileText },
     { key: 'packing', label: 'Packing', icon: Box },
-    { key: 'out', label: 'Out for Delivery', icon: Truck },
+    { key: 'out_for_delivery', label: 'Out for Delivery', icon: Truck },
     { key: 'delivered', label: 'Delivered', icon: CheckCircle2 },
   ];
 
@@ -88,41 +186,51 @@ const ShopOrderDetailsScreen = ({ navigation, route }) => {
   };
 
   const renderActionButtons = () => {
-    if (order.status === 'new') {
+    if (processing) {
+      return (
+        <TouchableOpacity style={styles.primaryBtn} disabled>
+          <ActivityIndicator color="#001016" />
+        </TouchableOpacity>
+      );
+    }
+    
+    if (o.status === 'new') {
       return (
         <>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => {}}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => updateStatus('PACKING')}>
             <Text style={styles.primaryBtnText}>Start Packing →</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => {}}>
-            <Bell size={16} color={theme.colors.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.secondaryBtnText}>Notify Customer</Text>
-          </TouchableOpacity>
         </>
       );
-    } else if (order.status === 'packing') {
+    } else if (o.status === 'packing') {
       return (
         <>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => {}}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => updateStatus('OUT_FOR_DELIVERY')}>
             <Text style={styles.primaryBtnText}>Mark Out for Delivery →</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => {}}>
-            <Bell size={16} color={theme.colors.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.secondaryBtnText}>Notify Customer</Text>
-          </TouchableOpacity>
         </>
       );
-    } else if (order.status === 'out') {
+    } else if (o.status === 'out_for_delivery') {
       return (
-        <>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => {}}>
-            <Text style={styles.primaryBtnText}>Mark Delivered</Text>
+        <View style={styles.otpContainer}>
+          <Text style={styles.otpLabel}>Enter OTP from Customer</Text>
+          <TextInput 
+            style={styles.otpInput} 
+            placeholder="Enter 4-digit OTP" 
+            placeholderTextColor={theme.colors.textDim}
+            keyboardType="numeric" 
+            maxLength={4}
+            value={otpInput}
+            onChangeText={setOtpInput}
+          />
+          <TouchableOpacity 
+            style={[styles.primaryBtn, { opacity: otpInput.length === 4 ? 1 : 0.5 }]} 
+            onPress={() => otpInput.length === 4 && updateStatus('DELIVERED', otpInput)}
+            disabled={otpInput.length !== 4}
+          >
+            <Text style={styles.primaryBtnText}>Verify & Mark Delivered</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => {}}>
-            <Bell size={16} color={theme.colors.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.secondaryBtnText}>Notify Customer</Text>
-          </TouchableOpacity>
-        </>
+        </View>
       );
     }
     return null; // Delivered doesn't need these buttons usually
@@ -139,8 +247,8 @@ const ShopOrderDetailsScreen = ({ navigation, route }) => {
             <ChevronLeft size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <View style={{ marginLeft: 12 }}>
-            <Text style={styles.appBarTitle}>Order {order.id}</Text>
-            <Text style={styles.appBarSubtitle}>{order.customer}</Text>
+            <Text style={styles.appBarTitle}>Order {o.id}</Text>
+            <Text style={styles.appBarSubtitle}>{o.customer}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.appBarIconBtn}>
@@ -154,14 +262,27 @@ const ShopOrderDetailsScreen = ({ navigation, route }) => {
         {/* Timeline */}
         {renderTimeline()}
 
+        {o.status === 'out_for_delivery' && (
+          <View style={{ marginBottom: 32 }}>
+            <Text style={styles.sectionTitle}>Customer Location</Text>
+            <View style={{ height: 200, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border }}>
+              <WebView 
+                source={{ html: mapHTML }}
+                style={{ flex: 1, backgroundColor: 'transparent' }}
+                scrollEnabled={false}
+              />
+            </View>
+          </View>
+        )}
+
         {/* Customer Card */}
         <Text style={styles.sectionTitle}>Customer</Text>
         <View style={styles.customerCard}>
           <View style={styles.customerAvatar}>
-            <Text style={styles.customerAvatarText}>{order.customer.charAt(0)}</Text>
+            <Text style={styles.customerAvatarText}>{o.customer.charAt(0)}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.customerName}>{order.customer}</Text>
+            <Text style={styles.customerName}>{o.customer}</Text>
             <Text style={styles.customerRole}>Customer</Text>
           </View>
           <TouchableOpacity style={styles.phoneBtn}>
@@ -170,18 +291,34 @@ const ShopOrderDetailsScreen = ({ navigation, route }) => {
         </View>
 
         {/* Items List */}
-        <Text style={styles.sectionTitle}>Items ({mockItems.length})</Text>
+        <Text style={styles.sectionTitle}>Bill Details</Text>
         <View style={styles.itemsCard}>
           {mockItems.map((item, index) => (
             <View key={index} style={styles.itemRow}>
-              <Text style={styles.itemName}>{item.name}</Text>
+              <View style={styles.qtyBox}>
+                <Text style={styles.qtyText}>{item.qty}x</Text>
+              </View>
+              <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
               <Text style={styles.itemPrice}>₹{item.price}</Text>
             </View>
           ))}
+          
           <View style={styles.divider} />
+          
+          <View style={styles.invoiceRow}>
+            <Text style={styles.invoiceText}>Item Total</Text>
+            <Text style={styles.invoiceText}>₹{subtotal}</Text>
+          </View>
+          <View style={styles.invoiceRow}>
+            <Text style={styles.invoiceText}>Delivery Fee</Text>
+            <Text style={styles.invoiceText}>₹{deliveryFee}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalAmount}>₹{order.total}</Text>
+            <Text style={styles.totalLabel}>Grand Total</Text>
+            <Text style={styles.totalAmount}>₹{o.total}</Text>
           </View>
         </View>
 
@@ -353,22 +490,47 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   itemRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
   },
+  qtyBox: {
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginRight: 10,
+  },
+  qtyText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.textDim,
+  },
   itemName: {
+    flex: 1,
     fontSize: 14,
     color: theme.colors.text,
   },
   itemPrice: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0EA5E9', // Cyan color like in mockup
+    color: '#0EA5E9',
   },
   divider: {
     height: 1,
     backgroundColor: theme.colors.border,
     marginVertical: 12,
+  },
+  invoiceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  invoiceText: {
+    color: theme.colors.textDim,
+    fontSize: 14,
+    fontWeight: '500',
   },
   totalRow: {
     flexDirection: 'row',
@@ -413,6 +575,31 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.primary,
     fontSize: 16,
     fontWeight: '700',
+  },
+  otpContainer: {
+    backgroundColor: theme.colors.surface,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  otpLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: 8,
+  },
+  otpInput: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 8,
+    textAlign: 'center',
+    color: theme.colors.primary,
+    marginBottom: 16,
   }
 });
 

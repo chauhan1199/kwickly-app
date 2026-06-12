@@ -11,6 +11,7 @@ import {
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import { useFocusEffect } from '@react-navigation/native';
 import { Bell, Package, RefreshCw, Moon, Sun } from 'lucide-react-native';
 import api from '../../services/api';
 
@@ -24,9 +25,11 @@ const ShopOrdersScreen = ({ navigation }) => {
 
   const filters = ['All', 'New', 'Packing', 'Out', 'Delivered'];
 
-  React.useEffect(() => {
-    fetchOrders();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchOrders();
+    }, [])
+  );
 
   const fetchOrders = async () => {
     try {
@@ -116,7 +119,7 @@ const ShopOrdersScreen = ({ navigation }) => {
               <TouchableOpacity 
                 key={order.id} 
                 style={styles.orderCard} 
-                onPress={() => navigation.navigate('ShopOrderDetails', { order: order.originalOrder || order })}
+                onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order.rawId || order._id })}
               >
                 <View style={[styles.orderIconBox, { backgroundColor: order.bg }]}>
                   <Package size={20} color={order.color} />

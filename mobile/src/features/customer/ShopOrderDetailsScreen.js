@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -6,43 +6,121 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
-  StatusBar
+  StatusBar,
+  ActivityIndicator,
+  Alert,
+  Linking
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import api from '../../services/api';
 
 const ShopOrderDetailsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
-  const { order } = route.params || {};
+  const { orderId } = route.params || {};
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showMap, setShowMap] = useState(false);
 
-  // Mock data if no order is passed
-  const o = order || {
-    id: 'SO1040',
-    shop: 'Sharma General Store',
-    s: 'Delivered',
-    amt: '758',
+  const styles = createStyles(theme, isDarkMode);
+
+  useEffect(() => {
+    if (!orderId) return;
+    fetchOrder(true);
+    const interval = setInterval(() => fetchOrder(false), 3000);
+    return () => clearInterval(interval);
+  }, [orderId]);
+
+  const fetchOrder = async (showLoader = true) => {
+    try {
+      if (showLoader) setLoading(true);
+      const res = await api.get(`/shoporders/${orderId}`);
+      if (res.data?.status === 'success') {
+        setOrder(res.data.data);
+      }
+    } catch (e) {
+      console.log('Error fetching order', e);
+    } finally {
+      if (showLoader) setLoading(false);
+    }
+  };
+
+  if (loading || !order) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  const o = {
+    id: order._id.slice(-6).toUpperCase(),
+    shop: order.shopId?.name || 'Shop',
+    s: order.status,
+    amt: order.total,
     icon: '🏪',
     color: '#10b981'
   };
 
-  const isActive = o.s === 'Out for Delivery';
-  const priceNum = parseInt(o.amt.toString().replace('₹', '')) || 758;
 
-  // Mock items
-  const items = [
-    { name: 'Fortune Sunflower Oil 1L', qty: 2, price: 290 },
-    { name: 'Aashirvaad Atta 5kg', qty: 1, price: 250 },
-    { name: 'Amul Butter 100g', qty: 2, price: 110 },
-    { name: 'Britannia Bread', qty: 1, price: 50 },
-  ];
 
-  const subtotal = 700;
-  const deliveryFee = 35;
-  const taxes = 23;
+  const isActive = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.s);
+  const isOutForDelivery = o.s === 'OUT_FOR_DELIVERY';
+  const priceNum = o.amt;
 
-  const styles = createStyles(theme, isDarkMode);
+  const items = order.items || [];
+  const subtotal = order.subtotal || 0;
+  const deliveryFee = order.deliveryFee || 0;
+  const taxes = 0; // if applicable
+
+  const mapHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      <style>
+        body { padding: 0; margin: 0; }
+        html, body, #map { height: 100%; width: 100%; border-radius: 16px; overflow: hidden; }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        const lat = 19.0760;
+        const lng = 72.8777;
+        const sLat = 19.0800;
+        const sLng = 72.8800;
+
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 14);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 20
+        }).addTo(map);
+
+        const homeIcon = L.divIcon({
+          html: '<div style="background-color: #ef4444; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+          className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+        });
+        L.marker([lat, lng], {icon: homeIcon}).addTo(map).bindPopup("Delivery Location");
+
+        const shopIcon = L.divIcon({
+          html: '<div style="background-color: #0e9aa7; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+          className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+        });
+        L.marker([sLat, sLng], {icon: shopIcon}).addTo(map).bindPopup("Shop Owner").openPopup();
+        
+        map.fitBounds(L.latLngBounds([[lat, lng], [sLat, sLng]]), { padding: [30, 30] });
+      </script>
+    </body>
+    </html>
+  `;
+
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -85,10 +163,32 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
           
           {isActive && (
             <View style={styles.deliveryBox}>
-              <Text style={styles.deliveryText}>🛵 Partner is on the way to deliver your order.</Text>
+              <Text style={styles.deliveryText}>🛵 Shop partner is processing your order.</Text>
             </View>
           )}
         </View>
+
+        {(isOutForDelivery || showMap) && (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader}>Live Tracking</Text>
+            <View style={{ height: 200, borderRadius: 16, overflow: 'hidden', marginTop: 12 }}>
+              <WebView 
+                source={{ html: mapHTML }}
+                style={{ flex: 1, backgroundColor: 'transparent' }}
+                scrollEnabled={false}
+              />
+            </View>
+            <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.primary + '26', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Text style={{ fontSize: 18 }}>🚚</Text>
+              </View>
+              <View>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: theme.colors.text }}>Arriving soon</Text>
+                <Text style={{ fontSize: 12, color: theme.colors.textDim }}>ETA 15 mins</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Delivery Address */}
         <View style={styles.card}>
@@ -96,11 +196,23 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
           <View style={[styles.row, { marginTop: 10, alignItems: 'flex-start' }]}>
             <Text style={{ fontSize: 18, marginRight: 10 }}>🏠</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addressTitle}>Home</Text>
-              <Text style={styles.addressText}>A-12, Sector 21, Delhi 110085</Text>
+              <Text style={styles.addressTitle}>Saved Address</Text>
+              <Text style={styles.addressText}>{order.deliveryAddress || 'Address not provided'}</Text>
             </View>
           </View>
         </View>
+
+        {isActive && order.deliveryOtp && (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader}>Delivery OTP</Text>
+            <Text style={{ fontSize: 32, fontWeight: '900', color: theme.colors.primary, letterSpacing: 10, textAlign: 'center', marginTop: 16 }}>
+              {order.deliveryOtp}
+            </Text>
+            <Text style={{ textAlign: 'center', color: theme.colors.textDim, marginTop: 8 }}>
+              Share this OTP with the delivery partner
+            </Text>
+          </View>
+        )}
 
         {/* Items */}
         <View style={styles.card}>
@@ -142,16 +254,25 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
 
         {/* Actions */}
         {isActive ? (
-          <TouchableOpacity style={styles.primaryBtn}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowMap(true)}>
             <Text style={styles.primaryBtnText}>📍 Track Order</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('Shop')}>
-            <Text style={styles.primaryBtnText}>↺ Reorder Items</Text>
+            <Text style={styles.primaryBtnText}>↺ Browse Shop</Text>
           </TouchableOpacity>
         )}
         
-        <TouchableOpacity style={styles.secondaryBtn}>
+        <TouchableOpacity 
+          style={styles.secondaryBtn} 
+          onPress={() => {
+            const url = `${api.defaults.baseURL}/shoporders/${orderId}/invoice`;
+            Linking.openURL(url).catch(err => {
+              console.error("Couldn't load invoice page", err);
+              Alert.alert('Error', 'Unable to open invoice.');
+            });
+          }}
+        >
           <Text style={styles.secondaryBtnText}>📄 Download Invoice</Text>
         </TouchableOpacity>
 

@@ -98,6 +98,7 @@ export default function ShopSettingsScreen() {
 
   // ── Form State ──
   const [editDetails, setEditDetails] = useState({ name: '', description: '', ownerName: '' });
+  const [editCategory, setEditCategory] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editLocation, setEditLocation] = useState({ lat: 0, lng: 0 });
   const [editLogo, setEditLogo] = useState(null);
@@ -135,6 +136,7 @@ export default function ShopSettingsScreen() {
         setShop(s);
         setIsOnline(!!s.isOnline);
         setEditDetails({ name: s.name || '', description: s.description || '', ownerName: s.ownerId?.name || '' });
+        setEditCategory(s.category || 'General');
         setEditAddress(s.address || '');
         if (s.logoUrl) setEditLogo({ uri: s.logoUrl });
         if (s.location?.coordinates?.length === 2) {
@@ -226,6 +228,7 @@ export default function ShopSettingsScreen() {
       setSaving(true);
       const fd = new FormData();
       fd.append('name', editDetails.name);
+      fd.append('category', editCategory);
       fd.append('description', editDetails.description);
       fd.append('address', editAddress);
       fd.append('location', JSON.stringify({ type: 'Point', coordinates: [editLocation.lng, editLocation.lat] }));
@@ -475,6 +478,9 @@ export default function ShopSettingsScreen() {
 
         <Text style={s.label}>Shop Name *</Text>
         <TextInput style={s.input} value={editDetails.name} onChangeText={t => setEditDetails(p => ({ ...p, name: t }))} placeholder="e.g. Hardware Shop" placeholderTextColor={c.textDim} />
+
+        <Text style={s.label}>Category</Text>
+        <TextInput style={s.input} value={editCategory} onChangeText={setEditCategory} placeholder="e.g. Stationary, Grocery" placeholderTextColor={c.textDim} />
 
         <Text style={s.label}>Owner Name</Text>
         <TextInput style={s.input} value={editDetails.ownerName} onChangeText={t => setEditDetails(p => ({ ...p, ownerName: t }))} placeholder="e.g. John Doe" placeholderTextColor={c.textDim} />

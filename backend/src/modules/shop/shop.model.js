@@ -11,6 +11,7 @@ const ShopSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true, unique: true },
 
     name:        { type: String, required: true },
+    category:    { type: String, default: 'General' },
     description: { type: String, default: '' },
     logoUrl:     { type: String },
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronLeft, Bell, Moon, Sun } from 'lucide-react-native';
+import { ChevronLeft, Bell, Moon, Sun, Package } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 
 const AppBar = ({ 
@@ -53,6 +53,10 @@ const AppBar = ({
 
       {rightActions && (
         <View style={styles.rightContainer}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('CustomerShopOrders')}>
+            <Package size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+          
           <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme}>
             {isDarkMode ? (
               <Sun size={22} color={theme.colors.text} />

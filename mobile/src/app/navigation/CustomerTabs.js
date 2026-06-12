@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Home, ShoppingCart, Plus, MessageSquare, User, Wallet } from 'lucide-react-native';
+import { Home, ShoppingBag, Plus, MessageSquare, User, Wallet } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Theme from '../../constants/Theme';
 import HomeScreen from '../../features/customer/HomeScreen';
@@ -18,6 +18,7 @@ import ShopScreen from '../../features/customer/ShopScreen';
 import WorkerProfileScreen from '../../features/customer/WorkerProfileScreen';
 import QuotesScreen from '../../features/customer/QuotesScreen';
 import ShopOrderDetailsScreen from '../../features/customer/ShopOrderDetailsScreen';
+import CustomerShopOrdersScreen from '../../features/customer/CustomerShopOrdersScreen';
 import ProfileScreen from '../../features/customer/ProfileScreen';
 import EditProfileScreen from '../../features/customer/EditProfileScreen';
 import SavedAddressesScreen from '../../features/customer/SavedAddressesScreen';
@@ -28,6 +29,7 @@ import PrivacyScreen from '../../features/customer/PrivacyScreen';
 import CustomerWalletScreen from '../../features/customer/CustomerWalletScreen';
 import CartScreen from '../../features/customer/CartScreen';
 import NotificationsScreen from '../../features/shared/NotificationsScreen';
+import ShopDetailScreen from '../../features/customer/ShopDetailScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -71,7 +73,8 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
         }
 
         let Icon = Home;
-        if (route.name === 'Shop')   Icon = ShoppingCart;
+        if (route.name === 'Home')   Icon = Home;
+        if (route.name === 'Shop')   Icon = ShoppingBag;
         if (route.name === 'Wallet') Icon = Wallet;
         if (route.name === 'Quotes') Icon = MessageSquare;
         if (route.name === 'Profile') Icon = User;
@@ -117,6 +120,7 @@ const CustomerTabs = () => {
       <Tab.Screen name="PastJobDetails" component={PastJobDetailsScreen} />
       <Tab.Screen name="WorkerProfile" component={WorkerProfileScreen} />
       <Tab.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
+      <Tab.Screen name="CustomerShopOrders" component={CustomerShopOrdersScreen} />
       <Tab.Screen name="EditProfile" component={EditProfileScreen} />
       <Tab.Screen name="SavedAddresses" component={SavedAddressesScreen} />
       <Tab.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
@@ -126,6 +130,7 @@ const CustomerTabs = () => {
       <Tab.Screen name="Cart"            component={CartScreen}            />
       <Tab.Screen name="Notifications"   component={NotificationsScreen}   />
       <Tab.Screen name="Quotes"          component={QuotesScreen}          />
+      <Tab.Screen name="ShopDetail"       component={ShopDetailScreen}            />
     </Tab.Navigator>
   );
 };

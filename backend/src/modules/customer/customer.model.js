@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const CustomerSchema = new mongoose.Schema({
     role: { type: String, enum: ['CUSTOMER', 'WORKER', 'ADMIN', 'SHOP'], required: true },
-    phone: { type: String, required: true, unique: true },
-    email: { type: String, unique: true, sparse: true },
+    phone: { type: String, required: true },
+    email: { type: String, sparse: true },
     password: { type: String },
     isVerified: { type: Boolean, default: false },
     name: { type: String },
@@ -59,6 +59,7 @@ const CustomerSchema = new mongoose.Schema({
         subcategories: [{ type: String }],
         isActive: { type: Boolean, default: true }
     }],
+    isOnline: { type: Boolean, default: false },
     rating: {
         average: { type: Number, default: 0 },
         count: { type: Number, default: 0 }
@@ -69,5 +70,7 @@ CustomerSchema.index({ role: 1 });
 CustomerSchema.index({ 'kyc.status': 1 });
 CustomerSchema.index({ isVerified: 1 });
 CustomerSchema.index({ activeLocation: '2dsphere' });
+CustomerSchema.index({ phone: 1, role: 1 }, { unique: true });
+CustomerSchema.index({ email: 1, role: 1 }, { unique: true, partialFilterExpression: { email: { $exists: true, $type: "string" } } });
 
 module.exports = mongoose.model('Customer', CustomerSchema);

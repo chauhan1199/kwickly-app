@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
@@ -24,16 +25,82 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
   
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
-  const [timeToReach, setTimeToReach] = useState('');
   const [location, setLocation] = useState(job?.addressDetails || 'Address not provided');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const jobLat = job?.location?.coordinates?.[1] || 19.0760;
+  const jobLng = job?.location?.coordinates?.[0] || 72.8777;
+  const initialWorkerLat = user?.activeLocation?.coordinates?.[1] || 19.0800;
+  const initialWorkerLng = user?.activeLocation?.coordinates?.[0] || 72.8800;
+
+  const [workerLat, setWorkerLat] = useState(initialWorkerLat);
+  const [workerLng, setWorkerLng] = useState(initialWorkerLng);
+  const [distance, setDistance] = useState(null);
+  const [eta, setEta] = useState(null);
+
+  const mapHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      <style>
+        body { padding: 0; margin: 0; }
+        html, body, #map { height: 100%; width: 100%; }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        const lat = ${jobLat};
+        const lng = ${jobLng};
+        let wLat = ${initialWorkerLat};
+        let wLng = ${initialWorkerLng};
+
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
+
+        // Job Pin
+        const jobIcon = L.divIcon({
+          html: '<div style="background-color: #ef4444; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+          className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+        });
+        L.marker([lat, lng], {icon: jobIcon}).addTo(map).bindPopup("Job Location");
+
+        // Worker Pin (Draggable)
+        const workerIcon = L.divIcon({
+          html: '<div style="background-color: #0e9aa7; width: 18px; height: 18px; border-radius: 9px; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5);"></div>',
+          className: '', iconSize: [18, 18], iconAnchor: [9, 9]
+        });
+        
+        const workerMarker = L.marker([wLat, wLng], {icon: workerIcon, draggable: true}).addTo(map).bindPopup("Drag me!").openPopup();
+        
+        const bounds = L.latLngBounds([[lat, lng], [wLat, wLng]]);
+        map.fitBounds(bounds, { padding: [40, 40] });
+
+        // Initial calculate trigger
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'location_update', lat: wLat, lng: wLng }));
+
+        workerMarker.on('dragend', function (e) {
+            const position = workerMarker.getLatLng();
+            window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                type: 'location_update', 
+                lat: position.lat, 
+                lng: position.lng 
+            }));
+        });
+      </script>
+    </body>
+    </html>
+  `;
 
   const canQuote = user?.kyc?.status === 'APPROVED' && (user?.wallet?.balance || 0) >= 100;
 
   const styles = createStyles(theme, isDarkMode);
 
   const handleSubmit = async () => {
-    if (!price || !description || !timeToReach) {
+    if (!price || !description) {
       return Alert.alert('Error', 'Please fill in all details');
     }
     if (!canQuote) {
@@ -45,8 +112,7 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
       const res = await jobService.placeQuote({
         jobId: job?._id,
         amount: Number(price),
-        description,
-        timeToReach
+        description
       });
       if (res.data.status === 'success') {
         Alert.alert("Success", "Your quote has been submitted successfully.", [
@@ -75,11 +141,11 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
         {/* Customer Card */}
         <View style={styles.customerCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{job?.customer?.name ? job.customer.name[0] : 'C'}</Text>
+            <Text style={styles.avatarText}>{job?.customerId?.name ? job.customerId.name[0] : 'C'}</Text>
           </View>
           <View style={styles.customerInfo}>
-            <Text style={styles.customerName}>{job?.customer?.name || 'Customer'}</Text>
-            <Text style={styles.customerLocation}>{job?.addressDetails || 'Address not provided'}</Text>
+            <Text style={styles.customerName}>{job?.customerId?.name || 'Customer'}</Text>
+            <Text style={styles.customerLocation}>{job?.addressDetails?.address || job?.addressDetails || 'Address not provided'}</Text>
           </View>
         </View>
 
@@ -99,6 +165,46 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
                 ))
             ) : (
                 <Text style={styles.problemText}>No media attached</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Map & Distance Calculation */}
+        <View style={[styles.sectionCard, { padding: 0, overflow: 'hidden' }]}>
+          <View style={{ padding: 16 }}>
+            <Text style={styles.sectionTitle}>Dispatch Location & ETA</Text>
+            <Text style={styles.problemText}>Drag the blue pin to adjust your starting location.</Text>
+          </View>
+          
+          <View style={styles.mapArea}>
+            <WebView 
+              source={{ html: mapHTML }}
+              style={{ flex: 1, backgroundColor: 'transparent' }}
+              onMessage={(event) => {
+                const data = JSON.parse(event.nativeEvent.data);
+                if (data.type === 'location_update') {
+                  setWorkerLat(data.lat);
+                  setWorkerLng(data.lng);
+                  // Basic Haversine distance calc for instant feedback
+                  const R = 6371; // Earth radius in km
+                  const dLat = (data.lat - jobLat) * Math.PI / 180;
+                  const dLon = (data.lng - jobLng) * Math.PI / 180;
+                  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                            Math.cos(jobLat * Math.PI / 180) * Math.cos(data.lat * Math.PI / 180) *
+                            Math.sin(dLon/2) * Math.sin(dLon/2);
+                  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                  const distance = R * c;
+                  const time = Math.round(distance * 2 + 5); // 2 mins per km + 5 min buffer
+                  setDistance(distance.toFixed(1));
+                  setEta(time);
+                }
+              }}
+              scrollEnabled={false}
+            />
+            {distance && (
+              <View style={styles.mapLabel}>
+                <Text style={styles.mapLabelText}>📍 {distance} km away  ⏱ ~{eta} min</Text>
+              </View>
             )}
           </View>
         </View>
@@ -133,16 +239,6 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
             onChangeText={setDescription}
             multiline
             placeholder="e.g. Full service including gas refilling."
-            placeholderTextColor={theme.colors.textDim}
-            editable={canQuote && !isSubmitting}
-          />
-
-          <Text style={[styles.inputLabel, { marginTop: 16 }]}>Estimated Time to Reach</Text>
-          <TextInput 
-            style={styles.input}
-            value={timeToReach}
-            onChangeText={setTimeToReach}
-            placeholder="e.g. 25 mins"
             placeholderTextColor={theme.colors.textDim}
             editable={canQuote && !isSubmitting}
           />
@@ -274,6 +370,30 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
+    color: theme.colors.text,
+  },
+  mapArea: {
+    height: 180,
+    backgroundColor: isDarkMode ? '#0f172a' : '#e2e8f0',
+    position: 'relative',
+  },
+  mapLabel: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mapLabelText: {
+    fontSize: 11,
+    fontWeight: '800',
     color: theme.colors.text,
   },
   locationInputRow: {

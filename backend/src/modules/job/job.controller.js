@@ -38,6 +38,8 @@ exports.createJob = catchAsync(async (req, res) => {
         await setCache('eligible_workers_pool', eligibleWorkers, 300); // Cache for 5 mins
     }
 
+    const customer = await Customer.findById(req.user._id).select('name phone profileImage');
+
     // Broadcast via Socket.io
     emitToAll('NEW_JOB_ALERT', {
         jobId: job._id,
@@ -47,7 +49,13 @@ exports.createJob = catchAsync(async (req, res) => {
         location: job.location,
         workerCount: eligibleWorkers.length,
         timeSlot: job.timeSlot,
-        preferredDate: job.preferredDate
+        preferredDate: job.preferredDate,
+        customerId: {
+            _id: customer._id,
+            name: customer.name,
+            phone: customer.phone,
+            profileImage: customer.profileImage
+        }
     });
 
     await delCache('admin_dashboard_stats');
@@ -153,13 +161,23 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         return errorResponse(res, `Minimum wallet balance of Rs ${minBalance} required to view jobs`, StatusCodes.PAYMENT_REQUIRED);
     }
 
-    const activeCategoryIds = (worker.services || [])
-        .filter(s => s.isActive)
-        .map(s => s.category);
+    // Populate category names from the worker's services (which store ObjectId refs)
+    const workerPopulated = await Customer.findById(req.user._id)
+        .populate('services.category', 'name');
+    
+    const activeCategoryNames = (workerPopulated.services || [])
+        .filter(s => s.isActive && s.category)
+        .map(s => s.category.name);
+
+    // If worker has no active services, show all broadcasting jobs
+    const categoryFilter = activeCategoryNames.length > 0 
+        ? { category: { $in: activeCategoryNames } }
+        : {};
 
     const jobs = await Job.find({ 
         status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED'] },
-        category: { $in: activeCategoryIds }
+        'quotes.workerId': { $ne: req.user._id },
+        ...categoryFilter
     })
         .populate('customerId', 'name phone')
         .sort('-createdAt');
@@ -222,13 +240,17 @@ exports.completeJob = catchAsync(async (req, res) => {
 
 exports.payJob = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { method } = req.body; // e.g. 'ONLINE' or 'CASH'
+    const { method, completionOtp } = req.body; // method: 'ONLINE' or 'CASH'
     
     const job = await Job.findOne({ _id: id, customerId: req.user._id });
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
     
     if (job.status !== 'COMPLETED') {
         return errorResponse(res, 'Job is not completed yet', StatusCodes.BAD_REQUEST);
+    }
+    
+    if (job.security?.completionOtp && job.security.completionOtp !== completionOtp) {
+        return errorResponse(res, 'Invalid Completion OTP', StatusCodes.BAD_REQUEST);
     }
 
     // Platform fee calculation
@@ -254,30 +276,44 @@ exports.payJob = catchAsync(async (req, res) => {
     
     await job.save();
     
-    // Deduct platform fee from Worker's wallet (assuming Customer paid Worker directly, either online or cash)
-    // If online, Kwickly collects the full amount and adds `workerPayout` to worker wallet.
-    // If cash, Customer paid Worker the full amount. Kwickly deducts `platformFee` from worker wallet.
-    // Assuming CASH for simplicity of MVP based on user request (worker gets service charge, platform fee to admin).
-    
     const mongoose = require('mongoose');
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
         const worker = await Customer.findById(job.workerId).session(session);
         if (worker) {
-            worker.wallet.balance -= platformFee; // Deduct Kwickly's cut from their pre-paid wallet balance
-            await worker.save({ session });
-
-            // Log transaction for worker (fee deduction)
             const WalletTxn = require('../wallet/wallet.model');
-            await WalletTxn.create([{
-                userId: worker._id,
-                type: 'JOB_DEBIT',
-                amount: platformFee,
-                balance: worker.wallet.balance,
-                refId: job._id.toString(),
-                description: `Platform fee deduction for Job ${job._id}`
-            }], { session });
+            
+            if (method === 'CASH') {
+                // Customer paid Worker the full amount in cash. 
+                // Kwickly deducts `platformFee` from worker wallet.
+                worker.wallet.balance -= platformFee; 
+                await worker.save({ session });
+
+                await WalletTxn.create([{
+                    userId: worker._id,
+                    type: 'JOB_DEBIT',
+                    amount: platformFee,
+                    balance: worker.wallet.balance,
+                    refId: job._id.toString(),
+                    description: `Platform fee deduction for Cash Job ${job._id}`
+                }], { session });
+                
+            } else { // ONLINE
+                // Customer paid Kwickly the full amount online.
+                // Kwickly credits `workerPayout` to worker wallet.
+                worker.wallet.balance += workerPayout;
+                await worker.save({ session });
+
+                await WalletTxn.create([{
+                    userId: worker._id,
+                    type: 'JOB_CREDIT',
+                    amount: workerPayout,
+                    balance: worker.wallet.balance,
+                    refId: job._id.toString(),
+                    description: `Earnings credited for Online Job ${job._id}`
+                }], { session });
+            }
         }
 
         await session.commitTransaction();

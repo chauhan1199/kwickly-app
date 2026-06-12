@@ -31,6 +31,7 @@ const ProfileScreen = ({ navigation }) => {
   const menuItems = [
     { id: 1, title: 'Saved Addresses', sub: '2 saved', icon: '📍', color: '#ef4444' },
     { id: 2, title: 'Payment Methods', sub: '2 methods', icon: '💳', color: '#3b82f6' },
+    { id: 6, title: 'My Shop Orders', sub: 'View past orders', icon: '📦', color: '#10b981' },
     { id: 3, title: 'Refer & Earn', sub: '₹100 per friend', icon: '🎁', color: '#f5b300' },
     { id: 4, title: 'Help & Support', sub: '24/7 available', icon: '💬', color: '#ec4899' },
     { id: 5, title: 'T&C / Privacy', sub: '', icon: '📄', color: '#f97316' },
@@ -45,6 +46,9 @@ const ProfileScreen = ({ navigation }) => {
         <View style={{ flex: 1, marginLeft: 8 }}>
           <Text style={styles.appBarTitle} numberOfLines={1}>My Profile</Text>
         </View>
+        <TouchableOpacity onPress={() => navigation.navigate('CustomerShopOrders')} style={[styles.bellBtn, { marginRight: 4 }]}>
+          <Text style={{fontSize: 16}}>📦</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
           <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
         </TouchableOpacity>
@@ -108,6 +112,8 @@ const ProfileScreen = ({ navigation }) => {
                   navigation.navigate('SavedAddresses');
                 } else if (item.id === 2) {
                   navigation.navigate('PaymentMethods');
+                } else if (item.id === 6) {
+                  navigation.navigate('CustomerShopOrders');
                 } else if (item.id === 3) {
                   navigation.navigate('ReferEarn');
                 } else if (item.id === 4) {

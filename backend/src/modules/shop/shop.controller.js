@@ -81,18 +81,28 @@ exports.updateMyShop = catchAsync(async (req, res) => {
 
 /**
  * GET /api/v1/shops
- * List all shops (Admin) — with optional kyc status filter
+ * List all shops — Admin sees all with filters, customers see active shops
  */
 exports.getAllShops = catchAsync(async (req, res) => {
-    const { kycStatus, search, page = 1, limit = 20 } = req.query;
+    const { kycStatus, search, page = 1, limit = 20, isOnline } = req.query;
+    const isAdmin = req.user?.role === 'ADMIN';
 
-    const cacheKey = `${SHOP_CACHE_PREFIX}_${kycStatus || 'all'}_${search || ''}_${page}_${limit}`;
+    const cacheKey = `${SHOP_CACHE_PREFIX}_${isAdmin ? 'admin' : 'customer'}_${kycStatus || 'all'}_${search || ''}_${page}_${limit}`;
     const cachedData = await getCache(cacheKey);
     if (cachedData) return successResponse(res, cachedData, 'Shops fetched from cache');
 
     const query = {};
-    if (kycStatus) query['kyc.status'] = kycStatus.toUpperCase();
+
+    if (isAdmin) {
+        // Admin can filter by KYC status
+        if (kycStatus) query['kyc.status'] = kycStatus.toUpperCase();
+    } else {
+        // Customers see all shops that aren't explicitly rejected
+        query['kyc.status'] = { $in: ['APPROVED', 'PENDING'] };
+    }
+
     if (search) query.name = { $regex: search, $options: 'i' };
+    if (isOnline !== undefined) query.isOnline = isOnline === 'true';
 
     const total = await Shop.countDocuments(query);
     const shops = await Shop.find(query)
@@ -101,11 +111,16 @@ exports.getAllShops = catchAsync(async (req, res) => {
         .limit(limit * 1)
         .skip((page - 1) * limit);
 
-    const result = { shops, total, page, totalPages: Math.ceil(total / limit) };
+    // Admins get paginated result, customers get flat array for easy mobile consumption
+    const result = isAdmin
+        ? { shops, total, page, totalPages: Math.ceil(total / limit) }
+        : shops;
+
     await setCache(cacheKey, result, 300);
 
     return successResponse(res, result, 'Shops fetched');
 });
+
 
 /**
  * GET /api/v1/shops/:id

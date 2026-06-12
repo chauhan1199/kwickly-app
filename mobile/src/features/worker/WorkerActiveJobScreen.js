@@ -17,6 +17,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 import { Clock, CheckSquare, Square, UploadCloud } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
 
 const WorkerActiveJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -71,7 +72,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
         media: [mediaUrl],
         report: report
       });
-      navigation.navigate('WorkerJobComplete');
+      navigation.navigate('WorkerJobComplete', { job: route.params.job, quoteAmount: route.params.quoteAmount });
     } catch (error) {
       Alert.alert('Error', 'Failed to complete job');
     } finally {
@@ -129,18 +130,62 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Media Uploads */}
+        {/* Completion Media */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Completion Media</Text>
           <Text style={styles.sectionSub}>Provide media proof before completion</Text>
           
-          <TextInput
-            style={styles.input}
-            placeholder="Image URL"
-            placeholderTextColor={theme.colors.textDim}
-            value={mediaUrl}
-            onChangeText={setMediaUrl}
-          />
+          <View style={styles.mediaGrid}>
+            <TouchableOpacity 
+              style={styles.mediaTileUpload}
+              onPress={() => setMediaUrl('simulated-before.jpg')}
+            >
+              {mediaUrl ? (
+                <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
+                  <Text style={styles.mediaTileTextUpload}>✓ Before</Text>
+                </LinearGradient>
+              ) : (
+                <Text style={styles.mediaTileTextUploadMuted}>+ Before</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.mediaTileUpload}
+              onPress={() => setMediaUrl('simulated-after.jpg')}
+            >
+              {mediaUrl ? (
+                <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
+                  <Text style={styles.mediaTileTextUpload}>✓ After</Text>
+                </LinearGradient>
+              ) : (
+                <Text style={styles.mediaTileTextUploadMuted}>+ After</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.mediaTileUpload}
+              onPress={() => setMediaUrl('simulated-video.mp4')}
+            >
+              {mediaUrl ? (
+                <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
+                  <Text style={styles.mediaTileTextUpload}>🎥 Video</Text>
+                </LinearGradient>
+              ) : (
+                <Text style={styles.mediaTileTextUploadMuted}>+ Video</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Completion OTP for Customer */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Customer Completion</Text>
+          <Text style={styles.sectionSub}>Ask the customer to enter this OTP on their app to pay and finalize the job.</Text>
+          <View style={{ backgroundColor: '#DBEAFE', padding: 16, borderRadius: 12, alignItems: 'center' }}>
+            <Text style={{ fontSize: 32, fontWeight: '900', letterSpacing: 8, color: '#1E3A8A' }}>
+              {route.params.job?.security?.completionOtp || '1234'}
+            </Text>
+          </View>
         </View>
 
         {/* Completion Report */}
@@ -212,6 +257,39 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderWidth: 1, borderColor: theme.colors.border, borderRadius: 16,
     paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: theme.colors.text,
     backgroundColor: theme.colors.background,
+  },
+  mediaGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  mediaTileUpload: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+    overflow: 'hidden',
+  },
+  mediaTileFilled: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mediaTileTextUpload: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  mediaTileTextUploadMuted: {
+    color: theme.colors.textDim,
+    fontSize: 12,
+    fontWeight: '700',
   },
   completeBtn: {
     backgroundColor: theme.colors.primary, width: '100%', paddingVertical: 18,

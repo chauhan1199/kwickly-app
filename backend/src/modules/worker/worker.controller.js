@@ -89,6 +89,20 @@ exports.updateLocation = catchAsync(async (req, res) => {
     }, 'Location updated successfully');
 });
 
+exports.toggleOnlineStatus = catchAsync(async (req, res) => {
+    const { isOnline } = req.body;
+    if (typeof isOnline !== 'boolean') {
+        return errorResponse(res, 'isOnline (boolean) is required', StatusCodes.BAD_REQUEST);
+    }
+
+    const user = await Customer.findByIdAndUpdate(
+        req.user.id,
+        { $set: { isOnline } },
+        { new: true }
+    );
+    return successResponse(res, { isOnline: user.isOnline }, isOnline ? 'You are now online' : 'You are now offline');
+});
+
 exports.submitCategorySuggestion = catchAsync(async (req, res) => {
     const { name, type, parentCategory } = req.body;
     

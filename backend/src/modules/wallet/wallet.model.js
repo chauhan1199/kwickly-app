@@ -15,7 +15,8 @@ const WalletTxnSchema = new mongoose.Schema({
             'ORDER_DEBIT',       // platform commission from shop
             'REFERRAL_BONUS',    // referral reward
             'ADJUSTMENT',        // admin manual adjustment
-            'TOPUP'              // wallet top-up via payment gateway
+            'TOPUP',             // wallet top-up via payment gateway
+            'ORDER_PAYMENT'      // customer paying for an order
         ],
         required: true
     },

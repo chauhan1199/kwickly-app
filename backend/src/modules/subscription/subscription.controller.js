@@ -39,18 +39,35 @@ exports.subscribe = catchAsync(async (req, res) => {
     const { planId, paymentId } = req.body;
     const workerId = req.user._id;
 
-    const plan = await SubscriptionPlan.findById(planId);
-    if (!plan || !plan.isActive) return errorResponse(res, 'Plan not found', StatusCodes.NOT_FOUND);
+    const AppSettings = require('../settings/settings.model');
+    const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+    const plan = settings?.subscriptionPlans?.find(p => p.id === planId);
+    
+    if (!plan) return errorResponse(res, 'Plan not found', StatusCodes.NOT_FOUND);
 
     // Calculate end date
-    const startDate = new Date();
-    const endDate   = new Date(startDate);
-    endDate.setDate(endDate.getDate() + plan.durationDays);
+    const worker = await Customer.findById(workerId);
+    let startDate = new Date();
+    
+    // Check if worker already has an active subscription or trial
+    if (worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > new Date()) {
+        startDate = new Date(worker.subscription.expiryDate);
+    } else if (worker.subscription?.isTrial !== false) {
+        // They are on a trial that might not have an explicit expiryDate set yet, check registration date
+        const registrationDate = new Date(worker.createdAt || Date.now());
+        const trialEndDate = new Date(registrationDate.getTime() + 180 * 24 * 60 * 60 * 1000);
+        if (trialEndDate > new Date()) {
+            startDate = trialEndDate;
+        }
+    }
+
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
 
     const sub = await WorkerSubscription.create({
         workerId,
-        planId,
-        planName: plan.name,
+        planId: plan.id,
+        planName: plan.label || plan.id,
         amount:   plan.price,
         startDate,
         endDate,
@@ -65,24 +82,26 @@ exports.subscribe = catchAsync(async (req, res) => {
         'subscription.isTrial':    false
     });
 
-    // Debit wallet for subscription cost
-    const worker = await Customer.findById(workerId);
-    if (worker.wallet.balance < plan.price) {
-        return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
-    }
-    const newBalance = worker.wallet.balance - plan.price;
-    await Customer.findByIdAndUpdate(workerId, { 'wallet.balance': newBalance });
+    // In Kwickly, purchasing a subscription plan acts as a 'Recharge Pack'.
+    // The amount paid for the plan is credited to the worker's wallet, AND their validity is extended.
+    const updatedWorker = await Customer.findByIdAndUpdate(
+        workerId, 
+        { $inc: { 'wallet.balance': plan.price } },
+        { new: true }
+    );
+
     await WalletTxn.create({
         userId:      workerId,
-        type:        'SUBSCRIPTION',
+        type:        'TOPUP', // Use TOPUP to match wallet credit history
         amount:      plan.price,
-        balance:     newBalance,
+        balance:     updatedWorker.wallet.balance,
         refId:       String(sub._id),
-        description: `${plan.name} subscription`
+        description: `Plan Recharge: ${plan.label || plan.id}`
     });
 
     emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SUBSCRIPTION', id: sub._id });
-    return successResponse(res, sub, 'Subscription activated', StatusCodes.CREATED);
+    emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP', id: sub._id });
+    return successResponse(res, sub, 'Subscription activated & Wallet Recharged', StatusCodes.CREATED);
 });
 
 /**

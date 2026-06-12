@@ -14,8 +14,9 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { jobService } from '../../services/jobService';
 
-const WorkerArrivalOTPScreen = ({ navigation }) => {
+const WorkerArrivalOTPScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { signOut } = useAuth();
   
@@ -37,6 +38,26 @@ const WorkerArrivalOTPScreen = ({ navigation }) => {
     // Handle backspace to focus previous input
     if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
       inputs.current[index - 1].focus();
+    }
+  };
+
+  const { jobId } = route.params || {};
+  const [loading, setLoading] = useState(false);
+
+  const handleVerify = async () => {
+    const fullOtp = otp.join('');
+    if (fullOtp.length !== 4) return;
+    
+    setLoading(true);
+    try {
+      const res = await jobService.startJob(jobId, { arrivalOtp: fullOtp });
+      if (res.data.status === 'success') {
+        navigation.navigate('WorkerActiveJob', { jobId, job: res.data.data });
+      }
+    } catch (e) {
+      alert(e.response?.data?.message || 'Invalid OTP. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -84,8 +105,12 @@ const WorkerArrivalOTPScreen = ({ navigation }) => {
             ))}
           </View>
 
-          <TouchableOpacity style={styles.verifyBtn} onPress={() => navigation.navigate('WorkerActiveJob')}>
-            <Text style={styles.verifyBtnText}>Verify & Start Work</Text>
+          <TouchableOpacity 
+            style={[styles.verifyBtn, (otp.join('').length < 4 || loading) && { opacity: 0.6 }]} 
+            onPress={handleVerify}
+            disabled={otp.join('').length < 4 || loading}
+          >
+            <Text style={styles.verifyBtnText}>{loading ? 'Verifying...' : 'Verify & Start Work'}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

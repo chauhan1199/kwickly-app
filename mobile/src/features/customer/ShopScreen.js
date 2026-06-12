@@ -40,19 +40,22 @@ const ShopScreen = ({ navigation }) => {
     try {
       setLoading(true);
       const res = await shopService.getShops();
-      const fetchedShops = res.data.data.shops || [];
+      // Backend returns array directly in data.data
+      const fetchedShops = Array.isArray(res.data.data) ? res.data.data : [];
       
-      const mappedShops = fetchedShops.map((s, i) => ({
+      const mappedShops = fetchedShops.map((s) => ({
         id: s._id,
         name: s.name,
         rating: s.rating || 4.5,
-        dist: '1.5 km', // Mock distance
-        items: s.totalOrders || 10,
-        delivery: '30 min',
+        dist: '1.5 km',
+        items: s.totalOrders || 0,
+        delivery: '30-45 min',
         minFree: s.delivery?.freeAbove || 500,
-        tag: 'Groceries', // Default tag
+        tag: s.description ? s.description.split(' ')[0] : 'General',
         icon: '🏪',
-        color: '#7ed957'
+        color: '#0E9AA7',
+        isOnline: s.isOnline,
+        address: s.address || ''
       }));
       setShops(mappedShops);
     } catch (error) {
@@ -77,6 +80,9 @@ const ShopScreen = ({ navigation }) => {
           <Text style={styles.appBarTitle} numberOfLines={1}>Nearby Shops</Text>
           <Text style={styles.appBarSub} numberOfLines={1}>Buy daily essentials</Text>
         </View>
+        <TouchableOpacity onPress={() => navigation.navigate('CustomerShopOrders')} style={[styles.bellBtn, { marginRight: 4 }]}>
+          <Text style={{fontSize: 16}}>📦</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
           <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
         </TouchableOpacity>
@@ -118,7 +124,11 @@ const ShopScreen = ({ navigation }) => {
         ) : filteredShops.length === 0 ? (
           <Text style={{ textAlign: 'center', marginTop: 40, color: theme.colors.textDim }}>No shops found.</Text>
         ) : filteredShops.map((shop) => (
-          <TouchableOpacity key={shop.id} style={styles.shopCard}>
+          <TouchableOpacity 
+            key={shop.id} 
+            style={[styles.shopCard, !shop.isOnline && { opacity: 0.6 }]}
+            onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id })}
+          >
             <View style={styles.shopRow}>
                <View style={[styles.shopIconBox, { backgroundColor: shop.color + '26' }]}>
                  <Text style={{fontSize: 22}}>{shop.icon}</Text>

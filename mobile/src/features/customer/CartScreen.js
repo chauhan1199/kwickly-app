@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView,
   TouchableOpacity, StatusBar, FlatList, Alert
@@ -8,15 +8,33 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { ShoppingCart, Minus, Plus, Trash2, MapPin, CreditCard } from 'lucide-react-native';
 import AppBar from '../../components/AppBar';
+import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
-const CartScreen = ({ navigation }) => {
+const CartScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const { user, fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
-  const [items, setItems] = useState([]); // Empty cart
+  
+  const { shopId, cart: initialCart = [] } = route.params || {};
+  const [items, setItems] = useState(initialCart);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('WALLET');
+  const [upiId, setUpiId] = useState(user?.wallet?.upiId || '');
+
+  const defaultAddress = user?.addresses?.length > 0 ? user.addresses[0] : null;
+  const deliveryAddressStr = defaultAddress ? `${defaultAddress.label || 'Home'}: ${defaultAddress.street}, ${defaultAddress.city}` : 'No address saved';
+
+
+  useEffect(() => {
+    if (route.params?.cart) {
+      setItems(route.params.cart);
+    }
+  }, [route.params?.cart]);
 
   const updateQty = (id, delta) => {
     setItems(prev => prev
-      .map(i => i.id === id ? { ...i, qty: Math.max(0, i.qty + delta) } : i)
+      .map(i => i._id === id ? { ...i, qty: Math.max(0, i.qty + delta) } : i)
       .filter(i => i.qty > 0)
     );
   };
@@ -24,7 +42,7 @@ const CartScreen = ({ navigation }) => {
   const removeItem = (id) => {
     Alert.alert('Remove item?', 'Remove this item from cart?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => setItems(prev => prev.filter(i => i.id !== id)) }
+      { text: 'Remove', style: 'destructive', onPress: () => setItems(prev => prev.filter(i => i._id !== id)) }
     ]);
   };
 
@@ -35,7 +53,7 @@ const CartScreen = ({ navigation }) => {
   const renderItem = ({ item }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemEmoji}>
-        <Text style={{ fontSize: 28 }}>{item.imageEmoji}</Text>
+        <Text style={{ fontSize: 28 }}>{item.icon || '📦'}</Text>
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
@@ -43,16 +61,16 @@ const CartScreen = ({ navigation }) => {
       </View>
       <View style={styles.itemRight}>
         <View style={styles.qtyRow}>
-          <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(item.id, -1)}>
+          <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(item._id, -1)}>
             <Minus size={14} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={styles.qtyNum}>{item.qty}</Text>
-          <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(item.id, 1)}>
+          <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(item._id, 1)}>
             <Plus size={14} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
         <Text style={styles.itemSubtotal}>₹{item.price * item.qty}</Text>
-        <TouchableOpacity onPress={() => removeItem(item.id)}>
+        <TouchableOpacity onPress={() => removeItem(item._id)}>
           <Trash2 size={16} color="#ef4444" />
         </TouchableOpacity>
       </View>
@@ -77,7 +95,7 @@ const CartScreen = ({ navigation }) => {
         <>
           <FlatList
             data={items}
-            keyExtractor={i => i.id}
+            keyExtractor={i => i._id}
             renderItem={renderItem}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
@@ -109,10 +127,47 @@ const CartScreen = ({ navigation }) => {
           {/* Delivery Address */}
           <View style={styles.addressRow}>
             <MapPin size={16} color={theme.colors.primary} />
-            <Text style={styles.addressText} numberOfLines={1}>Delivering to: Saved Address</Text>
-            <TouchableOpacity>
+            <Text style={styles.addressText} numberOfLines={1}>Delivering to: {deliveryAddressStr}</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('SavedAddresses')}>
               <Text style={styles.changeText}>Change</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Payment Method */}
+          <View style={{ padding: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: theme.colors.text, marginBottom: 12 }}>Payment Method</Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity 
+                style={[styles.methodOption, paymentMethod === 'WALLET' && styles.methodOptionActive]}
+                onPress={() => setPaymentMethod('WALLET')}
+              >
+                <Text style={{ fontSize: 24, marginBottom: 8 }}>💳</Text>
+                <Text style={styles.methodTitle}>Wallet</Text>
+                <Text style={styles.methodSub}>₹{user?.wallet?.balance || 0}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.methodOption, paymentMethod === 'UPI' && styles.methodOptionActive]}
+                onPress={() => setPaymentMethod('UPI')}
+              >
+                <Text style={{ fontSize: 24, marginBottom: 8 }}>📱</Text>
+                <Text style={styles.methodTitle}>UPI</Text>
+                <Text style={styles.methodSub}>GPay, PhonePe</Text>
+              </TouchableOpacity>
+            </View>
+
+            {paymentMethod === 'UPI' && (
+              <View style={{ marginTop: 12, backgroundColor: theme.colors.surface, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border }}>
+                <Text style={{ fontSize: 13, color: theme.colors.textDim, marginBottom: 8, fontWeight: '600' }}>Enter your UPI ID</Text>
+                <Input
+                  placeholder="e.g. john@okicici"
+                  value={upiId}
+                  onChangeText={setUpiId}
+                  autoCapitalize="none"
+                  icon={<CreditCard size={18} color={theme.colors.textDim} />}
+                />
+              </View>
+            )}
           </View>
 
           {/* Checkout */}
@@ -123,10 +178,48 @@ const CartScreen = ({ navigation }) => {
             </View>
             <TouchableOpacity
               style={styles.checkoutBtn}
-              onPress={() => Alert.alert('Order Placed! 🎉', 'Your order has been placed successfully.\nTrack it in My Orders.')}
+              disabled={isProcessing}
+              onPress={async () => {
+                if (!shopId) return;
+                try {
+                  setIsProcessing(true);
+                  if (paymentMethod === 'WALLET' && (user?.wallet?.balance || 0) < total) {
+                    setIsProcessing(false);
+                    return Alert.alert('Insufficient Balance', 'Please top up your Kwickly Wallet to proceed.');
+                  }
+                  if (!defaultAddress) {
+                    setIsProcessing(false);
+                    return Alert.alert('No Address', 'Please save an address to deliver to.');
+                  }
+                  if (paymentMethod === 'UPI') {
+                    if (!upiId || !upiId.includes('@')) {
+                      setIsProcessing(false);
+                      return Alert.alert('Invalid UPI ID', 'Please enter a valid UPI ID (e.g., name@bank) to proceed.');
+                    }
+                  }
+                  const orderData = {
+                    shopId,
+                    items: items.map(i => ({ productId: i._id, name: i.name, price: i.price, qty: i.qty })),
+                    deliveryAddress: deliveryAddressStr,
+                    paymentMethod,
+                    deliveryLocation: { type: 'Point', coordinates: defaultAddress?.location?.coordinates || [0, 0] }
+                  };
+                  const res = await api.post('/shoporders', orderData);
+                  if (res.data?.status === 'success') {
+                    if (fetchUser) await fetchUser();
+                    Alert.alert('Order Placed! 🎉', 'Your order has been placed successfully.', [
+                      { text: 'OK', onPress: () => navigation.navigate('ShopOrderDetails', { orderId: res.data.data._id }) }
+                    ]);
+                  }
+                } catch (e) {
+                  Alert.alert('Error', e?.response?.data?.message || 'Failed to place order');
+                } finally {
+                  setIsProcessing(false);
+                }
+              }}
             >
               <CreditCard size={18} color="#001016" />
-              <Text style={styles.checkoutText}>Proceed to Pay</Text>
+              <Text style={styles.checkoutText}>{isProcessing ? 'Processing...' : 'Proceed to Pay'}</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -170,6 +263,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   emptyDesc:      { fontSize: 14, color: theme.colors.textDim, textAlign: 'center' },
   browseBtn:      { marginTop: 12, backgroundColor: theme.colors.primary, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 16 },
   browseBtnText:  { fontSize: 15, fontWeight: '800', color: '#001016' },
+  methodOption:   { flex: 1, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 16, padding: 16, alignItems: 'flex-start' },
+  methodOptionActive: { borderColor: theme.colors.primary, backgroundColor: isDarkMode ? 'rgba(14, 154, 167, 0.1)' : '#e0f2f1' },
+  methodTitle:    { fontSize: 14, fontWeight: '700', color: theme.colors.text, marginBottom: 2 },
+  methodSub:      { fontSize: 13, color: theme.colors.textDim, fontWeight: '600' }
 });
 
 export default CartScreen;

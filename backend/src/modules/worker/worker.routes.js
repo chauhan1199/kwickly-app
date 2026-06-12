@@ -13,6 +13,7 @@ router.patch('/me/kyc', authorize('WORKER'), upload.single('document'), workerCo
 router.patch('/me/bank', workerController.updateBank);
 router.patch('/me/services', workerController.updateServices);
 router.patch('/me/location', workerController.updateLocation);
+router.patch('/me/online', authorize('WORKER'), workerController.toggleOnlineStatus);
 router.post('/me/category-suggestions', workerController.submitCategorySuggestion);
 
 // -- Worker Addresses --

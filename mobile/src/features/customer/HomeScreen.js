@@ -56,20 +56,30 @@ const HomeScreen = ({ navigation }) => {
           const past = [];
           
           allJobs.forEach(job => {
-            if (['BROADCASTING', 'QUOTED', 'ACCEPTED', 'IN_PROGRESS'].includes(job.status)) {
+            if (['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'].includes(job.status)) {
               active.push({
                 id: job._id,
-                title: `${job.category} — ${(job.description || '').slice(0, 15)}`,
+                title: `${job.category}${job.subcategory ? ' — ' + job.subcategory : ''}`,
                 category: job.category,
                 subcategory: job.subcategory,
                 address: job.addressDetails,
                 worker: job.workerId?.name || null,
                 status: job.status,
-                sub: job.status === 'BROADCASTING' ? 'Awaiting quotes...' : 'Worker assigned',
-                price: job.price || 0,
-                fromPrice: '300', // Example
-                progress: job.status === 'BROADCASTING' ? 30 : job.status === 'IN_PROGRESS' ? 75 : 50,
-                isIP: job.status === 'IN_PROGRESS'
+                sub: job.status === 'BROADCASTING' ? 'Awaiting quotes...' : 
+                     job.status === 'QUOTES_RECEIVED' ? 'Quotes received — tap to accept!' :
+                     job.status === 'COMPLETED' ? 'Work completed — tap to pay!' :
+                     'Worker assigned',
+                price: job.payment?.amount || 0,
+                fromPrice: '300',
+                progress: job.status === 'BROADCASTING' ? 20 : 
+                          job.status === 'QUOTES_RECEIVED' ? 45 :
+                          job.status === 'ALLOCATED' ? 60 :
+                          job.status === 'IN_PROGRESS' ? 80 : 
+                          job.status === 'COMPLETED' ? 95 : 50,
+                isIP: job.status === 'IN_PROGRESS' || job.status === 'ARRIVING' || job.status === 'ALLOCATED',
+                isCompleted: job.status === 'COMPLETED',
+                hasQuotes: job.status === 'QUOTES_RECEIVED',
+                rawJob: job
               });
             } else {
               past.push({
@@ -197,9 +207,15 @@ const HomeScreen = ({ navigation }) => {
               key={job.id} 
               style={styles.jobCard}
               onPress={() => {
-                if (job.isIP) {
+                if (job.isCompleted) {
+                  navigation.navigate('WorkCompleted', {
+                    worker: { name: job.worker, rating: 4.8, jobs: 312 },
+                    job: job.rawJob
+                  });
+                } else if (job.isIP) {
                   navigation.navigate('LiveTracking', {
-                    worker: { name: job.worker, rating: 4.8, jobs: 312, eta: 12, dist: '1.2 km' }
+                    worker: { name: job.worker, rating: 4.8, jobs: 312, eta: 12, dist: '1.2 km' },
+                    job: job.rawJob
                   });
                 } else {
                   navigation.navigate('LiveBids', {
@@ -221,8 +237,10 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={styles.jobTitle}>{job.title}</Text>
                   <Text style={styles.jobSub}>{job.sub}</Text>
                 </View>
-                <View style={[styles.statusBadge, {backgroundColor: job.isIP ? theme.colors.primary + '2E' : theme.colors.warning + '2E'}]}>
-                  <Text style={[styles.statusText, {color: statusColor}]}>{job.status}</Text>
+                <View style={[styles.statusBadge, {backgroundColor: job.isIP ? theme.colors.primary + '2E' : job.hasQuotes ? '#10b98126' : theme.colors.warning + '2E'}]}>
+                  <Text style={[styles.statusText, {color: job.isIP ? theme.colors.primary : job.hasQuotes ? '#10b981' : theme.colors.warning}]}>
+                    {job.hasQuotes ? '💬 QUOTES' : job.status === 'ALLOCATED' ? 'ACCEPTED' : job.status}
+                  </Text>
                 </View>
               </View>
 

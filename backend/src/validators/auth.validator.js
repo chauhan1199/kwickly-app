@@ -4,6 +4,7 @@ const loginSchema = Joi.object({
     email: Joi.string().email().optional(),
     phone: Joi.string().min(10).max(15).optional(),
     password: Joi.string().min(6).required(),
+    role: Joi.string().valid('CUSTOMER', 'WORKER', 'ADMIN', 'SHOP').optional()
 }).or('email', 'phone');
 
 const sendOTPSchema = Joi.object({

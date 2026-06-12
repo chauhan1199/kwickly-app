@@ -36,7 +36,7 @@ const LoginScreen = ({ navigation, route }) => {
         await api.post('/auth/send-otp', { phone, role });
         navigation.navigate('OTPVerify', { phone, role });
       } else {
-        const response = await api.post('/auth/login', { phone, password });
+        const response = await api.post('/auth/login', { phone, password, role });
         const { token, user } = response.data.data;
         await signIn(token, user.role);
       }

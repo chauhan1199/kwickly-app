@@ -15,11 +15,18 @@ exports.getWallet = catchAsync(async (req, res) => {
     const user = await Customer.findById(req.user._id).select('wallet name role');
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
+    let balance = user.wallet.balance;
+    if (user.role === 'SHOP') {
+        const Shop = require('../shop/shop.model');
+        const shop = await Shop.findOne({ ownerId: req.user._id });
+        if (shop) balance = shop.wallet.balance;
+    }
+
     const transactions = await WalletTxn.find({ userId: req.user._id })
         .sort('-createdAt')
         .limit(50);
 
-    return successResponse(res, { balance: user.wallet.balance, transactions }, 'Wallet fetched');
+    return successResponse(res, { balance, transactions }, 'Wallet fetched');
 });
 
 /**
@@ -32,13 +39,9 @@ exports.topupWallet = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid top-up amount', StatusCodes.BAD_REQUEST);
     }
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
-        const user = await Customer.findById(req.user._id).session(session);
+        const user = await Customer.findById(req.user._id);
         if (!user) {
-            await session.abortTransaction();
-            session.endSession();
             return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
         }
 
@@ -70,24 +73,28 @@ exports.topupWallet = catchAsync(async (req, res) => {
             }
         }
 
-        // MOCK PAYMENT GATEWAY: Assuming successful payment via paymentDetails (e.g. Razorpay/UPI)
-        const newBalance = user.wallet.balance + amount;
+        let newBalance;
+        if (user.role === 'SHOP') {
+            const Shop = require('../shop/shop.model');
+            const shop = await Shop.findOne({ ownerId: req.user._id });
+            newBalance = shop.wallet.balance + amount;
+            await Shop.findByIdAndUpdate(shop._id, { 'wallet.balance': newBalance });
+        } else {
+            newBalance = user.wallet.balance + amount;
+            await Customer.findByIdAndUpdate(req.user._id, { 'wallet.balance': newBalance });
+        }
 
-        await Customer.findByIdAndUpdate(req.user._id, {
-            'wallet.balance': newBalance,
-            ...subscriptionUpdate
-        }, { session });
+        if (Object.keys(subscriptionUpdate).length > 0) {
+            await Customer.findByIdAndUpdate(req.user._id, subscriptionUpdate);
+        }
 
-        const [txn] = await WalletTxn.create([{
+        const txn = await WalletTxn.create({
             userId: req.user._id,
             type: 'TOPUP',
             amount,
             balance: newBalance,
             description: planId ? `Plan Top-up: ${planId}` : `Wallet Top-up via ${paymentDetails?.method || 'Online'}`
-        }], { session });
-
-        await session.commitTransaction();
-        session.endSession();
+        });
 
         // We must return the updated user so frontend updates its auth state
         const updatedUser = await Customer.findById(req.user._id).select('-password');
@@ -95,10 +102,6 @@ exports.topupWallet = catchAsync(async (req, res) => {
         emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP', id: txn._id });
         return successResponse(res, { txn, user: updatedUser }, 'Wallet top-up successful');
     } catch (error) {
-        if (session.inTransaction()) {
-            await session.abortTransaction();
-        }
-        session.endSession();
         throw error;
     }
 });
@@ -110,52 +113,48 @@ exports.topupWallet = catchAsync(async (req, res) => {
 exports.requestWithdrawal = catchAsync(async (req, res) => {
     const { amount, payoutMethod } = req.body;
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
-        const user = await Customer.findById(req.user._id).session(session);
+        const user = await Customer.findById(req.user._id);
         if (!user) {
-            await session.abortTransaction();
-            session.endSession();
             return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
         }
-        if (user.wallet.balance < amount) {
-            await session.abortTransaction();
-            session.endSession();
-            return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
+        let newBalance;
+        if (user.role === 'SHOP') {
+            const Shop = require('../shop/shop.model');
+            const shop = await Shop.findOne({ ownerId: req.user._id });
+            if (shop.wallet.balance < amount) {
+                return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
+            }
+            newBalance = shop.wallet.balance - amount;
+            await Shop.findByIdAndUpdate(shop._id, { 'wallet.balance': newBalance });
+        } else {
+            if (user.wallet.balance < amount) {
+                return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
+            }
+            newBalance = user.wallet.balance - amount;
+            await Customer.findByIdAndUpdate(req.user._id, { 'wallet.balance': newBalance });
         }
 
-        // Deduct from wallet
-        const newBalance = user.wallet.balance - amount;
-        await Customer.findByIdAndUpdate(req.user._id, { 'wallet.balance': newBalance }, { session });
-
-        const [txn] = await WalletTxn.create([{
+        const txn = await WalletTxn.create({
             userId:      req.user._id,
             type:        'WITHDRAWAL',
             amount,
             balance:     newBalance,
             status:      'PENDING',
             description: `Withdrawal to ${payoutMethod || 'bank'}`
-        }], { session });
+        });
 
         const paymentMethodType = (payoutMethod || '').toLowerCase().includes('upi') ? 'UPI' : 'BANK';
-        await Payout.create([{
+        await Payout.create({
             workerId: req.user._id,
             amount,
             paymentMethod: paymentMethodType,
             paymentDetails: payoutMethod || 'bank'
-        }], { session });
-
-        await session.commitTransaction();
-        session.endSession();
+        });
 
         emitToAll('DASHBOARD_UPDATE', { type: 'WITHDRAWAL_REQUESTED', id: txn._id });
         return successResponse(res, txn, 'Withdrawal initiated');
     } catch (error) {
-        if (session.inTransaction()) {
-            await session.abortTransaction();
-        }
-        session.endSession();
         throw error;
     }
 });
@@ -185,38 +184,35 @@ exports.getAllTransactions = catchAsync(async (req, res) => {
 exports.adminAdjust = catchAsync(async (req, res) => {
     const { userId, amount, type, description } = req.body;
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
-        const user = await Customer.findById(userId).session(session);
+        const user = await Customer.findById(userId);
         if (!user) {
-            await session.abortTransaction();
-            session.endSession();
             return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
         }
 
         const delta = type === 'ADJUSTMENT' && req.body.debit ? -Math.abs(amount) : Math.abs(amount);
-        const newBalance = user.wallet.balance + delta;
+        let newBalance;
 
-        await Customer.findByIdAndUpdate(userId, { 'wallet.balance': newBalance }, { session });
+        if (user.role === 'SHOP') {
+            const Shop = require('../shop/shop.model');
+            const shop = await Shop.findOne({ ownerId: userId });
+            newBalance = shop.wallet.balance + delta;
+            await Shop.findByIdAndUpdate(shop._id, { 'wallet.balance': newBalance });
+        } else {
+            newBalance = user.wallet.balance + delta;
+            await Customer.findByIdAndUpdate(userId, { 'wallet.balance': newBalance });
+        }
 
-        const [txn] = await WalletTxn.create([{
+        const txn = await WalletTxn.create({
             userId,
             type:        'ADJUSTMENT',
             amount:      Math.abs(amount),
             balance:     newBalance,
             description: description || 'Admin adjustment'
-        }], { session });
-
-        await session.commitTransaction();
-        session.endSession();
+        });
 
         return successResponse(res, txn, 'Wallet adjusted');
     } catch (error) {
-        if (session.inTransaction()) {
-            await session.abortTransaction();
-        }
-        session.endSession();
         throw error;
     }
 });

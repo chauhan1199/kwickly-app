@@ -76,10 +76,21 @@ exports.verifyOTP = catchAsync(async (req, res) => {
 });
 
 exports.login = catchAsync(async (req, res) => {
-    const { email, phone, password } = req.body;
-    const query = email ? { email } : { phone };
+    const { email, phone, password, role } = req.body;
     
-    const user = await Customer.findOne(query);
+    let query = email ? { email } : { phone };
+    
+    // If role is specified, prefer finding the account with that exact role
+    // This allows the same phone to have both CUSTOMER and WORKER accounts
+    let user = null;
+    if (role) {
+        user = await Customer.findOne({ ...query, role: role.toUpperCase() });
+    }
+    // Fall back to any account with this phone if role-specific not found
+    if (!user) {
+        user = await Customer.findOne(query);
+    }
+    
     if (!user || !user.password) {
         return errorResponse(res, AUTH.LOGIN_FAILED, StatusCodes.UNAUTHORIZED);
     }

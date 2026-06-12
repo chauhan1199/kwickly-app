@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -6,21 +6,54 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
-  StatusBar
+  StatusBar,
+  TextInput,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
+import { jobService } from '../../services/jobService';
 
 const WorkCompletedScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
-  const { worker } = route.params || {};
+  const { worker, job } = route.params || {};
+  const workerName = worker?.name || job?.workerId?.name || 'Worker';
 
-  const w = worker || { name: 'Ramesh Kumar' };
+  const jobAmount = job?.payment?.amount || job?.price || 499;
+  const platformFee = Math.round(jobAmount * 0.1);
+  const workerEarning = jobAmount - platformFee;
+
+  const [otp, setOtp] = useState('');
+  const [paying, setPaying] = useState(false);
+
+  const handlePayment = async (method) => {
+    if (!otp || otp.length !== 4) {
+      return Alert.alert('OTP Required', 'Please enter the 4-digit Completion OTP to authorize payment.');
+    }
+
+    setPaying(true);
+    try {
+      const res = await jobService.payJob(job?._id, { method, completionOtp: otp });
+      if (res.data.status === 'success') {
+        Alert.alert('Payment Successful', 'Your payment was processed and split securely.', [
+          { text: 'OK', onPress: () => navigation.navigate('RateExperience', { worker: { name: workerName }, job }) }
+        ]);
+      }
+    } catch (e) {
+      Alert.alert('Payment Failed', e.response?.data?.message || 'Invalid OTP or network error.');
+    } finally {
+      setPaying(false);
+    }
+  };
 
   const styles = createStyles(theme, isDarkMode);
+
+  // Use actual media if available
+  const completionMedia = job?.completionDetails?.media?.length > 0 
+    ? job.completionDetails.media 
+    : ['✓ Before', '✓ After', '🎥 Video']; // Fallback for display if missing
 
   return (
     <SafeAreaView style={styles.container}>
@@ -48,17 +81,15 @@ const WorkCompletedScreen = ({ route, navigation }) => {
         
         {/* Completion Media */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Completion media by {w.name}</Text>
+          <Text style={styles.cardTitle}>Completion media by {workerName}</Text>
           <View style={styles.mediaGrid}>
-            <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
-              <Text style={styles.mediaTileText}>✓ Before</Text>
-            </LinearGradient>
-            <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
-              <Text style={styles.mediaTileText}>✓ After</Text>
-            </LinearGradient>
-            <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
-              <Text style={styles.mediaTileText}>🎥 Video</Text>
-            </LinearGradient>
+            {completionMedia.map((item, index) => (
+              <LinearGradient key={index} colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
+                <Text style={styles.mediaTileText}>
+                  {item.startsWith('http') ? `Image ${index + 1}` : item}
+                </Text>
+              </LinearGradient>
+            ))}
           </View>
         </View>
 
@@ -66,50 +97,66 @@ const WorkCompletedScreen = ({ route, navigation }) => {
         <View style={styles.card}>
           <View style={styles.invoiceRow}>
             <Text style={styles.invoiceText}>Service charge</Text>
-            <Text style={styles.invoiceTextBold}>₹499</Text>
+            <Text style={styles.invoiceTextBold}>₹{jobAmount}</Text>
           </View>
           <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceMuted}>Platform fee (10%)</Text>
-            <Text style={styles.invoiceMuted}>₹49</Text>
-          </View>
-          <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceMuted}>GST (5%)</Text>
-            <Text style={styles.invoiceMuted}>₹27</Text>
+            <Text style={styles.invoiceMuted}>Platform fee (10% approx)</Text>
+            <Text style={styles.invoiceMuted}>₹{platformFee}</Text>
           </View>
           
           <View style={styles.separator} />
           
           <View style={styles.invoiceRow}>
             <Text style={styles.totalText}>Total</Text>
-            <Text style={styles.totalPrice}>₹575</Text>
+            <Text style={styles.totalPrice}>₹{jobAmount}</Text>
           </View>
           
           <Text style={styles.autoSplitText}>
-            Auto-split: Worker gets ₹450 · Platform ₹125 (instant wallet credit)
+            Auto-split: Worker gets ₹{workerEarning} · Platform ₹{platformFee}
           </Text>
         </View>
 
-        {/* Payment Buttons */}
-        <View style={styles.payGrid}>
-          <TouchableOpacity 
-            style={styles.walletBtn}
-            onPress={() => navigation.navigate('RateExperience', { worker: w })}
-          >
-            <Text style={styles.walletBtnText}>💰 Wallet (₹1240)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.upiBtn}
-            onPress={() => navigation.navigate('RateExperience', { worker: w })}
-          >
-            <Text style={styles.upiBtnText}>Pay UPI ₹575</Text>
-          </TouchableOpacity>
+        {/* Enter OTP */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Authorize Payment</Text>
+          <Text style={styles.cardSub}>Enter the 4-digit Completion OTP to release funds.</Text>
+          
+          <TextInput
+            style={styles.otpInput}
+            placeholder="Enter OTP (e.g., 4729)"
+            placeholderTextColor={theme.colors.textDim}
+            keyboardType="numeric"
+            maxLength={4}
+            value={otp}
+            onChangeText={setOtp}
+            editable={!paying}
+          />
         </View>
-        <TouchableOpacity 
-          style={styles.cardBtn}
-          onPress={() => navigation.navigate('RateExperience', { worker: w })}
-        >
-          <Text style={styles.cardBtnText}>💳 Credit/Debit Card</Text>
-        </TouchableOpacity>
+
+        {paying ? (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={{ marginTop: 10, color: theme.colors.text }}>Processing split payment securely...</Text>
+          </View>
+        ) : (
+          <>
+            {/* Payment Buttons */}
+            <View style={styles.payGrid}>
+              <TouchableOpacity 
+                style={styles.walletBtn}
+                onPress={() => handlePayment('CASH')}
+              >
+                <Text style={styles.walletBtnText}>💵 Pay via Cash</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.upiBtn}
+                onPress={() => handlePayment('ONLINE')}
+              >
+                <Text style={styles.upiBtnText}>Pay Online ₹{jobAmount}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -185,6 +232,22 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontWeight: '800',
     color: theme.colors.text,
     marginBottom: 12,
+  },
+  cardSub: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginBottom: 12,
+  },
+  otpInput: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.background,
+    textAlign: 'center',
+    letterSpacing: 4,
   },
   mediaGrid: {
     flexDirection: 'row',

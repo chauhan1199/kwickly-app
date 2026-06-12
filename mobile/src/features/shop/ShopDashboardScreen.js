@@ -72,7 +72,7 @@ const ShopDashboardScreen = ({ navigation }) => {
           color: order.status === 'PENDING' ? '#0EA5E9' : order.status === 'PROCESSING' ? '#F59E0B' : '#10B981',
           bg: order.status === 'PENDING' ? '#E0F2FE' : order.status === 'PROCESSING' ? '#FEF3C7' : '#D1FAE5'
         }));
-        setPendingOrders(mapped.filter(o => o.status === 'pending' || o.status === 'processing'));
+        setPendingOrders(mapped.filter(o => o.status === 'new' || o.status === 'packing'));
 
         const today = new Date();
         const todayOrders = orders.filter(o => new Date(o.createdAt).toDateString() === today.toDateString());
@@ -162,7 +162,7 @@ const ShopDashboardScreen = ({ navigation }) => {
             <Text style={{ fontSize: 18, marginRight: 8 }}>🔥</Text>
             <Text style={styles.sectionTitle}>Pending Orders</Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('ShopOrders')}>
+          <TouchableOpacity onPress={() => navigation.navigate('Orders')}>
             <Text style={styles.viewAllText}>View all ›</Text>
           </TouchableOpacity>
         </View>
@@ -172,7 +172,7 @@ const ShopDashboardScreen = ({ navigation }) => {
             <TouchableOpacity 
               key={order.rawId} 
               style={styles.orderCard} 
-              onPress={() => navigation.navigate('ShopOrderDetails', { order })}
+              onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order.rawId })}
             >
               <View style={styles.orderIconBox}>
                 <Package size={20} color="#8B5CF6" />

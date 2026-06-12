@@ -32,6 +32,8 @@ const ShopWalletScreen = ({ navigation }) => {
   // Data state
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
   
   const [balance, setBalance] = useState(0);
   const [txns, setTxns] = useState([]);
@@ -46,9 +48,10 @@ const ShopWalletScreen = ({ navigation }) => {
 
   const fetchWallet = async () => {
     try {
-      const [walletRes, settingsRes] = await Promise.all([
+      const [walletRes, settingsRes, balanceRes] = await Promise.all([
         api.get('/shops/my'),
-        api.get('/settings/public').catch(() => null)
+        api.get('/settings/public').catch(() => null),
+        api.get('/wallet/balance').catch(() => null)
       ]);
 
       if (settingsRes?.data?.status === 'success') {
@@ -72,14 +75,31 @@ const ShopWalletScreen = ({ navigation }) => {
         const myShop = walletRes.data.data;
         setBalance(myShop.wallet?.balance || 0);
         
-        const mappedAccs = (myShop.wallet?.payoutMethods || []).map((m, i) => ({
+        const mappedAccs = (myShop.payoutMethods || []).map((m, i) => ({
           id: m._id || i.toString(),
           type: m.type === 'UPI' ? 'upi' : 'bank',
           name: m.type === 'UPI' ? 'UPI Account' : m.bankName || 'Bank Account',
-          detail: m.type === 'UPI' ? m.upiId : `****${(m.accountNumber || '').slice(-4)}`,
+          detail: m.type === 'UPI' ? m.upiId || m.detail : `****${(m.accountNumber || m.detail || '').slice(-4)}`,
           isPrimary: m.isPrimary
         }));
         setAccounts(mappedAccs);
+        if (mappedAccs.length > 0) {
+          const primary = mappedAccs.find(a => a.isPrimary) || mappedAccs[0];
+          setSelectedAccountId(primary.id);
+        }
+      }
+      
+      if (balanceRes?.data?.status === 'success') {
+        const tlist = balanceRes.data.data.transactions || [];
+        const mappedTxns = tlist.map(t => ({
+          id: t._id,
+          txnId: t._id.slice(-8).toUpperCase(),
+          title: t.description || 'Transaction',
+          time: new Date(t.createdAt).toLocaleString(),
+          amount: `₹${t.amount}`,
+          type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT'].includes(t.type) ? 'credit' : 'debit'
+        }));
+        setTxns(mappedTxns);
       }
     } catch (e) {
       console.log('Error fetching wallet:', e);
@@ -114,16 +134,51 @@ const ShopWalletScreen = ({ navigation }) => {
     Alert.alert("Add Account", "This would open the add bank/UPI flow.");
   };
 
-  const handleSubmitWithdrawal = () => {
+  const handleSubmitWithdrawal = async () => {
     if (!withdrawAmount || isNaN(withdrawAmount) || Number(withdrawAmount) <= 0) {
       Alert.alert("Invalid Amount", "Please enter a valid amount.");
       return;
     }
-    setWithdrawModalVisible(false);
-    setTimeout(() => {
-      Alert.alert("Success", "Withdrawal request submitted ✅\n\nIt will be processed in 1-2 business days.");
-      setWithdrawAmount('');
-    }, 500);
+    const selectedAcc = accounts.find(a => a.id === selectedAccountId);
+    if (!selectedAcc) {
+      Alert.alert("No Account", "Please select or add a bank/UPI account first.");
+      return;
+    }
+    try {
+      const res = await api.post('/wallet/withdraw', {
+        amount: Number(withdrawAmount),
+        payoutMethod: selectedAcc.detail
+      });
+      if (res.data?.status === 'success') {
+        setWithdrawModalVisible(false);
+        setWithdrawAmount('');
+        Alert.alert("Success", "Withdrawal request submitted ✅\n\nIt will be processed in 1-2 business days.");
+        fetchWallet();
+      }
+    } catch (e) {
+      Alert.alert("Error", e.response?.data?.message || "Failed to withdraw.");
+    }
+  };
+
+  const handleSubmitTopUp = async () => {
+    if (!topUpAmount || isNaN(topUpAmount) || Number(topUpAmount) <= 0) {
+      Alert.alert("Invalid Amount", "Please enter a valid amount.");
+      return;
+    }
+    try {
+      const res = await api.post('/wallet/topup', {
+        amount: Number(topUpAmount),
+        paymentDetails: { method: 'UPI' }
+      });
+      if (res.data?.status === 'success') {
+        setTopUpModalVisible(false);
+        setTopUpAmount('');
+        Alert.alert("Success", "Wallet topped up successfully ✅");
+        fetchWallet();
+      }
+    } catch (e) {
+      Alert.alert("Error", e.response?.data?.message || "Failed to top up.");
+    }
   };
 
   const handleConfirmSubscription = async () => {
@@ -176,7 +231,7 @@ const ShopWalletScreen = ({ navigation }) => {
           <View style={styles.balanceActions}>
             <TouchableOpacity 
               style={[styles.actionBtn, styles.topUpBtn]} 
-              onPress={() => setSubscriptionModalVisible(true)}
+              onPress={() => setTopUpModalVisible(true)}
             >
               <Text style={styles.topUpBtnText}>+ Top Up</Text>
             </TouchableOpacity>
@@ -251,7 +306,11 @@ const ShopWalletScreen = ({ navigation }) => {
                   {/* Accounts List */}
                   <ScrollView style={styles.accountsList} showsVerticalScrollIndicator={false}>
                     {accounts.map(acc => (
-                      <View key={acc.id} style={[styles.accountCard, acc.isPrimary && styles.accountCardPrimary]}>
+                      <TouchableOpacity 
+                        key={acc.id} 
+                        style={[styles.accountCard, selectedAccountId === acc.id && styles.accountCardPrimary]}
+                        onPress={() => setSelectedAccountId(acc.id)}
+                      >
                         
                         <View style={styles.accountLeft}>
                           <View style={styles.accountIconBox}>
@@ -278,7 +337,7 @@ const ShopWalletScreen = ({ navigation }) => {
                           </TouchableOpacity>
                         </View>
 
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </ScrollView>
 
@@ -307,7 +366,50 @@ const ShopWalletScreen = ({ navigation }) => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Subscription Top-Up Modal */}
+      {/* Top Up Funds Modal */}
+      <Modal
+        visible={topUpModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setTopUpModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity 
+            style={{ flex: 1, width: '100%' }} 
+            activeOpacity={1} 
+            onPress={() => setTopUpModalVisible(false)}
+          >
+            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+              <TouchableWithoutFeedback>
+                <View style={[styles.bottomSheet, { maxHeight: '60%' }]}>
+                  <View style={styles.sheetHeaderHandle} />
+                  <Text style={styles.sheetTitle}>Top Up Wallet</Text>
+                  <Text style={styles.sheetSub}>Enter amount to add</Text>
+
+                  {/* Amount Input */}
+                  <TextInput
+                    style={styles.amountInput}
+                    placeholder="Amount to top up (₹)"
+                    placeholderTextColor={theme.colors.textDim}
+                    keyboardType="numeric"
+                    value={topUpAmount}
+                    onChangeText={setTopUpAmount}
+                  />
+
+                  <TouchableOpacity style={styles.withdrawSubmitBtn} onPress={handleSubmitTopUp}>
+                    <Text style={styles.withdrawSubmitBtnText}>Add Funds</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Subscription Modal */}
       <Modal
         visible={subscriptionModalVisible}
         transparent={true}

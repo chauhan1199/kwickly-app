@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ScrollView, 
   View, 
@@ -8,16 +8,79 @@ import {
   TouchableOpacity,
   StatusBar
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { Phone, MessageCircle } from 'lucide-react-native';
 
-const WorkerNavigateJobScreen = ({ navigation }) => {
+const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { signOut } = useAuth();
+  const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
+
+  const { jobId, job, quoteAmount } = route.params || {};
+
+  const amount = quoteAmount || job?.payment?.amount || 0;
+  const commission = Math.round(amount * 0.1);
+  const earning = amount - commission;
+
+  const jobLat = job?.location?.coordinates?.[1] || 19.0760;
+  const jobLng = job?.location?.coordinates?.[0] || 72.8777;
+  const wLat = user?.activeLocation?.coordinates?.[1] || 19.0800;
+  const wLng = user?.activeLocation?.coordinates?.[0] || 72.8800;
+
+  const [distance, setDistance] = useState('...');
+  const [eta, setEta] = useState('...');
+
+  const mapHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      <style>
+        body { padding: 0; margin: 0; }
+        html, body, #map { height: 100%; width: 100%; }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${jobLat}, ${jobLng}], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
+
+        const jobIcon = L.divIcon({
+          html: '<div style="background-color: #ef4444; width: 16px; height: 16px; border-radius: 8px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+          className: '', iconSize: [16, 16], iconAnchor: [8, 8]
+        });
+        const workerIcon = L.divIcon({
+          html: '<div style="background-color: #0e9aa7; width: 16px; height: 16px; border-radius: 8px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+          className: '', iconSize: [16, 16], iconAnchor: [8, 8]
+        });
+
+        L.marker([${jobLat}, ${jobLng}], {icon: jobIcon}).addTo(map).bindPopup("Customer");
+        L.marker([${wLat}, ${wLng}], {icon: workerIcon}).addTo(map).bindPopup("You");
+
+        const bounds = L.latLngBounds([[${jobLat}, ${jobLng}], [${wLat}, ${wLng}]]);
+        map.fitBounds(bounds, { padding: [40, 40] });
+
+        // Basic Distance Calc for display
+        const R = 6371;
+        const dLat = (${wLat} - ${jobLat}) * Math.PI / 180;
+        const dLon = (${wLng} - ${jobLng}) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(${jobLat} * Math.PI / 180) * Math.cos(${wLat} * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const dist = (R * c).toFixed(1);
+        const time = Math.round(dist * 2 + 5);
+
+        window.ReactNativeWebView.postMessage(JSON.stringify({ dist, time }));
+      </script>
+    </body>
+    </html>
+  `;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -29,39 +92,40 @@ const WorkerNavigateJobScreen = ({ navigation }) => {
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.appBarTitle}>Navigate to Job</Text>
-          <Text style={styles.appBarSub}>Anita</Text>
+          <Text style={styles.appBarSub}>{job?.customerId?.name || 'Customer'}</Text>
         </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
-        {/* Map Placeholder */}
+        {/* Map */}
         <View style={styles.mapContainer}>
-          {/* Abstract map drawing */}
-          <View style={styles.mapLine} />
-          <View style={[styles.mapPin, { left: '25%', top: '65%', backgroundColor: '#0ea5e9' }]} />
-          <View style={[styles.mapPin, { left: '75%', top: '35%', backgroundColor: '#ef4444' }]} />
-          
+          <WebView 
+            source={{ html: mapHTML }}
+            style={{ flex: 1, backgroundColor: 'transparent' }}
+            onMessage={(e) => {
+                const data = JSON.parse(e.nativeEvent.data);
+                setDistance(data.dist);
+                setEta(data.time);
+            }}
+          />
           <View style={styles.etaBadge}>
-            <Text style={styles.etaText}>🚗 25 min - 4.2 km</Text>
+            <Text style={styles.etaText}>🚗 {eta} min - {distance} km</Text>
           </View>
         </View>
 
         {/* Customer Info Box */}
         <View style={styles.customerBox}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>A</Text>
+            <Text style={styles.avatarText}>{job?.customerId?.name?.[0] || 'C'}</Text>
           </View>
           <View style={styles.customerInfo}>
-            <Text style={styles.customerName}>Anita</Text>
-            <Text style={styles.customerLocation}>📍 A-12 Sector 21</Text>
+            <Text style={styles.customerName}>{job?.customerId?.name || 'Customer'}</Text>
+            <Text style={styles.customerLocation} numberOfLines={1}>📍 {job?.addressDetails || 'Address'}</Text>
           </View>
           <View style={styles.contactActions}>
             <TouchableOpacity style={styles.iconBtn}>
               <Phone size={18} color="#ef4444" />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.colors.primary + '1A' }]}>
-              <MessageCircle size={18} color={theme.colors.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -74,8 +138,8 @@ const WorkerNavigateJobScreen = ({ navigation }) => {
               <Text style={styles.priceSub}>Commission (10%)</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.priceValPositive}>₹499</Text>
-              <Text style={styles.priceValNegative}>-₹50</Text>
+              <Text style={styles.priceValPositive}>₹{amount}</Text>
+              <Text style={styles.priceValNegative}>-₹{commission}</Text>
             </View>
           </View>
           
@@ -83,12 +147,12 @@ const WorkerNavigateJobScreen = ({ navigation }) => {
           
           <View style={styles.priceRow}>
             <Text style={styles.earningLabel}>Your earning</Text>
-            <Text style={styles.earningVal}>₹449</Text>
+            <Text style={styles.earningVal}>₹{earning}</Text>
           </View>
         </View>
 
         {/* Arrived Action */}
-        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('WorkerArrivalOTP')}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('WorkerArrivalOTP', { jobId })}>
           <Text style={styles.actionBtnText}>✓ I've Arrived → Enter OTP</Text>
         </TouchableOpacity>
 

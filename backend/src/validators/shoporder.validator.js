@@ -10,12 +10,8 @@ const placeOrderSchema = Joi.object({
             qty: Joi.number().integer().required().min(1)
         })
     ).min(1).required(),
-    deliveryAddress: Joi.object({
-        street: Joi.string().required(),
-        city: Joi.string().required(),
-        pincode: Joi.string().required(),
-        area: Joi.string().allow('')
-    }).required(),
+    deliveryAddress: Joi.string().required(),
+    paymentMethod: Joi.string().valid('WALLET', 'UPI').required(),
     deliveryLocation: Joi.object({
         type: Joi.string().valid('Point').default('Point'),
         coordinates: Joi.array().items(Joi.number()).length(2).required()
@@ -23,7 +19,8 @@ const placeOrderSchema = Joi.object({
 });
 
 const updateOrderStatusSchema = Joi.object({
-    status: Joi.string().valid('PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED').required()
+    status: Joi.string().valid('PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED').required(),
+    otp: Joi.string().optional()
 });
 
 module.exports = {

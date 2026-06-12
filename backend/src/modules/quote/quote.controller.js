@@ -44,14 +44,43 @@ exports.placeQuote = catchAsync(async (req, res) => {
     const existing = await Quote.findOne({ jobId, workerId, status: 'PENDING' });
     if (existing) return errorResponse(res, 'You already placed a quote on this job', StatusCodes.CONFLICT);
 
-    const quote = await Quote.create({ jobId, workerId, amount, description, timeToReach, workerLocation });
+    // Auto-calculate ETA using Haversine distance
+    let calculatedTimeToReach = '20 mins'; // default
+    const jobLat = job.location?.coordinates?.[1];
+    const jobLon = job.location?.coordinates?.[0];
+    const workerLat = workerLocation?.coordinates?.[1] || worker?.activeLocation?.coordinates?.[1];
+    const workerLon = workerLocation?.coordinates?.[0] || worker?.activeLocation?.coordinates?.[0];
+
+    if (jobLat && jobLon && workerLat && workerLon) {
+        const R = 6371; // Earth radius in km
+        const dLat = (workerLat - jobLat) * Math.PI / 180;
+        const dLon = (workerLon - jobLon) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(jobLat * Math.PI / 180) * Math.cos(workerLat * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distanceKm = +(R * c).toFixed(2);
+        
+        // Assume avg speed of 30km/h in urban areas -> 2 mins per km. Plus 5 mins base buffer.
+        const estMins = Math.max(5, Math.ceil(distanceKm * 2) + 5);
+        calculatedTimeToReach = `${estMins} mins`;
+    }
+
+    const quote = await Quote.create({ 
+        jobId, 
+        workerId, 
+        amount, 
+        description, 
+        timeToReach: calculatedTimeToReach, 
+        workerLocation 
+    });
 
     // Embedded redundancy update for client backward compatibility
     job.quotes.push({
         workerId,
         amount,
         description,
-        timeToReach,
+        timeToReach: calculatedTimeToReach,
         status: 'PENDING'
     });
 
@@ -61,14 +90,24 @@ exports.placeQuote = catchAsync(async (req, res) => {
     }
     await job.save();
 
+    // Populate worker details for the socket event
+    const populatedWorker = {
+        _id: worker._id,
+        name: worker.name,
+        profileImage: worker.profileImage,
+        rating: worker.rating,
+        kyc: worker.kyc,
+        activeLocation: worker.activeLocation
+    };
+
     // Notify the customer in real-time
     emitToRoom(`customer_${job.customerId}`, 'NEW_QUOTE', {
         jobId:    job._id,
         quoteId:    quote._id,
-        workerId: workerId,
+        workerId: populatedWorker, // Send populated object
         amount,
         description,
-        timeToReach
+        timeToReach: calculatedTimeToReach
     });
 
     return successResponse(res, quote, 'Quote placed successfully', StatusCodes.CREATED);
@@ -140,14 +179,16 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
     }
 
-    // Generate 4-digit arrival OTP
+    // Generate 4-digit OTPs
     const arrivalOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const completionOtp = Math.floor(1000 + Math.random() * 9000).toString();
 
     // Update job
     job.workerId          = quote.workerId;
     job.status            = 'ALLOCATED'; // as per new enum
     if (!job.security) job.security = {};
     job.security.arrivalOtp = arrivalOtp;
+    job.security.completionOtp = completionOtp;
     if (!job.payment) job.payment = {};
     job.payment.amount    = quote.amount;
     

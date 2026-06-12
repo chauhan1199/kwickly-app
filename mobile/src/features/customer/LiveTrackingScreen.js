@@ -6,8 +6,10 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
-  StatusBar
+  StatusBar,
+  ActivityIndicator
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
@@ -15,14 +17,72 @@ import { useTheme } from '../../context/ThemeContext';
 const LiveTrackingScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
-  const { worker } = route.params || {};
+  const { worker, job } = route.params || {};
 
   // Mock a worker if not passed
   const w = worker || {
     name: 'Ramesh Kumar', rating: 4.8, jobs: 312, eta: 25, dist: '1.2 km'
   };
 
-  const otp = '4 7 2 9';
+  const otp = job?.security?.arrivalOtp || '4729';
+
+  const jobLat = job?.location?.coordinates?.[1] || 19.0760;
+  const jobLng = job?.location?.coordinates?.[0] || 72.8777;
+  const workerLat = worker?.activeLocation?.coordinates?.[1] || job?.workerId?.activeLocation?.coordinates?.[1] || 19.0800;
+  const workerLng = worker?.activeLocation?.coordinates?.[0] || job?.workerId?.activeLocation?.coordinates?.[0] || 72.8800;
+
+  const mapHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      <style>
+        body { padding: 0; margin: 0; }
+        html, body, #map { height: 100%; width: 100%; border-radius: 16px; overflow: hidden; }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        const lat = ${jobLat};
+        const lng = ${jobLng};
+        const wLat = ${workerLat};
+        const wLng = ${workerLng};
+
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 14);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 20
+        }).addTo(map);
+
+        // Job Pin
+        const jobIcon = L.divIcon({
+          html: '<div style="background-color: #ef4444; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+          className: '',
+          iconSize: [14, 14],
+          iconAnchor: [7, 7]
+        });
+        L.marker([lat, lng], {icon: jobIcon}).addTo(map).bindPopup("Job Location");
+
+        // Worker Pin
+        if (wLat && wLng) {
+          const workerIcon = L.divIcon({
+            html: '<div style="background-color: #0e9aa7; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+            className: '',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+          });
+          L.marker([wLat, wLng], {icon: workerIcon}).addTo(map).bindPopup("Worker").openPopup();
+          
+          const bounds = L.latLngBounds([[lat, lng], [wLat, wLng]]);
+          map.fitBounds(bounds, { padding: [30, 30] });
+        }
+      </script>
+    </body>
+    </html>
+  `;
 
   const styles = createStyles(theme, isDarkMode);
 
@@ -50,13 +110,17 @@ const LiveTrackingScreen = ({ route, navigation }) => {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
-        {/* Mock Map Area */}
+        {/* Leaflet Map Area */}
         <View style={styles.mapArea}>
-          <View style={styles.mapRoute} />
-          <View style={[styles.mapPin, { left: '20%', bottom: '30%', backgroundColor: theme.colors.primary }]} />
-          <View style={[styles.mapPin, { right: '20%', top: '30%', backgroundColor: '#ef4444' }]} />
+          <WebView 
+            source={{ html: mapHTML }}
+            style={{ flex: 1, backgroundColor: 'transparent' }}
+            scrollEnabled={false}
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
+          />
           <View style={styles.mapLabel}>
-            <Text style={styles.mapLabelText}>⏱ ETA {w.eta} min</Text>
+            <Text style={styles.mapLabelText}>⏱ ETA {w.eta || 'Calculating'} min</Text>
           </View>
         </View>
 
@@ -79,19 +143,28 @@ const LiveTrackingScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Arrival OTP */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Arrival OTP</Text>
-          <Text style={styles.cardSub}>Share with worker when they arrive</Text>
-          <View style={styles.otpBox}>
-            <Text style={styles.otpText}>{otp}</Text>
+        {/* OTP Section */}
+        {(job?.status === 'ALLOCATED' || job?.status === 'ARRIVING' || !job?.status) && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Arrival OTP</Text>
+            <Text style={styles.cardSub}>Share with worker when they arrive</Text>
+            <View style={styles.otpBox}>
+              <Text style={styles.otpText}>{otp}</Text>
+            </View>
           </View>
-        </View>
+        )}
+        {job?.status === 'IN_PROGRESS' && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Work In Progress</Text>
+            <Text style={styles.cardSub}>The worker is currently working on your job.</Text>
+          </View>
+        )}
 
         {/* Job Progress Timeline */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Job Progress</Text>
           <View style={styles.timeline}>
+            {/* Job Posted */}
             <View style={styles.tlItem}>
               <View style={[styles.tlDot, styles.tlDotDone]} />
               <View style={styles.tlLineDone} />
@@ -101,6 +174,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
               </View>
             </View>
 
+            {/* Pro Accepted */}
             <View style={styles.tlItem}>
               <View style={[styles.tlDot, styles.tlDotDone]} />
               <View style={styles.tlLineDone} />
@@ -110,47 +184,56 @@ const LiveTrackingScreen = ({ route, navigation }) => {
               </View>
             </View>
 
+            {/* On the Way */}
             <View style={styles.tlItem}>
-              <View style={[styles.tlDot, styles.tlDotActive]} />
-              <View style={styles.tlLine} />
+              <View style={[
+                styles.tlDot, 
+                job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlDotDone : styles.tlDotActive
+              ]} />
+              <View style={job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlLineDone : styles.tlLine} />
               <View style={styles.tlContent}>
-                <Text style={[styles.tlTitle, {color: theme.colors.primary}]}>On the Way</Text>
+                <Text style={[styles.tlTitle, (job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED') ? {} : {color: theme.colors.primary}]}>On the Way</Text>
                 <Text style={styles.tlSub}>ETA {w.eta} min</Text>
               </View>
             </View>
 
+            {/* Arrived (OTP) */}
             <View style={styles.tlItem}>
-              <View style={styles.tlDot} />
-              <View style={styles.tlLine} />
+              <View style={[
+                styles.tlDot, 
+                job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlDotDone : {}
+              ]} />
+              <View style={job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlLineDone : styles.tlLine} />
               <View style={styles.tlContent}>
-                <Text style={styles.tlTitleMuted}>Arrived (OTP)</Text>
+                <Text style={job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlTitle : styles.tlTitleMuted}>Arrived (OTP)</Text>
               </View>
             </View>
 
+            {/* Work in Progress */}
             <View style={styles.tlItem}>
-              <View style={styles.tlDot} />
-              <View style={styles.tlLine} />
+              <View style={[
+                styles.tlDot,
+                job?.status === 'IN_PROGRESS' ? styles.tlDotActive : (job?.status === 'COMPLETED' ? styles.tlDotDone : {})
+              ]} />
+              <View style={job?.status === 'COMPLETED' ? styles.tlLineDone : styles.tlLine} />
               <View style={styles.tlContent}>
-                <Text style={styles.tlTitleMuted}>Work in Progress</Text>
+                <Text style={job?.status === 'IN_PROGRESS' ? [styles.tlTitle, {color: theme.colors.primary}] : (job?.status === 'COMPLETED' ? styles.tlTitle : styles.tlTitleMuted)}>Work in Progress</Text>
               </View>
             </View>
 
+            {/* Payment & Rating */}
             <View style={styles.tlItem}>
-              <View style={styles.tlDot} />
+              <View style={[
+                styles.tlDot,
+                job?.status === 'COMPLETED' ? styles.tlDotActive : {}
+              ]} />
               <View style={styles.tlContent}>
-                <Text style={styles.tlTitleMuted}>Payment & Rating</Text>
+                <Text style={job?.status === 'COMPLETED' ? [styles.tlTitle, {color: theme.colors.primary}] : styles.tlTitleMuted}>Payment & Rating</Text>
               </View>
             </View>
 
           </View>
         </View>
-
-        <TouchableOpacity 
-          style={styles.simulateBtn}
-          onPress={() => navigation.navigate('WorkCompleted', { worker: w })}
-        >
-          <Text style={styles.simulateBtnText}>⚡ Simulate: Work Completed</Text>
-        </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>

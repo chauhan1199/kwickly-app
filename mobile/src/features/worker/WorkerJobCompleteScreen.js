@@ -8,15 +8,20 @@ import {
   TouchableOpacity,
   StatusBar
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import LinearGradient from 'react-native-linear-gradient';
 
-const WorkerJobCompleteScreen = ({ navigation }) => {
+const WorkerJobCompleteScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { signOut } = useAuth();
   const styles = createStyles(theme, isDarkMode);
+
+  const { job, quoteAmount } = route.params || {};
+
+  const amount = quoteAmount || job?.payment?.amount || 499;
+  const commission = Math.round(amount * 0.1);
+  const earning = amount - commission;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -33,8 +38,24 @@ const WorkerJobCompleteScreen = ({ navigation }) => {
         {/* Celebration Graphic */}
         <View style={styles.graphicBox}>
           <Text style={styles.graphicEmoji}>🎉</Text>
-          <Text style={styles.congratsText}>Great work, Ramesh!</Text>
+          <Text style={styles.congratsText}>Great work!</Text>
           <Text style={styles.congratsSub}>Customer is reviewing the completion media</Text>
+        </View>
+
+        {/* Completion Media */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Completion media submitted</Text>
+          <View style={styles.mediaGrid}>
+            <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
+              <Text style={styles.mediaTileText}>✓ Before</Text>
+            </LinearGradient>
+            <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
+              <Text style={styles.mediaTileText}>✓ After</Text>
+            </LinearGradient>
+            <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
+              <Text style={styles.mediaTileText}>🎥 Video</Text>
+            </LinearGradient>
+          </View>
         </View>
 
         {/* Pricing Summary */}
@@ -45,8 +66,8 @@ const WorkerJobCompleteScreen = ({ navigation }) => {
               <Text style={styles.priceSub}>Commission (10%)</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.priceValPositive}>₹499</Text>
-              <Text style={styles.priceValNegative}>-₹50</Text>
+              <Text style={styles.priceValPositive}>₹{amount}</Text>
+              <Text style={styles.priceValNegative}>-₹{commission}</Text>
             </View>
           </View>
           
@@ -57,7 +78,7 @@ const WorkerJobCompleteScreen = ({ navigation }) => {
               <Text style={styles.earningLabel}>Your earning</Text>
               <Text style={styles.earningNote}>Auto-credited on customer payment</Text>
             </View>
-            <Text style={styles.earningVal}>₹449</Text>
+            <Text style={styles.earningVal}>₹{earning}</Text>
           </View>
         </View>
 
@@ -126,6 +147,36 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderWidth: 1, borderColor: theme.colors.border, marginBottom: 40,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 2
+  },
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginBottom: 12,
+  },
+  mediaGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  mediaTileFilled: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mediaTileText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   priceLabel: { fontSize: 16, fontWeight: '700', color: theme.colors.text },

@@ -18,8 +18,8 @@ router.patch('/my/payout-methods/:methodId/primary',authMiddleware, ctrl.setPrim
 router.delete('/my/payout-methods/:methodId',       authMiddleware, ctrl.deletePayoutMethod);
 
 // Admin routes
-router.get('/',                                     authMiddleware, authorize('ADMIN'),  ctrl.getAllShops);
-router.patch('/:id/kyc',                            authMiddleware, authorize('ADMIN'),  validate(reviewKycSchema), ctrl.reviewShopKyc);
+router.get('/',                                     authMiddleware,                       ctrl.getAllShops);
+router.patch('/:id/kyc',                            authMiddleware, authorize('ADMIN'),  ctrl.reviewShopKyc);
 router.patch('/:id/toggle',                         authMiddleware, authorize('ADMIN'),  ctrl.toggleShop);
 
 // Public/Customer: browse shop

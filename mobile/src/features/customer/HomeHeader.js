@@ -10,10 +10,12 @@ import Theme from '../../constants/Theme';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { MapPin, ChevronDown, Bell, Search, Moon, Sun } from 'lucide-react-native';
+import { MapPin, ChevronDown, Bell, Search, Moon, Sun, Package } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 
 const HomeHeader = ({ cityName = 'Mumbai, Maharashtra', onNotificationPress }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
+  const navigation = useNavigation();
   
   return (
     <View style={styles.container}>
@@ -32,6 +34,14 @@ const HomeHeader = ({ cityName = 'Mumbai, Maharashtra', onNotificationPress }) =
         </TouchableOpacity>
 
         <View style={{flexDirection: 'row', gap: 12}}>
+          <TouchableOpacity 
+            style={styles.notificationBtn} 
+            onPress={() => navigation.navigate('CustomerShopOrders')}
+            activeOpacity={0.7}
+          >
+            <Package size={22} color={Theme.colors.text} />
+          </TouchableOpacity>
+
           <TouchableOpacity 
             style={styles.notificationBtn} 
             onPress={toggleTheme}

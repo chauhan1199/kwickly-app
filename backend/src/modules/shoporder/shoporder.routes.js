@@ -19,5 +19,6 @@ router.get('/all',          authMiddleware, authorize('ADMIN'),    ctrl.getAllOr
 
 // Shared (customer + shop)
 router.get('/:id',          authMiddleware,                          ctrl.getOrderById);
+router.get('/:id/invoice',                                           ctrl.downloadInvoice);
 
 module.exports = router;

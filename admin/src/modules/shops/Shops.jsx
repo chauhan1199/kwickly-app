@@ -221,7 +221,7 @@ export default function Shops() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Shop</th><th>Owner</th><th>Location</th>
+                <th>Shop</th><th>Category</th><th>Owner</th><th>Location</th>
                 <th>Orders</th><th>Wallet</th><th>KYC</th><th>Status</th><th>Actions</th>
               </tr>
             </thead>
@@ -232,6 +232,7 @@ export default function Shops() {
                     <div className="cell-primary">{shop.name}</div>
                     <div className="cell-muted">Since {new Date(shop.createdAt).toLocaleDateString('en-IN', { month:'short', year:'numeric' })}</div>
                   </td>
+                  <td><div className="cell-muted">{shop.category || 'General'}</div></td>
                   <td>
                     <div className="cell-primary">{shop.ownerId?.name || '—'}</div>
                     <div className="cell-muted">{shop.ownerId?.phone || '—'}</div>
@@ -271,6 +272,7 @@ export default function Shops() {
           <div className="detail-grid">
             {[
               ['Shop Name', selectedShop.name],
+              ['Category', selectedShop.category || 'General'],
               ['Owner', `${selectedShop.ownerId?.name || '—'} · ${selectedShop.ownerId?.phone || '—'}`],
               ['Address', selectedShop.address || '—'],
               ['Total Orders', selectedShop.totalOrders ?? 0],

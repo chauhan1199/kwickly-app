@@ -75,7 +75,15 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
     const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.PENDING;
     const Icon = cfg.icon;
     return (
-      <TouchableOpacity style={styles.quoteCard} activeOpacity={0.8}>
+      <TouchableOpacity 
+        style={styles.quoteCard} 
+        activeOpacity={0.8}
+        onPress={() => {
+          if (item.status === 'ACCEPTED' && item.jobId?._id) {
+            navigation.navigate('WorkerNavigateJob', { jobId: item.jobId._id, job: item.jobId, quoteAmount: item.amount });
+          }
+        }}
+      >
         <View style={styles.quoteTop}>
           <View style={styles.quoteLeft}>
             <View style={styles.categoryBadge}>

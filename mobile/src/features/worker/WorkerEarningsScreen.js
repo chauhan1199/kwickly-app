@@ -99,6 +99,27 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
   };
 
+  const handleProceedToPay = async () => {
+    if (!selectedPlan) {
+      Alert.alert("Error", "Please select a plan to continue.");
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await api.post('/subscriptions/subscribe', { planId: selectedPlan });
+      if (res.data?.status === 'success') {
+        Alert.alert("Success", "Your subscription plan has been successfully updated!");
+        setPlanModalVisible(false);
+        fetchWalletAndProfile();
+      }
+    } catch (error) {
+      console.log('Topup failed:', error);
+      Alert.alert("Error", error.response?.data?.message || "Failed to process subscription top up.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Data state
   const [selectedPlan, setSelectedPlan] = useState('');
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -316,7 +337,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 ))}
               </View>
 
-              <Button title="Proceed to Pay" onPress={() => {}} />
+              <Button title={loading ? "Processing..." : "Proceed to Pay"} disabled={loading} onPress={handleProceedToPay} />
             </View>
           </TouchableWithoutFeedback>
         </TouchableOpacity>
