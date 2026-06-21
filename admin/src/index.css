@@ -1319,3 +1319,18 @@ textarea.form-control { height: auto; padding: 10px 12px; resize: vertical; min-
 .input-error { border-color: var(--danger) !important; }
 .field-error { color: var(--danger); font-size: 11px; margin-top: 4px; font-family: var(--font-body); }
 
+
+/* Glassmorphism overrides */
+.card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+[data-theme="dark"] .card {
+  background: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
