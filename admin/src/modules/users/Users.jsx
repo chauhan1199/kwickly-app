@@ -5,9 +5,9 @@ import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
-import { TextInput, FormRow, validators } from '../../components/FormInput'
+import { TextInput, validators } from '../../components/FormInput'
 import MapPicker from '../../components/MapPicker'
-import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Copy, MapPin, Upload } from 'lucide-react'
+import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Copy, MapPin, Upload, DollarSign, Briefcase, ShoppingBag } from 'lucide-react'
 
 const PAGE_SIZE = 15
 
@@ -34,6 +34,16 @@ export default function Users() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
+
+  const [walletAmount, setWalletAmount] = useState('')
+  const [walletDesc, setWalletDesc] = useState('')
+  const [walletLoading, setWalletLoading] = useState(false)
+
+  const [detailTab, setDetailTab] = useState('details')
+  const [customerJobs, setCustomerJobs] = useState([])
+  const [customerOrders, setCustomerOrders] = useState([])
+  const [loadingJobs, setLoadingJobs] = useState(false)
+  const [loadingOrders, setLoadingOrders] = useState(false)
 
   useEffect(() => { fetchCustomers() }, [])
 
@@ -162,12 +172,14 @@ export default function Users() {
           setCustomers(prev => prev.map(c => c._id === editUser._id ? updated : c))
           if (detail?._id === editUser._id) setDetail(updated)
           showToast('Customer updated successfully')
+          try { await api.post('/admin/notifications/broadcast', { title: 'Customer Updated', message: `Admin updated profile for "${formData.name}"`, targetRole: 'CUSTOMER' }) } catch {}
           window.dispatchEvent(new Event('admin-action'))
         }
       } else {
         const res = await api.post('/admin/users', { ...payload, role: 'CUSTOMER' })
         if (res.data.status === 'success') {
           showToast('Customer created successfully')
+          try { await api.post('/admin/notifications/broadcast', { title: 'New Customer Created', message: `Admin created account for "${formData.name}"`, targetRole: 'CUSTOMER' }) } catch {}
           fetchCustomers()
           window.dispatchEvent(new Event('admin-action'))
         }
@@ -191,7 +203,9 @@ export default function Users() {
         const updated = res.data.data
         setCustomers(prev => prev.map(c => c._id === id ? updated : c))
         if (detail?._id === id) setDetail(updated)
-        showToast('Customer status updated')
+        const actionText = updated.isVerified ? 'activated' : 'deactivated'
+        showToast(`Customer ${actionText}`)
+        try { await api.post('/admin/notifications/broadcast', { title: `Customer ${actionText.charAt(0).toUpperCase() + actionText.slice(1)}`, message: `Your account has been ${actionText} by admin`, targetRole: 'CUSTOMER' }) } catch {}
         window.dispatchEvent(new Event('admin-action'))
       }
     } catch { showToast('Failed to update status', 'error') }
@@ -199,19 +213,73 @@ export default function Users() {
   }
 
   const deleteCustomer = async (id) => {
+    const custName = detail?._id === id ? detail.name : customers.find(c => c._id === id)?.name || 'Customer'
     try {
       const res = await api.delete(`/admin/users/${id}`)
       if (res.data.status === 'success') {
         setCustomers(prev => prev.filter(c => c._id !== id))
         showToast('Customer deleted')
         if (detail?._id === id) setDetail(null)
+        try { await api.post('/admin/notifications/broadcast', { title: 'Customer Deleted', message: `Admin deleted customer "${custName}". Account and all data have been removed.`, targetRole: 'CUSTOMER' }) } catch {}
         window.dispatchEvent(new Event('admin-action'))
       }
     } catch { showToast('Failed to delete customer', 'error') }
     setConfirm(null)
   }
 
-  const openDetail = (user) => { setDetail(user); setImpersonateToken(null) }
+  const openDetail = (user) => { setDetail(user); setImpersonateToken(null); setDetailTab('details'); setCustomerJobs([]); setCustomerOrders([]); setWalletAmount(''); setWalletDesc('') }
+
+  const fetchCustomerJobs = async (customerId) => {
+    setLoadingJobs(true)
+    try {
+      const res = await api.get(`/admin/customers/${customerId}/jobs`)
+      if (res.data.status === 'success') setCustomerJobs(res.data.data?.jobs || res.data.data || [])
+    } catch { setCustomerJobs([]) }
+    finally { setLoadingJobs(false) }
+  }
+
+  const fetchCustomerOrders = async (customerId) => {
+    setLoadingOrders(true)
+    try {
+      const res = await api.get(`/admin/customers/${customerId}/orders`)
+      if (res.data.status === 'success') setCustomerOrders(res.data.data?.orders || res.data.data || [])
+    } catch { setCustomerOrders([]) }
+    finally { setLoadingOrders(false) }
+  }
+
+  const handleDetailTabChange = (tab) => {
+    setDetailTab(tab)
+    if (tab === 'jobs' && detail && customerJobs.length === 0) fetchCustomerJobs(detail._id)
+    if (tab === 'orders' && detail && customerOrders.length === 0) fetchCustomerOrders(detail._id)
+  }
+
+  const adjustWallet = async (debit) => {
+    if (!walletAmount || Number(walletAmount) <= 0) { showToast('Enter a valid amount', 'error'); return }
+    setWalletLoading(true)
+    try {
+      await api.post('/admin/wallet/adjust', {
+        userId: detail._id,
+        amount: Number(walletAmount),
+        type: 'ADJUSTMENT',
+        debit,
+        description: walletDesc || `Admin ${debit ? 'debit' : 'credit'}`
+      })
+      showToast(`₹${walletAmount} ${debit ? 'debited from' : 'credited to'} wallet`)
+      try { await api.post('/admin/notifications/broadcast', { title: `Wallet ${debit ? 'Debited' : 'Credited'}`, message: `₹${walletAmount} ${debit ? 'debited from' : 'credited to' } "${detail.name}" wallet${walletDesc ? '. ' + walletDesc : ''}`, targetRole: 'CUSTOMER' }) } catch {}
+      setWalletAmount('')
+      setWalletDesc('')
+      const res = await api.get('/admin/customers')
+      if (res.data.status === 'success') {
+        const updated = res.data.data.customers.find(c => c._id === detail._id)
+        if (updated) {
+          setDetail(updated)
+          setCustomers(prev => prev.map(c => c._id === detail._id ? updated : c))
+        }
+      }
+      window.dispatchEvent(new Event('admin-action'))
+    } catch { showToast('Failed to adjust wallet', 'error') }
+    finally { setWalletLoading(false) }
+  }
 
   const handleImpersonate = async (id) => {
     try {
@@ -345,7 +413,7 @@ export default function Users() {
         return (
           <>
             <div className="drawer-overlay" onClick={() => { setDetail(null); setImpersonateToken(null); }} />
-            <div className="drawer">
+            <div className="drawer" style={{ width: 540 }}>
               <div className="drawer-header">
                 <div><div style={{ fontWeight: 800, fontSize: 16 }}>Customer Profile</div><div className="cell-muted">{detail._id}</div></div>
                 <button className="modal-close" onClick={() => { setDetail(null); setImpersonateToken(null); }}>✕</button>
@@ -364,68 +432,171 @@ export default function Users() {
                     <div style={{ color: 'var(--mid)', fontFamily: 'var(--font-body)' }}>{detail.phone}</div>
                     <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
                       <span className={`badge ${detail.isVerified ? 'badge-success' : 'badge-gray'}`}>{detail.isVerified ? 'Active' : 'Inactive'}</span>
+                      {detail.isOnline && <span className="badge badge-purple">Online</span>}
                     </div>
                   </div>
                 </div>
+
                 <div className="divider" />
 
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Details</div>
-                <div className="detail-grid">
-                  <div className="detail-row"><span>Phone</span><strong>{detail.phone || '—'}</strong></div>
-                  <div className="detail-row"><span>Email</span><strong>{detail.email || '—'}</strong></div>
-                  <div className="detail-row"><span>City</span><strong>{detail.city || addr?.city || '—'}</strong></div>
-                  <div className="detail-row"><span>Bio</span><strong>{detail.bio || '—'}</strong></div>
-                  <div className="detail-row"><span>Joined</span><strong>{new Date(detail.createdAt).toLocaleDateString('en-IN')}</strong></div>
-                  <div className="detail-row"><span>Status</span><strong>{detail.isVerified ? 'Active' : 'Inactive'}</strong></div>
-                  <div className="detail-row"><span>Online</span><strong>{detail.isOnline ? 'Yes' : 'No'}</strong></div>
-                  <div className="detail-row"><span>Wallet Balance</span><strong>₹{(detail.wallet?.balance || 0).toLocaleString('en-IN')}</strong></div>
-                  <div className="detail-row"><span>KYC Status</span><strong>{detail.kyc?.status || 'PENDING'}</strong></div>
+                {/* Tab Navigation */}
+                <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--input-bg)', borderRadius: 8, padding: 4 }}>
+                  {[
+                    { key: 'details', label: 'Details', icon: Eye },
+                    { key: 'jobs', label: 'Jobs', icon: Briefcase },
+                    { key: 'orders', label: 'Orders', icon: ShoppingBag },
+                  ].map(tab => (
+                    <button key={tab.key} className={`btn-secondary`} style={{ flex: 1, fontSize: 12, padding: '8px 0', background: detailTab === tab.key ? 'var(--primary)' : 'transparent', color: detailTab === tab.key ? '#fff' : 'var(--mid)', border: 'none', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }} onClick={() => handleDetailTabChange(tab.key)}>
+                      <tab.icon size={13} /> {tab.label}
+                    </button>
+                  ))}
                 </div>
 
-                {addr && (
+                {/* Details Tab */}
+                {detailTab === 'details' && (
                   <>
-                    <div className="divider" />
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Address</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Details</div>
                     <div className="detail-grid">
-                      <div className="detail-row"><span>Label</span><strong>{addr.label || '—'}</strong></div>
-                      <div className="detail-row"><span>Street</span><strong>{addr.street || '—'}</strong></div>
-                      <div className="detail-row"><span>Area</span><strong>{addr.area || '—'}</strong></div>
-                      <div className="detail-row"><span>City</span><strong>{addr.city || '—'}</strong></div>
-                      <div className="detail-row"><span>Pincode</span><strong>{addr.pincode || '—'}</strong></div>
+                      <div className="detail-row"><span>Phone</span><strong>{detail.phone || '—'}</strong></div>
+                      <div className="detail-row"><span>Email</span><strong>{detail.email || '—'}</strong></div>
+                      <div className="detail-row"><span>City</span><strong>{detail.city || addr?.city || '—'}</strong></div>
+                      <div className="detail-row"><span>Bio</span><strong>{detail.bio || '—'}</strong></div>
+                      <div className="detail-row"><span>Joined</span><strong>{new Date(detail.createdAt).toLocaleDateString('en-IN')}</strong></div>
+                      <div className="detail-row"><span>Status</span><strong>{detail.isVerified ? 'Active' : 'Inactive'}</strong></div>
+                      <div className="detail-row"><span>Online</span><strong>{detail.isOnline ? 'Yes' : 'No'}</strong></div>
+                      <div className="detail-row"><span>Wallet Balance</span><strong>₹{(detail.wallet?.balance || 0).toLocaleString('en-IN')}</strong></div>
+                      <div className="detail-row"><span>KYC Status</span><strong>{detail.kyc?.status || 'PENDING'}</strong></div>
                     </div>
+
+                    {addr && (
+                      <>
+                        <div className="divider" />
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Address</div>
+                        <div className="detail-grid">
+                          <div className="detail-row"><span>Label</span><strong>{addr.label || '—'}</strong></div>
+                          <div className="detail-row"><span>Street</span><strong>{addr.street || '—'}</strong></div>
+                          <div className="detail-row"><span>Area</span><strong>{addr.area || '—'}</strong></div>
+                          <div className="detail-row"><span>City</span><strong>{addr.city || '—'}</strong></div>
+                          <div className="detail-row"><span>Pincode</span><strong>{addr.pincode || '—'}</strong></div>
+                        </div>
+                      </>
+                    )}
+
+                    {detail.activeLocation?.coordinates?.[0] !== 0 && detail.activeLocation?.coordinates?.[1] !== 0 && (
+                      <>
+                        <div className="divider" />
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Location</div>
+                        <div className="detail-grid">
+                          <div className="detail-row"><span>Latitude</span><strong>{detail.activeLocation?.coordinates?.[1] || '—'}</strong></div>
+                          <div className="detail-row"><span>Longitude</span><strong>{detail.activeLocation?.coordinates?.[0] || '—'}</strong></div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Wallet Management */}
+                    <div className="divider" />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+                      <DollarSign size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                      Wallet Management
+                    </div>
+                    <div style={{ padding: 12, background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: 8 }}>
+                        <input className="form-control" type="number" min="1" placeholder="Amount (₹)" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} style={{ fontSize: 13 }} />
+                        <input className="form-control" placeholder="Description" value={walletDesc} onChange={e => setWalletDesc(e.target.value)} style={{ fontSize: 13 }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn-primary" style={{ flex: 1, fontSize: 12 }} disabled={walletLoading || !walletAmount} onClick={() => adjustWallet(false)}>
+                          {walletLoading ? '...' : 'Credit ₹'}
+                        </button>
+                        <button className="btn-danger" style={{ flex: 1, fontSize: 12 }} disabled={walletLoading || !walletAmount} onClick={() => adjustWallet(true)}>
+                          {walletLoading ? '...' : 'Debit ₹'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="divider" />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Actions</div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button className={detail.isVerified ? 'btn-danger' : 'btn-primary'} style={{ flex: 1 }} onClick={() => setConfirm({ type: 'toggle', id: detail._id, name: detail.name })}>
+                        {detail.isVerified ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { openEdit(detail); setDetail(null); }}><Edit3 size={14} /> Edit</button>
+                      <button className="btn-danger" onClick={() => setConfirm({ type: 'delete', id: detail._id, name: detail.name })}><Trash2 size={14} /></button>
+                    </div>
+                    <div className="divider" />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Impersonate</div>
+                    {impersonateToken ? (
+                      <div style={{ background: 'var(--input-bg)', padding: 14, borderRadius: 10, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 11, color: 'var(--mid)', marginBottom: 6, fontWeight: 600 }}>Temporary Login Token (1h):</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all', userSelect: 'all', background: 'var(--bg)', padding: 10, borderRadius: 6, marginBottom: 8 }}>{impersonateToken}</div>
+                        <button className="btn-secondary" style={{ width: '100%', height: 32, fontSize: 12 }} onClick={() => copyToken(impersonateToken)}><Copy size={12} /> Copy Token</button>
+                      </div>
+                    ) : (
+                      <button className="btn-secondary" style={{ width: '100%' }} onClick={() => handleImpersonate(detail._id)}>Generate Login Token</button>
+                    )}
                   </>
                 )}
 
-                {detail.activeLocation?.coordinates?.[0] !== 0 && detail.activeLocation?.coordinates?.[1] !== 0 && (
+                {/* Jobs Tab */}
+                {detailTab === 'jobs' && (
                   <>
-                    <div className="divider" />
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Location</div>
-                    <div className="detail-grid">
-                      <div className="detail-row"><span>Latitude</span><strong>{detail.activeLocation?.coordinates?.[1] || '—'}</strong></div>
-                      <div className="detail-row"><span>Longitude</span><strong>{detail.activeLocation?.coordinates?.[0] || '—'}</strong></div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+                      <Briefcase size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                      Customer Jobs
                     </div>
+                    {loadingJobs ? (
+                      <div style={{ padding: 24, textAlign: 'center', color: 'var(--mid)' }}>Loading jobs...</div>
+                    ) : customerJobs.length === 0 ? (
+                      <div style={{ padding: 24, textAlign: 'center', color: 'var(--mid)' }}>No jobs found for this customer</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {customerJobs.map(job => (
+                          <div key={job._id} style={{ padding: 12, background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700 }}>{job.title || job.category?.name || 'Job'}</div>
+                              <span className={`badge badge-${job.status === 'COMPLETED' ? 'success' : job.status === 'CANCELLED' ? 'danger' : job.status === 'IN_PROGRESS' ? 'primary' : 'gray'}`}>{job.status || 'UNKNOWN'}</span>
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--mid)' }}>
+                              {job.category?.name && <span>Category: {job.category.name}</span>}
+                              {job.payment?.amount != null && <span> · ₹{job.payment.amount}</span>}
+                              {job.createdAt && <span> · {new Date(job.createdAt).toLocaleDateString('en-IN')}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
 
-                <div className="divider" />
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Actions</div>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button className={detail.isVerified ? 'btn-danger' : 'btn-primary'} style={{ flex: 1 }} onClick={() => setConfirm({ type: 'toggle', id: detail._id, name: detail.name })}>
-                    {detail.isVerified ? 'Deactivate' : 'Activate'}
-                  </button>
-                  <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { openEdit(detail); setDetail(null); }}><Edit3 size={14} /> Edit</button>
-                  <button className="btn-danger" onClick={() => setConfirm({ type: 'delete', id: detail._id, name: detail.name })}><Trash2 size={14} /></button>
-                </div>
-                <div className="divider" />
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Impersonate</div>
-                {impersonateToken ? (
-                  <div style={{ background: 'var(--input-bg)', padding: 14, borderRadius: 10, border: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--mid)', marginBottom: 6, fontWeight: 600 }}>Temporary Login Token (1h):</div>
-                    <div style={{ fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all', userSelect: 'all', background: 'var(--bg)', padding: 10, borderRadius: 6, marginBottom: 8 }}>{impersonateToken}</div>
-                    <button className="btn-secondary" style={{ width: '100%', height: 32, fontSize: 12 }} onClick={() => copyToken(impersonateToken)}><Copy size={12} /> Copy Token</button>
-                  </div>
-                ) : (
-                  <button className="btn-secondary" style={{ width: '100%' }} onClick={() => handleImpersonate(detail._id)}>Generate Login Token</button>
+                {/* Orders Tab */}
+                {detailTab === 'orders' && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+                      <ShoppingBag size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                      Customer Orders
+                    </div>
+                    {loadingOrders ? (
+                      <div style={{ padding: 24, textAlign: 'center', color: 'var(--mid)' }}>Loading orders...</div>
+                    ) : customerOrders.length === 0 ? (
+                      <div style={{ padding: 24, textAlign: 'center', color: 'var(--mid)' }}>No orders found for this customer</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {customerOrders.map(order => (
+                          <div key={order._id} style={{ padding: 12, background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700 }}>Order #{order._id?.slice(-6) || '—'}</div>
+                              <span className={`badge badge-${order.status === 'DELIVERED' ? 'success' : order.status === 'CANCELLED' ? 'danger' : order.status === 'IN_PROGRESS' ? 'primary' : 'gray'}`}>{order.status || 'UNKNOWN'}</span>
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--mid)' }}>
+                              {order.totalAmount != null && <span>Total: ₹{order.totalAmount}</span>}
+                              {order.items?.length != null && <span> · {order.items.length} item{order.items.length !== 1 ? 's' : ''}</span>}
+                              {order.createdAt && <span> · {new Date(order.createdAt).toLocaleDateString('en-IN')}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

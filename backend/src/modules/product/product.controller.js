@@ -4,8 +4,26 @@ const Shop       = require('../shop/shop.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
+const { emitToAll } = require('../../helpers/socket.helper');
+const Notification = require('../notification/notification.model');
 
 const PRODUCT_CACHE_PREFIX = 'products_list';
+
+const logProductActivity = async (action, product, shop, adminId) => {
+    try {
+        const notification = await Notification.create({
+            title: action === 'CREATE' ? 'Product Added' : action === 'UPDATE' ? 'Product Updated' : 'Product Deleted',
+            message: `"${product.name}" ${action === 'CREATE' ? 'added to' : action === 'UPDATE' ? 'updated in' : 'removed from'} "${shop.name}" (₹${product.price}/${product.unit})`,
+            type: 'ADMIN_ACTIVITY',
+            action,
+            entityType: 'PRODUCT',
+            entityId: product._id,
+            performedBy: adminId,
+            targetRole: 'ADMIN'
+        });
+        try { emitToAll('NEW_NOTIFICATION', notification); } catch (_) {}
+    } catch (e) { console.error('[logProductActivity] Failed:', e.message); }
+};
 
 /**
  * GET /api/v1/products?shopId=xxx
@@ -81,6 +99,12 @@ exports.createProduct = catchAsync(async (req, res) => {
 
     const product = await Product.create({ shopId: targetShopId, ...productData });
 
+    // Log admin activity notification
+    try {
+        const shop = await Shop.findById(targetShopId);
+        if (shop) await logProductActivity('CREATE', product, shop, req.user?._id);
+    } catch (_) {}
+
     // Invalidate product caches
     const { getRedis } = require('../../helpers/redis.helper');
     const redisClient = getRedis();
@@ -125,6 +149,12 @@ exports.updateProduct = catchAsync(async (req, res) => {
     );
     if (!product) return errorResponse(res, 'Product not found or not yours', StatusCodes.NOT_FOUND);
 
+    // Log admin activity notification
+    try {
+        const shop = await Shop.findById(product.shopId);
+        if (shop) await logProductActivity('UPDATE', product, shop, req.user?._id);
+    } catch (_) {}
+
     // Invalidate product caches
     const { getRedis } = require('../../helpers/redis.helper');
     const redisClient = getRedis();
@@ -149,6 +179,12 @@ exports.deleteProduct = catchAsync(async (req, res) => {
 
     const product = await Product.findOneAndDelete(query);
     if (!product) return errorResponse(res, 'Product not found', StatusCodes.NOT_FOUND);
+
+    // Log admin activity notification
+    try {
+        const shop = await Shop.findById(product.shopId);
+        if (shop) await logProductActivity('DELETE', product, shop, req.user?._id);
+    } catch (_) {}
 
     // Invalidate product caches
     const { getRedis } = require('../../helpers/redis.helper');

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, FlatList,
   TouchableOpacity, StatusBar
@@ -6,8 +6,11 @@ import {
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { Bell, CheckCheck, Briefcase, ShoppingBag, Wallet, Star } from 'lucide-react-native';
 import AppBar from '../../components/AppBar';
+import api from '../../services/api';
+import { useFocusEffect } from '@react-navigation/native';
 
 const TYPE_CONFIG = {
   JOB:    { icon: Briefcase,   color: '#0e9aa7', bg: '#e0f7fa' },
@@ -19,16 +22,61 @@ const TYPE_CONFIG = {
 
 const NotificationsScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
   
-  // We'll initialize an empty state. In a real scenario, this would fetch from a /notifications/my endpoint.
   const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await api.get('/notifications/my');
+      if (response.data?.status === 'success') {
+        const notifs = response.data.data.notifications.map(n => ({
+          id: n._id,
+          title: n.title,
+          body: n.message,
+          type: n.targetRole === 'WORKER' ? 'JOB' : 'ORDER', // Simplified mapping based on existing roles
+          time: new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          read: n.readBy?.includes(user?._id) || false,
+        }));
+        setNotifications(notifs);
+      }
+    } catch (error) {
+      console.log('Failed to fetch notifications', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications();
+    }, [])
+  );
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const markAllRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllRead = async () => {
+    try {
+      await api.patch('/notifications/read-all');
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (e) {
+      console.log('Failed to mark all as read', e);
+    }
+  };
 
-  const markRead = (id) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markRead = async (id) => {
+    const notif = notifications.find(n => n.id === id);
+    if (notif && notif.read) return; // already read
+
+    try {
+      await api.patch(`/notifications/${id}/read`);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch (e) {
+      console.log('Failed to mark as read', e);
+    }
+  };
 
   const renderItem = ({ item }) => {
     const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.JOB;
@@ -79,7 +127,7 @@ const NotificationsScreen = ({ navigation }) => {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Bell size={48} color={theme.colors.textDim} />
-            <Text style={styles.emptyText}>No notifications yet</Text>
+            <Text style={styles.emptyText}>{loading ? "Loading..." : "No notifications yet"}</Text>
             <Text style={styles.emptyDesc}>You'll see job alerts, order updates, and payment info here</Text>
           </View>
         }

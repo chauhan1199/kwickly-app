@@ -1,27 +1,32 @@
 import api from './api';
 
 export const authService = {
-  /** Send OTP to phone number */
-  sendOtp: (phone) =>
-    api.post('/auth/send-otp', { phone }),
+  sendOtp: (phone, role) =>
+    api.post('/auth/send-otp', { phone, role }),
 
-  /** Verify OTP and get JWT */
-  verifyOtp: (phone, otp) =>
-    api.post('/auth/verify-otp', { phone, otp }),
+  verifyOtp: (phone, otp, role) =>
+    api.post('/auth/verify-otp', { phone, code: otp, role }),
 
-  /** Register new user with role */
-  register: (data) =>
-    api.post('/auth/register', data),
+  checkStatus: (phone, role) =>
+    api.post('/auth/check-status', { phone, role }),
 
-  /** Login with phone + password */
-  login: (phone, password) =>
-    api.post('/auth/login', { phone, password }),
+  login: (phone, password, role) =>
+    api.post('/auth/login', { phone, password, role }),
 
-  /** Get current user profile */
+  setPassword: (password, token) =>
+    api.patch('/auth/set-password', { password }, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    }),
+
   getProfile: () =>
     api.get('/auth/me'),
 
-  /** Update current user profile */
-  updateProfile: (data) =>
-    api.patch('/auth/me', data),
+  logout: () =>
+    api.post('/auth/logout'),
+
+  forgotPassword: (phone, role) =>
+    api.post('/auth/forgot-password', { phone, role }),
+
+  resetPassword: (phone, code, newPassword, role) =>
+    api.post('/auth/reset-password', { phone, code, newPassword, role }),
 };

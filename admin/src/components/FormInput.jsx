@@ -1,0 +1,129 @@
+import React from 'react'
+
+function FormField({ label, children, error, hint }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {label && <label className="input-label">{label}</label>}
+      {children}
+      {error && <div style={{ fontSize: 12, color: '#EF4444', marginTop: 4, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 14 }}>⚠</span> {error}
+      </div>}
+      {hint && !error && <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4, fontFamily: 'var(--font-body)' }}>{hint}</div>}
+    </div>
+  )
+}
+
+export function TextInput({ label, value, onChange, placeholder, required, type = 'text', error, hint, disabled, maxLength, pattern, inputMode }) {
+  const borderColor = error ? '#EF4444' : undefined
+  return (
+    <FormField label={label} error={error} hint={hint}>
+      <input
+        type={type}
+        className="form-control"
+        value={value || ''}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        disabled={disabled}
+        maxLength={maxLength}
+        pattern={pattern}
+        inputMode={inputMode}
+        style={{
+          background: disabled ? 'var(--bg)' : 'var(--input-bg)',
+          borderColor: borderColor,
+        }}
+      />
+    </FormField>
+  )
+}
+
+export function SelectInput({ label, value, onChange, options, required, error, hint }) {
+  const borderColor = error ? '#EF4444' : undefined
+  return (
+    <FormField label={label} error={error} hint={hint}>
+      <select
+        className="form-control"
+        value={value || ''}
+        onChange={onChange}
+        required={required}
+        style={{ borderColor }}
+      >
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </FormField>
+  )
+}
+
+export function TextArea({ label, value, onChange, placeholder, rows = 3, error, hint, maxLength }) {
+  const borderColor = error ? '#EF4444' : undefined
+  return (
+    <FormField label={label} error={error} hint={hint}>
+      <textarea
+        className="form-control"
+        value={value || ''}
+        onChange={onChange}
+        placeholder={placeholder}
+        rows={rows}
+        maxLength={maxLength}
+        style={{ height: 'auto', padding: '10px 12px', resize: 'vertical', minHeight: 80, borderColor }}
+      />
+      {maxLength && <div style={{ fontSize: 10, color: 'var(--light)', textAlign: 'right', marginTop: 2 }}>{(value || '').length}/{maxLength}</div>}
+    </FormField>
+  )
+}
+
+export function FormRow({ children }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      {children}
+    </div>
+  )
+}
+
+// ─── Validation Helpers ──────────────────────────────────────────────────────
+export const validators = {
+  phone: (value) => {
+    if (!value) return 'Phone number is required'
+    const cleaned = value.replace(/[\s\-+()]/g, '')
+    if (!/^[6-9]\d{9}$/.test(cleaned)) return 'Enter a valid 10-digit Indian mobile number starting with 6-9'
+    return null
+  },
+  name: (value, minLength = 2) => {
+    if (!value || !value.trim()) return 'Name is required'
+    if (value.trim().length < minLength) return `Name must be at least ${minLength} characters`
+    if (/\d/.test(value)) return 'Name should not contain numbers'
+    return null
+  },
+  email: (value) => {
+    if (!value) return null // optional
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address'
+    return null
+  },
+  required: (value, fieldName) => {
+    if (!value || (typeof value === 'string' && !value.trim())) return `${fieldName} is required`
+    return null
+  },
+  price: (value) => {
+    if (!value && value !== 0) return 'Price is required'
+    if (isNaN(value) || Number(value) <= 0) return 'Price must be greater than 0'
+    return null
+  },
+  shopName: (value) => {
+    if (!value || !value.trim()) return 'Shop name is required'
+    if (value.trim().length < 3) return 'Shop name must be at least 3 characters'
+    return null
+  },
+  number: (value, fieldName, min = 0) => {
+    if (!value && value !== 0) return `${fieldName} is required`
+    if (isNaN(value) || Number(value) < min) return `Enter a valid ${fieldName.toLowerCase()} (min: ${min})`
+    return null
+  },
+  pincode: (value) => {
+    if (!value) return 'Pincode is required'
+    const cleaned = String(value).replace(/\s/g, '')
+    if (!/^\d{6}$/.test(cleaned)) return 'Enter a valid 6-digit pincode'
+    return null
+  },
+}

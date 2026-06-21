@@ -6,6 +6,8 @@ const SuggestionSchema = new mongoose.Schema({
         ref: 'Customer',
         required: true
     },
+    workerName: { type: String },
+    workerCity: { type: String },
     type: {
         type: String,
         enum: ['new_category', 'new_subcategory'],
@@ -25,6 +27,7 @@ const SuggestionSchema = new mongoose.Schema({
         default: 'pending'
     },
     rejectReason: { type: String },
+    approveReason: { type: String },
     submittedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 

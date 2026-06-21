@@ -8,13 +8,24 @@ const upload = require('../../middleware/upload.middleware');
 router.use(authMiddleware);
 
 // -- Worker Profile & Settings --
+router.get('/me', authorize('WORKER'), workerController.getProfile);
 router.patch('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateProfile);
+router.put('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateFullProfile);
 router.patch('/me/kyc', authorize('WORKER'), upload.single('document'), workerController.updateKyc);
 router.patch('/me/bank', workerController.updateBank);
 router.patch('/me/services', workerController.updateServices);
 router.patch('/me/location', workerController.updateLocation);
 router.patch('/me/online', authorize('WORKER'), workerController.toggleOnlineStatus);
-router.post('/me/category-suggestions', workerController.submitCategorySuggestion);
+
+// -- Worker Earnings --
+router.get('/earnings/summary', authorize('WORKER'), workerController.getEarningsSummary);
+router.get('/earnings/chart', authorize('WORKER'), workerController.getEarningsChart);
+router.get('/earnings/transactions', authorize('WORKER'), workerController.getEarningsTransactions);
+router.post('/earnings/withdraw', authorize('WORKER'), workerController.requestEarningsWithdrawal);
+
+// -- Worker Category Suggestions --
+router.post('/category-suggestions', authorize('WORKER'), workerController.submitCategorySuggestion);
+router.get('/category-suggestions', authorize('WORKER'), workerController.getSuggestions);
 
 // -- Worker Addresses --
 router.post('/me/addresses', authorize('WORKER'), workerController.addAddress);

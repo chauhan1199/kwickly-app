@@ -30,7 +30,8 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
       setLoading(true);
       const res = await api.get('/shoporders/customer');
       if (res.data?.status === 'success') {
-        setOrders(res.data.data);
+        const list = res.data.data.orders || res.data.data;
+        setOrders(list);
       }
     } catch (e) {
       console.log('Error fetching customer shop orders', e);

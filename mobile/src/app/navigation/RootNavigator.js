@@ -6,8 +6,6 @@ import AuthStack from './AuthStack';
 import CustomerTabs from './CustomerTabs';
 import ShopTabs from './ShopTabs';
 import WorkerTabs from './WorkerTabs';
-import ShopOrderDetailsScreen from '../../features/shop/ShopOrderDetailsScreen';
-import ShopNotificationsScreen from '../../features/shop/ShopNotificationsScreen';
 import ChatScreen from '../../features/chat/ChatScreen';
 import { View, ActivityIndicator } from 'react-native';
 import Theme from '../../constants/Theme';
@@ -39,8 +37,6 @@ const RootNavigator = () => {
           ) : userRole === 'SHOP' ? (
             <Stack.Group>
               <Stack.Screen name="ShopApp" component={ShopTabs} />
-              <Stack.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
-              <Stack.Screen name="ShopNotifications" component={ShopNotificationsScreen} />
             </Stack.Group>
           ) : (
             /* WORKER — now has full tab navigator */

@@ -15,7 +15,8 @@ const placeOrderSchema = Joi.object({
     deliveryLocation: Joi.object({
         type: Joi.string().valid('Point').default('Point'),
         coordinates: Joi.array().items(Joi.number()).length(2).required()
-    }).required()
+    }).required(),
+    promoCode: Joi.string().optional()
 });
 
 const updateOrderStatusSchema = Joi.object({

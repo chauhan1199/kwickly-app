@@ -17,7 +17,8 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
 const LoginScreen = ({ navigation, route }) => {
-  const { role = 'CUSTOMER', prefillPhone = '' } = route.params || {};
+  const { role: initialRole = 'CUSTOMER', prefillPhone = '' } = route.params || {};
+  const [role, setRole] = useState(initialRole);
   const { signIn } = useAuth();
   const [loginMode, setLoginMode] = useState('PASSWORD'); // Default to PASSWORD if they got routed here
   const [phone, setPhone] = useState(prefillPhone);
@@ -62,8 +63,30 @@ const LoginScreen = ({ navigation, route }) => {
           </TouchableOpacity>
 
           <View style={styles.header}>
-            <Text style={styles.title}>Welcome back, {role.toLowerCase()}!</Text>
-            <Text style={styles.subtitle}>Enter your details to continue</Text>
+            <Text style={styles.title}>Welcome back!</Text>
+            <Text style={styles.subtitle}>Select your profile type to continue</Text>
+          </View>
+
+          <View style={[styles.modeSwitcher, { backgroundColor: 'transparent', padding: 0 }]}>
+            {['CUSTOMER', 'WORKER', 'SHOP'].map(r => (
+              <TouchableOpacity 
+                key={r}
+                onPress={() => setRole(r)}
+                style={[
+                  styles.modeTab, 
+                  role === r ? { backgroundColor: Theme.colors.primary, borderWidth: 0 } : { backgroundColor: Theme.colors.card, borderWidth: 1, borderColor: Theme.colors.border },
+                  { marginRight: r !== 'SHOP' ? 8 : 0, borderRadius: 20, paddingVertical: 8 }
+                ]}
+              >
+                <Text style={[
+                  styles.modeText, 
+                  role === r ? { color: Theme.colors.white } : { color: Theme.colors.textDim },
+                  { fontSize: 13, fontWeight: '700' }
+                ]}>
+                  {r === 'CUSTOMER' ? 'Customer' : r === 'WORKER' ? 'Worker' : 'Shop'}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           <View style={styles.modeSwitcher}>

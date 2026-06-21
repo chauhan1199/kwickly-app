@@ -35,7 +35,9 @@ const WalletTxnSchema = new mongoose.Schema({
     invoiceUrl: { type: String }
 }, { timestamps: true });
 
-WalletTxnSchema.index({ userId: 1, createdAt: -1 });
-WalletTxnSchema.index({ type: 1 });
+WalletTxnSchema.index({ userId: 1, createdAt: -1 });     // User transaction history
+WalletTxnSchema.index({ userId: 1, type: 1 });           // Filter by user+type
+WalletTxnSchema.index({ type: 1, createdAt: -1 });       // Admin ledger filter
+WalletTxnSchema.index({ status: 1 });                    // Pending/failed lookup
 
 module.exports = mongoose.model('WalletTxn', WalletTxnSchema);

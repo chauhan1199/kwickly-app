@@ -14,10 +14,14 @@ import Payouts        from './modules/payouts/Payouts'
 import Subscriptions  from './modules/subscriptions/Subscriptions'
 import AdminUsers     from './modules/admin-users/AdminUsers'
 import Disputes       from './modules/disputes/Disputes'
-import Suggestions    from './modules/suggestions/Suggestions'
 import Ledger         from './modules/ledger/Ledger'
 import Reports        from './modules/reports/Reports'
 import Shops          from './modules/shops/Shops'
+import Promotions     from './modules/promotions/Promotions'
+import Settlements    from './modules/settlements/Settlements'
+import Orders         from './modules/orders/Orders'
+import Wallets        from './modules/wallets/Wallets'
+import AdminWallet    from './modules/admin-wallet/AdminWallet'
 import './index.css'
 
 function App() {
@@ -50,12 +54,16 @@ function App() {
           
           {/* Finance */}
           <Route path="payouts"      element={<Payouts />} />
+          <Route path="wallets"      element={<Wallets />} />
+          <Route path="admin-wallet" element={<AdminWallet />} />
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="ledger"       element={<Ledger />} />
           
           {/* Platform Ext */}
+          <Route path="orders"      element={<Orders />} />
+          <Route path="settlements" element={<Settlements />} />
+          <Route path="promotions"  element={<Promotions />} />
           <Route path="disputes"     element={<Disputes />} />
-          <Route path="suggestions"  element={<Suggestions />} />
           
           {/* Communications */}
           <Route path="notifications" element={<Notifications />} />

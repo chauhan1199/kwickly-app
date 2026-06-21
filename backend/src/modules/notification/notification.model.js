@@ -21,12 +21,12 @@ const NotificationSchema = new mongoose.Schema({
     },
     action: {
         type: String,
-        enum: ['CREATE', 'UPDATE', 'DELETE', 'TOGGLE_STATUS', 'KYC', 'PAYOUT', 'BROADCAST', 'SYSTEM', 'OTHER'],
+        enum: ['CREATE', 'UPDATE', 'DELETE', 'TOGGLE_STATUS', 'KYC', 'PAYOUT', 'WALLET_CREDIT', 'WALLET_DEBIT', 'IMPERSONATE', 'SETTLE', 'BROADCAST', 'SYSTEM', 'OTHER'],
         default: 'OTHER'
     },
     entityType: {
         type: String,
-        enum: ['CUSTOMER', 'WORKER', 'SHOP', 'JOB', 'ORDER', 'PAYOUT', 'KYC', 'CATEGORY', 'PROMOTION', 'SETTINGS', 'OTHER']
+        enum: ['CUSTOMER', 'WORKER', 'SHOP', 'JOB', 'ORDER', 'PAYOUT', 'WALLET', 'KYC', 'CATEGORY', 'PROMOTION', 'PRODUCT', 'SETTINGS', 'OTHER']
     },
     entityId: {
         type: mongoose.Schema.Types.ObjectId

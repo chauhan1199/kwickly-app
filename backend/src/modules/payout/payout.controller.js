@@ -31,13 +31,14 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
     const { status, txnId, rejectReason } = req.body;
 
     const mongoose = require('mongoose');
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
+    const session = isSingle ? null : await mongoose.startSession();
+    if (session) session.startTransaction();
     try {
         const payout = await Payout.findById(id).session(session);
         if (!payout) {
-            await session.abortTransaction();
-            session.endSession();
+            if (session) await session.abortTransaction();
+            if (session) session.endSession();
             return errorResponse(res, 'Payout request not found', StatusCodes.NOT_FOUND);
         }
 
@@ -81,16 +82,14 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
             }
         }
 
-        await session.commitTransaction();
-        session.endSession();
+        if (session) await session.commitTransaction();
+        if (session) session.endSession();
 
         await delCache(CACHE_KEY);
         return successResponse(res, payout, `Payout ${status.toLowerCase()} successfully`);
     } catch (error) {
-        if (session.inTransaction()) {
-            await session.abortTransaction();
-        }
-        session.endSession();
+        if (session) await session.abortTransaction();
+        if (session) session.endSession();
         throw error;
     }
 });

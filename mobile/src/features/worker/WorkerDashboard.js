@@ -16,6 +16,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import useSocket from '../../hooks/useSocket';
 import { jobService } from '../../services/jobService';
 import api from '../../services/api';
 import AppBar from '../../components/AppBar';
@@ -23,12 +24,17 @@ import { Bell, Moon, Sun } from 'lucide-react-native';
 
 const WorkerDashboard = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
-  const { user, socket, signOut, fetchUser } = useAuth();
+  const { user, signOut, fetchUser } = useAuth();
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? false);
   const [refreshing, setRefreshing] = useState(false);
   const [availableJobs, setAvailableJobs] = useState([]);
   const [walletBalance, setWalletBalance] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const { socket } = useSocket({
+    role: 'WORKER',
+    userId: user?._id
+  });
 
   useFocusEffect(
     React.useCallback(() => {

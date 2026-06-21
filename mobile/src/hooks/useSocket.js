@@ -18,6 +18,12 @@ const SOCKET_URL = 'http://10.0.2.2:5000';
  */
 const useSocket = ({ role, userId, shopId, onEvent }) => {
   const socketRef = useRef(null);
+  const onEventRef = useRef(onEvent);
+
+  // Keep ref fresh without triggering reconnects
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
 
   const getOrCreate = useCallback(async () => {
     if (socketRef.current?.connected) return socketRef.current;
@@ -43,11 +49,13 @@ const useSocket = ({ role, userId, shopId, onEvent }) => {
       'WORKER_LOCATION', 'NEW_MESSAGE',
       'START_TIMER', 'JOB_STARTED', 'JOB_COMPLETED', 'JOB_PAID',
       'NEW_ORDER', 'ORDER_STATUS',
-      'DASHBOARD_UPDATE',
+      'DASHBOARD_UPDATE', 'NEW_NOTIFICATION',
     ];
 
     EVENTS.forEach(ev => {
-      socket.on(ev, (data) => onEvent?.(ev, data));
+      socket.on(ev, (data) => {
+        onEventRef.current?.(ev, data);
+      });
     });
 
     socket.on('disconnect', () => {
@@ -76,6 +84,7 @@ const useSocket = ({ role, userId, shopId, onEvent }) => {
     leaveJobRoom,
     emit,
     connected: socketRef.current?.connected ?? false,
+    socket: socketRef.current // Expose raw socket if manual on/off is needed
   };
 };
 

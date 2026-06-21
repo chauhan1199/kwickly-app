@@ -21,28 +21,30 @@ exports.sendBroadcast = catchAsync(async (req, res) => {
 });
 
 exports.getNotifications = catchAsync(async (req, res) => {
-    const notifications = await Notification.find({ type: 'BROADCAST' })
+    const notifications = await Notification.find({
+        $or: [
+            { type: 'BROADCAST', targetRole: { $in: ['ALL', req.user.role] } },
+            { type: 'ADMIN_ACTIVITY', targetRole: 'ADMIN' }
+        ]
+    })
         .sort({ createdAt: -1 })
         .limit(50);
     
     return successResponse(res, notifications, 'Notifications fetched successfully');
 });
 
-exports.getMyNotifications = catchAsync(async (req, res) => {
-    const query = {
-        $or: [
-            { userId: req.user._id },
-            { type: 'BROADCAST', targetRole: { $in: ['ALL', req.user.role] } }
-        ]
-    };
-    const notifications = await Notification.find(query)
+exports.getAdminActivityLogs = catchAsync(async (req, res) => {
+    const { page = 1, limit = 30, type } = req.query;
+    const query = { type: 'ADMIN_ACTIVITY', targetRole: 'ADMIN' };
+    if (type && type !== 'all') query.action = type.toUpperCase();
+
+    const total = await Notification.countDocuments(query);
+    const logs = await Notification.find(query)
         .sort({ createdAt: -1 })
-        .limit(50);
-    
-    // Calculate unread count
-    const unreadCount = notifications.filter(n => !n.readBy.includes(req.user._id)).length;
-    
-    return successResponse(res, { notifications, unreadCount }, 'Notifications fetched');
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit));
+
+    return successResponse(res, { logs, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Activity logs fetched');
 });
 
 exports.markAsRead = catchAsync(async (req, res) => {
@@ -54,11 +56,29 @@ exports.markAsRead = catchAsync(async (req, res) => {
     return successResponse(res, notification, 'Marked as read');
 });
 
+exports.getMyNotifications = catchAsync(async (req, res) => {
+    const query = {
+        $or: [
+            { userId: req.user._id },
+            { type: 'BROADCAST', targetRole: { $in: ['ALL', req.user.role] } },
+            { type: 'ADMIN_ACTIVITY', targetRole: 'ADMIN' }
+        ]
+    };
+    const notifications = await Notification.find(query)
+        .sort({ createdAt: -1 })
+        .limit(50);
+
+    const unreadCount = notifications.filter(n => !n.readBy.includes(req.user._id)).length;
+
+    return successResponse(res, { notifications, unreadCount }, 'Notifications fetched');
+});
+
 exports.markAllAsRead = catchAsync(async (req, res) => {
     const query = {
         $or: [
             { userId: req.user._id },
-            { type: 'BROADCAST', targetRole: { $in: ['ALL', req.user.role] } }
+            { type: 'BROADCAST', targetRole: { $in: ['ALL', req.user.role] } },
+            { type: 'ADMIN_ACTIVITY', targetRole: 'ADMIN' }
         ]
     };
     

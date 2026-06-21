@@ -9,6 +9,10 @@ import ShopOrdersScreen from '../../features/shop/ShopOrdersScreen';
 import ShopProductsScreen from '../../features/shop/ShopProductsScreen';
 import ShopWalletScreen from '../../features/shop/ShopWalletScreen';
 import ShopSettingsScreen from '../../features/shop/ShopSettingsScreen';
+import ShopOrderDetailsScreen from '../../features/shop/ShopOrderDetailScreen';
+import ShopNotificationsScreen from '../../features/shop/ShopNotificationsScreen';
+import ShopDeliveryConfigScreen from '../../features/shop/ShopDeliveryConfigScreen';
+import CreateShopScreen from '../../features/shop/CreateShopScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -18,6 +22,10 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         
+        // Only show main tabs in the bottom bar
+        const mainTabs = ['Dashboard', 'Orders', 'Products', 'Wallet', 'Settings'];
+        if (!mainTabs.includes(route.name)) return null;
+
         const label = options.tabBarLabel !== undefined ? options.tabBarLabel : route.name;
         const isFocused = state.index === index;
 
@@ -64,6 +72,12 @@ const ShopTabs = () => {
       <Tab.Screen name="Products" component={ShopProductsScreen} />
       <Tab.Screen name="Wallet" component={ShopWalletScreen} />
       <Tab.Screen name="Settings" component={ShopSettingsScreen} />
+      
+      {/* Sub-screens registered here to keep the bottom tab bar visible */}
+      <Tab.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
+      <Tab.Screen name="ShopNotifications" component={ShopNotificationsScreen} />
+      <Tab.Screen name="ShopDeliveryConfig" component={ShopDeliveryConfigScreen} />
+      <Tab.Screen name="CreateShop" component={CreateShopScreen} />
     </Tab.Navigator>
   );
 };

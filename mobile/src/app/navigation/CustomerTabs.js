@@ -30,6 +30,9 @@ import CustomerWalletScreen from '../../features/customer/CustomerWalletScreen';
 import CartScreen from '../../features/customer/CartScreen';
 import NotificationsScreen from '../../features/shared/NotificationsScreen';
 import ShopDetailScreen from '../../features/customer/ShopDetailScreen';
+import OrderTrackingScreen from '../../features/customer/OrderTrackingScreen';
+import OrderHistoryScreen from '../../features/customer/OrderHistoryScreen';
+import WalletTopupScreen from '../../features/customer/WalletTopupScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -131,6 +134,9 @@ const CustomerTabs = () => {
       <Tab.Screen name="Notifications"   component={NotificationsScreen}   />
       <Tab.Screen name="Quotes"          component={QuotesScreen}          />
       <Tab.Screen name="ShopDetail"       component={ShopDetailScreen}            />
+      <Tab.Screen name="OrderTracking"    component={OrderTrackingScreen}         />
+      <Tab.Screen name="OrderHistory"     component={OrderHistoryScreen}          />
+      <Tab.Screen name="WalletTopup"      component={WalletTopupScreen}           />
     </Tab.Navigator>
   );
 };

@@ -9,6 +9,7 @@ const { placeOrderSchema, updateOrderStatusSchema } = require('../../validators/
 // Customer
 router.post('/',            authMiddleware, authorize('CUSTOMER'), validate(placeOrderSchema), ctrl.placeOrder);
 router.get('/customer',     authMiddleware, authorize('CUSTOMER'), ctrl.getCustomerOrders);
+router.post('/:id/cancel',  authMiddleware, authorize('CUSTOMER'), ctrl.cancelOrder);
 
 // Shop owner
 router.get('/shop',         authMiddleware, authorize('SHOP'),     ctrl.getShopOrders);
@@ -16,9 +17,10 @@ router.patch('/:id/status', authMiddleware, authorize('SHOP'),     validate(upda
 
 // Admin
 router.get('/all',          authMiddleware, authorize('ADMIN'),    ctrl.getAllOrders);
+router.patch('/:id/status', authMiddleware, authorize('ADMIN'),    validate(updateOrderStatusSchema), ctrl.updateOrderStatus);
 
 // Shared (customer + shop)
 router.get('/:id',          authMiddleware,                          ctrl.getOrderById);
-router.get('/:id/invoice',                                           ctrl.downloadInvoice);
+router.get('/:id/invoice',  authMiddleware,                          ctrl.downloadInvoice);
 
 module.exports = router;

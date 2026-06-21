@@ -1,14 +1,22 @@
 const Joi = require('joi');
 
 const createShopSchema = Joi.object({
-    name: Joi.string().required(),
-    description: Joi.string().allow(''),
-    category: Joi.string().required(),
-    address: Joi.string().required(),
+    name: Joi.string().min(3).max(100).required().messages({
+        'string.min': 'Shop name must be at least 3 characters',
+        'any.required': 'Shop name is required'
+    }),
+    description: Joi.string().allow('').max(500),
+    category: Joi.string().min(2).max(50).required().messages({
+        'any.required': 'Category is required'
+    }),
+    address: Joi.string().min(3).max(200).required().messages({
+        'string.min': 'Address must be at least 3 characters',
+        'any.required': 'Address is required'
+    }),
     location: Joi.object({
         type: Joi.string().valid('Point').default('Point'),
-        coordinates: Joi.array().items(Joi.number()).length(2).required()
-    }).required(),
+        coordinates: Joi.array().items(Joi.number()).length(2)
+    }).optional(),
     delivery: Joi.object({
         fee: Joi.number().min(0).default(0),
         freeAbove: Joi.number().min(0).default(0),
@@ -17,16 +25,77 @@ const createShopSchema = Joi.object({
 });
 
 const updateShopSchema = Joi.object({
-    name: Joi.string().optional(),
-    description: Joi.string().allow('').optional(),
-    category: Joi.string().optional(),
-    address: Joi.string().optional(),
-    location: Joi.string().optional(), // In case it's sent as a stringified JSON due to form-data
+    name: Joi.string().min(3).max(100).optional(),
+    description: Joi.string().allow('').max(500).optional(),
+    category: Joi.string().min(2).max(50).optional(),
+    address: Joi.string().min(3).max(200).optional(),
+    location: Joi.string().optional(),
     delivery: Joi.object({
         fee: Joi.number().min(0).optional(),
         freeAbove: Joi.number().min(0).optional(),
         estimatedMinutes: Joi.number().min(0).optional()
     }).optional()
+}).min(1);
+
+const createShopAdminSchema = Joi.object({
+    name: Joi.string().min(3).max(100).required().messages({ 'any.required': 'Shop name is required' }),
+    category: Joi.string().min(2).max(50).required().messages({ 'any.required': 'Category is required' }),
+    description: Joi.string().allow('').max(500).optional(),
+    address: Joi.string().min(3).max(200).required().messages({ 'any.required': 'Address is required' }),
+    ownerName: Joi.string().min(2).max(100).optional(),
+    ownerPhone: Joi.string().min(10).max(15).required().messages({ 'any.required': 'Owner phone is required' }),
+    ownerEmail: Joi.string().email().optional(),
+    logoUrl: Joi.string().uri().optional().allow(''),
+    location: Joi.object({
+        type: Joi.string().valid('Point').default('Point'),
+        coordinates: Joi.array().items(Joi.number()).length(2)
+    }).optional(),
+    delivery: Joi.object({
+        radiusKm: Joi.number().min(0).max(100).optional(),
+        fee: Joi.number().min(0).optional(),
+        freeAbove: Joi.number().min(0).optional()
+    }).optional(),
+    businessHours: Joi.object({
+        monFri: Joi.string().max(50).optional(),
+        sat: Joi.string().max(50).optional(),
+        sun: Joi.string().max(50).optional()
+    }).optional(),
+    subscription: Joi.object({
+        plan: Joi.string().valid('FREE_TRIAL', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY').optional(),
+        validUntil: Joi.date().optional()
+    }).optional()
+});
+
+const updateShopAdminSchema = Joi.object({
+    name: Joi.string().min(3).max(100).optional(),
+    category: Joi.string().min(2).max(50).optional(),
+    description: Joi.string().allow('').max(500).optional(),
+    address: Joi.string().min(3).max(200).optional(),
+    logoUrl: Joi.string().uri().optional().allow(''),
+    location: Joi.object({
+        type: Joi.string().valid('Point').default('Point'),
+        coordinates: Joi.array().items(Joi.number()).length(2)
+    }).optional(),
+    delivery: Joi.object({
+        radiusKm: Joi.number().min(0).max(100).optional(),
+        fee: Joi.number().min(0).optional(),
+        freeAbove: Joi.number().min(0).optional()
+    }).optional(),
+    businessHours: Joi.object({
+        monFri: Joi.string().max(50).optional(),
+        sat: Joi.string().max(50).optional(),
+        sun: Joi.string().max(50).optional()
+    }).optional(),
+    subscription: Joi.object({
+        plan: Joi.string().valid('FREE_TRIAL', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY').optional(),
+        validUntil: Joi.date().optional()
+    }).optional(),
+    isOnline: Joi.boolean().optional()
+}).min(1);
+
+const shopWalletSchema = Joi.object({
+    amount: Joi.number().min(1).required().messages({ 'any.required': 'Amount is required' }),
+    description: Joi.string().max(200).optional()
 });
 
 const addPayoutMethodSchema = Joi.object({
@@ -51,6 +120,9 @@ const reviewKycSchema = Joi.object({
 module.exports = {
     createShopSchema,
     updateShopSchema,
+    createShopAdminSchema,
+    updateShopAdminSchema,
+    shopWalletSchema,
     addPayoutMethodSchema,
     withdrawSchema,
     updateOwnerSchema,

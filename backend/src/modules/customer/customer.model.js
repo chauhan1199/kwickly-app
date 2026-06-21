@@ -60,9 +60,15 @@ const CustomerSchema = new mongoose.Schema({
         isActive: { type: Boolean, default: true }
     }],
     isOnline: { type: Boolean, default: false },
+    city: { type: String },
+    bio: { type: String },
     rating: {
         average: { type: Number, default: 0 },
         count: { type: Number, default: 0 }
+    },
+    notificationPreferences: {
+        jobUpdates: { type: Boolean, default: true },
+        promotions: { type: Boolean, default: true }
     }
 }, { timestamps: true });
 
@@ -72,5 +78,7 @@ CustomerSchema.index({ isVerified: 1 });
 CustomerSchema.index({ activeLocation: '2dsphere' });
 CustomerSchema.index({ phone: 1, role: 1 }, { unique: true });
 CustomerSchema.index({ email: 1, role: 1 }, { unique: true, partialFilterExpression: { email: { $exists: true, $type: "string" } } });
+CustomerSchema.index({ city: 1 });
+CustomerSchema.index({ role: 1, isOnline: 1, city: 1 });
 
 module.exports = mongoose.model('Customer', CustomerSchema);

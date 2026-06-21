@@ -33,6 +33,7 @@ const ShopWalletScreen = ({ navigation }) => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [topUpAmount, setTopUpAmount] = useState('');
+  const [topUpMethod, setTopUpMethod] = useState('UPI');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   
   const [balance, setBalance] = useState(0);
@@ -97,7 +98,8 @@ const ShopWalletScreen = ({ navigation }) => {
           title: t.description || 'Transaction',
           time: new Date(t.createdAt).toLocaleString(),
           amount: `₹${t.amount}`,
-          type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT'].includes(t.type) ? 'credit' : 'debit'
+          type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT'].includes(t.type) ? 'credit' : 'debit',
+          status: t.status
         }));
         setTxns(mappedTxns);
       }
@@ -165,10 +167,16 @@ const ShopWalletScreen = ({ navigation }) => {
       Alert.alert("Invalid Amount", "Please enter a valid amount.");
       return;
     }
+    const selectedAcc = accounts.find(a => a.id === topUpMethod) || accounts[0];
+    if (!selectedAcc && accounts.length === 0) {
+      Alert.alert("No Payment Method", "Please add a payment method in settings.");
+      return;
+    }
+    
     try {
       const res = await api.post('/wallet/topup', {
         amount: Number(topUpAmount),
-        paymentDetails: { method: 'UPI' }
+        paymentDetails: { method: selectedAcc ? selectedAcc.type : 'UPI', accountId: selectedAcc ? selectedAcc.id : undefined }
       });
       if (res.data?.status === 'success') {
         setTopUpModalVisible(false);
@@ -263,7 +271,9 @@ const ShopWalletScreen = ({ navigation }) => {
                 </View>
                 <View style={styles.txInfo}>
                   <Text style={styles.txTitle}>{t.title}</Text>
-                  <Text style={styles.txTime}>{t.time}</Text>
+                  <Text style={styles.txTime}>
+                    {t.time} • <Text style={{ color: t.status === 'PENDING' ? theme.colors.warning : (t.status === 'REJECTED' ? theme.colors.danger : theme.colors.success) }}>{t.status}</Text>
+                  </Text>
                 </View>
               </View>
               <Text style={[styles.txAmount, { color: t.type === 'credit' ? '#059669' : '#dc2626' }]}>
@@ -347,14 +357,14 @@ const ShopWalletScreen = ({ navigation }) => {
 
                   {/* Amount Input */}
                   <TextInput
-                    style={styles.amountInput}
-                    placeholder="Amount to withdraw (₹)"
+                    style={[styles.amountInput, { fontSize: 24, textAlign: 'center', height: 70, marginTop: 10 }]}
+                    placeholder="₹0"
                     placeholderTextColor={theme.colors.textDim}
                     keyboardType="numeric"
                     value={withdrawAmount}
                     onChangeText={setWithdrawAmount}
                   />
-                  <Text style={styles.processingNote}>Processing time: 1-2 business days</Text>
+                  <Text style={[styles.processingNote, { textAlign: 'center', marginTop: 8 }]}>Processing time: 1-2 business days</Text>
 
                     <TouchableOpacity style={styles.withdrawSubmitBtn} onPress={handleSubmitWithdrawal}>
                       <Text style={styles.withdrawSubmitBtnText}>Submit Request</Text>
@@ -387,20 +397,57 @@ const ShopWalletScreen = ({ navigation }) => {
                 <View style={[styles.bottomSheet, { maxHeight: '60%' }]}>
                   <View style={styles.sheetHeaderHandle} />
                   <Text style={styles.sheetTitle}>Top Up Wallet</Text>
-                  <Text style={styles.sheetSub}>Enter amount to add</Text>
+                  <Text style={styles.sheetSub}>Select payment method and enter amount</Text>
+
+                  {/* Payment Method Selection */}
+                  {accounts.length > 0 ? (
+                    <ScrollView style={{ maxHeight: 160, marginBottom: 16 }} showsVerticalScrollIndicator={false}>
+                      {accounts.map(acc => (
+                        <TouchableOpacity 
+                          key={acc.id} 
+                          style={[styles.accountCard, topUpMethod === acc.id && styles.accountCardPrimary, { padding: 12, marginBottom: 8 }]}
+                          onPress={() => setTopUpMethod(acc.id)}
+                        >
+                          <View style={styles.accountLeft}>
+                            <View style={[styles.accountIconBox, { width: 36, height: 36, borderRadius: 18 }]}>
+                              {acc.type === 'bank' ? <Landmark size={18} color="#0d9488" /> : <Smartphone size={18} color="#e11d48" />}
+                            </View>
+                            <View style={styles.accountInfo}>
+                              <Text style={[styles.accountName, { fontSize: 14 }]}>{acc.name}</Text>
+                              <Text style={[styles.accountDetail, { fontSize: 12 }]}>{acc.detail}</Text>
+                            </View>
+                          </View>
+                          {topUpMethod === acc.id && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.primary }} />}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  ) : (
+                    <TouchableOpacity style={[styles.addAccountBtn, { paddingVertical: 12, marginBottom: 16 }]} onPress={() => { setTopUpModalVisible(false); navigation.navigate('Settings'); }}>
+                      <Text style={styles.addAccountBtnText}>+ Add Payment Method</Text>
+                    </TouchableOpacity>
+                  )}
 
                   {/* Amount Input */}
                   <TextInput
-                    style={styles.amountInput}
-                    placeholder="Amount to top up (₹)"
+                    style={[styles.amountInput, { fontSize: 24, textAlign: 'center', height: 70 }]}
+                    placeholder="₹0"
                     placeholderTextColor={theme.colors.textDim}
                     keyboardType="numeric"
                     value={topUpAmount}
                     onChangeText={setTopUpAmount}
                   />
 
+                  {/* Quick Amounts */}
+                  <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 20 }}>
+                    {[100, 500, 1000].map(amt => (
+                      <TouchableOpacity key={amt} style={styles.quickAmtBtn} onPress={() => setTopUpAmount(amt.toString())}>
+                        <Text style={styles.quickAmtText}>+₹{amt}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
                   <TouchableOpacity style={styles.withdrawSubmitBtn} onPress={handleSubmitTopUp}>
-                    <Text style={styles.withdrawSubmitBtnText}>Add Funds</Text>
+                    <Text style={styles.withdrawSubmitBtnText}>Proceed to Pay</Text>
                   </TouchableOpacity>
                 </View>
               </TouchableWithoutFeedback>
@@ -506,7 +553,9 @@ const ShopWalletScreen = ({ navigation }) => {
                       </View>
                       <View style={styles.txDetailRow}>
                         <Text style={styles.txDetailLabel}>Status</Text>
-                        <Text style={styles.txDetailValueSuccess}>Successful</Text>
+                        <Text style={[styles.txDetailValue, { color: selectedTransaction.status === 'PENDING' ? theme.colors.warning : (selectedTransaction.status === 'REJECTED' ? theme.colors.danger : theme.colors.success), fontWeight: '700' }]}>
+                          {selectedTransaction.status || 'Successful'}
+                        </Text>
                       </View>
                       <View style={[styles.txDetailRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
                         <Text style={styles.txDetailLabel}>Payment Method</Text>
@@ -824,16 +873,53 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 20,
     paddingHorizontal: 4,
   },
-  submitBtn: {
+  withdrawSubmitBtn: {
     backgroundColor: theme.colors.primary,
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',
   },
-  submitBtnText: {
+  withdrawSubmitBtnText: {
     color: '#001016',
     fontSize: 16,
     fontWeight: '800',
+  },
+  methodCard: {
+    flex: 1,
+    paddingVertical: 14,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  methodCardActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary + '15',
+  },
+  methodCardText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.textDim,
+  },
+  methodCardTextActive: {
+    color: theme.colors.primary,
+  },
+  quickAmtBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  quickAmtText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text,
   },
   
   // Transaction Modal Styles

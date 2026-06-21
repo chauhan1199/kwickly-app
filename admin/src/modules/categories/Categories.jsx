@@ -1,29 +1,42 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+import Toast from '../../components/Toast'
+import ConfirmModal from '../../components/ConfirmModal'
 
 const ICON_OPTIONS = ['🔧','⚡','❄️','🧹','🪵','🖌️','🚿','🪛','🏠','🔑','☀️','📷','🌿','🛋️','🪜','🪟','🚪','🔌','💡','🪝']
 const COLOR_OPTIONS = ['#2563EB','#F97316','#16A34A','#DC2626','#7C3AED','#0EA5E9','#92400E','#0F766E','#BE185D','#1D4ED8']
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function SyncToast({ show }) {
-  if (!show) return null
-  return (
-    <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 999, background: '#0F172A', color: 'white', padding: '12px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', fontWeight: 600, fontSize: 14, animation: 'slideUp 0.3s ease' }}>
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E', animation: 'pulse 1s infinite', flexShrink: 0 }} />
-      ✓ Changes synced to all connected clients via Socket.io
-    </div>
-  )
-}
 
 function CategoryModal({ cat, onSave, onClose }) {
   const [form, setForm] = useState(cat
     ? { name: cat.name, icon: cat.icon, color: cat.color, description: cat.description }
     : { name: '', icon: '🔧', color: '#2563EB', description: '' }
   )
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const [errors, setErrors] = useState({})
+  const [saving, setSaving] = useState(false)
+  const set = (k, v) => {
+    setForm(p => ({ ...p, [k]: v }))
+    if (errors[k]) setErrors(p => ({ ...p, [k]: '' }))
+  }
+
+  const validate = () => {
+    const e = {}
+    if (!form.name.trim()) e.name = 'Category name is required'
+    else if (form.name.trim().length < 2) e.name = 'Name must be at least 2 characters'
+    if (!form.description.trim()) e.description = 'Description is required'
+    else if (form.description.trim().length < 5) e.description = 'Description must be at least 5 characters'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const handleSave = async () => {
+    if (!validate()) return
+    setSaving(true)
+    try {
+      await onSave({ ...form, name: form.name.trim(), description: form.description.trim() })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="modal-overlay">
@@ -36,7 +49,14 @@ function CategoryModal({ cat, onSave, onClose }) {
           <div className="grid-2">
             <div className="form-group">
               <label className="form-label">Category Name *</label>
-              <input className="form-control" placeholder="e.g. Plumbing" value={form.name} onChange={e => set('name', e.target.value)} autoFocus />
+              <input
+                className={`form-control ${errors.name ? 'input-error' : ''}`}
+                placeholder="e.g. Plumbing"
+                value={form.name}
+                onChange={e => set('name', e.target.value)}
+                autoFocus
+              />
+              {errors.name && <div className="field-error">{errors.name}</div>}
             </div>
             <div className="form-group">
               <label className="form-label">Icon</label>
@@ -45,7 +65,7 @@ function CategoryModal({ cat, onSave, onClose }) {
                   <button
                     key={ic}
                     onClick={() => set('icon', ic)}
-                    style={{ width: 36, height: 36, border: `2px solid ${form.icon === ic ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 8, background: form.icon === ic ? 'var(--primary-light)' : 'white', cursor: 'pointer', fontSize: 18, transition: 'all 0.1s' }}
+                    style={{ width: 36, height: 36, border: `2px solid ${form.icon === ic ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 8, background: form.icon === ic ? 'var(--primary-light)' : 'var(--input-bg)', cursor: 'pointer', fontSize: 18, transition: 'all 0.1s' }}
                   >
                     {ic}
                   </button>
@@ -63,10 +83,16 @@ function CategoryModal({ cat, onSave, onClose }) {
           </div>
           <div className="form-group">
             <label className="form-label">Description *</label>
-            <textarea className="form-control" placeholder="Describe what this category covers..." value={form.description} onChange={e => set('description', e.target.value)} rows={3} />
+            <textarea
+              className={`form-control ${errors.description ? 'input-error' : ''}`}
+              placeholder="Describe what this category covers..."
+              value={form.description}
+              onChange={e => set('description', e.target.value)}
+              rows={3}
+            />
+            {errors.description && <div className="field-error">{errors.description}</div>}
           </div>
-          {/* Preview */}
-          <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 48, height: 48, borderRadius: 12, background: form.color + '20', border: `2px solid ${form.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{form.icon}</div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15 }}>{form.name || 'Category Name'}</div>
@@ -75,9 +101,9 @@ function CategoryModal({ cat, onSave, onClose }) {
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => form.name && form.description && onSave(form)} disabled={!form.name || !form.description}>
-            {cat ? '💾 Save Changes' : '+ Add Category'}
+          <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.name.trim() || !form.description.trim()}>
+            {saving ? '⏳ Saving...' : cat ? '💾 Save Changes' : '+ Add Category'}
           </button>
         </div>
       </div>
@@ -87,14 +113,41 @@ function CategoryModal({ cat, onSave, onClose }) {
 
 function SubcategoryModal({ catName, sub, onSave, onClose }) {
   const [form, setForm] = useState(sub
-    ? { name: sub.name, description: sub.description }
-    : { name: '', description: '' }
+    ? { name: sub.name, description: sub.description || '', minPrice: sub.minPrice || 0, platformFee: sub.platformFee || 0, suggestedMax: sub.suggestedMax || 0 }
+    : { name: '', description: '', minPrice: 0, platformFee: 0, suggestedMax: 0 }
   )
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const [errors, setErrors] = useState({})
+  const [saving, setSaving] = useState(false)
+  const set = (k, v) => {
+    setForm(p => ({ ...p, [k]: v }))
+    if (errors[k]) setErrors(p => ({ ...p, [k]: '' }))
+  }
+
+  const validate = () => {
+    const e = {}
+    if (!form.name.trim()) e.name = 'Subcategory name is required'
+    else if (form.name.trim().length < 2) e.name = 'Name must be at least 2 characters'
+    if (form.minPrice < 0) e.minPrice = 'Price cannot be negative'
+    if (form.platformFee < 0) e.platformFee = 'Fee cannot be negative'
+    if (form.suggestedMax < 0) e.suggestedMax = 'Price cannot be negative'
+    if (form.suggestedMax > 0 && form.minPrice > form.suggestedMax) e.suggestedMax = 'Max price must be greater than min price'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const handleSave = async () => {
+    if (!validate()) return
+    setSaving(true)
+    try {
+      await onSave({ ...form, name: form.name.trim() })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 460 }}>
+      <div className="modal" style={{ maxWidth: 520 }}>
         <div className="modal-header">
           <div>
             <div style={{ fontWeight: 800, fontSize: 16 }}>{sub ? 'Edit Subcategory' : 'Add Subcategory'}</div>
@@ -105,17 +158,41 @@ function SubcategoryModal({ catName, sub, onSave, onClose }) {
         <div className="modal-body">
           <div className="form-group">
             <label className="form-label">Subcategory Name *</label>
-            <input className="form-control" placeholder="e.g. Pipe Leak Repair" value={form.name} onChange={e => set('name', e.target.value)} autoFocus />
+            <input
+              className={`form-control ${errors.name ? 'input-error' : ''}`}
+              placeholder="e.g. Pipe Leak Repair"
+              value={form.name}
+              onChange={e => set('name', e.target.value)}
+              autoFocus
+            />
+            {errors.name && <div className="field-error">{errors.name}</div>}
           </div>
           <div className="form-group">
-            <label className="form-label">Description *</label>
-            <textarea className="form-control" placeholder="What specific service does this cover?" value={form.description} onChange={e => set('description', e.target.value)} rows={3} />
+            <label className="form-label">Description</label>
+            <textarea className="form-control" placeholder="What specific service does this cover?" value={form.description} onChange={e => set('description', e.target.value)} rows={2} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <div className="form-group">
+              <label className="form-label">Min Price (₹)</label>
+              <input className={`form-control ${errors.minPrice ? 'input-error' : ''}`} type="number" min="0" placeholder="0" value={form.minPrice || ''} onChange={e => set('minPrice', Number(e.target.value))} />
+              {errors.minPrice && <div className="field-error">{errors.minPrice}</div>}
+            </div>
+            <div className="form-group">
+              <label className="form-label">Platform Fee (₹)</label>
+              <input className={`form-control ${errors.platformFee ? 'input-error' : ''}`} type="number" min="0" placeholder="0" value={form.platformFee || ''} onChange={e => set('platformFee', Number(e.target.value))} />
+              {errors.platformFee && <div className="field-error">{errors.platformFee}</div>}
+            </div>
+            <div className="form-group">
+              <label className="form-label">Suggested Max (₹)</label>
+              <input className={`form-control ${errors.suggestedMax ? 'input-error' : ''}`} type="number" min="0" placeholder="0" value={form.suggestedMax || ''} onChange={e => set('suggestedMax', Number(e.target.value))} />
+              {errors.suggestedMax && <div className="field-error">{errors.suggestedMax}</div>}
+            </div>
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => form.name && form.description && onSave(form)} disabled={!form.name || !form.description}>
-            {sub ? '💾 Save Changes' : '+ Add Subcategory'}
+          <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.name.trim()}>
+            {saving ? '⏳ Saving...' : sub ? '💾 Save Changes' : '+ Add Subcategory'}
           </button>
         </div>
       </div>
@@ -125,6 +202,19 @@ function SubcategoryModal({ catName, sub, onSave, onClose }) {
 
 function RejectModal({ suggestion, onConfirm, onClose }) {
   const [reason, setReason] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleConfirm = async () => {
+    const fullReason = notes.trim() ? `${reason} - ${notes.trim()}` : reason
+    setSaving(true)
+    try {
+      await onConfirm(fullReason)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="modal-overlay">
       <div className="modal" style={{ maxWidth: 440 }}>
@@ -137,7 +227,7 @@ function RejectModal({ suggestion, onConfirm, onClose }) {
             Rejection reason will be sent to <strong>{typeof suggestion.workerId === 'object' ? suggestion.workerId?.name : (suggestion.workerName || 'Worker')}</strong> via push notification.
           </p>
           <div className="form-group">
-            <label className="form-label">Reason</label>
+            <label className="form-label">Reason *</label>
             <select className="form-control" value={reason} onChange={e => setReason(e.target.value)}>
               <option value="">Select reason...</option>
               <option>Category already exists under a different name</option>
@@ -150,12 +240,14 @@ function RejectModal({ suggestion, onConfirm, onClose }) {
           </div>
           <div className="form-group">
             <label className="form-label">Additional Notes</label>
-            <textarea className="form-control" placeholder="Optional detailed explanation..." rows={3} />
+            <textarea className="form-control" placeholder="Optional detailed explanation..." rows={3} value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-danger" onClick={() => onConfirm(reason)} disabled={!reason}>✕ Confirm Rejection</button>
+          <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-danger" onClick={handleConfirm} disabled={!reason || saving}>
+            {saving ? '⏳ Rejecting...' : '✕ Confirm Rejection'}
+          </button>
         </div>
       </div>
     </div>
@@ -164,6 +256,17 @@ function RejectModal({ suggestion, onConfirm, onClose }) {
 
 function ApproveModal({ suggestion, onConfirm, onClose }) {
   const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleConfirm = async () => {
+    setSaving(true)
+    try {
+      await onConfirm(reason.trim())
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="modal-overlay">
       <div className="modal" style={{ maxWidth: 440 }}>
@@ -181,28 +284,36 @@ function ApproveModal({ suggestion, onConfirm, onClose }) {
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-success" onClick={() => onConfirm(reason)} disabled={!reason}>✓ Confirm Approval</button>
+          <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-success" onClick={handleConfirm} disabled={!reason.trim() || saving}>
+            {saving ? '⏳ Approving...' : '✓ Confirm Approval'}
+          </button>
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Categories() {
   const [categories, setCategories] = useState([])
   const [suggestions, setSuggestions] = useState([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('categories')         // 'categories' | 'suggestions'
+  const [tab, setTab] = useState('categories')
   const [expandedCat, setExpandedCat] = useState(null)
-  const [catModal, setCatModal] = useState(null)       // null | 'new' | cat object
-  const [subModal, setSubModal] = useState(null)       // null | { catId, sub? }
-  const [rejectModal, setRejectModal] = useState(null) // null | suggestion
-  const [approveModal, setApproveModal] = useState(null) // null | suggestion
+  const [catModal, setCatModal] = useState(null)
+  const [subModal, setSubModal] = useState(null)
+  const [rejectModal, setRejectModal] = useState(null)
+  const [approveModal, setApproveModal] = useState(null)
   const [syncToast, setSyncToast] = useState(false)
   const [sugFilter, setSugFilter] = useState('pending')
   const [search, setSearch] = useState('')
+  const [toast, setToast] = useState(null)
+  const [toggling, setToggling] = useState({})
+  const [confirmModal, setConfirmModal] = useState(null)
+
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ message, type })
+  }, [])
 
   useEffect(() => {
     fetchCategories()
@@ -217,7 +328,8 @@ export default function Categories() {
         setCategories(response.data.data)
       }
     } catch (error) {
-      console.error('Error fetching categories:', error)
+      const msg = error.response?.data?.message || 'Failed to load categories'
+      showToast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -230,7 +342,8 @@ export default function Categories() {
         setSuggestions(response.data.data)
       }
     } catch (error) {
-        console.error('Error fetching suggestions:', error)
+      const msg = error.response?.data?.message || 'Failed to load suggestions'
+      showToast(msg, 'error')
     }
   }
 
@@ -241,114 +354,161 @@ export default function Categories() {
     setTimeout(() => setSyncToast(false), 3000)
   }
 
-  // ── Category CRUD ──────────────────────────────────────────────────────────
   const saveCat = async (form) => {
     try {
       if (catModal === 'new') {
         await api.post('/admin/categories', form)
+        showToast('Category created successfully')
       } else {
         await api.patch(`/admin/categories/${catModal._id}`, form)
+        showToast('Category updated successfully')
       }
       fetchCategories()
       setCatModal(null)
       showSync()
+      window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-      alert('Failed to save category')
+      const msg = e.response?.data?.message || 'Failed to save category'
+      const details = e.response?.data?.errors
+      showToast(details ? details.join(', ') : msg, 'error')
     }
   }
 
   const toggleCat = async (id) => {
     const cat = categories.find(c => c._id === id)
+    const newState = !cat.active
+    setToggling(p => ({ ...p, [`cat_${id}`]: true }))
     try {
-      await api.patch(`/admin/categories/${id}`, { active: !cat.active })
-      fetchCategories()
+      await api.patch(`/admin/categories/${id}`, { active: newState })
+      setCategories(prev => prev.map(c => c._id === id ? { ...c, active: newState } : c))
+      showToast(`Category ${newState ? 'activated' : 'deactivated'}`)
       showSync()
+      window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-      alert('Failed to toggle category')
+      const msg = e.response?.data?.message || 'Failed to toggle category'
+      showToast(msg, 'error')
+    } finally {
+      setToggling(p => ({ ...p, [`cat_${id}`]: false }))
     }
   }
 
   const deleteCat = async (id) => {
-    if (!window.confirm('Delete this category and all its subcategories?')) return
-    try {
-      await api.delete(`/admin/categories/${id}`)
-      fetchCategories()
-      showSync()
-    } catch (e) {
-      alert('Failed to delete category')
-    }
+    const cat = categories.find(c => c._id === id)
+    setConfirmModal({
+      title: 'Delete Category',
+      message: `Delete "${cat?.name}" and all its ${cat?.subcategories.length || 0} subcategories? This action cannot be undone.`,
+      danger: true,
+      confirmText: 'Delete Category',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/admin/categories/${id}`)
+          setCategories(prev => prev.filter(c => c._id !== id))
+          if (expandedCat === id) setExpandedCat(null)
+          showToast('Category deleted successfully')
+          showSync()
+          window.dispatchEvent(new Event('admin-action'))
+        } catch (e) {
+          const msg = e.response?.data?.message || 'Failed to delete category'
+          showToast(msg, 'error')
+        }
+      }
+    })
   }
 
-  // ── Subcategory CRUD ───────────────────────────────────────────────────────
   const saveSub = async (form) => {
     const { catId, sub } = subModal
     try {
-        if (sub) {
-          // In a real API, we'd have a specific subcategory endpoint
-          // For now, we update the whole category subcategories array
-          const cat = categories.find(c => c._id === catId)
-          const newSubs = cat.subcategories.map(s => s._id === sub._id ? { ...s, ...form } : s)
-          await api.patch(`/admin/categories/${catId}`, { subcategories: newSubs })
-        } else {
-          await api.post(`/admin/categories/${catId}/subcategories`, form)
-        }
-        fetchCategories()
-        setSubModal(null)
-        showSync()
+      if (sub) {
+        const cat = categories.find(c => c._id === catId)
+        const newSubs = cat.subcategories.map(s => s._id === sub._id ? { ...s, ...form } : s)
+        await api.patch(`/admin/categories/${catId}`, { subcategories: newSubs })
+        showToast('Subcategory updated successfully')
+      } else {
+        await api.post(`/admin/categories/${catId}/subcategories`, form)
+        showToast('Subcategory added successfully')
+      }
+      fetchCategories()
+      setSubModal(null)
+      showSync()
+      window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-        alert('Failed to save subcategory')
+      const msg = e.response?.data?.message || 'Failed to save subcategory'
+      const details = e.response?.data?.errors
+      showToast(details ? details.join(', ') : msg, 'error')
     }
   }
 
   const toggleSub = async (catId, subId) => {
+    setToggling(p => ({ ...p, [`sub_${catId}_${subId}`]: true }))
     try {
-        const cat = categories.find(c => c._id === catId)
-        const newSubs = cat.subcategories.map(s => s._id === subId ? { ...s, active: !s.active } : s)
-        await api.patch(`/admin/categories/${catId}`, { subcategories: newSubs })
-        fetchCategories()
-        showSync()
+      const cat = categories.find(c => c._id === catId)
+      const sub = cat.subcategories.find(s => s._id === subId)
+      const newSubs = cat.subcategories.map(s => s._id === subId ? { ...s, active: !s.active } : s)
+      await api.patch(`/admin/categories/${catId}`, { subcategories: newSubs })
+      setCategories(prev => prev.map(c => c._id === catId ? { ...c, subcategories: newSubs } : c))
+      showToast(`Subcategory ${!sub.active ? 'activated' : 'deactivated'}`)
+      showSync()
+      window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-        alert('Failed to toggle subcategory')
+      const msg = e.response?.data?.message || 'Failed to toggle subcategory'
+      showToast(msg, 'error')
+    } finally {
+      setToggling(p => ({ ...p, [`sub_${catId}_${subId}`]: false }))
     }
   }
 
   const deleteSub = async (catId, subId) => {
-    try {
-        const cat = categories.find(c => c._id === catId)
-        const newSubs = cat.subcategories.filter(s => s._id !== subId)
-        await api.patch(`/admin/categories/${catId}`, { subcategories: newSubs })
-        fetchCategories()
-        showSync()
-    } catch (e) {
-        alert('Failed to delete subcategory')
-    }
+    const cat = categories.find(c => c._id === catId)
+    const sub = cat?.subcategories.find(s => s._id === subId)
+    setConfirmModal({
+      title: 'Remove Subcategory',
+      message: `Remove "${sub?.name}" from "${cat?.name}"?`,
+      danger: true,
+      confirmText: 'Remove',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/admin/categories/${catId}/subcategories/${subId}`)
+          setCategories(prev => prev.map(c => c._id === catId ? { ...c, subcategories: c.subcategories.filter(s => s._id !== subId) } : c))
+          showToast(`Subcategory "${sub?.name || 'item'}" removed`)
+          showSync()
+          window.dispatchEvent(new Event('admin-action'))
+        } catch (e) {
+          const msg = e.response?.data?.message || 'Failed to delete subcategory'
+          showToast(msg, 'error')
+        }
+      }
+    })
   }
 
-  // ── Suggestions ────────────────────────────────────────────────────────────
   const approveSuggestion = async (reason) => {
     try {
-        await api.patch(`/admin/suggestions/${approveModal._id}/approve`, { reason })
-        fetchSuggestions()
-        fetchCategories()
-        setApproveModal(null)
-        showSync()
+      await api.patch(`/admin/suggestions/${approveModal._id}/approve`, { reason })
+      fetchSuggestions()
+      fetchCategories()
+      setApproveModal(null)
+      showToast('Suggestion approved and category added')
+      showSync()
+      window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-        alert('Failed to approve suggestion')
+      const msg = e.response?.data?.message || 'Failed to approve suggestion'
+      showToast(msg, 'error')
     }
   }
 
   const rejectSuggestion = async (reason) => {
     try {
-        await api.patch(`/admin/suggestions/${rejectModal._id}/reject`, { reason })
-        fetchSuggestions()
-        setRejectModal(null)
-        showSync()
+      await api.patch(`/admin/suggestions/${rejectModal._id}/reject`, { reason })
+      fetchSuggestions()
+      setRejectModal(null)
+      showToast('Suggestion rejected')
+      showSync()
+      window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-        alert('Failed to reject suggestion')
+      const msg = e.response?.data?.message || 'Failed to reject suggestion'
+      showToast(msg, 'error')
     }
   }
 
-  // ── Filtered ───────────────────────────────────────────────────────────────
   const filteredCats = categories.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.description.toLowerCase().includes(search.toLowerCase()) ||
@@ -358,7 +518,13 @@ export default function Categories() {
 
   return (
     <div>
-      <SyncToast show={syncToast} />
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {syncToast && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998, background: 'var(--toast-bg)', color: 'var(--toast-color)', padding: '12px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', fontWeight: 600, fontSize: 14, animation: 'slideUp 0.3s ease' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', animation: 'pulse 1s infinite', flexShrink: 0 }} />
+          ✓ Changes synced to all connected clients via Socket.io
+        </div>
+      )}
 
       <div className="page-header">
         <div>
@@ -386,7 +552,6 @@ export default function Categories() {
         </div>
       </div>
 
-      {/* ── CATEGORIES TAB ── */}
       {tab === 'categories' && (
         <>
           <div className="filter-bar">
@@ -402,17 +567,14 @@ export default function Categories() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {filteredCats.map(cat => (
               <div key={cat._id} className="card">
-                {/* Category Header */}
                 <div
                   style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', borderBottom: expandedCat === cat._id ? '1px solid var(--border)' : 'none' }}
                   onClick={() => setExpandedCat(expandedCat === cat._id ? null : cat._id)}
                 >
-                  {/* Icon */}
                   <div style={{ width: 48, height: 48, borderRadius: 12, background: cat.color + '18', border: `2px solid ${cat.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
                     {cat.icon}
                   </div>
 
-                  {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 800, fontSize: 16 }}>{cat.name}</span>
@@ -425,7 +587,6 @@ export default function Categories() {
                     </div>
                   </div>
 
-                  {/* Stats */}
                   <div style={{ display: 'flex', gap: 20, flexShrink: 0, marginRight: 16 }}>
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontWeight: 800, fontSize: 18 }}>{cat.subcategories.length}</div>
@@ -437,17 +598,24 @@ export default function Categories() {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                     <button className="btn btn-outline btn-sm" onClick={() => setCatModal(cat)}>✏️ Edit</button>
-                    <button className={`toggle ${cat.active ? 'on' : ''}`} onClick={() => toggleCat(cat._id)} title={cat.active ? 'Hide from app' : 'Show in app'} />
-                    <button className="btn btn-sm" style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: 'none' }} onClick={() => deleteCat(cat._id)}>🗑</button>
+                    <button
+                      className={`toggle ${cat.active ? 'on' : ''}`}
+                      onClick={() => toggleCat(cat._id)}
+                      disabled={toggling[`cat_${cat._id}`]}
+                      title={cat.active ? 'Hide from app' : 'Show in app'}
+                    />
+                    <button
+                      className="btn btn-sm"
+                      style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: 'none' }}
+                      onClick={() => deleteCat(cat._id)}
+                    >🗑</button>
                   </div>
 
                   <span style={{ fontSize: 18, color: 'var(--light)', marginLeft: 4, transition: 'transform 0.2s', transform: expandedCat === cat._id ? 'rotate(180deg)' : 'none', display: 'block' }}>⌄</span>
                 </div>
 
-                {/* Subcategories Panel */}
                 {expandedCat === cat._id && (
                   <div style={{ padding: '12px 20px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -468,7 +636,7 @@ export default function Categories() {
                           <div key={sub._id} style={{
                             border: `1px solid ${sub.active ? 'var(--border)' : 'var(--bg)'}`,
                             borderRadius: 10, padding: '12px 14px',
-                            background: sub.active ? 'var(--white)' : 'var(--bg-dark)',
+                            background: sub.active ? 'var(--card-bg)' : 'var(--bg-alt)',
                             opacity: sub.active ? 1 : 0.6,
                             transition: 'all 0.15s',
                           }}>
@@ -477,13 +645,25 @@ export default function Categories() {
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontWeight: 700, fontSize: 13 }}>{sub.name}</div>
                                 <div style={{ fontSize: 11, color: 'var(--mid)', fontFamily: 'var(--font-body)', marginTop: 2, lineHeight: 1.4 }}>{sub.description}</div>
+                                {(sub.minPrice > 0 || sub.platformFee > 0 || sub.suggestedMax > 0) && (
+                                  <div style={{ fontSize: 10, color: 'var(--light)', marginTop: 4, fontFamily: 'var(--font-body)' }}>
+                                    ₹{sub.minPrice || 0} - ₹{sub.suggestedMax || 0} · Fee: ₹{sub.platformFee || 0}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 10 }}>
                               <span className={`badge ${sub.active ? 'badge-success' : 'badge-gray'}`} style={{ fontSize: 10 }}>{sub.active ? 'Active' : 'Hidden'}</span>
                               <button className="btn btn-outline btn-sm" style={{ height: 26, fontSize: 11 }} onClick={() => setSubModal({ catId: cat._id, sub })}>Edit</button>
-                              <button className={`toggle-sm ${sub.active ? 'on' : ''}`} onClick={() => toggleSub(cat._id, sub._id)} />
-                              <button onClick={() => deleteSub(cat._id, sub._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--danger)', opacity: 0.7, padding: '2px 4px' }}>🗑</button>
+                              <button
+                                className={`toggle-sm ${sub.active ? 'on' : ''}`}
+                                onClick={() => toggleSub(cat._id, sub._id)}
+                                disabled={toggling[`sub_${cat._id}_${sub._id}`]}
+                              />
+                              <button
+                                onClick={() => deleteSub(cat._id, sub._id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--danger)', opacity: 0.7, padding: '2px 4px' }}
+                              >🗑</button>
                             </div>
                           </div>
                         ))}
@@ -497,7 +677,6 @@ export default function Categories() {
         </>
       )}
 
-      {/* ── SUGGESTIONS TAB ── */}
       {tab === 'suggestions' && (
         <>
           <div className="alert alert-info" style={{ marginBottom: 20 }}>
@@ -527,7 +706,6 @@ export default function Categories() {
                 border: sug.status === 'pending' ? '1px solid var(--primary-mid)' : '1px solid var(--border)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-                  {/* Type badge */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
                       <span className={`badge ${sug.type === 'new_category' ? 'badge-purple' : 'badge-primary'}`}>
@@ -536,10 +714,11 @@ export default function Categories() {
                       <span className={`badge ${sug.status === 'pending' ? 'badge-warning' : sug.status === 'approved' ? 'badge-success' : 'badge-danger'}`}>
                         {sug.status.charAt(0).toUpperCase() + sug.status.slice(1)}
                       </span>
-                      <span style={{ fontSize: 11, color: 'var(--light)', fontFamily: 'var(--font-body)' }}>{sug.submittedAt}</span>
+                      <span style={{ fontSize: 11, color: 'var(--light)', fontFamily: 'var(--font-body)' }}>
+                        {sug.submittedAt ? new Date(sug.submittedAt).toLocaleDateString() : ''}
+                      </span>
                     </div>
 
-                    {/* Submitted by */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                       <div className="avatar avatar-sm" style={{ background: 'linear-gradient(135deg, var(--primary), var(--purple))' }}>
                         {(typeof sug.workerId === 'object' ? sug.workerId?.name : sug.workerName)?.split(' ').map(n => n[0]).join('').slice(0, 2) || '?'}
@@ -552,9 +731,8 @@ export default function Categories() {
                       </div>
                     </div>
 
-                    {/* Payload */}
                     {sug.type === 'new_category' ? (
-                      <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
+                      <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                           <span style={{ fontSize: 28 }}>{sug.payload.icon}</span>
                           <div>
@@ -574,7 +752,7 @@ export default function Categories() {
                         )}
                       </div>
                     ) : (
-                      <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
+                      <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
                         <div style={{ fontSize: 11, color: 'var(--mid)', fontFamily: 'var(--font-body)', marginBottom: 4 }}>Add to: <strong>{sug.payload.parentCategory}</strong></div>
                         <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>{sug.payload.name}</div>
                         <div style={{ fontSize: 12, color: 'var(--mid)', fontFamily: 'var(--font-body)' }}>{sug.payload.description}</div>
@@ -586,9 +764,13 @@ export default function Categories() {
                         ✕ Rejection reason: {sug.rejectReason}
                       </div>
                     )}
+                    {sug.status === 'approved' && sug.approveReason && (
+                      <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(5,150,105,0.1)', borderRadius: 8, fontSize: 12, color: '#059669', fontFamily: 'var(--font-body)' }}>
+                        ✓ Approval note: {sug.approveReason}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Actions */}
                   {sug.status === 'pending' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
                       <button className="btn btn-success" onClick={() => setApproveModal(sug)} style={{ whiteSpace: 'nowrap' }}>
@@ -614,7 +796,6 @@ export default function Categories() {
         </>
       )}
 
-      {/* ── Modals ── */}
       {catModal && (
         <CategoryModal
           cat={catModal === 'new' ? null : catModal}
@@ -642,6 +823,20 @@ export default function Categories() {
           suggestion={approveModal}
           onConfirm={approveSuggestion}
           onClose={() => setApproveModal(null)}
+        />
+      )}
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          danger={confirmModal.danger}
+          confirmText={confirmModal.confirmText}
+          onConfirm={async () => {
+            const fn = confirmModal.onConfirm
+            setConfirmModal(null)
+            await fn()
+          }}
+          onClose={() => setConfirmModal(null)}
         />
       )}
     </div>

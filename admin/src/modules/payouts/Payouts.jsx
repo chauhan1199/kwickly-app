@@ -24,7 +24,25 @@ export default function Payouts() {
     try {
         const resp = await api.get('/admin/ledger')
         if (resp.data.status === 'success') {
-            setLedger(resp.data.data)
+            const mapped = resp.data.data.transactions.map(t => {
+                const isCredit = ['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT', 'REFUND', 'ORDER_CREDIT'].includes(t.type);
+                
+                let displayType = 'earning';
+                if (t.type === 'SUBSCRIPTION') displayType = 'subscription';
+                else if (t.type === 'WITHDRAWAL') displayType = 'payout';
+                else if (t.type === 'REFUND') displayType = 'refund';
+                
+                return {
+                    id: t._id,
+                    date: new Date(t.createdAt).toLocaleDateString(),
+                    worker: t.userId?.name || 'Unknown',
+                    type: displayType,
+                    jobId: t.refId || '—',
+                    desc: t.description || t.type.replace(/_/g, ' '),
+                    amount: isCredit ? t.amount : -t.amount
+                };
+            });
+            setLedger(mapped)
         }
     } catch (e) {
         console.error(e)
@@ -36,7 +54,7 @@ export default function Payouts() {
       setLoading(true)
       const response = await api.get('/admin/payouts', { params: { status: filter === 'all' ? undefined : filter } })
       if (response.data.status === 'success') {
-        const data = response.data.data.map(p => {
+        const data = response.data.data.payouts.map(p => {
           const isShop = !!p.shopId;
           const entity = isShop ? p.shopId : p.workerId;
           return {

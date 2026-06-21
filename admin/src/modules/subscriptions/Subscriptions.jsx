@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
+import Toast from '../../components/Toast'
 
 const planColor = { trial: 'badge-purple', monthly: 'badge-primary', annual: 'badge-success', expired: 'badge-danger' }
 
@@ -60,7 +61,7 @@ export default function Subscriptions() {
   const [workers, setWorkers] = useState([])
   const [loading, setLoading] = useState(true)
   const [editPlan, setEditPlan] = useState(null)
-  const [toast, setToast] = useState('')
+  const [toast, setToast] = useState({ message: '', type: 'success' })
   const [subFilter, setSubFilter] = useState('all')
 
   useEffect(() => {
@@ -92,7 +93,8 @@ export default function Subscriptions() {
       let allUsers = []
 
       if (workersRes.data?.status === 'success') {
-        const workersData = workersRes.data.data.map(w => ({
+        const workersArr = workersRes.data.data.workers || workersRes.data.data
+        const workersData = (Array.isArray(workersArr) ? workersArr : []).map(w => ({
           id: w._id.toString().slice(-6),
           _id: w._id,
           name: w.name,
@@ -108,10 +110,11 @@ export default function Subscriptions() {
       }
 
       if (shopsRes.data?.status === 'success') {
-        const shopsData = shopsRes.data.data.map(s => ({
+        const shopsArr = shopsRes.data.data.shops || shopsRes.data.data
+        const shopsData = (Array.isArray(shopsArr) ? shopsArr : []).map(s => ({
           id: s._id.toString().slice(-6),
           _id: s._id,
-          name: s.ownerName || 'Unknown Shop',
+          name: s.ownerName || s.name || 'Unknown Shop',
           role: 'SHOP',
           plan: s.subscription?.plan?.toLowerCase() || 'none',
           startDate: s.subscription?.validUntil ? '—' : '—', // We don't have startDate for shops right now
@@ -131,7 +134,7 @@ export default function Subscriptions() {
     }
   }
 
-  const showToast = (m) => { setToast(m); setTimeout(() => setToast(''), 2800) }
+  const showToast = (message, type = 'success') => setToast({ message, type })
 
   const savePlan = async (updated) => {
     try {
@@ -153,22 +156,15 @@ export default function Subscriptions() {
       fetchData()
     } catch (e) {
       console.error(e)
-      alert('Failed to update plan')
+      showToast('Failed to update plan', 'error')
     }
   }
 
   const extendSub = async (wid) => {
-    try {
-      showToast('Subscription extended by 30 days')
-      fetchData()
-    } catch (e) {
-      alert('Failed to extend subscription')
-    }
-  }
-
-  const changePlan = (wid, newPlan) => {
-    setWorkers(p => p.map(w => w._id === wid ? { ...w, plan: newPlan, status: 'active' } : w))
-    showToast('Worker plan updated')
+    // TODO: No backend endpoint exists for extending subscriptions.
+    // Add PATCH /admin/workers/:id/extend-subscription endpoint to admin.routes.js
+    // before this can work. Currently a no-op.
+    showToast('Subscription extension requires a backend endpoint (not yet implemented)', 'error')
   }
 
   const filtered = workers.filter(w => subFilter === 'all' || w.plan === subFilter || (subFilter === 'expired' && w.status === 'expired'))
@@ -191,7 +187,7 @@ export default function Subscriptions() {
 
   return (
     <div>
-      {toast && <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 999, background: '#0F172A', color: 'white', padding: '12px 20px', borderRadius: 12, fontWeight: 600, fontSize: 14, animation: 'slideUp 0.3s ease', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>✓ {toast}</div>}
+      {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'success' })} />}
 
       <div className="page-header">
         <div>

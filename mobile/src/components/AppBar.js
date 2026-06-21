@@ -10,7 +10,8 @@ const AppBar = ({
   showBack = false, 
   onBackPress, 
   rightActions = true,
-  onNotificationPress
+  onNotificationPress,
+  packageRoute
 }) => {
   const navigation = useNavigation();
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -53,9 +54,11 @@ const AppBar = ({
 
       {rightActions && (
         <View style={styles.rightContainer}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('CustomerShopOrders')}>
-            <Package size={22} color={theme.colors.text} />
-          </TouchableOpacity>
+          {packageRoute && (
+            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate(packageRoute)}>
+              <Package size={22} color={theme.colors.text} />
+            </TouchableOpacity>
+          )}
           
           <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme}>
             {isDarkMode ? (

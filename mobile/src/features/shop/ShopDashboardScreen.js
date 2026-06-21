@@ -37,6 +37,7 @@ const ShopDashboardScreen = ({ navigation }) => {
     try {
       setLoading(true);
       let myShop;
+      let shopExists = true;
       try {
         const shopRes = await api.get('/shops/my');
         if (shopRes.data?.status === 'success') {
@@ -44,14 +45,13 @@ const ShopDashboardScreen = ({ navigation }) => {
         }
       } catch (e) {
         if (e.response?.status === 404) {
-          // Auto-create shop profile to unblock flow
-          const createRes = await api.post('/shops', {
-            name: "My Awesome Shop",
-            address: "Local Market",
-            isOnline: true
-          });
-          myShop = createRes.data.data;
+          shopExists = false;
         } else throw e;
+      }
+
+      if (!shopExists) {
+        setLoading(false);
+        return;
       }
 
       if (myShop) {
@@ -61,7 +61,7 @@ const ShopDashboardScreen = ({ navigation }) => {
 
       const orderRes = await api.get('/shoporders/shop');
       if (orderRes.data?.status === 'success') {
-        const orders = orderRes.data.data;
+        const orders = orderRes.data.data.orders || orderRes.data.data;
         const mapped = orders.map(order => ({
           id: order._id.slice(-6).toUpperCase(),
           rawId: order._id,
@@ -131,7 +131,26 @@ const ShopDashboardScreen = ({ navigation }) => {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
+
+        {/* No Shop State */}
+        {!loading && shopInfo.name === 'Loading...' && (
+          <View style={{ alignItems: 'center', paddingTop: 60 }}>
+            <View style={[styles.storeLogo, { width: 72, height: 72, borderRadius: 20, marginBottom: 16 }]}>
+              <Store size={32} color="#001016" />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: theme.colors.text, marginBottom: 8 }}>No Shop Found</Text>
+            <Text style={{ fontSize: 14, color: theme.colors.textDim, textAlign: 'center', marginBottom: 24, paddingHorizontal: 40 }}>
+              You don't have a shop yet. Create one to start receiving orders from customers.
+            </Text>
+            <TouchableOpacity
+              style={[styles.statCard, { minWidth: 200, alignItems: 'center', backgroundColor: theme.colors.primary, borderWidth: 0 }]}
+              onPress={() => navigation.navigate('CreateShop')}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '800', color: '#001016' }}>+ Create Shop</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
           <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Orders')}>

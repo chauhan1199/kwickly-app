@@ -27,7 +27,7 @@ import api from '../../services/api';
 import {
   Bell, Store, Clock, Truck, ShieldCheck,
   CreditCard, BarChart2, LogOut, ChevronRight,
-  Eye, Download, Moon, Sun,
+  Eye, Download, Moon, Sun, Trash2,
 } from 'lucide-react-native';
 
 /* ─────────────────────────────────────────────────────────────
@@ -178,7 +178,8 @@ export default function ShopSettingsScreen() {
     try {
       const res = await api.get('/shoporders/shop');
       if (res.data?.status === 'success') {
-        const orders = Array.isArray(res.data.data) ? res.data.data : [];
+        const list = res.data.data.orders || res.data.data;
+        const orders = Array.isArray(list) ? list : [];
         const now = Date.now();
         const filtered = orders.filter(o => {
           if (analyticsFilter === 'ALL') return true;
@@ -271,7 +272,7 @@ export default function ShopSettingsScreen() {
   };
 
   const pickDocument = async () => {
-    const r = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
+    const r = await launchImageLibrary({ mediaType: 'mixed', quality: 0.8 });
     if (!r.didCancel && r.assets?.length) {
       const a = r.assets[0];
       setNewDoc({ name: newDoc.name || a.fileName || 'Document', type: a.type || 'image/jpeg', uri: a.uri });
@@ -349,6 +350,34 @@ export default function ShopSettingsScreen() {
     ]);
   };
 
+  const deleteShop = () => {
+    Alert.alert(
+      'Delete Shop',
+      'Are you sure you want to permanently delete your shop? All products and data will be lost.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Permanently',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSaving(true);
+              const res = await api.delete('/shops/my');
+              if (res.data?.status === 'success') {
+                Alert.alert('Shop Deleted', 'Your shop has been deleted.');
+                signOut();
+              }
+            } catch (e) {
+              Alert.alert('Error', e?.response?.data?.message || 'Failed to delete shop');
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   /* ════════════════════════════
      STYLES (inline for simplicity)
      ════════════════════════════ */
@@ -421,6 +450,7 @@ export default function ShopSettingsScreen() {
               { icon: Store,       color: '#EC4899', title: 'Shop Details & Address', sub: shop?.address || 'Name, description, location', onPress: () => setDetailsOpen(true) },
               { icon: Clock,       color: '#F59E0B', title: 'Business Hours',        sub: shop?.businessHours?.monFri || '9 AM – 10 PM', onPress: () => setHoursOpen(true) },
               { icon: Truck,       color: '#F97316', title: 'Delivery Settings',     sub: shop ? `${shop.delivery?.radiusKm ?? 3} km · ₹${shop.delivery?.fee ?? 40} fee` : '3 km · ₹40 fee', onPress: () => setDeliveryOpen(true) },
+              { icon: Truck,       color: '#0EA5E9', title: 'Delivery Config (Advanced)', sub: 'Slots, discounts, min order', onPress: () => navigation.navigate('ShopDeliveryConfig') },
               { icon: ShieldCheck, color: '#8B5CF6', title: 'KYC / GST',            sub: `Status: ${shop?.kyc?.status || 'PENDING'}`, onPress: () => setKycOpen(true) },
               { icon: CreditCard,  color: '#64748B', title: 'Payout Methods',       sub: accounts.length ? `${accounts.length} method(s)` : 'Add Bank or UPI', onPress: () => setPayoutOpen(true) },
               { icon: BarChart2,   color: '#0EA5E9', title: 'Analytics & Reports',  sub: 'Revenue, insights, PDF', onPress: () => setAnalyticsOpen(true) },
@@ -441,6 +471,23 @@ export default function ShopSettingsScreen() {
               </Pressable>
             ))}
           </View>
+
+          {/* Delete Shop */}
+          <Pressable
+            style={({ pressed }) => [s.menuCard, { marginTop: 16 }, pressed && { opacity: 0.65 }]}
+            onPress={deleteShop}
+          >
+            <View style={[s.menuItem, { borderBottomWidth: 0 }]}>
+              <View style={[s.menuIcon, { backgroundColor: '#FEE2E2' }]}>
+                <Trash2 size={20} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={[s.menuTitle, { color: '#EF4444' }]}>Delete Shop</Text>
+                <Text style={s.menuSub}>Permanently remove shop and all data</Text>
+              </View>
+              <ChevronRight size={18} color={c.border} />
+            </View>
+          </Pressable>
 
           {/* Log Out */}
           <Pressable

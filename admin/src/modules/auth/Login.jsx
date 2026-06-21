@@ -26,7 +26,7 @@ export default function Login({ onLogin }) {
     setLoading(true)
     
     try {
-      const response = await api.post('/auth/login', { email, password })
+      const response = await api.post('/auth/login', { email, password, role: 'ADMIN' })
       const { token, user } = response.data.data
       
       localStorage.setItem('kwickly_admin_token', token)
@@ -47,13 +47,9 @@ export default function Login({ onLogin }) {
           {settings.logoUrl ? (
             <img src={settings.logoUrl} alt="Logo" style={{ maxWidth: '240px', maxHeight: '60px', objectFit: 'contain', marginBottom: '16px' }} />
           ) : (
-            <div className="login-logo-icon-wrap">
-              <svg viewBox="0 0 100 100" className="logo-svg" fill="none">
-                <path d="M50 10 A40 40 0 1 1 10 50 A40 40 0 0 1 50 10" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-                <path d="M50 10 L60 0 M50 10 L60 20" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-                <path d="M30 70 V45 L50 30 L70 45 V70 H30 Z" fill="currentColor" />
-                <path d="M48 70 V58 H52 V70" stroke="white" strokeWidth="4" />
-              </svg>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <img src="/logo.jpeg" alt="Kwickly" style={{ width: 64, height: 64, borderRadius: 16, objectFit: 'contain' }} />
+              <div className="login-logo-text">{settings.appName || 'Kwickly'}</div>
             </div>
           )}
           {!settings.logoUrl && <div className="login-logo-text">{settings.appName}</div>}

@@ -1,21 +1,31 @@
 require('dotenv').config();
 const http = require('http');
+
+// ─── Critical Environment Variable Check ─────────────────────────────────────
+// Fail fast at startup rather than silently using insecure defaults.
+const REQUIRED_ENV = ['JWT_SECRET', 'MONGO_URI'];
+const missingEnv = REQUIRED_ENV.filter(key => !process.env[key]);
+if (missingEnv.length > 0) {
+    console.error(`[FATAL] Missing required environment variables: ${missingEnv.join(', ')}`);
+    console.error('[FATAL] Server cannot start without these variables. Check your .env file.');
+    process.exit(1);
+}
+
 const app = require('./app');
 const connectDB = require('./config/db');
 const { initRedis } = require('./helpers/redis.helper');
 const { initSocket } = require('./helpers/socket.helper');
+const { initSocketHandlers } = require('./sockets');
 const logger = require('./helpers/logger.helper');
 
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
-const { initSocketHandlers } = require('./sockets');
-
-// Initialize Socket.io
+// Initialize Socket.io with JWT middleware
 initSocket(server);
-initSocketHandlers(); // Register Kwickly-specific event handlers
+initSocketHandlers();
 
-// Initialize Redis 
+// Initialize Redis
 initRedis();
 
 const seedData = require('./helpers/seeder.helper');
@@ -24,14 +34,28 @@ const seedData = require('./helpers/seeder.helper');
 const startServer = async () => {
     try {
         await connectDB();
-        await seedData();
+
+        // Only seed in development, never in production
+        if (process.env.NODE_ENV !== 'production') {
+            await seedData();
+        }
+
         server.listen(PORT, () => {
-            logger.info(`Server running on port ${PORT}`);
+            logger.info(`✅ Kwickly server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
         });
     } catch (error) {
         logger.error('Failed to start server:', error);
         process.exit(1);
     }
 };
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    logger.info('SIGTERM received. Shutting down gracefully...');
+    server.close(() => {
+        logger.info('HTTP server closed.');
+        process.exit(0);
+    });
+});
 
 startServer();

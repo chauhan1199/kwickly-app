@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { CheckCircle, XCircle, MessageSquare, User, RefreshCw } from 'lucide-react'
 import Badge from '../../components/Badge'
+import Toast from '../../components/Toast'
 import api from '../../services/api'
 
 const STATUS_VARIANT = { PENDING:'warning', APPROVED:'success', REJECTED:'danger' }
@@ -9,56 +10,59 @@ export default function Suggestions() {
   const [suggestions, setSuggestions] = useState([])
   const [filter, setFilter]           = useState('all')
   const [loading, setLoading]         = useState(true)
-  const [toast, setToast]             = useState('')
+  const [toast, setToast]             = useState(null)
+  const [processing, setProcessing]   = useState(null)
 
   useEffect(() => { fetchSuggestions() }, [])
 
   const fetchSuggestions = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/categories/suggestions')
+      const res = await api.get('/admin/suggestions')
       if (res.data.status === 'success') {
         setSuggestions(res.data.data?.suggestions || res.data.data || [])
       }
     } catch (e) {
-      console.error('Suggestions fetch error:', e)
+      const msg = e.response?.data?.message || 'Failed to load suggestions'
+      setToast({ message: msg, type: 'error' })
     } finally {
       setLoading(false)
     }
   }
 
-  const showToast = (msg, ok = false) => {
-    setToast({ msg, ok })
-    setTimeout(() => setToast(''), 3000)
-  }
-
-  const filtered = suggestions.filter(s => filter === 'all' || s.status === filter.toUpperCase())
+  const filtered = suggestions.filter(s => filter === 'all' || s.status === filter)
 
   const updateStatus = async (id, status) => {
+    const reason = status === 'APPROVED'
+      ? 'Admin approved this suggestion'
+      : 'Admin rejected this suggestion'
+    setProcessing(id)
     try {
-      const res = await api.patch(`/categories/suggestions/${id}`, { status: status.toUpperCase() })
+      const endpoint = status === 'APPROVED'
+        ? `/admin/suggestions/${id}/approve`
+        : `/admin/suggestions/${id}/reject`
+      const res = await api.patch(endpoint, { reason })
       if (res.data.status === 'success') {
         setSuggestions(prev => prev.map(s => s._id === id ? res.data.data : s))
-        showToast(`Suggestion ${status.toLowerCase()}`, true)
+        setToast({ message: `Suggestion ${status.toLowerCase()} successfully`, type: 'success' })
       }
-    } catch {
-      showToast('Failed to update suggestion')
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Failed to update suggestion'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setProcessing(null)
     }
   }
 
   const stats = {
-    pending:  suggestions.filter(s => s.status === 'PENDING').length,
-    approved: suggestions.filter(s => s.status === 'APPROVED').length,
-    rejected: suggestions.filter(s => s.status === 'REJECTED').length,
+    pending:  suggestions.filter(s => s.status === 'pending').length,
+    approved: suggestions.filter(s => s.status === 'approved').length,
+    rejected: suggestions.filter(s => s.status === 'rejected').length,
   }
 
   return (
     <div className="page">
-      {toast && (
-        <div style={{ position:'fixed',bottom:24,right:24,zIndex:999,background: toast.ok ? '#064e3b' : '#7f1d1d',color:'white',padding:'12px 20px',borderRadius:12,fontWeight:600,fontSize:14,animation:'slideUp 0.3s ease',boxShadow:'0 8px 32px rgba(0,0,0,0.3)' }}>
-          {toast.ok ? '✓' : '✗'} {toast.msg}
-        </div>
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="page-header">
         <div>
@@ -70,7 +74,6 @@ export default function Suggestions() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="stats-grid" style={{ gridTemplateColumns:'repeat(3,1fr)', marginBottom:24 }}>
         {[
           { label:'Pending Review', value:stats.pending,  color:'#d97706' },
@@ -84,7 +87,6 @@ export default function Suggestions() {
         ))}
       </div>
 
-      {/* Filter tabs */}
       <div className="filter-tabs" style={{ marginBottom:20 }}>
         {['all','pending','approved','rejected'].map(f => (
           <button key={f} className={`filter-tab ${filter===f?'active':''}`} onClick={() => setFilter(f)}>
@@ -104,17 +106,17 @@ export default function Suggestions() {
                 <div>
                   <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
                     <User size={14} color="var(--mid)" />
-                    <strong>{s.suggestedBy?.name || 'Unknown'}</strong>
-                    <span className="cell-muted">{s.suggestedBy?.phone || '—'}</span>
+                    <strong>{s.workerId?.name || s.workerName || 'Unknown'}</strong>
+                    <span className="cell-muted">{s.workerId?.city || s.workerCity || '—'}</span>
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                     <span className="cell-muted">Type:</span>
-                    <Badge label={s.type} variant="info" />
-                    <span style={{ fontWeight:700, fontSize:14 }}>{s.parentCategory?.name ? `Under ${s.parentCategory.name} → ` : ''}{s.name}</span>
+                    <Badge label={s.type === 'new_category' ? 'New Category' : 'New Subcategory'} variant="info" />
+                    <span style={{ fontWeight:700, fontSize:14 }}>{s.payload?.parentCategory ? `Under ${s.payload.parentCategory} → ` : ''}{s.payload?.name || s.name}</span>
                   </div>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <Badge label={s.status} variant={STATUS_VARIANT[s.status] || 'neutral'} />
+                  <Badge label={s.status} variant={STATUS_VARIANT[s.status?.toUpperCase()] || 'neutral'} />
                   <span className="cell-muted" style={{ fontSize:12 }}>
                     {new Date(s.createdAt).toLocaleDateString()}
                   </span>
@@ -123,16 +125,24 @@ export default function Suggestions() {
 
               <div className="suggestion-reason">
                 <MessageSquare size={13} color="var(--mid)" style={{ flexShrink:0 }} />
-                <span>{s.adminFeedback || 'No admin feedback.'}</span>
+                <span>{s.approveReason || s.rejectReason || 'No admin feedback yet.'}</span>
               </div>
 
-              {s.status === 'PENDING' && (
+              {s.status === 'pending' && (
                 <div className="suggestion-actions">
-                  <button className="btn-success-sm" onClick={() => updateStatus(s._id, 'APPROVED')}>
-                    <CheckCircle size={14} /> Approve & Add
+                  <button
+                    className="btn-success-sm"
+                    onClick={() => updateStatus(s._id, 'APPROVED')}
+                    disabled={processing === s._id}
+                  >
+                    <CheckCircle size={14} /> {processing === s._id ? 'Approving...' : 'Approve & Add'}
                   </button>
-                  <button className="btn-danger-sm" onClick={() => updateStatus(s._id, 'REJECTED')}>
-                    <XCircle size={14} /> Reject
+                  <button
+                    className="btn-danger-sm"
+                    onClick={() => updateStatus(s._id, 'REJECTED')}
+                    disabled={processing === s._id}
+                  >
+                    <XCircle size={14} /> {processing === s._id ? 'Rejecting...' : 'Reject'}
                   </button>
                 </div>
               )}

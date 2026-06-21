@@ -5,7 +5,7 @@ const upload  = require('../../middleware/upload.middleware');
 const { authMiddleware } = require('../../middleware/auth.middleware');
 const authorize          = require('../../middleware/role.middleware');
 const validate           = require('../../middleware/validate.middleware');
-const { createShopSchema, updateShopSchema, addPayoutMethodSchema, withdrawSchema, updateOwnerSchema, reviewKycSchema } = require('../../validators/shop.validator');
+const { createShopSchema, updateShopSchema, updateShopAdminSchema, addPayoutMethodSchema, withdrawSchema, updateOwnerSchema, reviewKycSchema } = require('../../validators/shop.validator');
 
 // Shop owner routes
 router.post('/',                                    authMiddleware, validate(createShopSchema), ctrl.createShop);
@@ -16,9 +16,16 @@ router.post('/my/payout-methods',                   authMiddleware, validate(add
 router.post('/my/withdraw',                         authMiddleware, validate(withdrawSchema), ctrl.requestWithdrawal);
 router.patch('/my/payout-methods/:methodId/primary',authMiddleware, ctrl.setPrimaryPayout);
 router.delete('/my/payout-methods/:methodId',       authMiddleware, ctrl.deletePayoutMethod);
+router.delete('/my',                                 authMiddleware, ctrl.deleteMyShop);
+
+// Delivery config
+router.get('/:id/delivery-config',                  authMiddleware, ctrl.getDeliveryConfig);
+router.patch('/:id/delivery-config',                authMiddleware, ctrl.updateDeliveryConfig);
 
 // Admin routes
 router.get('/',                                     authMiddleware,                       ctrl.getAllShops);
+router.patch('/:id',                                authMiddleware, authorize('ADMIN'), validate(updateShopAdminSchema), ctrl.updateShopAdmin);
+router.delete('/:id',                               authMiddleware, authorize('ADMIN'),  ctrl.deleteShop);
 router.patch('/:id/kyc',                            authMiddleware, authorize('ADMIN'),  ctrl.reviewShopKyc);
 router.patch('/:id/toggle',                         authMiddleware, authorize('ADMIN'),  ctrl.toggleShop);
 

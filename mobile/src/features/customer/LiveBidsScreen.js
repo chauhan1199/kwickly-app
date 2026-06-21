@@ -13,6 +13,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import useSocket from '../../hooks/useSocket';
 import { jobService } from '../../services/jobService';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -28,7 +29,12 @@ const LiveBidsScreen = ({ route, navigation }) => {
     jobId = 'BK' + Math.floor(1000 + Math.random() * 9000)
   } = route.params || {};
 
-  const { socket } = useAuth();
+  const { user } = useAuth();
+  const { socket } = useSocket({
+    role: 'CUSTOMER',
+    userId: user?._id
+  });
+  
   const [bids, setBids] = useState([]);
   const [isAccepting, setIsAccepting] = useState(false);
 

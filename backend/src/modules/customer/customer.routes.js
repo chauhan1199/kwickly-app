@@ -2,29 +2,40 @@ const express = require('express');
 const router = express.Router();
 
 const { authMiddleware } = require('../../middleware/auth.middleware');
+const authorize = require('../../middleware/role.middleware');
 const jobController = require('../job/job.controller');
 const customerController = require('./customer.controller');
-const workerController = require('../worker/worker.controller');
 const disputeController = require('../dispute/dispute.controller');
 const validate = require('../../middleware/validate.middleware');
 const { openDisputeSchema } = require('../../validators/dispute.validator');
 const upload = require('../../middleware/upload.middleware');
 
-router.post('/jobs', authMiddleware, jobController.createJob);
+router.use(authMiddleware);
+
+// -- Customer Profile --
+router.get('/me/profile', authorize('CUSTOMER'), customerController.getProfile);
+router.put('/me/profile', authorize('CUSTOMER'), upload.single('profileImage'), customerController.updateProfile);
+router.delete('/me/account', authorize('CUSTOMER'), customerController.deleteAccount);
+
+// -- Customer Addresses --
+const workerController = require('../worker/worker.controller');
+router.post('/me/addresses', authorize('CUSTOMER'), workerController.addAddress);
+router.put('/me/addresses/:addressId', authorize('CUSTOMER'), workerController.updateAddress);
+router.delete('/me/addresses/:addressId', authorize('CUSTOMER'), workerController.deleteAddress);
+router.patch('/me/addresses/:addressId/primary', authorize('CUSTOMER'), workerController.setPrimaryAddress);
+
+// -- Customer Jobs --
 router.get('/top-pros', customerController.getTopPros);
+router.get('/jobs/active', authorize('CUSTOMER'), customerController.getActiveJob);
+router.get('/jobs/:id/receipt', authorize('CUSTOMER'), customerController.getJobReceipt);
 
-// Disputes
-router.post('/disputes', authMiddleware, validate(openDisputeSchema), disputeController.openDispute);
+// -- Customer Disputes --
+router.post('/disputes', authorize('CUSTOMER'), validate(openDisputeSchema), disputeController.openDispute);
 
-// Shared Profile & Address Management (Accessible to Customers)
-router.patch('/me/profile', authMiddleware, upload.single('profileImage'), workerController.updateProfile);
-router.post('/me/addresses', authMiddleware, workerController.addAddress);
-router.put('/me/addresses/:addressId', authMiddleware, workerController.updateAddress);
-router.delete('/me/addresses/:addressId', authMiddleware, workerController.deleteAddress);
-router.patch('/me/addresses/:addressId/primary', authMiddleware, workerController.setPrimaryAddress);
+// -- Notifications --
+router.put('/me/notifications', authorize('CUSTOMER'), customerController.updateNotificationPreferences);
 
-router.get('/', (req, res) => {
-    res.json({ message: 'Customer routes working' });
-});
+// -- Worker Profile (browse) --
+router.get('/workers/:id/profile', authorize('CUSTOMER'), customerController.getWorkerProfile);
 
 module.exports = router;

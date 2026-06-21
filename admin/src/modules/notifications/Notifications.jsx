@@ -157,13 +157,10 @@ export default function Notifications() {
           _id: n._id,
           title: n.title,
           body: n.message,
-          target: n.targetRole.toLowerCase(),
-          city: 'all',
-          category: 'all',
+          target: n.targetRole ? n.targetRole.toLowerCase() : 'all',
           sentAt: new Date(n.createdAt).toLocaleString(),
-          delivered: Math.floor(Math.random() * 5000 + 100), // Simulated stats
-          opened: Math.floor(Math.random() * 2000),
-          status: 'sent'
+          status: 'sent',
+          createdAt: n.createdAt
         }))
         setNotifs(data)
       }
@@ -187,18 +184,11 @@ export default function Notifications() {
       fetchNotifications()
       showToast('Push notification broadcasted successfully!')
     } catch (e) {
-      alert('Failed to send notification')
+      showToast('Failed to send notification')
     }
   }
 
-  const deleteNotif = async (id) => {
-    // API for deleting notifications if needed
-    setNotifs(p => p.filter(n => n.id !== id))
-    showToast('Notification removed')
-  }
-
   const filtered = notifs.filter(n=>filter==='all'||n.status===filter)
-  const openRate = (n) => n.delivered>0?((n.opened/n.delivered)*100).toFixed(0)+'%':'—'
 
   return (
     <div>
@@ -206,18 +196,17 @@ export default function Notifications() {
 
       <div className="page-header">
         <div>
-          <div className="page-title">📣 Push Notifications</div>
-          <div className="page-subtitle">Broadcast messages to customers & workers · {notifs.reduce((a,n)=>a+n.delivered,0).toLocaleString()} total delivered</div>
+          <div className="page-title">Push Notifications</div>
+          <div className="page-subtitle">Broadcast messages to customers & workers · {notifs.length} total sent</div>
         </div>
         <button className="btn btn-primary" onClick={()=>setCompose(true)}>+ Compose</button>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:20 }}>
         {[
-          { label:'Sent Today',    value:notifs.filter(n=>n.status==='sent'&&n.sentAt.includes('Apr 10')).length,   color:'var(--primary)'  },
-          { label:'Scheduled',     value:notifs.filter(n=>n.status==='scheduled').length,                            color:'var(--warning)'  },
-          { label:'Total Reached', value:notifs.reduce((a,n)=>a+n.delivered,0).toLocaleString(),                    color:'var(--success)'  },
-          { label:'Avg Open Rate', value:(() => { const s=notifs.filter(n=>n.delivered>0); if(!s.length)return'0%'; return (s.reduce((a,n)=>a+n.opened/n.delivered,0)/s.length*100).toFixed(0)+'%' })(), color:'var(--purple)'   },
+          { label:'Total Sent',    value:notifs.length,    color:'var(--primary)'  },
+          { label:'Sent Today',    value:notifs.filter(n=>{ const d=new Date(n.createdAt); const today=new Date(); return d.toDateString()===today.toDateString() }).length,   color:'var(--success)'  },
+          { label:'This Week',     value:notifs.filter(n=>{ const d=new Date(n.createdAt); const weekAgo=new Date(); weekAgo.setDate(weekAgo.getDate()-7); return d>=weekAgo }).length, color:'var(--warning)'  },
         ].map((s,i)=>(
           <div key={i} className="card" style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
             <div style={{ fontWeight:800, fontSize:24, color:s.color }}>{s.value}</div>
@@ -227,7 +216,7 @@ export default function Notifications() {
       </div>
 
       <div className="filter-bar">
-        {['all','sent','scheduled'].map(f=>(
+        {['all','sent'].map(f=>(
           <button key={f} className={`filter-chip ${filter===f?'active':''}`} onClick={()=>setFilter(f)}>
             {f.charAt(0).toUpperCase()+f.slice(1)}
           </button>
@@ -238,27 +227,20 @@ export default function Notifications() {
         {filtered.map(n=>(
           <div key={n.id} className="card" style={{ padding:20 }}>
             <div style={{ display:'flex', alignItems:'flex-start', gap:16 }}>
-              <div style={{ width:44,height:44,background:n.target==='workers'?'var(--warning-light)':'var(--primary-light)',borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0 }}>
-                {n.target==='workers'?'👷':n.target==='both'?'👥':'👤'}
+              <div style={{ width:44,height:44,background:n.target==='worker'?'var(--warning-light)':n.target==='shop'?'var(--success-light)':'var(--primary-light)',borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0 }}>
+                {n.target==='worker'?'👷':n.target==='shop'?'🏪':'👥'}
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
                   <span style={{ fontWeight:800, fontSize:15 }}>{n.title}</span>
-                  <span className={`badge ${n.status==='scheduled'?'badge-warning':'badge-success'}`} style={{ fontSize:10 }}>
-                    {n.status==='scheduled'?'⏰ Scheduled':'✓ Sent'}
-                  </span>
+                  <span className="badge badge-success" style={{ fontSize:10 }}>Sent</span>
                 </div>
                 <div style={{ fontSize:13, color:'var(--mid)', fontFamily:'var(--font-body)', marginBottom:10 }}>{n.body}</div>
                 <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
-                  <div style={{ fontSize:12, color:'var(--light)' }}>🕐 {n.sentAt}</div>
-                  <div style={{ fontSize:12, color:'var(--light)' }}>🎯 {n.target==='both'?'Everyone':n.target==='workers'?'Workers':'Customers'} · {n.city==='all'?'All Cities':n.city}</div>
-                  {n.delivered>0&&<>
-                    <div style={{ fontSize:12, color:'var(--mid)', fontWeight:600 }}>📡 {n.delivered.toLocaleString()} delivered</div>
-                    <div style={{ fontSize:12, color:'var(--success)', fontWeight:700 }}>📬 {openRate(n)} open rate</div>
-                  </>}
+                  <div style={{ fontSize:12, color:'var(--light)' }}>Sent {n.sentAt}</div>
+                  <div style={{ fontSize:12, color:'var(--light)' }}>Target: {n.target==='worker'?'Workers':n.target==='shop'?'Shop Owners':n.target==='all'?'Everyone':n.target}</div>
                 </div>
               </div>
-              <button onClick={()=>deleteNotif(n.id)} style={{ height:30,padding:'0 10px',background:'var(--danger-light)',color:'var(--danger)',border:'none',borderRadius:6,cursor:'pointer',fontSize:12,flexShrink:0 }}>🗑</button>
             </div>
           </div>
         ))}

@@ -1,17 +1,78 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import api from '../../services/api'
+import Toast from '../../components/Toast'
 
 export default function AdminUsers() {
+  const [adminInfo, setAdminInfo] = useState(null)
+  const [editMode, setEditMode] = useState(false)
+  const [form, setForm] = useState({ name: '', email: '' })
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' })
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [toast, setToast] = useState({ message: '', type: 'success' })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { fetchAdminProfile() }, [])
+
+  const fetchAdminProfile = async () => {
+    try {
+      const res = await api.get('/auth/me')
+      if (res.data.status === 'success') {
+        setAdminInfo(res.data.data)
+        setForm({ name: res.data.data.name || '', email: res.data.data.email || '' })
+      }
+    } catch (e) { showToast(e.response?.data?.message || 'Failed to load profile', 'error') }
+    finally { setLoading(false) }
+  }
+
+  const showToast = (msg, type = 'success') => setToast({ message: msg, type })
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault()
+    try {
+      // TODO: Backend needs a dedicated /auth/update-profile endpoint
+      const res = await api.patch(`/admin/users/${adminInfo._id}`, { name: form.name, email: form.email })
+      if (res.data.status === 'success') {
+        setAdminInfo(prev => ({ ...prev, ...form }))
+        setEditMode(false)
+        showToast('Profile updated successfully')
+      }
+    } catch (e) { showToast(e.response?.data?.message || 'Update failed', 'error') }
+  }
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      return showToast('Passwords do not match')
+    }
+    if (passwordForm.newPassword.length < 6) {
+      return showToast('Password must be at least 6 characters')
+    }
+    try {
+      const res = await api.patch('/auth/set-password', { password: passwordForm.newPassword })
+      if (res.data.status === 'success') {
+        setShowPasswordChange(false)
+        setPasswordForm({ newPassword: '', confirmPassword: '' })
+        showToast('Password changed successfully')
+      }
+    } catch (e) { showToast(e.response?.data?.message || 'Password change failed', 'error') }
+  }
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>Loading admin profile...</div>
+
   return (
     <div>
+      {toast.message && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'success' })} />
+      )}
+
       <div className="page-header">
         <div>
-          <div className="page-title">🔐 Admin Users & Roles</div>
-          <div className="page-subtitle">Access control and role management</div>
+          <div className="page-title">🔐 Admin Profile & Security</div>
+          <div className="page-subtitle">Manage your admin account settings</div>
         </div>
-        <span className="badge badge-warning" style={{ fontSize: 12, padding: '6px 14px' }}>🚧 Coming Soon</span>
       </div>
 
-      {/* Current admin info */}
+      {/* Profile Card */}
       <div className="card" style={{ padding: 28, marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 20 }}>
           <div style={{
@@ -19,60 +80,87 @@ export default function AdminUsers() {
             background: 'linear-gradient(135deg, var(--primary), var(--purple))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 22, fontWeight: 800, color: 'white', flexShrink: 0,
-          }}>SA</div>
-          <div>
+          }}>
+            {adminInfo?.name ? adminInfo.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) : 'SA'}
+          </div>
+          <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <span style={{ fontWeight: 800, fontSize: 18 }}>Super Admin</span>
-              <span style={{ fontSize: 18 }}>👑</span>
+              <span style={{ fontWeight: 800, fontSize: 18 }}>{adminInfo?.name || 'Super Admin'}</span>
               <span className="badge badge-success" style={{ fontSize: 11 }}>Active</span>
             </div>
-            <div style={{ color: 'var(--mid)', fontFamily: 'var(--font-body)', fontSize: 13 }}>admin@kwickly.com</div>
-            <div style={{ marginTop: 6 }}>
-              <span className="badge badge-danger" style={{ fontSize: 11 }}>Full Access — All Permissions</span>
-            </div>
+            <div style={{ color: 'var(--mid)', fontFamily: 'var(--font-body)', fontSize: 13 }}>{adminInfo?.email || 'admin@kwickly.com'}</div>
+            <div style={{ color: 'var(--mid)', fontFamily: 'var(--font-body)', fontSize: 12, marginTop: 2 }}>{adminInfo?.phone}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-outline btn-sm" onClick={() => setEditMode(!editMode)}>
+              {editMode ? 'Cancel' : '✏️ Edit Profile'}
+            </button>
+            <button className="btn btn-outline btn-sm" onClick={() => setShowPasswordChange(!showPasswordChange)}>
+              🔑 Change Password
+            </button>
           </div>
         </div>
 
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-            Current Permissions
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {[
-              'Dashboard','Customers','Workers','Jobs','KYC Queue','Categories',
-              'Payouts','Subscriptions','Banners','Coupons','Notifications',
-              'Cities','Pricing','Reviews','Support','Settings',
-            ].map(p => (
-              <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--success-light)', color: '#14532D', border: '1px solid #86EFAC', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
-                ✓ {p}
-              </span>
-            ))}
-          </div>
-        </div>
+        {/* Edit Profile Form */}
+        {editMode && (
+          <form onSubmit={handleUpdateProfile} style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+              Edit Profile
+            </div>
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Display Name</label>
+                <input className="form-control" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email Address</label>
+                <input className="form-control" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+              </div>
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ marginTop: 8 }}>Save Changes</button>
+          </form>
+        )}
+
+        {/* Change Password Form */}
+        {showPasswordChange && (
+          <form onSubmit={handleChangePassword} style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: editMode ? 16 : 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+              Change Password
+            </div>
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">New Password</label>
+                <input className="form-control" type="password" placeholder="Min 6 characters" value={passwordForm.newPassword} onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Confirm Password</label>
+                <input className="form-control" type="password" placeholder="Re-enter password" value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} />
+              </div>
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ marginTop: 8 }}>Update Password</button>
+          </form>
+        )}
       </div>
 
-      {/* Coming soon card */}
-      <div className="card" style={{ padding: 48, textAlign: 'center' }}>
-        <div style={{ fontSize: 56, marginBottom: 16 }}>🔐</div>
-        <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 8 }}>Multi-Admin Access — Coming Soon</div>
-        <div style={{ fontSize: 14, color: 'var(--mid)', fontFamily: 'var(--font-body)', maxWidth: 480, margin: '0 auto 24px', lineHeight: 1.7 }}>
-          Invite team members with scoped roles — Finance, Support, KYC Ops, City Ops, and Marketing
-          — each with controlled page-level permissions. Currently all operations run under a single Super Admin.
+      {/* Permissions Card */}
+      <div className="card" style={{ padding: 28 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+          Current Permissions
         </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, maxWidth: 640, margin: '0 auto' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[
-            { icon: '💰', role: 'Finance',    desc: 'Payouts & Reports'        },
-            { icon: '💬', role: 'Support',    desc: 'Tickets & Users'          },
-            { icon: '🪪', role: 'KYC Ops',    desc: 'Verification Queue'       },
-            { icon: '🌆', role: 'City Ops',   desc: 'Cities & Jobs'            },
-            { icon: '📢', role: 'Marketing',  desc: 'Banners, Coupons & Notifs'},
-          ].map((r, i) => (
-            <div key={i} style={{ background: 'var(--bg-dark)', borderRadius: 12, padding: '14px 12px', border: '1px solid var(--border)', opacity: 0.6 }}>
-              <div style={{ fontSize: 24, marginBottom: 6 }}>{r.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: 13 }}>{r.role}</div>
-              <div style={{ fontSize: 11, color: 'var(--mid)', fontFamily: 'var(--font-body)', marginTop: 2 }}>{r.desc}</div>
-            </div>
+            'Dashboard', 'Customers', 'Workers', 'Shops', 'Jobs', 'KYC Queue', 'Categories',
+            'Payouts', 'Subscriptions', 'Disputes', 'Suggestions', 'Notifications',
+            'Reports', 'Ledger', 'Settings',
+          ].map(p => (
+            <span key={p} style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'var(--success-light)', color: '#14532D',
+              border: '1px solid #86EFAC', borderRadius: 6,
+              padding: '3px 10px', fontSize: 12, fontWeight: 600
+            }}>
+              ✓ {p}
+            </span>
           ))}
         </div>
       </div>

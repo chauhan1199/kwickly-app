@@ -18,7 +18,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowDown, ArrowUp, Gift, Landmark, Smartphone } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, Gift, Landmark, Smartphone, Briefcase, DollarSign, Wallet, ShieldAlert, History, PlusCircle, CreditCard, ChevronRight, CheckCircle2, Clock } from 'lucide-react-native';
 import AppBar from '../../components/AppBar';
 
 import { walletService } from '../../services/walletService';
@@ -33,6 +33,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [wallet, setWallet] = useState({ balance: 0 });
   const [transactions, setTransactions] = useState([]);
   const [profile, setProfile] = useState(null);
+  const [accounts, setAccounts] = useState([]);
 
   // Modals state
   const [planModalVisible, setPlanModalVisible] = useState(false);
@@ -78,6 +79,17 @@ const WorkerEarningsScreen = ({ navigation }) => {
           sub: p.durationDays ? `${p.durationDays} days` : 'Custom duration',
           price: `₹${p.price || 0}`
         }));
+        const tlist = walletRes.data.data.transactions || [];
+        const mappedTxns = tlist.map(t => ({
+          id: t._id,
+          txnId: t._id.slice(-8).toUpperCase(),
+          title: t.description || 'Transaction',
+          time: new Date(t.createdAt).toLocaleString(),
+          amount: t.amount,
+          type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT', 'JOB_CREDIT', 'REFERRAL_BONUS'].includes(t.type) ? 'credit' : 'debit',
+          status: t.status
+        }));
+        setTransactions(mappedTxns);
         setDynamicPlans(formatted);
         if (formatted.length > 0 && selectedPlan === 'yearly') {
             setSelectedPlan(formatted[0].id);
@@ -86,11 +98,34 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
       if (walletRes.data.status === 'success') {
         setWallet({ balance: walletRes.data.data.balance || 0 });
-        setTransactions(walletRes.data.data.transactions || []);
       }
       
       if (profileRes.data.status === 'success') {
-        setProfile(profileRes.data.data);
+        const wProfile = profileRes.data.data;
+        setProfile(wProfile);
+        
+        const accs = [];
+        if (wProfile?.wallet?.bankDetails?.accountNumber) {
+          accs.push({
+            id: 'bank',
+            type: 'bank',
+            name: wProfile.wallet.bankDetails.bankName || 'Bank Account',
+            detail: `${wProfile.wallet.bankDetails.accountNumber} (IFSC: ${wProfile.wallet.bankDetails.ifscCode})`
+          });
+        }
+        if (wProfile?.wallet?.upiDetails?.upiId) {
+          accs.push({
+            id: 'upi',
+            type: 'upi',
+            name: 'UPI Account',
+            detail: wProfile.wallet.upiDetails.upiId
+          });
+        }
+        setAccounts(accs);
+        if (accs.length > 0) {
+          if (!selectedPayout) setSelectedPayout(accs[0].id);
+          if (!topUpMethod || topUpMethod === 'UPI' || topUpMethod === 'BANK') setTopUpMethod(accs[0].id);
+        }
       }
     } catch (e) {
       console.log('Failed to fetch data:', e);
@@ -125,6 +160,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [selectedPayout, setSelectedPayout] = useState(null);
+  const [topUpModalVisible, setTopUpModalVisible] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [topUpMethod, setTopUpMethod] = useState('UPI');
   
 
 
@@ -153,21 +191,29 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
   };
 
-  const { signIn } = useAuth(); // Assuming signIn is available to update user state
-
   const handleTopup = async () => {
-    const plan = dynamicPlans.find(p => p.id === selectedPlan);
-    if (!plan) return;
-    const amount = Number(plan.price.replace('₹', ''));
+    if (!topUpAmount || isNaN(topUpAmount) || Number(topUpAmount) <= 0) {
+      Alert.alert("Invalid Amount", "Please enter a valid amount.");
+      return;
+    }
+    const selectedAcc = accounts.find(a => a.id === topUpMethod) || accounts[0];
+    if (!selectedAcc && accounts.length === 0) {
+      Alert.alert("No Payment Method", "Please add a payment method in settings.");
+      return;
+    }
     try {
-      const res = await walletService.topupWallet(amount, { method: 'UPI' }, selectedPlan);
+      setLoading(true);
+      const res = await walletService.topupWallet(Number(topUpAmount), { method: selectedAcc ? selectedAcc.type : 'UPI', accountId: selectedAcc ? selectedAcc.id : undefined });
       if (res.data.status === 'success') {
-        Alert.alert("Success", "Top up successful ✅");
-        setPlanModalVisible(false);
+        Alert.alert("Success", "Wallet topped up successfully ✅");
+        setTopUpModalVisible(false);
+        setTopUpAmount('');
         fetchWalletAndProfile();
       }
     } catch (e) {
       Alert.alert("Error", "Failed to top up wallet.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -183,9 +229,14 @@ const WorkerEarningsScreen = ({ navigation }) => {
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Available Balance</Text>
           <Text style={styles.balanceValue}>₹{wallet.balance.toFixed(2)}</Text>
-          <TouchableOpacity style={styles.withdrawBtn} onPress={() => setWithdrawModalVisible(true)}>
-            <Text style={styles.withdrawBtnText}>Withdraw</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity style={[styles.withdrawBtn, { backgroundColor: '#0284c7' }]} onPress={() => setTopUpModalVisible(true)}>
+              <Text style={styles.withdrawBtnText}>+ Top Up</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.withdrawBtn} onPress={() => setWithdrawModalVisible(true)}>
+              <Text style={styles.withdrawBtnText}>Withdraw</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Free Trial / Plan Card */}
@@ -258,13 +309,13 @@ const WorkerEarningsScreen = ({ navigation }) => {
         
         <View style={styles.transactionsList}>
           {transactions.map((t) => {
-            const isCredit = ['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT'].includes(t.type);
+            const isCredit = t.type === 'credit';
             const amountPrefix = isCredit ? '+' : '-';
             const colorClass = isCredit ? '#059669' : '#dc2626';
             const bgClass = isCredit ? '#e0f2fe' : '#fee2e2';
             return (
               <TouchableOpacity 
-                key={t._id} 
+                key={t.id} 
                 style={styles.transactionCard}
                 onPress={() => {
                   setSelectedTransaction(t);
@@ -280,8 +331,10 @@ const WorkerEarningsScreen = ({ navigation }) => {
                     )}
                   </View>
                   <View style={styles.txInfo}>
-                    <Text style={styles.txTitle}>{t.description || t.type}</Text>
-                    <Text style={styles.txTime}>{new Date(t.createdAt).toLocaleString()}</Text>
+                    <Text style={styles.txTitle}>{t.title}</Text>
+                    <Text style={styles.txTime}>
+                      {t.time} • <Text style={{ color: t.status === 'PENDING' ? '#f59e0b' : (t.status === 'REJECTED' ? '#dc2626' : '#059669') }}>{t.status}</Text>
+                    </Text>
                   </View>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
@@ -366,71 +419,48 @@ const WorkerEarningsScreen = ({ navigation }) => {
                   <Text style={styles.sheetTitle}>Withdraw Funds</Text>
                   <Text style={styles.sheetSub}>Select destination account</Text>
 
-                  {/* Payout Options */}
                   <ScrollView style={styles.accountsList} showsVerticalScrollIndicator={false}>
-                    {profile?.wallet?.bankDetails?.accountNumber ? (
+                    {accounts.map(acc => (
                       <TouchableOpacity 
-                        style={[styles.accountCard, selectedPayout === 'bank' && styles.accountCardPrimary]}
-                        onPress={() => setSelectedPayout('bank')}
+                        key={acc.id}
+                        style={[styles.accountCard, selectedPayout === acc.id && styles.accountCardPrimary]}
+                        onPress={() => setSelectedPayout(acc.id)}
                         activeOpacity={0.7}
                       >
                         <View style={styles.accountLeft}>
-                          <View style={styles.accountIconBox}>
-                            <Landmark size={20} color="#0d9488" />
+                          <View style={[styles.accountIconBox, { width: 36, height: 36, borderRadius: 18 }]}>
+                            {acc.type === 'bank' ? <Landmark size={18} color="#0d9488" /> : <Smartphone size={18} color="#e11d48" />}
                           </View>
                           <View style={styles.accountInfo}>
-                            <Text style={styles.accountName}>{profile.wallet.bankDetails.bankName || 'Bank Account'}</Text>
-                            <Text style={styles.accountDetail}>
-                              {profile.wallet.bankDetails.accountNumber} (IFSC: {profile.wallet.bankDetails.ifscCode})
-                            </Text>
+                            <Text style={[styles.accountName, { fontSize: 14 }]}>{acc.name}</Text>
+                            <Text style={[styles.accountDetail, { fontSize: 12 }]}>{acc.detail}</Text>
                           </View>
                         </View>
+                        {selectedPayout === acc.id && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.primary }} />}
                       </TouchableOpacity>
-                    ) : null}
-
-                    {profile?.wallet?.upiId ? (
-                      <TouchableOpacity 
-                        style={[styles.accountCard, selectedPayout === 'upi' && styles.accountCardPrimary]}
-                        onPress={() => setSelectedPayout('upi')}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.accountLeft}>
-                          <View style={styles.accountIconBox}>
-                            <Smartphone size={20} color="#e11d48" />
-                          </View>
-                          <View style={styles.accountInfo}>
-                            <Text style={styles.accountName}>UPI ID</Text>
-                            <Text style={styles.accountDetail}>{profile.wallet.upiId}</Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    ) : null}
-
-                    {(!profile?.wallet?.bankDetails?.accountNumber && !profile?.wallet?.upiId) && (
-                      <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                        <Text style={{ color: theme.colors.textDim, marginBottom: 16 }}>No payment details added.</Text>
-                        <TouchableOpacity style={[styles.addAccountBtn, { width: '100%' }]} onPress={() => {
-                          setWithdrawModalVisible(false);
-                          navigation.navigate('Profile');
-                        }}>
-                          <Text style={styles.addAccountBtnText}>Go to Profile to Add Bank/UPI</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
+                    ))}
                   </ScrollView>
+
+                  {accounts.length === 0 && (
+                    <TouchableOpacity style={[styles.addAccountBtn, { paddingVertical: 12, marginBottom: 16 }]} onPress={() => { setWithdrawModalVisible(false); navigation.navigate('Profile'); }}>
+                      <Text style={styles.addAccountBtnText}>+ Add Payment Method</Text>
+                    </TouchableOpacity>
+                  )}
 
                   {/* Amount Input */}
                   <TextInput
-                    style={styles.amountInput}
-                    placeholder="Amount to withdraw (₹)"
+                    style={[styles.amountInput, { fontSize: 24, textAlign: 'center', height: 70, marginTop: 10 }]}
+                    placeholder="₹0"
                     placeholderTextColor={theme.colors.textDim}
                     keyboardType="numeric"
                     value={withdrawAmount}
                     onChangeText={setWithdrawAmount}
                   />
-                  <Text style={styles.processingNote}>Processing time: 1-2 business days</Text>
+                  <Text style={[styles.processingNote, { textAlign: 'center', marginTop: 8 }]}>Processing time: 1-2 business days</Text>
 
-                  <Button title="Submit Request" onPress={() => {}} />
+                  <View style={{marginTop: 16}}>
+                    <Button title="Submit Request" onPress={handleSubmitWithdrawal} />
+                  </View>
                 </View>
               </TouchableWithoutFeedback>
             </View>
@@ -454,23 +484,25 @@ const WorkerEarningsScreen = ({ navigation }) => {
             <View style={styles.centerModal}>
               {selectedTransaction && (
                 <>
-                  <View style={[styles.txIconBoxLarge, { backgroundColor: selectedTransaction.type === 'credit' ? '#e0f2fe' : '#fee2e2' }]}>
-                    {selectedTransaction.type === 'credit' ? (
+                  <View style={[styles.txIconBoxLarge, { backgroundColor: ['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT'].includes(selectedTransaction.type) ? '#e0f2fe' : '#fee2e2' }]}>
+                    {['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT'].includes(selectedTransaction.type) ? (
                       <ArrowDown size={32} color="#0284c7" />
                     ) : (
                       <ArrowUp size={32} color="#dc2626" />
                     )}
                   </View>
                   
-                  <Text style={styles.txDetailTitle}>{selectedTransaction.title}</Text>
-                  <Text style={[styles.txDetailAmount, { color: selectedTransaction.type === 'credit' ? '#059669' : '#dc2626' }]}>
-                    {selectedTransaction.amount}
+                  <Text style={styles.txDetailTitle}>{selectedTransaction.description || selectedTransaction.type}</Text>
+                  <Text style={[styles.txDetailAmount, { color: ['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT'].includes(selectedTransaction.type) ? '#059669' : '#dc2626' }]}>
+                    {['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT'].includes(selectedTransaction.type) ? '+' : '-'}₹{selectedTransaction.amount}
                   </Text>
                   
                   <View style={styles.txDetailInfoBox}>
                     <View style={styles.txDetailRow}>
                       <Text style={styles.txDetailLabel}>Status</Text>
-                      <Text style={styles.txDetailValueSuccess}>Completed</Text>
+                      <Text style={[styles.txDetailValue, { color: selectedTransaction.status === 'PENDING' ? '#f59e0b' : (selectedTransaction.status === 'REJECTED' ? '#dc2626' : '#059669'), fontWeight: '700' }]}>
+                        {selectedTransaction.status || 'COMPLETED'}
+                      </Text>
                     </View>
                     <View style={styles.txDetailRow}>
                       <Text style={styles.txDetailLabel}>Date</Text>
@@ -478,7 +510,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
                     </View>
                     <View style={styles.txDetailRow}>
                       <Text style={styles.txDetailLabel}>Transaction ID</Text>
-                      <Text style={styles.txDetailValue}>TXN-{Math.floor(Math.random() * 1000000000)}</Text>
+                      <Text style={styles.txDetailValue}>{selectedTransaction._id ? selectedTransaction._id.slice(-8) : 'N/A'}</Text>
                     </View>
                   </View>
 
@@ -507,7 +539,84 @@ const WorkerEarningsScreen = ({ navigation }) => {
         </TouchableOpacity>
       </Modal>
 
-      
+      {/* Top Up Wallet Modal */}
+      <Modal
+        visible={topUpModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setTopUpModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity 
+            style={{ flex: 1, width: '100%' }} 
+            activeOpacity={1} 
+            onPress={() => setTopUpModalVisible(false)}
+          >
+            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+              <TouchableWithoutFeedback>
+                <View style={styles.bottomSheet}>
+                  <View style={styles.sheetHeaderHandle} />
+                  <Text style={styles.sheetTitle}>Top Up Wallet</Text>
+                  <Text style={styles.sheetSub}>Select payment method and enter amount</Text>
+
+                  {/* Payment Method Selection */}
+                  {accounts.length > 0 ? (
+                    <ScrollView style={{ maxHeight: 160, marginBottom: 16 }} showsVerticalScrollIndicator={false}>
+                      {accounts.map(acc => (
+                        <TouchableOpacity 
+                          key={acc.id} 
+                          style={[styles.accountCard, topUpMethod === acc.id && styles.accountCardPrimary, { padding: 12, marginBottom: 8 }]}
+                          onPress={() => setTopUpMethod(acc.id)}
+                        >
+                          <View style={styles.accountLeft}>
+                            <View style={[styles.accountIconBox, { width: 36, height: 36, borderRadius: 18 }]}>
+                              {acc.type === 'bank' ? <Landmark size={18} color="#0d9488" /> : <Smartphone size={18} color="#e11d48" />}
+                            </View>
+                            <View style={styles.accountInfo}>
+                              <Text style={[styles.accountName, { fontSize: 14 }]}>{acc.name}</Text>
+                              <Text style={[styles.accountDetail, { fontSize: 12 }]}>{acc.detail}</Text>
+                            </View>
+                          </View>
+                          {topUpMethod === acc.id && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.primary }} />}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  ) : (
+                    <TouchableOpacity style={[styles.addAccountBtn, { paddingVertical: 12, marginBottom: 16 }]} onPress={() => { setTopUpModalVisible(false); navigation.navigate('Profile'); }}>
+                      <Text style={styles.addAccountBtnText}>+ Add Payment Method</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TextInput
+                    style={[styles.amountInput, { fontSize: 24, textAlign: 'center', height: 70 }]}
+                    placeholder="₹0"
+                    placeholderTextColor={theme.colors.textDim}
+                    keyboardType="numeric"
+                    value={topUpAmount}
+                    onChangeText={setTopUpAmount}
+                  />
+
+                  {/* Quick Amounts */}
+                  <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 20 }}>
+                    {[100, 500, 1000].map(amt => (
+                      <TouchableOpacity key={amt} style={styles.quickAmtBtn} onPress={() => setTopUpAmount(amt.toString())}>
+                        <Text style={styles.quickAmtText}>+₹{amt}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <View style={{marginTop: 16}}>
+                    <Button title={loading ? "Processing..." : "Proceed to Pay"} disabled={loading} onPress={handleTopup} />
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -758,17 +867,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontWeight: '900',
     color: theme.colors.text,
   },
-  proceedBtn: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  proceedBtnText: {
-    color: '#001016',
-    fontSize: 16,
-    fontWeight: '800',
-  },
   accountsList: {
     maxHeight: 280,
     marginBottom: 20,
@@ -898,21 +996,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 20,
     paddingHorizontal: 4,
   },
-  submitBtn: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  submitBtnText: {
-    color: '#001016',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  
-  
-  
-  
   modalOverlayCenter: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

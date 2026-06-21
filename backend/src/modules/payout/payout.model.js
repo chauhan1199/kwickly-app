@@ -30,6 +30,10 @@ const PayoutSchema = new mongoose.Schema({
     txnId: {
         type: String
     },
+    walletTxnId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'WalletTxn'
+    },
     rejectReason: {
         type: String
     },

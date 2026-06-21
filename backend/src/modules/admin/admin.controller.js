@@ -8,8 +8,10 @@ const Dispute    = require('../dispute/dispute.model');
 const Suggestion = require('../suggestion/suggestion.model');
 const Category   = require('../category/category.model');
 const Shop       = require('../shop/shop.model');
+const Product    = require('../product/product.model');
 const ShopOrder  = require('../shoporder/shoporder.model');
 const Notification = require('../notification/notification.model');
+const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { ADMIN, AUTH } = require('../../constants/messages');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -17,24 +19,7 @@ const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate, getIO } = require('../../helpers/socket.helper');
 const bcrypt = require('bcryptjs');
 
-const logAdminActivity = async (action, entityType, entityId, title, message, adminId) => {
-    try {
-        const notification = await Notification.create({
-            title,
-            message,
-            type: 'ADMIN_ACTIVITY',
-            action,
-            entityType,
-            entityId,
-            performedBy: adminId,
-            targetRole: 'ADMIN'
-        });
-        try {
-            const io = getIO();
-            if (io) io.to('admin_dashboard').emit('NEW_NOTIFICATION', notification);
-        } catch (_) {}
-    } catch (e) { console.error('[logAdminActivity] Failed:', e.message); }
-};
+const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 
 // ─── Dashboard Stats ──────────────────────────────────────────────────────────
 exports.getBadgeCounts = catchAsync(async (req, res) => {
@@ -193,7 +178,18 @@ exports.getPendingKYC = catchAsync(async (req, res) => {
         .select('-password')
         .sort('createdAt')
         .lean();
-    return successResponse(res, workers, ADMIN.WORKERS_FETCHED);
+
+    const shops = await Shop.find({ 'kyc.status': 'PENDING' })
+        .populate('ownerId', 'name phone')
+        .sort('createdAt')
+        .lean();
+
+    const items = [
+        ...workers.map(w => ({ ...w, kycType: 'WORKER' })),
+        ...shops.map(s => ({ ...s, kycType: 'SHOP', name: s.name, phone: s.ownerId?.phone }))
+    ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    return successResponse(res, items, ADMIN.WORKERS_FETCHED);
 });
 
 exports.updateKYC = catchAsync(async (req, res) => {
@@ -215,11 +211,76 @@ exports.updateKYC = catchAsync(async (req, res) => {
 
     logAdminActivity('KYC', 'KYC', id, `KYC ${status}`, `KYC for worker "${worker.name}" was ${status.toLowerCase()}`, req.user?._id);
 
+    const title = `KYC ${status.toLowerCase()}`;
+    const message = status === 'APPROVED'
+        ? `Your KYC has been approved. You can now accept jobs.`
+        : `Your KYC has been rejected. Please resubmit your documents.`;
+
+    try {
+        const notification = await Notification.create({
+            userId: worker._id,
+            title,
+            message,
+            type: 'DIRECT',
+            action: 'KYC',
+            entityType: 'WORKER',
+            entityId: worker._id,
+            performedBy: req.user?._id,
+            targetRole: 'WORKER'
+        });
+        try {
+            const io = getIO();
+            if (io) {
+                io.to(`customer_${worker._id}`).emit('NEW_NOTIFICATION', notification);
+                io.to(`worker_${worker._id}`).emit('NEW_NOTIFICATION', notification);
+            }
+        } catch (_) {}
+    } catch (_) {}
+
     return successResponse(res, worker, ADMIN.KYC_UPDATED);
 });
 
+exports.addKycDocument = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { docType } = req.body;
+
+    const worker = await Customer.findById(id);
+    if (!worker || worker.role !== 'WORKER') return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
+
+    if (!req.file) return errorResponse(res, 'No file uploaded', StatusCodes.BAD_REQUEST);
+
+    const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    worker.kyc.documents.push({
+        type: docType || 'OTHER',
+        url,
+        uploadedAt: new Date()
+    });
+    worker.kyc.status = 'PENDING';
+    await worker.save();
+
+    logAdminActivity('KYC', 'KYC', id, 'KYC Document Added', `Admin added ${docType || 'document'} for worker "${worker.name}"`, req.user?._id);
+
+    return successResponse(res, worker, 'Document uploaded successfully');
+});
+
+exports.removeKycDocument = catchAsync(async (req, res) => {
+    const { id, docIndex } = req.params;
+
+    const worker = await Customer.findById(id);
+    if (!worker || worker.role !== 'WORKER') return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
+
+    if (!worker.kyc.documents || !worker.kyc.documents[docIndex]) {
+        return errorResponse(res, 'Document not found', StatusCodes.NOT_FOUND);
+    }
+
+    worker.kyc.documents.splice(Number(docIndex), 1);
+    await worker.save();
+
+    return successResponse(res, worker, 'Document removed');
+});
+
 exports.createUser = catchAsync(async (req, res) => {
-    const { name, phone, role, password, email, city, bio, profileImage, address, location } = req.body;
+    const { name, phone, role, password, email, city, bio, profileImage, address, location, services, serviceRadius, wallet } = req.body;
 
     const existing = await Customer.findOne({ phone, role });
     if (existing) return errorResponse(res, 'User with this phone and role already exists', StatusCodes.BAD_REQUEST);
@@ -257,19 +318,39 @@ exports.createUser = catchAsync(async (req, res) => {
         };
     }
 
+    if (services && services.length > 0) {
+        userData.services = services.map(s => ({
+            category: s.category,
+            subcategories: s.subcategories || [],
+            isActive: s.isActive !== false
+        }));
+    }
+    if (serviceRadius) userData.serviceRadius = serviceRadius;
+    if (wallet) {
+        if (wallet.bankDetails) {
+            userData.wallet = userData.wallet || {};
+            userData.wallet.bankDetails = wallet.bankDetails;
+        }
+        if (wallet.upiId !== undefined) {
+            userData.wallet = userData.wallet || {};
+            userData.wallet.upiId = wallet.upiId;
+        }
+    }
+
     const user = await Customer.create(userData);
 
     await delCache('admin_dashboard_stats');
     triggerDashboardUpdate();
 
-    logAdminActivity('CREATE', 'CUSTOMER', user._id, 'Customer Created', `New customer "${name}" (${phone}) was added to the platform`, req.user?._id);
+    const entityType = role === 'WORKER' ? 'WORKER' : 'CUSTOMER';
+    logAdminActivity('CREATE', entityType, user._id, `${entityType.charAt(0) + entityType.slice(1).toLowerCase()} Created`, `New ${entityType.toLowerCase()} "${name}" (${phone}) was added to the platform`, req.user?._id);
 
     return successResponse(res, user, 'User created successfully', StatusCodes.CREATED);
 });
 
 exports.updateUser = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { name, phone, email, city, bio, profileImage, address, location } = req.body;
+    const { name, phone, email, city, bio, profileImage, address, location, services, serviceRadius, wallet } = req.body;
 
     const user = await Customer.findById(id);
     if (!user) return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
@@ -318,13 +399,33 @@ exports.updateUser = catchAsync(async (req, res) => {
         }
     }
 
+    if (services && services.length > 0) {
+        user.services = services.map(s => ({
+            category: s.category,
+            subcategories: s.subcategories || [],
+            isActive: s.isActive !== false
+        }));
+    }
+    if (serviceRadius !== undefined) user.serviceRadius = serviceRadius;
+    if (wallet) {
+        if (wallet.bankDetails) {
+            user.wallet = user.wallet || {};
+            user.wallet.bankDetails = { ...(user.wallet.bankDetails || {}), ...wallet.bankDetails };
+        }
+        if (wallet.upiId !== undefined) {
+            user.wallet = user.wallet || {};
+            user.wallet.upiId = wallet.upiId;
+        }
+    }
+
     await user.save();
 
     await delCache('admin_dashboard_stats');
     triggerDashboardUpdate();
 
-    const changes = [name && 'name', phone && 'phone', email !== undefined && 'email', city && 'city', bio !== undefined && 'bio', profileImage !== undefined && 'image', address && 'address', location && 'location'].filter(Boolean).join(', ');
-    logAdminActivity('UPDATE', 'CUSTOMER', user._id, 'Customer Updated', `Customer "${user.name}" was updated${changes ? ' (' + changes + ')' : ''}`, req.user?._id);
+    const changes = [name && 'name', phone && 'phone', email !== undefined && 'email', city && 'city', bio !== undefined && 'bio', profileImage !== undefined && 'image', address && 'address', location && 'location', services && 'services', serviceRadius !== undefined && 'service radius', wallet && 'wallet'].filter(Boolean).join(', ');
+    const entityType = user.role === 'WORKER' ? 'WORKER' : 'CUSTOMER';
+    logAdminActivity('UPDATE', entityType, user._id, `${entityType.charAt(0) + entityType.slice(1).toLowerCase()} Updated`, `${entityType.charAt(0) + entityType.slice(1).toLowerCase()} "${user.name}" was updated${changes ? ' (' + changes + ')' : ''}`, req.user?._id);
 
     return successResponse(res, user, 'User updated successfully');
 });
@@ -369,14 +470,14 @@ exports.impersonateUser = catchAsync(async (req, res) => {
 
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
-        { _id: user._id, role: user.role, isImpersonated: true },
-        process.env.JWT_SECRET || 'fallback_secret',
+        { id: user._id, role: user.role, isImpersonated: true },
+        process.env.JWT_SECRET,
         { expiresIn: '1h' }
     );
 
-    return successResponse(res, { token, user: { name: user.name, role: user.role } }, 'Impersonation token generated');
-
     logAdminActivity('IMPERSONATE', 'CUSTOMER', user._id, 'Admin Impersonation', `Admin impersonated user "${user.name}" (${user.phone})`, req.user?._id);
+
+    return successResponse(res, { token, user: { name: user.name, role: user.role } }, 'Impersonation token generated');
 });
 
 // ─── Shop Management (P1 FIX: Missing admin shop visibility) ─────────────────
@@ -410,9 +511,35 @@ exports.updateShopKYC = catchAsync(async (req, res) => {
 
     await delCache('admin_badge_counts');
     await delCache('admin_dashboard_stats');
+    await delCache('admin_shops_list');
     triggerDashboardUpdate();
 
     logAdminActivity('KYC', 'SHOP', shop._id, `Shop KYC ${status}`, `KYC for shop "${shop.name}" was ${status.toLowerCase()}`, req.user?._id);
+
+    const title = `Shop KYC ${status.toLowerCase()}`;
+    const message = status === 'APPROVED'
+        ? `Your shop KYC has been approved. Your shop is now visible to customers.`
+        : `Your shop KYC has been rejected. Please resubmit your documents.`;
+
+    try {
+        const notification = await Notification.create({
+            userId: shop.ownerId,
+            title,
+            message,
+            type: 'DIRECT',
+            action: 'KYC',
+            entityType: 'SHOP',
+            entityId: shop._id,
+            performedBy: req.user?._id,
+            targetRole: 'SHOP'
+        });
+        try {
+            const io = getIO();
+            if (io) {
+                io.to(`customer_${shop.ownerId}`).emit('NEW_NOTIFICATION', notification);
+            }
+        } catch (_) {}
+    } catch (_) {}
 
     return successResponse(res, shop, 'Shop KYC updated');
 });
@@ -425,10 +552,295 @@ exports.toggleShopStatus = catchAsync(async (req, res) => {
     shop.isOnline = !shop.isOnline;
     await shop.save();
 
+    await delCache('admin_badge_counts');
+    await delCache('admin_dashboard_stats');
+    triggerDashboardUpdate();
+
     const statusText = shop.isOnline ? 'enabled' : 'disabled';
     logAdminActivity('TOGGLE_STATUS', 'SHOP', shop._id, `Shop ${statusText}`, `Shop "${shop.name}" was ${statusText}`, req.user?._id);
 
     return successResponse(res, shop, `Shop ${shop.isOnline ? 'enabled' : 'disabled'}`);
+});
+
+exports.createShopAdmin = catchAsync(async (req, res) => {
+    const { ownerPhone, ownerName, ownerEmail, name, category, description, address, logoUrl, location, delivery, businessHours, subscription } = req.body;
+
+    let owner = await Customer.findOne({ phone: ownerPhone, role: 'SHOP' });
+    if (!owner) {
+        const hashedPwd = await bcrypt.hash('shop123', 12);
+        owner = await Customer.create({
+            name: ownerName || 'Shop Owner',
+            phone: ownerPhone,
+            email: ownerEmail || undefined,
+            role: 'SHOP',
+            password: hashedPwd,
+            isVerified: true
+        });
+    }
+
+    const existingShop = await Shop.findOne({ ownerId: owner._id });
+    if (existingShop) return errorResponse(res, 'This owner already has a registered shop', StatusCodes.CONFLICT);
+
+    const shop = await Shop.create({
+        ownerId: owner._id,
+        name, category, description, address, logoUrl,
+        location: location || { type: 'Point', coordinates: [0, 0] },
+        delivery: delivery || { radiusKm: 3, fee: 40, freeAbove: 1000 },
+        businessHours: businessHours || { monFri: '9 AM - 10 PM', sat: '9 AM - 10 PM', sun: '9 AM - 10 PM' },
+        subscription: subscription || { plan: 'FREE_TRIAL' },
+        kyc: { status: 'PENDING' }
+    });
+
+    const populated = await shop.populate('ownerId', 'name phone email');
+
+    const { getRedis } = require('../../helpers/redis.helper');
+    const redisClient = getRedis();
+    if (redisClient) {
+        const keys = await redisClient.keys('*shops_list*');
+        if (keys.length > 0) await redisClient.del(keys);
+    }
+
+    logAdminActivity('CREATE', 'SHOP', shop._id, 'Shop Created', `Admin created shop "${shop.name}" for owner "${owner.name}"`, req.user?._id);
+
+    triggerDashboardUpdate();
+
+    return successResponse(res, populated, 'Shop created successfully', StatusCodes.CREATED);
+});
+
+exports.updateShopAdminFull = catchAsync(async (req, res) => {
+    const { name, category, description, address, logoUrl, location, delivery, businessHours, subscription, isOnline } = req.body;
+
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    if (name) shop.name = name.trim();
+    if (category) shop.category = category.trim();
+    if (description !== undefined) shop.description = description.trim();
+    if (address) shop.address = address.trim();
+    if (logoUrl !== undefined) shop.logoUrl = logoUrl;
+    if (isOnline !== undefined) shop.isOnline = isOnline;
+
+    const safeParse = (val) => { if (!val) return null; if (typeof val === 'object') return val; try { return JSON.parse(val); } catch { return null; } };
+
+    const parsedLocation = safeParse(location);
+    if (parsedLocation) shop.location = parsedLocation;
+
+    const parsedDelivery = safeParse(delivery);
+    if (parsedDelivery) shop.delivery = { ...shop.delivery, ...parsedDelivery };
+
+    const parsedHours = safeParse(businessHours);
+    if (parsedHours) shop.businessHours = { ...shop.businessHours, ...parsedHours };
+
+    const parsedSub = safeParse(subscription);
+    if (parsedSub) shop.subscription = { ...shop.subscription, ...parsedSub };
+
+    if (req.file) {
+        shop.logoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    }
+
+    await shop.save();
+    const populated = await shop.populate('ownerId', 'name phone email');
+
+    const { getRedis } = require('../../helpers/redis.helper');
+    const redisClient = getRedis();
+    if (redisClient) {
+        const keys = await redisClient.keys('*shops_list*');
+        if (keys.length > 0) await redisClient.del(keys);
+    }
+
+    await delCache('admin_badge_counts');
+    await delCache('admin_dashboard_stats');
+    triggerDashboardUpdate();
+
+    logAdminActivity('UPDATE', 'SHOP', shop._id, 'Shop Updated', `Admin updated shop "${shop.name}"`, req.user?._id);
+
+    return successResponse(res, populated, 'Shop updated successfully');
+});
+
+exports.deleteShopAdmin = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const Product = require('../product/product.model');
+    await Product.deleteMany({ shopId: shop._id });
+    await Shop.findByIdAndDelete(req.params.id);
+
+    const { getRedis } = require('../../helpers/redis.helper');
+    const redisClient = getRedis();
+    if (redisClient) {
+        const keys = await redisClient.keys('*shops_list*');
+        if (keys.length > 0) await redisClient.del(keys);
+    }
+
+    logAdminActivity('DELETE', 'SHOP', shop._id, 'Shop Deleted', `Admin deleted shop "${shop.name}"`, req.user?._id);
+
+    await delCache('admin_badge_counts');
+    await delCache('admin_dashboard_stats');
+    triggerDashboardUpdate();
+
+    return successResponse(res, null, 'Shop and all products deleted');
+});
+
+exports.getShopDetailAdmin = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone email');
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const products = await Product.find({ shopId: shop._id }).sort('-createdAt');
+    const walletTxns = shop.ownerId ? await WalletTxn.find({ userId: shop.ownerId._id }).sort('-createdAt').limit(20).lean() : [];
+
+    return successResponse(res, { shop, products, walletTxns }, 'Shop detail fetched');
+});
+
+exports.creditShopWallet = catchAsync(async (req, res) => {
+    const { amount, description } = req.body;
+    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone');
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    let adminWallet = await AdminWallet.findOne();
+    if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
+    if (adminWallet.balance < amount) {
+        return errorResponse(res, `Insufficient admin wallet balance. Available: ₹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
+    }
+
+    adminWallet.balance -= amount;
+    await adminWallet.save();
+
+    shop.wallet.balance += amount;
+    await shop.save();
+
+    await WalletTxn.create({
+        userId: shop.ownerId._id,
+        type: 'ADJUSTMENT',
+        amount,
+        balance: shop.wallet.balance,
+        status: 'COMPLETED',
+        description: description || `Admin credit to "${shop.name}"`,
+        refId: shop._id.toString()
+    });
+
+    await AdminWalletTxn.create({
+        type: 'SHOP_PAYOUT',
+        amount,
+        balanceAfter: adminWallet.balance,
+        description: `₹${amount} credited to "${shop.name}" wallet`,
+        referenceId: shop._id,
+        referenceModel: 'Shop',
+        meta: { performedBy: req.user?._id }
+    });
+
+    logAdminActivity('WALLET_CREDIT', 'SHOP', shop._id, 'Shop Wallet Credited', `₹${amount} credited to "${shop.name}" wallet from admin wallet`, req.user?._id);
+
+    await delCache('admin_badge_counts');
+    await delCache('admin_dashboard_stats');
+    triggerDashboardUpdate();
+
+    return successResponse(res, { shop, adminBalance: adminWallet.balance }, `₹${amount} credited successfully`);
+});
+
+exports.debitShopWallet = catchAsync(async (req, res) => {
+    const { amount, description } = req.body;
+    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone');
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    if (shop.wallet.balance < amount) {
+        return errorResponse(res, `Insufficient balance. Available: ₹${shop.wallet.balance}`, StatusCodes.BAD_REQUEST);
+    }
+
+    shop.wallet.balance -= amount;
+    await shop.save();
+
+    let adminWallet = await AdminWallet.findOne();
+    if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
+    adminWallet.balance += amount;
+    await adminWallet.save();
+
+    await WalletTxn.create({
+        userId: shop.ownerId._id,
+        type: 'ADJUSTMENT',
+        amount,
+        balance: shop.wallet.balance,
+        status: 'COMPLETED',
+        description: description || `Admin debit from "${shop.name}"`,
+        refId: shop._id.toString()
+    });
+
+    await AdminWalletTxn.create({
+        type: 'COMMISSION_COLLECTED',
+        amount,
+        balanceAfter: adminWallet.balance,
+        description: `₹${amount} debited from "${shop.name}" wallet to admin`,
+        referenceId: shop._id,
+        referenceModel: 'Shop',
+        meta: { performedBy: req.user?._id }
+    });
+
+    logAdminActivity('WALLET_DEBIT', 'SHOP', shop._id, 'Shop Wallet Debited', `₹${amount} debited from "${shop.name}" wallet to admin wallet`, req.user?._id);
+
+    await delCache('admin_badge_counts');
+    await delCache('admin_dashboard_stats');
+    triggerDashboardUpdate();
+
+    return successResponse(res, { shop, adminBalance: adminWallet.balance }, `₹${amount} debited successfully`);
+});
+
+exports.uploadShopKycDoc = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    if (!req.file) return errorResponse(res, 'No file uploaded', StatusCodes.BAD_REQUEST);
+
+    const docUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    const docName = req.body.name || req.file.originalname;
+    const docType = req.body.type || 'OTHER';
+
+    shop.kyc.documents.push({ name: docName, url: docUrl, docType: docType });
+    shop.kyc.status = 'PENDING';
+    await shop.save();
+
+    logAdminActivity('KYC_DOC', 'SHOP', shop._id, 'KYC Document Uploaded', `KYC document "${docName}" uploaded for "${shop.name}"`, req.user?._id);
+
+    return successResponse(res, shop, 'KYC document uploaded');
+});
+
+exports.deleteShopKycDoc = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const docIndex = Number(req.params.docIndex);
+    if (docIndex < 0 || docIndex >= shop.kyc.documents.length) {
+        return errorResponse(res, 'Document not found', StatusCodes.NOT_FOUND);
+    }
+
+    const docName = shop.kyc.documents[docIndex].name;
+    shop.kyc.documents.splice(docIndex, 1);
+    await shop.save();
+
+    logAdminActivity('KYC_DOC', 'SHOP', shop._id, 'KYC Document Deleted', `KYC document "${docName}" deleted from "${shop.name}"`, req.user?._id);
+
+    return successResponse(res, shop, 'KYC document deleted');
+});
+
+exports.editShopKycDoc = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const docIndex = Number(req.params.docIndex);
+    if (docIndex < 0 || docIndex >= shop.kyc.documents.length) {
+        return errorResponse(res, 'Document not found', StatusCodes.NOT_FOUND);
+    }
+
+    const { name, docType } = req.body;
+    if (name) shop.kyc.documents[docIndex].name = name;
+    if (docType) shop.kyc.documents[docIndex].docType = docType;
+
+    if (req.file) {
+        const docUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        shop.kyc.documents[docIndex].url = docUrl;
+    }
+
+    await shop.save();
+    logAdminActivity('KYC_DOC', 'SHOP', shop._id, 'KYC Document Updated', `KYC document updated on "${shop.name}"`, req.user?._id);
+    return successResponse(res, shop, 'KYC document updated');
 });
 
 // ─── Platform Health (P1 FIX: Real socket count) ─────────────────────────────
@@ -500,6 +912,228 @@ exports.getUserDetail = catchAsync(async (req, res) => {
         .lean();
 
     return successResponse(res, { user, jobStats, recentJobs }, 'User detail fetched');
+});
+
+// ─── Admin manages customer activities (jobs & orders on behalf of customer) ───
+
+exports.getCustomerJobs = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const customer = await Customer.findById(id).select('name phone').lean();
+    if (!customer) return errorResponse(res, 'Customer not found', StatusCodes.NOT_FOUND);
+
+    const jobs = await Job.find({ customerId: id })
+        .populate('workerId', 'name phone')
+        .sort('-createdAt')
+        .lean();
+
+    return successResponse(res, { customer, jobs }, 'Customer jobs fetched');
+});
+
+exports.getCustomerOrders = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const customer = await Customer.findById(id).select('name phone').lean();
+    if (!customer) return errorResponse(res, 'Customer not found', StatusCodes.NOT_FOUND);
+
+    const orders = await ShopOrder.find({ customerId: id })
+        .populate('shopId', 'name')
+        .sort('-createdAt')
+        .lean();
+
+    return successResponse(res, { customer, orders }, 'Customer orders fetched');
+});
+
+exports.adminCreateJob = catchAsync(async (req, res) => {
+    const { customerId, category, subcategory, description, media, preferredDate, timeSlot, location, addressDetails } = req.body;
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) return errorResponse(res, 'Customer not found', StatusCodes.NOT_FOUND);
+    if (customer.role !== 'CUSTOMER') return errorResponse(res, 'Target user must be a customer', StatusCodes.BAD_REQUEST);
+
+    const job = await Job.create({
+        customerId,
+        category,
+        subcategory,
+        description,
+        media,
+        preferredDate,
+        timeSlot,
+        location: location || { type: 'Point', coordinates: [0, 0] },
+        addressDetails,
+        status: 'BROADCASTING',
+        payment: { amount: 0, status: 'PENDING' }
+    });
+
+    let settings = await getCache('app_settings');
+    if (!settings) {
+        const AppSettings = require('../settings/settings.model');
+        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+        if (settings) await setCache('app_settings', settings, 600);
+    }
+    const radiusKm = settings?.radius?.maxKm || 15;
+    const radiusRadians = radiusKm / 6371;
+
+    const now = new Date();
+    const jobLocation = location || { type: 'Point', coordinates: [0, 0] };
+    const eligibleWorkers = await Customer.find({
+        role: 'WORKER',
+        isVerified: true,
+        'kyc.status': 'APPROVED',
+        isOnline: true,
+        $or: [
+            { 'subscription.isTrial': true },
+            { 'subscription.expiryDate': { $gt: now } }
+        ],
+        'wallet.balance': { $gte: settings?.wallet?.minimumBalance || 100 },
+        activeLocation: {
+            $geoWithin: {
+                $centerSphere: [jobLocation.coordinates, radiusRadians]
+            }
+        }
+    }).select('_id').lean();
+
+    emitToAll('NEW_JOB_ALERT', {
+        jobId: job._id,
+        category: job.category,
+        subcategory: job.subcategory,
+        description: job.description,
+        location: job.location,
+        addressDetails: job.addressDetails,
+        timeSlot: job.timeSlot,
+        preferredDate: job.preferredDate,
+        workerCount: eligibleWorkers.length,
+        customerId: { _id: customer._id, name: customer.name, phone: customer.phone, profileImage: customer.profileImage }
+    });
+
+    await delCache('admin_dashboard_stats');
+    await delCache('admin_badge_counts');
+    emitToAll('DASHBOARD_UPDATE', { type: 'NEW_JOB', id: job._id });
+
+    logAdminActivity('CREATE', 'JOB', job._id, 'Job Created (Admin)', `Admin created job "${category}" for customer "${customer.name}"`, req.user?._id);
+
+    return successResponse(res, job, 'Job created on behalf of customer', StatusCodes.CREATED);
+});
+
+exports.adminUpdateJob = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { category, subcategory, description, preferredDate, timeSlot, addressDetails } = req.body;
+
+    const job = await Job.findById(id);
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+
+    if (!['BROADCASTING', 'QUOTES_RECEIVED'].includes(job.status)) {
+        return errorResponse(res, 'Only broadcasting or quotes-received jobs can be edited', StatusCodes.BAD_REQUEST);
+    }
+
+    if (category !== undefined) job.category = category;
+    if (subcategory !== undefined) job.subcategory = subcategory;
+    if (description !== undefined) job.description = description;
+    if (preferredDate !== undefined) job.preferredDate = preferredDate;
+    if (timeSlot !== undefined) job.timeSlot = timeSlot;
+    if (addressDetails !== undefined) job.addressDetails = addressDetails;
+
+    await job.save();
+
+    await delCache('admin_dashboard_stats');
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_UPDATED', id: job._id });
+
+    logAdminActivity('UPDATE', 'JOB', job._id, 'Job Updated (Admin)', `Admin updated job #${id.slice(-6)}`, req.user?._id);
+
+    return successResponse(res, job, 'Job updated successfully');
+});
+
+exports.adminCreateOrder = catchAsync(async (req, res) => {
+    const { customerId, shopId, items, deliveryAddress, deliveryLocation, paymentMethod } = req.body;
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) return errorResponse(res, 'Customer not found', StatusCodes.NOT_FOUND);
+    if (customer.role !== 'CUSTOMER') return errorResponse(res, 'Target user must be a customer', StatusCodes.BAD_REQUEST);
+
+    const shop = await Shop.findById(shopId);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    if (shop.kyc?.status !== 'APPROVED') return errorResponse(res, 'Shop is not approved to receive orders', StatusCodes.FORBIDDEN);
+
+    const Product = require('../product/product.model');
+
+    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
+    const session = isSingle ? null : await mongoose.startSession();
+    if (session) session.startTransaction();
+
+    try {
+        for (const item of items) {
+            if (!item.productId) continue;
+            const updated = await Product.findOneAndUpdate(
+                { _id: item.productId, shopId, stock: { $gte: item.qty }, isActive: true },
+                { $inc: { stock: -item.qty } },
+                { new: true, session }
+            );
+            if (!updated) {
+                if (session) await session.abortTransaction();
+                if (session) session.endSession();
+                return errorResponse(res, `Product "${item.name}" is out of stock or unavailable`, StatusCodes.CONFLICT);
+            }
+        }
+
+        const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
+        const deliveryFee = subtotal >= (shop.delivery?.freeAbove || 1000) ? 0 : (shop.delivery?.fee || 40);
+        const total = subtotal + deliveryFee;
+
+        let paymentStatus = 'PENDING';
+        if (paymentMethod === 'WALLET') {
+            const cust = await Customer.findOneAndUpdate(
+                { _id: customerId, 'wallet.balance': { $gte: total } },
+                { $inc: { 'wallet.balance': -total } },
+                { new: true, session }
+            );
+            if (!cust) {
+                if (session) await session.abortTransaction();
+                if (session) session.endSession();
+                return errorResponse(res, 'Customer has insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
+            }
+            await WalletTxn.create([{
+                userId: customerId,
+                type: 'ORDER_PAYMENT',
+                amount: total,
+                balance: cust.wallet.balance,
+                status: 'COMPLETED',
+                description: `Order payment to ${shop.name} (placed by admin)`
+            }], { session });
+            paymentStatus = 'PAID';
+            await delCache(`session:${customerId}`);
+        }
+
+        const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
+        const orderCount = await ShopOrder.countDocuments();
+        const orderNumber = `ORD-${new Date().getFullYear()}-${String(orderCount + 1).padStart(4, '0')}`;
+
+        const [order] = await ShopOrder.create([{
+            orderNumber,
+            shopId,
+            customerId,
+            items,
+            subtotal,
+            deliveryFee,
+            total,
+            deliveryAddress,
+            deliveryLocation,
+            deliveryOtp,
+            payment: { amount: total, status: paymentStatus, method: paymentMethod || 'WALLET' },
+            statusHistory: [{ status: 'NEW', timestamp: new Date(), note: 'Order placed by admin' }]
+        }], { session });
+
+        if (session) await session.commitTransaction();
+        if (session) session.endSession();
+
+        emitToRoom(`shop_${shopId}`, 'NEW_ORDER', { orderId: order._id, total });
+        emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SHOP_ORDER', id: order._id });
+
+        logAdminActivity('CREATE', 'ORDER', order._id, 'Order Created (Admin)', `Admin placed order #${orderNumber} for customer "${customer.name}" at "${shop.name}"`, req.user?._id);
+
+        return successResponse(res, order, 'Order placed on behalf of customer', StatusCodes.CREATED);
+    } catch (error) {
+        if (session) await session.abortTransaction();
+        if (session) session.endSession();
+        throw error;
+    }
 });
 
 exports.getWorkerDetail = catchAsync(async (req, res) => {
@@ -701,5 +1335,96 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
 
     logAdminActivity('PAYOUT', 'PAYOUT', payout._id, `Payout ${status}`, `Payout of ₹${payout.amount} was ${status.toLowerCase()}`, req.user?._id);
 
+    if (status === 'TRANSFERRED') {
+        try {
+            const { debitForPayout } = require('../adminWallet/adminWallet.controller');
+            const recipientName = payout.shopId ? 'shop' : 'worker';
+            await debitForPayout(
+                payout.amount,
+                `Payout transferred to ${recipientName} — Txn: ${txnId || 'N/A'}`,
+                payout._id,
+                'Payout',
+                { workerId: payout.workerId, shopId: payout.shopId }
+            );
+        } catch (e) {
+            console.error('Failed to debit admin wallet for payout:', e.message);
+        }
+    }
+
     return successResponse(res, payout, 'Payout status updated');
+});
+
+exports.addShopPayoutMethod = catchAsync(async (req, res) => {
+    const { type, detail, details, isPrimary, label } = req.body;
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    if (shop.payoutMethods.length === 0) req.body.isPrimary = true;
+    shop.payoutMethods.push({ type, detail: detail || details, isPrimary, label });
+    await shop.save();
+    logAdminActivity('UPDATE', 'SHOP', shop._id, 'Payout Method Added', `Added ${type} payout method to "${shop.name}"`, req.user?._id);
+    await delCache('admin_badge_counts');
+    triggerDashboardUpdate();
+    return successResponse(res, shop.payoutMethods, 'Payout method added');
+});
+
+exports.deleteShopPayoutMethod = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    shop.payoutMethods = shop.payoutMethods.filter(m => String(m._id) !== String(req.params.methodId));
+    await shop.save();
+    logAdminActivity('UPDATE', 'SHOP', shop._id, 'Payout Method Deleted', `Deleted payout method from "${shop.name}"`, req.user?._id);
+    await delCache('admin_badge_counts');
+    triggerDashboardUpdate();
+    return successResponse(res, shop.payoutMethods, 'Payout method deleted');
+});
+
+exports.editShopPayoutMethod = catchAsync(async (req, res) => {
+    const { type, detail, details, isPrimary, label } = req.body;
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    const method = shop.payoutMethods.id(req.params.methodId);
+    if (!method) return errorResponse(res, 'Payout method not found', StatusCodes.NOT_FOUND);
+    if (type) method.type = type;
+    if (detail || details) method.detail = detail || details;
+    if (label !== undefined) method.label = label;
+    if (isPrimary !== undefined) {
+        if (isPrimary) {
+            shop.payoutMethods.forEach(m => { m.isPrimary = String(m._id) === String(method._id); });
+        } else {
+            method.isPrimary = false;
+        }
+    }
+    await shop.save();
+    logAdminActivity('UPDATE', 'SHOP', shop._id, 'Payout Method Updated', `Updated payout method on "${shop.name}"`, req.user?._id);
+    await delCache('admin_badge_counts');
+    triggerDashboardUpdate();
+    return successResponse(res, shop.payoutMethods, 'Payout method updated');
+});
+
+exports.setShopPrimaryPayout = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    shop.payoutMethods.forEach(m => { m.isPrimary = String(m._id) === String(req.params.methodId); });
+    await shop.save();
+    logAdminActivity('UPDATE', 'SHOP', shop._id, 'Primary Payout Updated', `Updated primary payout for "${shop.name}"`, req.user?._id);
+    await delCache('admin_badge_counts');
+    triggerDashboardUpdate();
+    return successResponse(res, shop.payoutMethods, 'Primary payout updated');
+});
+
+exports.updateShopOwner = catchAsync(async (req, res) => {
+    const { name, phone, email } = req.body;
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    const customer = await Customer.findById(shop.ownerId);
+    if (!customer) return errorResponse(res, 'Owner not found', StatusCodes.NOT_FOUND);
+    if (name) customer.name = name.trim();
+    if (phone) customer.phone = phone.trim();
+    if (email !== undefined) customer.email = email || undefined;
+    await customer.save();
+    const populated = await shop.populate('ownerId', 'name phone email');
+    logAdminActivity('UPDATE', 'SHOP', shop._id, 'Owner Updated', `Updated owner details for "${shop.name}"`, req.user?._id);
+    await delCache('admin_badge_counts');
+    triggerDashboardUpdate();
+    return successResponse(res, populated, 'Owner updated successfully');
 });

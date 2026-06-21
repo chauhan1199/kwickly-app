@@ -1,0 +1,139 @@
+const { StatusCodes } = require('http-status-codes');
+const Settlement = require('./settlement.model');
+const Shop = require('../shop/shop.model');
+const WalletTxn = require('../wallet/wallet.model');
+const catchAsync = require('../../helpers/async.helper');
+const { successResponse, errorResponse } = require('../../helpers/response.helper');
+const { collectCommission } = require('../adminWallet/adminWallet.controller');
+const { logAdminActivity } = require('../../helpers/adminActivity.helper');
+
+exports.getSettlements = catchAsync(async (req, res) => {
+    const { status, type } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (type) filter.type = type;
+
+    const settlements = await Settlement.find(filter)
+        .populate('shopId', 'name')
+        .populate('orderId', 'orderNumber total')
+        .sort({ createdAt: -1 });
+
+    return successResponse(res, settlements, 'Settlements fetched');
+});
+
+exports.settle = catchAsync(async (req, res) => {
+    const { shopAmount, commissionAmount, note } = req.body;
+    const settlement = await Settlement.findById(req.params.id);
+    if (!settlement) return errorResponse(res, 'Settlement not found', StatusCodes.NOT_FOUND);
+    if (settlement.status !== 'PENDING') {
+        return errorResponse(res, 'Settlement already processed', StatusCodes.BAD_REQUEST);
+    }
+
+    settlement.shopEarning = shopAmount || settlement.shopEarning;
+    settlement.platformCommission = commissionAmount || settlement.platformCommission;
+    settlement.status = 'SETTLED';
+    settlement.settledAt = new Date();
+    settlement.settledBy = req.user._id;
+    settlement.note = note;
+    await settlement.save();
+
+    // Credit shop wallet with the shop's earning
+    const shop = await Shop.findById(settlement.shopId).select('wallet ownerId');
+    if (shop) {
+        shop.wallet.balance = (shop.wallet.balance || 0) + settlement.shopEarning;
+        await shop.save();
+
+        await WalletTxn.create({
+            userId: shop.ownerId,
+            type: 'ORDER_CREDIT',
+            amount: settlement.shopEarning,
+            balance: shop.wallet.balance,
+            refId: String(settlement._id),
+            status: 'COMPLETED',
+            description: `Settlement payout for order #${String(settlement.orderId).slice(-6)}`
+        });
+    }
+
+    // Collect platform commission into admin wallet
+    if (settlement.platformCommission > 0) {
+        try {
+            await collectCommission(
+                settlement.platformCommission,
+                `Commission from ${settlement.type} settlement #${settlement._id.toString().slice(-6)}`,
+                settlement._id,
+                'Settlement',
+                { shopId: settlement.shopId, customerId: settlement.customerId }
+            );
+        } catch (e) {
+            console.error('Failed to credit admin wallet:', e.message);
+        }
+    }
+
+    logAdminActivity('SETTLE', 'SHOP', settlement.shopId,
+        'Settlement Processed',
+        `₹${settlement.shopEarning} settled to shop wallet (commission: ₹${settlement.platformCommission})`,
+        req.user._id
+    );
+
+    return successResponse(res, settlement, 'Settlement processed');
+});
+
+exports.bulkSettle = catchAsync(async (req, res) => {
+    const { settlementIds } = req.body;
+    const results = [];
+
+    for (const id of settlementIds) {
+        const settlement = await Settlement.findById(id);
+        if (settlement && settlement.status === 'PENDING') {
+            // Credit shop wallet
+            const shop = await Shop.findById(settlement.shopId).select('wallet ownerId');
+            if (shop) {
+                shop.wallet.balance = (shop.wallet.balance || 0) + settlement.shopEarning;
+                await shop.save();
+
+                await WalletTxn.create({
+                    userId: shop.ownerId,
+                    type: 'ORDER_CREDIT',
+                    amount: settlement.shopEarning,
+                    balance: shop.wallet.balance,
+                    refId: String(settlement._id),
+                    status: 'COMPLETED',
+                    description: `Bulk settlement payout for order #${String(settlement.orderId).slice(-6)}`
+                });
+            }
+
+            settlement.status = 'SETTLED';
+            settlement.settledAt = new Date();
+            settlement.settledBy = req.user._id;
+            await settlement.save();
+
+            // Collect commission
+            if (settlement.platformCommission > 0) {
+                try {
+                    await collectCommission(
+                        settlement.platformCommission,
+                        `Bulk commission from ${settlement.type} settlement #${settlement._id.toString().slice(-6)}`,
+                        settlement._id,
+                        'Settlement',
+                        { shopId: settlement.shopId, customerId: settlement.customerId }
+                    );
+                } catch (e) {
+                    console.error('Failed to credit admin wallet:', e.message);
+                }
+            }
+
+            results.push(id);
+        }
+    }
+
+    return successResponse(res, { settled: results.length, ids: results }, 'Bulk settlement completed');
+});
+
+exports.getPendingSettlements = catchAsync(async (req, res) => {
+    const settlements = await Settlement.find({ status: 'PENDING' })
+        .populate('shopId', 'name')
+        .sort({ createdAt: -1 });
+
+    const total = settlements.reduce((sum, s) => sum + s.shopEarning, 0);
+    return successResponse(res, { settlements, total, count: settlements.length }, 'Pending settlements');
+});

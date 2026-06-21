@@ -31,7 +31,7 @@ const ShopOrderDetailsScreen = ({ navigation, route }) => {
   useEffect(() => {
     if (!orderId) return;
     fetchOrder(true);
-    const interval = setInterval(() => fetchOrder(false), 3000);
+    const interval = setInterval(() => fetchOrder(false), 10000);
     return () => clearInterval(interval);
   }, [orderId]);
 

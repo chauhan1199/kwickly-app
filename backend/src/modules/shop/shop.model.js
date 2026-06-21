@@ -40,7 +40,7 @@ const ShopSchema = new mongoose.Schema({
 
     kyc: {
         status:    { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
-        documents: [{ name: String, url: String, type: String }]
+        documents: [{ name: String, url: String, docType: { type: String, default: 'OTHER' } }]
     },
 
     payoutMethods: [PayoutMethodSchema],

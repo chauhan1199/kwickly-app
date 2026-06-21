@@ -1,96 +1,116 @@
 /**
- * Socket.io Real-time Handler — Kwickly
- * Manages rooms for customers, workers, shops, and the admin dashboard.
- *
+ * Socket.io Real-time Handler — Kwickly (Production Hardened)
  * Room naming conventions:
- *   customer_{userId}    — a specific customer's real-time feed
- *   worker_{userId}      — a specific worker's real-time feed
- *   shop_{shopId}        — a specific shop's order feed
- *   job_{jobId}          — all bidders watching a job (job taken / cancelled)
- *   admin_dashboard      — admin panel live stats
+ *   customer_{userId}    — customer's real-time feed
+ *   worker_{userId}      — worker's real-time feed
+ *   shop_{shopId}        — shop's order feed
+ *   job_{jobId}          — all bidders on a job
+ *   admin_dashboard      — admin panel live stats (requires ADMIN role)
  */
-const { getIO }  = require('../helpers/socket.helper');
-const logger     = require('../helpers/logger.helper');
+const { getIO } = require('../helpers/socket.helper');
+const logger    = require('../helpers/logger.helper');
 
 const initSocketHandlers = () => {
     const io = getIO();
 
     io.on('connection', (socket) => {
-        logger.info(`[Socket] Connected: ${socket.id}`);
+        logger.info(`[Socket] Connected: ${socket.id} | Auth: ${socket.isAuthenticated} | Role: ${socket.userRole || 'none'}`);
 
-        /* ── Room Join Handlers ──────────────────────────────────────── */
+        /* ── Room Join Handlers (with authentication guards) ──────── */
 
         socket.on('JOIN_CUSTOMER_ROOM', ({ userId }) => {
+            // Only allow if authenticated as the same user or as admin
+            if (!socket.isAuthenticated) return socket.emit('ERROR', { message: 'Authentication required' });
+            if (socket.userRole !== 'ADMIN' && String(socket.userId) !== String(userId)) {
+                return socket.emit('ERROR', { message: 'Forbidden: Cannot join another user\'s room' });
+            }
             socket.join(`customer_${userId}`);
             logger.info(`[Socket] Customer ${userId} joined room`);
         });
 
-        socket.on('JOIN_WORKER_ROOM', async ({ userId }) => {
+        socket.on('JOIN_WORKER_ROOM', ({ userId }) => {
+            if (!socket.isAuthenticated) return socket.emit('ERROR', { message: 'Authentication required' });
+            if (socket.userRole !== 'ADMIN' && String(socket.userId) !== String(userId)) {
+                return socket.emit('ERROR', { message: 'Forbidden' });
+            }
             socket.join(`worker_${userId}`);
             logger.info(`[Socket] Worker ${userId} joined room`);
 
-            // On reconnection, worker might have missed a broadcast.
-            // In a production environment, you'd send pending broadcasts here, or
-            // trigger a signal for the client to run a "fetch active state" API call.
+            // Signal client to sync active job state on reconnection
             socket.emit('SYNC_STATE_REQUIRED', { message: 'Please sync active jobs' });
         });
 
         socket.on('JOIN_SHOP_ROOM', ({ shopId }) => {
+            if (!socket.isAuthenticated) return socket.emit('ERROR', { message: 'Authentication required' });
+            if (!['SHOP', 'ADMIN'].includes(socket.userRole)) {
+                return socket.emit('ERROR', { message: 'Forbidden' });
+            }
             socket.join(`shop_${shopId}`);
             logger.info(`[Socket] Shop ${shopId} joined room`);
         });
 
         socket.on('JOIN_JOB_ROOM', ({ jobId }) => {
+            // Workers and customers can join job rooms to receive bid updates
+            if (!socket.isAuthenticated) return socket.emit('ERROR', { message: 'Authentication required' });
             socket.join(`job_${jobId}`);
-            logger.info(`[Socket] Socket joined job room ${jobId}`);
+            logger.info(`[Socket] Socket ${socket.id} joined job room ${jobId}`);
         });
 
         socket.on('JOIN_ADMIN', () => {
+            // Only ADMIN role can join the admin dashboard room
+            if (!socket.isAuthenticated || socket.userRole !== 'ADMIN') {
+                return socket.emit('ERROR', { message: 'Forbidden: Admin access required' });
+            }
             socket.join('admin_dashboard');
-            logger.info(`[Socket] Admin joined dashboard room`);
+            logger.info(`[Socket] Admin ${socket.userId} joined dashboard`);
         });
 
-        /* ── Worker Location Update ──────────────────────────────────── */
+        /* ── Worker Location Updates ──────────────────────────────── */
 
         socket.on('WORKER_LOCATION_UPDATE', ({ jobId, customerId, coords }) => {
-            // Relay live location to the customer tracking the job
+            if (!socket.isAuthenticated || socket.userRole !== 'WORKER') return;
             io.to(`customer_${customerId}`).emit('WORKER_LOCATION', { jobId, coords });
         });
 
-        /* ── Chat Messages ───────────────────────────────────────────── */
+        /* ── In-app Chat ─────────────────────────────────────────── */
 
         socket.on('SEND_MESSAGE', ({ jobId, senderId, senderRole, message, timestamp }) => {
-            // Broadcast message to all in the job room (customer + worker)
+            if (!socket.isAuthenticated) return;
+            // Validate sender is who they claim to be
+            if (String(socket.userId) !== String(senderId)) return;
             io.to(`job_${jobId}`).emit('NEW_MESSAGE', {
                 jobId, senderId, senderRole, message, timestamp
             });
         });
 
-        /* ── OTP Verification ────────────────────────────────────────── */
+        /* ── OTP Verification ────────────────────────────────────── */
 
         socket.on('OTP_VERIFIED', ({ jobId, customerId, workerId }) => {
-            // Notify worker that customer has confirmed OTP
+            if (!socket.isAuthenticated) return;
             io.to(`worker_${workerId}`).emit('START_TIMER', { jobId });
-            // Notify customer that work timer has started
             io.to(`customer_${customerId}`).emit('WORK_STARTED', { jobId });
         });
 
-        /* ── Job Completion ──────────────────────────────────────────── */
+        /* ── Job Completion ──────────────────────────────────────── */
 
         socket.on('WORK_COMPLETED', ({ jobId, customerId }) => {
+            if (!socket.isAuthenticated) return;
             io.to(`customer_${customerId}`).emit('REQUEST_PAYMENT', { jobId });
         });
 
-        /* ── Admin Dashboard Push ────────────────────────────────────── */
+        /* ── Admin Dashboard Subscription ───────────────────────── */
 
         socket.on('SUBSCRIBE_DASHBOARD', () => {
+            if (!socket.isAuthenticated || socket.userRole !== 'ADMIN') {
+                return socket.emit('ERROR', { message: 'Admin access required' });
+            }
             socket.join('admin_dashboard');
         });
 
-        /* ── Disconnect ──────────────────────────────────────────────── */
+        /* ── Disconnect ──────────────────────────────────────────── */
 
-        socket.on('disconnect', () => {
-            logger.info(`[Socket] Disconnected: ${socket.id}`);
+        socket.on('disconnect', (reason) => {
+            logger.info(`[Socket] Disconnected: ${socket.id} | Reason: ${reason}`);
         });
     });
 

@@ -28,4 +28,6 @@ api.interceptors.response.use(
   }
 )
 
+export const SERVER_URL = BASE_URL.replace(/\/api\/v1\/?$/, '')
+
 export default api

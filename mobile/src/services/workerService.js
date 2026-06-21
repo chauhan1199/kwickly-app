@@ -1,75 +1,76 @@
 import api from './api';
 
 export const workerService = {
-  /** Get subscription plans */
   getPlans: () =>
     api.get('/subscriptions/plans'),
 
-  /** Worker: subscribe to a plan */
   subscribe: (planId, paymentId) =>
     api.post('/subscriptions/subscribe', { planId, paymentId }),
 
-  /** Worker: get own subscription history */
   getMySubscriptions: () =>
     api.get('/subscriptions/my'),
 
-  /** Worker: update online status (via profile update) */
   setOnlineStatus: (isOnline) =>
-    api.patch('/auth/me', { isOnline }),
+    api.patch('/workers/me/online', { isOnline }),
 
-  /** Worker: get their profile + kyc status */
-  getWorkerProfile: () =>
-    api.get('/auth/me'),
+  getProfile: () =>
+    api.get('/workers/me'),
 
-  /** Update profile fields (name, online status) */
   updateProfile: (data) =>
     api.patch('/workers/me/profile', data),
 
-  /** Update profile photo via multipart/form-data */
   updateProfilePhoto: (formData) =>
     api.patch('/workers/me/profile', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
-  /** Worker: get services (categories) */
-  getMyServices: () =>
-    api.get('/auth/me/services'),
+  updateFullProfile: (data) =>
+    api.put('/workers/me/profile', data),
 
-  /** Worker: update services */
+  getMyServices: () =>
+    api.get('/workers/me'),
+
   updateServices: (services) =>
     api.patch('/workers/me/services', { services }),
 
-  /** Worker: update active location and radius */
   updateLocation: (data) =>
     api.patch('/workers/me/location', data),
 
-  /** Worker: upload KYC documents */
   updateKyc: (formData) =>
     api.patch('/workers/me/kyc', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
-  /** Worker: update bank details */
   updateBank: (data) =>
     api.patch('/workers/me/bank', data),
 
-  /** Worker: submit category suggestion */
   submitCategorySuggestion: (data) =>
-    api.post('/workers/me/category-suggestions', data),
+    api.post('/workers/category-suggestions', data),
 
-  /** Worker: add a new address */
+  getMySuggestions: () =>
+    api.get('/workers/category-suggestions'),
+
   addAddress: (data) =>
     api.post('/workers/me/addresses', data),
 
-  /** Worker: update an address */
   updateAddress: (addressId, data) =>
     api.put(`/workers/me/addresses/${addressId}`, data),
 
-  /** Worker: delete an address */
   deleteAddress: (addressId) =>
     api.delete(`/workers/me/addresses/${addressId}`),
 
-  /** Worker: set an address as primary */
   setPrimaryAddress: (addressId) =>
     api.patch(`/workers/me/addresses/${addressId}/primary`),
+
+  getEarningsSummary: () =>
+    api.get('/workers/earnings/summary'),
+
+  getEarningsChart: (period = 'week') =>
+    api.get('/workers/earnings/chart', { params: { period } }),
+
+  getEarningsTransactions: (page = 1, limit = 20) =>
+    api.get('/workers/earnings/transactions', { params: { page, limit } }),
+
+  requestEarningsWithdrawal: (amount, payoutMethod) =>
+    api.post('/workers/earnings/withdraw', { amount, payoutMethod }),
 };

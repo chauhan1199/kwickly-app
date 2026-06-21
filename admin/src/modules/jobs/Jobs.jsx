@@ -1,357 +1,405 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
+import Toast from '../../components/Toast'
+import ConfirmModal from '../../components/ConfirmModal'
+import Modal from '../../components/Modal'
+import Pagination from '../../components/Pagination'
+import EmptyState from '../../components/EmptyState'
+import { TextInput, FormRow } from '../../components/FormInput'
+import { Search, RefreshCw, Eye, Ban, Users, Copy } from 'lucide-react'
 
-const WORKERS = [] // Fetched dynamically
-
-const statusBadge = {
-  completed:'badge-success', in_progress:'badge-primary', on_the_way:'badge-warning',
-  broadcasting:'badge-purple', cancelled:'badge-danger',
-  open:'badge-danger', in_review:'badge-warning', resolved:'badge-success',
+const PAGE_SIZE = 15
+const STATUS_VARIANT = {
+  BROADCASTING: 'info', QUOTES_RECEIVED: 'warning', ALLOCATED: 'primary',
+  ARRIVING: 'purple', IN_PROGRESS: 'warning', COMPLETED: 'success',
+  PAID: 'success', CLOSED: 'gray', CANCELLED: 'danger'
 }
-const statusLabel = {
-  completed:'✓ Completed', in_progress:'⚙ In Progress', on_the_way:'🚗 En Route',
-  broadcasting:'📡 Broadcasting', cancelled:'✕ Cancelled',
-  open:'Open', in_review:'In Review', resolved:'Resolved',
-}
-
-function ReassignModal({ job, onConfirm, onClose }) {
-  const [worker, setWorker] = useState('')
-  return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth:420 }}>
-        <div className="modal-header">
-          <div style={{ fontWeight:800, fontSize:16 }}>Reassign Job {job.id}</div>
-          <button className="drawer-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <p style={{ fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',marginBottom:16 }}>
-            Currently assigned to <strong>{job.worker}</strong>. Select a new worker to reassign.
-          </p>
-          <div className="form-group">
-            <label className="form-label">New Worker</label>
-            <select className="form-control" value={worker} onChange={e=>setWorker(e.target.value)}>
-              <option value="">Select available worker...</option>
-              {WORKERS.filter(w=>w!==job.worker).map(w=><option key={w}>{w}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={!worker} onClick={()=>onConfirm(worker)}>
-            ✓ Reassign
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+const STATUS_LABEL = {
+  BROADCASTING: 'Broadcasting', QUOTES_RECEIVED: 'Quotes Received', ALLOCATED: 'Allocated',
+  ARRIVING: 'Arriving', IN_PROGRESS: 'In Progress', COMPLETED: 'Completed',
+  PAID: 'Paid', CLOSED: 'Closed', CANCELLED: 'Cancelled'
 }
 
-function JobDetailDrawer({ job, onClose, onCancel, onReassign }) {
-  return (
-    <>
-      <div className="drawer-overlay" onClick={onClose} />
-      <div className="drawer">
-        <div className="drawer-header">
-          <div>
-            <div style={{ fontWeight:800, fontSize:16 }}>Job Details</div>
-            <div style={{ fontSize:12, color:'var(--mid)', fontFamily:'var(--font-body)' }}>{job.id}</div>
-          </div>
-          <button className="drawer-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="drawer-body">
-          {/* Status banner */}
-          <div style={{ background:'var(--bg-dark)',borderRadius:12,padding:16,marginBottom:20,textAlign:'center' }}>
-            <span className={`badge ${statusBadge[job.status]}`} style={{ fontSize:13,padding:'6px 16px' }}>
-              {statusLabel[job.status]}
-            </span>
-            {job.priority==='urgent'&&<span className="badge badge-secondary" style={{ marginLeft:8, fontSize:13 }}>⚡ Urgent</span>}
-          </div>
-
-          {/* Details grid */}
-          {[
-            { label:'Customer', value:job.customer },
-            { label:'Worker',   value:job.worker },
-            { label:'Category', value:job.category },
-            { label:'City',     value:job.city },
-            { label:'Date',     value:job.date },
-            { label:'Amount',   value:job.amount },
-            { label:'Platform Fee', value:job.fee },
-          ].map((r,i)=>(
-            <div key={i} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--bg)' }}>
-              <span style={{ fontSize:12,fontWeight:700,color:'var(--mid)',textTransform:'uppercase',letterSpacing:'0.5px' }}>{r.label}</span>
-              <span style={{ fontWeight:600 }}>{r.value}</span>
-            </div>
-          ))}
-
-          <div className="divider" />
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {(job.status==='broadcasting'||job.status==='in_progress'||job.status==='on_the_way')&&(
-              <button className="btn btn-danger" style={{ width:'100%', justifyContent:'center' }} onClick={()=>onCancel(job.id)}>
-                ✕ Force Cancel Job
-              </button>
-            )}
-            {job.status==='in_progress'&&(
-              <button className="btn btn-outline" style={{ width:'100%', justifyContent:'center' }} onClick={()=>onReassign(job)}>
-                🔄 Reassign Worker
-              </button>
-            )}
-            <button className="btn btn-outline" style={{ width:'100%', justifyContent:'center' }} onClick={onClose}>
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Jobs() {
-  const [jobs, setJobs]           = useState([])
-  const [disputes, setDisputes]   = useState([])
-  const [loading, setLoading]     = useState(true)
-  const [tab, setTab]             = useState('jobs')
+  const navigate = useNavigate()
+  const [jobs, setJobs] = useState([])
+  const [workers, setWorkers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [search, setSearch]       = useState('')
-  const [viewJob, setViewJob]     = useState(null)
-  const [reassignJob, setReassignJob] = useState(null)
-  const [toast, setToast]         = useState('')
+  const [page, setPage] = useState(1)
+  const [toast, setToast] = useState(null)
+  const [confirm, setConfirm] = useState(null)
+  const [detail, setDetail] = useState(null)
+  const [detailQuotes, setDetailQuotes] = useState([])
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [reassignModal, setReassignModal] = useState(null)
+  const [selectedWorker, setSelectedWorker] = useState('')
+  const [impersonateToken, setImpersonateToken] = useState(null)
 
-  useEffect(() => {
-    fetchJobs()
-    fetchDisputes()
-  }, [statusFilter])
+  useEffect(() => { fetchJobs(); fetchWorkers() }, [])
 
   const fetchJobs = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      const response = await api.get('/admin/jobs/all', { params: { status: statusFilter } })
-      if (response.data.status === 'success') {
-        const formattedJobs = response.data.data.jobs.map(j => ({
-          id: j._id.toString().slice(-6),
-          _id: j._id,
-          customer: j.customerId?.name || 'Unknown',
-          worker: j.workerId?.name || '—',
-          category: j.category,
-          city: j.locationName || 'N/A',
-          date: new Date(j.createdAt).toLocaleDateString(),
-          amount: `₹${j.payment?.amount || 0}`,
-          fee: `₹${j.payment?.platformFee || 0}`,
-          status: j.status.toLowerCase(),
-          priority: j.priority || 'normal'
-        }))
-        setJobs(formattedJobs)
-      }
-    } catch (e) {
-      console.error('Error fetching jobs:', e)
-    } finally {
-      setLoading(false)
-    }
+      const res = await api.get('/admin/jobs/all')
+      if (res.data.status === 'success') setJobs(res.data.data.jobs || [])
+    } catch { showToast('Failed to load jobs', 'error') }
+    finally { setLoading(false) }
   }
 
-  const fetchDisputes = async () => {
+  const fetchWorkers = async () => {
     try {
-      const response = await api.get('/admin/disputes')
-      if (response.data.status === 'success') {
-        const formattedDisputes = response.data.data.map(d => ({
-            id: d.jobId?._id ? d.jobId._id.toString().slice(-6) : d._id.toString().slice(-6),
-            _id: d._id,
-            customer: d.customerId?.name || 'Unknown',
-            worker: d.workerId?.name || '—',
-            issue: d.issue, 
-            amount: `₹${d.jobId?.payment?.amount || 0}`,
-            status: d.status,
-            opened: new Date(d.openedAt).toLocaleDateString()
-        }))
-        setDisputes(formattedDisputes)
-      }
-    } catch (e) {
-        console.error('Error fetching disputes:', e)
-    }
+      const res = await api.get('/admin/workers')
+      if (res.data.status === 'success') setWorkers(res.data.data.workers || [])
+    } catch { /* silent */ }
   }
 
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(''),2800) }
+  const fetchJobDetail = async (job) => {
+    setLoadingDetail(true)
+    setDetail(job)
+    setImpersonateToken(null)
+    try {
+      const res = await api.get(`/admin/jobs/${job._id}`)
+      if (res.data.status === 'success') {
+        setDetailQuotes(res.data.data.quotes || [])
+      }
+    } catch { /* use existing data */ }
+    finally { setLoadingDetail(false) }
+  }
 
-  /* ── Job actions ── */
+  const showToast = (msg, type = 'success') => setToast({ msg, type })
+
   const cancelJob = async (id) => {
     try {
-      const realId = jobs.find(j => j.id === id)?._id || id
-      await api.patch(`/admin/jobs/${realId}/cancel`)
+      await api.patch(`/admin/jobs/${id}/cancel`)
+      setJobs(prev => prev.map(j => j._id === id ? { ...j, status: 'CANCELLED' } : j))
+      showToast('Job cancelled')
+      if (detail?._id === id) setDetail(prev => ({ ...prev, status: 'CANCELLED' }))
+    } catch { showToast('Failed to cancel job', 'error') }
+    setConfirm(null)
+  }
+
+  const reassignWorker = async () => {
+    if (!selectedWorker || !reassignModal) return
+    try {
+      await api.patch(`/admin/jobs/${reassignModal._id}/reassign`, { workerId: selectedWorker })
       fetchJobs()
-      setViewJob(null)
-      showToast(`Job ${id} has been cancelled`)
-    } catch (e) {
-      alert('Failed to cancel job')
-    }
+      showToast('Worker reassigned successfully')
+    } catch { showToast('Failed to reassign', 'error') }
+    setReassignModal(null)
+    setSelectedWorker('')
   }
 
-  const reassignWorker = async (newWorkerName) => {
-    // In a real app, we'd select a worker ID
-    // For this simulation, we'll try to find a worker by name (simplification)
+  const handleImpersonate = async (id) => {
     try {
-        await api.patch(`/admin/jobs/${reassignJob._id}/reassign`, { workerId: '6618e...' }) 
-        fetchJobs()
-        showToast(`Job ${reassignJob.id} reassigned`)
-        setReassignJob(null)
-    } catch (e) {
-        alert('Failed to reassign')
-    }
+      const res = await api.post(`/admin/users/${id}/impersonate`)
+      if (res.data.status === 'success') { setImpersonateToken(res.data.data.token); showToast('Token generated') }
+    } catch { showToast('Failed to generate token', 'error') }
   }
 
-  /* ── Dispute actions ── */
-  const moveDispute = async (id, next) => {
-    try {
-        await api.patch(`/admin/disputes/${id}/status`, { status: next })
-        fetchDisputes()
-        showToast(next==='in_review'?`Dispute moved to In Review`:next==='resolved'?`Dispute resolved`:`Refund initiated`)
-    } catch (e) {
-        alert('Failed to update dispute')
-    }
-  }
+  const copyToken = (t) => { navigator.clipboard.writeText(t); showToast('Copied') }
 
-  const filtered = jobs.filter(j=>{
-    const ms = j.customer.toLowerCase().includes(search.toLowerCase()) ||
-               j.worker.toLowerCase().includes(search.toLowerCase())   ||
-               j.id.toLowerCase().includes(search.toLowerCase())       ||
-               j.category.toLowerCase().includes(search.toLowerCase())
-    const mst= statusFilter==='all'||j.status===statusFilter
-    return ms&&mst
+  const filtered = jobs.filter(j => {
+    const name = j.customerId?.name || j.customer || ''
+    const worker = j.workerId?.name || j.worker || ''
+    const id = j._id?.toString().slice(-6) || ''
+    const matchSearch = name.toLowerCase().includes(search.toLowerCase()) ||
+      worker.toLowerCase().includes(search.toLowerCase()) ||
+      id.includes(search.toLowerCase()) ||
+      (j.category || '').toLowerCase().includes(search.toLowerCase())
+    const matchStatus = statusFilter === 'all' || j.status === statusFilter
+    return matchSearch && matchStatus
   })
 
-  const openCount = disputes.filter(d=>d.status!=='resolved').length
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  useEffect(() => { setPage(1) }, [search, statusFilter])
+
+  const stats = {
+    total: jobs.length,
+    active: jobs.filter(j => ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'IN_PROGRESS'].includes(j.status)).length,
+    completed: jobs.filter(j => j.status === 'COMPLETED' || j.status === 'PAID').length,
+    cancelled: jobs.filter(j => j.status === 'CANCELLED').length,
+  }
+
+  const formatJob = (j) => ({
+    id: j._id?.toString().slice(-6) || '—',
+    _id: j._id,
+    customer: j.customerId?.name || j.customer || 'Unknown',
+    customerId: j.customerId?._id || j.customerId,
+    worker: j.workerId?.name || j.worker || '—',
+    workerId: j.workerId?._id || j.workerId,
+    category: j.category,
+    city: j.addressDetails || j.locationName || '—',
+    date: new Date(j.createdAt).toLocaleDateString('en-IN'),
+    amount: `₹${j.payment?.amount || 0}`,
+    fee: `₹${j.payment?.platformFee || 0}`,
+    status: j.status,
+    priority: j.priority || 'normal',
+    description: j.description || '',
+  })
+
+  const formatDetail = (j) => {
+    const d = formatJob(j)
+    d.amount = `₹${j.payment?.amount || 0}`
+    d.fee = `₹${j.payment?.platformFee || 0}`
+    d.workerPayout = `₹${j.payment?.workerPayout || 0}`
+    d.paymentStatus = j.payment?.status || 'PENDING'
+    d.timeSlot = j.timeSlot || '—'
+    d.preferredDate = j.preferredDate ? new Date(j.preferredDate).toLocaleDateString('en-IN') : '—'
+    return d
+  }
 
   return (
     <div>
-      {toast&&(
-        <div style={{ position:'fixed',bottom:24,right:24,zIndex:999,background:'#0F172A',color:'white',padding:'12px 20px',borderRadius:12,fontWeight:600,fontSize:14,animation:'slideUp 0.3s ease',boxShadow:'0 8px 32px rgba(0,0,0,0.3)' }}>
-          ✓ {toast}
-        </div>
-      )}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="page-header">
         <div>
-          <div className="page-title">📋 Job Management</div>
-          <div className="page-subtitle">{jobs.length} total jobs</div>
+          <div className="page-title">Job Management</div>
+          <div className="page-subtitle">Manage all service jobs — reassign workers, cancel, and oversee on behalf of users</div>
         </div>
-        <div style={{ display:'flex', gap:6 }}>
-          <button className={`btn ${tab==='jobs'?'btn-primary':'btn-outline'}`} onClick={()=>setTab('jobs')}>All Jobs</button>
-          <button className={`btn ${tab==='disputes'?'btn-primary':'btn-outline'}`} onClick={()=>setTab('disputes')}>
-            Disputes
-            {openCount>0&&<span className="badge badge-danger" style={{ marginLeft:4 }}>{openCount}</span>}
-          </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn-secondary" onClick={fetchJobs}><RefreshCw size={16} /> Refresh</button>
         </div>
       </div>
 
-      {tab==='jobs' ? (
-        <>
-          <div className="filter-bar">
-            <div className="search-bar" style={{ width:260 }}>
-              <span>🔍</span>
-              <input placeholder="Search job ID, customer, worker..." value={search} onChange={e=>setSearch(e.target.value)} />
-            </div>
-            {['all','broadcasting','in_progress','on_the_way','completed','cancelled'].map(s=>(
-              <button key={s} className={`filter-chip ${statusFilter===s?'active':''}`} onClick={()=>setStatusFilter(s)}>
-                {s==='all'?'All':statusLabel[s]||s}
-              </button>
-            ))}
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+        {[
+          { label: 'Total Jobs', value: stats.total, color: '#2EF7F0' },
+          { label: 'Active', value: stats.active, color: '#F59E0B' },
+          { label: 'Completed', value: stats.completed, color: '#10B981' },
+          { label: 'Cancelled', value: stats.cancelled, color: '#EF4444' },
+        ].map(s => (
+          <div key={s.label} className="stat-card-simple" style={{ borderTop: `3px solid ${s.color}` }}>
+            <div style={{ fontSize: 28, fontWeight: 900, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 13, color: 'var(--mid)', fontWeight: 600, marginTop: 4 }}>{s.label}</div>
           </div>
+        ))}
+      </div>
 
-          <div className="card">
-            <div className="table-container">
-              <table>
+      {/* Filters */}
+      <div className="filters-row">
+        <div className="search-box">
+          <Search size={16} />
+          <input placeholder="Search job ID, customer, worker, category..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="filter-tabs">
+          {['all', 'BROADCASTING', 'ALLOCATED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map(f => (
+            <button key={f} className={`filter-tab ${statusFilter === f ? 'active' : ''}`} onClick={() => setStatusFilter(f)}>
+              {f === 'all' ? 'All' : STATUS_LABEL[f] || f}
+            </button>
+          ))}
+        </div>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--mid)', fontWeight: 600 }}>
+          {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {/* Table */}
+      <div className="table-card">
+        {loading ? (
+          <div style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>Loading jobs...</div>
+        ) : paged.length === 0 ? (
+          <EmptyState icon="📋" title="No jobs found" description={search ? 'Try a different search' : 'No jobs created yet'} />
+        ) : (
+          <>
+            <div className="data-table-wrapper">
+              <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Job ID</th><th>Customer</th><th>Worker</th><th>Category</th>
-                    <th>City</th><th>Amount</th><th>Fee</th><th>Priority</th><th>Status</th><th>Actions</th>
+                    <th>Job ID</th>
+                    <th>Customer</th>
+                    <th>Worker</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Fee</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(j=>(
-                    <tr key={j.id}>
-                      <td style={{ fontFamily:'monospace',fontWeight:700,fontSize:12 }}>{j.id}</td>
-                      <td style={{ fontWeight:600 }}>{j.customer}</td>
-                      <td style={{ color:j.worker==='—'?'var(--light)':'var(--dark)' }}>{j.worker}</td>
-                      <td>{j.category}</td>
-                      <td style={{ color:'var(--mid)' }}>{j.city}</td>
-                      <td style={{ fontWeight:700 }}>{j.amount}</td>
-                      <td style={{ color:'var(--success)',fontWeight:700 }}>{j.fee}</td>
-                      <td>{j.priority==='urgent'&&<span className="badge badge-secondary">⚡ Urgent</span>}</td>
-                      <td><span className={`badge ${statusBadge[j.status]}`}>{statusLabel[j.status]}</span></td>
-                      <td>
-                        <div style={{ display:'flex', gap:6 }}>
-                          {(j.status==='broadcasting'||j.status==='in_progress'||j.status==='on_the_way')&&(
-                            <button className="btn btn-danger btn-sm" onClick={()=>cancelJob(j.id)}>Cancel</button>
-                          )}
-                          {j.status==='in_progress'&&(
-                            <button className="btn btn-outline btn-sm" onClick={()=>setReassignJob(j)}>Reassign</button>
-                          )}
-                          <button className="btn btn-outline btn-sm" onClick={()=>setViewJob(j)}>View</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filtered.length===0&&(
-                    <tr><td colSpan={10} style={{ textAlign:'center',padding:40,color:'var(--mid)' }}>No jobs match your filters</td></tr>
-                  )}
+                  {paged.map(j => {
+                    const fj = formatJob(j)
+                    return (
+                      <tr key={fj._id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{fj.id}</span>
+                            <button onClick={() => { navigator.clipboard.writeText(fj._id); showToast('Copied') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mid)', padding: 2 }}><Copy size={12} /></button>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cell-primary" style={{ cursor: 'pointer' }} onClick={() => navigate('/users')}>{fj.customer}</div>
+                        </td>
+                        <td>
+                          <div className={fj.worker === '—' ? 'cell-muted' : 'cell-primary'} style={{ cursor: fj.worker !== '—' ? 'pointer' : 'default' }} onClick={() => fj.worker !== '—' && navigate('/workers')}>{fj.worker}</div>
+                        </td>
+                        <td><span className="badge badge-primary">{fj.category}</span></td>
+                        <td><strong>{fj.amount}</strong></td>
+                        <td><strong style={{ color: 'var(--success)' }}>{fj.fee}</strong></td>
+                        <td><span className={`badge badge-${STATUS_VARIANT[fj.status] || 'gray'}`}>{STATUS_LABEL[fj.status] || fj.status}</span></td>
+                        <td style={{ fontSize: 12, color: 'var(--mid)' }}>{fj.date}</td>
+                        <td>
+                          <div className="action-btns">
+                            <button className="btn-icon" title="View Details" onClick={() => fetchJobDetail(j)}><Eye size={15} /></button>
+                            {fj.worker !== '—' && ['ALLOCATED', 'IN_PROGRESS'].includes(fj.status) && (
+                              <button className="btn-icon" title="Reassign" onClick={() => { setReassignModal(fj); setSelectedWorker('') }}><Users size={15} /></button>
+                            )}
+                            {['BROADCASTING', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'].includes(fj.status) && (
+                              <button className="btn-icon danger" title="Cancel" onClick={() => setConfirm({ type: 'cancel', id: fj._id, name: `Job #${fj.id}` })}>
+                                <Ban size={15} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
-          </div>
-        </>
-      ) : (
-        <div>
-          <div className="alert alert-warning" style={{ marginBottom:16 }}>
-            ⚠️ {openCount} open dispute{openCount!==1?'s':''} require your attention. 24hr SLA applies.
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            {disputes.map(d=>(
-              <div key={d.id} className="card" style={{ padding:20 }}>
-                <div style={{ display:'flex', alignItems:'flex-start', gap:16 }}>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, flexWrap:'wrap' }}>
-                      <span style={{ fontFamily:'monospace',fontWeight:700,fontSize:12 }}>{d.id}</span>
-                      <span className={`badge ${statusBadge[d.status]}`}>{statusLabel[d.status]}</span>
-                      <span style={{ fontSize:12,color:'var(--light)',fontFamily:'var(--font-body)' }}>Opened {d.opened}</span>
-                    </div>
-                    <div style={{ fontWeight:700,marginBottom:4 }}>{d.customer} vs {d.worker}</div>
-                    <div style={{ fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)' }}>"{d.issue}"</div>
-                    {d.amount!=='₹0'&&<div style={{ marginTop:8,fontSize:12,color:'var(--danger)',fontWeight:700 }}>Disputed amount: {d.amount}</div>}
-                  </div>
-                  <div style={{ display:'flex', gap:8, flexShrink:0 }}>
-                    {d.status==='open'&&(
-                      <button className="btn btn-sm" style={{ background:'var(--warning-light)',color:'var(--warning)',border:'1px solid #FCD34D' }} onClick={()=>moveDispute(d.id,'in_review')}>
-                        🔍 Review
-                      </button>
-                    )}
-                    {d.status==='in_review'&&<>
-                      <button className="btn btn-success btn-sm" onClick={()=>moveDispute(d.id,'resolved')}>✓ Resolve</button>
-                      <button className="btn btn-outline btn-sm" onClick={()=>{ moveDispute(d.id,'resolved'); showToast(`Refund issued for ${d.id}`) }}>💸 Refund</button>
-                    </>}
-                    {d.status==='resolved'&&<span className="badge badge-success" style={{ alignSelf:'center' }}>✓ Closed</span>}
-                  </div>
+            <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+          </>
+        )}
+      </div>
+
+      {/* Detail Drawer */}
+      {detail && (() => {
+        const fd = formatDetail(detail)
+        return (
+          <>
+            <div className="drawer-overlay" onClick={() => { setDetail(null); setImpersonateToken(null); }} />
+            <div className="drawer" style={{ width: 520 }}>
+              <div className="drawer-header">
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16 }}>Job Details</div>
+                  <div className="cell-muted">{fd.id}</div>
                 </div>
+                <button className="modal-close" onClick={() => { setDetail(null); setImpersonateToken(null); }}>✕</button>
               </div>
-            ))}
+              <div className="drawer-body">
+                {/* Status Banner */}
+                <div style={{ background: 'var(--bg-dark)', borderRadius: 12, padding: 16, marginBottom: 20, textAlign: 'center' }}>
+                  <span className={`badge badge-${STATUS_VARIANT[fd.status] || 'gray'}`} style={{ fontSize: 13, padding: '6px 16px' }}>
+                    {STATUS_LABEL[fd.status] || fd.status}
+                  </span>
+                </div>
+
+                {/* Details */}
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Details</div>
+                <div className="detail-grid">
+                  <div className="detail-row"><span>Customer</span><strong style={{ cursor: 'pointer', color: 'var(--primary)' }} onClick={() => { setDetail(null); navigate('/users') }}>{fd.customer}</strong></div>
+                  <div className="detail-row"><span>Worker</span><strong style={{ cursor: fd.worker !== '—' ? 'pointer' : 'default', color: fd.worker !== '—' ? 'var(--primary)' : 'var(--mid)' }} onClick={() => fd.worker !== '—' && navigate('/workers')}>{fd.worker}</strong></div>
+                  <div className="detail-row"><span>Category</span><strong>{fd.category}</strong></div>
+                  <div className="detail-row"><span>Location</span><strong>{fd.city}</strong></div>
+                  <div className="detail-row"><span>Date</span><strong>{fd.date}</strong></div>
+                  <div className="detail-row"><span>Preferred Date</span><strong>{fd.preferredDate}</strong></div>
+                  <div className="detail-row"><span>Time Slot</span><strong>{fd.timeSlot}</strong></div>
+                  <div className="detail-row"><span>Amount</span><strong>{fd.amount}</strong></div>
+                  <div className="detail-row"><span>Platform Fee</span><strong style={{ color: 'var(--success)' }}>{fd.fee}</strong></div>
+                  <div className="detail-row"><span>Worker Payout</span><strong>{fd.workerPayout}</strong></div>
+                  <div className="detail-row"><span>Payment Status</span><strong>{fd.paymentStatus}</strong></div>
+                </div>
+
+                {fd.description && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 16, marginBottom: 8 }}>Description</div>
+                    <div style={{ background: 'var(--bg-dark)', borderRadius: 10, padding: 14, fontSize: 13, color: 'var(--dark)', lineHeight: 1.6 }}>{fd.description}</div>
+                  </>
+                )}
+
+                {/* Quotes */}
+                {detailQuotes.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Worker Quotes ({detailQuotes.length})</div>
+                    {detailQuotes.map((q, i) => (
+                      <div key={i} style={{ background: 'var(--bg-dark)', borderRadius: 10, border: '1px solid var(--border)', padding: 14, marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>{q.workerId?.name || 'Worker'}</div>
+                            <div style={{ fontSize: 11, color: 'var(--mid)' }}>₹{q.amount} · {q.message || 'No message'}</div>
+                          </div>
+                          <span className={`badge badge-${q.status === 'ACCEPTED' ? 'success' : q.status === 'REJECTED' ? 'danger' : 'warning'}`}>{q.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {/* Actions */}
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Admin Actions</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {fd.worker !== '—' && ['ALLOCATED', 'IN_PROGRESS'].includes(fd.status) && (
+                    <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { setReassignModal(fd); setSelectedWorker(''); setDetail(null) }}>
+                      <Users size={14} /> Reassign
+                    </button>
+                  )}
+                  {['BROADCASTING', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'].includes(fd.status) && (
+                    <button className="btn-danger" style={{ flex: 1 }} onClick={() => { setConfirm({ type: 'cancel', id: fd._id, name: `Job #${fd.id}` }); setDetail(null) }}>
+                      <Ban size={14} /> Cancel Job
+                    </button>
+                  )}
+                </div>
+
+                {/* Impersonate customer */}
+                {fd.customerId && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Impersonate Customer</div>
+                    {impersonateToken ? (
+                      <div style={{ background: 'var(--bg-dark)', padding: 14, borderRadius: 10, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 11, color: 'var(--mid)', marginBottom: 6, fontWeight: 600 }}>Token (1h):</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all', userSelect: 'all', background: 'var(--bg)', padding: 10, borderRadius: 6, marginBottom: 8 }}>{impersonateToken}</div>
+                        <button className="btn-secondary" style={{ width: '100%', height: 32, fontSize: 12 }} onClick={() => copyToken(impersonateToken)}><Copy size={12} /> Copy Token</button>
+                      </div>
+                    ) : (
+                      <button className="btn-secondary" style={{ width: '100%' }} onClick={() => handleImpersonate(fd.customerId)}>Generate Customer Token</button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </>
+        )
+      })()}
+
+      {/* Reassign Modal */}
+      <Modal open={!!reassignModal} onClose={() => { setReassignModal(null); setSelectedWorker(''); }} title="Reassign Worker" width="480px">
+        {reassignModal && (
+          <div>
+            <p style={{ fontSize: 13, color: 'var(--mid)', fontFamily: 'var(--font-body)', marginBottom: 16 }}>
+              Reassign job <strong>#{reassignModal.id}</strong> from <strong>{reassignModal.worker}</strong> to a new worker.
+            </p>
+            <div className="form-group">
+              <label className="form-label">Select Worker</label>
+              <select className="form-control" value={selectedWorker} onChange={e => setSelectedWorker(e.target.value)}>
+                <option value="">Choose worker...</option>
+                {workers.filter(w => w.isVerified && w._id !== reassignModal.workerId).map(w => (
+                  <option key={w._id} value={w._id}>{w.name} ({w.city || 'Unknown'} · ₹{w.wallet?.balance || 0})</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { setReassignModal(null); setSelectedWorker(''); }}>Cancel</button>
+              <button className="btn-primary" style={{ flex: 1 }} disabled={!selectedWorker} onClick={reassignWorker}>Reassign</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
-      {/* View drawer */}
-      {viewJob && (
-        <JobDetailDrawer
-          job={jobs.find(j=>j.id===viewJob.id)||viewJob}
-          onClose={()=>setViewJob(null)}
-          onCancel={cancelJob}
-          onReassign={(j)=>{ setReassignJob(j); setViewJob(null) }}
-        />
-      )}
-
-      {/* Reassign modal */}
-      {reassignJob && (
-        <ReassignModal
-          job={reassignJob}
-          onConfirm={reassignWorker}
-          onClose={()=>setReassignJob(null)}
+      {/* Confirm Modal */}
+      {confirm?.type === 'cancel' && (
+        <ConfirmModal
+          title="Cancel Job"
+          message={`Cancel ${confirm.name}? This action is done on behalf of the user and cannot be undone.`}
+          confirmText="Cancel Job"
+          onConfirm={() => cancelJob(confirm.id)}
+          onClose={() => setConfirm(null)}
         />
       )}
     </div>

@@ -20,8 +20,8 @@ const QuoteSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-QuoteSchema.index({ jobId: 1 });
-QuoteSchema.index({ workerId: 1 });
-QuoteSchema.index({ status: 1 });
+QuoteSchema.index({ jobId: 1, status: 1 });              // getQuotesForJob filter
+QuoteSchema.index({ workerId: 1, status: 1 });           // getWorkerQuotes filter
+QuoteSchema.index({ jobId: 1, workerId: 1 }, { unique: true, partialFilterExpression: { status: { $in: ['PENDING', 'ACCEPTED'] } } }); // prevent duplicate quotes
 
 module.exports = mongoose.model('Quote', QuoteSchema);

@@ -18,13 +18,15 @@ const DisputeSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Customer'
     },
+    issue: {
+        type: String
+    },
     reason: {
         type: String,
         required: true
     },
     description: {
-        type: String,
-        required: true
+        type: String
     },
     status: {
         type: String,

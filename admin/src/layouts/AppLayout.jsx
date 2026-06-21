@@ -5,12 +5,12 @@ import api from '../services/api'
 import { io } from 'socket.io-client'
 
 const actionIcons = {
-  CREATE: '➕', UPDATE: '✏️', DELETE: '🗑️', TOGGLE_STATUS: '🔄', KYC: '🪪', PAYOUT: '💰', BROADCAST: '📣', SYSTEM: '⚙️', OTHER: '📋'
+  CREATE: '➕', UPDATE: '✏️', DELETE: '🗑️', TOGGLE_STATUS: '🔄', KYC: '🪪', PAYOUT: '💰', WALLET_CREDIT: '💚', WALLET_DEBIT: '🔴', BROADCAST: '📣', SYSTEM: '⚙️', OTHER: '📋'
 }
 
 const entityTypeLabels = {
   CUSTOMER: 'Customer', WORKER: 'Worker', SHOP: 'Shop', JOB: 'Job', ORDER: 'Order',
-  PAYOUT: 'Payout', KYC: 'KYC', CATEGORY: 'Category', PROMOTION: 'Promotion', SETTINGS: 'Settings', OTHER: 'Other'
+  PAYOUT: 'Payout', KYC: 'KYC', CATEGORY: 'Category', PROMOTION: 'Promotion', SETTINGS: 'Settings', PRODUCT: 'Product', OTHER: 'Other'
 }
 
 const pageTitles = {
@@ -26,6 +26,8 @@ const pageTitles = {
   '/categories':    'Service Categories',
   '/payouts':       'Payouts & Wallet',
   '/subscriptions': 'Subscription Plans',
+  '/wallets':        'User Wallets',
+  '/admin-wallet':   'Admin Platform Wallet',
   '/ledger':        'Ledger',
   '/disputes':      'Disputes',
   '/suggestions':   'Category Suggestions',
@@ -107,10 +109,11 @@ export default function AppLayout({ onLogout }) {
   }
 
   const markAllRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
     try {
       await api.patch('/admin/notifications/read-all')
-      setNotifications(notifications.map(n => ({ ...n, read: true })))
     } catch {}
+    try { await fetchNotifications() } catch {}
   }
 
   const markOneRead = async (id) => {
@@ -137,17 +140,18 @@ export default function AppLayout({ onLogout }) {
       { path: '/shops', label: 'Shops', icon: '🏪' },
       { path: '/jobs', label: 'Jobs', icon: '📋' },
       { path: '/orders', label: 'Orders', icon: '🛒' },
-      { path: '/kyc', label: 'KYC Queue', icon: '🪪', badge: badges.kyc },
+      { path: '/kyc', label: 'KYC Queue', icon: '🪪', badge: (badges.kyc || 0) + (badges.shopKyc || 0) },
       { path: '/categories', label: 'Categories', icon: '📂', badge: badges.categories },
     ]},
     { label: 'Platform', items: [
       { path: '/promotions', label: 'Promotions', icon: '🎯' },
       { path: '/settlements', label: 'Settlements', icon: '🏦' },
       { path: '/disputes', label: 'Disputes', icon: '⚖️', badge: badges.disputes },
-      { path: '/suggestions', label: 'Suggestions', icon: '💡', badge: badges.suggestions },
     ]},
     { label: 'Finance', items: [
-      { path: '/payouts', label: 'Payouts', icon: '💰', badge: badges.payouts },
+      { path: '/admin-wallet', label: 'Admin Wallet', icon: '🏦' },
+      { path: '/wallets', label: 'User Wallets', icon: '💰' },
+      { path: '/payouts', label: 'Payouts', icon: '💸', badge: badges.payouts },
       { path: '/ledger', label: 'Ledger', icon: '📖' },
       { path: '/subscriptions', label: 'Subscriptions', icon: '🎯' },
     ]},

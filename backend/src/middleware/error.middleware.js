@@ -6,21 +6,37 @@ const { errorResponse } = require('../helpers/response.helper');
  * @desc Global Error Handler Middleware
  */
 const errorHandler = (err, req, res, next) => {
-    logger.error(`${err.message} - ${req.method} ${req.originalUrl} - ${req.ip}`);
+    logger.error(`${err.message} - ${req.method} ${req.originalUrl} - ${req.ip}\n${err.stack}`);
 
-    // Default error status and message
     let statusCode = err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
     let message = err.message || 'Internal Server Error';
     let errors = err.errors || null;
 
-    // Handle Mongoose Validation Error
+    // Mongoose Validation Error
     if (err.name === 'ValidationError') {
         statusCode = StatusCodes.BAD_REQUEST;
         message = 'Validation Error';
         errors = Object.values(err.errors).map(el => el.message);
     }
 
-    // Handle JWT Errors
+    // MongoDB Duplicate Key Error
+    if (err.code === 11000) {
+        statusCode = StatusCodes.CONFLICT;
+        const field = Object.keys(err.keyValue || {}).join(', ');
+        message = `Duplicate value for: ${field}. Please use a different value.`;
+    } else if (err.name === 'MongoServerError') {
+        // Other Mongo errors (e.g. replica set transactions)
+        statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
+        message = err.message || 'Database Error';
+    }
+
+    // Invalid MongoDB ObjectId
+    if (err.name === 'CastError') {
+        statusCode = StatusCodes.BAD_REQUEST;
+        message = `Invalid ID format for field: ${err.path}`;
+    }
+
+    // JWT Errors
     if (err.name === 'JsonWebTokenError') {
         statusCode = StatusCodes.UNAUTHORIZED;
         message = 'Invalid token. Please log in again.';

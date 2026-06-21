@@ -216,18 +216,19 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
     const { amount, payoutMethod } = req.body; // payoutMethod is label/details string
 
     const mongoose = require('mongoose');
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
+    const session = isSingle ? null : await mongoose.startSession();
+    if (session) session.startTransaction();
     try {
         const shop = await Shop.findOne({ ownerId: req.user._id }).session(session);
         if (!shop) {
-            await session.abortTransaction();
-            session.endSession();
+            if (session) await session.abortTransaction();
+            if (session) session.endSession();
             return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
         }
         if (shop.wallet.balance < amount) {
-            await session.abortTransaction();
-            session.endSession();
+            if (session) await session.abortTransaction();
+            if (session) session.endSession();
             return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
         }
 
@@ -249,17 +250,16 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
             shopId: shop._id,
             amount,
             paymentMethod: paymentMethodType,
-            paymentDetails: payoutMethod || 'bank'
+            paymentDetails: payoutMethod || 'bank',
+            walletTxnId: txn._id
         }], { session });
 
-        await session.commitTransaction();
-        session.endSession();
+        if (session) await session.commitTransaction();
+        if (session) session.endSession();
         return successResponse(res, txn, 'Withdrawal initiated');
     } catch (error) {
-        if (session.inTransaction()) {
-            await session.abortTransaction();
-        }
-        session.endSession();
+        if (session) await session.abortTransaction();
+        if (session) session.endSession();
         throw error;
     }
 });
@@ -276,6 +276,92 @@ exports.updateOwnerName = catchAsync(async (req, res) => {
     const user = await Customer.findByIdAndUpdate(req.user._id, { name }, { new: true });
     
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
+    
+    return successResponse(res, user, 'Owner name updated');
+});
 
-    return successResponse(res, { name: user.name }, 'Owner name updated');
+exports.updateShopAdmin = catchAsync(async (req, res) => {
+    const { name, category, description, address } = req.body;
+    if (!name || !name.trim()) return errorResponse(res, 'Shop name is required', StatusCodes.BAD_REQUEST);
+    if (!category || !category.trim()) return errorResponse(res, 'Category is required', StatusCodes.BAD_REQUEST);
+    if (!address || !address.trim()) return errorResponse(res, 'Address is required', StatusCodes.BAD_REQUEST);
+
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    shop.name = name.trim();
+    shop.category = category.trim();
+    shop.description = (description || '').trim();
+    shop.address = address.trim();
+    await shop.save();
+
+    return successResponse(res, shop, 'Shop updated successfully');
+});
+
+exports.deleteMyShop = catchAsync(async (req, res) => {
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const Product = require('../product/product.model');
+    await Product.deleteMany({ shopId: shop._id });
+    await Shop.findByIdAndDelete(shop._id);
+
+    const { getRedis } = require('../../helpers/redis.helper');
+    const redisClient = getRedis();
+    if (redisClient) {
+        const keys = await redisClient.keys(`*${SHOP_CACHE_PREFIX}*`);
+        if (keys.length > 0) await redisClient.del(keys);
+    }
+
+    return successResponse(res, null, 'Shop deleted successfully');
+});
+
+exports.deleteShop = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const Product = require('../product/product.model');
+    await Product.deleteMany({ shopId: shop._id });
+    await Shop.findByIdAndDelete(req.params.id);
+
+    return successResponse(res, null, 'Shop and all products deleted successfully');
+});
+
+exports.getDeliveryConfig = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id).select('delivery delivery deliveryConfig');
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    return successResponse(res, shop, 'Delivery config fetched');
+});
+
+exports.updateDeliveryConfig = catchAsync(async (req, res) => {
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const {
+        deliveryRadiusKm, minOrderAmount, freeDeliveryAbove, deliveryCharge,
+        discountEnabled, discountAbove, discountType, discountValue, discountPct, maxDiscountCap,
+        sameDayDelivery, deliverySlots
+    } = req.body;
+
+    if (shop.delivery) {
+        shop.delivery = {
+            ...shop.delivery,
+            radiusKm: deliveryRadiusKm ?? shop.delivery.radiusKm,
+            fee: deliveryCharge ?? shop.delivery.fee,
+            freeAbove: freeDeliveryAbove ?? shop.delivery.freeAbove,
+        };
+    }
+
+    if (!shop.delivery) {
+        shop.delivery = {
+            radiusKm: deliveryRadiusKm || 5,
+            fee: deliveryCharge || 0,
+            freeAbove: freeDeliveryAbove || 0
+        };
+    }
+
+    shop.markModified('delivery');
+    await shop.save();
+
+    return successResponse(res, shop, 'Delivery config updated');
 });

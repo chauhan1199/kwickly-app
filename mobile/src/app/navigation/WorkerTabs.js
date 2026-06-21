@@ -19,7 +19,6 @@ import WorkerArrivalOTPScreen  from '../../features/worker/WorkerArrivalOTPScree
 import WorkerActiveJobScreen   from '../../features/worker/WorkerActiveJobScreen';
 import WorkerJobCompleteScreen from '../../features/worker/WorkerJobCompleteScreen';
 import WorkerRateCustomerScreen from '../../features/worker/WorkerRateCustomerScreen';
-import WorkerMyServicesScreen  from '../../features/worker/WorkerMyServicesScreen';
 import WorkerJobCanceledScreen from '../../features/worker/WorkerJobCanceledScreen';
 import NotificationsScreen     from '../../features/shared/NotificationsScreen';
 import HelpSupportScreen       from '../../features/customer/HelpSupportScreen';
@@ -88,7 +87,6 @@ const WorkerTabs = () => (
     <Tab.Screen name="WorkerActiveJob"     component={WorkerActiveJobScreen}    />
     <Tab.Screen name="WorkerJobComplete"   component={WorkerJobCompleteScreen}  />
     <Tab.Screen name="WorkerRateCustomer"  component={WorkerRateCustomerScreen} />
-    <Tab.Screen name="WorkerMyServices"    component={WorkerMyServicesScreen}   />
     <Tab.Screen name="WorkerJobCanceled"   component={WorkerJobCanceledScreen}  />
     <Tab.Screen name="HelpSupport"         component={HelpSupportScreen}        />
     <Tab.Screen name="Notifications"       component={NotificationsScreen}      />

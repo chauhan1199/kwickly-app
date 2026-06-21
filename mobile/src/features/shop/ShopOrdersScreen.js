@@ -36,7 +36,8 @@ const ShopOrdersScreen = ({ navigation }) => {
       setLoading(true);
       const res = await api.get('/shoporders/shop');
       if (res.data?.status === 'success') {
-        const mapped = res.data.data.map(order => {
+        const list = res.data.data.orders || res.data.data;
+        const mapped = list.map(order => {
           let st = order.status.toLowerCase();
           if (st === 'pending') st = 'new';
           if (st === 'out_for_delivery') st = 'out';

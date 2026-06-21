@@ -6,12 +6,15 @@ import Theme from './src/constants/Theme';
 
 import { ThemeProvider } from './src/context/ThemeContext';
 import { AuthProvider } from './src/context/AuthContext';
+import { CartProvider } from './src/context/CartContext';
 
 function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <AppContent />
+        <CartProvider>
+          <AppContent />
+        </CartProvider>
       </ThemeProvider>
     </AuthProvider>
   );

@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 // Admin routes
 router.get('/', authorize('ADMIN'), notificationController.getNotifications);
+router.get('/activity-logs', authorize('ADMIN'), notificationController.getAdminActivityLogs);
 router.post('/broadcast', authorize('ADMIN'), notificationController.sendBroadcast);
 
 // User routes

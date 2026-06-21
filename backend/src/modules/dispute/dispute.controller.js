@@ -23,7 +23,7 @@ exports.getDisputes = catchAsync(async (req, res) => {
 });
 
 exports.openDispute = catchAsync(async (req, res) => {
-    const { jobId, shopOrderId, reason, description } = req.body;
+    const { jobId, shopOrderId, reason, description, issue } = req.body;
     const customerId = req.user._id;
 
     let targetId, model, field;
@@ -54,6 +54,7 @@ exports.openDispute = catchAsync(async (req, res) => {
         [field]: targetId,
         customerId,
         workerId,
+        issue: issue || reason,
         reason,
         description,
         status: 'open'

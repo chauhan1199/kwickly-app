@@ -8,8 +8,10 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp } from 'lucide-react-native';
+import Razorpay from 'react-native-razorpay';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
+import api from '../../services/api';
 import { walletService } from '../../services/walletService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -55,27 +57,64 @@ const CustomerWalletScreen = ({ navigation }) => {
   const isCredit = (t) => ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP'].includes(t.type);
 
   const handleTopup = async () => {
-    if (!topupAmount || isNaN(topupAmount) || Number(topupAmount) <= 0) {
-      return Alert.alert('Invalid', 'Please enter a valid amount.');
+    if (!topupAmount || isNaN(topupAmount) || Number(topupAmount) < 10) {
+      return Alert.alert('Invalid', 'Minimum topup is ₹10.');
     }
     
     setIsProcessing(true);
     
     try {
       const amount = Number(topupAmount);
-      // Simulate payment gateway delay
-      await new Promise(res => setTimeout(res, 1200));
-      
-      const res = await walletService.topupWallet(amount, { method: "UPI" });
-      if (res.data.status === 'success') {
-        if (fetchUser) await fetchUser(); // Sync globally
-        fetchWallet();                    // Refresh local lists
-        setAddMoneyModal(false);
-        setTopupAmount('');
-        
-        setTimeout(() => {
-          Alert.alert('Payment Successful 🎉', `₹${amount} was securely added to your Kwickly Wallet!`);
-        }, 300);
+
+      // Create Razorpay order
+      const payRes = await api.post('/payments/create-order', {
+        amount,
+        purpose: 'wallet_topup'
+      });
+
+      if (payRes.data?.status !== 'success') {
+        throw new Error('Failed to create payment order');
+      }
+
+      const { razorpayOrderId, keyId } = payRes.data.data;
+
+      const options = {
+        description: `Kwickly Wallet Topup ₹${amount}`,
+        image: 'https://kwickly.in/logo.png',
+        currency: 'INR',
+        key: keyId,
+        amount: amount * 100,
+        order_id: razorpayOrderId,
+        name: 'Kwickly',
+        prefill: { contact: user?.phone || '', email: user?.email || '' },
+        theme: { color: '#0e9aa7' }
+      };
+
+      try {
+        const razorpayResponse = await Razorpay.open(options);
+
+        // Verify payment
+        const verifyRes = await api.post('/payments/verify', {
+          razorpayOrderId: razorpayResponse.razorpay_order_id,
+          razorpayPaymentId: razorpayResponse.razorpay_payment_id,
+          razorpaySignature: razorpayResponse.razorpay_signature,
+          purpose: 'wallet_topup',
+          amount
+        });
+
+        if (verifyRes.data?.status === 'success') {
+          if (fetchUser) await fetchUser();
+          fetchWallet();
+          setAddMoneyModal(false);
+          setTopupAmount('');
+          Alert.alert('Topup Successful 🎉', `₹${amount} was securely added to your Kwickly Wallet!`);
+        }
+      } catch (razorpayError) {
+        if (razorpayError?.code === 0) {
+          // User cancelled - do nothing
+        } else {
+          Alert.alert('Payment Failed', razorpayError?.description || 'Payment failed. Please try again.');
+        }
       }
     } catch (error) {
       console.log('Topup failed', error);
@@ -107,7 +146,7 @@ const CustomerWalletScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <AppBar title="My Wallet" />
+      <AppBar title="My Wallet" packageRoute="CustomerShopOrders" />
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

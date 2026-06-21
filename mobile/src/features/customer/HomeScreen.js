@@ -15,6 +15,7 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
+import api from '../../services/api';
 import LinearGradient from 'react-native-linear-gradient';
 
 const HomeScreen = ({ navigation }) => {
@@ -23,6 +24,7 @@ const HomeScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   
   const [activeJobs, setActiveJobs] = useState([]);
+  const [activeShopOrders, setActiveShopOrders] = useState([]);
   const [pastJobs, setPastJobs] = useState([]);
   const [categories, setCategories] = useState([]);
 
@@ -96,8 +98,21 @@ const HomeScreen = ({ navigation }) => {
           setActiveJobs(active);
           setPastJobs(past);
         }
+
+        try {
+          const ordersRes = await api.get('/shoporders/customer');
+          if (ordersRes.data?.status === 'success') {
+            const list = ordersRes.data.data.orders || ordersRes.data.data;
+            const activeOrders = list.filter(o => o.status !== 'DELIVERED' && o.status !== 'CANCELLED' && o.status !== 'REJECTED');
+            setActiveShopOrders(activeOrders);
+          }
+        } catch(err) {
+          console.error('Error fetching shop orders:', err);
+        }
+
       } else {
         setActiveJobs([]);
+        setActiveShopOrders([]);
         setPastJobs([]);
       }
     } catch (e) {
@@ -250,15 +265,78 @@ const HomeScreen = ({ navigation }) => {
                   start={{x:0, y:0}} end={{x:1, y:0}}
                   style={[styles.progBarFill, {width: `${job.progress}%`}]} 
                 />
-              </View>
-
-              <View style={[styles.row, {justifyContent: 'space-between'}]}>
-                <Text style={styles.jobWorkerText}>{job.worker ? `👤 ${job.worker}` : '📋 Awaiting your selection'}</Text>
-                <Text style={styles.jobPriceText}>{job.worker ? `Rs. ${job.price}` : `From Rs. ${job.fromPrice}`}</Text>
+                <View style={styles.jobWorkerRow}>
+                  <View style={styles.jobWorkerAvatar}>
+                    <Text style={{fontSize: 10}}>👤</Text>
+                  </View>
+                  <Text style={styles.jobWorkerName}>{job.worker || 'Pending Assign'}</Text>
+                </View>
+                <Text style={styles.jobPrice}>From Rs. {job.fromPrice}</Text>
               </View>
             </TouchableOpacity>
-          )
+          );
         })}
+
+        {/* Active Shop Orders */}
+        {activeShopOrders.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={styles.row}>
+                <Text style={styles.sectionTitle}>Active Shop Orders</Text>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countText}>{activeShopOrders.length}</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.newRequestBtn} onPress={() => navigation.navigate('CustomerShopOrders')}>
+                <Text style={styles.newRequestText}>View All</Text>
+              </TouchableOpacity>
+            </View>
+
+            {activeShopOrders.map(order => (
+              <TouchableOpacity 
+                key={order._id}
+                style={styles.jobCard}
+                onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order._id })}
+              >
+                <View style={[styles.row, {marginBottom: 8, alignItems: 'flex-start'}]}>
+                  <View style={[styles.jobIconBox, {backgroundColor: '#10b98126'}]}>
+                    <Text style={{fontSize: 22}}>📦</Text>
+                  </View>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.jobTitle}>Order {order.rawId || order._id.substring(0, 6).toUpperCase()}</Text>
+                    <Text style={styles.jobSub}>{order.items?.length || 0} items • ₹{order.totalAmount}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, {backgroundColor: '#10b98126'}]}>
+                    <Text style={[styles.statusText, {color: '#10b981'}]}>
+                      {order.status.replace(/_/g, ' ')}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.progBarBg}>
+                  <LinearGradient 
+                    colors={['#10b981', '#34d399']}
+                    start={{x:0, y:0}} end={{x:1, y:0}}
+                    style={[styles.progBarFill, {
+                      width: order.status === 'NEW' ? '25%' : 
+                             order.status === 'PACKING' ? '50%' : 
+                             order.status === 'OUT_FOR_DELIVERY' ? '85%' : '10%'
+                    }]}
+                  />
+                </View>
+                
+                <View style={[styles.row, {marginTop: 12}]}>
+                  <View style={styles.jobWorkerRow}>
+                    <View style={[styles.jobWorkerAvatar, {backgroundColor: '#f59e0b26'}]}>
+                      <Text style={{fontSize: 10}}>🏪</Text>
+                    </View>
+                    <Text style={styles.jobWorkerName}>{order.shopId?.name || 'Shop'}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
 
         {/* Browse Services */}
         <View style={[styles.row, {justifyContent: 'space-between', marginTop: 12, marginBottom: 12}]}>

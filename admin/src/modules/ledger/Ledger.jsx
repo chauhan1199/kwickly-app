@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Search, ArrowDown, ArrowUp, Download, RefreshCw } from 'lucide-react'
+import { Search, Download, RefreshCw } from 'lucide-react'
 import Badge from '../../components/Badge'
 import api from '../../services/api'
 
@@ -39,7 +39,7 @@ export default function Ledger() {
       }
       if (res.data.status === 'success') {
         const raw = res.data.data
-        setTransactions(Array.isArray(raw) ? raw : raw.transactions || raw.data || [])
+        setTransactions(Array.isArray(raw) ? raw : raw.transactions || raw.txns || raw.data || [])
       }
     } catch (e) {
       console.error('Ledger fetch error:', e)

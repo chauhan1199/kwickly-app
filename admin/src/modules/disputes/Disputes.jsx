@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { AlertTriangle, CheckCircle, User, MessageSquare, RefreshCw } from 'lucide-react'
+import { AlertTriangle, CheckCircle, MessageSquare, RefreshCw } from 'lucide-react'
 import Badge  from '../../components/Badge'
 import Modal  from '../../components/Modal'
 import api from '../../services/api'
@@ -20,7 +20,7 @@ export default function Disputes() {
   const fetchDisputes = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/disputes')
+      const res = await api.get('/admin/disputes')
       if (res.data.status === 'success') {
         setDisputes(res.data.data?.disputes || res.data.data || [])
       }
@@ -48,7 +48,7 @@ export default function Disputes() {
 
   const resolveDispute = async (status) => {
     try {
-      const res = await api.patch(`/disputes/${selected._id}/status`, { status: status.toLowerCase(), resolution })
+      const res = await api.patch(`/admin/disputes/${selected._id}/status`, { status: status.toLowerCase(), resolution })
       if (res.data.status === 'success') {
         setDisputes(prev => prev.map(d => d._id === selected._id ? res.data.data : d))
         showToast(`Dispute marked as ${status.toLowerCase()}`, true)
