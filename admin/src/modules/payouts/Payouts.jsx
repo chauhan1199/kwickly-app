@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
-import Button from '../../components/common/Button'
-import Card from '../../components/common/Card'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const statusColor = { pending:'badge-warning', approved:'badge-primary', transferred:'badge-success', rejected:'badge-danger' }
 
@@ -138,36 +136,62 @@ export default function Payouts() {
 
 
 
-  const columns = [
-    { header: 'Request ID', render: (p) => <div style={{fontFamily:'monospace',fontSize:12}}>#{p._id.slice(-6).toUpperCase()}</div> },
-    { header: 'Entity', render: (p) => {
-      const e = p.workerId || p.shopId;
-      return e ? (
-        <>
-          <div className="cell-primary">{e.name || e.ownerName} <Badge label={p.workerId ? 'Worker' : 'Shop'} variant={p.workerId ? 'info' : 'purple'} /></div>
-          <div className="cell-muted">{e.phone || ''}</div>
-        </>
-      ) : <span className="cell-muted">Unknown</span>;
-    }},
-    { header: 'Wallet Balance', render: (p) => {
-        const e = p.workerId || p.shopId;
-        return <strong style={{fontSize:13}}>₹{e?.wallet?.balance?.toLocaleString() || 0}</strong>
-    }},
-    { header: 'Requested', render: (p) => <strong style={{fontSize:15,color:'var(--dark)'}}>₹{p.amount.toLocaleString()}</strong> },
-    { header: 'Requested On', render: (p) => <div style={{fontSize:12,color:'var(--mid)'}}>{new Date(p.createdAt).toLocaleDateString()}</div> },
-    { header: 'Status', render: (p) => <Badge label={p.status} variant={p.status === 'PENDING' ? 'warning' : p.status === 'APPROVED' ? 'info' : p.status === 'TRANSFERRED' ? 'success' : 'danger'} /> },
-    { header: 'Actions', render: (p) => (
-      <div className="action-btns" onClick={(e) => e.stopPropagation()}>
-        <button className="btn btn-outline btn-sm" onClick={() => setSelectedFresh(p)}>🔍 Review</button>
-      </div>
-    )}
-  ];
-
   const filtered = payouts.filter(p=>filter==='all'||p.status===filter)
   const selectedFresh = selected ? payouts.find(p=>p.id===selected.id) : null
 
   const totalPending   = payouts.filter(p=>p.status==='pending').reduce((a,p)=>a+p.requested,0)
   const totalTransferred = payouts.filter(p=>p.status==='transferred').reduce((a,p)=>a+p.requested,0)
+
+  const ledgerColumns = [
+    { header: 'Date', render: (t) => <div style={{fontSize:12,color:'var(--mid)'}}>{t.date}</div> },
+    { header: 'Worker', render: (t) => <div style={{fontWeight:600}}>{t.worker}</div> },
+    { header: 'Type', render: (t) => (
+      <Badge
+        label={t.type==='earning'?'💰 Earning':t.type==='payout'?'💸 Payout':t.type==='subscription'?'🔄 Subscription':'Refund'}
+        variant={t.type==='earning'?'success':t.type==='payout'?'primary':'purple'}
+      />
+    )},
+    { header: 'Job ID', render: (t) => <div style={{fontFamily:'monospace',fontSize:12}}>{t.jobId||'—'}</div> },
+    { header: 'Description', render: (t) => <div style={{color:'var(--mid)',fontSize:12,fontFamily:'var(--font-body)'}}>{t.desc}</div> },
+    { header: 'Amount', render: (t) => (
+      <div style={{fontWeight:800,color:t.amount>0?'var(--success)':'var(--danger)',fontSize:15}}>
+        {t.amount>0?'+':''}₹{Math.abs(t.amount)}
+      </div>
+    )}
+  ];
+
+  const columns = [
+    { header: 'Worker', render: (p) => (
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <div className="avatar avatar-sm" style={{background:p.role==='SHOP'?'linear-gradient(135deg,var(--success),var(--teal))':'linear-gradient(135deg,var(--primary),var(--purple))'}}>{p.worker.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
+        <div>
+          <div style={{fontWeight:600}}>{p.worker}</div>
+          <div style={{fontSize:11,color:'var(--mid)'}}>{p.wid} · {p.role==='SHOP'?'Shop':p.category}</div>
+        </div>
+      </div>
+    )},
+    { header: 'City', render: (p) => <div style={{color:'var(--mid)'}}>{p.city}</div> },
+    { header: 'Wallet Balance', render: (p) => <span style={{fontWeight:700,color:'var(--success)'}}>₹{p.balance.toLocaleString()}</span> },
+    { header: 'Requested', render: (p) => <span style={{fontWeight:800,fontSize:16,color:'var(--dark)'}}>₹{p.requested.toLocaleString()}</span> },
+    { header: 'Payment Method', render: (p) => <div style={{fontSize:12,fontFamily:'var(--font-body)'}}>{p.upi||p.bank}</div> },
+    { header: 'Requested On', render: (p) => <div style={{fontSize:12,color:'var(--mid)'}}>{p.requestedAt}</div> },
+    { header: 'Status', render: (p) => (
+      <div>
+        <Badge label={p.status.charAt(0).toUpperCase()+p.status.slice(1)} variant={p.status === 'pending' ? 'warning' : p.status === 'approved' ? 'info' : p.status === 'transferred' ? 'success' : 'danger'} />
+        {p.txnId&&<div style={{fontSize:10,color:'var(--mid)',marginTop:4,fontFamily:'monospace'}}>{p.txnId}</div>}
+      </div>
+    )},
+    { header: 'Actions', render: (p) => (
+      <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
+        {p.status==='pending'&&<>
+          <button className="btn btn-success btn-sm" onClick={()=>setConfirmModal({type:'approve',payout:p})}>✓ Approve</button>
+          <button className="btn btn-danger btn-sm"  onClick={()=>setConfirmModal({type:'reject',payout:p})}>✕</button>
+        </>}
+        {p.status==='approved'&&<button className="btn btn-primary btn-sm" onClick={()=>setConfirmModal({type:'transfer',payout:p})}>💸 Mark Transferred</button>}
+        {(p.status==='transferred'||p.status==='rejected')&&<button className="btn btn-outline btn-sm" onClick={()=>setSelected(p)}>View</button>}
+      </div>
+    )}
+  ];
 
   return (
     <div>
@@ -212,82 +236,13 @@ export default function Payouts() {
             ))}
           </div>
 
-          <div className="card">
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr><th>Worker</th><th>City</th><th>Wallet Balance</th><th>Requested</th><th>Payment Method</th><th>Requested On</th><th>Status</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {filtered.map(p=>(
-                    <tr key={p.id} style={{cursor:'pointer'}} onClick={()=>setSelected(p)}>
-                      <td>
-                        <div style={{display:'flex',alignItems:'center',gap:10}}>
-                          <div className="avatar avatar-sm" style={{background:p.role==='SHOP'?'linear-gradient(135deg,var(--success),var(--teal))':'linear-gradient(135deg,var(--primary),var(--purple))'}}>{p.worker.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
-                          <div>
-                            <div style={{fontWeight:600}}>{p.worker}</div>
-                            <div style={{fontSize:11,color:'var(--mid)'}}>{p.wid} · {p.role==='SHOP'?'Shop':p.category}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{color:'var(--mid)'}}>{p.city}</td>
-                      <td><span style={{fontWeight:700,color:'var(--success)'}}>₹{p.balance.toLocaleString()}</span></td>
-                      <td><span style={{fontWeight:800,fontSize:16,color:'var(--dark)'}}>₹{p.requested.toLocaleString()}</span></td>
-                      <td style={{fontSize:12,fontFamily:'var(--font-body)'}}>{p.upi||p.bank}</td>
-                      <td style={{fontSize:12,color:'var(--mid)'}}>{p.requestedAt}</td>
-                      <td>
-                        <div>
-                          <span className={`badge ${statusColor[p.status]}`} style={{fontSize:10}}>{p.status.charAt(0).toUpperCase()+p.status.slice(1)}</span>
-                          {p.txnId&&<div style={{fontSize:10,color:'var(--mid)',marginTop:2,fontFamily:'monospace'}}>{p.txnId}</div>}
-                        </div>
-                      </td>
-                      <td onClick={e=>e.stopPropagation()}>
-                        <div style={{display:'flex',gap:6}}>
-                          {p.status==='pending'&&<>
-                            <button className="btn btn-success btn-sm" onClick={()=>setConfirmModal({type:'approve',payout:p})}>✓ Approve</button>
-                            <button className="btn btn-danger btn-sm"  onClick={()=>setConfirmModal({type:'reject',payout:p})}>✕</button>
-                          </>}
-                          {p.status==='approved'&&<button className="btn btn-primary btn-sm" onClick={()=>setConfirmModal({type:'transfer',payout:p})}>💸 Mark Transferred</button>}
-                          {(p.status==='transferred'||p.status==='rejected')&&<button className="btn btn-outline btn-sm" onClick={()=>setSelected(p)}>View</button>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="table-card">
+            <Table columns={columns} data={filtered} onRowClick={setSelected} emptyMessage="No payout requests found." />
           </div>
         </>
       ) : (
-        <div className="card">
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr><th>Date</th><th>Worker</th><th>Type</th><th>Job ID</th><th>Description</th><th>Amount</th></tr>
-              </thead>
-              <tbody>
-                {ledger.map(t=>(
-                  <tr key={t.id}>
-                    <td style={{fontSize:12,color:'var(--mid)'}}>{t.date}</td>
-                    <td style={{fontWeight:600}}>{t.worker}</td>
-                    <td>
-                      <span className={`badge ${t.type==='earning'?'badge-success':t.type==='payout'?'badge-primary':'badge-purple'}`} style={{fontSize:10}}>
-                        {t.type==='earning'?'💰 Earning':t.type==='payout'?'💸 Payout':t.type==='subscription'?'🔄 Subscription':'Refund'}
-                      </span>
-                    </td>
-                    <td style={{fontFamily:'monospace',fontSize:12}}>{t.jobId||'—'}</td>
-                    <td style={{color:'var(--mid)',fontSize:12,fontFamily:'var(--font-body)'}}>{t.desc}</td>
-                    <td style={{fontWeight:800,color:t.amount>0?'var(--success)':'var(--danger)',fontSize:15}}>
-                      {t.amount>0?'+':''}₹{Math.abs(t.amount)}
-                    </td>
-                  </tr>
-                ))}
-                {ledger.length === 0 && (
-                    <tr><td colSpan="6" style={{ textAlign:'center', padding:40, color:'var(--mid)' }}>No transactions found</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="table-card">
+          <Table columns={ledgerColumns} data={ledger} emptyMessage="No transactions found." />
         </div>
       )}
 

@@ -9,8 +9,6 @@ import EmptyState from '../../components/EmptyState'
 import { TextInput, FormRow } from '../../components/FormInput'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
-import Button from '../../components/common/Button'
-import Card from '../../components/common/Card'
 import { Search, RefreshCw, Eye, Ban, Users, Copy } from 'lucide-react'
 
 const PAGE_SIZE = 15
@@ -150,7 +148,7 @@ export default function Jobs() {
           <div className="action-btns" onClick={(e) => e.stopPropagation()}>
             <button className="btn-icon" title="View Details" onClick={() => fetchJobDetail(j)}><Eye size={15} /></button>
             {j.workerId && ['ALLOCATED', 'IN_PROGRESS', 'ARRIVING'].includes(j.status) && (
-                <button className="btn-icon" title="Reassign Worker" onClick={() => { setReassignModal(j); setSelectedWorker(''); }}><Users size={15} /></button>
+                <button className="btn-icon" title="Reassign Worker" onClick={() => { setReassignModal(fj); setSelectedWorker(''); }}><Users size={15} /></button>
             )}
             {['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'].includes(j.status) && (
               <button className="btn-icon danger" title="Cancel Job" onClick={() => setConfirm({ type: 'cancel', id: j._id, name: `Job #${j._id.slice(-6)}` })}><Ban size={15} /></button>
