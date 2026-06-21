@@ -7,6 +7,10 @@ import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import { TextInput, TextArea, FormRow, validators } from '../../components/FormInput'
 import MapPicker from '../../components/MapPicker'
+import Table from '../../components/common/Table'
+import Badge from '../../components/common/Badge'
+import Button from '../../components/common/Button'
+import Card from '../../components/common/Card'
 import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Package, Store, Copy, Upload, Wallet, FileText, Clock, Truck, CreditCard, User, Banknote } from 'lucide-react'
 
 const PAGE_SIZE = 15
@@ -164,6 +168,41 @@ export default function Shops() {
     const matchKyc = kycFilter === 'all' || s.kyc?.status === kycFilter.toUpperCase()
     return matchSearch && matchKyc
   })
+
+
+  const columns = [
+    { header: 'Shop', render: (s) => (
+      <>
+        <div className="cell-primary">{s.name}</div>
+        <div className="cell-muted">Since {new Date(s.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</div>
+      </>
+    )},
+    { header: 'Category', render: (s) => <Badge label={s.category || 'General'} variant="info" /> },
+    { header: 'Owner', render: (s) => (
+      <>
+        <div className="cell-primary">{s.ownerId?.name || '—'}</div>
+        <div className="cell-muted">{s.ownerId?.phone || '—'}</div>
+      </>
+    )},
+    { header: 'Location', render: (s) => <div className="cell-muted" style={{ maxWidth: 140 }}>{s.address || '—'}</div> },
+    { header: 'Orders', render: (s) => <strong>{s.totalOrders ?? 0}</strong> },
+    { header: 'Wallet', render: (s) => <strong>₹{(s.wallet?.balance ?? 0).toLocaleString('en-IN')}</strong> },
+    { header: 'KYC', render: (s) => <Badge label={s.kyc?.status || 'PENDING'} variant={KYC_VARIANT[s.kyc?.status] ? KYC_VARIANT[s.kyc?.status].toLowerCase() : 'neutral'} /> },
+    { header: 'Status', render: (s) => <Badge label={s.isOnline ? 'Online' : 'Offline'} variant={s.isOnline ? 'success' : 'neutral'} /> },
+    { header: 'Actions', render: (s) => (
+      <div className="action-btns" onClick={(e) => e.stopPropagation()}>
+        <button className="btn-icon" title="View" onClick={() => openDetail(s)}><Eye size={15} /></button>
+        <button className="btn-icon" title="Edit" onClick={() => openEditShop(s)}><Edit3 size={15} /></button>
+        {s.kyc?.status === 'PENDING' && (
+          <>
+            <button className="btn-icon success" title="Approve KYC" onClick={() => handleKycAction(s._id, 'APPROVED')}><CheckCircle size={15} /></button>
+            <button className="btn-icon danger" title="Reject KYC" onClick={() => handleKycAction(s._id, 'REJECTED')}><Ban size={15} /></button>
+          </>
+        )}
+        <button className="btn-icon danger" title="Delete" onClick={() => setConfirm({ type: 'delete_shop', id: s._id, name: s.name })}><Trash2 size={15} /></button>
+      </div>
+    )}
+  ];
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -831,50 +870,7 @@ export default function Shops() {
           <EmptyState icon="🏪" title="No shops found" description={search ? 'Try a different search term' : 'No shops registered yet'} action={<button className="btn-primary" onClick={openAddShop}><Plus size={16} /> Add First Shop</button>} />
         ) : (
           <>
-            <div className="data-table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Shop</th><th>Category</th><th>Owner</th><th>Location</th><th>Orders</th><th>Wallet</th><th>KYC</th><th>Status</th><th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paged.map(shop => (
-                    <tr key={shop._id}>
-                      <td>
-                        <div className="cell-primary">{shop.name}</div>
-                        <div className="cell-muted">Since {new Date(shop.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</div>
-                      </td>
-                      <td><span className="badge badge-primary">{shop.category || 'General'}</span></td>
-                      <td>
-                        <div className="cell-primary">{shop.ownerId?.name || '—'}</div>
-                        <div className="cell-muted">{shop.ownerId?.phone || '—'}</div>
-                      </td>
-                      <td><div className="cell-muted" style={{ maxWidth: 140 }}>{shop.address || '—'}</div></td>
-                      <td><strong>{shop.totalOrders ?? 0}</strong></td>
-                      <td><strong>₹{(shop.wallet?.balance ?? 0).toLocaleString('en-IN')}</strong></td>
-                      <td><span className={`badge badge-${KYC_VARIANT[shop.kyc?.status] || 'gray'}`}>{shop.kyc?.status || 'PENDING'}</span></td>
-                      <td><span className={`badge ${shop.isOnline ? 'badge-success' : 'badge-gray'}`}>{shop.isOnline ? 'Online' : 'Offline'}</span></td>
-                      <td>
-                        <div className="action-btns">
-                          <button className="btn-icon" title="View" onClick={() => openDetail(shop)}><Eye size={15} /></button>
-                          <button className="btn-icon" title="Edit" onClick={() => openEditShop(shop)}><Edit3 size={15} /></button>
-                          {shop.kyc?.status === 'PENDING' && (
-                            <>
-                              <button className="btn-icon success" title="Approve KYC" onClick={() => handleKycAction(shop._id, 'APPROVED')}><CheckCircle size={15} /></button>
-                              <button className="btn-icon danger" title="Reject KYC" onClick={() => handleKycAction(shop._id, 'REJECTED')}><Ban size={15} /></button>
-                            </>
-                          )}
-                          <button className="btn-icon danger" title="Delete" onClick={() => setConfirm({ type: 'delete_shop', id: shop._id, name: shop.name })}>
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table columns={columns} data={paged} emptyMessage={search ? "Try a different search term" : "No shops registered yet"} />
             <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </>
         )}

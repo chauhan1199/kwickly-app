@@ -7,6 +7,10 @@ import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import { TextInput, FormRow } from '../../components/FormInput'
+import Table from '../../components/common/Table'
+import Badge from '../../components/common/Badge'
+import Button from '../../components/common/Button'
+import Card from '../../components/common/Card'
 import { Search, RefreshCw, Eye, Ban, Users, Copy } from 'lucide-react'
 
 const PAGE_SIZE = 15
@@ -113,6 +117,49 @@ export default function Jobs() {
     return matchSearch && matchStatus
   })
 
+
+
+
+
+  const columns = [
+    { header: 'Job ID', render: (j) => {
+        const fj = formatJob(j);
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{fj.id}</span>
+            <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(j._id); showToast('Copied') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mid)', padding: 2 }}><Copy size={12} /></button>
+          </div>
+        );
+    }},
+    { header: 'Customer', render: (j) => <div className="cell-primary" style={{ cursor: 'pointer' }} onClick={() => navigate('/users')}>{formatJob(j).customer}</div> },
+    { header: 'Worker', render: (j) => {
+        const fj = formatJob(j);
+        return <div className={fj.worker === '—' ? 'cell-muted' : 'cell-primary'} style={{ cursor: fj.worker !== '—' ? 'pointer' : 'default' }} onClick={() => fj.worker !== '—' && navigate('/workers')}>{fj.worker}</div>;
+    }},
+    { header: 'Category', render: (j) => <Badge label={formatJob(j).category} variant="info" /> },
+    { header: 'Amount', render: (j) => <strong>{formatJob(j).amount}</strong> },
+    { header: 'Fee', render: (j) => <strong style={{ color: 'var(--success)' }}>{formatJob(j).fee}</strong> },
+    { header: 'Status', render: (j) => {
+        const fj = formatJob(j);
+        return <Badge label={STATUS_LABEL[fj.status] || fj.status} variant={STATUS_VARIANT[fj.status] ? STATUS_VARIANT[fj.status].toLowerCase() : 'neutral'} />;
+    }},
+    { header: 'Date', render: (j) => <div style={{ fontSize: 12, color: 'var(--mid)' }}>{formatJob(j).date}</div> },
+    { header: 'Actions', render: (j) => {
+        const fj = formatJob(j);
+        return (
+          <div className="action-btns" onClick={(e) => e.stopPropagation()}>
+            <button className="btn-icon" title="View Details" onClick={() => fetchJobDetail(j)}><Eye size={15} /></button>
+            {j.workerId && ['ALLOCATED', 'IN_PROGRESS', 'ARRIVING'].includes(j.status) && (
+                <button className="btn-icon" title="Reassign Worker" onClick={() => { setReassignModal(j); setSelectedWorker(''); }}><Users size={15} /></button>
+            )}
+            {['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'].includes(j.status) && (
+              <button className="btn-icon danger" title="Cancel Job" onClick={() => setConfirm({ type: 'cancel', id: j._id, name: `Job #${j._id.slice(-6)}` })}><Ban size={15} /></button>
+            )}
+          </div>
+        );
+    }}
+  ];
+
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -208,62 +255,7 @@ export default function Jobs() {
           <EmptyState icon="📋" title="No jobs found" description={search ? 'Try a different search' : 'No jobs created yet'} />
         ) : (
           <>
-            <div className="data-table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Job ID</th>
-                    <th>Customer</th>
-                    <th>Worker</th>
-                    <th>Category</th>
-                    <th>Amount</th>
-                    <th>Fee</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paged.map(j => {
-                    const fj = formatJob(j)
-                    return (
-                      <tr key={fj._id}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{fj.id}</span>
-                            <button onClick={() => { navigator.clipboard.writeText(fj._id); showToast('Copied') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mid)', padding: 2 }}><Copy size={12} /></button>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="cell-primary" style={{ cursor: 'pointer' }} onClick={() => navigate('/users')}>{fj.customer}</div>
-                        </td>
-                        <td>
-                          <div className={fj.worker === '—' ? 'cell-muted' : 'cell-primary'} style={{ cursor: fj.worker !== '—' ? 'pointer' : 'default' }} onClick={() => fj.worker !== '—' && navigate('/workers')}>{fj.worker}</div>
-                        </td>
-                        <td><span className="badge badge-primary">{fj.category}</span></td>
-                        <td><strong>{fj.amount}</strong></td>
-                        <td><strong style={{ color: 'var(--success)' }}>{fj.fee}</strong></td>
-                        <td><span className={`badge badge-${STATUS_VARIANT[fj.status] || 'gray'}`}>{STATUS_LABEL[fj.status] || fj.status}</span></td>
-                        <td style={{ fontSize: 12, color: 'var(--mid)' }}>{fj.date}</td>
-                        <td>
-                          <div className="action-btns">
-                            <button className="btn-icon" title="View Details" onClick={() => fetchJobDetail(j)}><Eye size={15} /></button>
-                            {fj.worker !== '—' && ['ALLOCATED', 'IN_PROGRESS'].includes(fj.status) && (
-                              <button className="btn-icon" title="Reassign" onClick={() => { setReassignModal(fj); setSelectedWorker('') }}><Users size={15} /></button>
-                            )}
-                            {['BROADCASTING', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'].includes(fj.status) && (
-                              <button className="btn-icon danger" title="Cancel" onClick={() => setConfirm({ type: 'cancel', id: fj._id, name: `Job #${fj.id}` })}>
-                                <Ban size={15} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <Table columns={columns} data={paged} emptyMessage={search ? "Try a different search term" : "No jobs found"} />
             <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </>
         )}
