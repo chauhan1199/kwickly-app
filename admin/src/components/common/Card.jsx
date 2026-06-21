@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function Card({ children, title, subtitle, action, className = '', style = {} }) {
   return (
-    <div className={`card ${className}`} style={{ ...style }}>
+    <div className={`card glass-card ${className}`} style={{ ...style }}>
       {(title || action) && (
         <div className="card-header">
           <div>
