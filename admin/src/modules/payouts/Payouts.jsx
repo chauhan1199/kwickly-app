@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
+import Table from '../../components/common/Table'
+import Badge from '../../components/common/Badge'
+import Button from '../../components/common/Button'
+import Card from '../../components/common/Card'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const statusColor = { pending:'badge-warning', approved:'badge-primary', transferred:'badge-success', rejected:'badge-danger' }
 
@@ -124,6 +128,41 @@ export default function Payouts() {
   }
 
   const pending  = payouts.filter(p=>p.status==='pending').length
+
+
+
+
+
+
+
+
+
+
+  const columns = [
+    { header: 'Request ID', render: (p) => <div style={{fontFamily:'monospace',fontSize:12}}>#{p._id.slice(-6).toUpperCase()}</div> },
+    { header: 'Entity', render: (p) => {
+      const e = p.workerId || p.shopId;
+      return e ? (
+        <>
+          <div className="cell-primary">{e.name || e.ownerName} <Badge label={p.workerId ? 'Worker' : 'Shop'} variant={p.workerId ? 'info' : 'purple'} /></div>
+          <div className="cell-muted">{e.phone || ''}</div>
+        </>
+      ) : <span className="cell-muted">Unknown</span>;
+    }},
+    { header: 'Wallet Balance', render: (p) => {
+        const e = p.workerId || p.shopId;
+        return <strong style={{fontSize:13}}>₹{e?.wallet?.balance?.toLocaleString() || 0}</strong>
+    }},
+    { header: 'Requested', render: (p) => <strong style={{fontSize:15,color:'var(--dark)'}}>₹{p.amount.toLocaleString()}</strong> },
+    { header: 'Requested On', render: (p) => <div style={{fontSize:12,color:'var(--mid)'}}>{new Date(p.createdAt).toLocaleDateString()}</div> },
+    { header: 'Status', render: (p) => <Badge label={p.status} variant={p.status === 'PENDING' ? 'warning' : p.status === 'APPROVED' ? 'info' : p.status === 'TRANSFERRED' ? 'success' : 'danger'} /> },
+    { header: 'Actions', render: (p) => (
+      <div className="action-btns" onClick={(e) => e.stopPropagation()}>
+        <button className="btn btn-outline btn-sm" onClick={() => setSelectedFresh(p)}>🔍 Review</button>
+      </div>
+    )}
+  ];
+
   const filtered = payouts.filter(p=>filter==='all'||p.status===filter)
   const selectedFresh = selected ? payouts.find(p=>p.id===selected.id) : null
 

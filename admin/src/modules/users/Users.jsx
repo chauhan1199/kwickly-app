@@ -6,6 +6,10 @@ import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import { TextInput, validators } from '../../components/FormInput'
+import Table from '../../components/common/Table'
+import Badge from '../../components/common/Badge'
+import Button from '../../components/common/Button'
+import Card from '../../components/common/Card'
 import MapPicker from '../../components/MapPicker'
 import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Copy, MapPin, Upload, DollarSign, Briefcase, ShoppingBag } from 'lucide-react'
 
@@ -64,6 +68,34 @@ export default function Users() {
     const matchFilter = filter === 'all' || status === filter
     return matchSearch && matchFilter
   })
+
+
+
+
+
+
+
+
+  const columns = [
+    { header: 'Customer', render: (c) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {c.profileImage ? <img src={c.profileImage} alt="" className="avatar avatar-sm" style={{ objectFit: 'cover' }} /> : <div className="avatar avatar-sm" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}>{(c.name || '?')[0]?.toUpperCase()}</div>}
+        <div><div className="cell-primary">{c.name || 'Unknown'}</div><div className="cell-muted">ID: {c._id.slice(-6)}</div></div>
+      </div>
+    )},
+    { header: 'Contact', render: (c) => <><div className="cell-primary">{c.phone || '—'}</div><div className="cell-muted">{c.email || 'No email'}</div></> },
+    { header: 'Location', render: (c) => <div className="cell-muted">{c.city || '—'}</div> },
+    { header: 'Joined', render: (c) => <div className="cell-muted">{new Date(c.createdAt).toLocaleDateString('en-IN')}</div> },
+    { header: 'Status', render: (c) => <Badge label={c.isVerified ? 'Active' : 'Inactive'} variant={c.isVerified ? 'success' : 'neutral'} /> },
+    { header: 'Actions', render: (c) => (
+      <div className="action-btns" onClick={(e) => e.stopPropagation()}>
+        <button className="btn-icon" title="View" onClick={() => { openDetail(c); }}><Eye size={15} /></button>
+        <button className="btn-icon" title="Edit" onClick={() => openEdit(c)}><Edit3 size={15} /></button>
+        <button className={`btn-icon ${c.isVerified ? 'danger' : 'success'}`} title={c.isVerified ? 'Deactivate' : 'Activate'} onClick={() => setConfirm({ type: 'toggle', id: c._id, name: c.name })}>{c.isVerified ? <Ban size={15} /> : <CheckCircle size={15} />}</button>
+        <button className="btn-icon danger" title="Delete" onClick={() => setConfirm({ type: 'delete', id: c._id, name: c.name })}><Trash2 size={15} /></button>
+      </div>
+    )}
+  ];
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -355,53 +387,7 @@ export default function Users() {
           <EmptyState icon="👤" title="No customers found" description={search ? 'Try a different search term' : 'No customers registered yet'} />
         ) : (
           <>
-            <div className="data-table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr><th>Customer</th><th>Contact</th><th>City</th><th>Joined</th><th>Status</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {paged.map(c => (
-                    <tr key={c._id}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          {c.profileImage ? (
-                            <img src={c.profileImage} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
-                          ) : (
-                            <div className="avatar avatar-sm" style={{ background: `hsl(${(c.name || '?').charCodeAt(0) * 7 % 360}, 65%, 50%)` }}>
-                              {(c.name || '?')[0]?.toUpperCase()}
-                            </div>
-                          )}
-                          <div>
-                            <div className="cell-primary">{c.name || 'Unknown'}</div>
-                            <div className="cell-muted">ID: {c._id.slice(-6)}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="cell-primary">{c.phone || '—'}</div>
-                        <div className="cell-muted">{c.email || 'No email'}</div>
-                      </td>
-                      <td><div className="cell-muted">{c.city || getPrimaryAddress(c)?.city || '—'}</div></td>
-                      <td><div className="cell-muted">{new Date(c.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div></td>
-                      <td><span className={`badge ${c.isVerified ? 'badge-success' : 'badge-gray'}`}>{c.isVerified ? 'Active' : 'Inactive'}</span></td>
-                      <td>
-                        <div className="action-btns">
-                          <button className="btn-icon" title="View" onClick={() => openDetail(c)}><Eye size={15} /></button>
-                          <button className="btn-icon" title="Edit" onClick={() => openEdit(c)}><Edit3 size={15} /></button>
-                          <button className={`btn-icon ${c.isVerified ? 'danger' : 'success'}`} title={c.isVerified ? 'Deactivate' : 'Activate'} onClick={() => setConfirm({ type: 'toggle', id: c._id, name: c.name })}>
-                            {c.isVerified ? <Ban size={15} /> : <CheckCircle size={15} />}
-                          </button>
-                          <button className="btn-icon danger" title="Delete" onClick={() => setConfirm({ type: 'delete', id: c._id, name: c.name })}>
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table columns={columns} data={paged} emptyMessage={search ? "Try a different search term" : "No customers registered yet"} />
             <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </>
         )}
