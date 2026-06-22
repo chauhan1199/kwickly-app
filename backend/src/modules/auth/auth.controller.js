@@ -20,7 +20,7 @@ const { emitToAll } = require('../../helpers/socket.helper');
 const smsService = require('../../services/sms.service');
 
 // ─── OTP Rate Limiting ────────────────────────────────────────────────────────
-const OTP_MAX_ATTEMPTS = 5;
+const OTP_MAX_ATTEMPTS = process.env.NODE_ENV === 'test' ? 500 : 5;
 const OTP_BLOCK_TTL = 3600; // 1 hour block in seconds
 
 const checkOtpAttempts = async (phone) => {

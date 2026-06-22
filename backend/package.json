@@ -6,6 +6,7 @@
   "scripts": {
     "test": "jest --forceExit --detectOpenHandles",
     "test:verbose": "jest --forceExit --detectOpenHandles --verbose",
+    "test:e2e": "node scripts/test_e2e_flow.js",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js"
   },
@@ -40,9 +41,11 @@
     "winston": "^3.19.0"
   },
   "devDependencies": {
+    "axios": "^1.18.0",
     "jest": "^30.4.2",
     "mongodb-memory-server": "^11.2.0",
     "nodemon": "^3.1.11",
+    "socket.io-client": "^4.8.3",
     "supertest": "^7.2.2"
   }
 }
