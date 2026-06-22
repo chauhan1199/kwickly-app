@@ -517,7 +517,7 @@ export default function Shops() {
   const addAttribute = () => { setProductForm(prev => ({ ...prev, attributes: [...prev.attributes, { name: '', value: '' }] })) }
   const removeAttribute = (index) => { setProductForm(prev => ({ ...prev, attributes: prev.attributes.filter((_, i) => i !== index) })) }
   const updateAttribute = (index, field, val) => { setProductForm(prev => { const newAttrs = [...prev.attributes]; newAttrs[index] = { ...newAttrs[index], [field]: val }; return { ...prev, attributes: newAttrs } }) }
-  const deleteProduct = async (id) => { try { await api.delete(`/products/${id}`); showToast('Product deleted'); try { await api.post('/admin/notifications/broadcast', { title: 'Product Deleted', message: `Product "${confirm?.name || ''}" deleted from shop "${detail?.name || ''}"`, targetRole: 'ALL' }) } catch {}; window.dispatchEvent(new Event('admin-action')); openDetail(detail) } catch { showToast('Failed to delete product', 'error') }; setConfirm(null) }
+  const deleteProduct = async (id) => { try { await api.delete(`/products/${id}`); showToast('Product deleted'); try { await api.post('/admin/notifications/broadcast', { title: 'Product Deleted', message: `Product "${confirm?.name || ''}" deleted from shop "${detail?.name || ''}"`, targetRole: 'ALL' }) } catch {} window.dispatchEvent(new Event('admin-action')); openDetail(detail) } catch { showToast('Failed to delete product', 'error') } setConfirm(null) }
 
   const handleWalletSubmit = async () => {
     if (!walletAmount || isNaN(walletAmount) || Number(walletAmount) <= 0) { showToast('Enter a valid amount greater than 0', 'error'); return }
