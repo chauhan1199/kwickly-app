@@ -24,7 +24,7 @@ const globalLimiter = rateLimit({
  */
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5,
+    max: process.env.NODE_ENV === 'test' ? 500 : 5,
     standardHeaders: true,
     legacyHeaders: false,
     message: { status: 'error', message: 'Too many authentication attempts. Please wait 15 minutes.' }
@@ -36,7 +36,7 @@ const authLimiter = rateLimit({
  */
 const otpSendLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
-    max: 3,
+    max: process.env.NODE_ENV === 'test' ? 300 : 3,
     standardHeaders: true,
     legacyHeaders: false,
     message: { status: 'error', message: 'Too many OTP requests. Please wait 10 minutes.' }
