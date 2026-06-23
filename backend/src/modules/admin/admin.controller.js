@@ -16,7 +16,7 @@ const catchAsync = require('../../helpers/async.helper');
 const { ADMIN, AUTH } = require('../../constants/messages');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
-const { triggerDashboardUpdate, getIO } = require('../../helpers/socket.helper');
+const { triggerDashboardUpdate, getIO, emitToAll, emitToRoom } = require('../../helpers/socket.helper');
 const bcrypt = require('bcryptjs');
 
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');

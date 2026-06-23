@@ -148,7 +148,7 @@ export default function Shops() {
   const fetchShops = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/shops')
+      const res = await api.get('/shops?limit=0')
       if (res.data.status === 'success') {
         setShops(res.data.data?.shops || res.data.data || [])
       }

@@ -51,7 +51,13 @@ const ShopSchema = new mongoose.Schema({
 
     isOnline: { type: Boolean, default: true },
     rating:   { type: Number, default: 0 },
-    totalOrders: { type: Number, default: 0 }
+    totalOrders: { type: Number, default: 0 },
+    subscription: {
+        status: { type: String, enum: ['ACTIVE', 'EXPIRED', 'TRIAL', 'NONE'], default: 'NONE' },
+        planId: { type: String },
+        expiryDate: { type: Date },
+        isTrial: { type: Boolean, default: true }
+    }
 }, { timestamps: true });
 
 ShopSchema.index({ location: '2dsphere' });

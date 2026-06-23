@@ -25,7 +25,8 @@ const AppSettingsSchema = new mongoose.Schema({
         price: Number,
         durationDays: Number,
         features: [String],
-        isActive: Boolean
+        isActive: Boolean,
+        targetRole: { type: String, enum: ['WORKER', 'SHOP'], default: 'WORKER' }
     }],
     trialDurationDays: { type: Number, default: 90 },
     radius: {

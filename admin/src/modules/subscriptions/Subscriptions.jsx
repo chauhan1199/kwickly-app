@@ -5,7 +5,15 @@ import Toast from '../../components/Toast'
 const planColor = { trial: 'badge-purple', monthly: 'badge-primary', annual: 'badge-success', expired: 'badge-danger' }
 
 function EditPlanModal({ plan, onSave, onClose }) {
-  const [form, setForm] = useState({ price: plan.price, durationDays: plan.durationDays || 30, features: [...(plan.features || [])] })
+  const isNew = plan.isNew
+  const [form, setForm] = useState({ 
+    id: plan.id || `plan_${Date.now()}`,
+    name: plan.name || '',
+    price: plan.price || 0, 
+    durationDays: plan.durationDays || 30, 
+    features: [...(plan.features || [])],
+    targetRole: plan.targetRole || 'SHOP'
+  })
   const [newFeat, setNewFeat] = useState('')
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const addFeat = () => { if (newFeat.trim()) { setForm(p => ({ ...p, features: [...p.features, newFeat.trim()] })); setNewFeat('') } }
@@ -19,9 +27,15 @@ function EditPlanModal({ plan, onSave, onClose }) {
           <button className="drawer-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
+          {isNew && (
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">Plan Name</label>
+              <input className="form-control" type="text" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Shop Premium" />
+            </div>
+          )}
           <div className="grid-2">
             <div className="form-group">
-              <label className="form-label">Price (₹ / {plan.durationUnit})</label>
+              <label className="form-label">Price (₹)</label>
               <input className="form-control" type="number" value={form.price} onChange={e => set('price', +e.target.value)} disabled={plan.id === 'trial'} />
               {plan.id === 'trial' && <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Trial plan is always free</div>}
             </div>
@@ -49,7 +63,11 @@ function EditPlanModal({ plan, onSave, onClose }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => onSave({ ...plan, ...form })}>💾 Save Plan</button>
+          <button className="btn btn-primary" onClick={() => {
+            const finalFeatures = [...form.features];
+            if (newFeat.trim()) finalFeatures.push(newFeat.trim());
+            onSave({ ...plan, ...form, features: finalFeatures });
+          }}>💾 Save Plan</button>
         </div>
       </div>
     </div>
@@ -63,6 +81,7 @@ export default function Subscriptions() {
   const [editPlan, setEditPlan] = useState(null)
   const [toast, setToast] = useState({ message: '', type: 'success' })
   const [subFilter, setSubFilter] = useState('all')
+  const [activeTab, setActiveTab] = useState('WORKER') // 'WORKER' or 'SHOP'
 
   useEffect(() => {
     fetchData()
@@ -85,7 +104,8 @@ export default function Subscriptions() {
           durationDays: p.durationDays || (p.label === 'Trial' ? settingsRes.data.data.trialDays : 30),
           color: p.label === 'Trial' ? '#7C3AED' : p.label === 'Monthly' ? '#2563EB' : '#16A34A',
           icon: p.label === 'Trial' ? '🆓' : p.label === 'Monthly' ? '📅' : '⭐',
-          features: p.features?.length > 0 ? p.features : ['Standard Features']
+          features: p.features?.length > 0 ? p.features : ['Standard Features'],
+          targetRole: p.targetRole || 'WORKER'
         }))
         setPlans(plansData)
       }
@@ -116,12 +136,12 @@ export default function Subscriptions() {
           _id: s._id,
           name: s.ownerName || s.name || 'Unknown Shop',
           role: 'SHOP',
-          plan: s.subscription?.plan?.toLowerCase() || 'none',
-          startDate: s.subscription?.validUntil ? '—' : '—', // We don't have startDate for shops right now
-          endDate: s.subscription?.validUntil ? new Date(s.subscription.validUntil).toLocaleDateString() : '—',
-          daysLeft: s.subscription?.validUntil ? Math.ceil((new Date(s.subscription.validUntil) - new Date()) / (1000 * 60 * 60 * 24)) : 0,
+          plan: s.subscription?.planId?.toLowerCase() || 'none',
+          startDate: '—', // We don't have startDate for shops yet
+          endDate: s.subscription?.expiryDate ? new Date(s.subscription.expiryDate).toLocaleDateString() : '—',
+          daysLeft: s.subscription?.expiryDate ? Math.ceil((new Date(s.subscription.expiryDate) - new Date()) / (1000 * 60 * 60 * 24)) : 0,
           autoRenew: false,
-          status: (s.subscription?.validUntil && new Date(s.subscription.validUntil) < new Date()) ? 'expired' : 'active'
+          status: (s.subscription?.expiryDate && new Date(s.subscription.expiryDate) < new Date()) ? 'expired' : 'active'
         }))
         allUsers = [...allUsers, ...shopsData]
       }
@@ -138,19 +158,29 @@ export default function Subscriptions() {
 
   const savePlan = async (updated) => {
     try {
-      const updatedPlansNative = plans.map(p => {
-         const target = p.id === updated.id ? updated : p;
-         return {
-             id: target.id,
-             label: target.label || target.name,
-             price: target.price,
-             durationDays: target.durationDays || 30,
-             features: target.features,
-             isActive: target.isActive !== false
-         }
-      })
+      let updatedPlansNative = [...plans]
+      const exists = updatedPlansNative.find(p => p.id === updated.id)
       
-      await api.patch('/admin/settings', { subscriptionPlans: updatedPlansNative })
+      if (!exists) {
+        updatedPlansNative.push(updated)
+      } else {
+        updatedPlansNative = updatedPlansNative.map(p => {
+           const target = p.id === updated.id ? updated : p;
+           return {
+               id: target.id,
+               label: target.label || target.name,
+               price: target.price,
+               durationDays: target.durationDays || 30,
+               features: target.features,
+               isActive: target.isActive !== false,
+               targetRole: target.targetRole || 'WORKER'
+           }
+        })
+      }
+      
+      await api.patch('/admin/settings', { subscriptionPlans: updatedPlansNative.map(p => ({
+         id: p.id, label: p.label || p.name, price: p.price, durationDays: p.durationDays || 30, features: p.features, isActive: p.isActive !== false, targetRole: p.targetRole || 'WORKER'
+      })) })
       showToast(`${updated.name} plan updated & synced`)
       setEditPlan(null)
       fetchData()
@@ -189,15 +219,22 @@ export default function Subscriptions() {
     <div>
       {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'success' })} />}
 
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div className="page-title">🎯 Subscription Plans</div>
-          <div className="page-subtitle">Worker subscription management · Active plans in sync with platform settings</div>
+          <div className="page-subtitle">Manage standalone subscription plans and tracking for Workers and Shops</div>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, background: 'var(--bg-dark)', padding: 4, borderRadius: 10 }}>
+            <button className={`btn btn-sm ${activeTab === 'WORKER' ? 'btn-primary' : ''}`} onClick={() => setActiveTab('WORKER')} style={{ background: activeTab !== 'WORKER' && 'transparent', color: activeTab !== 'WORKER' && 'var(--mid)', border: 'none', boxShadow: 'none' }}>👷 Workers</button>
+            <button className={`btn btn-sm ${activeTab === 'SHOP' ? 'btn-primary' : ''}`} onClick={() => setActiveTab('SHOP')} style={{ background: activeTab !== 'SHOP' && 'transparent', color: activeTab !== 'SHOP' && 'var(--mid)', border: 'none', boxShadow: 'none' }}>🏪 Shops</button>
+          </div>
+          <button className="btn btn-primary" onClick={() => setEditPlan({ isNew: true, targetRole: activeTab, name: '', price: 100, durationDays: 30, features: ['Premium feature'] })}>+ New {activeTab === 'WORKER' ? 'Worker' : 'Shop'} Plan</button>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>
-        {plans.map(plan => (
+        {plans.filter(p => p.targetRole === activeTab).map(plan => (
           <div key={plan.id} className="card" style={{ padding: 0, overflow: 'hidden', border: `2px solid ${plan.color}25` }}>
             <div style={{ background: `linear-gradient(135deg,${plan.color}18,${plan.color}08)`, padding: '20px 20px 16px', borderBottom: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -236,10 +273,10 @@ export default function Subscriptions() {
         <div className="table-container">
           <table>
             <thead>
-              <tr><th>Worker</th><th>Current Plan</th><th>Start Date</th><th>End Date</th><th>Days Left</th><th>Auto Renew</th><th>Actions</th></tr>
+              <tr><th>{activeTab === 'WORKER' ? 'Worker' : 'Shop'}</th><th>Current Plan</th><th>Start Date</th><th>End Date</th><th>Days Left</th><th>Auto Renew</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {filtered.map(w => (
+              {filtered.filter(w => w.role === activeTab).map(w => (
                 <tr key={w._id} style={{ opacity: w.status === 'expired' ? 0.65 : 1 }}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -82,7 +82,7 @@ app.use('/api/v1/wallet',        require('./modules/wallet/wallet.routes'));
 app.use('/api/v1/workers',       require('./modules/worker/worker.routes'));
 app.use('/api/v1/chat',          require('./modules/chat/chat.routes'));
 app.use('/api/v1/cart',          require('./modules/cart/cart.routes'));
-app.use('/api/v1/payment-methods', require('./modules/paymentMethod/paymentMethod.routes'));
+
 app.use('/api/v1/delivery-staff', require('./modules/deliveryStaff/deliveryStaff.routes'));
 app.use('/api/v1/promotions',    require('./modules/promotion/promotion.routes'));
 app.use('/api/v1/payments',      require('./modules/payment/payment.routes'));

@@ -1,33 +1,13 @@
 const { StatusCodes } = require('http-status-codes');
-const { SubscriptionPlan, WorkerSubscription } = require('./subscription.model');
+const { WorkerSubscription, ShopSubscription } = require('./subscription.model');
 const Customer   = require('../customer/customer.model');
 const WalletTxn  = require('../wallet/wallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
+const Shop = require('../shop/shop.model');
+const Notification = require('../notification/notification.model');
 
-/* ── PLAN MANAGEMENT (Admin) ─────────────────────────────────────────── */
-
-exports.createPlan = catchAsync(async (req, res) => {
-    const plan = await SubscriptionPlan.create(req.body);
-    return successResponse(res, plan, 'Plan created', StatusCodes.CREATED);
-});
-
-exports.getPlans = catchAsync(async (req, res) => {
-    const plans = await SubscriptionPlan.find({ isActive: true }).sort('price');
-    return successResponse(res, plans, 'Plans fetched');
-});
-
-exports.updatePlan = catchAsync(async (req, res) => {
-    const plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!plan) return errorResponse(res, 'Plan not found', StatusCodes.NOT_FOUND);
-    return successResponse(res, plan, 'Plan updated');
-});
-
-exports.deletePlan = catchAsync(async (req, res) => {
-    await SubscriptionPlan.findByIdAndUpdate(req.params.id, { isActive: false });
-    return successResponse(res, null, 'Plan deactivated');
-});
 
 /* ── WORKER SUBSCRIPTION ─────────────────────────────────────────────── */
 
@@ -36,72 +16,140 @@ exports.deletePlan = catchAsync(async (req, res) => {
  * Worker purchases a plan
  */
 exports.subscribe = catchAsync(async (req, res) => {
-    const { planId, paymentId } = req.body;
-    const workerId = req.user._id;
+    const { planId, paymentId, targetRole = 'WORKER' } = req.body;
+    const userId = req.user._id;
 
     const AppSettings = require('../settings/settings.model');
     const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
-    const plan = settings?.subscriptionPlans?.find(p => p.id === planId);
+    const plan = settings?.subscriptionPlans?.find(p => p.id === planId && p.targetRole === targetRole);
     
-    if (!plan) return errorResponse(res, 'Plan not found', StatusCodes.NOT_FOUND);
+    // Fallback for older configurations that didn't have targetRole
+    const activePlan = plan || settings?.subscriptionPlans?.find(p => p.id === planId);
+    
+    if (!activePlan) return errorResponse(res, 'Plan not found', StatusCodes.NOT_FOUND);
 
-    // Calculate end date
-    const worker = await Customer.findById(workerId);
     let startDate = new Date();
-    
-    // Check if worker already has an active subscription or trial
-    if (worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > new Date()) {
-        startDate = new Date(worker.subscription.expiryDate);
-    } else if (worker.subscription?.isTrial !== false) {
-        // They are on a trial that might not have an explicit expiryDate set yet, check registration date
-        const registrationDate = new Date(worker.createdAt || Date.now());
-        const trialEndDate = new Date(registrationDate.getTime() + 180 * 24 * 60 * 60 * 1000);
-        if (trialEndDate > new Date()) {
-            startDate = trialEndDate;
+    let endDate = new Date();
+    let sub;
+
+    if (targetRole === 'SHOP') {
+        const shop = await Shop.findOne({ ownerId: userId });
+        if (!shop) return errorResponse(res, 'Shop not found for this user', StatusCodes.NOT_FOUND);
+
+        if (shop.subscription?.expiryDate && new Date(shop.subscription.expiryDate) > new Date()) {
+            startDate = new Date(shop.subscription.expiryDate);
+        } else if (shop.subscription?.isTrial !== false) {
+            const registrationDate = new Date(shop.createdAt || Date.now());
+            const trialEndDate = new Date(registrationDate.getTime() + 180 * 24 * 60 * 60 * 1000);
+            if (trialEndDate > new Date()) startDate = trialEndDate;
         }
+
+        endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
+
+        sub = await ShopSubscription.create({
+            shopId: shop._id,
+            planId: activePlan.id,
+            planName: activePlan.label || activePlan.id,
+            amount:   activePlan.price,
+            startDate,
+            endDate,
+            isTrial:  false,
+            payment:  { status: 'PAID', razorpayPaymentId: paymentId || 'manual' }
+        });
+
+        const updatedShop = await Shop.findByIdAndUpdate(shop._id, {
+            'subscription.planId':     activePlan.id,
+            'subscription.expiryDate': endDate,
+            'subscription.isTrial':    false,
+            $inc: { 'wallet.balance': activePlan.price }
+        }, { new: true });
+
+        await WalletTxn.create({
+            userId:      userId, // WalletTxn maps to Customer ID for auth
+            type:        'TOPUP',
+            amount:      activePlan.price,
+            balance:     updatedShop.wallet.balance,
+            refId:       String(sub._id),
+            description: `Shop Plan Recharge: ${activePlan.label || activePlan.id}`
+        });
+    } else {
+        // WORKER logic
+        const worker = await Customer.findById(userId);
+        if (worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > new Date()) {
+            startDate = new Date(worker.subscription.expiryDate);
+        } else if (worker.subscription?.isTrial !== false) {
+            const registrationDate = new Date(worker.createdAt || Date.now());
+            const trialEndDate = new Date(registrationDate.getTime() + 180 * 24 * 60 * 60 * 1000);
+            if (trialEndDate > new Date()) startDate = trialEndDate;
+        }
+
+        endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
+
+        sub = await WorkerSubscription.create({
+            workerId: userId,
+            planId: activePlan.id,
+            planName: activePlan.label || activePlan.id,
+            amount:   activePlan.price,
+            startDate,
+            endDate,
+            isTrial:  false,
+            payment:  { status: 'PAID', razorpayPaymentId: paymentId || 'manual' }
+        });
+
+        await Customer.findByIdAndUpdate(userId, {
+            'subscription.planId':     activePlan.id,
+            'subscription.expiryDate': endDate,
+            'subscription.isTrial':    false
+        });
+
+        const updatedWorker = await Customer.findByIdAndUpdate(
+            userId, 
+            { $inc: { 'wallet.balance': activePlan.price } },
+            { new: true }
+        );
+
+        await WalletTxn.create({
+            userId:      userId,
+            type:        'TOPUP',
+            amount:      activePlan.price,
+            balance:     updatedWorker.wallet.balance,
+            refId:       String(sub._id),
+            description: `Plan Recharge: ${activePlan.label || activePlan.id}`
+        });
     }
 
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
-
-    const sub = await WorkerSubscription.create({
-        workerId,
-        planId: plan.id,
-        planName: plan.label || plan.id,
-        amount:   plan.price,
-        startDate,
-        endDate,
-        isTrial:  false,
-        payment:  { status: 'PAID', razorpayPaymentId: paymentId || 'manual' }
+    // Notify the user directly
+    const userNotif = await Notification.create({
+        userId: userId,
+        title: 'Subscription Activated 🎯',
+        message: `Your ${activePlan.label || activePlan.id} plan is now active!`,
+        type: 'DIRECT',
+        action: 'UPDATE',
+        entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
+        targetRole: targetRole
     });
 
-    // Update Customer subscription fields
-    await Customer.findByIdAndUpdate(workerId, {
-        'subscription.planId':     planId,
-        'subscription.expiryDate': endDate,
-        'subscription.isTrial':    false
+    // Notify the platform admins
+    const adminNotif = await Notification.create({
+        userId: null,
+        title: 'New Subscription Purchase 💰',
+        message: `A ${targetRole} has just purchased the ${activePlan.label || activePlan.id} plan for ₹${activePlan.price}.`,
+        type: 'SYSTEM',
+        action: 'CREATE',
+        entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
+        targetRole: 'ADMIN'
     });
 
-    // In Kwickly, purchasing a subscription plan acts as a 'Recharge Pack'.
-    // The amount paid for the plan is credited to the worker's wallet, AND their validity is extended.
-    const updatedWorker = await Customer.findByIdAndUpdate(
-        workerId, 
-        { $inc: { 'wallet.balance': plan.price } },
-        { new: true }
-    );
+    const { getIO, emitToUser } = require('../../helpers/socket.helper');
+    emitToUser(userId.toString(), 'NEW_NOTIFICATION', userNotif);
+    const io = getIO();
+    if (io) io.to('admin_dashboard').emit('NEW_NOTIFICATION', adminNotif);
 
-    await WalletTxn.create({
-        userId:      workerId,
-        type:        'TOPUP', // Use TOPUP to match wallet credit history
-        amount:      plan.price,
-        balance:     updatedWorker.wallet.balance,
-        refId:       String(sub._id),
-        description: `Plan Recharge: ${plan.label || plan.id}`
-    });
-
-    emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SUBSCRIPTION', id: sub._id });
-    emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP', id: sub._id });
-    return successResponse(res, sub, 'Subscription activated & Wallet Recharged', StatusCodes.CREATED);
+    emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SUBSCRIPTION', id: sub._id || 'new' });
+    emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP', id: sub._id || 'new' });
+    return successResponse(res, sub || {}, 'Subscription activated & Wallet Recharged', StatusCodes.CREATED);
 });
 
 /**

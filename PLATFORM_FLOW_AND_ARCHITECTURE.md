@@ -1236,7 +1236,31 @@ PATCH /shops/my/delivery-config
 
 ## 13. ADMIN FLOW
 
-### Admin Panel: 25 Modules
+### Admin Panel: 22 Active Modules
+Based on the `admin/src/modules/` frontend architecture, the following 22 modules handle complete platform management:
+
+1. **Dashboard** (`/dashboard`): Real-time metrics, active jobs, revenue stats, and system alerts.
+2. **Users** (`/users`): Manage customers, wallet adjustments, and account suspensions.
+3. **Workers** (`/workers`): Worker profiles, impersonation, service overrides, and toggling online status.
+4. **Shops** (`/shops`): Shop profiles, delivery config overrides, and impersonation.
+5. **Jobs** (`/jobs`): Live tracking of service jobs, force cancellations, and manual allocations.
+6. **Orders** (`/orders`): Monitoring e-commerce shop orders and delivery statuses.
+7. **KYC Queue** (`/kyc`): Document verification for Workers (Aadhar/PAN) and Shops (GST/Business Reg).
+8. **Categories** (`/categories`): Taxonomy management for services and shop products.
+9. **Promotions** (`/promotions`): Discount codes, logic routing, and usage caps.
+10. **Settlements** (`/settlements`): Settling 90% payouts to Shops for completed orders.
+11. **Disputes** (`/disputes`): Conflict resolution for jobs (e.g., partial cash payments, ghosting).
+12. **Admin Wallet** (`/admin-wallet`): The central Platform Treasury view and revenue tracking.
+13. **Payouts** (`/payouts`): Processing withdrawal requests from worker/shop wallets to bank accounts.
+14. **Ledger** (`/ledger`): Immutable central financial ledger tracking all cross-wallet movement.
+15. **Notifications** (`/notifications`): Push notification broadcasting and targeted messaging.
+16. **Reports** (`/reports`): CSV/Excel exports for users, finance, and system analytics.
+17. **Settings** (`/settings`): Global platform configurations (platform fees, search radius, API keys).
+18. **Subscriptions** (`/subscriptions`): Administering subscription plans for Workers and Shops.
+19. **Suggestions** (`/suggestions`): User feedback, bug reports, and feature requests.
+20. **Admin Users** (`/admin-users`): Role-Based Access Control (RBAC) managing Support vs Super Admins.
+21. **Wallets** (`/wallets`): Global view of all user wallet balances and manual credit/debit overrides.
+22. **Auth** (`/auth`): Secure Admin login and JWT session management.
 
 ### A. Dashboard
 ```
@@ -1341,17 +1365,72 @@ PATCH /admin/shops/:id/kyc { status: 'APPROVED'|'REJECTED' }
   → shop visible to customers (on APPROVED)
 ```
 
-### G. Analytics & Reports
+### G. Impersonation & Complete Control
 ```
-/admin/reports:
-  Customer CSV: ID, name, phone, city, orders, wallet, join date
-  Worker CSV:   ID, name, phone, city, category, KYC, jobs, earnings
-  Shop CSV:     ID, name, category, orders, revenue, wallet, KYC
-  Jobs CSV:     ID, category, worker, customer, amount, fee, status, date
-  Finance CSV:  all wallet transactions
+Admin Override Capabilities:
+The platform allows SUPER_ADMIN users to act completely on behalf of any Worker or Shop Owner. This includes:
 
-Financial Summary:
-  Total GMV, Platform Revenue, Pending Liabilities, Monthly P&L
+1. Shop Management Override:
+   PATCH /admin/shops/:id/override
+   - Admin can add/update/delete shop products
+   - Admin can forcefully update shop `delivery-config` (radius, fee, slots)
+   - Admin can toggle `isOnline` or `isFeatured` status
+   - Admin can manage shop business hours and accept/cancel orders
+
+2. Worker Management Override:
+   PATCH /admin/workers/:id/override
+   - Admin can add/update/remove the worker's service categories
+   - Admin can force-update the worker's `activeLocation` or `isOnline` status
+   - Admin can manage their bank payout details
+   - Admin can manually assign a job to a worker without them bidding (forced allocation)
+
+3. Account Deletion & Hard Resets:
+   DELETE /admin/users/:id → Soft or hard delete any user, wiping associated data
+   PATCH /admin/users/:id/reset → Force password resets or wipe active sessions
+```
+
+### H. Analytics & Reports
+```
+/admin/reports/:type?period=week|month|year|all
+Four distinct reporting tabs:
+1. Revenue Summary: Total Revenue, Platform Commission, Worker Payouts (Line charts for revenue vs commission).
+2. Worker Performance: Active Workers, Average Rating (out of 5.0), Completion Rate percentages.
+3. Customer Retention: New Customers, Returning Customers, Churn Rate tracking.
+4. Category Demand: Total Jobs Completed, Top Category breakdown (Bar charts).
+
+* All reports support CSV/Excel exports.
+```
+
+### I. Ledger & Global Financial Tracking
+```
+/admin/ledger
+The Ledger provides a God-mode view of ALL wallet transactions occurring on the platform.
+- Tracks 10 Txn Types: JOB_CREDIT, ORDER_CREDIT, REFERRAL_BONUS, REFUND, WITHDRAWAL, SUBSCRIPTION, ORDER_DEBIT, JOB_DEBIT, ADJUSTMENT, COMMISSION.
+- Provides real-time calculations of Total Platform Credits vs Total Platform Debits to ensure mathematical zero-sum integrity.
+- Searchable by user name, description, transaction type, or role (Customer/Worker/Shop).
+```
+
+### J. Push Notifications & Broadcasting
+```
+/admin/notifications/broadcast
+Admins can compose and schedule push notifications via FCM.
+- Targets: Customers, Workers, or Both.
+- Filters: Specific Cities or Specific Service Categories.
+- Predicts Estimated Reach before sending.
+- Tracks delivery metrics: Delivered count, Opened count.
+- Includes quick-templates (Festival Sale, Summer Push, KYC Reminders, Low Wallet Alerts).
+```
+
+### K. Platform Settings & Configurations
+```
+/admin/settings
+Global settings synced in real-time to all clients via Socket.io:
+1. Fees & Payments: Toggle Flat vs Percentage platform commission, set amounts, toggle Cash payment availability, configure Razorpay QR expiry.
+2. Wallet Config: Set Worker wallet minimum balances, define quick top-up presets, configure Trial Duration days.
+3. Search Radius: Set maximum absolute search radius (km) and configure broadcast round wait times (e.g. Round 1: 0-5km, Wait 3 mins → Round 2: 5-10km).
+4. Security (OTP): Set OTP validity duration, max attempts, and resend cooldowns.
+5. Branding: Dynamic App Name, Logo URL, and App Icon customization.
+6. Maintenance: Instantly block new bookings platform-wide with custom maintenance messaging.
 ```
 
 ---

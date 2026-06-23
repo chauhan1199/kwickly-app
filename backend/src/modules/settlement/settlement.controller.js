@@ -6,6 +6,8 @@ const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { collectCommission } = require('../adminWallet/adminWallet.controller');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
+const Notification = require('../notification/notification.model');
+const { emitToUser, emitToAll } = require('../../helpers/socket.helper');
 
 exports.getSettlements = catchAsync(async (req, res) => {
     const { status, type } = req.query;
@@ -75,6 +77,20 @@ exports.settle = catchAsync(async (req, res) => {
         req.user._id
     );
 
+    if (shop) {
+        const notif = await Notification.create({
+            userId: shop.ownerId,
+            title: 'Settlement Processed',
+            message: `Your settlement of ₹${settlement.shopEarning} has been credited to your wallet.`,
+            type: 'DIRECT',
+            action: 'SETTLE',
+            entityType: 'PAYOUT',
+            entityId: settlement._id
+        });
+        emitToUser(shop.ownerId, 'NOTIFICATION', notif);
+        emitToAll('NOTIFICATION', { title: 'Settlement Processed', message: `Settlement for shop ${shop.name || ''} processed`, targetRole: 'ADMIN' });
+    }
+
     return successResponse(res, settlement, 'Settlement processed');
 });
 
@@ -123,9 +139,23 @@ exports.bulkSettle = catchAsync(async (req, res) => {
             }
 
             results.push(id);
+
+            if (shop) {
+                const notif = await Notification.create({
+                    userId: shop.ownerId,
+                    title: 'Settlement Processed',
+                    message: `Your settlement of ₹${settlement.shopEarning} has been credited to your wallet.`,
+                    type: 'DIRECT',
+                    action: 'SETTLE',
+                    entityType: 'PAYOUT',
+                    entityId: settlement._id
+                });
+                emitToUser(shop.ownerId, 'NOTIFICATION', notif);
+            }
         }
     }
 
+    emitToAll('NOTIFICATION', { title: 'Bulk Settlement Completed', message: `${results.length} settlements processed`, targetRole: 'ADMIN' });
     return successResponse(res, { settled: results.length, ids: results }, 'Bulk settlement completed');
 });
 

@@ -4,6 +4,8 @@ const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
+const { logAdminActivity } = require('../../helpers/adminActivity.helper');
+const Notification = require('../notification/notification.model');
 
 const CACHE_KEY = 'app_settings';
 
@@ -171,5 +173,31 @@ exports.updateSettings = catchAsync(async (req, res) => {
     await delCache('app_branding');
     await delCache('admin_dashboard_stats');
     triggerDashboardUpdate();
+
+    logAdminActivity('UPDATE', 'SETTINGS', req.user?._id, 'Platform Settings Updated', 'Admin updated core platform settings', req.user?._id);
+
+    // If subscription plans were updated, notify the respective users
+    if (req.body.subscriptionPlans) {
+        // Send a broadcast notification about plan updates
+        await Notification.create({
+            userId: null,
+            title: 'Subscription Plans Updated 🎯',
+            message: 'We have updated our subscription plans. Check out the new benefits in the app!',
+            type: 'BROADCAST',
+            action: 'UPDATE',
+            entityType: 'SETTINGS',
+            targetRole: 'ALL'
+        });
+
+        const { emitToAll } = require('../../helpers/socket.helper');
+        emitToAll('NEW_NOTIFICATION', {
+            title: 'Subscription Plans Updated 🎯',
+            message: 'We have updated our subscription plans. Check out the new benefits in the app!',
+            targetRole: 'ALL',
+            action: 'UPDATE',
+            entityType: 'SETTINGS'
+        });
+    }
+
     return successResponse(res, flattenSettings(settings), 'Settings updated successfully');
 });

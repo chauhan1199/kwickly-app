@@ -8,7 +8,7 @@ const Notification = require('../modules/notification/notification.model');
 const AppSettings = require('../modules/settings/settings.model');
 const Dispute = require('../modules/dispute/dispute.model');
 const Suggestion = require('../modules/suggestion/suggestion.model');
-const Transaction = require('../modules/transaction/transaction.model');
+
 const Shop = require('../modules/shop/shop.model');
 const Product = require('../modules/product/product.model');
 const ShopOrder = require('../modules/shoporder/shoporder.model');
@@ -403,20 +403,6 @@ const seedData = async () => {
 
         // Reviews feature has been removed from this layer
 
-        // 11. Seed Transactions (Platform Ledger)
-        const transactions = [
-            { 
-              workerId: createdWorkers[0]._id, type: 'earning', jobId: createdJobs[0]._id, 
-              amount: 400, description: 'Earnings for Job #' + createdJobs[0]._id.toString().slice(-6) 
-            },
-            { 
-              workerId: createdWorkers[0]._id, type: 'subscription', 
-              amount: -499, description: 'Pro Expert monthly subscription fee' 
-            }
-        ];
-        await Transaction.deleteMany({});
-        await Transaction.create(transactions);
-        logger.info('Platform transactions seeded.');
 
         // Support Tickets feature has been removed from this layer
 

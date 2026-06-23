@@ -56,7 +56,7 @@ export default function Workers() {
   const fetchWorkers = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/admin/workers')
+      const res = await api.get('/admin/workers?limit=0')
       if (res.data.status === 'success') setWorkers(res.data.data.workers || [])
     } catch { showToast('Failed to load workers', 'error') }
     finally { setLoading(false) }

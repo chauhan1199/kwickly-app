@@ -89,7 +89,11 @@ export default function Wallets() {
   const filteredUsers = users.filter(u => {
     const name = u._role === 'SHOP' ? (u._displayName || u.name) : u.name
     const phone = u._role === 'SHOP' ? u._phone : u.phone
-    const matchSearch = !search || name?.toLowerCase().includes(search.toLowerCase()) || phone?.includes(search)
+    const matchSearch = !search || 
+      name?.toLowerCase().includes(search.toLowerCase()) || 
+      phone?.includes(search) || 
+      (u._role === 'SHOP' && u._ownerName?.toLowerCase().includes(search.toLowerCase()))
+      
     const matchRole = roleFilter === 'all' || u._role === roleFilter.toUpperCase()
     return matchSearch && matchRole
   })

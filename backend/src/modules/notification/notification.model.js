@@ -26,7 +26,7 @@ const NotificationSchema = new mongoose.Schema({
     },
     entityType: {
         type: String,
-        enum: ['CUSTOMER', 'WORKER', 'SHOP', 'JOB', 'ORDER', 'PAYOUT', 'WALLET', 'KYC', 'CATEGORY', 'PROMOTION', 'PRODUCT', 'SETTINGS', 'OTHER']
+        enum: ['CUSTOMER', 'WORKER', 'SHOP', 'JOB', 'ORDER', 'PAYOUT', 'WALLET', 'KYC', 'CATEGORY', 'PROMOTION', 'PRODUCT', 'SETTINGS', 'BANNER', 'PROMO', 'DISPUTE', 'OTHER']
     },
     entityId: {
         type: mongoose.Schema.Types.ObjectId

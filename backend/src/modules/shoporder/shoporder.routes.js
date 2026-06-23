@@ -11,13 +11,12 @@ router.post('/',            authMiddleware, authorize('CUSTOMER'), validate(plac
 router.get('/customer',     authMiddleware, authorize('CUSTOMER'), ctrl.getCustomerOrders);
 router.post('/:id/cancel',  authMiddleware, authorize('CUSTOMER'), ctrl.cancelOrder);
 
-// Shop owner
+// Shop owner / Admin
 router.get('/shop',         authMiddleware, authorize('SHOP'),     ctrl.getShopOrders);
-router.patch('/:id/status', authMiddleware, authorize('SHOP'),     validate(updateOrderStatusSchema), ctrl.updateOrderStatus);
+router.patch('/:id/status', authMiddleware, authorize('SHOP', 'ADMIN'), validate(updateOrderStatusSchema), ctrl.updateOrderStatus);
 
 // Admin
 router.get('/all',          authMiddleware, authorize('ADMIN'),    ctrl.getAllOrders);
-router.patch('/:id/status', authMiddleware, authorize('ADMIN'),    validate(updateOrderStatusSchema), ctrl.updateOrderStatus);
 
 // Shared (customer + shop)
 router.get('/:id',          authMiddleware,                          ctrl.getOrderById);

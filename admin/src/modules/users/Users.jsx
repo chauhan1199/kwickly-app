@@ -16,7 +16,8 @@ const PAGE_SIZE = 15
 const emptyForm = {
   name: '', phone: '', email: '', city: '', bio: '', profileImage: '',
   addressLabel: 'Home', addressStreet: '', addressArea: '', addressCity: '', addressPincode: '',
-  latitude: '', longitude: ''
+  latitude: '', longitude: '',
+  upiId: '', bankName: '', accountNumber: '', ifscCode: ''
 }
 
 export default function Users() {
@@ -52,7 +53,7 @@ export default function Users() {
   const fetchCustomers = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/admin/customers')
+      const res = await api.get('/admin/customers?limit=0')
       if (res.data.status === 'success') setCustomers(res.data.data.customers || [])
     } catch { showToast('Failed to load customers', 'error') }
     finally { setLoading(false) }
@@ -141,7 +142,11 @@ export default function Users() {
       addressCity: addr.city || user.city || '',
       addressPincode: addr.pincode || '',
       latitude: user.activeLocation?.coordinates?.[1] || '',
-      longitude: user.activeLocation?.coordinates?.[0] || ''
+      longitude: user.activeLocation?.coordinates?.[0] || '',
+      upiId: user.wallet?.upiId || '',
+      bankName: user.wallet?.bankDetails?.bankName || '',
+      accountNumber: user.wallet?.bankDetails?.accountNumber || '',
+      ifscCode: user.wallet?.bankDetails?.ifscCode || ''
     })
     setFormErrors({})
     setShowForm(true)
@@ -191,6 +196,14 @@ export default function Users() {
       location: (formData.latitude && formData.longitude) ? {
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude)
+      } : undefined,
+      wallet: (formData.upiId || formData.bankName || formData.accountNumber || formData.ifscCode) ? {
+        upiId: formData.upiId || undefined,
+        bankDetails: (formData.bankName || formData.accountNumber || formData.ifscCode) ? {
+            bankName: formData.bankName || undefined,
+            accountNumber: formData.accountNumber || undefined,
+            ifscCode: formData.ifscCode || undefined
+        } : undefined
       } : undefined
     }
 
@@ -466,6 +479,19 @@ export default function Users() {
                       </>
                     )}
 
+                    {(detail.wallet?.upiId || detail.wallet?.bankDetails?.accountNumber) && (
+                      <>
+                        <div className="divider" />
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Banking & Payout Info</div>
+                        <div className="detail-grid">
+                          <div className="detail-row"><span>UPI ID</span><strong>{detail.wallet?.upiId || '—'}</strong></div>
+                          <div className="detail-row"><span>Bank Name</span><strong>{detail.wallet?.bankDetails?.bankName || '—'}</strong></div>
+                          <div className="detail-row"><span>Account No</span><strong>{detail.wallet?.bankDetails?.accountNumber || '—'}</strong></div>
+                          <div className="detail-row"><span>IFSC Code</span><strong>{detail.wallet?.bankDetails?.ifscCode || '—'}</strong></div>
+                        </div>
+                      </>
+                    )}
+
                     {detail.activeLocation?.coordinates?.[0] !== 0 && detail.activeLocation?.coordinates?.[1] !== 0 && (
                       <>
                         <div className="divider" />
@@ -639,6 +665,16 @@ export default function Users() {
           <TextInput label="Street / Landmark" value={formData.addressStreet} onChange={e => handleFieldChange('addressStreet', e.target.value)} placeholder="e.g. 123 Main St, near Park" hint="Optional" />
           <TextInput label="Area / Locality" value={formData.addressArea} onChange={e => handleFieldChange('addressArea', e.target.value)} placeholder="e.g. Andheri West" hint="Optional" />
           <TextInput label="Address City" value={formData.addressCity} onChange={e => handleFieldChange('addressCity', e.target.value)} placeholder="e.g. Mumbai" hint="Optional" />
+
+          <div className="divider" style={{ margin: '16px 0' }} />
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Banking & Payout</div>
+          
+          <TextInput label="UPI ID" value={formData.upiId} onChange={e => handleFieldChange('upiId', e.target.value)} placeholder="e.g. user@okhdfcbank" hint="Optional" />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <TextInput label="Bank Name" value={formData.bankName} onChange={e => handleFieldChange('bankName', e.target.value)} placeholder="e.g. HDFC Bank" hint="Optional" />
+            <TextInput label="Account Number" value={formData.accountNumber} onChange={e => handleFieldChange('accountNumber', e.target.value)} placeholder="e.g. 50100234567" hint="Optional" />
+          </div>
+          <TextInput label="IFSC Code" value={formData.ifscCode} onChange={e => handleFieldChange('ifscCode', e.target.value)} placeholder="e.g. HDFC0001234" hint="Optional" />
 
           <div className="divider" style={{ margin: '16px 0' }} />
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>

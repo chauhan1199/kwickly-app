@@ -377,11 +377,18 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
     const validStatuses = ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
     if (!validStatuses.includes(status)) return errorResponse(res, 'Invalid status', StatusCodes.BAD_REQUEST);
 
-    const shop = await Shop.findOne({ ownerId: req.user._id }).select('_id wallet ownerId');
-    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-
-    const order = await ShopOrder.findOne({ _id: req.params.id, shopId: shop._id });
-    if (!order) return errorResponse(res, 'Order not found or not authorized', StatusCodes.NOT_FOUND);
+    let order;
+    let shop;
+    if (req.user.role === 'ADMIN') {
+        order = await ShopOrder.findById(req.params.id);
+        if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
+        shop = await Shop.findById(order.shopId).select('_id wallet ownerId');
+    } else {
+        shop = await Shop.findOne({ ownerId: req.user._id }).select('_id wallet ownerId');
+        if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+        order = await ShopOrder.findOne({ _id: req.params.id, shopId: shop._id });
+        if (!order) return errorResponse(res, 'Order not found or not authorized', StatusCodes.NOT_FOUND);
+    }
 
     order.statusHistory.push({ status, timestamp: new Date(), note: note || `Status changed to ${status}` });
 
