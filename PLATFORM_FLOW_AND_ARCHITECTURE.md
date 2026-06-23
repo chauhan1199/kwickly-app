@@ -112,7 +112,6 @@
 ║ Google Maps  ║   ┌──────────────────────┐     ║  Banners, Ads,     ║
 ║ SDK embedded ║   │  MongoDB Database    │     ║  Promotions,       ║
 ║              ║   │  22+ Collections     │     ║  Settings, etc.    ║
-║              ║   │                      │     ║                    ║
 ║              ║   │  customers           │     ║  Google Maps JS    ║
 ║              ║   │  jobs, quotes        │     ║  API for admin     ║
 ║              ║   │  shops, products     │     ║  map views         ║
@@ -124,10 +123,11 @@
 ║              ║   │  banners, promotions │     ║                    ║
 ║              ║   │  ads (future)        │     ║                    ║
 ║              ║   │  notifications       │     ║                    ║
-║              ║   │  subscriptions       │     ║                    ║
+║              ║   │  shopsubscriptions   │     ║                    ║
+║              ║   │  workersubscriptions │     ║                    ║
 ║              ║   │  categories          │     ║                    ║
 ║              ║   │  appsettings         │     ║                    ║
-║              ║   │  audits, disputes    │     ║                    ║
+║              ║   │  disputes            │     ║                    ║
 ║              ║   └──────────────────────┘     ║                    ║
 ║              ║                                ║                    ║
 ║              ║   ┌──────────────────────┐     ║                    ║
@@ -876,7 +876,7 @@ try {
 | Admin Wallet | `/admin/admin-wallet` | balance, transactions, manual topup |
 | Disputes | `/disputes` | list, respond, admin-resolve |
 | Settings | `/settings` | get, update (admin), branding (public) |
-| Audit | `/audit` | admin activity log |
+| Activity Logs | `/activity` | admin activity log via notifications |
 
 ---
 
@@ -1272,7 +1272,7 @@ GET /admin/badges (Redis 1 min)
 Returns: kyc, shopKyc, payouts, disputes, suggestions counts
 
 Socket: admin_dashboard room receives DASHBOARD_UPDATE on every major event
-[Mitigation: Rogue Admin] All sensitive admin actions (wallet adjustments, setting changes, payouts) are locked behind SUPER_ADMIN role and emit an immutable Audit log entry to the `audits` collection.
+[Mitigation: Rogue Admin] All sensitive admin actions (wallet adjustments, setting changes, payouts) are locked behind SUPER_ADMIN role and emit an immutable log entry to the `notifications` collection (type: ADMIN_ACTIVITY).
 ```
 
 ### B. Subscription Configuration
@@ -1917,7 +1917,7 @@ Features:
 | 22 | `/settings` | Platform config: fees, wallet limits, subscriptions, maps, ads, branding, maintenance |
 | 23 | `/analytics` | GMV trends, funnel analysis, cohort, revenue by city |
 | 24 | `/map-view` | Live worker/shop locations on Google Maps |
-| 25 | `/audit` | All admin actions with actor/action/timestamp |
+| 25 | `/activity` | All admin actions with actor/action/timestamp via notifications |
 
 ---
 
@@ -2030,7 +2030,7 @@ LAYER 5: Input Validation
 
 LAYER 6: Admin Security
   ADMIN role required for all /admin/* routes
-  All admin actions logged in AuditLog
+  All admin actions logged via Notifications (ADMIN_ACTIVITY)
   Impersonation: 1h token, logged, flagged as isImpersonated
   Maintenance mode: IP whitelist bypass
 
