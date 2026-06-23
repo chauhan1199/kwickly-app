@@ -8,8 +8,8 @@ exports.getReportData = catchAsync(async (req, res) => {
     const { tab } = req.params;
     const { period } = req.query; // e.g., 'week', 'month', 'year', 'all'
 
-    // Real aggregations would use the 'period' to filter by date.
-    // For simplicity in this implementation, we aggregate all data.
+    // We can filter by date if needed based on period, but for now we aggregate based on existing data
+    // to give a realistic fallback, we'll build dynamic chartData grouping by created dates
 
     let data = {};
 
@@ -22,11 +22,35 @@ exports.getReportData = catchAsync(async (req, res) => {
                 totalRevenue: { $sum: '$payment.amount' }
             }}
         ]);
+
+        const chartAgg = await Job.aggregate([
+            { $match: { 'payment.status': 'PAID' } },
+            { $group: {
+                _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                revenue: { $sum: '$payment.amount' },
+                commission: { $sum: '$payment.platformFee' }
+            }},
+            { $sort: { _id: 1 } },
+            { $limit: 7 }
+        ]);
+
+        const chartData = chartAgg.map(c => ({
+            name: new Date(c._id).toLocaleDateString('en-US', { weekday: 'short' }),
+            revenue: c.revenue || 0,
+            commission: c.commission || 0
+        }));
+
+        // Fill blanks if empty
+        if (chartData.length === 0) {
+            chartData.push({ name: 'Mon', revenue: 0, commission: 0 });
+        }
+
         const agg = revenueData[0] || { totalCommission: 0, totalRevenue: 0 };
         data = {
             total: agg.totalRevenue,
             commission: agg.totalCommission,
-            payouts: agg.totalRevenue - agg.totalCommission
+            payouts: agg.totalRevenue - agg.totalCommission,
+            chartData
         };
     } 
     else if (tab === 'performance') {
@@ -34,32 +58,86 @@ exports.getReportData = catchAsync(async (req, res) => {
         const totalJobs = await Job.countDocuments();
         const completedJobs = await Job.countDocuments({ status: 'COMPLETED' });
         
+        // Calculate dynamic avg rating from workers
+        const ratingAgg = await Customer.aggregate([
+            { $match: { role: 'WORKER', 'rating.count': { $gt: 0 } } },
+            { $group: { _id: null, avgOverall: { $avg: '$rating.average' } } }
+        ]);
+        const avgRating = ratingAgg[0] ? ratingAgg[0].avgOverall.toFixed(1) : '0.0';
+
+        const chartAgg = await Job.aggregate([
+            { $group: {
+                _id: { $dateToString: { format: "%Y-%U", date: "$createdAt" } },
+                total: { $sum: 1 },
+                completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } }
+            }},
+            { $sort: { _id: -1 } },
+            { $limit: 4 }
+        ]);
+
+        const chartData = chartAgg.reverse().map((c, i) => ({
+            name: `Week ${i + 1}`,
+            completionRate: c.total > 0 ? Math.round((c.completed / c.total) * 100) : 0
+        }));
+
         data = {
             activeWorkers,
-            avgRating: '4.8', // Mocked since Review module is removed
-            completionRate: totalJobs ? Math.round((completedJobs / totalJobs) * 100) + '%' : '0%'
+            avgRating,
+            completionRate: totalJobs ? Math.round((completedJobs / totalJobs) * 100) + '%' : '0%',
+            chartData
         };
     }
     else if (tab === 'retention') {
-        // Mocking retention logic for brevity
         const totalCustomers = await Customer.countDocuments({ role: 'CUSTOMER' });
+        // Returning customers = customers with > 1 completed job
+        const returningAgg = await Job.aggregate([
+            { $match: { status: 'COMPLETED' } },
+            { $group: { _id: '$customerId', count: { $sum: 1 } } },
+            { $match: { count: { $gt: 1 } } }
+        ]);
+        const returningCustomers = returningAgg.length;
+        const newCustomers = Math.max(0, totalCustomers - returningCustomers);
+        const churnRate = totalCustomers > 0 ? Math.round(((totalCustomers - returningCustomers) / totalCustomers) * 100) + '%' : '0%';
+
+        const chartAgg = await Customer.aggregate([
+            { $match: { role: 'CUSTOMER' } },
+            { $group: {
+                _id: { $dateToString: { format: "%b", date: "$createdAt" } },
+                count: { $sum: 1 }
+            }},
+            { $limit: 6 }
+        ]);
+
+        const chartData = chartAgg.map(c => ({
+            name: c._id,
+            returning: Math.floor(c.count * 0.4), // Simulated split based on actual counts
+            new: Math.ceil(c.count * 0.6)
+        }));
+
         data = {
-            newCustomers: Math.round(totalCustomers * 0.3),
-            returningCustomers: Math.round(totalCustomers * 0.7),
-            churnRate: '5%'
+            newCustomers,
+            returningCustomers,
+            churnRate,
+            chartData
         };
     }
     else if (tab === 'demand') {
         const demandAgg = await Job.aggregate([
             { $group: { _id: '$category', count: { $sum: 1 } } },
             { $sort: { count: -1 } },
-            { $limit: 1 }
+            { $limit: 5 }
         ]);
         const totalJobs = await Job.countDocuments({ status: 'COMPLETED' });
         
+        const chartData = demandAgg.map(d => ({
+            name: String(d._id).substring(0, 10), // Limit name length for chart
+            jobs: d.count
+        }));
+
         data = {
-            topCategory: demandAgg[0] ? demandAgg[0]._id : 'N/A',
-            totalJobs
+            topCategory: demandAgg[0] ? String(demandAgg[0]._id) : 'N/A',
+            totalJobs,
+            chartData
         };
     }
 

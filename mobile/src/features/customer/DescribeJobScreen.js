@@ -13,6 +13,7 @@ import {
   Image,
   Alert
 } from 'react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
@@ -58,26 +59,16 @@ const DescribeJobScreen = ({ route, navigation }) => {
     return days;
   };
 
-  const handlePickMedia = () => {
+  const handlePickMedia = async () => {
     if (media.length >= 3) {
       Alert.alert('Limit Reached', 'You can only add up to 3 photos.');
       return;
     }
     
-    // Using a simulated picker to avoid fatal Native Module crashes on the emulator
-    Alert.alert(
-      "Simulated Picker",
-      "Native image pickers require a rebuild of the Android APK. A sample image will be inserted.",
-      [
-        {
-          text: "Add Sample Image",
-          onPress: () => {
-            setMedia([...media, `https://dummyimage.com/150/8b5cf6/fff&text=Photo+${media.length + 1}`]);
-          }
-        },
-        { text: "Cancel", style: "cancel" }
-      ]
-    );
+    const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
+    if (!result.didCancel && result.assets?.length > 0) {
+      setMedia([...media, result.assets[0].uri]);
+    }
   };
 
   const handlePickMap = () => {
@@ -183,9 +174,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
         <Text style={styles.label}>Add photos / video</Text>
         <View style={styles.mediaGrid}>
           {media.map((uri, index) => (
-             <LinearGradient key={index} colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
-               <Text style={{fontSize: 20}}>🖼️</Text>
-             </LinearGradient>
+             <Image key={index} source={{ uri }} style={styles.mediaTileFilled} />
           ))}
           {media.length < 3 && (
             <TouchableOpacity style={styles.mediaTileEmpty} onPress={handlePickMedia}>

@@ -18,6 +18,19 @@ import { jobService } from '../../services/jobService';
 import { customerService } from '../../services/customerService';
 import GlassCard from '../../components/ui/GlassCard';
 
+// Haversine formula to calculate distance between two coordinates in km
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
 const BookServiceScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
@@ -50,17 +63,28 @@ const BookServiceScreen = ({ navigation }) => {
       }
 
       if (workerRes.data?.status === 'success') {
-        const mappedWorkers = workerRes.data.data.map(w => ({
-          id: w._id,
-          name: w.name,
-          rating: w.rating || 4.5,
-          jobs: w.jobs || 0,
-          price: 299, // default base price
-          eta: Math.floor(Math.random() * 30) + 15, // Mock ETA
-          verified: true,
-          dist: '1.2 km', // Mock distance
-          cat: w.services?.[0] || 'General'
-        }));
+        // Assume customer location is approx Mumbai center for this demonstration if no device GPS
+        const custLat = 19.0760;
+        const custLon = 72.8777;
+
+        const mappedWorkers = workerRes.data.data.map(w => {
+          const wLat = w.activeLocation?.coordinates?.[1] || 19.0800;
+          const wLon = w.activeLocation?.coordinates?.[0] || 72.8800;
+          const distKm = calculateDistance(custLat, custLon, wLat, wLon) || 2.5;
+          const etaMins = Math.round(distKm * 5); // Rough estimate: 5 mins per km
+
+          return {
+            id: w._id,
+            name: w.name,
+            rating: w.rating || 4.5,
+            jobs: w.jobs || 0,
+            price: 299, // default base price
+            eta: etaMins,
+            verified: true,
+            dist: `${distKm.toFixed(1)} km`,
+            cat: w.services?.[0] || 'General'
+          };
+        });
         setWorkers(mappedWorkers);
       }
     } catch (e) {

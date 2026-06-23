@@ -17,19 +17,26 @@ import { useTheme } from '../../context/ThemeContext';
 const LiveTrackingScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
-  const { worker, job } = route.params || {};
+  const { worker: routeWorker, job } = route.params || {};
 
-  // Mock a worker if not passed
-  const w = worker || {
-    name: 'Ramesh Kumar', rating: 4.8, jobs: 312, eta: 25, dist: '1.2 km'
-  };
+  // Don't mock a worker. Get worker either directly from route or from job object
+  const w = routeWorker || job?.workerId;
+
+  if (!w) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: theme.colors.textDim }}>Waiting for worker assignment...</Text>
+        <Button title="Go Back" onPress={() => navigation.goBack()} style={{ marginTop: 20 }} />
+      </SafeAreaView>
+    );
+  }
 
   const otp = job?.security?.arrivalOtp || '4729';
 
   const jobLat = job?.location?.coordinates?.[1] || 19.0760;
   const jobLng = job?.location?.coordinates?.[0] || 72.8777;
-  const workerLat = worker?.activeLocation?.coordinates?.[1] || job?.workerId?.activeLocation?.coordinates?.[1] || 19.0800;
-  const workerLng = worker?.activeLocation?.coordinates?.[0] || job?.workerId?.activeLocation?.coordinates?.[0] || 72.8800;
+  const workerLat = w?.activeLocation?.coordinates?.[1] || 19.0800;
+  const workerLng = w?.activeLocation?.coordinates?.[0] || 72.8800;
 
   const mapHTML = `
     <!DOCTYPE html>

@@ -32,47 +32,7 @@ export default function Reports() {
     alert(`Exporting ${activeTab} report to CSV...`)
   }
 
-  // Generate some realistic-looking dummy chart data based on the period
-  const getChartData = () => {
-    if (activeTab === 'revenue') {
-      return [
-        { name: 'Mon', revenue: 1200, commission: 240 },
-        { name: 'Tue', revenue: 1900, commission: 380 },
-        { name: 'Wed', revenue: 1500, commission: 300 },
-        { name: 'Thu', revenue: 2200, commission: 440 },
-        { name: 'Fri', revenue: 2800, commission: 560 },
-        { name: 'Sat', revenue: 3500, commission: 700 },
-        { name: 'Sun', revenue: 3100, commission: 620 },
-      ]
-    }
-    if (activeTab === 'performance') {
-      return [
-        { name: 'Week 1', completionRate: 85 },
-        { name: 'Week 2', completionRate: 88 },
-        { name: 'Week 3', completionRate: 92 },
-        { name: 'Week 4', completionRate: 90 },
-      ]
-    }
-    if (activeTab === 'demand') {
-      return [
-        { name: 'Plumbing', jobs: 45 },
-        { name: 'Electrical', jobs: 38 },
-        { name: 'AC Repair', jobs: 62 },
-        { name: 'Cleaning', jobs: 29 },
-      ]
-    }
-    if (activeTab === 'retention') {
-      return [
-        { name: 'Jan', returning: 400, new: 240 },
-        { name: 'Feb', returning: 430, new: 139 },
-        { name: 'Mar', returning: 480, new: 380 },
-        { name: 'Apr', returning: 520, new: 290 },
-      ]
-    }
-    return []
-  }
-
-  const chartData = getChartData()
+  const chartData = reportData?.chartData || []
 
   return (
     <div className="page-container">

@@ -70,7 +70,7 @@
 | State | Context API (Auth, Theme) | Global state |
 | HTTP | Axios with interceptors | REST API calls |
 | Real-time | Socket.io-client | Live job/order updates |
-| Maps | **Google Maps SDK** (react-native-maps) | Location, routing, tracking |
+| Maps | **Leaflet via WebView** (react-native-webview) | Location, routing, tracking (Prototype alternative to native maps) |
 | UI | Custom components, Lucide icons, LinearGradient | Premium UI |
 
 ### Backend API
@@ -82,7 +82,7 @@
 | Real-time | Socket.io + Redis adapter | Bidirectional events |
 | Auth | JWT (30-day) + bcryptjs | Stateless authentication |
 | Payments | **Razorpay** | Orders, capture, refund, webhooks |
-| Maps/Geo | **Google Maps Platform APIs** | Geocoding, Distance Matrix, Directions |
+| Maps/Geo | **Haversine Algorithm** (Client-side) | Distance calculation, ETA estimations |
 | Logging | Winston | Structured logs |
 | Security | Helmet, CORS, Redis rate-limit | Defense in depth |
 
@@ -1613,18 +1613,19 @@ Server: verifies JWT, sets socket.isAuthenticated, socket.userId, socket.userRol
 
 ---
 
-## 18. GOOGLE MAPS INTEGRATION
+## 18. MAPS & GEO-LOCATION INTEGRATION
 
-### APIs Used
+Currently, the platform relies on lightweight mapping alternatives to avoid heavy native dependencies and API costs during prototyping.
 
-| API | Where Used |
+### APIs & Methods Used
+
+| Component/Method | Where Used |
 |-----|-----------|
-| Maps SDK (iOS+Android) | LiveTrackingScreen, WorkerNavigateJobScreen, ShopDetailScreen, address picker |
-| Places API | Address autocomplete in all forms, shop registration |
-| Geocoding API | GPS coordinates → formatted address |
-| Directions API | Route polyline, turn-by-turn navigation for worker |
-| Distance Matrix API | Live ETA (quote time, delivery ETA) |
-| Maps JS API | Admin panel: worker/shop location heatmaps |
+| **Leaflet & CartoDB Maps** (via WebView) | `LiveTrackingScreen`. Prototype alternative to native maps avoiding cross-platform linking binaries. |
+| **Haversine Distance Algorithm** | `BookServiceScreen`. Computed natively on the client to calculate distance and ETA without calling Google Distance Matrix APIs. |
+| **MongoDB Geo-Queries** | Backend. `$near` sphere queries handle all local shop and worker discovery seamlessly. |
+| **Places API (Planned)** | Address autocomplete in all forms, shop registration |
+| **Geocoding API (Planned)** | GPS coordinates → formatted address |
 
 ### Mobile Implementation
 ```javascript

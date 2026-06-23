@@ -15,14 +15,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
 import { ActivityIndicator } from 'react-native';
 
-const STATIC_SHOPS = [
-  {id:'s1',name:'Sharma General Store',rating:4.7,dist:'0.6 km',items:42,delivery:'30 min',minFree:1000,tag:'Groceries',icon:'🏪',color:'#7ed957'},
-  {id:'s2',name:'Fresh Mart',rating:4.5,dist:'1.1 km',items:120,delivery:'45 min',minFree:800,tag:'Groceries',icon:'🥦',color:'#43a047'},
-  {id:'s3',name:'Daily Needs',rating:4.8,dist:'1.5 km',items:88,delivery:'40 min',minFree:1200,tag:'Dairy',icon:'🥛',color:'#0288d1'},
-  {id:'s4',name:'MediPlus Pharmacy',rating:4.9,dist:'0.8 km',items:300,delivery:'20 min',minFree:500,tag:'Pharmacy',icon:'💊',color:'#e53935'},
-  {id:'s5',name:'City Dairy',rating:4.6,dist:'2.0 km',items:30,delivery:'35 min',minFree:600,tag:'Dairy',icon:'🧈',color:'#f9a825'},
-  {id:'s6',name:'Sweet Bakery',rating:4.4,dist:'1.8 km',items:55,delivery:'50 min',minFree:400,tag:'Bakery',icon:'🍞',color:'#6d4c41'},
-];
+
 
 const ShopScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
