@@ -461,7 +461,7 @@ exports.completeJob = catchAsync(async (req, res) => {
 // ─── PATCH /api/v1/jobs/:id/pay ───────────────────────────────────────────────
 exports.payJob = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { method, completionOtp } = req.body;
+    const { method, completionOtp, promoCode } = req.body;
 
     const job = await Job.findOne({ _id: id, customerId: req.user._id });
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
@@ -470,10 +470,35 @@ exports.payJob = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid Completion OTP', StatusCodes.BAD_REQUEST);
     }
 
-    const platformFee = job.payment?.platformFee || 0;
+    let platformFee = job.payment?.platformFee || 0;
     const workerPayout = job.payment?.workerPayout || 0;
     const gst = job.payment?.gst || 0;
-    const adminTotalRevenue = platformFee + gst;
+    let promoDiscount = 0;
+
+    // Validate and apply promo code
+    if (promoCode) {
+        const { Promotion } = require('../promotion/promotion.model');
+        const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), isActive: true });
+        if (promo && (!promo.endAt || new Date(promo.endAt) > new Date())) {
+            const amount = job.payment?.amount || 0;
+            if (amount >= (promo.minOrderAmount || 0)) {
+                if (promo.type === 'FLAT_DISCOUNT') promoDiscount = promo.value;
+                if (promo.type === 'PERCENTAGE_DISCOUNT') promoDiscount = (amount * promo.value) / 100;
+                if (promo.maxDiscountCap && promoDiscount > promo.maxDiscountCap) promoDiscount = promo.maxDiscountCap;
+                if (promoDiscount > amount) promoDiscount = amount;
+                
+                // Track usage
+                promo.usesCount += 1;
+                await promo.save();
+                
+                // Save promo info on job
+                job.promoCode = promoCode;
+                job.promoDiscount = promoDiscount;
+            }
+        }
+    }
+
+    const adminTotalRevenue = (platformFee + gst) - promoDiscount;
 
     const mongoose = require('mongoose');
     const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
@@ -530,7 +555,7 @@ exports.payJob = catchAsync(async (req, res) => {
             const { collectPlatformFee } = require('../adminWallet/adminWallet.controller');
             await collectPlatformFee(
                 adminTotalRevenue,
-                `Platform fee + GST from job #${job._id.toString().slice(-6)} (${method})`,
+                `Platform fee + GST ${promoDiscount > 0 ? `(less ₹${promoDiscount} promo discount)` : ''} from job #${job._id.toString().slice(-6)} (${method})`,
                 job._id,
                 'Job',
                 { workerId: job.workerId, customerId: job.customerId, method }

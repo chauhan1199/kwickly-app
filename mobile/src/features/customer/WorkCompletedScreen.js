@@ -14,6 +14,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { jobService } from '../../services/jobService';
+import api from '../../services/api';
 
 const WorkCompletedScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -27,6 +28,38 @@ const WorkCompletedScreen = ({ route, navigation }) => {
 
   const [otp, setOtp] = useState('');
   const [paying, setPaying] = useState(false);
+  
+  const [promoInput, setPromoInput] = useState('');
+  const [promoCode, setPromoCode] = useState(null);
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [promoLoading, setPromoLoading] = useState(false);
+
+  const handleApplyPromo = async () => {
+    if (!promoInput.trim()) return;
+    setPromoLoading(true);
+    try {
+      const res = await api.post('/promotions/validate', {
+        code: promoInput.trim(),
+        totalAmount: jobAmount
+      });
+      if (res.data?.status === 'success') {
+        const discount = res.data.data.discountAmount;
+        setPromoCode(promoInput.trim().toUpperCase());
+        setPromoDiscount(discount);
+        Alert.alert('Promo Applied! 🎉', `You saved ₹${discount}`);
+      }
+    } catch (e) {
+      Alert.alert('Invalid Promo', e.response?.data?.message || 'Failed to apply promo code');
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const removePromo = () => {
+    setPromoCode(null);
+    setPromoDiscount(0);
+    setPromoInput('');
+  };
 
   const handlePayment = async (method) => {
     if (!otp || otp.length !== 4) {
@@ -35,7 +68,11 @@ const WorkCompletedScreen = ({ route, navigation }) => {
 
     setPaying(true);
     try {
-      const res = await jobService.payJob(job?._id, { method, completionOtp: otp });
+      const res = await jobService.payJob(job?._id, { 
+        method, 
+        completionOtp: otp,
+        promoCode 
+      });
       if (res.data.status === 'success') {
         Alert.alert('Payment Successful', 'Your payment was processed and split securely.', [
           { text: 'OK', onPress: () => navigation.navigate('RateExperience', { worker: { name: workerName }, job }) }
@@ -106,14 +143,53 @@ const WorkCompletedScreen = ({ route, navigation }) => {
           
           <View style={styles.separator} />
           
+          {promoCode && (
+            <View style={styles.invoiceRow}>
+              <Text style={{color: '#059669'}}>Promo Discount ({promoCode})</Text>
+              <Text style={{color: '#059669', fontWeight: '800'}}>-₹{promoDiscount}</Text>
+            </View>
+          )}
+          
           <View style={styles.invoiceRow}>
             <Text style={styles.totalText}>Total</Text>
-            <Text style={styles.totalPrice}>₹{jobAmount}</Text>
+            <View style={{alignItems: 'flex-end'}}>
+              {promoCode && <Text style={{textDecorationLine: 'line-through', color: theme.colors.textDim, fontSize: 12}}>₹{jobAmount}</Text>}
+              <Text style={styles.totalPrice}>₹{jobAmount - promoDiscount}</Text>
+            </View>
           </View>
           
           <Text style={styles.autoSplitText}>
-            Auto-split: Worker gets ₹{workerEarning} · Platform ₹{platformFee}
+            Auto-split: Worker gets ₹{workerEarning} · Platform subsidizes promo
           </Text>
+        </View>
+
+        {/* Promo Code Input */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Apply Promo Code</Text>
+          <View style={styles.promoRow}>
+            <TextInput
+              style={styles.promoInput}
+              placeholder="Enter promo code"
+              placeholderTextColor={theme.colors.textDim}
+              value={promoInput}
+              onChangeText={setPromoInput}
+              editable={!promoCode}
+              autoCapitalize="characters"
+            />
+            {promoCode ? (
+              <TouchableOpacity style={styles.promoRemoveBtn} onPress={removePromo}>
+                <Text style={styles.promoRemoveText}>Remove</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.promoApplyBtn, promoLoading && { opacity: 0.5 }]} 
+                onPress={handleApplyPromo}
+                disabled={promoLoading}
+              >
+                <Text style={styles.promoApplyText}>{promoLoading ? '...' : 'Apply'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Enter OTP */}
@@ -152,7 +228,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
                 style={styles.upiBtn}
                 onPress={() => handlePayment('ONLINE')}
               >
-                <Text style={styles.upiBtnText}>Pay Online ₹{jobAmount}</Text>
+                <Text style={styles.upiBtnText}>Pay Online ₹{jobAmount - promoDiscount}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -343,6 +419,40 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.primary,
     fontSize: 13,
     fontWeight: '700',
+  },
+  promoRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  promoInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.background,
+  },
+  promoApplyBtn: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  promoApplyText: {
+    color: '#001016',
+    fontWeight: '800',
+  },
+  promoRemoveBtn: {
+    backgroundColor: 'var(--danger-light, #fee2e2)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  promoRemoveText: {
+    color: '#dc2626',
+    fontWeight: '800',
   }
 });
 

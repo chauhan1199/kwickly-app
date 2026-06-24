@@ -8,7 +8,9 @@ import {
   Text,
   TouchableOpacity,
   TextInput,
-  StatusBar
+  StatusBar,
+  Image,
+  Dimensions
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -27,6 +29,7 @@ const HomeScreen = ({ navigation }) => {
   const [activeShopOrders, setActiveShopOrders] = useState([]);
   const [pastJobs, setPastJobs] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [banners, setBanners] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -47,6 +50,16 @@ const HomeScreen = ({ navigation }) => {
           subs: c.subcategories.map(s => s.name)
         }));
         setCategories(mappedCats);
+      }
+
+      // Fetch Banners
+      try {
+        const bannerRes = await api.get('/promotions/banners');
+        if (bannerRes.data?.status === 'success') {
+          setBanners(bannerRes.data.data.filter(b => b.position === 'HOME_TOP'));
+        }
+      } catch (err) {
+        console.log('Error fetching banners:', err);
       }
 
       // Fetch jobs only if authenticated
@@ -156,29 +169,46 @@ const HomeScreen = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
         contentContainerStyle={styles.content}
       >
-        {/* Hero Banner */}
-        <LinearGradient 
-          colors={['#1a237e', '#283593', '#1565c0']} 
-          start={{x: 0, y: 0}} 
-          end={{x: 1, y: 1}} 
-          style={styles.heroBanner}
-        >
-          <View style={styles.heroDeco1} />
-          <View style={styles.heroDeco2} />
-          <Text style={styles.heroTitle}>What do you need fixed? 🔧</Text>
-          <Text style={styles.heroSub}>Verified workers • Transparent pricing • Same-day</Text>
-          <View style={styles.searchRow}>
-            <TextInput 
-              placeholder="Search plumber, electrician, AC..."
-              placeholderTextColor="rgba(255,255,255,0.6)"
-              style={styles.searchInput}
-              onFocus={() => navigation.navigate('Book')}
-            />
-            <TouchableOpacity style={styles.searchBtn} onPress={() => navigation.navigate('Book')}>
-              <Text style={styles.searchBtnText}>Search</Text>
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
+        {/* Dynamic Banners */}
+        {banners.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+            {banners.map((banner, index) => (
+              <TouchableOpacity key={banner._id || index} style={styles.bannerImageContainer} onPress={() => {
+                if (banner.linkType === 'SHOP') navigation.navigate('Shop');
+                if (banner.linkType === 'CATEGORY') navigation.navigate('Book');
+              }}>
+                <Image source={{ uri: banner.imageUrl }} style={styles.bannerImage} />
+                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.bannerOverlay}>
+                  <Text style={styles.bannerTitle}>{banner.title}</Text>
+                  {banner.subtitle ? <Text style={styles.bannerSubText}>{banner.subtitle}</Text> : null}
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : (
+          <LinearGradient 
+            colors={['#1a237e', '#283593', '#1565c0']} 
+            start={{x: 0, y: 0}} 
+            end={{x: 1, y: 1}} 
+            style={styles.heroBanner}
+          >
+            <View style={styles.heroDeco1} />
+            <View style={styles.heroDeco2} />
+            <Text style={styles.heroTitle}>What do you need fixed? 🔧</Text>
+            <Text style={styles.heroSub}>Verified workers • Transparent pricing • Same-day</Text>
+            <View style={styles.searchRow}>
+              <TextInput 
+                placeholder="Search plumber, electrician, AC..."
+                placeholderTextColor="rgba(255,255,255,0.6)"
+                style={styles.searchInput}
+                onFocus={() => navigation.navigate('Book')}
+              />
+              <TouchableOpacity style={styles.searchBtn} onPress={() => navigation.navigate('Book')}>
+                <Text style={styles.searchBtnText}>Search</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        )}
 
         {/* Shop Quick Link */}
         <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('Shop')}>
@@ -501,6 +531,38 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     fontSize: 11,
     marginBottom: 12,
+  },
+  bannerImageContainer: {
+    width: Dimensions.get('window').width - 28,
+    height: 160,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginRight: 10,
+    position: 'relative',
+    backgroundColor: '#1a237e'
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  bannerOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    paddingTop: 32,
+  },
+  bannerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  bannerSubText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
   },
   searchRow: {
     flexDirection: 'row',
