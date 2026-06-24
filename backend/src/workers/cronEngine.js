@@ -19,7 +19,6 @@ const startCronEngine = () => {
         if (isJobSweepRunning) return;
         isJobSweepRunning = true;
         try {
-            await sweepBroadcastingJobs();
             await sweepGhostQuotes();
         } catch (err) {
             logger.error('[Cron Engine] Job sweep error: ' + err.message);
@@ -53,115 +52,6 @@ const startCronEngine = () => {
             isWorkerSweepRunning = false;
         }
     });
-};
-
-const sweepBroadcastingJobs = async () => {
-    const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-    if (!settings?.radius?.rounds || settings.radius.rounds.length === 0) return;
-
-    const rounds = settings.radius.rounds;
-    const now = new Date();
-
-    const jobs = await Job.find({ status: 'BROADCASTING' });
-
-    for (const job of jobs) {
-        const currentRoundIndex = job.broadcast?.round || 0;
-        const currentRoundConfig = rounds[currentRoundIndex];
-        
-        if (!currentRoundConfig) continue;
-
-        const lastAttempt = job.broadcast?.lastAttemptAt || job.createdAt;
-        const minutesWaiting = (now.getTime() - new Date(lastAttempt).getTime()) / 60000;
-
-        if (minutesWaiting >= (currentRoundConfig.waitMinutes || 5)) {
-            // Time to expand or cancel
-            const nextRoundIndex = currentRoundIndex + 1;
-            
-            if (nextRoundIndex < rounds.length) {
-                const nextRoundConfig = rounds[nextRoundIndex];
-                
-                logger.info(`[Cron] Expanding job ${job._id} to round ${nextRoundIndex} (${nextRoundConfig.maxKm}km)`);
-                
-                // Update Job state
-                job.broadcast.round = nextRoundIndex;
-                job.broadcast.lastAttemptAt = now;
-                job.broadcast.radiusKm = nextRoundConfig.maxKm;
-                await job.save();
-
-                // Find workers for new radius
-                const globalRadiusRadians = nextRoundConfig.maxKm / 6371;
-                const minBalance = settings.wallet?.minimumBalance || 100;
-                
-                const workerQuery = {
-                    role: 'WORKER',
-                    isVerified: true,
-                    'kyc.status': 'APPROVED',
-                    isOnline: true,
-                    $or: [
-                        { 'subscription.isTrial': true },
-                        { 'subscription.expiryDate': { $gt: now } },
-                        { createdAt: { $gt: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000) } }
-                    ],
-                    'wallet.balance': { $gte: minBalance },
-                    activeLocation: {
-                        $geoWithin: { $centerSphere: [job.location.coordinates, globalRadiusRadians] }
-                    }
-                };
-
-                if (job.addressDetails?.city) {
-                    workerQuery.city = { $regex: new RegExp('^' + job.addressDetails.city + '$', 'i') };
-                }
-
-                const candidateWorkers = await Customer.find(workerQuery).select('_id services serviceRadius activeLocation');
-                
-                const targetJobCategory = (job.category || '').trim().toLowerCase();
-                const eligibleWorkerIds = candidateWorkers.filter(worker => {
-                    const hasMatchingCategory = (worker.services || []).some(svc => {
-                        if (!svc.isActive) return false;
-                        const catName = (svc.categoryName || svc.category?.name || '').toString().trim().toLowerCase();
-                        return catName === targetJobCategory;
-                    });
-                    if (!hasMatchingCategory) return false;
-
-                    const workerCoords = worker.activeLocation?.coordinates;
-                    if (!workerCoords || workerCoords.length !== 2) return false;
-                    const [wLng, wLat] = workerCoords;
-                    const workerRadiusKm = worker.serviceRadius || nextRoundConfig.maxKm;
-                    const [jobLng, jobLat] = job.location.coordinates;
-                    
-                    const R = 6371;
-                    const dLat = ((jobLat - wLat) * Math.PI) / 180;
-                    const dLng = ((jobLng - wLng) * Math.PI) / 180;
-                    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos((wLat * Math.PI) / 180) * Math.cos((jobLat * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-                    const distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-                    return distanceKm <= workerRadiusKm;
-                }).map(w => w._id.toString());
-
-                if (eligibleWorkerIds.length > 0) {
-                    const io = getIO();
-                    if (io) {
-                        eligibleWorkerIds.forEach(id => {
-                            io.to(`worker_${id}`).emit('NEW_JOB_ALERT', {
-                                jobId: job._id,
-                                category: job.category,
-                                subcategory: job.subcategory,
-                                distanceKm: nextRoundConfig.maxKm,
-                                isExpansion: true
-                            });
-                        });
-                    }
-                    logger.info(`[Cron] Emitted NEW_JOB_ALERT for ${job._id} to ${eligibleWorkerIds.length} expanded workers`);
-                }
-            } else {
-                // Exhausted all rounds. Auto-cancel to prevent infinite hanging.
-                logger.info(`[Cron] Job ${job._id} exhausted all broadcast rounds. Auto-cancelling.`);
-                job.status = 'CANCELLED';
-                await job.save();
-                emitToRoom(`customer_${job.customerId}`, 'JOB_STATUS_CHANGED', { jobId: job._id, status: 'CANCELLED', reason: 'No workers found' });
-            }
-        }
-    }
 };
 
 const sweepGhostQuotes = async () => {
