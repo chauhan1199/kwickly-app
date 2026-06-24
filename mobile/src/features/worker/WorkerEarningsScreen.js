@@ -67,18 +67,20 @@ const WorkerEarningsScreen = ({ navigation }) => {
     try {
       const [walletRes, profileRes, settingsRes] = await Promise.all([
         walletService.getWallet(),
-        workerService.getWorkerProfile(),
+        workerService.getProfile(),
         api.get('/settings/public').catch(() => null)
       ]);
       
       if (settingsRes?.data?.status === 'success') {
         const plansData = settingsRes.data.data.subscriptionPlans || [];
-        const formatted = plansData.map(p => ({
-          id: p.id || p.label,
-          title: p.label || p.name,
-          sub: p.durationDays ? `${p.durationDays} days` : 'Custom duration',
-          price: `₹${p.price || 0}`
-        }));
+        const formatted = plansData
+          .filter(p => !p.targetRole || p.targetRole === 'WORKER')
+          .map(p => ({
+            id: p.id || p.label,
+            title: p.label || p.name,
+            sub: p.durationDays ? `${p.durationDays} days` : 'Custom duration',
+            price: `₹${p.price || 0}`
+          }));
         const tlist = walletRes.data.data.transactions || [];
         const mappedTxns = tlist.map(t => ({
           id: t._id,

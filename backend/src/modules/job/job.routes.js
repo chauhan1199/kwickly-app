@@ -28,4 +28,7 @@ router.get('/disputes', authorize('ADMIN'), jobController.getDisputes);
 router.patch('/:id/cancel', authorize('ADMIN', 'CUSTOMER'), jobController.cancelJob);
 router.patch('/:id/reassign', authorize('ADMIN'), jobController.reassignWorker);
 
+// -- SHARED ROUTES --
+router.get('/:id/receipt', authorize('CUSTOMER', 'WORKER', 'ADMIN'), jobController.getJobReceipt);
+
 module.exports = router;

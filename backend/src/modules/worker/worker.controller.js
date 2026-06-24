@@ -6,7 +6,7 @@ const { COMMON } = require('../../constants/messages');
 
 exports.updateKyc = catchAsync(async (req, res) => {
     const { documentType } = req.body;
-    const user = await Customer.findById(req.user.id);
+    const user = await Customer.findById(req.user._id);
     
     if (req.file) {
         user.kyc.documents.push({
@@ -37,13 +37,13 @@ exports.updateProfile = catchAsync(async (req, res) => {
     }
 
     const user = await Customer.findByIdAndUpdate(
-        req.user.id,
+        req.user._id,
         { $set: updateData },
         { new: true }
     ).select('-password');
     
     const { delCache } = require('../../helpers/redis.helper');
-    await delCache(`session:${req.user.id}`);
+    await delCache(`session:${req.user._id}`);
     
     return successResponse(res, user, 'Profile updated successfully');
 });
@@ -55,7 +55,7 @@ exports.updateBank = catchAsync(async (req, res) => {
     if (upiId) updateData['wallet.upiId'] = upiId;
     
     const user = await Customer.findByIdAndUpdate(
-        req.user.id,
+        req.user._id,
         { $set: updateData },
         { new: true }
     );
@@ -65,7 +65,7 @@ exports.updateBank = catchAsync(async (req, res) => {
 exports.updateServices = catchAsync(async (req, res) => {
     const { services } = req.body;
     const user = await Customer.findByIdAndUpdate(
-        req.user.id,
+        req.user._id,
         { $set: { services } },
         { new: true }
     );
@@ -85,7 +85,7 @@ exports.updateLocation = catchAsync(async (req, res) => {
     }
     
     const user = await Customer.findByIdAndUpdate(
-        req.user.id,
+        req.user._id,
         { $set: updateData },
         { new: true }
     );
@@ -102,7 +102,7 @@ exports.toggleOnlineStatus = catchAsync(async (req, res) => {
     }
 
     const user = await Customer.findByIdAndUpdate(
-        req.user.id,
+        req.user._id,
         { $set: { isOnline } },
         { new: true }
     );
@@ -124,7 +124,7 @@ exports.submitCategorySuggestion = catchAsync(async (req, res) => {
         name,
         type,
         parentCategory: type === 'SUBCATEGORY' ? parentCategory : undefined,
-        suggestedBy: req.user.id
+        suggestedBy: req.user._id
     });
     
     return successResponse(res, suggestion, 'Suggestion submitted successfully', StatusCodes.CREATED);
@@ -134,7 +134,7 @@ exports.submitCategorySuggestion = catchAsync(async (req, res) => {
 
 exports.addAddress = catchAsync(async (req, res) => {
     const { label, street, city, area, pincode, isPrimary, location } = req.body;
-    const user = await Customer.findById(req.user.id);
+    const user = await Customer.findById(req.user._id);
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
     const newAddress = { label, street, city, area, pincode, isPrimary: !!isPrimary };
@@ -162,7 +162,7 @@ exports.updateAddress = catchAsync(async (req, res) => {
     const { addressId } = req.params;
     const { label, street, city, area, pincode, location } = req.body;
     
-    const user = await Customer.findById(req.user.id);
+    const user = await Customer.findById(req.user._id);
     const address = user.addresses.id(addressId);
     if (!address) return errorResponse(res, 'Address not found', StatusCodes.NOT_FOUND);
 
@@ -188,7 +188,7 @@ exports.updateAddress = catchAsync(async (req, res) => {
 
 exports.deleteAddress = catchAsync(async (req, res) => {
     const { addressId } = req.params;
-    const user = await Customer.findById(req.user.id);
+    const user = await Customer.findById(req.user._id);
     
     const address = user.addresses.id(addressId);
     if (!address) return errorResponse(res, 'Address not found', StatusCodes.NOT_FOUND);
@@ -211,7 +211,7 @@ exports.deleteAddress = catchAsync(async (req, res) => {
 
 exports.setPrimaryAddress = catchAsync(async (req, res) => {
     const { addressId } = req.params;
-    const user = await Customer.findById(req.user.id);
+    const user = await Customer.findById(req.user._id);
     
     const address = user.addresses.id(addressId);
     if (!address) return errorResponse(res, 'Address not found', StatusCodes.NOT_FOUND);

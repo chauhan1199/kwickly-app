@@ -90,7 +90,7 @@ const WorkerProfileScreen = ({ navigation }) => {
 
   const fetchProfile = async () => {
     try {
-      const res = await workerService.getWorkerProfile();
+      const res = await workerService.getProfile();
       const userData = res.data.data;
       setProfile(userData);
       setEditName(userData?.name || '');

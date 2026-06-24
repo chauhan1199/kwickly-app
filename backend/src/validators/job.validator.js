@@ -11,7 +11,14 @@ const createJobSchema = Joi.object({
         type: Joi.string().valid('Point').default('Point'),
         coordinates: Joi.array().items(Joi.number()).length(2).required() // [longitude, latitude]
     }).optional(),
-    addressDetails: Joi.string().max(255).optional()
+    addressDetails: Joi.alternatives().try(
+        Joi.string().max(500),
+        Joi.object({
+            city: Joi.string().allow(''),
+            fullAddress: Joi.string().allow('')
+        })
+    ).optional(),
+    city: Joi.string().optional()
 });
 
 module.exports = {

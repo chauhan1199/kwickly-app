@@ -16,6 +16,7 @@ const connectDB = require('./config/db');
 const { initRedis } = require('./helpers/redis.helper');
 const { initSocket } = require('./helpers/socket.helper');
 const { initSocketHandlers } = require('./sockets');
+const { startCronEngine } = require('./workers/cronEngine');
 const logger = require('./helpers/logger.helper');
 
 const PORT = process.env.PORT || 5000;
@@ -39,6 +40,9 @@ const startServer = async () => {
         if (process.env.NODE_ENV !== 'production') {
             await seedData();
         }
+
+        // Start Background Cron Engine
+        startCronEngine();
 
         server.listen(PORT, () => {
             logger.info(`✅ Kwickly server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);

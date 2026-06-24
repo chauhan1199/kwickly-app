@@ -5,7 +5,7 @@ const { successResponse } = require('../../helpers/response.helper');
 
 exports.getChatHistory = catchAsync(async (req, res) => {
     const { partnerId, jobId } = req.query;
-    const userId = req.user.id;
+    const userId = req.user._id;
     
     let query = {};
     if (jobId) {
@@ -35,7 +35,7 @@ exports.sendMessage = catchAsync(async (req, res) => {
     const { receiverId, jobId, text, mediaUrl } = req.body;
     
     const message = await Message.create({
-        senderId: req.user.id,
+        senderId: req.user._id,
         receiverId,
         jobId,
         text,

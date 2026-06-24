@@ -13,17 +13,10 @@ const CACHE_KEY = 'app_settings';
 const flattenSettings = (s) => ({
     feeAmount: s.fees?.amount || 0,
     feeType: s.fees?.type || 'flat',
-    qrExpiry: s.paymentMethods?.qrExpiry || 30,
-    cashEnabled: s.paymentMethods?.cashEnabled ?? true,
+    gstPercentage: s.fees?.gstPercentage || 18,
     walletMinimum: s.wallet?.minimumBalance || 100,
     topupPresets: (s.wallet?.topupPresets || [50, 100, 200, 500]).join(','),
-    trialDays: s.trialDurationDays || 90,
     maxRadius: s.radius?.maxKm || 15,
-    radiusRound1Wait: s.radius?.rounds?.[0]?.waitMinutes || 5,
-    radiusRound2Wait: s.radius?.rounds?.[1]?.waitMinutes || 10,
-    otpValidity: s.otp?.validityMinutes || 10,
-    otpMaxAttempts: s.otp?.maxAttempts || 5,
-    otpResendCooldown: s.otp?.resendCooldownSeconds || 60,
     maintenanceMode: s.maintenance?.mode || false,
     maintenanceMsg: s.maintenance?.message || '',
     appName: s.branding?.appName || 'Kwickly',
@@ -43,17 +36,10 @@ const mapFlatToNested = (body) => {
     const mapping = {
         feeAmount: 'fees.amount',
         feeType: 'fees.type',
-        qrExpiry: 'paymentMethods.qrExpiry',
-        cashEnabled: 'paymentMethods.cashEnabled',
+        gstPercentage: 'fees.gstPercentage',
         walletMinimum: 'wallet.minimumBalance',
         topupPresets: 'wallet.topupPresets',
-        trialDays: 'trialDurationDays',
         maxRadius: 'radius.maxKm',
-        radiusRound1Wait: 'radius.rounds.0.waitMinutes',
-        radiusRound2Wait: 'radius.rounds.1.waitMinutes',
-        otpValidity: 'otp.validityMinutes',
-        otpMaxAttempts: 'otp.maxAttempts',
-        otpResendCooldown: 'otp.resendCooldownSeconds',
         maintenanceMode: 'maintenance.mode',
         maintenanceMsg: 'maintenance.message',
         appName: 'branding.appName',
@@ -65,12 +51,10 @@ const mapFlatToNested = (body) => {
     };
 
     const numericFields = [
-        'feeAmount', 'qrExpiry', 'walletMinimum', 'trialDays',
-        'monthlyPlan', 'semiPlan', 'annualPlan', 'maxRadius',
-        'radiusRound1Wait', 'radiusRound2Wait', 'otpValidity',
-        'otpMaxAttempts', 'otpResendCooldown'
+        'feeAmount', 'gstPercentage', 'walletMinimum',
+        'monthlyPlan', 'semiPlan', 'annualPlan', 'maxRadius'
     ];
-    const booleanFields = ['cashEnabled', 'maintenanceMode'];
+    const booleanFields = ['maintenanceMode'];
 
     Object.keys(body).forEach(key => {
         let val = body[key];
@@ -123,7 +107,6 @@ exports.getPublicSettings = catchAsync(async (req, res) => {
 
     const publicSettings = {
         subscriptionPlans: settings.subscriptionPlans || [],
-        trialDays: settings.trialDurationDays || 90,
         maintenanceMode: settings.maintenance?.mode || false,
         maintenanceMsg: settings.maintenance?.message || '',
         appName: settings.branding?.appName || 'Kwickly',

@@ -9,7 +9,7 @@ import EmptyState from '../../components/EmptyState'
 import { TextInput, FormRow } from '../../components/FormInput'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
-import { Search, RefreshCw, Eye, Ban, Users, Copy } from 'lucide-react'
+import { Search, RefreshCw, Eye, Ban, Users, Copy, FileText } from 'lucide-react'
 
 const PAGE_SIZE = 15
 const STATUS_VARIANT = {
@@ -328,6 +328,11 @@ export default function Jobs() {
                   {fd.worker !== '—' && ['ALLOCATED', 'IN_PROGRESS'].includes(fd.status) && (
                     <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { setReassignModal(fd); setSelectedWorker(''); setDetail(null) }}>
                       <Users size={14} /> Reassign
+                    </button>
+                  )}
+                  {['COMPLETED', 'PAID', 'CLOSED'].includes(fd.status) && (
+                    <button className="btn-secondary" style={{ flex: 1 }} onClick={() => window.open(`/receipt/${fd._id}`, '_blank')}>
+                      <FileText size={14} /> View Receipt
                     </button>
                   )}
                   {['BROADCASTING', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'].includes(fd.status) && (

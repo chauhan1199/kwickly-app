@@ -11,7 +11,8 @@ import {
   Modal,
   ActivityIndicator,
   Image,
-  Alert
+  Alert,
+  ImageBackground
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Button from '../../components/ui/Button';
@@ -20,6 +21,7 @@ import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import { Camera, Image as ImageIcon, XCircle, UploadCloud, Video, X } from 'lucide-react-native';
 
 const DescribeJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -69,6 +71,12 @@ const DescribeJobScreen = ({ route, navigation }) => {
     if (!result.didCancel && result.assets?.length > 0) {
       setMedia([...media, result.assets[0].uri]);
     }
+  };
+
+  const handleRemoveMedia = (index) => {
+    const newMedia = [...media];
+    newMedia.splice(index, 1);
+    setMedia(newMedia);
   };
 
   const handlePickMap = () => {
@@ -172,16 +180,26 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
         {/* Photos / Video */}
         <Text style={styles.label}>Add photos / video</Text>
-        <View style={styles.mediaGrid}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaGrid}>
           {media.map((uri, index) => (
-             <Image key={index} source={{ uri }} style={styles.mediaTileFilled} />
+             <View key={index} style={styles.mediaTileFilled}>
+               <Image source={{ uri }} style={{ width: '100%', height: '100%', borderRadius: 12 }} />
+               <TouchableOpacity 
+                 style={styles.deleteMediaBtn}
+                 onPress={() => handleRemoveMedia(index)}
+               >
+                 <X size={14} color="#fff" />
+               </TouchableOpacity>
+             </View>
           ))}
           {media.length < 3 && (
             <TouchableOpacity style={styles.mediaTileEmpty} onPress={handlePickMedia}>
-              <Text style={{fontSize: 24, color: theme.colors.textDim}}>+</Text>
+              <UploadCloud size={28} color={theme.colors.primary} style={{ marginBottom: 4 }} />
+              <Text style={{fontSize: 12, color: theme.colors.textDim, fontWeight: '600'}}>Upload</Text>
+              <Text style={{fontSize: 10, color: theme.colors.textDim}}>Max 3</Text>
             </TouchableOpacity>
           )}
-        </View>
+        </ScrollView>
 
         {/* Service Address */}
         <Text style={styles.label}>Service address</Text>
@@ -383,15 +401,25 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 14,
   },
   mediaTileFilled: {
-    flex: 1,
-    aspectRatio: 1,
+    width: 80,
+    height: 80,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 10,
+    position: 'relative'
+  },
+  deleteMediaBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 12,
+    padding: 4,
   },
   mediaTileEmpty: {
-    flex: 1,
-    aspectRatio: 1,
+    width: 80,
+    height: 80,
     borderRadius: 12,
     borderWidth: 1,
     borderStyle: 'dashed',
@@ -399,6 +427,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 10,
   },
   addressChipsScroll: {
     flexDirection: 'row',

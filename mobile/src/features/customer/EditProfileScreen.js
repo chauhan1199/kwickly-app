@@ -83,18 +83,22 @@ const EditProfileScreen = ({ navigation }) => {
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('name', name);
-      if (email) formData.append('email', email);
       if (imageFile) {
+        const formData = new FormData();
+        formData.append('name', name);
+        if (email) formData.append('email', email);
         formData.append('profileImage', imageFile);
+        await customerService.updateProfilePhoto(formData);
+      } else {
+        const payload = { name };
+        if (email) payload.email = email;
+        await customerService.updateProfile(payload);
       }
-      await customerService.updateProfile(formData);
       await fetchUser();
       navigation.goBack();
     } catch (error) {
-      console.log('Update profile error:', error);
-      Alert.alert('Error', 'Failed to update profile');
+      console.log('Update profile error:', error?.response?.data || error);
+      Alert.alert('Error', JSON.stringify(error?.response?.data || error.message));
     } finally {
       setIsLoading(false);
     }

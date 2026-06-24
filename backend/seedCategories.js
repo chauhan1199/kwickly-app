@@ -5,6 +5,8 @@ const categories = [
     {
         name: 'Home Services', icon: '🏠', color: '#2563EB', description: 'AC, appliance repair, electrical, plumbing services.', active: true,
         subcategories: [
+            { name: 'Plumber', minPrice: 299, platformFee: 60, suggestedMax: 1000, active: true },
+            { name: 'Electrician', minPrice: 299, platformFee: 60, suggestedMax: 1000, active: true },
             { name: 'AC Services', minPrice: 499, platformFee: 100, suggestedMax: 2000, active: true },
             { name: 'AC Installation', minPrice: 999, platformFee: 200, suggestedMax: 3000, active: true },
             { name: 'AC Uninstallation', minPrice: 599, platformFee: 120, suggestedMax: 1500, active: true },

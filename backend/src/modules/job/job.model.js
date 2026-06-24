@@ -21,15 +21,25 @@ const JobSchema = new mongoose.Schema({
         type: { type: String, default: 'Point' },
         coordinates: { type: [Number], required: true }
     },
-    addressDetails: { type: String },
+    addressDetails: {
+        city: { type: String },
+        fullAddress: { type: String }
+    },
+
+    broadcast: {
+        round: { type: Number, default: 0 },
+        lastAttemptAt: { type: Date, default: Date.now },
+        radiusKm: { type: Number, default: 0 }
+    },
 
     // NOTE: Quotes are stored in the separate Quote collection (normalized).
     // Embedded quotes array removed to eliminate data duplication.
 
     payment: {
-        amount:           { type: Number },
-        platformFee:      { type: Number },
-        workerPayout:     { type: Number },
+        amount:           { type: Number }, // The total amount paid by customer (workerPayout + platformFee + gst)
+        platformFee:      { type: Number }, // Admin revenue
+        gst:              { type: Number }, // GST collected on platform fee
+        workerPayout:     { type: Number }, // Exact amount worker quoted
         status:           { type: String, enum: ['PENDING', 'PAID', 'REFUNDED'], default: 'PENDING' },
         razorpayOrderId:  { type: String },
         razorpayPaymentId:{ type: String }

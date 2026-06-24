@@ -133,6 +133,15 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
         .sort('amount')
         .lean();
 
+    // Fetch Global Settings for fee calculation
+    let settings = await getCache('app_settings');
+    if (!settings) {
+        const AppSettings = require('../settings/settings.model');
+        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+        if (settings) await setCache('app_settings', settings, 600);
+    }
+    const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
+
     const jobLat = job.location?.coordinates?.[1];
     const jobLon = job.location?.coordinates?.[0];
 
@@ -149,7 +158,24 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
                       Math.cos(jobLat * Math.PI/180) * Math.cos(wLat * Math.PI/180) * Math.sin(dLon/2)**2;
             distanceKm = +(6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2);
         }
-        return { ...quote, distanceKm };
+
+        // --- NEW PRICING MODEL ---
+        // Worker quote is their exact payout. Platform fee and GST added on top.
+        const workerPayout = quote.amount;
+        const platformFee = feeConfig.type === 'percent'
+            ? (workerPayout * (feeConfig.amount || 10)) / 100
+            : (feeConfig.amount || 50);
+        
+        const gst = (platformFee * (feeConfig.gstPercentage || 18)) / 100;
+        const customerPayable = workerPayout + platformFee + gst;
+
+        return { 
+            ...quote, 
+            distanceKm, 
+            platformFee, 
+            gst, 
+            customerPayable 
+        };
     });
 
     return successResponse(res, quotes, 'Quotes fetched');
@@ -184,36 +210,91 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
     }
 
-    // P0 FIX: Atomic job update with status guard — prevents double-acceptance race condition
+    // P0 FIX: Atomic job update with status guard AND Quote Updates inside a single Transaction
     const arrivalOtp    = Math.floor(1000 + Math.random() * 9000).toString();
     const completionOtp = Math.floor(1000 + Math.random() * 9000).toString();
 
-    const updatedJob = await Job.findOneAndUpdate(
-        {
-            _id: job._id,
-            status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED'] } // Guard: only accept if not already allocated
-        },
-        {
-            workerId:                    quote.workerId,
-            status:                      'ALLOCATED',
-            'security.arrivalOtp':       arrivalOtp,
-            'security.completionOtp':    completionOtp,
-            'payment.amount':            quote.amount
-        },
-        { new: true }
-    );
-
-    if (!updatedJob) {
-        return errorResponse(res, 'This job has already been assigned to another worker', StatusCodes.CONFLICT);
+    // Calculate final pricing model 
+    const { getCache, setCache } = require('../../helpers/redis.helper');
+    let settings = await getCache('app_settings');
+    if (!settings) {
+        const AppSettings = require('../settings/settings.model');
+        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+        if (settings) await setCache('app_settings', settings, 600);
     }
+    const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
+    
+    const workerPayout = quote.amount;
+    const platformFee = feeConfig.type === 'percent'
+        ? (workerPayout * (feeConfig.amount || 10)) / 100
+        : (feeConfig.amount || 50);
+    const gst = (platformFee * (feeConfig.gstPercentage || 18)) / 100;
+    const customerPayable = workerPayout + platformFee + gst;
 
-    // Mark quote accepted, reject all others
-    quote.status = 'ACCEPTED';
-    await quote.save();
-    await Quote.updateMany(
-        { jobId: job._id, _id: { $ne: quote._id }, status: 'PENDING' },
-        { status: 'REJECTED' }
-    );
+    const mongoose = require('mongoose');
+    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
+    const session = isSingle ? null : await mongoose.startSession();
+    if (session) session.startTransaction();
+
+    let updatedJob;
+    let rejectedQuotes = [];
+    try {
+        updatedJob = await Job.findOneAndUpdate(
+            {
+                _id: job._id,
+                status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED'] } // Guard: only accept if not already allocated
+            },
+            {
+                workerId:                    quote.workerId,
+                status:                      'ALLOCATED',
+                'security.arrivalOtp':       arrivalOtp,
+                'security.completionOtp':    completionOtp,
+                'payment.amount':            customerPayable,
+                'payment.workerPayout':      workerPayout,
+                'payment.platformFee':       platformFee,
+                'payment.gst':               gst
+            },
+            { new: true, session }
+        );
+
+        if (!updatedJob) {
+            if (session) await session.abortTransaction();
+            if (session) session.endSession();
+            return errorResponse(res, 'This job has already been assigned to another worker', StatusCodes.CONFLICT);
+        }
+
+        // Mark quote accepted, reject all others
+        quote.status = 'ACCEPTED';
+        await quote.save({ session });
+        
+        rejectedQuotes = await Quote.find({ jobId: job._id, _id: { $ne: quote._id }, status: 'PENDING' }).session(session);
+        
+        await Quote.updateMany(
+            { jobId: job._id, _id: { $ne: quote._id }, status: 'PENDING' },
+            { status: 'REJECTED' },
+            { session }
+        );
+
+        if (rejectedQuotes.length > 0) {
+            const Notification = require('../notification/notification.model');
+            const notificationsToInsert = rejectedQuotes.map(rq => ({
+                userId: rq.workerId,
+                title: 'Quote Rejected',
+                message: `Your quote for job #${String(job._id).slice(-6)} was not selected. The job has been allocated to another worker.`,
+                type: 'DIRECT',
+                action: 'OTHER'
+            }));
+            await Notification.insertMany(notificationsToInsert, { session });
+        }
+
+        if (session) await session.commitTransaction();
+        if (session) session.endSession();
+
+    } catch (error) {
+        if (session) await session.abortTransaction();
+        if (session) session.endSession();
+        throw error;
+    }
 
     // Notify assigned worker
     emitToRoom(`worker_${quote.workerId}`, 'QUOTE_ACCEPTED', {
@@ -223,8 +304,19 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         address:    updatedJob.addressDetails
     });
 
-    // Notify other workers in the job room
+    // Notify other workers in the job room (for UI state update)
     emitToRoom(`job_${job._id}`, 'JOB_TAKEN', { jobId: job._id });
+    
+    // Also trigger the unread notification badge for the rejected workers
+    if (rejectedQuotes && rejectedQuotes.length > 0) {
+        rejectedQuotes.forEach(rq => {
+            emitToRoom(`worker_${rq.workerId}`, 'NEW_NOTIFICATION', {
+                title: 'Quote Rejected',
+                message: `Your quote for job #${String(job._id).slice(-6)} was not selected.`
+            });
+        });
+    }
+
     emitToAll('DASHBOARD_UPDATE', { type: 'QUOTE_ACCEPTED', id: job._id });
 
     return successResponse(res, { job: updatedJob, quote }, 'Quote accepted, worker assigned');

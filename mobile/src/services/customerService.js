@@ -4,10 +4,13 @@ export const customerService = {
   getProfile: () =>
     api.get('/customers/me/profile'),
 
-  updateProfile: (data) =>
-    api.put('/customers/me/profile', data, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+  updateProfilePhoto: (formData) =>
+    api.put('/customers/me/profile', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
     }),
+
+  updateProfile: (data) =>
+    api.put('/customers/me/profile', data),
 
   deleteAccount: (password) =>
     api.delete('/customers/me/account', { data: { password } }),

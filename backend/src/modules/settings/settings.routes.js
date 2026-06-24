@@ -9,7 +9,9 @@ router.get('/public', settingsController.getPublicSettings);
 router.use(authMiddleware);
 router.use(authorize('ADMIN'));
 
+const { validateUpdateSettings } = require('../../validators/settings.validator');
+
 router.get('/', settingsController.getSettings);
-router.patch('/', settingsController.updateSettings);
+router.patch('/', validateUpdateSettings, settingsController.updateSettings);
 
 module.exports = router;

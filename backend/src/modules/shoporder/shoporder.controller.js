@@ -400,7 +400,9 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         // Calculate commission and shop earning
         const cfg = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
         const commissionPercent = cfg?.fees?.percentage ?? 10;
-        const commission = Math.round(order.total * commissionPercent / 100);
+        // P0 FIX: Commission strictly applied ONLY to the subtotal (product value) minus discount. Delivery fee is untouched.
+        const commissionableAmount = Math.max(0, order.subtotal - (order.discount || 0));
+        const commission = Math.round(commissionableAmount * commissionPercent / 100);
         const shopPayout = order.total - commission;
 
         // Create a PENDING settlement (admin reviews and settles later)
@@ -422,32 +424,47 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         order.payment.status = 'PAID';
         await order.save();
     } else if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
-        // Restore stock for all items
-        for (const item of order.items) {
-            if (item.productId) {
-                await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } });
+        const mongoose = require('mongoose');
+        const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
+        const session = isSingle ? null : await mongoose.startSession();
+        if (session) session.startTransaction();
+
+        try {
+            // Restore stock for all items
+            for (const item of order.items) {
+                if (item.productId) {
+                    await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } }, { session });
+                }
             }
-        }
 
-        // Refund to customer wallet if payment was already made
-        if (order.payment.status === 'PAID') {
-            const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {
-                $inc: { 'wallet.balance': order.total }
-            }, { new: true });
-            await WalletTxn.create({
-                userId: order.customerId,
-                type: 'REFUND',
-                amount: order.total,
-                balance: refundedCustomer?.wallet?.balance || 0,
-                refId: String(order._id),
-                status: 'COMPLETED',
-                description: `Refund for cancelled order #${String(order._id).slice(-6)}`
-            });
-            await delCache(`session:${order.customerId}`);
-        }
+            // Refund to customer wallet if payment was already made
+            if (order.payment.status === 'PAID') {
+                const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {
+                    $inc: { 'wallet.balance': order.total }
+                }, { new: true, session });
+                
+                await WalletTxn.create([{
+                    userId: order.customerId,
+                    type: 'REFUND',
+                    amount: order.total,
+                    balance: refundedCustomer?.wallet?.balance || 0,
+                    refId: String(order._id),
+                    status: 'COMPLETED',
+                    description: `Refund for cancelled order #${String(order._id).slice(-6)}`
+                }], { session });
+                await delCache(`session:${order.customerId}`);
+            }
 
-        order.status = status;
-        await order.save();
+            order.status = status;
+            await order.save({ session });
+
+            if (session) await session.commitTransaction();
+            if (session) session.endSession();
+        } catch (error) {
+            if (session) await session.abortTransaction();
+            if (session) session.endSession();
+            throw error;
+        }
     } else {
         order.status = status;
         await order.save();

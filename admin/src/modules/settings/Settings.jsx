@@ -52,7 +52,6 @@ export default function Settings() {
     { key: 'fees', label: '💰 Fees & Payments' },
     { key: 'wallet', label: '👛 Wallet Config' },
     { key: 'radius', label: '📍 Search Radius' },
-    { key: 'otp', label: '🔐 Security (OTP)' },
     { key: 'branding', label: '🏷️ Branding' },
     { key: 'maintenance', label: '🛠 Maintenance' },
   ]
@@ -117,7 +116,7 @@ export default function Settings() {
         {activeTab === 'fees' && (
           <div>
             <div className="settings-section-title">Platform Commission</div>
-            <div className="grid-2" style={{ marginBottom: 20 }}>
+            <div className="grid-3" style={{ marginBottom: 20 }}>
               <div className="form-group">
                 <label className="form-label">Fee Type</label>
                 <select className="form-control" value={settings.feeType} onChange={e => set('feeType', e.target.value)}>
@@ -129,30 +128,16 @@ export default function Settings() {
                 <label className="form-label">Fee Amount {settings.feeType === 'flat' ? '(₹)' : '(%)'}</label>
                 <input type="number" className="form-control" value={settings.feeAmount} onChange={e => set('feeAmount', e.target.value)} min="0" />
               </div>
+              <div className="form-group">
+                <label className="form-label">GST Percentage (%)</label>
+                <input type="number" className="form-control" value={settings.gstPercentage || 18} onChange={e => set('gstPercentage', e.target.value)} min="0" />
+              </div>
             </div>
 
             <div className="alert alert-info">
-              ℹ️ When a customer pays ₹350 for a job, the platform deducts ₹{settings.feeAmount} as commission and ₹{350 - Number(settings.feeAmount)} is transferred to the worker.
+              ℹ️ When a worker quotes ₹500, the platform adds ₹{settings.feeAmount} {settings.feeType === 'percent' ? `(${settings.feeAmount}%)` : ''} as commission + {settings.gstPercentage || 18}% GST on top. The customer will pay the total amount.
             </div>
 
-            <div className="settings-section-title" style={{ marginTop: 24 }}>Payment Options</div>
-            <div className="settings-row">
-              <div>
-                <div className="settings-label">QR Code Expiry</div>
-                <div className="settings-hint">Time in minutes before the Razorpay QR code expires</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="number" className="form-control" style={{ width: 80 }} value={settings.qrExpiry} onChange={e => set('qrExpiry', e.target.value)} />
-                <span style={{ fontSize: 12, color: 'var(--mid)' }}>min</span>
-              </div>
-            </div>
-            <div className="settings-row">
-              <div>
-                <div className="settings-label">Cash Payments</div>
-                <div className="settings-hint">Allow customers to pay with cash at the time of service</div>
-              </div>
-              <button className={`toggle ${settings.cashEnabled ? 'on' : ''}`} onClick={() => set('cashEnabled', !settings.cashEnabled)} />
-            </div>
           </div>
         )}
 
@@ -184,22 +169,6 @@ export default function Settings() {
                 placeholder="50,100,200,500"
               />
             </div>
-
-            <div className="settings-section-title" style={{ marginTop: 24 }}>Free Trial</div>
-            <div className="settings-row">
-              <div>
-                <div className="settings-label">Trial Duration</div>
-                <div className="settings-hint">Number of free days for newly registered workers</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="number" className="form-control" style={{ width: 80 }} value={settings.trialDays} onChange={e => set('trialDays', e.target.value)} />
-                <span style={{ fontSize: 12, color: 'var(--mid)' }}>days</span>
-              </div>
-            </div>
-
-            <div className="alert alert-info" style={{ marginTop: 16 }}>
-              ℹ️ Workers in their free trial period are exempt from the wallet minimum requirement. Subscription plan pricing and features are managed in the dedicated Subscriptions module.
-            </div>
           </div>
         )}
 
@@ -222,59 +191,6 @@ export default function Settings() {
               </div>
             </div>
 
-            <div style={{ marginTop: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Broadcast Rounds</div>
-              {[
-                { round: 1, range: '0 – 5 km', wait: settings.radiusRound1Wait, key: 'radiusRound1Wait' },
-                { round: 2, range: '5 – 10 km', wait: settings.radiusRound2Wait, key: 'radiusRound2Wait' },
-                { round: 3, range: '10 – 15 km', wait: '—', key: null },
-              ].map((r, i) => (
-                <div key={i} className="card" style={{ padding: 16, marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: 'var(--primary)', flexShrink: 0 }}>
-                      {r.round}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700 }}>Round {r.round}</div>
-                      <div style={{ fontSize: 12, color: 'var(--mid)', fontFamily: 'var(--font-body)' }}>Broadcast to workers within {r.range}</div>
-                    </div>
-                    {r.key ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 12, color: 'var(--mid)' }}>Wait</span>
-                        <input type="number" className="form-control" style={{ width: 60 }} value={settings[r.key]} onChange={e => set(r.key, e.target.value)} />
-                        <span style={{ fontSize: 12, color: 'var(--mid)' }}>min</span>
-                      </div>
-                    ) : (
-                      <span className="badge badge-primary">Final Round</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* OTP */}
-        {activeTab === 'otp' && (
-          <div>
-            <div className="settings-section-title">OTP Configuration (Login & Verification)</div>
-            <div className="grid-2" style={{ marginBottom: 20 }}>
-              <div className="form-group">
-                <label className="form-label">OTP Validity Duration (minutes)</label>
-                <input type="number" className="form-control" value={settings.otpValidity} onChange={e => set('otpValidity', e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Maximum Attempts Allowed</label>
-                <input type="number" className="form-control" value={settings.otpMaxAttempts} onChange={e => set('otpMaxAttempts', e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Resend Cooldown (seconds)</label>
-                <input type="number" className="form-control" value={settings.otpResendCooldown} onChange={e => set('otpResendCooldown', e.target.value)} />
-              </div>
-            </div>
-            <div className="alert alert-info">
-              ℹ️ OTPs are sent via SMS and WhatsApp. These settings apply to both login OTPs and Arrival/Completion verification OTPs.
-            </div>
           </div>
         )}
 

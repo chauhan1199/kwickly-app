@@ -6,6 +6,7 @@ import Dashboard      from './modules/dashboard/Dashboard'
 import Users          from './modules/users/Users'
 import Workers        from './modules/workers/Workers'
 import Jobs           from './modules/jobs/Jobs'
+import JobReceipt     from './modules/jobs/JobReceipt'
 import KYC            from './modules/kyc/KYC'
 import Settings       from './modules/settings/Settings'
 import Categories     from './modules/categories/Categories'
@@ -42,6 +43,9 @@ function App() {
       <Routes>
         <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} />
         
+        {/* Printable Receipt Route - No Layout */}
+        <Route path="/receipt/:id" element={<JobReceipt />} />
+
         <Route element={authed ? <AppLayout onLogout={handleLogout} /> : <Navigate to="/login" replace />}>
           {/* Platform */}
           <Route index               element={<Dashboard />} />

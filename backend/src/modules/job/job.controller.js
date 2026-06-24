@@ -32,11 +32,34 @@ exports.createJob = catchAsync(async (req, res) => {
         addressDetails
     } = req.body;
 
+    // Extract city if provided
+    let targetCity = req.body.city;
+    if (!targetCity && typeof addressDetails === 'object' && addressDetails.city) {
+        targetCity = addressDetails.city;
+    }
+
     // Validate coordinates are present
     if (!location?.coordinates || location.coordinates.length !== 2) {
         return errorResponse(res, 'Job location coordinates are required', StatusCodes.BAD_REQUEST);
     }
 
+    // ── Step 1: Load platform settings (Redis cached, 10 min TTL) ──────────────
+    let settings = await getCache('app_settings');
+    if (!settings) {
+        const AppSettings = require('../settings/settings.model');
+        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+        if (settings) await setCache('app_settings', settings, 600);
+    }
+
+    if (settings?.maintenance?.mode) {
+        const msg = settings.maintenance.message || 'The platform is currently undergoing maintenance. Please try again later.';
+        return errorResponse(res, msg, StatusCodes.SERVICE_UNAVAILABLE);
+    }
+    const minBalance     = settings?.wallet?.minimumBalance || 100;
+    
+    // Initial radius is the first round or maxKm
+    const initialRadiusKm = settings?.radius?.rounds?.[0]?.maxKm || settings?.radius?.maxKm || 15;
+    
     // Create the job
     const job = await Job.create({
         customerId: req.user._id,
@@ -47,60 +70,49 @@ exports.createJob = catchAsync(async (req, res) => {
         preferredDate,
         timeSlot,
         location,
-        addressDetails,
+        addressDetails: typeof addressDetails === 'string' 
+            ? { fullAddress: addressDetails, city: targetCity } 
+            : { ...addressDetails, city: targetCity },
         status: 'BROADCASTING',
-        payment: { amount: 0, status: 'PENDING' }
+        payment: { amount: 0, status: 'PENDING' },
+        broadcast: { round: 0, lastAttemptAt: new Date(), radiusKm: initialRadiusKm }
     });
 
-    // ── Step 1: Load platform settings (Redis cached, 10 min TTL) ──────────────
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
-    const minBalance     = settings?.wallet?.minimumBalance || 100;
-    const globalMaxKm   = settings?.radius?.maxKm || 15;
     const now           = new Date();
     const [jobLng, jobLat] = location.coordinates;  // GeoJSON: [longitude, latitude]
 
     // ── Step 2: Find ALL eligible workers using server-side criteria ────────────
-    //
-    // We use a single optimised MongoDB query with:
-    //  - role + isVerified + kyc.status  (compound index hits)
-    //  - isOnline                         (must be active)
-    //  - subscription valid               ($or trial / expiry)
-    //  - wallet.balance >= minBalance     (enough balance to bid)
-    //  - services.category name matches   (category filter)
-    //  - activeLocation $geoWithin        (within EACH worker's OWN serviceRadius)
-    //
-    // NOTE: MongoDB $geoWithin $centerSphere uses the GLOBAL maxKm as an outer
-    // bounding box first (fast index scan), then we filter per-worker radius
-    // in JavaScript below. This two-step avoids a slow full-collection scan.
 
-    const globalRadiusRadians = globalMaxKm / 6371; // Earth radius 6371 km
+    const globalRadiusRadians = initialRadiusKm / 6371; // Earth radius 6371 km
 
-    // Fetch candidate workers within global max radius (coarse filter via index)
-    const candidateWorkers = await Customer.find({
+    const workerQuery = {
         role:        'WORKER',
         isVerified:  true,
         'kyc.status': 'APPROVED',
         isOnline:    true,
         $or: [
             { 'subscription.isTrial': true },
-            { 'subscription.expiryDate': { $gt: now } }
+            { 'subscription.expiryDate': { $gt: now } },
+            { createdAt: { $gt: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000) } }
         ],
         'wallet.balance': { $gte: minBalance },
         activeLocation: {
             $geoWithin: {
                 $centerSphere: [
                     location.coordinates,
-                    globalRadiusRadians     // outer bound: global max (e.g. 15 km)
+                    globalRadiusRadians     // outer bound: current radius
                 ]
             }
         }
-    })
-    .select('_id services serviceRadius activeLocation')
+    };
+
+    if (targetCity) {
+        workerQuery.city = { $regex: new RegExp('^' + targetCity + '$', 'i') }; // Case-insensitive exact match
+    }
+
+    // Fetch candidate workers within global max radius (coarse filter via index)
+    const candidateWorkers = await Customer.find(workerQuery)
+    .select('_id services serviceRadius activeLocation city')
     .lean();
 
     // ── Step 3: Fine-filter per worker — category match + own serviceRadius ─────
@@ -277,7 +289,11 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
                                  new Date(worker.subscription.trialEndDate) > now;
     const isPaidSubActive     = worker.subscription?.expiryDate &&
                                  new Date(worker.subscription.expiryDate) > now;
-    const isSubscriptionValid = isTrialActive || isPaidSubActive;
+
+    // Fallback: 180 days from registration
+    const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + 180 * 24 * 60 * 60 * 1000 > now.getTime();
+
+    const isSubscriptionValid = isTrialActive || isPaidSubActive || isFallbackTrialActive;
 
     if (!isSubscriptionValid) {
         return errorResponse(
@@ -335,7 +351,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
     const quotedJobIds = await Quote.distinct('jobId', { workerId: req.user._id });
 
     // ── Fetch active jobs matching worker's categories within their radius ──────
-    const jobs = await Job.find({
+    const query = {
         status:   { $in: ['BROADCASTING', 'QUOTES_RECEIVED'] },
         category: { $in: activeCategoryNames },        // Criteria 7: category match
         _id:      { $nin: quotedJobIds },               // Exclude already-quoted
@@ -344,7 +360,18 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
                 $centerSphere: [workerCoords, workerRadiusRadians]
             }
         }
-    })
+    };
+
+    if (worker.city) {
+        query.$or = [
+            { 'addressDetails.city': { $exists: false } },
+            { 'addressDetails.city': null },
+            { 'addressDetails.city': '' },
+            { 'addressDetails.city': { $regex: new RegExp('^' + worker.city + '$', 'i') } }
+        ];
+    }
+
+    const jobs = await Job.find(query)
     .populate('customerId', 'name phone profileImage')
     .sort('-createdAt')
     .limit(50)
@@ -443,18 +470,10 @@ exports.payJob = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid Completion OTP', StatusCodes.BAD_REQUEST);
     }
 
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
-    const feeConfig = settings?.fees || { fixedThreshold: 500, fixedAmount: 50, percentage: 10 };
-    const jobAmount = job.payment?.amount || 0;
-    const platformFee = jobAmount <= (feeConfig.fixedThreshold || 500)
-        ? (feeConfig.fixedAmount || 50)
-        : (jobAmount * (feeConfig.percentage || 10)) / 100;
-    const workerPayout = jobAmount - platformFee;
+    const platformFee = job.payment?.platformFee || 0;
+    const workerPayout = job.payment?.workerPayout || 0;
+    const gst = job.payment?.gst || 0;
+    const adminTotalRevenue = platformFee + gst;
 
     const mongoose = require('mongoose');
     const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
@@ -468,25 +487,25 @@ exports.payJob = catchAsync(async (req, res) => {
             if (method === 'CASH') {
                 // Worker got cash — Kwickly deducts commission from worker wallet
                 const updated = await Customer.findOneAndUpdate(
-                    { _id: worker._id, 'wallet.balance': { $gte: platformFee } },
-                    { $inc: { 'wallet.balance': -platformFee } },
+                    { _id: worker._id, 'wallet.balance': { $gte: adminTotalRevenue } },
+                    { $inc: { 'wallet.balance': -adminTotalRevenue } },
                     { new: true, session }
                 );
                 if (!updated) {
                     // If worker doesn't have enough, create a debt record
-                    const debtUpdated = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': -platformFee } }, { new: true, session });
+                    const debtUpdated = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': -adminTotalRevenue } }, { new: true, session });
                     await WalletTxn.create([{
-                        userId: worker._id, type: 'JOB_DEBIT', amount: platformFee,
+                        userId: worker._id, type: 'JOB_DEBIT', amount: adminTotalRevenue,
                         balance: debtUpdated?.wallet?.balance || 0,
                         refId: job._id.toString(), status: 'COMPLETED',
-                        description: `Platform fee for cash job #${job._id.toString().slice(-6)}`
+                        description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
                     }], { session });
                 } else {
                     await WalletTxn.create([{
-                        userId: worker._id, type: 'JOB_DEBIT', amount: platformFee,
+                        userId: worker._id, type: 'JOB_DEBIT', amount: adminTotalRevenue,
                         balance: updated.wallet.balance,
                         refId: job._id.toString(), status: 'COMPLETED',
-                        description: `Platform fee for cash job #${job._id.toString().slice(-6)}`
+                        description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
                     }], { session });
                 }
             } else {
@@ -502,8 +521,6 @@ exports.payJob = catchAsync(async (req, res) => {
 
         job.status = 'PAID';
         job.payment.status = 'PAID';
-        job.payment.platformFee = platformFee;
-        job.payment.workerPayout = workerPayout;
         await job.save({ session });
 
         if (session) await session.commitTransaction();
@@ -512,8 +529,8 @@ exports.payJob = catchAsync(async (req, res) => {
         try {
             const { collectPlatformFee } = require('../adminWallet/adminWallet.controller');
             await collectPlatformFee(
-                platformFee,
-                `Platform fee from job #${job._id.toString().slice(-6)} (${method})`,
+                adminTotalRevenue,
+                `Platform fee + GST from job #${job._id.toString().slice(-6)} (${method})`,
                 job._id,
                 'Job',
                 { workerId: job.workerId, customerId: job.customerId, method }
@@ -589,6 +606,63 @@ exports.reassignWorker = catchAsync(async (req, res) => {
 
     emitToAll('DASHBOARD_UPDATE', { type: 'WORKER_REASSIGNED', id: job._id });
     return successResponse(res, job, 'Worker reassigned successfully');
+});
+
+// ─── GET /api/v1/jobs/:id/receipt ─────────────────────────────────────────────
+exports.getJobReceipt = catchAsync(async (req, res) => {
+    const job = await Job.findById(req.params.id)
+        .populate('customerId', 'name phone email location')
+        .populate('workerId', 'name phone email kyc')
+        .lean();
+
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+
+    // Authorization check
+    if (
+        req.user.role === 'CUSTOMER' && String(job.customerId._id) !== String(req.user._id) ||
+        req.user.role === 'WORKER' && String(job.workerId?._id) !== String(req.user._id)
+    ) {
+        return errorResponse(res, 'Forbidden to view this receipt', StatusCodes.FORBIDDEN);
+    }
+
+    if (!['COMPLETED', 'PAID', 'CLOSED'].includes(job.status)) {
+        return errorResponse(res, 'Receipts are only available for completed or paid jobs', StatusCodes.BAD_REQUEST);
+    }
+
+    let settings = await getCache('app_settings');
+    if (!settings) {
+        const AppSettings = require('../settings/settings.model');
+        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+    }
+    const gstPercentage = settings?.fees?.gstPercentage || 18;
+
+    const receipt = {
+        invoiceId: `INV-${String(job._id).toUpperCase().slice(-8)}`,
+        date: job.payment?.status === 'PAID' ? job.updatedAt : job.completionDetails?.completedAt,
+        status: job.payment?.status || 'PENDING',
+        customer: {
+            name: job.customerId?.name,
+            phone: job.customerId?.phone,
+            address: job.addressDetails?.fullAddress
+        },
+        worker: {
+            name: job.workerId?.name,
+            phone: job.workerId?.phone
+        },
+        jobDetails: {
+            category: job.category,
+            description: job.description
+        },
+        breakdown: {
+            baseFare: job.payment?.workerPayout || 0,
+            platformFee: job.payment?.platformFee || 0,
+            gstPercentage: gstPercentage,
+            gstAmount: job.payment?.gst || 0,
+            totalAmount: job.payment?.amount || 0
+        }
+    };
+
+    return successResponse(res, receipt, 'Job receipt generated successfully');
 });
 
 // ─── GET /api/v1/jobs/disputes (Admin) ───────────────────────────────────────

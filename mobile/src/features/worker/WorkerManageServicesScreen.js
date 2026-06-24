@@ -31,6 +31,7 @@ const WorkerManageServicesScreen = ({ navigation }) => {
   
   const [allCategories, setAllCategories] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Subcategory Selection Modal State
   const [subCatModalVisible, setSubCatModalVisible] = useState(false);
@@ -51,7 +52,7 @@ const WorkerManageServicesScreen = ({ navigation }) => {
     try {
       setLoading(true);
       const [profileRes, catRes] = await Promise.all([
-        workerService.getWorkerProfile(),
+        workerService.getProfile(),
         jobService.getCategories()
       ]);
       const profileData = profileRes.data.data;
@@ -194,6 +195,13 @@ const WorkerManageServicesScreen = ({ navigation }) => {
     ? allCategories.find(c => c._id === (selectedCategoryForSubCats._id || selectedCategoryForSubCats)) 
     : null;
 
+  const filteredCategories = allCategories.filter(c => {
+    const query = searchQuery.toLowerCase();
+    if (c.name.toLowerCase().includes(query)) return true;
+    if (c.subcategories && c.subcategories.some(sub => sub.name.toLowerCase().includes(query))) return true;
+    return false;
+  });
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
@@ -299,14 +307,25 @@ const WorkerManageServicesScreen = ({ navigation }) => {
       {/* Add Category Modal */}
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { height: '85%', paddingBottom: 20 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Category</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}><X color={theme.colors.text} /></TouchableOpacity>
             </View>
             
-            <ScrollView style={{maxHeight: 400}}>
-              {allCategories && allCategories.length > 0 ? allCategories.map(c => (
+            <TextInput
+              style={{
+                borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, padding: 12, 
+                color: theme.colors.text, backgroundColor: theme.colors.background, marginBottom: 16
+              }}
+              placeholder="Search categories (e.g. Home, Salon...)"
+              placeholderTextColor={theme.colors.textDim}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+
+            <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false}>
+              {filteredCategories && filteredCategories.length > 0 ? filteredCategories.map(c => (
                 <TouchableOpacity 
                   key={c._id} 
                   style={styles.modalCatItem}
@@ -316,11 +335,13 @@ const WorkerManageServicesScreen = ({ navigation }) => {
                   <Plus size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
               )) : (
-                <Text style={{textAlign: 'center', color: theme.colors.textDim, padding: 20}}>No categories available</Text>
+                <Text style={{textAlign: 'center', color: theme.colors.textDim, padding: 20}}>
+                  {searchQuery ? `No categories found for "${searchQuery}"` : "No categories available"}
+                </Text>
               )}
               
               <TouchableOpacity 
-                style={[styles.addBtn, { marginTop: 24, paddingVertical: 12, borderColor: theme.colors.textDim }]} 
+                style={[styles.addBtn, { marginTop: 24, paddingVertical: 12, borderColor: theme.colors.textDim, marginBottom: 40 }]} 
                 onPress={() => { setModalVisible(false); setSuggestModalVisible(true); }}
               >
                 <Text style={[styles.addBtnText, { color: theme.colors.textDim, fontSize: 14 }]}>+ Suggest Missing Category</Text>

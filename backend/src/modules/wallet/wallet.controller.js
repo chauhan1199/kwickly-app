@@ -9,7 +9,7 @@ const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
-const { delCache, setCache } = require('../../helpers/redis.helper');
+const { getCache, delCache, setCache } = require('../../helpers/redis.helper');
 const mongoose = require('mongoose');
 
 /**
@@ -17,9 +17,18 @@ const mongoose = require('mongoose');
  * Returns { newBalance, entity } or throws if insufficient funds.
  */
 const atomicDeduct = async (userId, role, amount, session) => {
+    let settings = await getCache('app_settings');
+    if (!settings) {
+        const AppSettings = require('../settings/settings.model');
+        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+        if (settings) await setCache('app_settings', settings, 600);
+    }
+    const minBalance = settings?.wallet?.minimumBalance || 100;
+    const requiredTotal = amount + minBalance;
+
     if (role === 'SHOP') {
         const shop = await Shop.findOneAndUpdate(
-            { ownerId: userId, 'wallet.balance': { $gte: amount } },
+            { ownerId: userId, 'wallet.balance': { $gte: requiredTotal } },
             { $inc: { 'wallet.balance': -amount } },
             { new: true, session }
         );
@@ -27,7 +36,7 @@ const atomicDeduct = async (userId, role, amount, session) => {
         return { newBalance: shop.wallet.balance, entityId: shop._id };
     } else {
         const user = await Customer.findOneAndUpdate(
-            { _id: userId, 'wallet.balance': { $gte: amount } },
+            { _id: userId, 'wallet.balance': { $gte: requiredTotal } },
             { $inc: { 'wallet.balance': -amount } },
             { new: true, session }
         );
@@ -168,7 +177,7 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
         if (!result) {
             if (session) await session.abortTransaction();
             if (session) session.endSession();
-            return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
+            return errorResponse(res, 'Insufficient withdrawable balance. A minimum safety balance must be maintained in your wallet.', StatusCodes.PAYMENT_REQUIRED);
         }
 
         const txn = await WalletTxn.create([{
