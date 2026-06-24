@@ -146,7 +146,7 @@ const CustomerWalletScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <AppBar title="My Wallet" packageRoute="CustomerShopOrders" />
+      <AppBar title="My Wallet" packageRoute="CustomerShopOrders" showLogo={true} />
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

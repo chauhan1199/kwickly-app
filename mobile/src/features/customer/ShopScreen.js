@@ -7,12 +7,18 @@ import {
   ScrollView, 
   TouchableOpacity, 
   TextInput,
-  StatusBar
+  StatusBar,
+  Image,
+  Dimensions
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
+import api from '../../services/api';
+import BannerCarousel from '../../components/ui/BannerCarousel';
+import GlassCard from '../../components/ui/GlassCard';
+import LinearGradient from 'react-native-linear-gradient';
 import { ActivityIndicator } from 'react-native';
 
 
@@ -21,6 +27,7 @@ const ShopScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const [filter, setFilter] = useState('All');
   const [shops, setShops] = useState([]);
+  const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const chips = ['All', 'Groceries', 'Pharmacy', 'Dairy', 'Bakery'];
@@ -51,6 +58,16 @@ const ShopScreen = ({ navigation }) => {
         address: s.address || ''
       }));
       setShops(mappedShops);
+
+      // Fetch Banners for Shop Page
+      try {
+        const bannerRes = await api.get('/promotions/banners');
+        if (bannerRes.data?.status === 'success') {
+          setBanners(bannerRes.data.data.filter(b => b.position === 'SHOP_PAGE'));
+        }
+      } catch (err) {
+        console.log('Error fetching shop banners:', err);
+      }
     } catch (error) {
       console.log("Error fetching shops:", error);
       // Removed fallback to let it show empty state if error occurs
@@ -69,7 +86,8 @@ const ShopScreen = ({ navigation }) => {
       
       {/* App Bar */}
       <View style={styles.appBar}>
-        <View style={{ flex: 1, marginLeft: 8 }}>
+        <Image source={require('../../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 10, marginRight: 10 }} />
+        <View style={{ flex: 1 }}>
           <Text style={styles.appBarTitle} numberOfLines={1}>Nearby Shops</Text>
           <Text style={styles.appBarSub} numberOfLines={1}>Buy daily essentials</Text>
         </View>
@@ -95,8 +113,20 @@ const ShopScreen = ({ navigation }) => {
         />
       </View>
 
-      {/* Chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll} contentContainerStyle={{paddingHorizontal: 14}}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 40}}>
+        {/* Dynamic Banners */}
+        {banners.length > 0 && (
+          <BannerCarousel 
+            banners={banners} 
+            itemWidth={Dimensions.get('window').width - 28} 
+            itemHeight={140}
+            style={{ marginBottom: 16 }}
+            autoPlayInterval={4000}
+          />
+        )}
+
+        {/* Chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll} contentContainerStyle={{paddingHorizontal: 14}}>
         {chips.map((chip, index) => {
           const isActive = filter === chip;
           return (
@@ -111,20 +141,21 @@ const ShopScreen = ({ navigation }) => {
         })}
       </ScrollView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <View style={styles.content}>
         {loading ? (
           <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
         ) : filteredShops.length === 0 ? (
           <Text style={{ textAlign: 'center', marginTop: 40, color: theme.colors.textDim }}>No shops found.</Text>
         ) : filteredShops.map((shop) => (
-          <TouchableOpacity 
+          <GlassCard
             key={shop.id} 
             style={[styles.shopCard, !shop.isOnline && { opacity: 0.6 }]}
+            isDarkMode={isDarkMode}
             onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id })}
           >
             <View style={styles.shopRow}>
                <View style={[styles.shopIconBox, { backgroundColor: shop.color + '26' }]}>
-                 <Text style={{fontSize: 22}}>{shop.icon}</Text>
+                 <Text style={{fontSize: 26}}>{shop.icon}</Text>
                </View>
                <View style={{ flex: 1 }}>
                  <Text style={styles.shopName}>{shop.name}</Text>
@@ -133,12 +164,17 @@ const ShopScreen = ({ navigation }) => {
                  </Text>
                  <Text style={styles.shopSub}>Free delivery over ₹{shop.minFree}</Text>
                </View>
-               <Text style={styles.shopArrow}>›</Text>
+               <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                 <View style={styles.shopActionBtn}>
+                   <Text style={styles.shopActionText}>Visit</Text>
+                 </View>
+               </View>
             </View>
-          </TouchableOpacity>
+          </GlassCard>
         ))}
 
         <View style={{ height: 40 }} />
+      </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -157,7 +193,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingBottom: 14,
   },
   appBarTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: theme.colors.text,
   },
@@ -236,45 +272,80 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 14,
   },
   shopCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    marginBottom: 14,
+    padding: 16,
   },
   shopRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   shopIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 54,
+    height: 54,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
   },
   shopName: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '800',
     color: theme.colors.text,
     marginBottom: 4,
   },
   shopStats: {
-    fontSize: 12,
-    color: theme.colors.text,
-    marginBottom: 2,
-    fontWeight: '500',
+    fontSize: 13,
+    color: theme.colors.textDim,
+    marginBottom: 4,
+    fontWeight: '600',
   },
   shopSub: {
     fontSize: 11,
-    color: theme.colors.textDim,
-  },
-  shopArrow: {
-    fontSize: 24,
     color: theme.colors.primary,
-    marginLeft: 8,
+    fontWeight: '700',
+  },
+  shopActionBtn: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  shopActionText: {
+    color: '#001016',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  bannerImageContainer: {
+    width: Dimensions.get('window').width - 28,
+    height: 140,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginRight: 10,
+    position: 'relative',
+    backgroundColor: '#1a237e'
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  bannerOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    paddingTop: 24,
+  },
+  bannerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  bannerSubText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 11,
   }
 });
 

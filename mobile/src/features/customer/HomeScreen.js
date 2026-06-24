@@ -18,6 +18,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 import api from '../../services/api';
+import BannerCarousel from '../../components/ui/BannerCarousel';
 import LinearGradient from 'react-native-linear-gradient';
 
 const HomeScreen = ({ navigation }) => {
@@ -30,6 +31,17 @@ const HomeScreen = ({ navigation }) => {
   const [pastJobs, setPastJobs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [banners, setBanners] = useState([]);
+
+  const shopCategories = [
+    { id: 1, label: 'Groceries', icon: '🥬', color: '#10b981' },
+    { id: 2, label: 'Pharmacy', icon: '💊', color: '#ef4444' },
+    { id: 3, label: 'Dairy', icon: '🥛', color: '#3b82f6' },
+    { id: 4, label: 'Bakery', icon: '🍞', color: '#f5b300' },
+    { id: 5, label: 'Snacks', icon: '🍫', color: '#8b5cf6' },
+    { id: 6, label: 'Tools', icon: '🔧', color: '#64748b' },
+    { id: 7, label: 'Hardware', icon: '🔩', color: '#0ea5e9' },
+    { id: 8, label: 'Plumbing', icon: '🚰', color: '#06b6d4' },
+  ];
 
   useEffect(() => {
     fetchData();
@@ -56,7 +68,7 @@ const HomeScreen = ({ navigation }) => {
       try {
         const bannerRes = await api.get('/promotions/banners');
         if (bannerRes.data?.status === 'success') {
-          setBanners(bannerRes.data.data.filter(b => b.position === 'HOME_TOP'));
+          setBanners(bannerRes.data.data);
         }
       } catch (err) {
         console.log('Error fetching banners:', err);
@@ -139,6 +151,9 @@ const HomeScreen = ({ navigation }) => {
     fetchData();
   };
 
+  const topBanners = banners.filter(b => b.position === 'HOME_TOP');
+  const middleBanners = banners.filter(b => b.position === 'HOME_MIDDLE');
+
   const styles = createStyles(theme, isDarkMode);
 
   return (
@@ -147,13 +162,7 @@ const HomeScreen = ({ navigation }) => {
       
       {/* App Bar */}
       <View style={styles.appBar}>
-        <View style={styles.logoBox}>
-          <View style={styles.logoK}>
-            <View style={styles.logoLine1} />
-            <View style={styles.logoLine2} />
-            <View style={styles.logoLine3} />
-          </View>
-        </View>
+        <Image source={require('../../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 10, marginRight: 10 }} />
         <Text style={styles.appBarTitle} numberOfLines={1}>Kwickly</Text>
         <View style={{ flex: 1 }} />
         <TouchableOpacity onPress={toggleTheme} style={styles.iconBtn}>
@@ -170,21 +179,14 @@ const HomeScreen = ({ navigation }) => {
         contentContainerStyle={styles.content}
       >
         {/* Dynamic Banners */}
-        {banners.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-            {banners.map((banner, index) => (
-              <TouchableOpacity key={banner._id || index} style={styles.bannerImageContainer} onPress={() => {
-                if (banner.linkType === 'SHOP') navigation.navigate('Shop');
-                if (banner.linkType === 'CATEGORY') navigation.navigate('Book');
-              }}>
-                <Image source={{ uri: banner.imageUrl }} style={styles.bannerImage} />
-                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.bannerOverlay}>
-                  <Text style={styles.bannerTitle}>{banner.title}</Text>
-                  {banner.subtitle ? <Text style={styles.bannerSubText}>{banner.subtitle}</Text> : null}
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+        {topBanners.length > 0 ? (
+          <BannerCarousel 
+            banners={topBanners} 
+            itemWidth={Dimensions.get('window').width - 28} 
+            itemHeight={160}
+            style={{ marginBottom: 14 }}
+            autoPlayInterval={4000}
+          />
         ) : (
           <LinearGradient 
             colors={['#1a237e', '#283593', '#1565c0']} 
@@ -210,24 +212,28 @@ const HomeScreen = ({ navigation }) => {
           </LinearGradient>
         )}
 
-        {/* Shop Quick Link */}
-        <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('Shop')}>
-          <LinearGradient 
-            colors={['#0f2027', '#203a43', '#2c5364']}
-            start={{x: 0, y: 0}} 
-            end={{x: 1, y: 1}} 
-            style={styles.shopBanner}
-          >
-            <View style={styles.shopIconBox}>
-              <Text style={{fontSize: 22}}>🛒</Text>
-            </View>
-            <View style={{flex: 1}}>
-              <Text style={styles.shopTitle}>Shop Products & Services</Text>
-              <Text style={styles.shopSub}>LED bulbs, tools, plumbing & more</Text>
-            </View>
-            <Text style={styles.shopArrow}>→</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        {/* Browse Products */}
+        <View style={[styles.row, {justifyContent: 'space-between', marginTop: 12, marginBottom: 12}]}>
+          <Text style={styles.sectionTitle}>Browse Products</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Shop')}>
+            <Text style={styles.viewAllBtn}>View All ›</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.gridContainer}>
+          {shopCategories.map(cat => (
+            <TouchableOpacity 
+              key={cat.id} 
+              style={styles.gridItem} 
+              onPress={() => navigation.navigate('Shop')}
+            >
+              <View style={[styles.gridIconBox, { backgroundColor: cat.color + '2E' }]}>
+                <Text style={{fontSize: 22}}>{cat.icon}</Text>
+              </View>
+              <Text style={styles.gridLabel}>{cat.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         {/* Active Jobs */}
         <View style={styles.sectionHeader}>
@@ -376,8 +382,19 @@ const HomeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
+        {/* Middle Banners */}
+        {middleBanners.length > 0 && (
+          <BannerCarousel 
+            banners={middleBanners} 
+            itemWidth={Dimensions.get('window').width * 0.75} 
+            itemHeight={120}
+            style={{ marginBottom: 16 }}
+            autoPlayInterval={3500}
+          />
+        )}
+
         <View style={styles.gridContainer}>
-          {categories.map(cat => (
+          {categories.slice(0, 8).map(cat => (
             <TouchableOpacity 
               key={cat.id} 
               style={styles.gridItem} 
@@ -479,9 +496,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     transform: [{ rotate: '45deg' }, { translateX: 4 }, { translateY: 4 }],
   },
   appBarTitle: {
-    fontSize: 15,
+    fontSize: 24,
     fontWeight: '800',
-    color: theme.colors.primary,
+    color: theme.colors.text,
   },
   iconBtn: {
     width: 36,
@@ -540,6 +557,15 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginRight: 10,
     position: 'relative',
     backgroundColor: '#1a237e'
+  },
+  middleBannerContainer: {
+    width: Dimensions.get('window').width * 0.75,
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginRight: 10,
+    position: 'relative',
+    backgroundColor: '#0f2027'
   },
   bannerImage: {
     width: '100%',

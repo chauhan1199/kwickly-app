@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft, Bell, Moon, Sun, Package } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
@@ -11,7 +11,8 @@ const AppBar = ({
   onBackPress, 
   rightActions = true,
   onNotificationPress,
-  packageRoute
+  packageRoute,
+  showLogo = false
 }) => {
   const navigation = useNavigation();
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -33,6 +34,9 @@ const AppBar = ({
           <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9' }]} onPress={handleBack}>
             <ChevronLeft size={24} color={theme.colors.text} />
           </TouchableOpacity>
+        )}
+        {showLogo && !showBack && (
+          <Image source={require('../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 10, marginRight: 8 }} />
         )}
         <View style={{ marginLeft: showBack ? 12 : 4 }}>
           {title && (

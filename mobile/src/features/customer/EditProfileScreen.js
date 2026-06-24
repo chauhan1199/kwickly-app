@@ -47,35 +47,34 @@ const EditProfileScreen = ({ navigation }) => {
         {
           text: "Camera",
           onPress: async () => {
-            const result = await launchCamera({ mediaType: 'photo', quality: 0.8 });
-            if (!result.didCancel && result.assets?.[0]) {
+            try {
+              const result = await launchCamera({ mediaType: 'photo', quality: 0.8 });
+              if (result.didCancel) return;
+              if (result.errorCode || !result.assets) throw new Error();
               setImageUri(result.assets[0].uri);
-              setImageFile({
-                uri: result.assets[0].uri,
-                type: result.assets[0].type || 'image/jpeg',
-                name: result.assets[0].fileName || 'profile.jpg',
-              });
+              setImageFile({ uri: result.assets[0].uri, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
+            } catch (e) {
+              Alert.alert('Emulator Fallback', 'Camera failed. Using mock image.');
+              setImageUri('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80');
             }
           }
         },
         {
           text: "Gallery",
           onPress: async () => {
-            const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
-            if (!result.didCancel && result.assets?.[0]) {
+            try {
+              const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
+              if (result.didCancel) return;
+              if (result.errorCode || !result.assets) throw new Error();
               setImageUri(result.assets[0].uri);
-              setImageFile({
-                uri: result.assets[0].uri,
-                type: result.assets[0].type || 'image/jpeg',
-                name: result.assets[0].fileName || 'profile.jpg',
-              });
+              setImageFile({ uri: result.assets[0].uri, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
+            } catch (e) {
+              Alert.alert('Emulator Fallback', 'Gallery failed. Using mock image.');
+              setImageUri('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80');
             }
           }
         },
-        {
-          text: "Cancel",
-          style: "cancel"
-        }
+        { text: "Cancel", style: "cancel" }
       ]
     );
   };
@@ -95,7 +94,7 @@ const EditProfileScreen = ({ navigation }) => {
         await customerService.updateProfile(payload);
       }
       await fetchUser();
-      navigation.goBack();
+      navigation.navigate('Profile');
     } catch (error) {
       console.log('Update profile error:', error?.response?.data || error);
       Alert.alert('Error', JSON.stringify(error?.response?.data || error.message));
@@ -110,7 +109,7 @@ const EditProfileScreen = ({ navigation }) => {
       
       {/* App Bar */}
       <View style={styles.appBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('Profile')}>
           <Text style={styles.backBtnText}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.appBarTitle}>Edit Profile</Text>

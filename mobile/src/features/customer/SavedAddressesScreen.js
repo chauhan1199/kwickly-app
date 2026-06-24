@@ -158,7 +158,7 @@ const SavedAddressesScreen = ({ navigation }) => {
       
       {/* App Bar */}
       <View style={styles.appBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('Profile')}>
           <Text style={styles.backBtnText}>‹</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>

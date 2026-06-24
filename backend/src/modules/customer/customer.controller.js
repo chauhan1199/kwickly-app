@@ -124,3 +124,68 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
 
     return successResponse(res, receipt, 'Receipt fetched');
 });
+
+exports.addAddress = catchAsync(async (req, res) => {
+    const { label, street, city, pincode, location, isPrimary } = req.body;
+    const user = await Customer.findById(req.user._id);
+    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
+
+    if (isPrimary || user.addresses.length === 0) {
+        user.addresses.forEach(a => a.isPrimary = false);
+    }
+    
+    user.addresses.push({ label, street, city, pincode, location, isPrimary: isPrimary || user.addresses.length === 0 });
+    await user.save();
+    return successResponse(res, user, 'Address added successfully');
+});
+
+exports.updateAddress = catchAsync(async (req, res) => {
+    const { addressId } = req.params;
+    const { label, street, city, pincode, location, isPrimary } = req.body;
+    
+    const user = await Customer.findById(req.user._id);
+    const address = user.addresses.id(addressId);
+    if (!address) return errorResponse(res, 'Address not found', StatusCodes.NOT_FOUND);
+
+    if (isPrimary) {
+        user.addresses.forEach(a => a.isPrimary = false);
+    }
+
+    if (label) address.label = label;
+    if (street) address.street = street;
+    if (city) address.city = city;
+    if (pincode) address.pincode = pincode;
+    if (location) address.location = location;
+    if (isPrimary !== undefined) address.isPrimary = isPrimary;
+
+    await user.save();
+    return successResponse(res, user, 'Address updated successfully');
+});
+
+exports.deleteAddress = catchAsync(async (req, res) => {
+    const { addressId } = req.params;
+    const user = await Customer.findById(req.user._id);
+    
+    user.addresses.pull({ _id: addressId });
+    if (user.addresses.length > 0 && !user.addresses.some(a => a.isPrimary)) {
+        user.addresses[0].isPrimary = true;
+    }
+    
+    await user.save();
+    return successResponse(res, user, 'Address deleted successfully');
+});
+
+exports.setPrimaryAddress = catchAsync(async (req, res) => {
+    const { addressId } = req.params;
+    const user = await Customer.findById(req.user._id);
+    
+    const addressExists = user.addresses.id(addressId);
+    if (!addressExists) return errorResponse(res, 'Address not found', StatusCodes.NOT_FOUND);
+
+    user.addresses.forEach(a => {
+        a.isPrimary = String(a._id) === String(addressId);
+    });
+
+    await user.save();
+    return successResponse(res, user, 'Primary address updated');
+});

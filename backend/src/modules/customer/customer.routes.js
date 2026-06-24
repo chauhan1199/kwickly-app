@@ -18,11 +18,10 @@ router.put('/me/profile', authorize('CUSTOMER'), upload.single('profileImage'), 
 router.delete('/me/account', authorize('CUSTOMER'), customerController.deleteAccount);
 
 // -- Customer Addresses --
-const workerController = require('../worker/worker.controller');
-router.post('/me/addresses', authorize('CUSTOMER'), workerController.addAddress);
-router.put('/me/addresses/:addressId', authorize('CUSTOMER'), workerController.updateAddress);
-router.delete('/me/addresses/:addressId', authorize('CUSTOMER'), workerController.deleteAddress);
-router.patch('/me/addresses/:addressId/primary', authorize('CUSTOMER'), workerController.setPrimaryAddress);
+router.post('/me/addresses', authorize('CUSTOMER'), customerController.addAddress);
+router.put('/me/addresses/:addressId', authorize('CUSTOMER'), customerController.updateAddress);
+router.delete('/me/addresses/:addressId', authorize('CUSTOMER'), customerController.deleteAddress);
+router.patch('/me/addresses/:addressId/primary', authorize('CUSTOMER'), customerController.setPrimaryAddress);
 
 // -- Customer Jobs --
 router.get('/top-pros', customerController.getTopPros);

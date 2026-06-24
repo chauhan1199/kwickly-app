@@ -5,10 +5,12 @@ import {
   StyleSheet, 
   SafeAreaView, 
   ScrollView, 
-  TouchableOpacity, 
+  TouchableOpacity,
   TextInput,
   StatusBar,
-  ActivityIndicator
+  ActivityIndicator,
+  Image,
+  Dimensions
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -16,6 +18,8 @@ import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { jobService } from '../../services/jobService';
 import { customerService } from '../../services/customerService';
+import api from '../../services/api';
+import BannerCarousel from '../../components/ui/BannerCarousel';
 import GlassCard from '../../components/ui/GlassCard';
 
 // Haversine formula to calculate distance between two coordinates in km
@@ -38,6 +42,7 @@ const BookServiceScreen = ({ navigation }) => {
 
   const [categories, setCategories] = useState([]);
   const [workers, setWorkers] = useState([]);
+  const [banners, setBanners] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -47,9 +52,10 @@ const BookServiceScreen = ({ navigation }) => {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [catRes, workerRes] = await Promise.all([
+      const [catRes, workerRes, bannerRes] = await Promise.all([
         jobService.getCategories(),
-        customerService.getTopPros()
+        customerService.getTopPros(),
+        api.get('/promotions/banners').catch(() => ({ data: { status: 'error', data: [] } }))
       ]);
 
       if (catRes.data?.status === 'success') {
@@ -60,6 +66,10 @@ const BookServiceScreen = ({ navigation }) => {
           subs: c.subcategories.map(s => s.name)
         }));
         setCategories(mappedCats);
+      }
+
+      if (bannerRes.data?.status === 'success') {
+        setBanners(bannerRes.data.data.filter(b => b.position === 'CATEGORY_PAGE'));
       }
 
       if (workerRes.data?.status === 'success') {
@@ -102,10 +112,9 @@ const BookServiceScreen = ({ navigation }) => {
       
       {/* App Bar */}
       <View style={styles.appBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('Home')}>
-          <Text style={styles.backBtnText}>‹</Text>
-        </TouchableOpacity>
+        <Image source={require('../../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 10, marginRight: 10 }} />
         <Text style={styles.appBarTitle} numberOfLines={1}>Book a Service</Text>
+        <View style={{ flex: 1 }} />
         <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
           <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
         </TouchableOpacity>
@@ -135,6 +144,18 @@ const BookServiceScreen = ({ navigation }) => {
         </ScrollView>
 
         <View style={styles.listContainer}>
+          {/* Dynamic Banners */}
+          {banners.length > 0 && (
+            <BannerCarousel 
+              banners={banners} 
+              itemWidth={Dimensions.get('window').width - 28} 
+              itemHeight={140}
+              style={{ marginBottom: 16 }}
+              autoPlayInterval={4000}
+              contentContainerStyle={{ paddingHorizontal: 0 }}
+            />
+          )}
+
           <Text style={styles.sectionTitle}>All Service Categories</Text>
           
           <View style={styles.gridContainer}>
@@ -238,10 +259,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     lineHeight: 28,
   },
   appBarTitle: {
-    fontSize: 17,
+    fontSize: 22,
     fontWeight: '800',
     color: theme.colors.text,
-    flex: 1,
   },
   bellBtn: {
     width: 36,
@@ -401,6 +421,38 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: theme.colors.text,
+  },
+  bannerImageContainer: {
+    width: Dimensions.get('window').width - 28,
+    height: 140,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginRight: 10,
+    position: 'relative',
+    backgroundColor: '#1a237e'
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  bannerOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    paddingTop: 24,
+  },
+  bannerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  bannerSubText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 11,
   }
 });
 
