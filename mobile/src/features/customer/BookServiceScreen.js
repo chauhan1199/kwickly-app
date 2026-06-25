@@ -9,8 +9,8 @@ import {
   TextInput,
   StatusBar,
   ActivityIndicator,
-  Image,
-  Dimensions
+  Dimensions,
+  Platform
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -18,9 +18,11 @@ import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { jobService } from '../../services/jobService';
 import { customerService } from '../../services/customerService';
+import AppBar from '../../components/AppBar';
 import api from '../../services/api';
 import BannerCarousel from '../../components/ui/BannerCarousel';
 import GlassCard from '../../components/ui/GlassCard';
+
 
 // Haversine formula to calculate distance between two coordinates in km
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -109,20 +111,9 @@ const BookServiceScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <Image source={require('../../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 10, marginRight: 10 }} />
-        <Text style={styles.appBarTitle} numberOfLines={1}>Book a Service</Text>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Text style={{fontSize: 16}}>🔔</Text>
-          <View style={styles.badge} />
-        </TouchableOpacity>
-      </View>
+
+      {/* Unified App Bar */}
+      <AppBar title="Book a Service" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
@@ -241,7 +232,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingTop: 10,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 10,
     paddingBottom: 8,
     gap: 8,
   },

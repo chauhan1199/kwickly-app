@@ -10,17 +10,22 @@ import {
   Alert,
   Modal,
   TextInput,
-  ActivityIndicator
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
+import MapView, { Marker } from 'react-native-maps';
 import { useAuth } from '../../context/AuthContext';
 import { customerService } from '../../services/customerService';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import { useNotifications } from '../../context/NotificationContext';
 
 const SavedAddressesScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const { refreshUnread } = useNotifications();
 
   const { user, fetchUser } = useAuth();
   const addresses = user?.addresses || [];
@@ -34,12 +39,13 @@ const SavedAddressesScreen = ({ navigation }) => {
   const [newStreet, setNewStreet] = useState('');
   const [newCity, setNewCity] = useState('');
   const [newPincode, setNewPincode] = useState('');
-  const [newLocation, setNewLocation] = useState(null);
+  const [newLocation, setNewLocation] = useState({ coordinates: [72.8777, 19.0760] });
 
   const handleSetPrimary = async (id) => {
     try {
       await customerService.setPrimaryAddress(id);
       await fetchUser();
+      refreshUnread();
     } catch (e) {
       Alert.alert('Error', 'Failed to set primary address');
     }
@@ -54,6 +60,7 @@ const SavedAddressesScreen = ({ navigation }) => {
     try {
       await customerService.deleteAddress(id);
       await fetchUser();
+      refreshUnread();
     } catch (e) {
       Alert.alert('Error', 'Failed to delete address');
     }
@@ -74,7 +81,7 @@ const SavedAddressesScreen = ({ navigation }) => {
 
   const handleAdd = () => {
     setEditAddressId(null);
-    setNewLabel(''); setNewStreet(''); setNewCity(''); setNewPincode(''); setNewLocation(null);
+    setNewLabel(''); setNewStreet(''); setNewCity(''); setNewPincode(''); setNewLocation({ coordinates: [72.8777, 19.0760] });
     setShowAddModal(true);
   };
 
@@ -87,7 +94,9 @@ const SavedAddressesScreen = ({ navigation }) => {
         setNewLocation({ coordinates: [lon, lat] });
         
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`, {
+            headers: { 'User-Agent': 'KwicklyMobileApp/1.0' }
+          });
           const data = await res.json();
           if (data && data.address) {
             const street = data.address.road || data.address.suburb || data.display_name.split(',')[0];
@@ -96,7 +105,7 @@ const SavedAddressesScreen = ({ navigation }) => {
             setNewStreet(street);
             setNewCity(city);
             setNewPincode(pincode);
-            setNewLabel('Current Location');
+            if (!newLabel) setNewLabel('Current Location');
           }
         } catch (e) {
           console.log("Reverse Geocoding failed", e);
@@ -122,7 +131,8 @@ const SavedAddressesScreen = ({ navigation }) => {
   };
 
   const saveAddress = async () => {
-    if (!newLabel || !newStreet) return Alert.alert('Error', 'Please enter a label and street');
+    if (!newLabel || !newStreet || !newCity || !newPincode) return Alert.alert('Error', 'Please fill all mandatory address fields (Label, Street, City, Pincode)');
+    if (!newLocation || !newLocation.coordinates) return Alert.alert('Error', 'Please wait for location to load or use GPS');
     setIsSaving(true);
     try {
       const payload = {
@@ -130,7 +140,10 @@ const SavedAddressesScreen = ({ navigation }) => {
         street: newStreet,
         city: newCity,
         pincode: newPincode,
-        location: newLocation,
+        location: {
+          type: 'Point',
+          coordinates: newLocation.coordinates
+        },
         isPrimary: addresses.length === 0
       };
 
@@ -141,10 +154,12 @@ const SavedAddressesScreen = ({ navigation }) => {
       }
       
       await fetchUser();
+      refreshUnread();
       setShowAddModal(false);
       setEditAddressId(null);
     } catch (e) {
-      Alert.alert('Error', 'Failed to save address');
+      console.log('SAVE ADDRESS ERROR:', e?.response?.data || e.message || e);
+      Alert.alert('Error', e?.response?.data?.message || e.message || 'Failed to save address');
     } finally {
       setIsSaving(false);
     }
@@ -220,24 +235,32 @@ const SavedAddressesScreen = ({ navigation }) => {
       {/* Add Address Modal */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowAddModal(false)} />
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{editAddressId ? 'Edit Address' : 'Add New Address'}</Text>
-            
-            <TouchableOpacity style={styles.gpsBtn} onPress={fetchGPS} disabled={isFetchingGPS}>
-              {isFetchingGPS ? <ActivityIndicator color="#001016" /> : <Text style={styles.gpsBtnText}>🎯 Use GPS Location</Text>}
-            </TouchableOpacity>
-            {newLocation && <Text style={{color: theme.colors.primary, fontSize: 12, marginBottom: 10}}>✓ GPS Coordinates Saved</Text>}
+          <TouchableOpacity style={{ flex: 1, width: '100%' }} activeOpacity={1} onPress={() => setShowAddModal(false)} />
+          <KeyboardAvoidingView 
+            style={[styles.modalContent, { maxHeight: '90%' }]} 
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView 
+              showsVerticalScrollIndicator={false} 
+              contentContainerStyle={{ paddingBottom: 20, flexGrow: 1 }} 
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.modalTitle}>{editAddressId ? 'Edit Address' : 'Add New Address'}</Text>
+              
+              <TouchableOpacity style={styles.gpsBtn} onPress={fetchGPS} disabled={isFetchingGPS}>
+                {isFetchingGPS ? <ActivityIndicator color="#001016" /> : <Text style={styles.gpsBtnText}>🎯 Use GPS Location</Text>}
+              </TouchableOpacity>
 
-            <TextInput style={styles.modalInput} placeholder="Label (e.g. Home, Office)" placeholderTextColor={theme.colors.textDim} value={newLabel} onChangeText={setNewLabel} />
-            <TextInput style={styles.modalInput} placeholder="Street Address" placeholderTextColor={theme.colors.textDim} value={newStreet} onChangeText={setNewStreet} />
-            <TextInput style={styles.modalInput} placeholder="City" placeholderTextColor={theme.colors.textDim} value={newCity} onChangeText={setNewCity} />
-            <TextInput style={styles.modalInput} placeholder="Pincode" placeholderTextColor={theme.colors.textDim} value={newPincode} onChangeText={setNewPincode} keyboardType="number-pad" />
+              <TextInput style={styles.modalInput} placeholder="Label (e.g. Home, Office) *" placeholderTextColor={theme.colors.textDim} value={newLabel} onChangeText={setNewLabel} />
+              <TextInput style={styles.modalInput} placeholder="Street Address *" placeholderTextColor={theme.colors.textDim} value={newStreet} onChangeText={setNewStreet} />
+              <TextInput style={styles.modalInput} placeholder="City *" placeholderTextColor={theme.colors.textDim} value={newCity} onChangeText={setNewCity} />
+              <TextInput style={styles.modalInput} placeholder="Pincode *" placeholderTextColor={theme.colors.textDim} value={newPincode} onChangeText={setNewPincode} keyboardType="number-pad" />
 
-            <TouchableOpacity style={styles.modalSaveBtn} onPress={saveAddress} disabled={isSaving}>
-              {isSaving ? <ActivityIndicator color="#001016" /> : <Text style={styles.modalSaveBtnText}>Save Address</Text>}
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={saveAddress} disabled={isSaving}>
+                {isSaving ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.modalSaveBtnText}>Save Address</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 

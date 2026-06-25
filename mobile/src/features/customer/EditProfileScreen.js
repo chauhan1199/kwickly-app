@@ -48,11 +48,11 @@ const EditProfileScreen = ({ navigation }) => {
           text: "Camera",
           onPress: async () => {
             try {
-              const result = await launchCamera({ mediaType: 'photo', quality: 0.8 });
+              const result = await launchCamera({ mediaType: 'photo', quality: 0.8, includeBase64: true });
               if (result.didCancel) return;
               if (result.errorCode || !result.assets) throw new Error();
               setImageUri(result.assets[0].uri);
-              setImageFile({ uri: result.assets[0].uri, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
+              setImageFile({ base64: result.assets[0].base64, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
             } catch (e) {
               Alert.alert('Emulator Fallback', 'Camera failed. Using mock image.');
               setImageUri('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80');
@@ -63,11 +63,11 @@ const EditProfileScreen = ({ navigation }) => {
           text: "Gallery",
           onPress: async () => {
             try {
-              const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
+              const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8, includeBase64: true });
               if (result.didCancel) return;
               if (result.errorCode || !result.assets) throw new Error();
               setImageUri(result.assets[0].uri);
-              setImageFile({ uri: result.assets[0].uri, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
+              setImageFile({ base64: result.assets[0].base64, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
             } catch (e) {
               Alert.alert('Emulator Fallback', 'Gallery failed. Using mock image.');
               setImageUri('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80');
@@ -82,17 +82,12 @@ const EditProfileScreen = ({ navigation }) => {
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      if (imageFile) {
-        const formData = new FormData();
-        formData.append('name', name);
-        if (email) formData.append('email', email);
-        formData.append('profileImage', imageFile);
-        await customerService.updateProfilePhoto(formData);
-      } else {
-        const payload = { name };
-        if (email) payload.email = email;
-        await customerService.updateProfile(payload);
+      const payload = { name };
+      if (email) payload.email = email;
+      if (imageFile && imageFile.base64) {
+        payload.profileImageBase64 = imageFile.base64;
       }
+      await customerService.updateProfile(payload);
       await fetchUser();
       navigation.navigate('Profile');
     } catch (error) {

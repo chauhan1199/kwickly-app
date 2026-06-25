@@ -11,23 +11,55 @@ import {
   Modal,
   TextInput
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import { customerService } from '../../services/customerService';
+import { useNotifications } from '../../context/NotificationContext';
 
 const PaymentMethodsScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const { refreshUnread } = useNotifications();
 
-  const [methods, setMethods] = useState([
-    { id: 1, type: 'UPI', details: 'anita@upi', icon: '📱', isDefault: true },
-    { id: 2, type: 'HDFC Debit Card', details: '****4321', icon: '💳', isDefault: false },
-  ]);
+  const [methods, setMethods] = useState([]);
+
+  React.useEffect(() => {
+    const loadMethods = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('mockPaymentMethods');
+        if (stored) {
+          setMethods(JSON.parse(stored));
+        } else {
+          const defaultMethods = [
+            { id: 1, type: 'UPI', details: 'anita@upi', icon: '📱', isDefault: true },
+            { id: 2, type: 'HDFC Debit Card', details: '****4321', icon: '💳', isDefault: false },
+          ];
+          setMethods(defaultMethods);
+          await AsyncStorage.setItem('mockPaymentMethods', JSON.stringify(defaultMethods));
+        }
+      } catch (e) {
+        console.log(e);
+      }
+    };
+    loadMethods();
+  }, []);
+
+  const saveMethods = async (newMethods) => {
+    setMethods(newMethods);
+    try {
+      await AsyncStorage.setItem('mockPaymentMethods', JSON.stringify(newMethods));
+    } catch (e) {
+      console.log(e);
+    }
+  };
 
   const handleSetDefault = (id) => {
-    setMethods(prev => prev.map(m => ({
+    const updated = methods.map(m => ({
       ...m,
       isDefault: m.id === id
-    })));
+    }));
+    saveMethods(updated);
   };
 
   const handleRemove = (id) => {
@@ -36,7 +68,11 @@ const PaymentMethodsScreen = ({ navigation }) => {
       Alert.alert('Action Required', 'Please set another payment method as default before removing this one.');
       return;
     }
-    setMethods(prev => prev.filter(m => m.id !== id));
+    const updated = methods.filter(m => m.id !== id);
+    saveMethods(updated);
+    customerService.triggerNotification({ title: 'Payment Method Removed', message: 'Payment method successfully deleted.' })
+      .then(() => refreshUnread())
+      .catch(e=>console.log(e));
   };
 
   const [editMethodId, setEditMethodId] = useState(null);
@@ -88,9 +124,17 @@ const PaymentMethodsScreen = ({ navigation }) => {
     }
 
     if (editMethodId) {
-      setMethods(prev => prev.map(m => m.id === editMethodId ? { ...m, type, details, icon } : m));
+      const updated = methods.map(m => m.id === editMethodId ? { ...m, type, details, icon } : m);
+      saveMethods(updated);
+      customerService.triggerNotification({ title: 'Payment Method Updated', message: 'Your payment method has been updated.' })
+        .then(() => refreshUnread())
+        .catch(e=>console.log(e));
     } else {
-      setMethods(prev => [...prev, { id: Date.now(), type, details, icon, isDefault: prev.length === 0 }]);
+      const updated = [...methods, { id: Date.now(), type, details, icon, isDefault: methods.length === 0 }];
+      saveMethods(updated);
+      customerService.triggerNotification({ title: 'Payment Method Added', message: 'A new payment method has been successfully added.' })
+        .then(() => refreshUnread())
+        .catch(e=>console.log(e));
     }
     
     setShowAddModal(false);

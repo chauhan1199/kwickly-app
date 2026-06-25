@@ -3,6 +3,7 @@ const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { COMMON } = require('../../constants/messages');
+const { notifyUser } = require('../../helpers/notifyUser.helper');
 
 exports.updateKyc = catchAsync(async (req, res) => {
     const { documentType } = req.body;
@@ -41,10 +42,21 @@ exports.updateProfile = catchAsync(async (req, res) => {
         { $set: updateData },
         { new: true }
     ).select('-password');
+    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
     
+    notifyUser({
+        userId: req.user._id,
+        title: 'Profile Updated',
+        message: 'Your profile has been successfully updated.',
+        action: 'UPDATE',
+        entityType: 'WORKER',
+        entityId: user._id,
+        targetRole: 'WORKER'
+    });
+
     return successResponse(res, user, 'Profile updated successfully');
 });
 
@@ -250,6 +262,21 @@ exports.updateFullProfile = catchAsync(async (req, res) => {
     }
 
     const user = await Customer.findByIdAndUpdate(req.user._id, { $set: updateData }, { new: true }).select('-password');
+    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
+
+    notifyUser({
+        userId: req.user._id,
+        title: 'Profile Updated',
+        message: 'Your profile has been successfully updated.',
+        action: 'UPDATE',
+        entityType: 'WORKER',
+        entityId: user._id,
+        targetRole: 'WORKER'
+    });
+
     return successResponse(res, user, 'Profile updated');
 });
 

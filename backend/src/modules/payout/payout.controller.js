@@ -4,6 +4,7 @@ const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
+const { notifyUser } = require('../../helpers/notifyUser.helper');
 
 const CACHE_KEY = 'admin_payouts';
 
@@ -86,6 +87,30 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
         if (session) session.endSession();
 
         await delCache(CACHE_KEY);
+
+        // Notify the user about payout status
+        const isWorker = !!payout.workerId;
+        const targetId = isWorker ? payout.workerId : payout.shopId;
+        
+        let actualUserId = targetId;
+        if (!isWorker) {
+            const Shop = require('../shop/shop.model');
+            const shop = await Shop.findById(payout.shopId);
+            if (shop) actualUserId = shop.ownerId;
+        }
+
+        notifyUser({
+            userId: actualUserId,
+            title: `Payout ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}`,
+            message: status.toUpperCase() === 'COMPLETED' 
+                ? `Your payout of ₹${payout.amount} has been successfully processed.`
+                : `Your payout request of ₹${payout.amount} was rejected. Reason: ${rejectReason || 'Admin review'}. The amount has been refunded to your wallet.`,
+            action: 'WALLET_UPDATE',
+            entityType: 'WALLET',
+            entityId: actualUserId,
+            targetRole: isWorker ? 'WORKER' : 'CUSTOMER'
+        });
+
         return successResponse(res, payout, `Payout ${status.toLowerCase()} successfully`);
     } catch (error) {
         if (session) await session.abortTransaction();

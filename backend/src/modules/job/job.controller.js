@@ -6,6 +6,8 @@ const logger = require('../../helpers/logger.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll, emitToRoom } = require('../../helpers/socket.helper');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
+const { notifyUser } = require('../../helpers/notifyUser.helper');
+
 
 /**
  * ─── WORKER ELIGIBILITY CRITERIA (ALL must be true) ─────────────────────────
@@ -211,6 +213,17 @@ exports.createJob = catchAsync(async (req, res) => {
         notifiedWorkers: eligibleWorkerIds.length
     });
 
+    // ── Notify customer that job was posted successfully ──────────────────────
+    notifyUser({
+        userId: req.user._id,
+        title: '✅ Job Posted Successfully',
+        message: `Your ${job.category} job has been posted. We're finding the best workers for you!`,
+        action: 'JOB_CREATED',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'CUSTOMER'
+    });
+
     return successResponse(
         res,
         { ...job.toObject(), notifiedWorkers: eligibleWorkerIds.length },
@@ -218,6 +231,7 @@ exports.createJob = catchAsync(async (req, res) => {
         StatusCodes.CREATED
     );
 });
+
 
 // ─── GET /api/v1/jobs (Admin) ─────────────────────────────────────────────────
 exports.getJobs = catchAsync(async (req, res) => {
@@ -471,6 +485,17 @@ exports.startJob = catchAsync(async (req, res) => {
     await job.save();
 
     emitToRoom(`customer_${job.customerId}`, 'JOB_STARTED', { jobId: job._id });
+
+    notifyUser({
+        userId: job.customerId,
+        title: '🛠️ Work Started',
+        message: `The worker has started your ${job.category} job.`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'CUSTOMER'
+    });
+
     return successResponse(res, job, 'Job started successfully');
 });
 
@@ -490,6 +515,17 @@ exports.completeJob = catchAsync(async (req, res) => {
     await job.save();
 
     emitToRoom(`customer_${job.customerId}`, 'JOB_COMPLETED', { jobId: job._id });
+
+    notifyUser({
+        userId: job.customerId,
+        title: '✅ Job Completed',
+        message: `The worker has marked your ${job.category} job as completed. Please review and process payment.`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'CUSTOMER'
+    });
+
     return successResponse(res, job, 'Job completed successfully');
 });
 
@@ -613,6 +649,17 @@ exports.payJob = catchAsync(async (req, res) => {
 
         await delCache(`session:${job.workerId}`);
         emitToRoom(`worker_${job.workerId}`, 'JOB_PAID', { jobId: job._id });
+
+        notifyUser({
+            userId: job.workerId,
+            title: '💸 Payment Received',
+            message: `You have received payment for job #${String(job._id).slice(-6)}.`,
+            action: 'JOB_UPDATED',
+            entityType: 'JOB',
+            entityId: job._id,
+            targetRole: 'WORKER'
+        });
+
         return successResponse(res, job, 'Payment completed successfully');
     } catch (error) {
         if (session) await session.abortTransaction();
@@ -646,6 +693,16 @@ exports.rateJob = catchAsync(async (req, res) => {
             worker.rating.average = parseFloat(((total + score) / worker.rating.count).toFixed(2));
             await worker.save();
             await delCache(`session:${job.workerId}`);
+            
+            notifyUser({
+                userId: job.workerId,
+                title: '⭐ New Rating Received',
+                message: `You received a ${score}-star rating for your recent job.`,
+                action: 'RATING_RECEIVED',
+                entityType: 'JOB',
+                entityId: job._id,
+                targetRole: 'WORKER'
+            });
         }
     }
 
@@ -663,6 +720,29 @@ exports.cancelJob = catchAsync(async (req, res) => {
     await delCache('admin_dashboard_stats');
     emitToAll('DASHBOARD_UPDATE', { type: 'JOB_CANCELLED', id: job._id });
 
+    if (job.customerId) {
+        notifyUser({
+            userId: job.customerId,
+            title: '❌ Job Cancelled',
+            message: `Your job #${String(job._id).slice(-6)} has been cancelled.`,
+            action: 'JOB_UPDATED',
+            entityType: 'JOB',
+            entityId: job._id,
+            targetRole: 'CUSTOMER'
+        });
+    }
+    if (job.workerId) {
+        notifyUser({
+            userId: job.workerId,
+            title: '❌ Job Cancelled',
+            message: `Job #${String(job._id).slice(-6)} assigned to you has been cancelled.`,
+            action: 'JOB_UPDATED',
+            entityType: 'JOB',
+            entityId: job._id,
+            targetRole: 'WORKER'
+        });
+    }
+
     return successResponse(res, job, 'Job cancelled successfully');
 });
 
@@ -677,6 +757,29 @@ exports.reassignWorker = catchAsync(async (req, res) => {
     await job.save();
 
     emitToAll('DASHBOARD_UPDATE', { type: 'WORKER_REASSIGNED', id: job._id });
+
+    if (job.customerId) {
+        notifyUser({
+            userId: job.customerId,
+            title: '👷 Worker Reassigned',
+            message: `A new worker has been assigned to your job #${String(job._id).slice(-6)} by the admin.`,
+            action: 'JOB_UPDATED',
+            entityType: 'JOB',
+            entityId: job._id,
+            targetRole: 'CUSTOMER'
+        });
+    }
+
+    notifyUser({
+        userId: workerId,
+        title: '👷 New Job Assigned',
+        message: `You have been manually assigned to job #${String(job._id).slice(-6)} by the admin.`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'WORKER'
+    });
+
     return successResponse(res, job, 'Worker reassigned successfully');
 });
 

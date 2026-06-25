@@ -4,6 +4,7 @@ const Job = require('../job/job.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
+const { notifyUser } = require('../../helpers/notifyUser.helper');
 
 exports.getTopPros = catchAsync(async (req, res) => {
     const cachedData = await getCache('top_pros_list');
@@ -34,12 +35,42 @@ exports.updateProfile = catchAsync(async (req, res) => {
     if (email !== undefined) updateData.email = email;
     if (req.file) updateData.profileImage = '/uploads/' + req.file.filename;
 
+    if (req.body.profileImageBase64) {
+        const fs = require('fs');
+        const path = require('path');
+        const matches = req.body.profileImageBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        let buffer;
+        if (matches && matches.length === 3) {
+            buffer = Buffer.from(matches[2], 'base64');
+        } else {
+            buffer = Buffer.from(req.body.profileImageBase64, 'base64');
+        }
+        const filename = 'profile-' + Date.now() + '.jpg';
+        const filepath = path.join(__dirname, '../../../public/uploads', filename);
+        if (!fs.existsSync(path.dirname(filepath))) fs.mkdirSync(path.dirname(filepath), { recursive: true });
+        fs.writeFileSync(filepath, buffer);
+        updateData.profileImage = '/uploads/' + filename;
+    }
+
     if (Object.keys(updateData).length === 0) {
         return errorResponse(res, 'No data provided', StatusCodes.BAD_REQUEST);
     }
 
     const user = await Customer.findByIdAndUpdate(req.user._id, { $set: updateData }, { new: true }).select('-password');
+    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
+
     await delCache(`session:${req.user._id}`);
+    
+    notifyUser({
+        userId: req.user._id,
+        title: 'Profile Updated',
+        message: 'Your profile has been successfully updated.',
+        action: 'UPDATE',
+        entityType: 'CUSTOMER',
+        entityId: user._id,
+        targetRole: 'CUSTOMER'
+    });
+
     return successResponse(res, user, 'Profile updated');
 });
 
@@ -136,6 +167,9 @@ exports.addAddress = catchAsync(async (req, res) => {
     
     user.addresses.push({ label, street, city, pincode, location, isPrimary: isPrimary || user.addresses.length === 0 });
     await user.save();
+    
+    await notifyUser({ userId: req.user._id, entityType: 'OTHER', action: 'SYSTEM', title: 'Address Added', message: `New address '${label || 'Home'}' has been saved successfully.` });
+    
     return successResponse(res, user, 'Address added successfully');
 });
 
@@ -159,6 +193,9 @@ exports.updateAddress = catchAsync(async (req, res) => {
     if (isPrimary !== undefined) address.isPrimary = isPrimary;
 
     await user.save();
+    
+    await notifyUser({ userId: req.user._id, entityType: 'OTHER', action: 'SYSTEM', title: 'Address Updated', message: `Address '${address.label}' has been updated.` });
+
     return successResponse(res, user, 'Address updated successfully');
 });
 
@@ -172,6 +209,9 @@ exports.deleteAddress = catchAsync(async (req, res) => {
     }
     
     await user.save();
+    
+    await notifyUser({ userId: req.user._id, entityType: 'OTHER', action: 'SYSTEM', title: 'Address Deleted', message: `Your address has been removed successfully.` });
+
     return successResponse(res, user, 'Address deleted successfully');
 });
 
@@ -188,4 +228,10 @@ exports.setPrimaryAddress = catchAsync(async (req, res) => {
 
     await user.save();
     return successResponse(res, user, 'Primary address updated');
+});
+
+exports.triggerNotification = catchAsync(async (req, res) => {
+    const { title, message } = req.body;
+    await notifyUser({ userId: req.user._id, entityType: 'OTHER', action: 'SYSTEM', title, message });
+    return successResponse(res, null, 'Notification triggered');
 });

@@ -46,7 +46,9 @@ export default function CreateShopScreen({ navigation }) {
 
   const handleCreate = async () => {
     if (!form.name.trim()) return Alert.alert('Error', 'Shop name is required');
+    if (!form.category.trim()) return Alert.alert('Error', 'Category is required');
     if (!form.address.trim()) return Alert.alert('Error', 'Address is required');
+    if (!form.description.trim()) return Alert.alert('Error', 'Description is required');
 
     try {
       setSaving(true);

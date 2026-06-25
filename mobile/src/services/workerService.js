@@ -1,4 +1,7 @@
 import api from './api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const BASE_URL = 'http://10.0.2.2:5000/api/v1';
 
 export const workerService = {
   getPlans: () =>
@@ -19,10 +22,23 @@ export const workerService = {
   updateProfile: (data) =>
     api.patch('/workers/me/profile', data),
 
-  updateProfilePhoto: (formData) =>
-    api.patch('/workers/me/profile', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  updateProfilePhoto: async (formData) => {
+    const token = await AsyncStorage.getItem('userToken');
+    const response = await fetch(`${BASE_URL}/workers/me/profile`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      let errorData;
+      try { errorData = await response.json(); } catch(e) { errorData = { message: 'Network Error or Server Error' }; }
+      throw { response: { data: errorData } };
+    }
+    return response.json();
+  },
 
   updateFullProfile: (data) =>
     api.put('/workers/me/profile', data),
@@ -36,10 +52,23 @@ export const workerService = {
   updateLocation: (data) =>
     api.patch('/workers/me/location', data),
 
-  updateKyc: (formData) =>
-    api.patch('/workers/me/kyc', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  updateKyc: async (formData) => {
+    const token = await AsyncStorage.getItem('userToken');
+    const response = await fetch(`${BASE_URL}/workers/me/kyc`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      let errorData;
+      try { errorData = await response.json(); } catch(e) { errorData = { message: 'Network Error or Server Error' }; }
+      throw { response: { data: errorData } };
+    }
+    return response.json();
+  },
 
   updateBank: (data) =>
     api.patch('/workers/me/bank', data),

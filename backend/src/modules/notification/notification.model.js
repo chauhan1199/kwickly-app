@@ -21,12 +21,18 @@ const NotificationSchema = new mongoose.Schema({
     },
     action: {
         type: String,
-        enum: ['CREATE', 'UPDATE', 'DELETE', 'TOGGLE_STATUS', 'KYC', 'PAYOUT', 'WALLET_CREDIT', 'WALLET_DEBIT', 'IMPERSONATE', 'SETTLE', 'BROADCAST', 'SYSTEM', 'OTHER'],
+        enum: ['CREATE', 'UPDATE', 'DELETE', 'TOGGLE_STATUS', 'KYC', 'PAYOUT',
+               'WALLET_CREDIT', 'WALLET_DEBIT', 'IMPERSONATE', 'SETTLE',
+               'BROADCAST', 'SYSTEM', 'OTHER', 'JOB_CREATED', 'JOB_UPDATED',
+               'JOB_CANCELLED', 'QUOTE_RECEIVED', 'ORDER_PLACED', 'ORDER_UPDATED',
+               'ORDER_CANCELLED', 'ORDER_DELIVERED'],
         default: 'OTHER'
     },
     entityType: {
         type: String,
-        enum: ['CUSTOMER', 'WORKER', 'SHOP', 'JOB', 'ORDER', 'PAYOUT', 'WALLET', 'KYC', 'CATEGORY', 'PROMOTION', 'PRODUCT', 'SETTINGS', 'BANNER', 'PROMO', 'DISPUTE', 'OTHER']
+        enum: ['CUSTOMER', 'WORKER', 'SHOP', 'JOB', 'ORDER', 'PAYOUT',
+               'WALLET', 'KYC', 'CATEGORY', 'PROMOTION', 'PRODUCT',
+               'SETTINGS', 'BANNER', 'PROMO', 'DISPUTE', 'OTHER']
     },
     entityId: {
         type: mongoose.Schema.Types.ObjectId
@@ -41,6 +47,10 @@ const NotificationSchema = new mongoose.Schema({
         default: 'ALL'
     },
     readBy: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+    deletedBy: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }]

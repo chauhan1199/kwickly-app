@@ -36,12 +36,23 @@ const DescribeJobScreen = ({ route, navigation }) => {
   const [description, setDescription] = useState('');
   const [media, setMedia] = useState([]); 
   const [addressType, setAddressType] = useState('Home');
-  const [address, setAddress] = useState(user?.activeLocation?.address || user?.addresses?.[0]?.street || '');
-  const [location, setLocation] = useState(user?.activeLocation?.coordinates ? { type: 'Point', coordinates: user.activeLocation.coordinates } : { type: 'Point', coordinates: [77.2090, 28.6139] });
+  const [address, setAddress] = useState('');
+  const [location, setLocation] = useState(null);
   const [preferredDate, setPreferredDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [timeSlot, setTimeSlot] = useState('urgent');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  React.useEffect(() => {
+    if (user?.addresses?.length > 0) {
+      const primary = user.addresses.find(a => a.isPrimary) || user.addresses[0];
+      setAddress(`${primary.street}, ${primary.city} ${primary.pincode}`);
+      setAddressType(primary.label || 'Home');
+      if (primary.location && primary.location.coordinates) {
+        setLocation(primary.location);
+      }
+    }
+  }, [user]);
 
   const timeSlots = [
     { id: 'urgent', icon: '⚡', label: 'Urgent / ASAP', sub: 'Within 1-2 hrs' },
@@ -88,19 +99,15 @@ const DescribeJobScreen = ({ route, navigation }) => {
   };
 
   const handlePickMap = () => {
-    setLocation({ type: 'Point', coordinates: [72.8777, 19.0760] }); // Mumbai
-    setAddress('Bandra West, Mumbai');
-    setAddressType('Other');
+    navigation.navigate('SavedAddresses');
   };
 
   const handleSubmit = async () => {
     if (!description.trim()) {
-      Alert.alert('Validation Error', 'Please describe the issue.');
-      return;
+      return Alert.alert('Validation Error', 'Please describe the issue.');
     }
-    if (!address.trim()) {
-      Alert.alert('Validation Error', 'Please enter a valid service address.');
-      return;
+    if (!address || !address.trim() || !location) {
+      return Alert.alert('Validation Error', 'Please select a valid service address. Click "Change" to add one.');
     }
 
     setIsSubmitting(true);

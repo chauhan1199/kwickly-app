@@ -33,6 +33,7 @@ router.post('/disputes', authorize('CUSTOMER'), validate(openDisputeSchema), dis
 
 // -- Notifications --
 router.put('/me/notifications', authorize('CUSTOMER'), customerController.updateNotificationPreferences);
+router.post('/me/notifications/trigger', authorize('CUSTOMER'), customerController.triggerNotification);
 
 // -- Worker Profile (browse) --
 router.get('/workers/:id/profile', authorize('CUSTOMER'), customerController.getWorkerProfile);

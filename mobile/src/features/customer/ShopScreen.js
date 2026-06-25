@@ -8,8 +8,8 @@ import {
   TouchableOpacity, 
   TextInput,
   StatusBar,
-  Image,
-  Dimensions
+  Dimensions,
+  Platform
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -18,6 +18,7 @@ import { shopService } from '../../services/shopService';
 import api from '../../services/api';
 import BannerCarousel from '../../components/ui/BannerCarousel';
 import GlassCard from '../../components/ui/GlassCard';
+import AppBar from '../../components/AppBar';
 import LinearGradient from 'react-native-linear-gradient';
 import { ActivityIndicator } from 'react-native';
 
@@ -83,25 +84,9 @@ const ShopScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <Image source={require('../../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 10, marginRight: 10 }} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.appBarTitle} numberOfLines={1}>Nearby Shops</Text>
-          <Text style={styles.appBarSub} numberOfLines={1}>Buy daily essentials</Text>
-        </View>
-        <TouchableOpacity onPress={() => navigation.navigate('CustomerShopOrders')} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>📦</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Text style={{fontSize: 16}}>🔔</Text>
-          <View style={styles.badge} />
-        </TouchableOpacity>
-      </View>
+
+      {/* Unified App Bar */}
+      <AppBar title="Nearby Shops" subtitle="Buy daily essentials" />
 
       {/* Search */}
       <View style={styles.searchBar}>
@@ -189,7 +174,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingTop: 10,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 10,
     paddingBottom: 14,
   },
   appBarTitle: {

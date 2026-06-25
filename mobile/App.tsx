@@ -7,18 +7,23 @@ import Theme from './src/constants/Theme';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
+import { NotificationProvider } from './src/context/NotificationContext';
+
 
 function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <CartProvider>
-          <AppContent />
-        </CartProvider>
+        <NotificationProvider>
+          <CartProvider>
+            <AppContent />
+          </CartProvider>
+        </NotificationProvider>
       </ThemeProvider>
     </AuthProvider>
   );
 }
+
 
 function AppContent() {
   return (

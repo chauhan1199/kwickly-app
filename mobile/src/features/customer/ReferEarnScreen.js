@@ -7,7 +7,9 @@ import {
   ScrollView, 
   TouchableOpacity, 
   StatusBar,
-  Share
+  Share,
+  Linking,
+  Alert
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -21,13 +23,29 @@ const ReferEarnScreen = ({ navigation }) => {
 
   const inviteCode = user?.referralCode || (user?.name ? user.name.split(' ')[0].toUpperCase() + '100' : 'KWICKLY100');
 
+  const messageToShare = `Hey! Join me on Kwickly! Use my invite code ${inviteCode} to get ₹50 off your first service. Let's make life easier! 🚀`;
+
+  const handleCopy = () => {
+    // RNCClipboard requires a native rebuild. Fallback to Share for the code.
+    Share.share({ message: inviteCode }).catch(e => console.log(e));
+  };
+
   const handleShare = async () => {
     try {
-      await Share.share({
-        message: `Join me on Kwickly! Use my code ${inviteCode} to get ₹100 off your first service.`,
-      });
+      const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(messageToShare)}`;
+      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      if (canOpen) {
+        await Linking.openURL(whatsappUrl);
+      } else {
+        // Fallback to native share if WhatsApp is not installed
+        await Share.share({
+          message: messageToShare,
+        });
+      }
     } catch (error) {
       console.log('Share error', error);
+      // Failsafe fallback
+      Share.share({ message: messageToShare }).catch(e => console.log(e));
     }
   };
 
@@ -54,14 +72,14 @@ const ReferEarnScreen = ({ navigation }) => {
           <Text style={styles.codeLabel}>Your Invite Code</Text>
           <View style={styles.codeBox}>
             <Text style={styles.codeText}>{inviteCode}</Text>
-            <TouchableOpacity style={styles.copyBtn}>
+            <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
               <Text style={styles.copyBtnText}>Copy</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-          <Text style={styles.shareBtnText}>📤 Share with friends</Text>
+        <TouchableOpacity style={[styles.shareBtn, { backgroundColor: '#25D366', borderColor: '#25D366' }]} onPress={handleShare}>
+          <Text style={[styles.shareBtnText, { color: '#fff' }]}>Share via WhatsApp</Text>
         </TouchableOpacity>
 
         <View style={styles.howItWorks}>

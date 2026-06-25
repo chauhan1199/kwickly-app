@@ -7,6 +7,7 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToAll } = require('../../helpers/socket.helper');
 const Shop = require('../shop/shop.model');
 const Notification = require('../notification/notification.model');
+const { notifyUser } = require('../../helpers/notifyUser.helper');
 
 
 /* ── WORKER SUBSCRIPTION ─────────────────────────────────────────────── */
@@ -145,13 +146,13 @@ exports.subscribe = catchAsync(async (req, res) => {
     }
 
     // Notify the user directly
-    const userNotif = await Notification.create({
+    notifyUser({
         userId: userId,
         title: 'Subscription Activated 🎯',
         message: `Your ${activePlan.label || activePlan.id} plan is now active!`,
-        type: 'DIRECT',
         action: 'UPDATE',
         entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
+        entityId: sub._id,
         targetRole: targetRole
     });
 

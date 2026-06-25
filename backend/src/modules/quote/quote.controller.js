@@ -6,6 +6,8 @@ const catchAsync  = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { getCache, setCache } = require('../../helpers/redis.helper');
+const { notifyUser } = require('../../helpers/notifyUser.helper');
+
 
 /**
  * POST /api/v1/quotes
@@ -112,8 +114,20 @@ exports.placeQuote = catchAsync(async (req, res) => {
         timeToReach: calculatedTimeToReach
     });
 
+    // Notify customer: new quote received
+    notifyUser({
+        userId: job.customerId,
+        title: '💰 New Quote Received',
+        message: `A worker has quoted \u20b9${amount} for your ${job.category} job. Tap to view all quotes!`,
+        action: 'QUOTE_RECEIVED',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'CUSTOMER'
+    });
+
     return successResponse(res, quote, 'Quote placed successfully', StatusCodes.CREATED);
 });
+
 
 /**
  * GET /api/v1/quotes/job/:jobId
@@ -319,8 +333,20 @@ exports.acceptQuote = catchAsync(async (req, res) => {
 
     emitToAll('DASHBOARD_UPDATE', { type: 'QUOTE_ACCEPTED', id: job._id });
 
+    // Notify customer: worker has been assigned
+    notifyUser({
+        userId: job.customerId,
+        title: '👷 Worker Assigned to Your Job',
+        message: `A worker has been assigned to your ${job.category} job. They will arrive shortly!`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: updatedJob._id,
+        targetRole: 'CUSTOMER'
+    });
+
     return successResponse(res, { job: updatedJob, quote }, 'Quote accepted, worker assigned');
 });
+
 
 /**
  * PATCH /api/v1/quotes/:id/withdraw

@@ -5,7 +5,8 @@ const WalletTxn  = require('../wallet/wallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
-const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
+const { setCache, getCache, delCache, getRedis } = require('../../helpers/redis.helper');
+const { notifyUser } = require('../../helpers/notifyUser.helper');
 
 const SHOP_CACHE_PREFIX = 'shops_list';
 
@@ -21,7 +22,6 @@ exports.createShop = catchAsync(async (req, res) => {
     const shop = await Shop.create({ ownerId, ...req.body });
 
     // Invalidate shop caches
-    const { getRedis } = require('../../helpers/redis.helper');
     const redisClient = getRedis();
     if (redisClient) {
         const keys = await redisClient.keys(`*${SHOP_CACHE_PREFIX}*`);
@@ -69,7 +69,6 @@ exports.updateMyShop = catchAsync(async (req, res) => {
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     // Invalidate shop caches
-    const { getRedis } = require('../../helpers/redis.helper');
     const redisClient = getRedis();
     if (redisClient) {
         const keys = await redisClient.keys(`*${SHOP_CACHE_PREFIX}*`);
@@ -150,6 +149,19 @@ exports.reviewShopKyc = catchAsync(async (req, res) => {
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     emitToAll('DASHBOARD_UPDATE', { type: 'SHOP_KYC', id: shop._id, status });
+
+    notifyUser({
+        userId: shop.ownerId,
+        title: `Shop KYC ${status === 'APPROVED' ? 'Approved' : 'Rejected'}`,
+        message: status === 'APPROVED' 
+            ? 'Your shop KYC has been approved. You can now accept orders.'
+            : 'Your shop KYC was rejected. Please contact support.',
+        action: 'KYC',
+        entityType: 'SHOP',
+        entityId: shop._id,
+        targetRole: 'CUSTOMER'
+    });
+
     return successResponse(res, shop, `Shop KYC ${status.toLowerCase()}`);
 });
 
@@ -162,6 +174,19 @@ exports.toggleShop = catchAsync(async (req, res) => {
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
     shop.isOnline = !shop.isOnline;
     await shop.save();
+
+    notifyUser({
+        userId: shop.ownerId,
+        title: shop.isOnline ? 'Shop Activated' : 'Shop Blocked',
+        message: shop.isOnline 
+            ? 'Your shop is now online and visible to customers.'
+            : 'Your shop has been blocked by the admin.',
+        action: 'UPDATE',
+        entityType: 'SHOP',
+        entityId: shop._id,
+        targetRole: 'CUSTOMER'
+    });
+
     return successResponse(res, shop, `Shop ${shop.isOnline ? 'activated' : 'blocked'}`);
 });
 

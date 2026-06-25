@@ -7,16 +7,38 @@ import {
   ScrollView, 
   TouchableOpacity, 
   StatusBar,
-  Image
+  Image,
+  Platform
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import AppBar from '../../components/AppBar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+
 
 const ProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
+  const [pmCount, setPmCount] = React.useState(0);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchMethods = async () => {
+        try {
+          const stored = await AsyncStorage.getItem('mockPaymentMethods');
+          if (stored) {
+            setPmCount(JSON.parse(stored).length);
+          } else {
+            setPmCount(2); // Initial fallback
+          }
+        } catch(e){}
+      };
+      fetchMethods();
+    }, [])
+  );
 
   const styles = createStyles(theme, isDarkMode);
 
@@ -31,7 +53,7 @@ const ProfileScreen = ({ navigation }) => {
   const menuItems = [
     { id: 7, title: 'Order History', sub: 'Track all orders', icon: '📋', color: '#0ea5e9' },
     { id: 1, title: 'Saved Addresses', sub: `${user?.addresses?.length || 0} saved`, icon: '📍', color: '#ef4444' },
-    { id: 2, title: 'Payment Methods', sub: `2 methods`, icon: '💳', color: '#3b82f6' },
+    { id: 2, title: 'Payment Methods', sub: `${pmCount} method${pmCount === 1 ? '' : 's'}`, icon: '💳', color: '#3b82f6' },
     { id: 6, title: 'My Shop Orders', sub: 'View past orders', icon: '📦', color: '#10b981' },
     { id: 3, title: 'Refer & Earn', sub: '₹100 per friend', icon: '🎁', color: '#f5b300' },
     { id: 4, title: 'Help & Support', sub: '24/7 available', icon: '💬', color: '#ec4899' },
@@ -41,24 +63,9 @@ const ProfileScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <Image source={require('../../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 10, marginRight: 8 }} />
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.appBarTitle} numberOfLines={1}>My Profile</Text>
-        </View>
-        <TouchableOpacity onPress={() => navigation.navigate('CustomerShopOrders')} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>📦</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Text style={{fontSize: 16}}>🔔</Text>
-          <View style={styles.badge} />
-        </TouchableOpacity>
-      </View>
+
+      {/* Unified App Bar */}
+      <AppBar title="My Profile" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
@@ -170,7 +177,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingTop: 10,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 10,
     paddingBottom: 14,
   },
   appBarTitle: {

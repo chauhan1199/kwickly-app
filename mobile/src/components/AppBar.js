@@ -1,22 +1,40 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  StatusBar,
+  Image,
+  Platform,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronLeft, Bell, Moon, Sun, Package } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Bell, Moon, Sun, Package, User, ChevronLeft } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useNotifications } from '../context/NotificationContext';
 
-const AppBar = ({ 
-  title, 
+/**
+ * Universal AppBar for Kwickly customer screens.
+ *
+ * Props:
+ *  showBack        – show back arrow instead of logo (default false)
+ *  onBackPress     – override back handler
+ *  title           – override title text shown next to logo or after back arrow
+ *  subtitle        – small grey subtitle below title
+ *  hideRightIcons  – hide all right-side icons (default false)
+ */
+const AppBar = ({
+  showBack = false,
+  onBackPress,
+  title,
   subtitle,
-  showBack = false, 
-  onBackPress, 
-  rightActions = true,
-  onNotificationPress,
-  packageRoute,
-  showLogo = false
+  hideRightIcons = false,
 }) => {
   const navigation = useNavigation();
   const { theme, isDarkMode, toggleTheme } = useTheme();
-  
+  const { unreadCount } = useNotifications();
+
   const handleBack = () => {
     if (onBackPress) {
       onBackPress();
@@ -25,56 +43,107 @@ const AppBar = ({
     }
   };
 
+  const insets = useSafeAreaInsets();
+  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 24;
+  
+  const iconBg = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
+  const badgeLabel = unreadCount > 99 ? '99+' : unreadCount > 0 ? String(unreadCount) : null;
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      
-      <View style={styles.leftContainer}>
-        {showBack && (
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9' }]} onPress={handleBack}>
-            <ChevronLeft size={24} color={theme.colors.text} />
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.background,
+          paddingTop: safeTop + 10,
+          borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)',
+        },
+      ]}
+    >
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.colors.background}
+        translucent={false}
+      />
+
+      {/* ── LEFT ── */}
+      <View style={styles.left}>
+        {showBack ? (
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: iconBg }]}
+            onPress={handleBack}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft size={22} color={theme.colors.text} />
           </TouchableOpacity>
+        ) : (
+          <Image
+            source={require('../assets/logo.jpeg')}
+            style={styles.logo}
+            resizeMode="cover"
+          />
         )}
-        {showLogo && !showBack && (
-          <Image source={require('../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 10, marginRight: 8 }} />
-        )}
-        <View style={{ marginLeft: showBack ? 12 : 4 }}>
-          {title && (
-            <Text style={[styles.title, { 
-              color: theme.colors.text, 
-              fontSize: showBack ? 20 : 28, 
-              fontWeight: showBack ? '800' : '900' 
-            }]}>
-              {title}
-            </Text>
-          )}
-          {subtitle && (
-            <Text style={{ fontSize: showBack ? 13 : 15, color: '#64748b', marginTop: 2 }}>
+
+        <View style={styles.brandBlock}>
+          <Text style={[styles.brandName, { color: theme.colors.text }]} numberOfLines={1}>
+            {title || 'Kwickly'}
+          </Text>
+          {subtitle ? (
+            <Text style={styles.subtitle} numberOfLines={1}>
               {subtitle}
             </Text>
-          )}
+          ) : null}
         </View>
       </View>
 
-      {rightActions && (
-        <View style={styles.rightContainer}>
-          {packageRoute && (
-            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate(packageRoute)}>
-              <Package size={22} color={theme.colors.text} />
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme}>
+      {/* ── RIGHT ── */}
+      {!hideRightIcons && (
+        <View style={styles.right}>
+          {/* Shop Orders */}
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: iconBg }]}
+            onPress={() => navigation.navigate('CustomerShopOrders')}
+            activeOpacity={0.7}
+          >
+            <Package size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+
+          {/* Dark / Light Toggle */}
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: iconBg }]}
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+          >
             {isDarkMode ? (
-              <Sun size={22} color={theme.colors.text} />
+              <Sun size={20} color={theme.colors.text} />
             ) : (
-              <Moon size={22} color={theme.colors.text} />
+              <Moon size={20} color={theme.colors.text} />
             )}
           </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.iconBtn} onPress={onNotificationPress}>
-            <Bell size={24} color={theme.colors.text} />
-            <View style={[styles.badge, { backgroundColor: '#f59e0b', borderColor: theme.colors.background }]} />
+
+          {/* Profile */}
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: iconBg }]}
+            onPress={() => navigation.navigate('Profile')}
+            activeOpacity={0.7}
+          >
+            <User size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+
+          {/* Bell — with real unread count badge */}
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: iconBg }]}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.7}
+          >
+            <Bell size={20} color={theme.colors.text} />
+            {badgeLabel ? (
+              <View style={[styles.badge, { borderColor: theme.colors.background }]}>
+                <Text style={styles.badgeText}>{badgeLabel}</Text>
+              </View>
+            ) : null}
           </TouchableOpacity>
         </View>
       )}
@@ -87,48 +156,65 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
   },
-  leftContainer: {
+  left: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 10,
   },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  logo: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+  },
+  brandBlock: {
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  title: {
+  brandName: {
     fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -0.3,
   },
-  rightContainer: {
+  subtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 1,
+  },
+  right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
   },
   badge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-  }
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '800',
+    lineHeight: 10,
+  },
 });
 
 export default AppBar;

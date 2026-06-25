@@ -6,14 +6,16 @@ const authorize = require('../../middleware/role.middleware');
 
 router.use(authMiddleware);
 
-// Admin routes
-router.get('/', authorize('ADMIN'), notificationController.getNotifications);
+// ── Admin routes ─────────────────────────────────────────────────────────────
+router.get('/',              authorize('ADMIN'), notificationController.getNotifications);
 router.get('/activity-logs', authorize('ADMIN'), notificationController.getAdminActivityLogs);
-router.post('/broadcast', authorize('ADMIN'), notificationController.sendBroadcast);
+router.post('/broadcast',    authorize('ADMIN'), notificationController.sendBroadcast);
 
-// User routes
-router.get('/my', notificationController.getMyNotifications);
-router.patch('/read-all', notificationController.markAllAsRead);
-router.patch('/:id/read', notificationController.markAsRead);
+// ── User routes ───────────────────────────────────────────────────────────────
+router.get('/my',            notificationController.getMyNotifications);
+router.get('/unread-count',  notificationController.getUnreadCount);
+router.patch('/read-all',    notificationController.markAllAsRead);
+router.patch('/:id/read',    notificationController.markAsRead);
+router.delete('/:id',        notificationController.deleteNotification);
 
 module.exports = router;

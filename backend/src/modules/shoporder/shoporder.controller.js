@@ -13,6 +13,8 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
 const { collectCommission } = require('../adminWallet/adminWallet.controller');
+const { notifyUser } = require('../../helpers/notifyUser.helper');
+
 
 /**
  * POST /api/v1/shoporders
@@ -159,6 +161,17 @@ exports.placeOrder = catchAsync(async (req, res) => {
         // Notify shop owner
         emitToRoom(`shop_${shopId}`, 'NEW_ORDER', { orderId: order._id, total });
         emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SHOP_ORDER', id: order._id });
+
+        // Notify customer: order placed
+        notifyUser({
+            userId: req.user._id,
+            title: '🛎️ Order Placed Successfully',
+            message: `Your order has been placed with ${shop.name}. Total: ₹${total}. Order ID: #${String(order._id).slice(-6).toUpperCase()}`,
+            action: 'ORDER_PLACED',
+            entityType: 'ORDER',
+            entityId: order._id,
+            targetRole: 'CUSTOMER'
+        });
 
         return successResponse(res, order, 'Order placed successfully', StatusCodes.CREATED);
 
@@ -366,6 +379,20 @@ exports.cancelOrder = catchAsync(async (req, res) => {
     emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', { orderId: order._id, status: 'CANCELLED' });
     emitToAll('DASHBOARD_UPDATE', { type: 'ORDER_STATUS_CHANGED', id: order._id });
 
+    const Shop = require('../shop/shop.model');
+    const shop = await Shop.findById(order.shopId);
+    if (shop) {
+        notifyUser({
+            userId: shop.ownerId,
+            title: '❌ Order Cancelled',
+            message: `Order #${String(order._id).slice(-6).toUpperCase()} was cancelled by the customer.`,
+            action: 'ORDER_CANCELLED',
+            entityType: 'ORDER',
+            entityId: order._id,
+            targetRole: 'WORKER'
+        });
+    }
+
     return successResponse(res, order, 'Order cancelled successfully');
 });
 
@@ -474,8 +501,30 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
     emitToRoom(`customer_${order.customerId}`, 'ORDER_STATUS', { orderId: order._id, status });
     emitToAll('DASHBOARD_UPDATE', { type: 'ORDER_STATUS_CHANGED', id: order._id });
 
+    // Notify customer via notification
+    const statusMessages = {
+        CONFIRMED:        { emoji: '✅', msg: 'Your order has been confirmed by the shop and is being prepared.' },
+        PACKING:          { emoji: '📦', msg: 'Your order is being packed and will be dispatched soon.' },
+        OUT_FOR_DELIVERY: { emoji: '🚚', msg: 'Your order is out for delivery! Prepare your OTP for handover.' },
+        DELIVERED:        { emoji: '🎉', msg: 'Your order has been delivered successfully. Enjoy!' },
+        CANCELLED:        { emoji: '❌', msg: 'Your order has been cancelled. A refund will be processed if applicable.' },
+    };
+    const sm = statusMessages[status];
+    if (sm) {
+        notifyUser({
+            userId: order.customerId,
+            title: `${sm.emoji} Order ${status.charAt(0) + status.slice(1).toLowerCase()}`,
+            message: sm.msg,
+            action: status === 'DELIVERED' ? 'ORDER_DELIVERED' : status === 'CANCELLED' ? 'ORDER_CANCELLED' : 'ORDER_UPDATED',
+            entityType: 'ORDER',
+            entityId: order._id,
+            targetRole: 'CUSTOMER'
+        });
+    }
+
     return successResponse(res, order, 'Order status updated');
 });
+
 
 /**
  * GET /api/v1/shoporders (Admin)

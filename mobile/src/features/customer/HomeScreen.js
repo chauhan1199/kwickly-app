@@ -9,9 +9,9 @@ import {
   TouchableOpacity,
   TextInput,
   StatusBar,
-  Image,
-  Dimensions
+  Dimensions,
 } from 'react-native';
+
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
@@ -20,6 +20,7 @@ import { jobService } from '../../services/jobService';
 import api from '../../services/api';
 import BannerCarousel from '../../components/ui/BannerCarousel';
 import LinearGradient from 'react-native-linear-gradient';
+import AppBar from '../../components/AppBar';
 
 const HomeScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -159,19 +160,9 @@ const HomeScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <Image source={require('../../assets/logo.jpeg')} style={{ width: 40, height: 40, borderRadius: 10, marginRight: 10 }} />
-        <Text style={styles.appBarTitle} numberOfLines={1}>Kwickly</Text>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={toggleTheme} style={styles.iconBtn}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '☀️' : '🌙'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn}>
-          <Text style={{fontSize: 16}}>👤</Text>
-        </TouchableOpacity>
-      </View>
+
+      {/* Unified App Bar */}
+      <AppBar />
 
       <ScrollView 
         showsVerticalScrollIndicator={false}
@@ -450,64 +441,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  appBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 8,
-    gap: 8,
-  },
-  logoBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#0E9AA7',
-    overflow: 'hidden',
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoK: {
-    width: 20,
-    height: 20,
-    position: 'relative',
-  },
-  logoLine1: {
-    position: 'absolute',
-    left: 2, top: 0, width: 4, height: 20,
-    backgroundColor: '#fff', borderRadius: 2,
-  },
-  logoLine2: {
-    position: 'absolute',
-    left: 6, top: 8, width: 12, height: 4,
-    backgroundColor: '#fff', borderRadius: 2,
-    transform: [{ rotate: '-45deg' }, { translateX: 2 }, { translateY: -6 }],
-  },
-  logoLine3: {
-    position: 'absolute',
-    left: 6, top: 8, width: 12, height: 4,
-    backgroundColor: '#fff', borderRadius: 2,
-    transform: [{ rotate: '45deg' }, { translateX: 4 }, { translateY: 4 }],
-  },
-  appBarTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-    marginLeft: 8,
   },
   content: {
     paddingHorizontal: 14,
