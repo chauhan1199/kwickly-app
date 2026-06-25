@@ -9,9 +9,10 @@ import {
   StatusBar,
   Alert,
   Modal,
-  TextInput
+  TextInput,
+  ActivityIndicator
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
@@ -21,8 +22,33 @@ import { useNotifications } from '../../context/NotificationContext';
 const PaymentMethodsScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { refreshUnread } = useNotifications();
+  const { user, fetchUser } = useAuth();
 
   const [methods, setMethods] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    const loadedMethods = [];
+    if (user?.wallet?.upiId) {
+      loadedMethods.push({
+        id: 'upi',
+        type: 'UPI',
+        details: user.wallet.upiId,
+        icon: '📱',
+        isDefault: !user?.wallet?.bankDetails
+      });
+    }
+    if (user?.wallet?.bankDetails) {
+      loadedMethods.push({
+        id: 'bank',
+        type: user.wallet.bankDetails.bankName || 'Bank Account',
+        details: '****' + (user.wallet.bankDetails.accountNumber || '').slice(-4),
+        icon: '🏦',
+        isDefault: !!user?.wallet?.bankDetails
+      });
+    }
+    setMethods(loadedMethods);
+  }, [user]);
 
   React.useEffect(() => {
     const loadMethods = async () => {
@@ -62,17 +88,25 @@ const PaymentMethodsScreen = ({ navigation }) => {
     saveMethods(updated);
   };
 
-  const handleRemove = (id) => {
-    const method = methods.find(m => m.id === id);
-    if (method.isDefault && methods.length > 1) {
-      Alert.alert('Action Required', 'Please set another payment method as default before removing this one.');
-      return;
+  const handleRemove = async (id) => {
+    try {
+      setLoading(true);
+      const updatedWallet = {
+        upiId: id === 'upi' ? '' : user?.wallet?.upiId,
+        bankDetails: id === 'bank' ? null : user?.wallet?.bankDetails
+      };
+      
+      await customerService.updateProfile({ wallet: updatedWallet });
+      await fetchUser();
+      
+      customerService.triggerNotification({ title: 'Payment Method Removed', message: 'Payment method successfully deleted.' })
+        .then(() => refreshUnread())
+        .catch(e=>console.log(e));
+    } catch (e) {
+      Alert.alert('Error', 'Failed to remove payment method');
+    } finally {
+      setLoading(false);
     }
-    const updated = methods.filter(m => m.id !== id);
-    saveMethods(updated);
-    customerService.triggerNotification({ title: 'Payment Method Removed', message: 'Payment method successfully deleted.' })
-      .then(() => refreshUnread())
-      .catch(e=>console.log(e));
   };
 
   const [editMethodId, setEditMethodId] = useState(null);
@@ -81,13 +115,14 @@ const PaymentMethodsScreen = ({ navigation }) => {
     const method = methods.find(m => m.id === id);
     if (method) {
       setEditMethodId(id);
-      if (method.type === 'UPI') {
+      if (id === 'upi') {
         setNewMethodType('UPI');
-        setNewUpiId(method.details);
+        setNewUpiId(user?.wallet?.upiId || '');
       } else {
         setNewMethodType('BANK');
-        setNewBankName(method.type);
-        setNewAccNumber(''); // Cannot reverse '****1234', prompt to re-enter
+        setNewBankName(user?.wallet?.bankDetails?.bankName || 'HDFC Bank');
+        setNewAccNumber(user?.wallet?.bankDetails?.accountNumber || '');
+        setNewIfsc(user?.wallet?.bankDetails?.ifscCode || '');
       }
       setShowAddModal(true);
     }
@@ -98,49 +133,60 @@ const PaymentMethodsScreen = ({ navigation }) => {
   const [newUpiId, setNewUpiId] = useState('');
   const [newBankName, setNewBankName] = useState('HDFC Bank');
   const [newAccNumber, setNewAccNumber] = useState('');
+  const [newIfsc, setNewIfsc] = useState('');
 
-  const submitNewMethod = () => {
-    let type = '';
-    let details = '';
-    let icon = '';
+  const submitNewMethod = async () => {
+    let updatedWallet = {
+      upiId: user?.wallet?.upiId,
+      bankDetails: user?.wallet?.bankDetails
+    };
 
     if (newMethodType === 'UPI') {
-      if (!newUpiId.includes('@')) {
+      if (!newUpiId || !newUpiId.includes('@')) {
         return Alert.alert('Invalid', 'Please enter a valid UPI ID (e.g. name@upi)');
       }
-      type = 'UPI';
-      details = newUpiId;
-      icon = '📱';
+      updatedWallet.upiId = newUpiId;
     } else {
-      if (newAccNumber.length > 0 && newAccNumber.length < 6) {
-        return Alert.alert('Invalid', 'Please enter a valid Account Number (min 6 digits)');
-      }
       if (!newAccNumber && !editMethodId) {
         return Alert.alert('Invalid', 'Please enter a valid Account Number (min 6 digits)');
       }
-      type = newBankName;
-      details = newAccNumber ? ('****' + newAccNumber.slice(-4)) : methods.find(m => m.id === editMethodId)?.details;
-      icon = '🏦';
+      if (newAccNumber && newAccNumber.length < 6) {
+        return Alert.alert('Invalid', 'Account Number must be at least 6 digits');
+      }
+      if (!newIfsc || newIfsc.length < 4) {
+        return Alert.alert('Invalid', 'Please enter a valid IFSC Code');
+      }
+      
+      updatedWallet.bankDetails = {
+        bankName: newBankName,
+        accountNumber: newAccNumber || user?.wallet?.bankDetails?.accountNumber,
+        ifscCode: newIfsc
+      };
     }
 
-    if (editMethodId) {
-      const updated = methods.map(m => m.id === editMethodId ? { ...m, type, details, icon } : m);
-      saveMethods(updated);
-      customerService.triggerNotification({ title: 'Payment Method Updated', message: 'Your payment method has been updated.' })
+    try {
+      setLoading(true);
+      await customerService.updateProfile({ wallet: updatedWallet });
+      await fetchUser();
+      
+      const title = editMethodId ? 'Payment Method Updated' : 'Payment Method Added';
+      const msg = editMethodId ? 'Your payment method has been updated.' : 'A new payment method has been successfully added.';
+      
+      customerService.triggerNotification({ title, message: msg })
         .then(() => refreshUnread())
         .catch(e=>console.log(e));
-    } else {
-      const updated = [...methods, { id: Date.now(), type, details, icon, isDefault: methods.length === 0 }];
-      saveMethods(updated);
-      customerService.triggerNotification({ title: 'Payment Method Added', message: 'A new payment method has been successfully added.' })
-        .then(() => refreshUnread())
-        .catch(e=>console.log(e));
+        
+      setShowAddModal(false);
+      setNewUpiId('');
+      setNewAccNumber('');
+      setNewIfsc('');
+      setEditMethodId(null);
+    } catch (e) {
+      console.log('Update payment error:', e.response?.data || e.message);
+      Alert.alert('Error', e.response?.data?.message || e.message || 'Failed to save payment method');
+    } finally {
+      setLoading(false);
     }
-    
-    setShowAddModal(false);
-    setNewUpiId('');
-    setNewAccNumber('');
-    setEditMethodId(null);
   };
 
   const handleAdd = () => {
@@ -149,6 +195,7 @@ const PaymentMethodsScreen = ({ navigation }) => {
     setNewUpiId('');
     setNewBankName('HDFC Bank');
     setNewAccNumber('');
+    setNewIfsc('');
     setShowAddModal(true);
   };
 
@@ -244,14 +291,17 @@ const PaymentMethodsScreen = ({ navigation }) => {
             </View>
 
             {newMethodType === 'UPI' ? (
-              <TextInput 
-                style={styles.modalInput}
-                placeholder="Enter UPI ID (e.g. name@upi)"
-                placeholderTextColor={theme.colors.textDim}
-                value={newUpiId}
-                onChangeText={setNewUpiId}
-                autoCapitalize="none"
-              />
+              <View>
+                <Text style={styles.modalLabel}>UPI ID</Text>
+                <TextInput 
+                  style={styles.modalInput}
+                  placeholder="Enter UPI ID (e.g. name@upi)"
+                  placeholderTextColor={theme.colors.textDim}
+                  value={newUpiId}
+                  onChangeText={setNewUpiId}
+                  autoCapitalize="none"
+                />
+              </View>
             ) : (
               <>
                 <Text style={styles.modalLabel}>Select Bank</Text>
@@ -266,23 +316,34 @@ const PaymentMethodsScreen = ({ navigation }) => {
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
+                <Text style={[styles.modalLabel, { marginTop: 12 }]}>Account Number</Text>
                 <TextInput 
                   style={styles.modalInput}
-                  placeholder={editMethodId ? "Leave blank to keep existing account" : "Account Number"}
+                  placeholder={editMethodId ? "Leave blank to keep existing" : "e.g. 50100234567"}
                   placeholderTextColor={theme.colors.textDim}
                   value={newAccNumber}
                   onChangeText={setNewAccNumber}
                   keyboardType="number-pad"
                 />
+                
+                <Text style={[styles.modalLabel, { marginTop: 12 }]}>IFSC Code</Text>
+                <TextInput 
+                  style={styles.modalInput}
+                  placeholder="e.g. HDFC0001234"
+                  placeholderTextColor={theme.colors.textDim}
+                  value={newIfsc}
+                  onChangeText={(text) => setNewIfsc(text.toUpperCase())}
+                  autoCapitalize="characters"
+                />
               </>
             )}
 
             <View style={styles.modalActionRow}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowAddModal(false)}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowAddModal(false)} disabled={loading}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={submitNewMethod}>
-                <Text style={styles.modalSaveText}>{editMethodId ? 'Save' : 'Add'}</Text>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={submitNewMethod} disabled={loading}>
+                {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.modalSaveText}>{editMethodId ? 'Save' : 'Add'}</Text>}
               </TouchableOpacity>
             </View>
           </View>

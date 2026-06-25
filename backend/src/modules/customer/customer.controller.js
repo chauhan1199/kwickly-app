@@ -29,11 +29,23 @@ exports.getProfile = catchAsync(async (req, res) => {
 });
 
 exports.updateProfile = catchAsync(async (req, res) => {
-    const { name, email } = req.body;
+  const { name, email } = req.body;
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
     if (req.file) updateData.profileImage = '/uploads/' + req.file.filename;
+
+    if (req.body.wallet) {
+        const walletData = typeof req.body.wallet === 'string' ? JSON.parse(req.body.wallet) : req.body.wallet;
+        
+        if (walletData.bankDetails !== undefined) {
+            updateData['wallet.bankDetails'] = walletData.bankDetails;
+        }
+        
+        if (walletData.upiId !== undefined) {
+            updateData['wallet.upiId'] = walletData.upiId === null ? '' : walletData.upiId;
+        }
+    }
 
     if (req.body.profileImageBase64) {
         const fs = require('fs');

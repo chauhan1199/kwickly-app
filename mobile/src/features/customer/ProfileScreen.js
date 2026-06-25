@@ -15,30 +15,14 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from '@react-navigation/native';
 
 
 const ProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
-  const [pmCount, setPmCount] = React.useState(0);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      const fetchMethods = async () => {
-        try {
-          const stored = await AsyncStorage.getItem('mockPaymentMethods');
-          if (stored) {
-            setPmCount(JSON.parse(stored).length);
-          } else {
-            setPmCount(2); // Initial fallback
-          }
-        } catch(e){}
-      };
-      fetchMethods();
-    }, [])
-  );
+  let pmCount = 0;
+  if (user?.wallet?.upiId) pmCount++;
+  if (user?.wallet?.bankDetails) pmCount++;
 
   const styles = createStyles(theme, isDarkMode);
 
