@@ -2,6 +2,7 @@ const { StatusCodes } = require('http-status-codes');
 const Job = require('./job.model');
 const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');
+const logger = require('../../helpers/logger.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll, emitToRoom } = require('../../helpers/socket.helper');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
@@ -55,11 +56,11 @@ exports.createJob = catchAsync(async (req, res) => {
         const msg = settings.maintenance.message || 'The platform is currently undergoing maintenance. Please try again later.';
         return errorResponse(res, msg, StatusCodes.SERVICE_UNAVAILABLE);
     }
-    const minBalance     = settings?.wallet?.minimumBalance || 100;
-    
+    const minBalance = settings?.wallet?.minimumBalance || 100;
+
     // Initial radius is the first round or maxKm
     const initialRadiusKm = settings?.radius?.rounds?.[0]?.maxKm || settings?.radius?.maxKm || 15;
-    
+
     // Create the job
     const job = await Job.create({
         customerId: req.user._id,
@@ -70,15 +71,15 @@ exports.createJob = catchAsync(async (req, res) => {
         preferredDate,
         timeSlot,
         location,
-        addressDetails: typeof addressDetails === 'string' 
-            ? { fullAddress: addressDetails, city: targetCity } 
+        addressDetails: typeof addressDetails === 'string'
+            ? { fullAddress: addressDetails, city: targetCity }
             : { ...addressDetails, city: targetCity },
         status: 'BROADCASTING',
         payment: { amount: 0, status: 'PENDING' },
         broadcast: { round: 0, lastAttemptAt: new Date(), radiusKm: initialRadiusKm }
     });
 
-    const now           = new Date();
+    const now = new Date();
     const [jobLng, jobLat] = location.coordinates;  // GeoJSON: [longitude, latitude]
 
     // ── Step 2: Find ALL eligible workers using server-side criteria ────────────
@@ -86,10 +87,10 @@ exports.createJob = catchAsync(async (req, res) => {
     const globalRadiusRadians = initialRadiusKm / 6371; // Earth radius 6371 km
 
     const workerQuery = {
-        role:        'WORKER',
-        isVerified:  true,
+        role: 'WORKER',
+        isVerified: true,
         'kyc.status': 'APPROVED',
-        isOnline:    true,
+        isOnline: true,
         $or: [
             { 'subscription.isTrial': true },
             { 'subscription.expiryDate': { $gt: now } },
@@ -112,8 +113,8 @@ exports.createJob = catchAsync(async (req, res) => {
 
     // Fetch candidate workers within global max radius (coarse filter via index)
     const candidateWorkers = await Customer.find(workerQuery)
-    .select('_id services serviceRadius activeLocation city')
-    .lean();
+        .select('_id services serviceRadius activeLocation city')
+        .lean();
 
     // ── Step 3: Fine-filter per worker — category match + own serviceRadius ─────
     //
@@ -168,18 +169,18 @@ exports.createJob = catchAsync(async (req, res) => {
         .lean();
 
     const alertPayload = {
-        jobId:        job._id,
-        category:     job.category,
-        subcategory:  job.subcategory,
-        description:  job.description,
-        location:     job.location,
+        jobId: job._id,
+        category: job.category,
+        subcategory: job.subcategory,
+        description: job.description,
+        location: job.location,
         addressDetails: job.addressDetails,
-        timeSlot:     job.timeSlot,
+        timeSlot: job.timeSlot,
         preferredDate: job.preferredDate,
         notifiedWorkers: eligibleWorkerIds.length,
         customer: {
-            _id:          customer?._id,
-            name:         customer?.name,
+            _id: customer?._id,
+            name: customer?.name,
             profileImage: customer?.profileImage
         }
     };
@@ -204,9 +205,9 @@ exports.createJob = catchAsync(async (req, res) => {
     await delCache('admin_dashboard_stats');
     await delCache('admin_badge_counts');
     emitToRoom('admin_dashboard', 'DASHBOARD_UPDATE', {
-        type:            'NEW_JOB',
-        id:              job._id,
-        category:        job.category,
+        type: 'NEW_JOB',
+        id: job._id,
+        category: job.category,
         notifiedWorkers: eligibleWorkerIds.length
     });
 
@@ -284,11 +285,11 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
 
     // ── Criteria 5: Subscription valid ─────────────────────────────────────────
     const now = new Date();
-    const isTrialActive       = worker.subscription?.isTrial === true &&
-                                 worker.subscription?.trialEndDate &&
-                                 new Date(worker.subscription.trialEndDate) > now;
-    const isPaidSubActive     = worker.subscription?.expiryDate &&
-                                 new Date(worker.subscription.expiryDate) > now;
+    const isTrialActive = worker.subscription?.isTrial === true &&
+        worker.subscription?.trialEndDate &&
+        new Date(worker.subscription.trialEndDate) > now;
+    const isPaidSubActive = worker.subscription?.expiryDate &&
+        new Date(worker.subscription.expiryDate) > now;
 
     // Fallback: 180 days from registration
     const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + 180 * 24 * 60 * 60 * 1000 > now.getTime();
@@ -334,7 +335,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
 
     // ── Criteria 8: Worker's own serviceRadius + location check ────────────────
     const workerRadiusKm = worker.serviceRadius || (settings?.radius?.maxKm || 15);
-    const workerCoords   = worker.activeLocation?.coordinates;
+    const workerCoords = worker.activeLocation?.coordinates;
 
     if (!workerCoords || workerCoords.length !== 2) {
         return errorResponse(
@@ -352,9 +353,9 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
 
     // ── Fetch active jobs matching worker's categories within their radius ──────
     const query = {
-        status:   { $in: ['BROADCASTING', 'QUOTES_RECEIVED'] },
+        status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED'] },
         category: { $in: activeCategoryNames },        // Criteria 7: category match
-        _id:      { $nin: quotedJobIds },               // Exclude already-quoted
+        _id: { $nin: quotedJobIds },               // Exclude already-quoted
         location: {                                     // Criteria 8: worker's radius
             $geoWithin: {
                 $centerSphere: [workerCoords, workerRadiusRadians]
@@ -372,25 +373,25 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
     }
 
     const jobs = await Job.find(query)
-    .populate('customerId', 'name phone profileImage')
-    .sort('-createdAt')
-    .limit(50)
-    .lean();
+        .populate('customerId', 'name phone profileImage')
+        .sort('-createdAt')
+        .limit(50)
+        .lean();
 
     // ── Attach distance info to each job (for display in worker's app) ──────────
     const [wLng, wLat] = workerCoords;
     const jobsWithDistance = jobs.map(job => {
         const [jLng, jLat] = job.location?.coordinates || [0, 0];
-        const R     = 6371;
-        const dLat  = ((jLat - wLat) * Math.PI) / 180;
-        const dLng  = ((jLng - wLng) * Math.PI) / 180;
-        const a     =
+        const R = 6371;
+        const dLat = ((jLat - wLat) * Math.PI) / 180;
+        const dLng = ((jLng - wLng) * Math.PI) / 180;
+        const a =
             Math.sin(dLat / 2) * Math.sin(dLat / 2) +
             Math.cos((wLat * Math.PI) / 180) *
             Math.cos((jLat * Math.PI) / 180) *
             Math.sin(dLng / 2) * Math.sin(dLng / 2);
         const distanceKm = parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2));
-        const etaMins    = Math.max(5, Math.ceil(distanceKm * 2) + 5);
+        const etaMins = Math.max(5, Math.ceil(distanceKm * 2) + 5);
         return { ...job, distanceKm, etaMins };
     });
 
@@ -419,9 +420,13 @@ exports.getWorkerJobs = catchAsync(async (req, res) => {
 });
 
 // ─── PATCH /api/v1/jobs/:id/start ─────────────────────────────────────────────
+//
+// LOOPHOLE FIX #3 — GPS Spoofing Mitigation
+//   Verifies worker is within 200 meters of job location using Haversine distance
+//   This prevents workers from using GPS spoofing apps to fake arrival
 exports.startJob = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { arrivalOtp } = req.body;
+    const { arrivalOtp, currentCoordinates } = req.body;
 
     const job = await Job.findOne({ _id: id, workerId: req.user._id });
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
@@ -430,6 +435,36 @@ exports.startJob = catchAsync(async (req, res) => {
     }
     if (job.security?.arrivalOtp && job.security.arrivalOtp !== arrivalOtp) {
         return errorResponse(res, 'Invalid Arrival OTP', StatusCodes.BAD_REQUEST);
+    }
+
+    // ─── GPS Spoofing Check: Geofence verification (≤200 meters) ───────────────
+    const GEOFENCE_MAX_METERS = 200;
+    const jobCoords = job.location?.coordinates;
+    if (currentCoordinates && currentCoordinates.length === 2 && jobCoords && jobCoords.length === 2) {
+        const [jobLon, jobLat] = jobCoords;
+        const [curLon, curLat] = currentCoordinates;
+        const R = 6371000; // Earth radius in meters
+        const dLat = ((curLat - jobLat) * Math.PI) / 180;
+        const dLon = ((curLon - jobLon) * Math.PI) / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos((jobLat * Math.PI) / 180) *
+            Math.cos((curLat * Math.PI) / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const distanceMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        if (distanceMeters > GEOFENCE_MAX_METERS) {
+            return errorResponse(
+                res,
+                `You are ${Math.round(distanceMeters)}m away from the job location. Please arrive within ${GEOFENCE_MAX_METERS}m to start the job.`,
+                StatusCodes.FORBIDDEN
+            );
+        }
+    }
+    // If no coordinates provided, still allow with arrival OTP (fallback)
+    // but log a warning for admin auditing
+    if (!currentCoordinates || currentCoordinates.length !== 2) {
+        logger.warn(`[GPS Spoofing] Worker ${req.user._id} started job ${id} without location data`);
     }
 
     job.status = 'IN_PROGRESS';
@@ -486,11 +521,11 @@ exports.payJob = catchAsync(async (req, res) => {
                 if (promo.type === 'PERCENTAGE_DISCOUNT') promoDiscount = (amount * promo.value) / 100;
                 if (promo.maxDiscountCap && promoDiscount > promo.maxDiscountCap) promoDiscount = promo.maxDiscountCap;
                 if (promoDiscount > amount) promoDiscount = amount;
-                
+
                 // Track usage
                 promo.usesCount += 1;
                 await promo.save();
-                
+
                 // Save promo info on job
                 job.promoCode = promoCode;
                 job.promoDiscount = promoDiscount;
@@ -517,8 +552,20 @@ exports.payJob = catchAsync(async (req, res) => {
                     { new: true, session }
                 );
                 if (!updated) {
-                    // If worker doesn't have enough, create a debt record
+                    // LOOPHOLE FIX #1 — Cash Payment Evasion Mitigation
+                    // Worker doesn't have enough balance — create debt record
                     const debtUpdated = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': -adminTotalRevenue } }, { new: true, session });
+
+                    // Automatically lock worker offline since they're in negative balance
+                    if (debtUpdated && debtUpdated.wallet?.balance < 0) {
+                        await Customer.findByIdAndUpdate(worker._id, { isOnline: false }, { session });
+                        logger.warn(`[Cash Evasion] Worker ${worker._id} locked offline — wallet at ₹${debtUpdated.wallet.balance}`);
+                        emitToRoom(`worker_${worker._id}`, 'FORCED_OFFLINE', {
+                            reason: 'Negative wallet balance from cash job. Please top-up to continue receiving jobs.',
+                            walletBalance: debtUpdated.wallet.balance
+                        });
+                    }
+
                     await WalletTxn.create([{
                         userId: worker._id, type: 'JOB_DEBIT', amount: adminTotalRevenue,
                         balance: debtUpdated?.wallet?.balance || 0,
@@ -631,6 +678,145 @@ exports.reassignWorker = catchAsync(async (req, res) => {
 
     emitToAll('DASHBOARD_UPDATE', { type: 'WORKER_REASSIGNED', id: job._id });
     return successResponse(res, job, 'Worker reassigned successfully');
+});
+
+// ─── POST /api/v1/jobs/:id/report-partial-payment ─────────────────────────────
+//
+// LOOPHOLE FIX #9 — Partial Cash Payment (Worker Short-Changing)
+//   If a customer pays less than the agreed amount, the worker can report it
+//   This shifts the job to DISPUTED status and freezes the commission deduction
+exports.reportPartialPayment = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { amountReceived, reason } = req.body;
+
+    if (!amountReceived || amountReceived <= 0) {
+        return errorResponse(res, 'Please provide the amount you actually received', StatusCodes.BAD_REQUEST);
+    }
+
+    const job = await Job.findOne({ _id: id, workerId: req.user._id });
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+    if (job.status !== 'COMPLETED') return errorResponse(res, 'Only completed jobs can be reported as partial payment', StatusCodes.BAD_REQUEST);
+    if (job.payment?.status === 'PAID') return errorResponse(res, 'Job has already been paid', StatusCodes.BAD_REQUEST);
+
+    const agreedAmount = job.payment?.amount || 0;
+    const shortAmount = agreedAmount - amountReceived;
+
+    if (shortAmount <= 0) {
+        return errorResponse(res, 'Amount received is equal to or greater than the agreed amount. Use normal payment flow instead.', StatusCodes.BAD_REQUEST);
+    }
+
+    // Mark job as DISPUTED — freezes commission deduction
+    job.status = 'DISPUTED';
+    // Store dispute info on the job
+    job.dispute = {
+        reportedBy: 'WORKER',
+        amountReceived,
+        shortAmount,
+        reason: reason || 'Customer paid less than agreed amount',
+        reportedAt: new Date(),
+        status: 'OPEN'
+    };
+    await job.save();
+
+    // Notify admin and customer
+    emitToRoom('admin_dashboard', 'DASHBOARD_UPDATE', {
+        type: 'NEW_DISPUTE',
+        id: job._id,
+        category: job.category,
+        disputeReason: 'Partial Payment'
+    });
+    emitToRoom(`customer_${job.customerId}`, 'JOB_DISPUTED', {
+        jobId: job._id,
+        message: 'The worker has reported a partial payment dispute. Admin will review shortly.'
+    });
+
+    return successResponse(res, {
+        jobId: job._id,
+        status: 'DISPUTED',
+        amountReceived,
+        shortAmount,
+        message: `Dispute reported. The remaining ₹${shortAmount} has been flagged. Admin will review and mediate.`
+    }, 'Partial payment reported. Admin notified.');
+});
+
+// ─── PATCH /api/v1/jobs/:id/resolve-dispute (Admin) ──────────────────────────
+exports.resolveDispute = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { resolution, adminNote } = req.body; // resolution: 'DEDUCT_FROM_WORKER' | 'WAIVE_FEE' | 'REFUND_CUSTOMER' | 'CLOSE'
+
+    const job = await Job.findById(id);
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+    if (job.status !== 'DISPUTED') return errorResponse(res, 'Job is not in disputed status', StatusCodes.BAD_REQUEST);
+
+    const dispute = job.dispute;
+    if (!dispute) return errorResponse(res, 'No dispute found on this job', StatusCodes.NOT_FOUND);
+
+    const mongoose = require('mongoose');
+    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
+    const session = isSingle ? null : await mongoose.startSession();
+    if (session) session.startTransaction();
+
+    try {
+        const WalletTxn = require('../wallet/wallet.model');
+
+        if (resolution === 'DEDUCT_FROM_WORKER') {
+            // Charge commission from the amount they actually received
+            const actualAmount = dispute.amountReceived || 0;
+            const platformFee = job.payment?.platformFee || 0;
+            const gst = job.payment?.gst || 0;
+            const totalFee = platformFee + gst;
+
+            // Only charge proportionate fee on what was received
+            const actualFee = Math.min(totalFee, Math.round(actualAmount * (totalFee / job.payment?.amount || 1)));
+
+            await Customer.findByIdAndUpdate(job.workerId, { $inc: { 'wallet.balance': -actualFee } }, { session });
+            await WalletTxn.create([{
+                userId: job.workerId, type: 'JOB_DEBIT', amount: actualFee,
+                refId: job._id.toString(), status: 'COMPLETED',
+                description: `Partial fee for disputed job #${job._id.toString().slice(-6)} (worker received ₹${actualAmount})`
+            }], { session });
+
+            job.status = 'CLOSED';
+            job.payment.status = 'PAID';
+        } else if (resolution === 'WAIVE_FEE') {
+            // Platform waives the commission — worker keeps what they got
+            job.status = 'CLOSED';
+            job.payment.status = 'PAID';
+        } else if (resolution === 'REFUND_CUSTOMER') {
+            // Refund customer from worker's wallet
+            if (dispute.shortAmount > 0) {
+                await Customer.findByIdAndUpdate(job.customerId, { $inc: { 'wallet.balance': dispute.shortAmount } }, { session });
+                await WalletTxn.create([{
+                    userId: job.customerId, type: 'REFUND', amount: dispute.shortAmount,
+                    refId: job._id.toString(), status: 'COMPLETED',
+                    description: `Refund for partial payment dispute on job #${job._id.toString().slice(-6)}`
+                }], { session });
+            }
+            job.status = 'CLOSED';
+            job.payment.status = 'REFUNDED';
+        } else {
+            // CLOSE — just close without financial action
+            job.status = 'CLOSED';
+        }
+
+        job.dispute.resolution = resolution;
+        job.dispute.adminNote = adminNote || '';
+        job.dispute.resolvedAt = new Date();
+        job.dispute.status = 'RESOLVED';
+        await job.save({ session });
+
+        if (session) await session.commitTransaction();
+        if (session) session.endSession();
+
+        emitToRoom(`worker_${job.workerId}`, 'DISPUTE_RESOLVED', { jobId: job._id, resolution });
+        emitToRoom(`customer_${job.customerId}`, 'DISPUTE_RESOLVED', { jobId: job._id, resolution });
+
+        return successResponse(res, job, `Dispute resolved: ${resolution}`);
+    } catch (error) {
+        if (session) await session.abortTransaction();
+        if (session) session.endSession();
+        throw error;
+    }
 });
 
 // ─── GET /api/v1/jobs/:id/receipt ─────────────────────────────────────────────

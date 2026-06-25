@@ -48,10 +48,19 @@ const setup = async () => {
     process.env.NODE_ENV = 'test';
 
     mongoServer = await MongoMemoryServer.create({
-        instance: { port: 27018 }
+        instance: {
+            port: 27018,
+            dbName: 'kwickly_test'
+        },
+        binary: {
+            downloadTimeout: 120
+        }
     });
     const mongoUri = mongoServer.getUri();
-    await mongoose.connect(mongoUri);
+    await mongoose.connect(mongoUri, {
+        serverSelectionTimeoutMS: 30000,
+        connectTimeoutMS: 30000
+    });
 };
 
 const teardown = async () => {
@@ -91,7 +100,10 @@ const createTestUser = async (overrides = {}) => {
 
 // Prevent Jest from treating this as a test suite
 describe('setup', () => {
-    it('placeholder', () => {});
+    it('placeholder', () => { });
 });
+
+// Increase default timeout for MongoDB binary download
+jest.setTimeout(120000);
 
 module.exports = { setup, teardown, clearCollections, generateToken, createTestUser };

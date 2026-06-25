@@ -17,7 +17,7 @@ describe('Settings Routes', () => {
         await AppSettings.create({
             isSingleton: 'CONFIG',
             branding: { appName: 'Kwickly', logoUrl: 'logo.png', iconUrl: 'icon.png' },
-            fees: { amount: 12, type: 'percent' }
+            fees: { type: 'percent', amount: 12, gstPercentage: 18 }
         });
     });
 
@@ -48,11 +48,11 @@ describe('Settings Routes', () => {
     });
 
     describe('PATCH /api/v1/settings', () => {
-        it('should update settings', async () => {
+        it('should update settings (flat fields per validator)', async () => {
             const res = await request(app)
                 .patch('/api/v1/settings')
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ fees: { amount: 15, type: 'percent' } });
+                .send({ feeAmount: 15, feeType: 'percentage', appName: 'Kwickly Pro' });
             expect(res.status).toBe(200);
         });
     });
