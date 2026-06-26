@@ -57,7 +57,13 @@ exports.approveSuggestion = catchAsync(async (req, res) => {
         });
         await delCache('categories_list');
     } else {
-        const cat = await Category.findById(sug.payload.parentCategoryId);
+        let cat = null;
+        if (sug.payload.parentCategoryId) {
+            cat = await Category.findById(sug.payload.parentCategoryId);
+        } else if (sug.payload.parentCategory) {
+            cat = await Category.findOne({ name: { $regex: new RegExp(`^${sug.payload.parentCategory}$`, 'i') } });
+        }
+        
         if (!cat) return errorResponse(res, 'Parent category not found', StatusCodes.NOT_FOUND);
         
         const duplicateSub = cat.subcategories.find(s => s.name.toLowerCase() === sug.payload.name.toLowerCase());
@@ -100,7 +106,7 @@ exports.approveSuggestion = catchAsync(async (req, res) => {
             entityType: 'CATEGORY',
             entityId: createdCategory?._id || sug.payload.parentCategoryId,
             performedBy: req.admin?._id || req.user?._id,
-            targetRole: 'WORKER'
+            targetRole: sug.source === 'customer' ? 'CUSTOMER' : 'WORKER'
         });
 
         emitToUser(workerUserId, 'NEW_NOTIFICATION', notification);
@@ -156,7 +162,7 @@ exports.rejectSuggestion = catchAsync(async (req, res) => {
             entityType: 'CATEGORY',
             entityId: sug.payload.parentCategoryId,
             performedBy: req.admin?._id || req.user?._id,
-            targetRole: 'WORKER'
+            targetRole: sug.source === 'customer' ? 'CUSTOMER' : 'WORKER'
         });
 
         emitToUser(workerUserId, 'NEW_NOTIFICATION', notification);

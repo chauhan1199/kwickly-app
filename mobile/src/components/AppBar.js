@@ -30,6 +30,7 @@ const AppBar = ({
   title,
   subtitle,
   hideRightIcons = false,
+  transparent = false,
 }) => {
   const navigation = useNavigation();
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -47,25 +48,25 @@ const AppBar = ({
   const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 24;
   
-  const iconBg = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-
+  const iconBg = isDarkMode && !transparent ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
   const badgeLabel = unreadCount > 99 ? '99+' : unreadCount > 0 ? String(unreadCount) : null;
+  const textColor = transparent ? '#fff' : theme.colors.text;
 
   return (
     <View
       style={[
         styles.container,
         {
-          backgroundColor: theme.colors.background,
+          backgroundColor: transparent ? 'transparent' : theme.colors.background,
           paddingTop: safeTop + 10,
-          borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)',
+          borderBottomColor: transparent ? 'transparent' : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'),
         },
       ]}
     >
       <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.colors.background}
-        translucent={false}
+        barStyle={transparent ? 'light-content' : (isDarkMode ? 'light-content' : 'dark-content')}
+        backgroundColor={transparent ? 'transparent' : theme.colors.background}
+        translucent={transparent}
       />
 
       {/* ── LEFT ── */}
@@ -76,7 +77,7 @@ const AppBar = ({
             onPress={handleBack}
             activeOpacity={0.7}
           >
-            <ChevronLeft size={22} color={theme.colors.text} />
+            <ChevronLeft size={22} color={textColor} />
           </TouchableOpacity>
         ) : (
           <Image
@@ -87,11 +88,11 @@ const AppBar = ({
         )}
 
         <View style={styles.brandBlock}>
-          <Text style={[styles.brandName, { color: theme.colors.text }]} numberOfLines={1}>
+          <Text style={[styles.brandName, { color: textColor }]} numberOfLines={1}>
             {title || 'Kwickly'}
           </Text>
           {subtitle ? (
-            <Text style={styles.subtitle} numberOfLines={1}>
+            <Text style={[styles.subtitle, transparent && {color: 'rgba(255,255,255,0.8)'}]} numberOfLines={1}>
               {subtitle}
             </Text>
           ) : null}
@@ -107,7 +108,7 @@ const AppBar = ({
             onPress={() => navigation.navigate('CustomerShopOrders')}
             activeOpacity={0.7}
           >
-            <Package size={20} color={theme.colors.text} />
+            <Package size={20} color={textColor} />
           </TouchableOpacity>
 
           {/* Dark / Light Toggle */}
@@ -117,9 +118,9 @@ const AppBar = ({
             activeOpacity={0.7}
           >
             {isDarkMode ? (
-              <Sun size={20} color={theme.colors.text} />
+              <Sun size={20} color={textColor} />
             ) : (
-              <Moon size={20} color={theme.colors.text} />
+              <Moon size={20} color={textColor} />
             )}
           </TouchableOpacity>
 
@@ -129,7 +130,7 @@ const AppBar = ({
             onPress={() => navigation.navigate('Profile')}
             activeOpacity={0.7}
           >
-            <User size={20} color={theme.colors.text} />
+            <User size={20} color={textColor} />
           </TouchableOpacity>
 
           {/* Bell — with real unread count badge */}
@@ -138,7 +139,7 @@ const AppBar = ({
             onPress={() => navigation.navigate('Notifications')}
             activeOpacity={0.7}
           >
-            <Bell size={20} color={theme.colors.text} />
+            <Bell size={20} color={textColor} />
             {badgeLabel ? (
               <View style={[styles.badge, { borderColor: theme.colors.background }]}>
                 <Text style={styles.badgeText}>{badgeLabel}</Text>

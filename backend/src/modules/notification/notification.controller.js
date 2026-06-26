@@ -98,7 +98,8 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
         $or: [
             { type: 'DIRECT',    userId },
             { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
-            { type: 'SYSTEM' }
+            { type: 'SYSTEM' },
+            ...(role === 'ADMIN' ? [{ type: 'ADMIN_ACTIVITY', targetRole: 'ADMIN' }] : [])
         ]
     };
 

@@ -51,6 +51,19 @@ const initSocket = (server) => {
         io.on('connection', (socket) => {
             logger.info(`[Socket] Connected: ${socket.id} (${socket.isAuthenticated ? socket.userRole : 'unauthenticated'})`);
 
+            if (socket.isAuthenticated && socket.userId) {
+                if (socket.userRole === 'CUSTOMER') {
+                    socket.join(`customer_${socket.userId}`);
+                } else if (socket.userRole === 'WORKER') {
+                    socket.join(`worker_${socket.userId}`);
+                }
+            }
+
+            socket.on('JOIN_CUSTOMER_ROOM', (data) => socket.join(`customer_${data.userId}`));
+            socket.on('JOIN_WORKER_ROOM', (data) => socket.join(`worker_${data.userId}`));
+            socket.on('JOIN_SHOP_ROOM', (data) => socket.join(`shop_${data.shopId}`));
+            socket.on('JOIN_ADMIN_ROOM', () => socket.join('admin_dashboard'));
+
             socket.on('disconnect', () => {
                 logger.info(`[Socket] Disconnected: ${socket.id}`);
             });

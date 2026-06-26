@@ -3,27 +3,33 @@ import api from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 
-const ICON_OPTIONS = ['🔧','⚡','❄️','🧹','🪵','🖌️','🚿','🪛','🏠','🔑','☀️','📷','🌿','🛋️','🪜','🪟','🚪','🔌','💡','🪝']
-const COLOR_OPTIONS = ['#2563EB','#F97316','#16A34A','#DC2626','#7C3AED','#0EA5E9','#92400E','#0F766E','#BE185D','#1D4ED8']
-
 function CategoryModal({ cat, onSave, onClose }) {
   const [form, setForm] = useState(cat
-    ? { name: cat.name, icon: cat.icon, color: cat.color, description: cat.description }
-    : { name: '', icon: '🔧', color: '#2563EB', description: '' }
+    ? { name: cat.name }
+    : { name: '' }
   )
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(cat?.imageUrl || null)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+  const fileInputRef = React.useRef()
+
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }))
     if (errors[k]) setErrors(p => ({ ...p, [k]: '' }))
+  }
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
   }
 
   const validate = () => {
     const e = {}
     if (!form.name.trim()) e.name = 'Category name is required'
     else if (form.name.trim().length < 2) e.name = 'Name must be at least 2 characters'
-    if (!form.description.trim()) e.description = 'Description is required'
-    else if (form.description.trim().length < 5) e.description = 'Description must be at least 5 characters'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -32,7 +38,7 @@ function CategoryModal({ cat, onSave, onClose }) {
     if (!validate()) return
     setSaving(true)
     try {
-      await onSave({ ...form, name: form.name.trim(), description: form.description.trim() })
+      await onSave({ ...form, name: form.name.trim() }, imageFile)
     } finally {
       setSaving(false)
     }
@@ -46,63 +52,58 @@ function CategoryModal({ cat, onSave, onClose }) {
           <button className="drawer-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
-          <div className="grid-2">
-            <div className="form-group">
-              <label className="form-label">Category Name *</label>
-              <input
-                className={`form-control ${errors.name ? 'input-error' : ''}`}
-                placeholder="e.g. Plumbing"
-                value={form.name}
-                onChange={e => set('name', e.target.value)}
-                autoFocus
-              />
-              {errors.name && <div className="field-error">{errors.name}</div>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Icon</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 0' }}>
-                {ICON_OPTIONS.map(ic => (
-                  <button
-                    key={ic}
-                    onClick={() => set('icon', ic)}
-                    style={{ width: 36, height: 36, border: `2px solid ${form.icon === ic ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 8, background: form.icon === ic ? 'var(--primary-light)' : 'var(--input-bg)', cursor: 'pointer', fontSize: 18, transition: 'all 0.1s' }}
-                  >
-                    {ic}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          {/* ── Image Upload ── */}
           <div className="form-group">
-            <label className="form-label">Accent Color</label>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {COLOR_OPTIONS.map(c => (
-                <button key={c} onClick={() => set('color', c)} style={{ width: 32, height: 32, borderRadius: '50%', background: c, border: `3px solid ${form.color === c ? 'var(--dark)' : 'transparent'}`, cursor: 'pointer', transition: 'border 0.1s' }} />
-              ))}
+            <label className="form-label">Cover Image <span style={{ color: 'var(--mid)', fontWeight: 400 }}>(shown on mobile app)</span></label>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: '2px dashed var(--border)',
+                borderRadius: 12,
+                height: 140,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                overflow: 'hidden',
+                background: 'var(--input-bg)',
+                position: 'relative',
+                transition: 'border-color 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+            >
+              {imagePreview ? (
+                <>
+                  <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 11, padding: '4px 10px', borderRadius: 8, fontWeight: 600 }}>Click to change</div>
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', color: 'var(--mid)' }}>
+                  <div style={{ fontSize: 32, marginBottom: 6 }}>🖼️</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>Click to upload image</div>
+                  <div style={{ fontSize: 11, marginTop: 2 }}>JPG, PNG up to 5MB</div>
+                </div>
+              )}
             </div>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
           </div>
-          <div className="form-group">
-            <label className="form-label">Description *</label>
-            <textarea
-              className={`form-control ${errors.description ? 'input-error' : ''}`}
-              placeholder="Describe what this category covers..."
-              value={form.description}
-              onChange={e => set('description', e.target.value)}
-              rows={3}
+
+          <div className="form-group" style={{ marginTop: 20 }}>
+            <label className="form-label">Category Name *</label>
+            <input
+              className={`form-control ${errors.name ? 'input-error' : ''}`}
+              placeholder="e.g. Beauty & Salon"
+              value={form.name}
+              onChange={e => set('name', e.target.value)}
+              autoFocus
             />
-            {errors.description && <div className="field-error">{errors.description}</div>}
-          </div>
-          <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 12, background: form.color + '20', border: `2px solid ${form.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{form.icon}</div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{form.name || 'Category Name'}</div>
-              <div style={{ fontSize: 12, color: 'var(--mid)', fontFamily: 'var(--font-body)', marginTop: 2, lineClamp: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>{form.description || 'Description will appear here'}</div>
-            </div>
+            {errors.name && <div className="field-error">{errors.name}</div>}
           </div>
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.name.trim() || !form.description.trim()}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.name.trim()}>
             {saving ? '⏳ Saving...' : cat ? '💾 Save Changes' : '+ Add Category'}
           </button>
         </div>
@@ -111,13 +112,18 @@ function CategoryModal({ cat, onSave, onClose }) {
   )
 }
 
+
 function SubcategoryModal({ catName, sub, onSave, onClose }) {
   const [form, setForm] = useState(sub
-    ? { name: sub.name, description: sub.description || '', minPrice: sub.minPrice || 0, platformFee: sub.platformFee || 0, suggestedMax: sub.suggestedMax || 0 }
-    : { name: '', description: '', minPrice: 0, platformFee: 0, suggestedMax: 0 }
+    ? { name: sub.name }
+    : { name: '' }
   )
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(sub?.imageUrl || null)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+  const fileInputRef = React.useRef()
+
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }))
     if (errors[k]) setErrors(p => ({ ...p, [k]: '' }))
@@ -127,19 +133,22 @@ function SubcategoryModal({ catName, sub, onSave, onClose }) {
     const e = {}
     if (!form.name.trim()) e.name = 'Subcategory name is required'
     else if (form.name.trim().length < 2) e.name = 'Name must be at least 2 characters'
-    if (form.minPrice < 0) e.minPrice = 'Price cannot be negative'
-    if (form.platformFee < 0) e.platformFee = 'Fee cannot be negative'
-    if (form.suggestedMax < 0) e.suggestedMax = 'Price cannot be negative'
-    if (form.suggestedMax > 0 && form.minPrice > form.suggestedMax) e.suggestedMax = 'Max price must be greater than min price'
     setErrors(e)
     return Object.keys(e).length === 0
+  }
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
   }
 
   const handleSave = async () => {
     if (!validate()) return
     setSaving(true)
     try {
-      await onSave({ ...form, name: form.name.trim() })
+      await onSave({ ...form, name: form.name.trim() }, imageFile)
     } finally {
       setSaving(false)
     }
@@ -155,8 +164,45 @@ function SubcategoryModal({ catName, sub, onSave, onClose }) {
           </div>
           <button className="drawer-close" onClick={onClose}>✕</button>
         </div>
-        <div className="modal-body">
-          <div className="form-group">
+          <div className="modal-body">
+            {/* ── Image Upload ── */}
+            <div className="form-group">
+              <label className="form-label">Subcategory Image <span style={{ color: 'var(--mid)', fontWeight: 400 }}>(shown on mobile app)</span></label>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: '2px dashed var(--border)',
+                  borderRadius: 12,
+                  height: 140,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  background: 'var(--input-bg)',
+                  position: 'relative',
+                  transition: 'border-color 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+              >
+                {imagePreview ? (
+                  <>
+                    <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 11, padding: '4px 10px', borderRadius: 8, fontWeight: 600 }}>Click to change</div>
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--mid)' }}>
+                    <div style={{ fontSize: 32, marginBottom: 6 }}>🖼️</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>Click to upload image</div>
+                    <div style={{ fontSize: 11, marginTop: 2 }}>JPG, PNG up to 5MB</div>
+                  </div>
+                )}
+              </div>
+              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
+            </div>
+
+            <div className="form-group" style={{ marginTop: 20 }}>
             <label className="form-label">Subcategory Name *</label>
             <input
               className={`form-control ${errors.name ? 'input-error' : ''}`}
@@ -167,27 +213,7 @@ function SubcategoryModal({ catName, sub, onSave, onClose }) {
             />
             {errors.name && <div className="field-error">{errors.name}</div>}
           </div>
-          <div className="form-group">
-            <label className="form-label">Description</label>
-            <textarea className="form-control" placeholder="What specific service does this cover?" value={form.description} onChange={e => set('description', e.target.value)} rows={2} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <div className="form-group">
-              <label className="form-label">Min Price (₹)</label>
-              <input className={`form-control ${errors.minPrice ? 'input-error' : ''}`} type="number" min="0" placeholder="0" value={form.minPrice || ''} onChange={e => set('minPrice', Number(e.target.value))} />
-              {errors.minPrice && <div className="field-error">{errors.minPrice}</div>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Platform Fee (₹)</label>
-              <input className={`form-control ${errors.platformFee ? 'input-error' : ''}`} type="number" min="0" placeholder="0" value={form.platformFee || ''} onChange={e => set('platformFee', Number(e.target.value))} />
-              {errors.platformFee && <div className="field-error">{errors.platformFee}</div>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Suggested Max (₹)</label>
-              <input className={`form-control ${errors.suggestedMax ? 'input-error' : ''}`} type="number" min="0" placeholder="0" value={form.suggestedMax || ''} onChange={e => set('suggestedMax', Number(e.target.value))} />
-              {errors.suggestedMax && <div className="field-error">{errors.suggestedMax}</div>}
-            </div>
-          </div>
+
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
@@ -347,20 +373,28 @@ export default function Categories() {
     }
   }
 
-  const pendingCount = suggestions.filter(s => s.status === 'pending').length
+  const pendingWorkerCount = suggestions.filter(s => s.status === 'pending' && (!s.source || s.source === 'worker')).length
+  const pendingCustomerCount = suggestions.filter(s => s.status === 'pending' && s.source === 'customer').length
 
   const showSync = () => {
     setSyncToast(true)
     setTimeout(() => setSyncToast(false), 3000)
   }
 
-  const saveCat = async (form) => {
+  const saveCat = async (form, imageFile) => {
     try {
+      // Build FormData so we can send image file + text fields together
+      const fd = new FormData()
+      fd.append('name', form.name)
+      if (imageFile) fd.append('image', imageFile)
+
+      const headers = { 'Content-Type': 'multipart/form-data' }
+
       if (catModal === 'new') {
-        await api.post('/admin/categories', form)
+        await api.post('/admin/categories', fd, { headers })
         showToast('Category created successfully')
       } else {
-        await api.patch(`/admin/categories/${catModal._id}`, form)
+        await api.patch(`/admin/categories/${catModal._id}`, fd, { headers })
         showToast('Category updated successfully')
       }
       fetchCategories()
@@ -415,16 +449,22 @@ export default function Categories() {
     })
   }
 
-  const saveSub = async (form) => {
+  const saveSub = async (form, imageFile) => {
     const { catId, sub } = subModal
     try {
+      const data = new FormData()
+      data.append('name', form.name)
+      if (imageFile) data.append('image', imageFile)
+
       if (sub) {
-        const cat = categories.find(c => c._id === catId)
-        const newSubs = cat.subcategories.map(s => s._id === sub._id ? { ...s, ...form } : s)
-        await api.patch(`/admin/categories/${catId}`, { subcategories: newSubs })
+        await api.patch(`/admin/categories/${catId}/subcategories/${sub._id}`, data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
         showToast('Subcategory updated successfully')
       } else {
-        await api.post(`/admin/categories/${catId}/subcategories`, form)
+        await api.post(`/admin/categories/${catId}/subcategories`, data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
         showToast('Subcategory added successfully')
       }
       fetchCategories()
@@ -514,26 +554,54 @@ export default function Categories() {
     c.description.toLowerCase().includes(search.toLowerCase()) ||
     c.subcategories.some(s => s.name.toLowerCase().includes(search.toLowerCase()))
   )
-  const filteredSugs = suggestions.filter(s => sugFilter === 'all' || s.status === sugFilter)
+  const filteredSugs = suggestions.filter(s => 
+    (sugFilter === 'all' || s.status === sugFilter) &&
+    (tab === 'customer_suggestions' ? s.source === 'customer' : s.source !== 'customer')
+  )
 
   return (
     <div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {syncToast && (
-        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998, background: 'var(--toast-bg)', color: 'var(--toast-color)', padding: '12px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', fontWeight: 600, fontSize: 14, animation: 'slideUp 0.3s ease' }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', animation: 'pulse 1s infinite', flexShrink: 0 }} />
-          ✓ Changes synced to all connected clients via Socket.io
+        <div className="toast-bottom" style={{ zIndex: 9999 }}>
+          <div className="toast toast-success" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card-bg)', border: '1px solid var(--primary)', color: 'var(--light)' }}>
+            <span style={{ fontSize: 18 }}>🔄</span>
+            Changes auto-synced to mobile app
+          </div>
         </div>
       )}
 
-      <div className="page-header">
+      <div className="content-header">
         <div>
-          <div className="page-title">📂 Service Categories</div>
-          <div className="page-subtitle">
-            {categories.length} categories · {categories.reduce((a, c) => a + c.subcategories.length, 0)} subcategories · auto-synced to mobile app
+          <h1 className="page-title">Service Categories</h1>
+          <p className="page-subtitle">Kwickly / Service Categories</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', fontSize: 12 }}>
+            <div style={{ width: 6, height: 6, borderRadius: 3, background: 'currentColor', boxShadow: '0 0 8px currentColor' }} />
+            Live
+          </div>
+          <button className="btn btn-outline" style={{ padding: '8px', position: 'relative' }}>
+            🔔
+            {pendingWorkerCount + pendingCustomerCount > 0 && <div style={{ position: 'absolute', top: 0, right: 0, width: 8, height: 8, background: 'var(--danger)', borderRadius: 4 }} />}
+          </button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <span style={{ fontSize: 24 }}>📂</span>
+              <h2 style={{ margin: 0, fontSize: 20 }}>Service Categories</h2>
+            </div>
+            <div style={{ color: 'var(--mid)', fontSize: 13 }}>
+              {categories.length} categories · {categories.reduce((acc, c) => acc + c.subcategories.length, 0)} subcategories · auto-synced to mobile app
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 16, marginBottom: 20 }}>
           <button
             className={`btn ${tab === 'categories' ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => setTab('categories')}
@@ -545,14 +613,22 @@ export default function Categories() {
             onClick={() => setTab('suggestions')}
           >
             💡 Worker Suggestions
-            {pendingCount > 0 && (
-              <span className="badge badge-danger" style={{ marginLeft: 6 }}>{pendingCount}</span>
+            {pendingWorkerCount > 0 && (
+              <span className="badge badge-danger" style={{ marginLeft: 6 }}>{pendingWorkerCount}</span>
+            )}
+          </button>
+          <button
+            className={`btn ${tab === 'customer_suggestions' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setTab('customer_suggestions')}
+          >
+            🙋 Customer Suggestions
+            {pendingCustomerCount > 0 && (
+              <span className="badge badge-danger" style={{ marginLeft: 6 }}>{pendingCustomerCount}</span>
             )}
           </button>
         </div>
-      </div>
 
-      {tab === 'categories' && (
+        {tab === 'categories' && (
         <>
           <div className="filter-bar">
             <div className="search-bar" style={{ width: 280 }}>
@@ -571,8 +647,8 @@ export default function Categories() {
                   style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', borderBottom: expandedCat === cat._id ? '1px solid var(--border)' : 'none' }}
                   onClick={() => setExpandedCat(expandedCat === cat._id ? null : cat._id)}
                 >
-                  <div style={{ width: 48, height: 48, borderRadius: 12, background: cat.color + '18', border: `2px solid ${cat.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
-                    {cat.icon}
+                  <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--primary-light)', border: `2px solid var(--primary)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                    {cat.imageUrl ? <img src={cat.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 24 }}>📁</span>}
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -581,9 +657,6 @@ export default function Categories() {
                       <span className={`badge ${cat.active ? 'badge-success' : 'badge-gray'}`} style={{ fontSize: 10 }}>
                         {cat.active ? 'Active' : 'Hidden'}
                       </span>
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--mid)', fontFamily: 'var(--font-body)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 500 }}>
-                      {cat.description}
                     </div>
                   </div>
 
@@ -641,15 +714,11 @@ export default function Categories() {
                             transition: 'all 0.15s',
                           }}>
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                              <div style={{ width: 32, height: 32, borderRadius: 8, background: cat.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{cat.icon}</div>
+                              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--input-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0, overflow: 'hidden' }}>
+                                {sub.imageUrl ? <img src={sub.imageUrl.startsWith('http') ? sub.imageUrl : `http://localhost:5000${sub.imageUrl}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="sub" /> : '📄'}
+                              </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 700, fontSize: 13 }}>{sub.name}</div>
-                                <div style={{ fontSize: 11, color: 'var(--mid)', fontFamily: 'var(--font-body)', marginTop: 2, lineHeight: 1.4 }}>{sub.description}</div>
-                                {(sub.minPrice > 0 || sub.platformFee > 0 || sub.suggestedMax > 0) && (
-                                  <div style={{ fontSize: 10, color: 'var(--light)', marginTop: 4, fontFamily: 'var(--font-body)' }}>
-                                    ₹{sub.minPrice || 0} - ₹{sub.suggestedMax || 0} · Fee: ₹{sub.platformFee || 0}
-                                  </div>
-                                )}
+                                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 6 }}>{sub.name}</div>
                               </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 10 }}>
@@ -677,10 +746,14 @@ export default function Categories() {
         </>
       )}
 
-      {tab === 'suggestions' && (
+      {(tab === 'suggestions' || tab === 'customer_suggestions') && (
         <>
           <div className="alert alert-info" style={{ marginBottom: 20 }}>
-            💡 These are category and subcategory suggestions submitted by verified service providers via the mobile app. Approved suggestions are <strong>instantly added and broadcast</strong> to all connected clients.
+            {tab === 'suggestions' ? (
+              <span>💡 These are category and subcategory suggestions submitted by verified service providers via the mobile app. Approved suggestions are <strong>instantly added and broadcast</strong> to all connected clients.</span>
+            ) : (
+              <span>🙋 These are subcategory suggestions submitted by customers via the mobile app. Approving them makes them instantly available.</span>
+            )}
           </div>
 
           <div className="filter-bar">
@@ -688,8 +761,10 @@ export default function Categories() {
               {['pending', 'approved', 'rejected', 'all'].map(f => (
                 <button key={f} className={`filter-chip ${sugFilter === f ? 'active' : ''}`} onClick={() => setSugFilter(f)}>
                   {f.charAt(0).toUpperCase() + f.slice(1)}
-                  {f === 'pending' && pendingCount > 0 && (
-                    <span style={{ marginLeft: 5, background: 'var(--danger)', color: 'white', borderRadius: '999px', padding: '1px 6px', fontSize: 10 }}>{pendingCount}</span>
+                  {f === 'pending' && (tab === 'suggestions' ? pendingWorkerCount : pendingCustomerCount) > 0 && (
+                    <span style={{ marginLeft: 5, background: 'var(--danger)', color: 'white', borderRadius: '999px', padding: '1px 6px', fontSize: 10 }}>
+                      {tab === 'suggestions' ? pendingWorkerCount : pendingCustomerCount}
+                    </span>
                   )}
                 </button>
               ))}
@@ -713,6 +788,9 @@ export default function Categories() {
                       </span>
                       <span className={`badge ${sug.status === 'pending' ? 'badge-warning' : sug.status === 'approved' ? 'badge-success' : 'badge-danger'}`}>
                         {sug.status.charAt(0).toUpperCase() + sug.status.slice(1)}
+                      </span>
+                      <span className={`badge badge-gray`} style={{ color: sug.source === 'customer' ? 'var(--primary)' : 'var(--mid)' }}>
+                        {sug.source === 'customer' ? '🙋 Customer' : '💡 Worker'}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--light)', fontFamily: 'var(--font-body)' }}>
                         {sug.submittedAt ? new Date(sug.submittedAt).toLocaleDateString() : ''}
@@ -789,12 +867,13 @@ export default function Categories() {
               <div className="empty-state">
                 <div className="empty-state-icon">📭</div>
                 <div className="empty-state-title">No {sugFilter} suggestions</div>
-                <div className="empty-state-desc">Worker suggestions from the mobile app will appear here</div>
+                <div className="empty-state-desc">Suggestions from the mobile app will appear here</div>
               </div>
             )}
           </div>
         </>
       )}
+      </div>
 
       {catModal && (
         <CategoryModal

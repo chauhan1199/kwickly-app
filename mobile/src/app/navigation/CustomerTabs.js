@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Home, ShoppingBag, Plus, MessageSquare, User, Wallet } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Theme from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 import HomeScreen from '../../features/customer/HomeScreen';
 import BookServiceScreen from '../../features/customer/BookServiceScreen';
 
@@ -37,8 +38,10 @@ import WalletTopupScreen from '../../features/customer/WalletTopupScreen';
 const Tab = createBottomTabNavigator();
 
 const CustomTabBar = ({ state, descriptors, navigation }) => {
+  const { theme } = useTheme();
+
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, { backgroundColor: theme.colors.card, borderTopColor: theme.colors.border }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         
@@ -62,13 +65,13 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             <View key={index} style={styles.fabWrapper}>
               <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
                 <LinearGradient
-                  colors={['#0e9aa7', '#43e3eb']}
+                  colors={['#6C47FF', '#8B6FFF']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={[styles.fab, isFocused && styles.fabActive]}
                 >
-                  <Plus size={24} color="#001016" strokeWidth={2.5} />
-                  <Text style={styles.fabText}>Book</Text>
+                  <Plus size={24} color="#fff" strokeWidth={2.5} />
+                  <Text style={[styles.fabText, { color: '#fff' }]}>Book</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -90,8 +93,8 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             onPress={onPress}
             style={[styles.tabItem, isFocused && styles.tabItemActive]}
           >
-            <Icon size={22} color={isFocused ? Theme.colors.primary : Theme.colors.textDim} />
-            <Text style={[styles.tabLabel, { color: isFocused ? Theme.colors.primary : Theme.colors.textDim }]}>
+            <Icon size={22} color={isFocused ? '#6C47FF' : theme.colors.textMuted} />
+            <Text style={[styles.tabLabel, { color: isFocused ? '#6C47FF' : theme.colors.textMuted }]}>
               {label}
             </Text>
           </TouchableOpacity>
@@ -145,9 +148,9 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     height: 72,
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: Theme.colors.border,
+    borderTopColor: '#f3f4f6',
     alignItems: 'center',
   },
   tabItem: {
@@ -158,7 +161,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   tabItemActive: {
-    backgroundColor: Theme.colors.primary + '10',
   },
   tabLabel: {
     fontSize: 10,
@@ -178,7 +180,7 @@ const styles = StyleSheet.create({
     height: 58,
     borderRadius: 29,
     borderWidth: 4,
-    borderColor: Theme.colors.surface,
+    borderColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',

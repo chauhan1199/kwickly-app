@@ -4,6 +4,9 @@ const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { COMMON } = require('../../constants/messages');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
+const Suggestion = require('../suggestion/suggestion.model');
+const { delCache } = require('../../helpers/redis.helper');
+const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 
 exports.updateKyc = catchAsync(async (req, res) => {
     const { documentType } = req.body;
@@ -132,12 +135,21 @@ exports.submitCategorySuggestion = catchAsync(async (req, res) => {
         return errorResponse(res, 'Parent category is required for a subcategory', StatusCodes.BAD_REQUEST);
     }
     
-    const suggestion = await CategorySuggestion.create({
-        name,
-        type,
-        parentCategory: type === 'SUBCATEGORY' ? parentCategory : undefined,
-        suggestedBy: req.user._id
+    const suggestion = await Suggestion.create({
+        workerId: req.user._id,
+        workerName: req.user.name || 'Worker',
+        workerCity: req.user.city || '',
+        type: type === 'SUBCATEGORY' ? 'new_subcategory' : 'new_category',
+        source: 'worker',
+        payload: {
+            parentCategory: type === 'SUBCATEGORY' ? parentCategory : undefined,
+            name,
+            description: 'Suggested via worker app',
+        }
     });
+    
+    await delCache('admin_suggestions_list');
+    triggerDashboardUpdate();
     
     return successResponse(res, suggestion, 'Suggestion submitted successfully', StatusCodes.CREATED);
 });

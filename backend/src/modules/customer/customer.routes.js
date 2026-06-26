@@ -38,4 +38,7 @@ router.post('/me/notifications/trigger', authorize('CUSTOMER'), customerControll
 // -- Worker Profile (browse) --
 router.get('/workers/:id/profile', authorize('CUSTOMER'), customerController.getWorkerProfile);
 
+// -- Suggestions --
+router.post('/category-suggestions', authorize('CUSTOMER'), customerController.submitCategorySuggestion);
+
 module.exports = router;

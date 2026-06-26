@@ -5,6 +5,8 @@ const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
+const Suggestion = require('../suggestion/suggestion.model');
+const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 
 exports.getTopPros = catchAsync(async (req, res) => {
     const cachedData = await getCache('top_pros_list');
@@ -246,4 +248,34 @@ exports.triggerNotification = catchAsync(async (req, res) => {
     const { title, message } = req.body;
     await notifyUser({ userId: req.user._id, entityType: 'OTHER', action: 'SYSTEM', title, message });
     return successResponse(res, null, 'Notification triggered');
+});
+
+exports.submitCategorySuggestion = catchAsync(async (req, res) => {
+    const { name, type, parentCategory, description } = req.body;
+    
+    if (!name || !type) {
+        return errorResponse(res, 'Name and type are required', StatusCodes.BAD_REQUEST);
+    }
+    
+    if (type === 'new_subcategory' && !parentCategory) {
+        return errorResponse(res, 'Parent category is required for a subcategory', StatusCodes.BAD_REQUEST);
+    }
+    
+    const suggestion = await Suggestion.create({
+        workerId: req.user._id,
+        workerName: req.user.name || 'Customer',
+        workerCity: req.user.city || '',
+        type: type,
+        source: 'customer',
+        payload: {
+            parentCategory: type === 'new_subcategory' ? parentCategory : undefined,
+            name,
+            description: description || 'Suggested via customer app',
+        }
+    });
+    
+    await delCache('admin_suggestions_list');
+    triggerDashboardUpdate();
+    
+    return successResponse(res, suggestion, 'Suggestion submitted successfully', StatusCodes.CREATED);
 });

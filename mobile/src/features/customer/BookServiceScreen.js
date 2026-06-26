@@ -22,6 +22,8 @@ import AppBar from '../../components/AppBar';
 import api from '../../services/api';
 import BannerCarousel from '../../components/ui/BannerCarousel';
 import GlassCard from '../../components/ui/GlassCard';
+import { ServiceCard } from '../../components/ui/ServiceCard';
+import { SearchBar } from '../../components/ui/SearchBar';
 
 
 // Haversine formula to calculate distance between two coordinates in km
@@ -46,6 +48,7 @@ const BookServiceScreen = ({ navigation }) => {
   const [workers, setWorkers] = useState([]);
   const [banners, setBanners] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -65,7 +68,13 @@ const BookServiceScreen = ({ navigation }) => {
           id: c._id,
           icon: c.icon,
           name: c.name,
-          subs: c.subcategories.map(s => s.name)
+          label: c.name,
+          imageUrl: c.imageUrl || null,
+          subs: c.subcategories.map(s => ({
+            id: s._id,
+            name: s.name,
+            imageUrl: s.imageUrl || null
+          }))
         }));
         setCategories(mappedCats);
       }
@@ -112,28 +121,28 @@ const BookServiceScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
 
-      {/* Unified App Bar */}
-      <AppBar title="Book a Service" />
+      {/* Unified App Bar inside a purple gradient */}
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingBottom: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }}
+      >
+        <AppBar title="Book a Service" transparent={true} showBack={true} />
+
+        {/* Search bar component */}
+        <View style={{ paddingHorizontal: 14, marginBottom: 12 }}>
+          <SearchBar 
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            theme={theme}
+            onFilterPress={() => {}}
+          />
+        </View>
+      </LinearGradient>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
-        {/* Search */}
-        <View style={{ paddingHorizontal: 14, marginBottom: 12 }}>
-          <Input
-            placeholder="Search plumber, AC, cleaning..."
-            containerStyle={{ marginBottom: 0 }}
-          />
-        </View>
-
-        {/* Chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll} contentContainerStyle={{paddingHorizontal: 14}}>
-          {chips.map((chip, index) => (
-            <TouchableOpacity key={index} style={styles.chipItem}>
-              <Text style={styles.chipText}>{chip}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
         <View style={styles.listContainer}>
           {/* Dynamic Banners */}
           {banners.length > 0 && (
@@ -149,17 +158,20 @@ const BookServiceScreen = ({ navigation }) => {
 
           <Text style={styles.sectionTitle}>All Service Categories</Text>
           
-          <View style={styles.gridContainer}>
+          <View style={styles.serviceGrid}>
             {isLoading ? (
               <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20, width: '100%' }} />
             ) : (
-              categories.map((cat, index) => (
-                <GlassCard key={cat.id || index} style={styles.catTile} isDarkMode={isDarkMode} onPress={() => navigation.navigate('SubCategories', cat)}>
-                  <View style={styles.catIconBox}>
-                    <Text style={styles.catIconText}>{cat.icon || '📌'}</Text>
-                  </View>
-                  <Text style={styles.catNameText}>{cat.name}</Text>
-                </GlassCard>
+              categories
+                .filter(cat => !searchQuery || (cat.label || cat.name).toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((cat, index) => (
+                <ServiceCard 
+                  key={cat.id || index} 
+                  cat={cat} 
+                  index={index} 
+                  theme={theme} 
+                  onPress={(cat) => navigation.navigate('SubCategories', cat)} 
+                />
               ))
             )}
           </View>
@@ -223,6 +235,35 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  searchBar: {
+    backgroundColor: '#fff',
+    borderRadius: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    color: '#9ca3af',
+    fontSize: 14,
+  },
+  filterBtn: {
+    backgroundColor: '#6C47FF',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
+    paddingTop: 16,
   },
   row: {
     flexDirection: 'row',
@@ -315,11 +356,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.text,
     marginBottom: 10,
   },
-  gridContainer: {
+  serviceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 10,
+    justifyContent: 'flex-start',
+    marginBottom: 24,
   },
   catTile: {
     width: '30%',

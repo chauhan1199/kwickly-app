@@ -93,6 +93,13 @@ const delCache = async (key) => {
     const client = getRedis();
     if (!client) return null;
     try {
+        // Automatically handle range suffixes for dashboard stats invalidation
+        if (key === 'admin_dashboard_stats') {
+            const ranges = ['week', 'month', 'quarter', 'year', 'all'];
+            for (const r of ranges) {
+                await client.del(`admin_dashboard_stats_${r}`);
+            }
+        }
         await client.del(key);
     } catch (error) {
         logger.error(`Redis delCache error: ${error.message}`);

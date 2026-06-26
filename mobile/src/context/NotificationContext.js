@@ -1,12 +1,13 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Alert } from 'react-native';
 import notificationService from '../services/notificationService';
 import { useAuth } from './AuthContext';
+import useSocket from '../hooks/useSocket';
 
 const NotificationContext = createContext({ unreadCount: 0, refreshUnread: () => {} });
 
 export const NotificationProvider = ({ children }) => {
-  const { userToken } = useAuth();
+  const { userToken, userRole, user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const intervalRef = useRef(null);
   const appStateRef = useRef(AppState.currentState);
@@ -25,6 +26,20 @@ export const NotificationProvider = ({ children }) => {
       // silently ignore (e.g. no auth)
     }
   }, [userToken]);
+
+  useSocket({
+    role: userRole,
+    userId: user?._id,
+    onEvent: (event, data) => {
+      if (event === 'NEW_NOTIFICATION') {
+        setUnreadCount(prev => prev + 1);
+        Alert.alert(
+          data.title || 'New Notification', 
+          data.message || 'You have a new notification.'
+        );
+      }
+    }
+  });
 
   // Poll every 30 seconds when app is active
   useEffect(() => {

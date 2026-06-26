@@ -13,6 +13,11 @@ const SuggestionSchema = new mongoose.Schema({
         enum: ['new_category', 'new_subcategory'],
         required: true
     },
+    source: {
+        type: String,
+        enum: ['worker', 'customer'],
+        default: 'worker'
+    },
     payload: {
         parentCategory: { type: String },
         parentCategoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },

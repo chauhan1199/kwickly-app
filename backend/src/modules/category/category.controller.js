@@ -9,13 +9,29 @@ const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 const CACHE_KEY = 'categories_list';
 
 exports.getCategories = catchAsync(async (req, res) => {
+    const isAdmin = req.originalUrl.includes('/admin');
+
+    let categories;
     const cachedData = await getCache(CACHE_KEY);
+    
     if (cachedData) {
-        return successResponse(res, cachedData, 'Categories fetched from cache');
+        categories = cachedData;
+    } else {
+        categories = await Category.find().sort('name').lean();
+        await setCache(CACHE_KEY, categories, 3600);
     }
 
-    const categories = await Category.find().sort('name');
-    await setCache(CACHE_KEY, categories, 3600);
+    if (!isAdmin) {
+        // Deep copy to avoid mutating cached object
+        const categoriesCopy = JSON.parse(JSON.stringify(categories));
+        const activeCategories = categoriesCopy.filter(c => c.active !== false).map(c => {
+            if (c.subcategories) {
+                c.subcategories = c.subcategories.filter(s => s.active !== false);
+            }
+            return c;
+        });
+        return successResponse(res, activeCategories, 'Categories fetched successfully');
+    }
 
     return successResponse(res, categories, 'Categories fetched successfully');
 });
@@ -37,7 +53,12 @@ exports.createCategory = catchAsync(async (req, res) => {
         }
     }
 
-    const category = await Category.create(req.body);
+    const categoryData = { ...req.body };
+    if (req.file) {
+        categoryData.imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    }
+
+    const category = await Category.create(categoryData);
     
     await delCache(CACHE_KEY);
     await delCache('admin_dashboard_stats');
@@ -75,7 +96,12 @@ exports.updateCategory = catchAsync(async (req, res) => {
         }
     }
 
-    const category = await Category.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updateData = { ...req.body };
+    if (req.file) {
+        updateData.imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    }
+
+    const category = await Category.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!category) {
         return errorResponse(res, 'Category not found', StatusCodes.NOT_FOUND);
     }
@@ -88,6 +114,7 @@ exports.updateCategory = catchAsync(async (req, res) => {
     if (req.body.active !== undefined) changes.push(`status: ${req.body.active ? 'Active' : 'Hidden'}`);
     if (req.body.name) changes.push(`name: "${req.body.name}"`);
     if (req.body.subcategories) changes.push(`subcategories: ${req.body.subcategories.length} items`);
+    if (req.file) changes.push('image updated');
 
     logAdminActivity(
         'UPDATE', 'CATEGORY', category._id,
@@ -132,7 +159,12 @@ exports.addSubcategory = catchAsync(async (req, res) => {
         return errorResponse(res, `Subcategory "${duplicate.name}" already exists in "${category.name}"`, StatusCodes.CONFLICT);
     }
 
-    category.subcategories.push(req.body);
+    const subData = { ...req.body };
+    if (req.file) {
+        subData.imageUrl = `/uploads/${req.file.filename}`;
+    }
+
+    category.subcategories.push(subData);
     await category.save();
 
     await delCache(CACHE_KEY);
@@ -147,6 +179,54 @@ exports.addSubcategory = catchAsync(async (req, res) => {
     ).catch(() => {});
 
     return successResponse(res, category, 'Subcategory added successfully');
+});
+
+exports.updateSubcategory = catchAsync(async (req, res) => {
+    const { id, subId } = req.params;
+    const category = await Category.findById(id);
+    if (!category) {
+        return errorResponse(res, 'Category not found', StatusCodes.NOT_FOUND);
+    }
+
+    const subcategory = category.subcategories.id(subId);
+    if (!subcategory) {
+        return errorResponse(res, 'Subcategory not found', StatusCodes.NOT_FOUND);
+    }
+
+    if (req.body.name) {
+        const subName = req.body.name.trim();
+        const duplicate = category.subcategories.find(
+            s => s.name.toLowerCase() === subName.toLowerCase() && s._id.toString() !== subId
+        );
+        if (duplicate) {
+            return errorResponse(res, `Subcategory "${duplicate.name}" already exists in "${category.name}"`, StatusCodes.CONFLICT);
+        }
+        subcategory.name = subName;
+    }
+
+    if (req.body.active !== undefined) {
+        // body-parser handles string to boolean or we can parse it
+        subcategory.active = req.body.active === 'true' || req.body.active === true;
+    }
+
+    if (req.file) {
+        subcategory.imageUrl = `/uploads/${req.file.filename}`;
+    }
+
+    await category.save();
+
+    await delCache(CACHE_KEY);
+    await delCache('admin_dashboard_stats');
+    triggerDashboardUpdate();
+
+    logAdminActivity(
+        'UPDATE', 'CATEGORY', category._id,
+        'Subcategory Updated',
+        `Subcategory updated in "${category.name}"`,
+        req.user?._id
+    ).catch(() => {});
+
+    return successResponse(res, category, 'Subcategory updated successfully');
 });
 
 exports.deleteSubcategory = catchAsync(async (req, res) => {

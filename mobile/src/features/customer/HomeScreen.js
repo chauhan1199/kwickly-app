@@ -1,48 +1,125 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ScrollView, 
-  View, 
-  StyleSheet, 
-  SafeAreaView, 
+import {
+  ScrollView,
+  View,
+  StyleSheet,
   RefreshControl,
   Text,
   TouchableOpacity,
-  TextInput,
   StatusBar,
   Dimensions,
+  Image,
+  TextInput,
 } from 'react-native';
 
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 import api from '../../services/api';
-import BannerCarousel from '../../components/ui/BannerCarousel';
 import LinearGradient from 'react-native-linear-gradient';
-import AppBar from '../../components/AppBar';
+import { Search, SlidersHorizontal, ChevronRight, Star, Zap, MapPin, Bell, Sun, Moon } from 'lucide-react-native';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
+import { SearchBar } from '../../components/ui/SearchBar';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// ── Purple accent (exact match reference design) ──
+const PURPLE = '#6C47FF';
+const PURPLE_LIGHT = '#EEE8FF';
+const BG = '#fff';
+
+// ── Local bundled service images (category-name matched) ──
+// Key = lowercase trimmed category name keywords → local require
+const SERVICE_IMAGES = {
+  cleaning:        require('../../assets/services/cleaning.jpeg'),
+  housekeeping:    require('../../assets/services/cleaning.jpeg'),
+  ac:              require('../../assets/services/ac_repair.jpeg'),
+  hvac:            require('../../assets/services/ac_repair.jpeg'),
+  plumb:           require('../../assets/services/plumbing.jpeg'),
+  car:             require('../../assets/services/car_wash.jpeg'),
+  wash:            require('../../assets/services/car_wash.jpeg'),
+  paint:           require('../../assets/services/painting.jpeg'),
+  salon:           require('../../assets/services/salon.jpeg'),
+  beauty:          require('../../assets/services/salon.jpeg'),
+  yoga:            require('../../assets/services/yoga_fitness.jpeg'),
+  fitness:         require('../../assets/services/yoga_fitness.jpeg'),
+  gym:             require('../../assets/services/yoga_fitness.jpeg'),
+  baby:            require('../../assets/services/babysitter.jpeg'),
+  child:           require('../../assets/services/babysitter.jpeg'),
+  nanny:           require('../../assets/services/babysitter.jpeg'),
+  tutor:           require('../../assets/services/home_tutor.jpeg'),
+  education:       require('../../assets/services/home_tutor.jpeg'),
+  electric:        require('../../assets/services/electrician.jpeg'),
+  carpenter:       require('../../assets/services/carpenter.jpeg'),
+  furniture:       require('../../assets/services/carpenter.jpeg'),
+  pest:            require('../../assets/services/pest_control.jpeg'),
+  sofa:            require('../../assets/services/sofa_cleaning.jpeg'),
+  laundry:         require('../../assets/services/laundry.jpeg'),
+  cctv:            require('../../assets/services/cctv.jpeg'),
+  security:        require('../../assets/services/security.jpeg'),
+  packer:          require('../../assets/services/packers_movers.jpeg'),
+  mover:           require('../../assets/services/packers_movers.jpeg'),
+  ro:              require('../../assets/services/ro_service.jpeg'),
+  water:           require('../../assets/services/ro_service.jpeg'),
+  laptop:          require('../../assets/services/laptop_repair.jpeg'),
+  computer:        require('../../assets/services/computer_repair.jpeg'),
+  mobile:          require('../../assets/services/laptop_repair.jpeg'),
+  repair:          require('../../assets/services/appliance_repair.jpeg'),
+  appliance:       require('../../assets/services/appliance_repair.jpeg'),
+  massage:         require('../../assets/services/massage_spa.jpeg'),
+  spa:             require('../../assets/services/massage_spa.jpeg'),
+  cook:            require('../../assets/services/home_cook.jpeg'),
+  chef:            require('../../assets/services/home_cook.jpeg'),
+  astro:           require('../../assets/services/astrology.jpeg'),
+  garden:          require('../../assets/services/gardening.jpeg'),
+  interior:        require('../../assets/services/interior_design.jpeg'),
+  waterproof:      require('../../assets/services/waterproofing.jpeg'),
+  elder:           require('../../assets/services/elder_care.jpeg'),
+  driver:          require('../../assets/services/driver.jpeg'),
+  photo:           require('../../assets/services/photography.jpeg'),
+  pet:             require('../../assets/services/pet_care.jpeg'),
+  dj:              require('../../assets/services/dj_event.jpeg'),
+  event:           require('../../assets/services/dj_event.jpeg'),
+};
+
+// Find the best matching local image for a category name
+const getServiceImage = (categoryName) => {
+  if (!categoryName) return null;
+  const lower = categoryName.toLowerCase();
+  for (const [key, img] of Object.entries(SERVICE_IMAGES)) {
+    if (lower.includes(key)) return img;
+  }
+  return null;
+};
+
+// Ratings data per service
+const SERVICE_RATINGS = {
+  default: { rating: 4.8, reviews: 230 },
+  cleaning: { rating: 4.8, reviews: 250 },
+  plumbing: { rating: 4.7, reviews: 210 },
+  car: { rating: 4.8, reviews: 180 },
+  'home cook': { rating: 4.8, reviews: 165 },
+  astrology: { rating: 4.7, reviews: 130 },
+  'yoga & fitness': { rating: 4.9, reviews: 150 },
+};
+
+const getServiceRating = (name) => {
+  const lower = name?.toLowerCase() || '';
+  for (const [key, val] of Object.entries(SERVICE_RATINGS)) {
+    if (lower.includes(key)) return val;
+  }
+  return SERVICE_RATINGS.default;
+};
 
 const HomeScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { theme, isDarkMode, toggleTheme } = useTheme();
-  const { userToken } = useAuth();
+  const { userToken, user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
-  
   const [activeJobs, setActiveJobs] = useState([]);
   const [activeShopOrders, setActiveShopOrders] = useState([]);
-  const [pastJobs, setPastJobs] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [banners, setBanners] = useState([]);
-
-  const shopCategories = [
-    { id: 1, label: 'Groceries', icon: '🥬', color: '#10b981' },
-    { id: 2, label: 'Pharmacy', icon: '💊', color: '#ef4444' },
-    { id: 3, label: 'Dairy', icon: '🥛', color: '#3b82f6' },
-    { id: 4, label: 'Bakery', icon: '🍞', color: '#f5b300' },
-    { id: 5, label: 'Snacks', icon: '🍫', color: '#8b5cf6' },
-    { id: 6, label: 'Tools', icon: '🔧', color: '#64748b' },
-    { id: 7, label: 'Hardware', icon: '🔩', color: '#0ea5e9' },
-    { id: 8, label: 'Plumbing', icon: '🚰', color: '#06b6d4' },
-  ];
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -51,705 +128,827 @@ const HomeScreen = ({ navigation }) => {
   const fetchData = async () => {
     try {
       setRefreshing(true);
-      // Fetch categories
+
+      // Fetch categories from backend
       const catRes = await jobService.getCategories();
       if (catRes.data?.status === 'success') {
-        const mappedCats = catRes.data.data.map(c => ({
+        setCategories(catRes.data.data.map(c => ({
           id: c._id,
           icon: c.icon,
           label: c.name,
           name: c.name,
           color: c.color,
-          subs: c.subcategories.map(s => s.name)
-        }));
-        setCategories(mappedCats);
+          imageUrl: c.imageUrl || null,
+          subs: c.subcategories?.map(s => ({
+            id: s._id,
+            name: s.name,
+            imageUrl: s.imageUrl || null
+          })) || [],
+          localImage: getServiceImage(c.name),
+        })));
       }
 
-      // Fetch Banners
-      try {
-        const bannerRes = await api.get('/promotions/banners');
-        if (bannerRes.data?.status === 'success') {
-          setBanners(bannerRes.data.data);
-        }
-      } catch (err) {
-        console.log('Error fetching banners:', err);
-      }
-
-      // Fetch jobs only if authenticated
       if (userToken) {
+        // Jobs
         const jobsRes = await jobService.getMyJobs();
         if (jobsRes.data?.status === 'success') {
-          const allJobs = jobsRes.data.data;
-          const active = [];
-          const past = [];
-          
-          allJobs.forEach(job => {
-            if (['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'].includes(job.status)) {
-              active.push({
-                id: job._id,
-                title: `${job.category}${job.subcategory ? ' — ' + job.subcategory : ''}`,
-                category: job.category,
-                subcategory: job.subcategory,
-                address: job.addressDetails,
-                worker: job.workerId?.name || null,
-                status: job.status,
-                sub: job.status === 'BROADCASTING' ? 'Awaiting quotes...' : 
-                     job.status === 'QUOTES_RECEIVED' ? 'Quotes received — tap to accept!' :
-                     job.status === 'COMPLETED' ? 'Work completed — tap to pay!' :
-                     'Worker assigned',
-                price: job.payment?.amount || 0,
-                fromPrice: '300',
-                progress: job.status === 'BROADCASTING' ? 20 : 
-                          job.status === 'QUOTES_RECEIVED' ? 45 :
-                          job.status === 'ALLOCATED' ? 60 :
-                          job.status === 'IN_PROGRESS' ? 80 : 
-                          job.status === 'COMPLETED' ? 95 : 50,
-                isIP: job.status === 'IN_PROGRESS' || job.status === 'ARRIVING' || job.status === 'ALLOCATED',
-                isCompleted: job.status === 'COMPLETED',
-                hasQuotes: job.status === 'QUOTES_RECEIVED',
-                rawJob: job
-              });
-            } else {
-              past.push({
-                id: job._id,
-                title: job.category,
-                worker: job.workerId?.name || 'Unknown Worker',
-                price: job.price || 0,
-                rating: (typeof job.rating === 'object' ? Math.round(job.rating.average || 5) : Math.round(job.rating || 5)) || 5,
-                date: new Date(job.createdAt).toLocaleDateString()
-              });
-            }
-          });
-          
+          const active = jobsRes.data.data.filter(j =>
+            ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'].includes(j.status)
+          ).map(j => ({
+            id: j._id,
+            title: `${j.category}${j.subcategory ? ' — ' + j.subcategory : ''}`,
+            category: j.category,
+            subcategory: j.subcategory,
+            worker: j.workerId?.name || null,
+            status: j.status,
+            fromPrice: j.payment?.amount || '300',
+            progress:
+              j.status === 'BROADCASTING' ? 20 :
+              j.status === 'QUOTES_RECEIVED' ? 45 :
+              j.status === 'ALLOCATED' ? 60 :
+              j.status === 'IN_PROGRESS' ? 80 : 50,
+            isIP: ['IN_PROGRESS', 'ARRIVING', 'ALLOCATED'].includes(j.status),
+            isCompleted: j.status === 'COMPLETED',
+            hasQuotes: j.status === 'QUOTES_RECEIVED',
+            rawJob: j,
+          }));
           setActiveJobs(active);
-          setPastJobs(past);
         }
 
+        // Shop orders
         try {
-          const ordersRes = await api.get('/shoporders/customer');
-          if (ordersRes.data?.status === 'success') {
-            const list = ordersRes.data.data.orders || ordersRes.data.data;
-            const activeOrders = list.filter(o => o.status !== 'DELIVERED' && o.status !== 'CANCELLED' && o.status !== 'REJECTED');
-            setActiveShopOrders(activeOrders);
+          const oRes = await api.get('/shoporders/customer');
+          if (oRes.data?.status === 'success') {
+            const list = oRes.data.data.orders || oRes.data.data;
+            setActiveShopOrders(list.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)));
           }
-        } catch(err) {
-          console.error('Error fetching shop orders:', err);
-        }
-
-      } else {
-        setActiveJobs([]);
-        setActiveShopOrders([]);
-        setPastJobs([]);
+        } catch (_) {}
       }
     } catch (e) {
-      console.error('Error fetching home data:', e);
+      console.error('Home fetch error:', e);
     } finally {
       setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
-    fetchData();
+  const firstName = user?.name?.split(' ')[0] || 'there';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
+  const displayLocation = primaryAddress 
+    ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || ''}`
+    : (user?.city || 'Select Location');
+
+  // ── Service card: white bg, image on top, text below ──
+  const ServiceCard = ({ cat, index }) => {
+    const { rating, reviews } = getServiceRating(cat.label);
+    // Resolve image: admin-uploaded URL > local bundled > fallback
+    const hasNetworkImg = !!cat.imageUrl;
+    const localImg = cat.localImage;
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.serviceCard, 
+          { 
+            backgroundColor: theme.colors.card, 
+            borderColor: theme.colors.border,
+            marginRight: (index + 1) % 3 !== 0 ? 12 : 0 
+          }
+        ]}
+        onPress={() => navigation.navigate('SubCategories', cat)}
+        activeOpacity={0.88}
+      >
+        {/* Image area */}
+        <View style={[styles.serviceCardImgBox, { backgroundColor: theme.colors.card }]}>
+          {hasNetworkImg ? (
+            <Image
+              source={{ uri: cat.imageUrl.startsWith('http') ? cat.imageUrl.replace('localhost', '10.0.2.2') : `http://10.0.2.2:5000${cat.imageUrl}` }}
+              style={styles.serviceCardImg}
+              resizeMode="contain"
+            />
+          ) : localImg ? (
+            <Image source={localImg} style={styles.serviceCardImg} resizeMode="cover" />
+          ) : (
+            // Fallback: blank image box
+            <View style={[styles.serviceCardImgFallback, { backgroundColor: theme.colors.surface2 }]} />
+          )}
+        </View>
+
+        {/* Text row below image */}
+        <View style={styles.serviceCardFooter}>
+          <Text style={[styles.serviceCardName, { color: theme.colors.text }]} numberOfLines={2}>{cat.label}</Text>
+          <View style={styles.serviceCardRatingRow}>
+            <Star size={12} color="#F5A623" fill="#F5A623" />
+            <Text style={styles.serviceCardRating}> {rating} ({reviews})</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
-  const topBanners = banners.filter(b => b.position === 'HOME_TOP');
-  const middleBanners = banners.filter(b => b.position === 'HOME_MIDDLE');
-
-  const styles = createStyles(theme, isDarkMode);
-
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
-      {/* Unified App Bar */}
-      <AppBar />
-
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
-        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={PURPLE} />}
       >
-        {/* Dynamic Banners */}
-        {topBanners.length > 0 ? (
-          <BannerCarousel 
-            banners={topBanners} 
-            itemWidth={Dimensions.get('window').width - 28} 
-            itemHeight={160}
-            style={{ marginBottom: 14 }}
-            autoPlayInterval={4000}
-          />
-        ) : (
-          <LinearGradient 
-            colors={['#1a237e', '#283593', '#1565c0']} 
-            start={{x: 0, y: 0}} 
-            end={{x: 1, y: 1}} 
-            style={styles.heroBanner}
-          >
-            <View style={styles.heroDeco1} />
-            <View style={styles.heroDeco2} />
-            <Text style={styles.heroTitle}>What do you need fixed? 🔧</Text>
-            <Text style={styles.heroSub}>Verified workers • Transparent pricing • Same-day</Text>
-            <View style={styles.searchRow}>
-              <TextInput 
-                placeholder="Search plumber, electrician, AC..."
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                style={styles.searchInput}
-                onFocus={() => navigation.navigate('Book')}
-              />
-              <TouchableOpacity style={styles.searchBtn} onPress={() => navigation.navigate('Book')}>
-                <Text style={styles.searchBtnText}>Search</Text>
+        {/* ═══════════════════════════════════════
+            PURPLE HERO HEADER
+        ═══════════════════════════════════════ */}
+        <LinearGradient
+          colors={[PURPLE, '#8B6FFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 16) + 16 }]}
+        >
+          {/* Top row: location + bell */}
+          <View style={styles.heroTopRow}>
+            <TouchableOpacity style={styles.locationRow} activeOpacity={0.8} onPress={() => navigation.navigate('Profile')}>
+              <MapPin size={14} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.locationText} numberOfLines={1}>{displayLocation}</Text>
+              <Text style={styles.locationCaret}>  ⌄</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity style={[styles.bellBtn, { marginRight: 12 }]} activeOpacity={0.8} onPress={toggleTheme}>
+                {isDarkMode ? <Sun size={20} color="#fff" /> : <Moon size={20} color="#fff" />}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.bellBtn} activeOpacity={0.8}>
+                <Bell size={20} color="#fff" />
+                <View style={styles.bellBadge} />
               </TouchableOpacity>
             </View>
-          </LinearGradient>
-        )}
+          </View>
 
-        {/* Browse Products */}
-        <View style={[styles.row, {justifyContent: 'space-between', marginTop: 12, marginBottom: 12}]}>
-          <Text style={styles.sectionTitle}>Browse Products</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Shop')}>
-            <Text style={styles.viewAllBtn}>View All ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.gridContainer}>
-          {shopCategories.map(cat => (
-            <TouchableOpacity 
-              key={cat.id} 
-              style={styles.gridItem} 
-              onPress={() => navigation.navigate('Shop')}
-            >
-              <View style={[styles.gridIconBox, { backgroundColor: cat.color + '2E' }]}>
-                <Text style={{fontSize: 22}}>{cat.icon}</Text>
-              </View>
-              <Text style={styles.gridLabel}>{cat.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Active Jobs */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.row}>
-            <Text style={styles.sectionTitle}>Active Jobs</Text>
-            <View style={styles.countBadge}>
-              <Text style={styles.countText}>{activeJobs.length}</Text>
+          {/* Greeting + mascot row */}
+          <View style={styles.heroMiddleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroGreeting}>Hi, {firstName}!</Text>
+              <Text style={styles.heroSubtitle}>Services + Products available in local services</Text>
             </View>
-            <TouchableOpacity style={styles.bellBtn}>
-              <Text style={{fontSize: 14}}>🔔</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+              {user?.profileImage ? (
+                <Image 
+                  source={{ uri: user.profileImage.startsWith('http') ? user.profileImage.replace('localhost', '10.0.2.2') : `http://10.0.2.2:5000${user.profileImage}` }}
+                  style={styles.heroMascot} 
+                  resizeMode="cover" 
+                />
+              ) : (
+                <View style={[styles.heroMascot, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff' }}>{firstName[0]?.toUpperCase()}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.newRequestBtn} onPress={() => navigation.navigate('Book')}>
-            <Text style={styles.newRequestText}>+ New Request</Text>
-          </TouchableOpacity>
-        </View>
+          
+          {/* Search bar component */}
+          <SearchBar 
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            theme={theme}
+            onFilterPress={() => navigation.navigate('Book')}
+          />
+        </LinearGradient>
 
-        {activeJobs.map(job => {
-          const statusColor = job.isIP ? theme.colors.primary : theme.colors.warning;
-          return (
-            <TouchableOpacity 
-              key={job.id} 
-              style={styles.jobCard}
-              onPress={() => {
-                if (job.isCompleted) {
-                  navigation.navigate('WorkCompleted', {
-                    worker: { name: job.worker, rating: 4.8, jobs: 312 },
-                    job: job.rawJob
-                  });
-                } else if (job.isIP) {
-                  navigation.navigate('LiveTracking', {
-                    worker: { name: job.worker, rating: 4.8, jobs: 312, eta: 12, dist: '1.2 km' },
-                    job: job.rawJob
-                  });
-                } else {
-                  navigation.navigate('LiveBids', {
-                    jobId: job.id,
-                    category: { name: job.category || 'Service' },
-                    subcategory: job.subcategory || 'General',
-                    address: job.address || '',
-                    timeSlot: 'ASAP',
-                    budget: job.fromPrice
-                  });
-                }
-              }}
-            >
-              <View style={[styles.row, {marginBottom: 8, alignItems: 'flex-start'}]}>
-                <View style={[styles.jobIconBox, {backgroundColor: job.isIP ? theme.colors.primary + '26' : theme.colors.warning + '26'}]}>
-                  <Text style={{fontSize: 22}}>{job.isIP ? '❄️' : '🔧'}</Text>
-                </View>
-                <View style={{flex: 1}}>
-                  <Text style={styles.jobTitle}>{job.title}</Text>
-                  <Text style={styles.jobSub}>{job.sub}</Text>
-                </View>
-                <View style={[styles.statusBadge, {backgroundColor: job.isIP ? theme.colors.primary + '2E' : job.hasQuotes ? '#10b98126' : theme.colors.warning + '2E'}]}>
-                  <Text style={[styles.statusText, {color: job.isIP ? theme.colors.primary : job.hasQuotes ? '#10b981' : theme.colors.warning}]}>
-                    {job.hasQuotes ? '💬 QUOTES' : job.status === 'ALLOCATED' ? 'ACCEPTED' : job.status}
-                  </Text>
-                </View>
-              </View>
+        {/* ═══════════════════════════════════════
+            BODY
+        ═══════════════════════════════════════ */}
+        <View style={[styles.body, { backgroundColor: theme.colors.background }]}>
 
-              <View style={styles.progBarBg}>
-                <LinearGradient 
-                  colors={job.isIP ? [theme.colors.primary, '#43e3eb'] : [theme.colors.warning, '#fbbf24']}
-                  start={{x:0, y:0}} end={{x:1, y:0}}
-                  style={[styles.progBarFill, {width: `${job.progress}%`}]} 
-                />
-                <View style={styles.jobWorkerRow}>
-                  <View style={styles.jobWorkerAvatar}>
-                    <Text style={{fontSize: 10}}>👤</Text>
-                  </View>
-                  <Text style={styles.jobWorkerName}>{job.worker || 'Pending Assign'}</Text>
-                </View>
-                <Text style={styles.jobPrice}>From Rs. {job.fromPrice}</Text>
-              </View>
+          {/* ── TOP SERVICES ── */}
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Top Services</Text>
+            <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Book')}>
+              <Text style={styles.viewAllText}>View All</Text>
+              <ChevronRight size={14} color={PURPLE} />
             </TouchableOpacity>
-          );
-        })}
+          </View>
 
-        {/* Active Shop Orders */}
-        {activeShopOrders.length > 0 && (
-          <>
-            <View style={styles.sectionHeader}>
-              <View style={styles.row}>
-                <Text style={styles.sectionTitle}>Active Shop Orders</Text>
-                <View style={styles.countBadge}>
-                  <Text style={styles.countText}>{activeShopOrders.length}</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.newRequestBtn} onPress={() => navigation.navigate('CustomerShopOrders')}>
-                <Text style={styles.newRequestText}>View All</Text>
-              </TouchableOpacity>
-            </View>
+          {/* 3-column service grid */}
+          <View style={styles.serviceGrid}>
+            {categories
+              .filter(c => !searchQuery || c.label.toLowerCase().includes(searchQuery.toLowerCase()))
+              .slice(0, 6)
+              .map((cat, index) => (
+              <ServiceCard key={cat.id || index} cat={cat} index={index} />
+            ))}
+          </View>
 
-            {activeShopOrders.map(order => (
-              <TouchableOpacity 
-                key={order._id}
-                style={styles.jobCard}
-                onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order._id })}
+          {/* ── BROWSE SHOPS ── */}
+          <View style={[styles.sectionHeader, { marginTop: 12 }]}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Browse Shops</Text>
+            <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Shop')}>
+              <Text style={styles.viewAllText}>View All</Text>
+              <ChevronRight size={14} color={PURPLE} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.shopGrid}>
+            {SHOP_CATEGORIES.map(cat => (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.shopItem, { backgroundColor: theme.colors.card }]}
+                onPress={() => navigation.navigate('Shop')}
+                activeOpacity={0.8}
               >
-                <View style={[styles.row, {marginBottom: 8, alignItems: 'flex-start'}]}>
-                  <View style={[styles.jobIconBox, {backgroundColor: '#10b98126'}]}>
-                    <Text style={{fontSize: 22}}>📦</Text>
-                  </View>
-                  <View style={{flex: 1}}>
-                    <Text style={styles.jobTitle}>Order {order.rawId || order._id.substring(0, 6).toUpperCase()}</Text>
-                    <Text style={styles.jobSub}>{order.items?.length || 0} items • ₹{order.totalAmount}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, {backgroundColor: '#10b98126'}]}>
-                    <Text style={[styles.statusText, {color: '#10b981'}]}>
-                      {order.status.replace(/_/g, ' ')}
-                    </Text>
-                  </View>
+                <View style={[styles.shopIconBox, { backgroundColor: cat.color + '18' }]}>
+                  <Text style={{ fontSize: 24 }}>{cat.icon}</Text>
                 </View>
-                
-                <View style={styles.progBarBg}>
-                  <LinearGradient 
-                    colors={['#10b981', '#34d399']}
-                    start={{x:0, y:0}} end={{x:1, y:0}}
-                    style={[styles.progBarFill, {
-                      width: order.status === 'NEW' ? '25%' : 
-                             order.status === 'PACKING' ? '50%' : 
-                             order.status === 'OUT_FOR_DELIVERY' ? '85%' : '10%'
-                    }]}
-                  />
-                </View>
-                
-                <View style={[styles.row, {marginTop: 12}]}>
-                  <View style={styles.jobWorkerRow}>
-                    <View style={[styles.jobWorkerAvatar, {backgroundColor: '#f59e0b26'}]}>
-                      <Text style={{fontSize: 10}}>🏪</Text>
-                    </View>
-                    <Text style={styles.jobWorkerName}>{order.shopId?.name || 'Shop'}</Text>
-                  </View>
-                </View>
+                <Text style={[styles.shopLabel, { color: theme.colors.text }]}>{cat.label}</Text>
               </TouchableOpacity>
             ))}
-          </>
-        )}
+          </View>
 
-        {/* Browse Services */}
-        <View style={[styles.row, {justifyContent: 'space-between', marginTop: 12, marginBottom: 12}]}>
-          <Text style={styles.sectionTitle}>Browse Services</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Book')}>
-            <Text style={styles.viewAllBtn}>View All ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Middle Banners */}
-        {middleBanners.length > 0 && (
-          <BannerCarousel 
-            banners={middleBanners} 
-            itemWidth={Dimensions.get('window').width * 0.75} 
-            itemHeight={120}
-            style={{ marginBottom: 16 }}
-            autoPlayInterval={3500}
-          />
-        )}
-
-        <View style={styles.gridContainer}>
-          {categories.slice(0, 8).map(cat => (
-            <TouchableOpacity 
-              key={cat.id} 
-              style={styles.gridItem} 
-              onPress={() => navigation.navigate('SubCategories', cat)}
-            >
-              <View style={[styles.gridIconBox, { backgroundColor: cat.color + '2E' }]}>
-                <Text style={{fontSize: 22}}>{cat.icon}</Text>
-              </View>
-              <Text style={styles.gridLabel}>{cat.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Past Jobs */}
-        <View style={[styles.row, {justifyContent: 'space-between', marginBottom: 10}]}>
-          <Text style={styles.sectionTitle}>Past Jobs</Text>
-          <TouchableOpacity>
-            <Text style={styles.viewAllBtn}>View All ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {pastJobs.map(job => (
-          <TouchableOpacity 
-            key={job.id} 
-            style={styles.pastJobItem}
-            onPress={() => navigation.navigate('PastJobDetails', { job })}
+          {/* ── PROMO BANNER ── */}
+          <LinearGradient
+            colors={[PURPLE, '#9575FF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.promoBanner}
           >
-            <View style={styles.pastIconBox}>
-              <Text style={{fontSize: 18}}>✅</Text>
+            <View style={styles.promoDiscCircle}>
+              <Text style={styles.promoDiscText}>%</Text>
             </View>
-            <View style={{flex: 1}}>
-              <Text style={styles.pastTitle}>{job.title}</Text>
-              <Text style={styles.pastSub}>{job.worker} · {job.date}</Text>
+            <View style={{ flex: 1, paddingLeft: 12 }}>
+              <Text style={styles.promoLine1}>
+                Get <Text style={{ fontWeight: '900', color: '#FFE082' }}>20% OFF</Text> on your first service!
+              </Text>
+              <Text style={styles.promoLine2}>Use code:  <Text style={styles.promoCode}>WELCOME20</Text></Text>
             </View>
-            <View style={{alignItems: 'flex-end'}}>
-              <Text style={styles.pastPrice}>₹{job.price}</Text>
-              <Text style={styles.pastRating}>{'★'.repeat(job.rating)}{'☆'.repeat(5 - job.rating)}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+            <TouchableOpacity style={styles.promoBookBtn} onPress={() => navigation.navigate('Book')}>
+              <Text style={styles.promoBookBtnText}>Book Now</Text>
+            </TouchableOpacity>
+          </LinearGradient>
 
-        <View style={{ height: 30 }} />
+          {/* ── WHY CHOOSE US ── */}
+          <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Why Choose Us?</Text>
+          </View>
+          <View style={styles.trustRow}>
+            {TRUST_ITEMS.map((item, i) => (
+              <View key={i} style={styles.trustItem}>
+                <View style={[styles.trustIconCircle, { borderColor: theme.colors.border }]}>
+                  <Text style={styles.trustIcon}>{item.icon}</Text>
+                </View>
+                <Text style={[styles.trustLabel, { color: theme.colors.text }]}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* ── ACTIVE JOBS ── */}
+          {activeJobs.length > 0 && (
+            <>
+              <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Jobs</Text>
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>{activeJobs.length}</Text>
+                  </View>
+                </View>
+              </View>
+              {activeJobs.map(job => (
+                <ActiveJobCard key={job.id} job={job} navigation={navigation} theme={theme} />
+              ))}
+            </>
+          )}
+
+          {/* ── ACTIVE SHOP ORDERS ── */}
+          {activeShopOrders.length > 0 && (
+            <>
+              <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Shop Orders</Text>
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>{activeShopOrders.length}</Text>
+                  </View>
+                </View>
+              </View>
+              {activeShopOrders.map(order => (
+                <TouchableOpacity
+                  key={order._id}
+                  style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: '#10b981' }]}
+                  activeOpacity={0.8}
+                  onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order._id })}
+                >
+                  <View style={styles.jobCardTop}>
+                    <View style={[styles.jobIconBox, { backgroundColor: '#10b98118' }]}>
+                      <Text style={{ fontSize: 22 }}>📦</Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>Order from {order.shopId?.name || 'Shop'}</Text>
+                      <Text style={styles.jobSub}>Status: {order.status}</Text>
+                    </View>
+                    <View style={[styles.statusPill, { backgroundColor: '#10b98118' }]}>
+                      <Text style={[styles.statusPillText, { color: '#10b981' }]}>TRACK</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+
+          {/* ── NEW REQUEST (when no active jobs) ── */}
+          {activeJobs.length === 0 && (
+            <TouchableOpacity
+              style={styles.bookNowBlock}
+              onPress={() => navigation.navigate('Book')}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={[PURPLE, '#9575FF']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.bookNowInner}
+              >
+                <Zap size={18} color="#fff" />
+                <Text style={styles.bookNowText}>Book a New Service</Text>
+                <ChevronRight size={18} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          <View style={{ height: 36 }} />
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (theme, isDarkMode) => StyleSheet.create({
-  container: {
+// ── Active Job Card ──────────────────────────────────────
+const ActiveJobCard = ({ job, navigation, theme }) => {
+  const accentColor = job.isIP ? PURPLE : job.hasQuotes ? '#10b981' : '#f59e0b';
+  return (
+    <TouchableOpacity
+      style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: accentColor }]}
+      activeOpacity={0.8}
+      onPress={() => {
+        if (job.isCompleted) navigation.navigate('WorkCompleted', { worker: { name: job.worker }, job: job.rawJob });
+        else if (job.isIP) navigation.navigate('LiveTracking', { worker: { name: job.worker, rating: 4.8, jobs: 312, eta: 12, dist: '1.2 km' }, job: job.rawJob });
+        else navigation.navigate('LiveBids', { jobId: job.id, category: { name: job.category }, subcategory: job.subcategory || '', address: '', timeSlot: 'ASAP', budget: job.fromPrice });
+      }}
+    >
+      <View style={styles.jobCardTop}>
+        <View style={[styles.jobIconBox, { backgroundColor: accentColor + '18' }]}>
+          <Text style={{ fontSize: 22 }}>{job.isIP ? '❄️' : '🔧'}</Text>
+        </View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>{job.title}</Text>
+          <Text style={styles.jobSub}>
+            {job.hasQuotes ? 'Quotes received — tap to accept!' :
+             job.isIP ? 'Worker on the way...' : 'Finding workers...'}
+          </Text>
+        </View>
+        <View style={[styles.statusPill, { backgroundColor: accentColor + '18' }]}>
+          <Text style={[styles.statusPillText, { color: accentColor }]}>
+            {job.hasQuotes ? 'QUOTES' : job.isIP ? 'ACTIVE' : 'PENDING'}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.progressTrack}>
+        <LinearGradient
+          colors={job.isIP ? [PURPLE, '#a78bfa'] : job.hasQuotes ? ['#10b981', '#34d399'] : ['#f59e0b', '#fbbf24']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={[styles.progressFill, { width: `${job.progress}%` }]}
+        />
+      </View>
+      <View style={styles.jobCardBottom}>
+        <Text style={[styles.workerName, { color: theme.colors.text }]}>{job.worker || 'Pending assignment'}</Text>
+        <Text style={[styles.jobPrice, { color: theme.colors.text }]}>From ₹{job.fromPrice}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// ── Fallback categories removed as requested (dynamic only) ─────────
+
+
+// ── Shop categories ─────────
+const SHOP_CATEGORIES = [
+  { id: 1, label: 'Groceries', icon: '🥬', color: '#10b981' },
+  { id: 2, label: 'Pharmacy', icon: '💊', color: '#ef4444' },
+  { id: 3, label: 'Dairy', icon: '🥛', color: '#3b82f6' },
+  { id: 4, label: 'Bakery', icon: '🍞', color: '#f5b300' },
+  { id: 5, label: 'Snacks', icon: '🍫', color: '#8b5cf6' },
+];
+
+// ── Trust items ─────────────────────────────────────────
+const TRUST_ITEMS = [
+  { icon: '✔', label: 'Verified\nProfessionals' },
+  { icon: '⏰', label: 'On-Time\nService' },
+  { icon: '🔒', label: 'Secure\nPayments' },
+  { icon: '🎧', label: '24/7 Customer\nSupport' },
+];
+
+// ── Styles ──────────────────────────────────────────────
+
+// Calculate width for 3 items: Screen Width - padding (16*2) - gap between 3 items (min 12*2) = Total available space, divide by 3
+const CARD_W = Math.floor((SCREEN_WIDTH - 32 - 24) / 3);
+
+const styles = StyleSheet.create({
+  safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: BG,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  content: {
-    paddingHorizontal: 14,
-    paddingBottom: 20,
-  },
-  heroBanner: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
+
+  // ── Hero ──
+  heroGradient: {
+    paddingTop: (StatusBar.currentHeight || 0) + 16,
+    paddingHorizontal: 18,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: 'hidden',
     position: 'relative',
   },
-  heroDeco1: {
-    position: 'absolute',
-    right: -10,
-    top: -10,
-    width: 100,
-    height: 100,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 50,
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  heroDeco2: {
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  locationText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+    marginLeft: 4,
+  },
+  locationCaret: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+  },
+  bellBtn: {
+    position: 'relative',
+    padding: 4,
+  },
+  bellBadge: {
     position: 'absolute',
-    right: 20,
-    top: 20,
+    top: 4,
+    right: 4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF3B30',
+    borderWidth: 1.5,
+    borderColor: PURPLE,
+  },
+  heroMiddleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  heroMascot: {
     width: 60,
     height: 60,
-    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 30,
+    marginLeft: 12,
   },
-  heroTitle: {
-    fontSize: 18,
+  heroGreeting: {
+    fontSize: 30,
     fontWeight: '800',
     color: '#fff',
+    letterSpacing: -0.5,
     marginBottom: 4,
   },
-  heroSub: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 11,
-    marginBottom: 12,
+  heroSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '400',
   },
-  bannerImageContainer: {
-    width: Dimensions.get('window').width - 28,
-    height: 160,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginRight: 10,
-    position: 'relative',
-    backgroundColor: '#1a237e'
-  },
-  middleBannerContainer: {
-    width: Dimensions.get('window').width * 0.75,
-    height: 120,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginRight: 10,
-    position: 'relative',
-    backgroundColor: '#0f2027'
-  },
-  bannerImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  bannerOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    paddingTop: 32,
-  },
-  bannerTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  bannerSubText: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 12,
-  },
-  searchRow: {
+  searchBar: {
+    backgroundColor: '#fff',
+    borderRadius: 50,
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  searchInput: {
+  searchPlaceholder: {
     flex: 1,
-    fontSize: 13,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    color: '#fff',
-  },
-  searchBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#001016',
-  },
-  shopBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 14,
-  },
-  shopIconBox: {
-    width: 42,
-    height: 42,
-    backgroundColor: 'rgba(67,227,235,0.15)',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  shopTitle: {
-    fontWeight: '700',
-    color: '#fff',
+    color: '#9ca3af',
     fontSize: 14,
   },
-  shopSub: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 12,
-    marginTop: 2,
+  filterBtn: {
+    backgroundColor: PURPLE,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  shopArrow: {
-    color: '#43e3eb',
-    fontSize: 20,
+
+  // ── Body ──
+  body: {
+    backgroundColor: BG,
+    paddingHorizontal: 16,
+    paddingTop: 22,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '800',
-    color: theme.colors.text,
+    color: '#1a1a2e',
+    letterSpacing: -0.3,
   },
-  countBadge: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: 8,
-    marginRight: 8,
-  },
-  countText: {
-    color: '#001016',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  bellBtn: {
-    width: 28,
-    height: 28,
-    justifyContent: 'center',
+  viewAllRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-    borderRadius: 14,
   },
-  newRequestBtn: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  newRequestText: {
-    color: '#001016',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  jobCard: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-  },
-  jobIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  jobTitle: {
-    fontWeight: '700',
-    fontSize: 14,
-    color: theme.colors.text,
-  },
-  jobSub: {
-    fontSize: 11,
-    color: theme.colors.textDim,
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  progBarBg: {
-    height: 6,
-    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#e2e8f0',
-    borderRadius: 3,
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  progBarFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  jobWorkerText: {
-    fontSize: 12,
-    color: theme.colors.textDim,
-  },
-  jobPriceText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  viewAllBtn: {
-    color: theme.colors.primary,
+  viewAllText: {
+    color: PURPLE,
     fontWeight: '700',
     fontSize: 13,
   },
-  gridContainer: {
+
+  // ── Service Cards (3-col, white bg, image top, text bottom) ──
+  serviceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+    justifyContent: 'flex-start',
+    marginBottom: 24,
   },
-  gridItem: {
-    width: '23%',
+  serviceCard: {
+    width: CARD_W,
+    marginBottom: 12,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  serviceCardImgBox: {
+    width: '100%',
+    height: CARD_W * 0.95,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  serviceCardImg: {
+    width: '100%',
+    height: '100%',
+  },
+  serviceCardImgFallback: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    backgroundColor: theme.colors.surface,
-    paddingVertical: 8,
-    borderRadius: 14,
   },
-  gridIconBox: {
+  serviceCardFooter: {
+    padding: 10,
+    paddingBottom: 12,
+  },
+  serviceCardName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1a1a2e',
+    lineHeight: 16,
+    marginBottom: 4,
+  },
+  serviceCardRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  serviceCardRating: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '500',
+  },
+
+  // ── Shop Grid ──
+  shopGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  shopItem: {
+    alignItems: 'center',
+    width: '18%',
+  },
+  shopIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  shopLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#1a1a2e',
+    textAlign: 'center',
+  },
+
+  // ── Promo Banner ──
+  promoBanner: {
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  promoDiscCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  promoDiscText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 18,
+  },
+  promoLine1: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 3,
+  },
+  promoLine2: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+  },
+  promoCode: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    color: '#fff',
+    fontWeight: '800',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  promoBookBtn: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginLeft: 10,
+  },
+  promoBookBtnText: {
+    color: PURPLE,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+
+  // ── Why Choose Us ──
+  trustRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  trustItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  trustIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1.5,
+    borderColor: PURPLE + '40',
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  trustIcon: {
+    fontSize: 20,
+  },
+  trustLabel: {
+    fontSize: 10,
+    color: '#555',
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 13,
+  },
+
+  // ── Count badge ──
+  countBadge: {
+    backgroundColor: PURPLE,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  countBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  // ── Active Job Card ──
+  jobCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  jobCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  jobIconBox: {
     width: 44,
     height: 44,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 6,
   },
-  gridLabel: {
-    fontSize: 11,
-    color: theme.colors.text,
-    fontWeight: '500',
-  },
-  pastJobItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 12,
-    borderRadius: 14,
-    marginBottom: 8,
-  },
-  pastIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  pastTitle: {
+  jobTitle: {
+    fontSize: 14,
     fontWeight: '700',
-    fontSize: 13,
-    color: theme.colors.text,
+    color: '#1a1a2e',
     marginBottom: 2,
   },
-  pastSub: {
-    fontSize: 11,
-    color: theme.colors.textDim,
-  },
-  pastPrice: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  pastRating: {
+  jobSub: {
     fontSize: 12,
-    color: '#f5b300',
-    marginTop: 2,
-  }
+    color: '#888',
+  },
+  statusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  progressTrack: {
+    height: 5,
+    backgroundColor: '#F0EEFF',
+    borderRadius: 3,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  jobCardBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  workerName: {
+    fontSize: 12,
+    color: '#888',
+  },
+  jobPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1a1a2e',
+  },
+
+  // ── Book Now block ──
+  bookNowBlock: {
+    marginTop: 8,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  bookNowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+  },
+  bookNowText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 16,
+  },
 });
 
 export default HomeScreen;

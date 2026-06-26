@@ -64,7 +64,7 @@ const useSocket = ({ role, userId, shopId, onEvent }) => {
 
     socketRef.current = socket;
     return socket;
-  }, [role, userId, shopId, onEvent]);
+  }, [role, userId, shopId, onEventRef]);
 
   useEffect(() => {
     getOrCreate();
@@ -73,6 +73,16 @@ const useSocket = ({ role, userId, shopId, onEvent }) => {
       socketRef.current = null;
     };
   }, [getOrCreate]);
+
+  // Re-emit join events if auth state becomes available AFTER connection is already established
+  useEffect(() => {
+    if (socketRef.current?.connected) {
+      if (role === 'CUSTOMER' && userId) socketRef.current.emit('JOIN_CUSTOMER_ROOM', { userId });
+      if (role === 'WORKER'   && userId) socketRef.current.emit('JOIN_WORKER_ROOM',   { userId });
+      if (role === 'SHOP'     && shopId) socketRef.current.emit('JOIN_SHOP_ROOM',     { shopId });
+    }
+  }, [role, userId, shopId]);
+  // Removed orphaned return statement
 
   const joinJobRoom = (jobId) => socketRef.current?.emit('JOIN_JOB_ROOM', { jobId });
   const leaveJobRoom = () => {}; // rooms are ephemeral in socket.io
