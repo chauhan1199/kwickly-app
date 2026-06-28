@@ -23,12 +23,13 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 
-const SavedAddressesScreen = ({ navigation }) => {
+const SavedAddressesScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { refreshUnread } = useNotifications();
 
   const { user, fetchUser } = useAuth();
   const addresses = user?.addresses || [];
+  const fromBooking = route.params?.fromBooking === true;
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
@@ -173,12 +174,12 @@ const SavedAddressesScreen = ({ navigation }) => {
       
       {/* App Bar */}
       <View style={styles.appBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('Profile')}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backBtnText}>‹</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.appBarTitle}>Saved Addresses</Text>
-          <Text style={styles.appBarSub}>{addresses.length} saved</Text>
+          <Text style={styles.appBarTitle}>{fromBooking ? 'Select Address' : 'Saved Addresses'}</Text>
+          <Text style={styles.appBarSub}>{fromBooking ? 'Tap an address to use it for booking' : `${addresses.length} saved`}</Text>
         </View>
       </View>
 
@@ -203,6 +204,17 @@ const SavedAddressesScreen = ({ navigation }) => {
               </View>
             </View>
             
+            {/* Use this address button — only shown when coming from booking */}
+            {fromBooking && (
+              <TouchableOpacity
+                style={styles.useAddressBtn}
+                onPress={() => navigation.navigate({ name: 'DescribeJob', params: { selectedAddress: addr }, merge: true })}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.useAddressBtnText}>📍 Use this address</Text>
+              </TouchableOpacity>
+            )}
+
             <View style={styles.actionRow}>
               <TouchableOpacity 
                 style={[styles.actionBtn, addr.isPrimary && styles.actionBtnActive]}
@@ -402,8 +414,20 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginTop: 10,
   },
   addBtnText: {
-    color: '#001016',
+    color: '#fff',
     fontSize: 15,
+    fontWeight: '800',
+  },
+  useAddressBtn: {
+    backgroundColor: '#6C47FF',
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  useAddressBtnText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '800',
   },
   modalOverlay: {

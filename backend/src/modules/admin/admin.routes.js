@@ -9,6 +9,19 @@ const { createShopAdminSchema, updateShopAdminSchema, shopWalletSchema } = requi
 const suggestionController = require('../suggestion/suggestion.controller');
 const disputeController = require('../dispute/dispute.controller');
 const settingsController = require('../settings/settings.controller');
+
+// Middleware to parse stringified JSON from FormData before Joi validation
+const parseShopFormData = (req, res, next) => {
+    const fields = ['location', 'delivery', 'businessHours', 'subscription'];
+    fields.forEach(field => {
+        if (req.body[field] && typeof req.body[field] === 'string') {
+            try {
+                req.body[field] = JSON.parse(req.body[field]);
+            } catch (e) {}
+        }
+    });
+    next();
+};
 const upload = require('../../middleware/upload.middleware');
 
 // ─── Public Routes (no auth required) ────────────────────────────────────────
@@ -57,7 +70,7 @@ router.delete('/workers/:id/kyc-documents/:docIndex', adminController.removeKycD
 router.get('/shops',                   adminController.getShops);
 router.get('/shops/:id',               adminController.getShopDetailAdmin);
 router.post('/shops',                  validate(createShopAdminSchema), adminController.createShopAdmin);
-router.patch('/shops/:id',             upload.single('logo'), validate(updateShopAdminSchema), adminController.updateShopAdminFull);
+router.patch('/shops/:id',             upload.single('logo'), parseShopFormData, validate(updateShopAdminSchema), adminController.updateShopAdminFull);
 router.delete('/shops/:id',            adminController.deleteShopAdmin);
 router.patch('/shops/:id/kyc',         adminController.updateShopKYC);
 router.patch('/shops/:id/toggle',      adminController.toggleShopStatus);

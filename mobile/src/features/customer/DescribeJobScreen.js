@@ -1,70 +1,105 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
   ScrollView,
-  TouchableOpacity, 
+  TouchableOpacity,
   TextInput,
   StatusBar,
   Modal,
   ActivityIndicator,
   Image,
   Alert,
-  ImageBackground
+  Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { launchImageLibrary } from 'react-native-image-picker';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
-import { Camera, Image as ImageIcon, XCircle, UploadCloud, Video, X } from 'lucide-react-native';
+import { ChevronLeft, UploadCloud, X, MapPin, Bell, Camera, Video } from 'lucide-react-native';
+
+const PURPLE      = '#6C47FF';
+const PURPLE_DARK = '#5535d4';
+const PURPLE_SOFT = 'rgba(108,71,255,0.13)';
 
 const DescribeJobScreen = ({ route, navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
 
-  const { 
-    category = { name: 'Cleaning' }, 
-    subcategory = 'Home Cleaning',
-    selectedWorker
+  const {
+    category    = { name: 'Service' },
+    subcategory = 'General',
+    selectedWorker,
   } = route.params || {};
 
-  const { user, token } = useAuth();
-  const [description, setDescription] = useState('');
-  const [media, setMedia] = useState([]); 
-  const [addressType, setAddressType] = useState('Home');
-  const [address, setAddress] = useState('');
-  const [location, setLocation] = useState(null);
-  const [preferredDate, setPreferredDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [timeSlot, setTimeSlot] = useState('urgent');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  console.log('DescribeJobScreen loaded with route.params:', JSON.stringify(route.params));
 
+  const { user, token } = useAuth();
+
+  const [description,    setDescription]    = useState('');
+  const [media,          setMedia]          = useState([]);     // [{ uri, type }]
+  const [addressType,    setAddressType]    = useState('Home');
+  const [address,        setAddress]        = useState('');
+  const [location,       setLocation]       = useState(null);
+  const [preferredDate,  setPreferredDate]  = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [timeSlot,       setTimeSlot]       = useState('urgent');
+  const [isSubmitting,   setIsSubmitting]   = useState(false);
+
+  // ── Populate address from user profile on mount ──
   React.useEffect(() => {
     if (user?.addresses?.length > 0) {
       const primary = user.addresses.find(a => a.isPrimary) || user.addresses[0];
       setAddress(`${primary.street}, ${primary.city} ${primary.pincode}`);
       setAddressType(primary.label || 'Home');
-      if (primary.location && primary.location.coordinates) {
-        setLocation(primary.location);
-      }
+      if (primary.location?.coordinates) setLocation(primary.location);
     }
   }, [user]);
 
+  // ── Receive address back from SavedAddressesScreen or MapPicker ──
+  useFocusEffect(
+    useCallback(() => {
+      const sel = route.params?.selectedAddress;
+      if (sel) {
+        setAddress(`${sel.street || sel.address || ''}, ${sel.city || ''} ${sel.pincode || ''}`.trim());
+        setAddressType(sel.label || 'Other');
+        if (sel.location?.coordinates) setLocation(sel.location);
+        else if (sel.coordinates)       setLocation({ type: 'Point', coordinates: sel.coordinates });
+        // Clear params so re-focus doesn't re-apply
+        navigation.setParams({ selectedAddress: undefined });
+      }
+    }, [route.params?.selectedAddress])
+  );
+
+  // ── Address chip switch ──
+  const switchAddressChip = (type) => {
+    setAddressType(type);
+    if (!user?.addresses?.length) return;
+    const matched = user.addresses.find(a => (a.label || '').toLowerCase() === type.toLowerCase());
+    if (matched) {
+      setAddress(`${matched.street}, ${matched.city} ${matched.pincode}`);
+      if (matched.location?.coordinates) setLocation(matched.location);
+    } else if (type === 'Other') {
+      setAddress('');
+      setLocation(null);
+    }
+  };
+
+  const hasNoAddresses = !user?.addresses?.length && !address;
+
   const timeSlots = [
-    { id: 'urgent', icon: '⚡', label: 'Urgent / ASAP', sub: 'Within 1-2 hrs' },
-    { id: 'morning', icon: '🌅', label: 'Morning', sub: '8 AM - 12 PM' },
-    { id: 'afternoon', icon: '☀️', label: 'Afternoon', sub: '12 PM - 4 PM' },
-    { id: 'evening', icon: '🌆', label: 'Evening', sub: '4 PM - 8 PM' },
+    { id: 'urgent',    icon: '⚡', label: 'Urgent / ASAP', sub: 'Within 1-2 hrs' },
+    { id: 'morning',   icon: '🌅', label: 'Morning',       sub: '8 AM – 12 PM' },
+    { id: 'afternoon', icon: '☀️', label: 'Afternoon',     sub: '12 PM – 4 PM' },
+    { id: 'evening',   icon: '🌆', label: 'Evening',       sub: '4 PM – 8 PM' },
   ];
 
-  // Generate next 7 days for the custom JS Date Picker
   const getNext7Days = () => {
     const days = [];
-    for(let i=0; i<7; i++){
+    for (let i = 0; i < 7; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
       days.push(d);
@@ -72,78 +107,87 @@ const DescribeJobScreen = ({ route, navigation }) => {
     return days;
   };
 
-  const handlePickMedia = async () => {
-    if (media.length >= 3) {
-      Alert.alert('Limit Reached', 'You can only add up to 3 photos.');
+  // ── Media picker (photo + video) ──
+  const handlePickMedia = async (mediaType = 'photo') => {
+    if (media.length >= 5) {
+      Alert.alert('Limit Reached', 'You can add up to 5 files.');
       return;
     }
-    
     try {
-      const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
+      const result = await launchImageLibrary({ mediaType, quality: 0.8 });
       if (result.didCancel) return;
-      if (result.errorCode || !result.assets || result.assets.length === 0) {
-        throw new Error(result.errorMessage || 'Picker failed');
-      }
-      setMedia([...media, result.assets[0].uri]);
-    } catch (e) {
-      // Fallback for emulator testing when gallery is unconfigured
-      Alert.alert('Emulator Fallback', 'Using mock image since gallery access failed.');
-      setMedia([...media, 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=500&q=80']);
+      if (result.errorCode || !result.assets?.length) throw new Error(result.errorMessage || 'Picker failed');
+      const asset = result.assets[0];
+      setMedia(prev => [...prev, { uri: asset.uri, type: asset.type?.startsWith('video') ? 'video' : 'photo' }]);
+    } catch {
+      // Emulator fallback
+      setMedia(prev => [...prev, {
+        uri: 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=500&q=80',
+        type: 'photo',
+      }]);
     }
   };
 
   const handleRemoveMedia = (index) => {
-    const newMedia = [...media];
-    newMedia.splice(index, 1);
-    setMedia(newMedia);
+    setMedia(prev => prev.filter((_, i) => i !== index));
   };
 
+  // ── Map / Address picker ──
   const handlePickMap = () => {
-    navigation.navigate('SavedAddresses');
+    navigation.navigate('SavedAddresses', { fromBooking: true });
   };
 
+  // ── Submit ──
   const handleSubmit = async () => {
     if (!description.trim()) {
-      return Alert.alert('Validation Error', 'Please describe the issue.');
+      return Alert.alert('Missing Details', 'Please describe the issue.');
     }
-    if (!address || !address.trim() || !location) {
-      return Alert.alert('Validation Error', 'Please select a valid service address. Click "Change" to add one.');
+    if (!address?.trim()) {
+      return Alert.alert('No Address', 'Please add a service address before booking.');
     }
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        category: category.name,
-        subcategory: subcategory,
-        description,
-        media,
-        preferredDate: preferredDate.toISOString(),
-        timeSlot,
-        location,
-        addressDetails: address
+      // Build location — use saved coords or a fallback so backend doesn't reject
+      const jobLocation = location || {
+        type: 'Point',
+        coordinates: [72.8777, 19.0760], // default centre; backend should allow this
       };
 
-      const res = await api.post('/jobs', payload, {
-        headers: { Authorization: `Bearer ${token}` }
+      const payload = {
+        category:       category.name,
+        subcategory,
+        description,
+        media:          media.map(m => m.uri),
+        preferredDate:  preferredDate.toISOString(),
+        timeSlot,
+        location:       jobLocation,
+        addressDetails: address,
+      };
+
+      const res    = await api.post('/jobs', payload, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
       const newJob = res.data.data;
 
       if (selectedWorker) {
         navigation.navigate('LiveTracking', { worker: selectedWorker });
       } else {
         navigation.navigate('LiveBids', {
-          jobId: newJob._id,
+          jobId:      newJob._id,
+          job:        newJob,
           category,
           subcategory,
           address,
-          timeSlot: timeSlots.find(t => t.id === timeSlot)?.label || 'ASAP',
-          budget: '499'
+          timeSlot:   timeSlots.find(t => t.id === timeSlot)?.label || 'ASAP',
         });
       }
     } catch (error) {
-      const errDetails = error.response?.data?.errors?.join(', ') || error.response?.data?.message || 'Failed to post job';
-      Alert.alert('Error', errDetails);
+      const msg =
+        error.response?.data?.errors?.join(', ') ||
+        error.response?.data?.message ||
+        'Failed to post job. Please try again.';
+      Alert.alert('Booking Error', msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -153,168 +197,226 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnText}>‹</Text>
+      <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
+
+      {/* ── Purple Gradient Header ── */}
+      <LinearGradient
+        colors={[PURPLE, '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <ChevronLeft size={22} color="#fff" />
         </TouchableOpacity>
+
         <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.appBarTitle} numberOfLines={1}>Describe your job</Text>
-          <Text style={styles.appBarSub} numberOfLines={1}>{category.name} · {subcategory}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Describe your job</Text>
+          <Text style={styles.headerSub} numberOfLines={1}>{category.name} · {subcategory}</Text>
         </View>
-        <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Text style={{fontSize: 16}}>🔔</Text>
+
+        <TouchableOpacity style={styles.headerIcon}>
+          <Bell size={20} color="#fff" />
           <View style={styles.badge} />
         </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
-        {/* Describe Issue */}
+
+        {/* ── Description ── */}
         <Text style={styles.label}>Describe the issue</Text>
-        <Input
-          containerStyle={{ marginBottom: 14 }}
-          inputStyle={{ minHeight: 80, textAlignVertical: 'top' }}
-          multiline={true}
-          numberOfLines={3}
+        <TextInput
+          style={styles.textArea}
+          multiline
+          numberOfLines={4}
           value={description}
           onChangeText={setDescription}
-          placeholder="E.g. AC not cooling, makes loud noise..."
+          placeholder="E.g. AC not cooling, makes loud noise…"
+          placeholderTextColor={theme.colors.textDim}
+          textAlignVertical="top"
         />
 
-        {/* Photos / Video */}
+        {/* ── Media Upload ── */}
         <Text style={styles.label}>Add photos / video</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaGrid}>
-          {media.map((uri, index) => (
-             <View key={index} style={styles.mediaTileFilled}>
-               <Image source={{ uri }} style={{ width: '100%', height: '100%', borderRadius: 12 }} />
-               <TouchableOpacity 
-                 style={styles.deleteMediaBtn}
-                 onPress={() => handleRemoveMedia(index)}
-               >
-                 <X size={14} color="#fff" />
-               </TouchableOpacity>
-             </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaRow}>
+          {media.map((item, idx) => (
+            <View key={idx} style={styles.mediaTileFilled}>
+              <Image source={{ uri: item.uri }} style={styles.mediaImage} />
+              {item.type === 'video' && (
+                <View style={styles.videoOverlay}>
+                  <Video size={18} color="#fff" />
+                </View>
+              )}
+              <TouchableOpacity style={styles.deleteMediaBtn} onPress={() => handleRemoveMedia(idx)}>
+                <X size={12} color="#fff" />
+              </TouchableOpacity>
+            </View>
           ))}
-          {media.length < 3 && (
-            <TouchableOpacity style={styles.mediaTileEmpty} onPress={handlePickMedia}>
-              <UploadCloud size={28} color={theme.colors.primary} style={{ marginBottom: 4 }} />
-              <Text style={{fontSize: 12, color: theme.colors.textDim, fontWeight: '600'}}>Upload</Text>
-              <Text style={{fontSize: 10, color: theme.colors.textDim}}>Max 3</Text>
-            </TouchableOpacity>
+          {media.length < 5 && (
+            <View style={styles.mediaUploadGroup}>
+              <TouchableOpacity style={styles.mediaTileEmpty} onPress={() => handlePickMedia('photo')}>
+                <Camera size={22} color={PURPLE} />
+                <Text style={styles.mediaTileLabel}>Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.mediaTileEmpty} onPress={() => handlePickMedia('video')}>
+                <Video size={22} color={PURPLE} />
+                <Text style={styles.mediaTileLabel}>Video</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </ScrollView>
+        <Text style={styles.mediaHint}>Max 5 files · {media.length}/5 added</Text>
 
-        {/* Service Address */}
-        <Text style={styles.label}>Service address</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.addressChipsScroll}>
-          <TouchableOpacity 
-            style={[styles.addrChip, addressType === 'Home' && styles.addrChipActive]}
-            onPress={() => { setAddressType('Home'); setAddress(user?.addresses?.find(a => a.label === 'Home')?.street || user?.activeLocation?.address || ''); }}
-          >
-            <Text style={[styles.addrChipText, addressType === 'Home' && styles.addrChipTextActive]}>🏠 Home</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.addrChip, addressType === 'Office' && styles.addrChipActive]}
-            onPress={() => { setAddressType('Office'); setAddress(user?.addresses?.find(a => a.label === 'Office')?.street || ''); }}
-          >
-            <Text style={[styles.addrChipText, addressType === 'Office' && styles.addrChipTextActive]}>🏢 Office</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.addrChip, addressType === 'Other' && styles.addrChipActive]}
-            onPress={() => { setAddressType('Other'); setAddress(''); }}
-          >
-            <Text style={[styles.addrChipText, addressType === 'Other' && styles.addrChipTextActive]}>➕ Other</Text>
-          </TouchableOpacity>
-        </ScrollView>
-        <Input
-          containerStyle={{ marginBottom: 14 }}
-          value={address}
-          onChangeText={setAddress}
-          placeholder="Enter service address..."
-        />
-        <TouchableOpacity style={styles.mapBtn} onPress={handlePickMap}>
-          <Text style={styles.mapBtnText}>📍 Pick from Map</Text>
-        </TouchableOpacity>
+        {/* ── Service Address ── */}
+        <Text style={[styles.label, { marginTop: 14 }]}>Service address</Text>
 
-        {/* Preferred Date */}
-        <Text style={[styles.label, {marginTop: 10}]}>Preferred date</Text>
-        <TouchableOpacity 
-          style={styles.inputField} 
-          onPress={() => setShowDatePicker(true)}
-        >
-          <Text style={{ color: theme.colors.text, paddingVertical: 2 }}>
-            {preferredDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Time Slot */}
-        <Text style={styles.label}>Time slot</Text>
-        <View style={styles.timeGrid}>
-          {timeSlots.map(slot => (
-            <TouchableOpacity 
-              key={slot.id} 
-              style={[styles.timeCard, timeSlot === slot.id && styles.timeCardActive]}
-              onPress={() => setTimeSlot(slot.id)}
+        {hasNoAddresses ? (
+          /* No saved addresses → prompt to add */
+          <View style={styles.noAddressBanner}>
+            <MapPin size={20} color={PURPLE} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.noAddressTitle}>No saved address</Text>
+              <Text style={styles.noAddressSub}>Add an address to continue booking</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.noAddressBtn}
+              onPress={() => navigation.navigate('SavedAddresses', { fromBooking: true })}
             >
-              <Text style={{fontSize: 20}}>{slot.icon}</Text>
-              <Text style={styles.timeLabel}>{slot.label}</Text>
-              <Text style={styles.timeSub}>{slot.sub}</Text>
+              <Text style={styles.noAddressBtnText}>Add</Text>
             </TouchableOpacity>
-          ))}
+          </View>
+        ) : (
+          <>
+            {/* Address Type Chips */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+              {['Home', 'Office', 'Other'].map(type => (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.addrChip, addressType === type && styles.addrChipActive]}
+                  onPress={() => switchAddressChip(type)}
+                >
+                  <Text style={[styles.addrChipText, addressType === type && styles.addrChipTextActive]}>
+                    {type === 'Home' ? '🏠' : type === 'Office' ? '🏢' : '➕'} {type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Address Text Input */}
+            <TextInput
+              style={styles.addressInput}
+              value={address}
+              onChangeText={setAddress}
+              placeholder="Enter service address…"
+              placeholderTextColor={theme.colors.textDim}
+              multiline
+            />
+          </>
+        )}
+
+        {/* Pick from Map */}
+        <TouchableOpacity style={styles.mapBtn} onPress={handlePickMap}>
+          <MapPin size={16} color={PURPLE} />
+          <Text style={styles.mapBtnText}>Pick from Map / Saved Addresses</Text>
+        </TouchableOpacity>
+
+        {/* ── Preferred Date ── */}
+        <Text style={[styles.label, { marginTop: 14 }]}>Preferred date</Text>
+        <TouchableOpacity style={styles.dateField} onPress={() => setShowDatePicker(true)}>
+          <Text style={styles.dateFieldText}>
+            📅  {preferredDate.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+          </Text>
+          <Text style={styles.dateFieldChevron}>›</Text>
+        </TouchableOpacity>
+
+        {/* ── Time Slot ── */}
+        <Text style={[styles.label, { marginTop: 14 }]}>Time slot</Text>
+        <View style={styles.timeGrid}>
+          {timeSlots.map(slot => {
+            const active = timeSlot === slot.id;
+            return (
+              <TouchableOpacity
+                key={slot.id}
+                style={[styles.timeCard, active && styles.timeCardActive]}
+                onPress={() => setTimeSlot(slot.id)}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 22 }}>{slot.icon}</Text>
+                <Text style={[styles.timeLabel, active && { color: PURPLE }]}>{slot.label}</Text>
+                <Text style={styles.timeSub}>{slot.sub}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        <TouchableOpacity 
-          style={styles.submitBtn} 
+        {/* ── Submit Button ── */}
+        <TouchableOpacity
+          activeOpacity={0.85}
           onPress={handleSubmit}
           disabled={isSubmitting}
+          style={{ marginBottom: 20, borderRadius: 14, overflow: 'hidden' }}
         >
-          {isSubmitting ? (
-             <ActivityIndicator color="#001016" />
-          ) : (
-            <Text style={styles.submitBtnText}>
-              {selectedWorker ? `🚀 Book ${selectedWorker.name.split(' ')[0]}` : `🚀 Post Job · Get Bids`}
-            </Text>
-          )}
+          <LinearGradient
+            colors={[PURPLE, PURPLE_DARK]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.submitBtn}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.submitBtnText}>
+                {selectedWorker ? `🚀 Book ${selectedWorker.name?.split(' ')[0]}` : '🚀 Post Job · Get Bids'}
+              </Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Pure JS Custom Date Picker Modal */}
-      <Modal visible={showDatePicker} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      {/* ── Date Picker Modal ── */}
+      <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowDatePicker(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Select Preferred Date</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 20 }}>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>
               {getNext7Days().map((date, idx) => {
                 const isSelected = preferredDate.toDateString() === date.toDateString();
                 return (
-                  <TouchableOpacity 
-                    key={idx} 
+                  <TouchableOpacity
+                    key={idx}
                     style={[styles.dateCard, isSelected && styles.dateCardActive]}
                     onPress={() => { setPreferredDate(date); setShowDatePicker(false); }}
+                    activeOpacity={0.8}
                   >
-                    <Text style={[styles.dateCardDay, isSelected && {color: '#fff'}]}>
+                    <Text style={[styles.dateDay, isSelected && { color: '#fff' }]}>
                       {date.toLocaleDateString('en-US', { weekday: 'short' })}
                     </Text>
-                    <Text style={[styles.dateCardDate, isSelected && {color: '#fff'}]}>
+                    <Text style={[styles.dateNum, isSelected && { color: '#fff' }]}>
                       {date.getDate()}
+                    </Text>
+                    <Text style={[styles.dateMon, isSelected && { color: 'rgba(255,255,255,0.8)' }]}>
+                      {date.toLocaleDateString('en-US', { month: 'short' })}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowDatePicker(false)}>
-              <Text style={styles.modalCloseBtnText}>Done</Text>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={{ borderRadius: 12, overflow: 'hidden', marginTop: 8 }}
+              onPress={() => setShowDatePicker(false)}
+            >
+              <LinearGradient colors={[PURPLE, PURPLE_DARK]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.doneBtn}>
+                <Text style={styles.doneBtnText}>Done</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -325,250 +427,365 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  appBar: {
+
+  /* Header */
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 14,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 14,
+    paddingBottom: 16,
   },
-  backBtn: {
+  headerBack: {
     width: 36,
     height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
   },
-  backBtnText: {
-    fontSize: 24,
-    color: theme.colors.text,
-    lineHeight: 28,
-  },
-  appBarTitle: {
+  headerTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: theme.colors.text,
+    color: '#fff',
   },
-  appBarSub: {
-    fontSize: 12,
-    color: theme.colors.textDim,
+  headerSub: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.75)',
     marginTop: 2,
   },
-  bellBtn: {
+  headerIcon: {
     width: 36,
     height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
     position: 'relative',
   },
   badge: {
     position: 'absolute',
-    top: 6,
+    top: 7,
     right: 8,
-    width: 8,
-    height: 8,
-    backgroundColor: theme.colors.primary,
+    width: 7,
+    height: 7,
+    backgroundColor: '#f59e0b',
     borderRadius: 4,
   },
+
+  /* Content */
   content: {
-    paddingHorizontal: 14,
-    paddingTop: 4,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   label: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.colors.textDim,
-    marginBottom: 6,
-    marginTop: 4,
+    marginBottom: 8,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
+
+  /* Description */
   textArea: {
     backgroundColor: theme.colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     color: theme.colors.text,
-    minHeight: 80,
-    marginBottom: 14,
+    fontSize: 14,
+    minHeight: 90,
+    marginBottom: 16,
   },
-  inputField: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: theme.colors.text,
-    marginBottom: 8,
-  },
-  mediaGrid: {
+
+  /* Media */
+  mediaRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 4,
+    paddingBottom: 4,
   },
   mediaTileFilled: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: 82,
+    height: 82,
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  mediaImage: {
+    width: '100%',
+    height: '100%',
+  },
+  videoOverlay: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
-    position: 'relative'
   },
   deleteMediaBtn: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 12,
+    top: 5,
+    right: 5,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 10,
     padding: 4,
   },
+  mediaUploadGroup: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   mediaTileEmpty: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    borderWidth: 1,
+    width: 82,
+    height: 82,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    borderColor: PURPLE,
+    backgroundColor: PURPLE_SOFT,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    gap: 4,
   },
-  addressChipsScroll: {
+  mediaTileLabel: {
+    fontSize: 10,
+    color: PURPLE,
+    fontWeight: '700',
+  },
+  mediaHint: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginBottom: 4,
+  },
+
+  /* Address */
+  chipsRow: {
     flexDirection: 'row',
-    marginBottom: 8,
+    gap: 8,
+    marginBottom: 10,
   },
   addrChip: {
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
   },
   addrChipActive: {
-    borderColor: theme.colors.primary,
+    borderColor: PURPLE,
+    backgroundColor: PURPLE_SOFT,
   },
   addrChipText: {
-    fontSize: 12,
-    color: theme.colors.text,
-    fontWeight: '500',
-  },
-  addrChipTextActive: {
-    color: theme.colors.primary,
-  },
-  mapBtn: {
-    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  mapBtnText: {
     fontSize: 13,
     color: theme.colors.text,
     fontWeight: '600',
   },
+  addrChipTextActive: {
+    color: PURPLE,
+  },
+  addressInput: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: theme.colors.text,
+    fontSize: 14,
+    marginBottom: 10,
+    minHeight: 48,
+  },
+  noAddressBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: PURPLE_SOFT,
+    borderWidth: 1.5,
+    borderColor: PURPLE,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
+  noAddressTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PURPLE,
+  },
+  noAddressSub: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  noAddressBtn: {
+    backgroundColor: PURPLE,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  noAddressBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  mapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.12)' : '#f5f3ff',
+    borderWidth: 1.5,
+    borderColor: PURPLE,
+    borderRadius: 14,
+    padding: 13,
+    marginBottom: 4,
+  },
+  mapBtnText: {
+    fontSize: 13,
+    color: PURPLE,
+    fontWeight: '700',
+  },
+
+  /* Date Field */
+  dateField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    marginBottom: 4,
+  },
+  dateFieldText: {
+    flex: 1,
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dateFieldChevron: {
+    fontSize: 22,
+    color: theme.colors.textDim,
+    lineHeight: 26,
+  },
+
+  /* Time Grid */
   timeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 24,
   },
   timeCard: {
-    width: '48%',
+    width: '47%',
     backgroundColor: theme.colors.surface,
     borderWidth: 2,
     borderColor: theme.colors.border,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
+    gap: 3,
   },
   timeCardActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: 'rgba(14, 154, 167, 0.1)',
+    borderColor: PURPLE,
+    backgroundColor: PURPLE_SOFT,
   },
   timeLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: theme.colors.text,
     marginTop: 4,
   },
   timeSub: {
-    fontSize: 10,
+    fontSize: 11,
     color: theme.colors.textDim,
   },
+
+  /* Submit */
   submitBtn: {
-    backgroundColor: theme.colors.primary,
-    padding: 16,
-    borderRadius: 12,
+    paddingVertical: 17,
     alignItems: 'center',
-    marginBottom: 20,
+    borderRadius: 14,
   },
   submitBtnText: {
-    color: '#001016',
-    fontSize: 15,
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '800',
+    letterSpacing: 0.3,
   },
+
+  /* Date Picker Modal */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
+  modalSheet: {
     backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 24,
-    minHeight: 250,
+    paddingBottom: 36,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: theme.colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 18,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.colors.text,
+    marginBottom: 6,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 16,
   },
   dateCard: {
-    width: 60,
-    height: 80,
-    borderRadius: 16,
-    borderWidth: 1,
+    width: 64,
+    height: 90,
+    borderRadius: 18,
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    gap: 2,
+    backgroundColor: theme.colors.surface,
   },
   dateCardActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
+    backgroundColor: PURPLE,
+    borderColor: PURPLE,
   },
-  dateCardDay: {
-    fontSize: 12,
+  dateDay: {
+    fontSize: 11,
     color: theme.colors.textDim,
-    marginBottom: 4,
+    fontWeight: '600',
   },
-  dateCardDate: {
-    fontSize: 20,
-    fontWeight: '700',
+  dateNum: {
+    fontSize: 24,
+    fontWeight: '800',
     color: theme.colors.text,
   },
-  modalCloseBtn: {
-    backgroundColor: theme.colors.primary,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
+  dateMon: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    fontWeight: '600',
   },
-  modalCloseBtnText: {
-    color: '#001016',
+  doneBtn: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  doneBtnText: {
+    color: '#fff',
     fontSize: 16,
-    fontWeight: '700',
-  }
+    fontWeight: '800',
+  },
 });
 
 export default DescribeJobScreen;

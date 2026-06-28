@@ -177,8 +177,9 @@ export default function Jobs() {
     customerId: j.customerId?._id || j.customerId,
     worker: j.workerId?.name || j.worker || '—',
     workerId: j.workerId?._id || j.workerId,
-    category: j.category,
-    city: j.addressDetails || j.locationName || '—',
+    category: j.category + (j.subcategory ? ` - ${j.subcategory}` : ''),
+    city: j.addressDetails?.city || j.locationName || '—',
+    fullAddress: j.addressDetails?.fullAddress || '—',
     date: new Date(j.createdAt).toLocaleDateString('en-IN'),
     amount: `₹${j.payment?.amount || 0}`,
     fee: `₹${j.payment?.platformFee || 0}`,
@@ -287,7 +288,7 @@ export default function Jobs() {
                   <div className="detail-row"><span>Customer</span><strong style={{ cursor: 'pointer', color: 'var(--primary)' }} onClick={() => { setDetail(null); navigate('/users') }}>{fd.customer}</strong></div>
                   <div className="detail-row"><span>Worker</span><strong style={{ cursor: fd.worker !== '—' ? 'pointer' : 'default', color: fd.worker !== '—' ? 'var(--primary)' : 'var(--mid)' }} onClick={() => fd.worker !== '—' && navigate('/workers')}>{fd.worker}</strong></div>
                   <div className="detail-row"><span>Category</span><strong>{fd.category}</strong></div>
-                  <div className="detail-row"><span>Location</span><strong>{fd.city}</strong></div>
+                  <div className="detail-row"><span>Location</span><strong>{fd.fullAddress}</strong></div>
                   <div className="detail-row"><span>Date</span><strong>{fd.date}</strong></div>
                   <div className="detail-row"><span>Preferred Date</span><strong>{fd.preferredDate}</strong></div>
                   <div className="detail-row"><span>Time Slot</span><strong>{fd.timeSlot}</strong></div>

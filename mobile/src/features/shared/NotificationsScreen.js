@@ -11,9 +11,11 @@ import {
   Bell, CheckCheck, Briefcase, ShoppingBag, Wallet,
   Star, Settings, Trash2, ChevronLeft, Info,
 } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import notificationService from '../../services/notificationService';
 import { useFocusEffect } from '@react-navigation/native';
+import { SearchBar } from '../../components/ui/SearchBar';
 
 // ─── Icon / colour mapping by entityType ─────────────────────────────────────
 const TYPE_CONFIG = {
@@ -65,6 +67,7 @@ const NotificationsScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
@@ -146,13 +149,20 @@ const NotificationsScreen = ({ navigation }) => {
 
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filtered = notifications.filter(n => {
-    if (activeFilter === 'ALL')    return true;
-    if (activeFilter === 'UNREAD') return !n.read;
-    if (activeFilter === 'JOB')    return n.typeKey === 'JOB';
-    if (activeFilter === 'ORDER')  return n.typeKey === 'ORDER';
-    if (activeFilter === 'WALLET') return n.typeKey === 'WALLET';
-    if (activeFilter === 'OTHER')  return ['SETTINGS', 'OTHER'].includes(n.typeKey);
-    return true;
+    let keep = true;
+    if (activeFilter === 'UNREAD') keep = !n.read;
+    else if (activeFilter === 'JOB') keep = n.typeKey === 'JOB';
+    else if (activeFilter === 'ORDER') keep = n.typeKey === 'ORDER';
+    else if (activeFilter === 'WALLET') keep = n.typeKey === 'WALLET';
+    else if (activeFilter === 'OTHER') keep = ['SETTINGS', 'OTHER'].includes(n.typeKey);
+
+    if (keep && searchQuery) {
+      if (!n.title?.toLowerCase().includes(searchQuery.toLowerCase()) && 
+          !n.body?.toLowerCase().includes(searchQuery.toLowerCase())) {
+        keep = false;
+      }
+    }
+    return keep;
   });
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -228,64 +238,80 @@ const NotificationsScreen = ({ navigation }) => {
     </View>
   );
 
-  // ── Header ────────────────────────────────────────────────────────────────
-  const ListHeader = () => (
-    <View>
-      {/* Title row */}
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Notifications</Text>
-          {unreadCount > 0 && (
-            <Text style={[styles.headerSub, { color: theme.colors.textDim }]}>
-              {unreadCount} unread
-            </Text>
-          )}
-        </View>
-        {unreadCount > 0 && (
-          <TouchableOpacity style={[styles.markAllBtn, { backgroundColor: theme.colors.primary + '15' }]} onPress={markAllRead}>
-            <CheckCheck size={15} color={theme.colors.primary} />
-            <Text style={[styles.markAllText, { color: theme.colors.primary }]}>Mark all read</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Filter tabs */}
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={FILTERS}
-        keyExtractor={f => f.key}
-        contentContainerStyle={styles.filterRow}
-        renderItem={({ item: f }) => {
-          const isActive = activeFilter === f.key;
-          return (
-            <TouchableOpacity
-              style={[
-                styles.filterTab,
-                isActive && { backgroundColor: theme.colors.primary },
-                !isActive && { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.07)' : '#f1f5f9' }
-              ]}
-              onPress={() => setActiveFilter(f.key)}
-            >
-              <Text style={[
-                styles.filterTabText,
-                isActive && { color: '#fff' },
-                !isActive && { color: theme.colors.textDim }
-              ]}>
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
-    </View>
-  );
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
-      <AppBar showBack title="Notifications" hideRightIcons />
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+      >
+        {/* Dynamic background shapes */}
+        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+
+        <AppBar showBack title="Notifications" transparent={true} hideRightIcons />
+        
+        {/* Title row */}
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={[styles.headerTitle, { color: '#fff' }]}>Notifications</Text>
+            {unreadCount > 0 && (
+              <Text style={[styles.headerSub, { color: 'rgba(255,255,255,0.8)' }]}>
+                {unreadCount} unread
+              </Text>
+            )}
+          </View>
+          {unreadCount > 0 && (
+            <TouchableOpacity style={[styles.markAllBtn, { backgroundColor: 'rgba(255,255,255,0.15)' }]} onPress={markAllRead}>
+              <CheckCheck size={15} color="#fff" />
+              <Text style={[styles.markAllText, { color: '#fff' }]}>Mark all read</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Filter tabs */}
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={FILTERS}
+          keyExtractor={f => f.key}
+          contentContainerStyle={styles.filterRow}
+          renderItem={({ item: f }) => {
+            const isActive = activeFilter === f.key;
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.filterTab,
+                  isActive && { backgroundColor: '#fff' },
+                  !isActive && { backgroundColor: 'rgba(255,255,255,0.15)' }
+                ]}
+                onPress={() => setActiveFilter(f.key)}
+              >
+                <Text style={[
+                  styles.filterTabText,
+                  isActive && { color: '#6C47FF' },
+                  !isActive && { color: '#fff' }
+                ]}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </LinearGradient>
+
+      {/* Search - overlapping header */}
+      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
+        <SearchBar 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          theme={theme}
+          placeholder="Search notifications..."
+        />
+      </View>
 
       <FlatList
         data={filtered}
@@ -293,7 +319,6 @@ const NotificationsScreen = ({ navigation }) => {
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={<ListHeader />}
         ListEmptyComponent={<EmptyState />}
         refreshControl={
           <RefreshControl
@@ -313,13 +338,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:     { flex: 1 },
   list:          { paddingHorizontal: 14, paddingBottom: 100 },
 
-  headerRow:     { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingVertical: 16 },
+  headerRow:     { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 16 },
   headerTitle:   { fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
   headerSub:     { fontSize: 13, fontWeight: '600', marginTop: 2 },
   markAllBtn:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   markAllText:   { fontSize: 13, fontWeight: '700' },
 
-  filterRow:     { paddingBottom: 12, gap: 8 },
+  filterRow:     { paddingHorizontal: 14, paddingBottom: 12, gap: 8 },
   filterTab:     { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20 },
   filterTabText: { fontSize: 13, fontWeight: '700' },
 

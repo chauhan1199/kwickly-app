@@ -12,6 +12,7 @@ import Razorpay from 'react-native-razorpay';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import api from '../../services/api';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { walletService } from '../../services/walletService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -24,6 +25,7 @@ const CustomerWalletScreen = ({ navigation }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [addMoneyModal, setAddMoneyModal] = useState(false);
   const [txnModal, setTxnModal] = useState(false);
@@ -145,8 +147,31 @@ const CustomerWalletScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <AppBar title="My Wallet" />
+      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
+      
+      {/* Unified App Bar inside a purple gradient */}
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+      >
+        {/* Dynamic background shapes */}
+        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+
+        <AppBar title="My Wallet" transparent={true} />
+      </LinearGradient>
+
+      {/* Search - overlapping header */}
+      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
+        <SearchBar 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          theme={theme}
+          placeholder="Search transactions..."
+        />
+      </View>
 
 
       {loading ? (
@@ -158,7 +183,7 @@ const CustomerWalletScreen = ({ navigation }) => {
 
         {/* Balance Card */}
         <LinearGradient
-          colors={['#0e9aa7', '#0a7a85']}
+          colors={['#6C47FF', '#8B6FFF']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={styles.balanceCard}
         >
@@ -173,6 +198,16 @@ const CustomerWalletScreen = ({ navigation }) => {
             <Text style={styles.addBtnText}>Add Money</Text>
           </TouchableOpacity>
         </LinearGradient>
+
+      {/* Search - overlapping header */}
+      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
+        <SearchBar 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          theme={theme}
+          placeholder="Search transactions..."
+        />
+      </View>
 
         {/* Stats Row */}
         <View style={styles.statsRow}>
@@ -196,7 +231,7 @@ const CustomerWalletScreen = ({ navigation }) => {
         {/* Transactions */}
         <Text style={styles.sectionTitle}>Transaction History</Text>
         <FlatList
-          data={transactions}
+          data={transactions.filter(t => !searchQuery || t.description?.toLowerCase().includes(searchQuery.toLowerCase()) || t.type?.toLowerCase().includes(searchQuery.toLowerCase()))}
           keyExtractor={i => i._id}
           renderItem={renderTxn}
           scrollEnabled={false}
@@ -298,7 +333,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   balanceAmount:  { fontSize: 44, fontWeight: '900', color: '#fff', marginBottom: 4, letterSpacing: -1 },
   balanceSub:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 24, fontWeight: '500' },
   addBtn:         { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', alignSelf: 'flex-start', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  addBtnText:     { fontSize: 14, fontWeight: '800', color: '#0e9aa7' },
+  addBtnText:     { fontSize: 14, fontWeight: '800', color: '#6C47FF' },
   statsRow:       { flexDirection: 'row', backgroundColor: theme.colors.surface, borderRadius: 24, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 32, paddingVertical: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   statBox:        { flex: 1, alignItems: 'center', paddingVertical: 16, gap: 8 },
   statNum:        { fontSize: 17, fontWeight: '900', color: theme.colors.text },

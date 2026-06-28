@@ -9,10 +9,11 @@ export const SearchBar = ({
   onChangeText, 
   onFilterPress, 
   theme,
+  style,
   placeholder = "Search for a service..."
 }) => {
   return (
-    <View style={[styles.searchBar, { backgroundColor: theme.colors.card }]}>
+    <View style={[styles.searchBar, { backgroundColor: theme.colors.card }, style]}>
       <Search size={20} color={theme.colors.textMuted || '#9ca3af'} style={{ marginRight: 8 }} />
       <TextInput
         style={[styles.searchPlaceholder, { color: theme.colors.text, flex: 1, paddingVertical: 6, paddingHorizontal: 0 }]}
@@ -21,7 +22,7 @@ export const SearchBar = ({
         value={value}
         onChangeText={onChangeText}
       />
-      <TouchableOpacity style={styles.filterBtn} onPress={onFilterPress}>
+      <TouchableOpacity style={[styles.filterBtn, { backgroundColor: theme.colors.primary }]} onPress={onFilterPress}>
         <SlidersHorizontal size={16} color="#fff" />
       </TouchableOpacity>
     </View>
@@ -48,7 +49,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   filterBtn: {
-    backgroundColor: PURPLE,
     width: 32,
     height: 32,
     borderRadius: 16,

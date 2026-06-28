@@ -16,6 +16,8 @@ import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
 import { jobService } from '../../services/jobService';
 import LinearGradient from 'react-native-linear-gradient';
+import AppBar from '../../components/AppBar';
+import { SearchBar } from '../../components/ui/SearchBar';
 
 const LiveBidsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -37,6 +39,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
   
   const [bids, setBids] = useState([]);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     // 1. Fetch any existing bids for this job
@@ -95,33 +98,40 @@ const LiveBidsScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
       
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnText}>‹</Text>
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.appBarTitle} numberOfLines={1}>Live Bids</Text>
-          <Text style={styles.appBarSub} numberOfLines={1}>Job #{jobId}</Text>
+      <LinearGradient colors={['#6C47FF', '#8B6FFF']} style={styles.headerGradient}>
+        <View style={styles.appBar}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.backBtnText}>‹</Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <Text style={[styles.appBarTitle, { color: '#fff' }]} numberOfLines={1}>Live Bids</Text>
+            <Text style={[styles.appBarSub, { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>Job #{jobId}</Text>
+          </View>
+          <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
+            <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.bellBtn}>
+            <Text style={{fontSize: 16}}>🔔</Text>
+            <View style={styles.badge} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Text style={{fontSize: 16}}>🔔</Text>
-          <View style={styles.badge} />
-        </TouchableOpacity>
+      </LinearGradient>
+
+      {/* Search - overlapping header */}
+      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
+        <SearchBar 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          theme={theme}
+          placeholder="Search bids, workers..."
+        />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
-        <LinearGradient 
-          colors={['#0e9aa7', '#43e3eb']} 
-          start={{x: 0, y: 0}} end={{x: 1, y: 1}} 
-          style={styles.summaryCard}
-        >
+        <View style={styles.summaryCard}>
           <View style={styles.row}>
             <View style={{flex: 1}}>
               <Text style={styles.summaryTitle}>{category.name} · {subcategory}</Text>
@@ -131,7 +141,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
               <Text style={styles.bidsChipText}>{bids.length} bids</Text>
             </View>
           </View>
-        </LinearGradient>
+        </View>
 
         {bids.length === 0 ? (
           <View style={styles.waitingCard}>
@@ -141,7 +151,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
           </View>
         ) : null}
 
-        {bids.map((bid) => {
+        {bids.filter(bid => !searchQuery || bid.workerId?.name?.toLowerCase().includes(searchQuery.toLowerCase())).map((bid) => {
           const worker = bid.workerId;
           if (!worker) return null; // Handle unpopulated worker in realtime events vs API
           
@@ -192,6 +202,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  headerGradient: {
+    paddingBottom: 40,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,11 +225,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   backBtnText: {
     fontSize: 24,
-    color: theme.colors.text,
+    color: '#fff',
     lineHeight: 28,
   },
   appBarTitle: {
@@ -232,7 +248,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     position: 'relative',
   },
   badge: {

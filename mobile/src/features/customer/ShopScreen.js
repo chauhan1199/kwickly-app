@@ -21,6 +21,7 @@ import GlassCard from '../../components/ui/GlassCard';
 import AppBar from '../../components/AppBar';
 import LinearGradient from 'react-native-linear-gradient';
 import { ActivityIndicator } from 'react-native';
+import { SearchBar } from '../../components/ui/SearchBar';
 
 
 
@@ -30,6 +31,7 @@ const ShopScreen = ({ navigation }) => {
   const [shops, setShops] = useState([]);
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const chips = ['All', 'Groceries', 'Pharmacy', 'Dairy', 'Bakery'];
 
@@ -85,20 +87,30 @@ const ShopScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
 
-      {/* Unified App Bar */}
-      <AppBar title="Nearby Shops" subtitle="Buy daily essentials" />
+      {/* Unified App Bar inside a purple gradient */}
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, position: 'relative', overflow: 'hidden' }}
+      >
+        {/* Dynamic background shapes */}
+        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
 
-      {/* Search */}
-      <View style={styles.searchBar}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput 
-          placeholder="Search shops, products..."
-          placeholderTextColor={theme.colors.textDim}
-          style={styles.searchInput}
+        <AppBar title="Nearby Shops" subtitle="Buy daily essentials" transparent={true} showLogo={false} />
+      </LinearGradient>
+
+      {/* Search - overlapping header */}
+      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10 }}>
+        <SearchBar 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          theme={theme}
         />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 40}}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 40, paddingTop: 30}}>
         {/* Dynamic Banners */}
         {banners.length > 0 && (
           <BannerCarousel 

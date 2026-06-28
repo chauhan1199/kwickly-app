@@ -21,6 +21,7 @@ import { jobService } from '../../services/jobService';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { ChevronLeft, ChevronRight, Clock, IndianRupee } from 'lucide-react-native';
+import { SearchBar } from '../../components/ui/SearchBar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PURPLE = '#6C47FF';
@@ -45,6 +46,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
   const [suggestionName, setSuggestionName] = useState('');
   const [suggestionDesc, setSuggestionDesc] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Provide default values so it doesn't crash if accessed directly
   const {
@@ -56,9 +58,10 @@ const SubCategoriesScreen = ({ route, navigation }) => {
     subs = ['Home Cleaning', 'Sofa Cleaning', 'Kitchen Deep Clean', 'Bathroom Cleaning']
   } = route.params || {};
 
+  console.log('SubCategoriesScreen loaded with route.params:', JSON.stringify(route.params));
+
   // Pick a gradient based on simple string hash of id
-  const gradientIndex = (id?.toString().charCodeAt(0) || 0) % HERO_GRADIENTS.length;
-  const heroGradient = HERO_GRADIENTS[gradientIndex];
+  const heroGradient = ['#6C47FF', '#8B6FFF'];
 
   // Resolve image URL
   const resolvedHeroImage = imageUrl ? (imageUrl.startsWith('http') ? imageUrl : `${BASE_IMAGE_URL}${imageUrl}`) : null;
@@ -138,6 +141,17 @@ const SubCategoriesScreen = ({ route, navigation }) => {
           </View>
         </LinearGradient>
       )}
+
+      {/* Search - overlapping header */}
+      <View style={{ paddingHorizontal: 16, marginTop: -26, zIndex: 10 }}>
+        <SearchBar 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          theme={theme}
+          onFilterPress={() => {}}
+        />
+      </View>
+
       {/* ── Subcategory List ── */}
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -148,7 +162,9 @@ const SubCategoriesScreen = ({ route, navigation }) => {
       >
         <Text style={styles.listHeading}>Choose a service type</Text>
 
-        {localSubs.map((sub, index) => {
+        {localSubs
+          .filter(sub => !searchQuery || sub.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .map((sub, index) => {
             const resolvedSubImage = sub.imageUrl ? (sub.imageUrl.startsWith('http') ? sub.imageUrl : `${BASE_IMAGE_URL}${sub.imageUrl}`) : null;
 
             return (
@@ -351,7 +367,7 @@ const createStyles = (theme, isDarkMode) =>
     // ── List ──
     listContent: {
       paddingHorizontal: 14,
-      paddingTop: 20,
+      paddingTop: 30,
     },
     listHeading: {
       fontSize: 14,

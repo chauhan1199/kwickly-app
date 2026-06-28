@@ -31,6 +31,7 @@ const AppBar = ({
   subtitle,
   hideRightIcons = false,
   transparent = false,
+  showLogo = true,
 }) => {
   const navigation = useNavigation();
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -79,13 +80,13 @@ const AppBar = ({
           >
             <ChevronLeft size={22} color={textColor} />
           </TouchableOpacity>
-        ) : (
+        ) : showLogo ? (
           <Image
             source={require('../assets/logo.jpeg')}
             style={styles.logo}
             resizeMode="cover"
           />
-        )}
+        ) : null}
 
         <View style={styles.brandBlock}>
           <Text style={[styles.brandName, { color: textColor }]} numberOfLines={1}>

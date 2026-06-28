@@ -10,14 +10,16 @@ import {
   Dimensions,
   Image,
   TextInput,
+  Animated,
 } from 'react-native';
 
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 import api from '../../services/api';
+import { ServiceCard } from '../../components/ui/ServiceCard';
 import LinearGradient from 'react-native-linear-gradient';
-import { Search, SlidersHorizontal, ChevronRight, Star, Zap, MapPin, Bell, Sun, Moon } from 'lucide-react-native';
+import { Search, SlidersHorizontal, ChevronRight, Star, Zap, MapPin, Bell, Sun, Moon, User, Package } from 'lucide-react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { SearchBar } from '../../components/ui/SearchBar';
 
@@ -121,7 +123,23 @@ const HomeScreen = ({ navigation }) => {
   const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Animations
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(20)).current;
+
   useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
     fetchData();
   }, []);
 
@@ -162,6 +180,8 @@ const HomeScreen = ({ navigation }) => {
             worker: j.workerId?.name || null,
             status: j.status,
             fromPrice: j.payment?.amount || '300',
+            preferredDate: j.preferredDate ? new Date(j.preferredDate).toLocaleDateString('en-IN') : null,
+            timeSlot: j.timeSlot || 'urgent',
             progress:
               j.status === 'BROADCASTING' ? 20 :
               j.status === 'QUOTES_RECEIVED' ? 45 :
@@ -200,53 +220,6 @@ const HomeScreen = ({ navigation }) => {
     ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || ''}`
     : (user?.city || 'Select Location');
 
-  // ── Service card: white bg, image on top, text below ──
-  const ServiceCard = ({ cat, index }) => {
-    const { rating, reviews } = getServiceRating(cat.label);
-    // Resolve image: admin-uploaded URL > local bundled > fallback
-    const hasNetworkImg = !!cat.imageUrl;
-    const localImg = cat.localImage;
-
-    return (
-      <TouchableOpacity
-        style={[
-          styles.serviceCard, 
-          { 
-            backgroundColor: theme.colors.card, 
-            borderColor: theme.colors.border,
-            marginRight: (index + 1) % 3 !== 0 ? 12 : 0 
-          }
-        ]}
-        onPress={() => navigation.navigate('SubCategories', cat)}
-        activeOpacity={0.88}
-      >
-        {/* Image area */}
-        <View style={[styles.serviceCardImgBox, { backgroundColor: theme.colors.card }]}>
-          {hasNetworkImg ? (
-            <Image
-              source={{ uri: cat.imageUrl.startsWith('http') ? cat.imageUrl.replace('localhost', '10.0.2.2') : `http://10.0.2.2:5000${cat.imageUrl}` }}
-              style={styles.serviceCardImg}
-              resizeMode="contain"
-            />
-          ) : localImg ? (
-            <Image source={localImg} style={styles.serviceCardImg} resizeMode="cover" />
-          ) : (
-            // Fallback: blank image box
-            <View style={[styles.serviceCardImgFallback, { backgroundColor: theme.colors.surface2 }]} />
-          )}
-        </View>
-
-        {/* Text row below image */}
-        <View style={styles.serviceCardFooter}>
-          <Text style={[styles.serviceCardName, { color: theme.colors.text }]} numberOfLines={2}>{cat.label}</Text>
-          <View style={styles.serviceCardRatingRow}>
-            <Star size={12} color="#F5A623" fill="#F5A623" />
-            <Text style={styles.serviceCardRating}> {rating} ({reviews})</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -265,7 +238,11 @@ const HomeScreen = ({ navigation }) => {
           end={{ x: 1, y: 1 }}
           style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 16) + 16 }]}
         >
-          {/* Top row: location + bell */}
+          {/* Dynamic background shapes */}
+          <View style={styles.blob1} />
+          <View style={styles.blob2} />
+
+          {/* Top row: location + bell/cart */}
           <View style={styles.heroTopRow}>
             <TouchableOpacity style={styles.locationRow} activeOpacity={0.8} onPress={() => navigation.navigate('Profile')}>
               <MapPin size={14} color="rgba(255,255,255,0.85)" />
@@ -273,18 +250,18 @@ const HomeScreen = ({ navigation }) => {
               <Text style={styles.locationCaret}>  ⌄</Text>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity style={[styles.bellBtn, { marginRight: 12 }]} activeOpacity={0.8} onPress={toggleTheme}>
-                {isDarkMode ? <Sun size={20} color="#fff" /> : <Moon size={20} color="#fff" />}
+              <TouchableOpacity style={[styles.bellBtn, { marginRight: 16 }]} activeOpacity={0.8} onPress={() => navigation.navigate('CustomerShopOrders')}>
+                <Package size={22} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.bellBtn} activeOpacity={0.8}>
-                <Bell size={20} color="#fff" />
+              <TouchableOpacity style={styles.bellBtn} activeOpacity={0.8} onPress={() => navigation.navigate('Notifications')}>
+                <Bell size={22} color="#fff" />
                 <View style={styles.bellBadge} />
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Greeting + mascot row */}
-          <View style={styles.heroMiddleRow}>
+          <Animated.View style={[styles.heroMiddleRow, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.heroGreeting}>Hi, {firstName}!</Text>
               <Text style={styles.heroSubtitle}>Services + Products available in local services</Text>
@@ -302,16 +279,19 @@ const HomeScreen = ({ navigation }) => {
                 </View>
               )}
             </TouchableOpacity>
-          </View>
-          
-          {/* Search bar component */}
+          </Animated.View>
+        </LinearGradient>
+
+        {/* Search bar component - overlapping the header and body */}
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], zIndex: 10 }}>
           <SearchBar 
             value={searchQuery}
             onChangeText={setSearchQuery}
             theme={theme}
             onFilterPress={() => navigation.navigate('Book')}
+            style={{ marginHorizontal: 20, marginTop: -26 }}
           />
-        </LinearGradient>
+        </Animated.View>
 
         {/* ═══════════════════════════════════════
             BODY
@@ -333,7 +313,7 @@ const HomeScreen = ({ navigation }) => {
               .filter(c => !searchQuery || c.label.toLowerCase().includes(searchQuery.toLowerCase()))
               .slice(0, 6)
               .map((cat, index) => (
-              <ServiceCard key={cat.id || index} cat={cat} index={index} />
+              <ServiceCard key={cat.id || index} cat={cat} index={index} theme={theme} onPress={(c) => navigation.navigate('SubCategories', c)} />
             ))}
           </View>
 
@@ -479,7 +459,8 @@ const HomeScreen = ({ navigation }) => {
 
 // ── Active Job Card ──────────────────────────────────────
 const ActiveJobCard = ({ job, navigation, theme }) => {
-  const accentColor = job.isIP ? PURPLE : job.hasQuotes ? '#10b981' : '#f59e0b';
+  const PURPLE = '#7E57C2';
+  const accentColor = PURPLE;
   return (
     <TouchableOpacity
       style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: accentColor }]}
@@ -487,7 +468,7 @@ const ActiveJobCard = ({ job, navigation, theme }) => {
       onPress={() => {
         if (job.isCompleted) navigation.navigate('WorkCompleted', { worker: { name: job.worker }, job: job.rawJob });
         else if (job.isIP) navigation.navigate('LiveTracking', { worker: { name: job.worker, rating: 4.8, jobs: 312, eta: 12, dist: '1.2 km' }, job: job.rawJob });
-        else navigation.navigate('LiveBids', { jobId: job.id, category: { name: job.category }, subcategory: job.subcategory || '', address: '', timeSlot: 'ASAP', budget: job.fromPrice });
+        else navigation.navigate('LiveBids', { jobId: job.id, job: job.rawJob, category: { name: job.category }, subcategory: job.subcategory || '', address: '', timeSlot: job.timeSlot === 'urgent' ? 'ASAP' : job.timeSlot });
       }}
     >
       <View style={styles.jobCardTop}>
@@ -509,14 +490,20 @@ const ActiveJobCard = ({ job, navigation, theme }) => {
       </View>
       <View style={styles.progressTrack}>
         <LinearGradient
-          colors={job.isIP ? [PURPLE, '#a78bfa'] : job.hasQuotes ? ['#10b981', '#34d399'] : ['#f59e0b', '#fbbf24']}
+          colors={[PURPLE, '#9575FF']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           style={[styles.progressFill, { width: `${job.progress}%` }]}
         />
       </View>
       <View style={styles.jobCardBottom}>
         <Text style={[styles.workerName, { color: theme.colors.text }]}>{job.worker || 'Pending assignment'}</Text>
-        <Text style={[styles.jobPrice, { color: theme.colors.text }]}>From ₹{job.fromPrice}</Text>
+        {job.preferredDate ? (
+          <Text style={[styles.jobPrice, { color: theme.colors.text, fontSize: 13, fontWeight: '600' }]}>
+            📅 {job.preferredDate} • {job.timeSlot}
+          </Text>
+        ) : (
+          <Text style={[styles.jobPrice, { color: theme.colors.text }]}>From ₹{job.fromPrice}</Text>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -557,11 +544,29 @@ const styles = StyleSheet.create({
   heroGradient: {
     paddingTop: (StatusBar.currentHeight || 0) + 16,
     paddingHorizontal: 18,
-    paddingBottom: 24,
+    paddingBottom: 40,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
     position: 'relative',
+  },
+  blob1: {
+    position: 'absolute',
+    top: -50,
+    right: -30,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  blob2: {
+    position: 'absolute',
+    bottom: -60,
+    left: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   heroTopRow: {
     flexDirection: 'row',
@@ -611,16 +616,17 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   heroGreeting: {
-    fontSize: 30,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: '300',
     color: '#fff',
-    letterSpacing: -0.5,
     marginBottom: 4,
+    letterSpacing: 0.5,
   },
   heroSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.9)',
     fontWeight: '400',
+    paddingRight: 12,
   },
   searchBar: {
     backgroundColor: '#fff',
@@ -653,7 +659,7 @@ const styles = StyleSheet.create({
   body: {
     backgroundColor: BG,
     paddingHorizontal: 16,
-    paddingTop: 22,
+    paddingTop: 30,
   },
   sectionHeader: {
     flexDirection: 'row',

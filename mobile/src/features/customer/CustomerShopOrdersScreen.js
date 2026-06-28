@@ -13,6 +13,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { Package } from 'lucide-react-native';
 import api from '../../services/api';
 import AppBar from '../../components/AppBar';
+import LinearGradient from 'react-native-linear-gradient';
+import { SearchBar } from '../../components/ui/SearchBar';
 
 const CustomerShopOrdersScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -20,6 +22,7 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
   
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchOrders();
@@ -72,7 +75,29 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppBar title="My Shop Orders" showBack={true} />
+      {/* Unified App Bar inside a purple gradient */}
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+      >
+        {/* Dynamic background shapes */}
+        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+
+        <AppBar title="My Shop Orders" showBack={true} transparent={true} showLogo={false} />
+      </LinearGradient>
+
+      {/* Search - overlapping header */}
+      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
+        <SearchBar 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          theme={theme}
+          placeholder="Search orders, shops..."
+        />
+      </View>
 
       {loading ? (
         <View style={styles.center}>
@@ -86,8 +111,12 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={orders}
-          keyExtractor={item => item._id}
+          data={orders.filter(item => 
+            !searchQuery || 
+            item.shopId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            item.status?.toLowerCase().includes(searchQuery.toLowerCase())
+          )}
+          keyExtractor={(item) => item._id}
           renderItem={renderOrderItem}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
@@ -185,3 +214,5 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
 });
 
 export default CustomerShopOrdersScreen;
+
+

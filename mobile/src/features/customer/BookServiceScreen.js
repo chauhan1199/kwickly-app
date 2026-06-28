@@ -126,20 +126,24 @@ const BookServiceScreen = ({ navigation }) => {
         colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingBottom: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }}
+        style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
       >
-        <AppBar title="Book a Service" transparent={true} showBack={true} />
+        {/* Dynamic background shapes */}
+        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
 
-        {/* Search bar component */}
-        <View style={{ paddingHorizontal: 14, marginBottom: 12 }}>
-          <SearchBar 
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            theme={theme}
-            onFilterPress={() => {}}
-          />
-        </View>
+        <AppBar title="Book a Service" transparent={true} showBack={true} />
       </LinearGradient>
+
+      {/* Search - overlapping header */}
+      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10 }}>
+        <SearchBar 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          theme={theme}
+          onFilterPress={() => {}}
+        />
+      </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
@@ -314,7 +318,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 4,
   },
   content: {
-    paddingTop: 4,
+    paddingTop: 30,
   },
   searchBar: {
     marginHorizontal: 14,

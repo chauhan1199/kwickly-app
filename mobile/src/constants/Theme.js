@@ -38,9 +38,9 @@ const common = {
 export const DarkTheme = {
   ...common,
   colors: {
-    primary: '#43e3eb',
-    primaryDark: '#0e9aa7',
-    secondary: '#7ed957',
+    primary: '#6C47FF',
+    primaryDark: '#5535d4',
+    secondary: '#8B6FFF',
     success: '#10b981',
     warning: '#f59e0b',
     danger: '#ef4444',
@@ -61,9 +61,9 @@ export const DarkTheme = {
 export const LightTheme = {
   ...common,
   colors: {
-    primary: '#0e9aa7',
-    primaryDark: '#07737e',
-    secondary: '#43e3eb',
+    primary: '#6C47FF',
+    primaryDark: '#5535d4',
+    secondary: '#8B6FFF',
     success: '#10b981',
     warning: '#f59e0b',
     danger: '#ef4444',
