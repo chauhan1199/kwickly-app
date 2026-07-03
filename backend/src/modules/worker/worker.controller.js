@@ -7,6 +7,39 @@ const { notifyUser } = require('../../helpers/notifyUser.helper');
 const Suggestion = require('../suggestion/suggestion.model');
 const { delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
+const Job = require('../job/job.model');
+
+exports.getStats = catchAsync(async (req, res) => {
+    const workerId = req.user._id;
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const [todayJobs, completed, inProgress, cancelled] = await Promise.all([
+        Job.countDocuments({ 
+            workerId, 
+            createdAt: { $gte: startOfDay }
+        }),
+        Job.countDocuments({ 
+            workerId, 
+            status: 'COMPLETED' 
+        }),
+        Job.countDocuments({ 
+            workerId, 
+            status: { $in: ['ACCEPTED', 'IN_PROGRESS', 'ARRIVED'] } 
+        }),
+        Job.countDocuments({ 
+            workerId, 
+            status: 'CANCELLED' 
+        })
+    ]);
+
+    return successResponse(res, {
+        todayJobs,
+        completed,
+        inProgress,
+        cancelled
+    }, 'Worker stats fetched');
+});
 
 exports.updateKyc = catchAsync(async (req, res) => {
     const { documentType } = req.body;
@@ -86,6 +119,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+    triggerDashboardUpdate();
     
     notifyUser({
         userId: req.user._id,
@@ -114,6 +148,7 @@ exports.updateBank = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+    triggerDashboardUpdate();
     return successResponse(res, user.wallet, 'Bank details updated successfully');
 });
 
@@ -127,6 +162,7 @@ exports.updateServices = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+    triggerDashboardUpdate();
     return successResponse(res, user.services, 'Services updated successfully');
 });
 
@@ -150,6 +186,7 @@ exports.updateLocation = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+    triggerDashboardUpdate();
     
     return successResponse(res, { 
         serviceRadius: user.serviceRadius, 
@@ -171,7 +208,9 @@ exports.toggleOnlineStatus = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
-    return successResponse(res, { isOnline: user.isOnline }, isOnline ? 'You are now online' : 'You are now offline');
+    triggerDashboardUpdate();
+    
+    return successResponse(res, { isOnline: user.isOnline }, `You are now ${user.isOnline ? 'online' : 'offline'}`);
 });
 
 exports.submitCategorySuggestion = catchAsync(async (req, res) => {
@@ -316,11 +355,9 @@ exports.setPrimaryAddress = catchAsync(async (req, res) => {
 });
 
 exports.getProfile = catchAsync(async (req, res) => {
-    const user = await Customer.findById(req.user._id)
-        .select('-password')
-        .populate('services.category', 'name icon');
+    const user = await Customer.findById(req.user._id).select('-password').populate('services.category');
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
-    return successResponse(res, user, 'Profile fetched');
+    return successResponse(res, user, 'Profile fetched successfully');
 });
 
 exports.updateFullProfile = catchAsync(async (req, res) => {
@@ -342,6 +379,7 @@ exports.updateFullProfile = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+    triggerDashboardUpdate();
 
     notifyUser({
         userId: req.user._id,

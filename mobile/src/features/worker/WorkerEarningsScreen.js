@@ -18,9 +18,9 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowDown, ArrowUp, Gift, Landmark, Smartphone, Briefcase, DollarSign, Wallet, ShieldAlert, History, PlusCircle, CreditCard, ChevronRight, CheckCircle2, Clock } from 'lucide-react-native';
-import AppBar from '../../components/AppBar';
+import { ArrowDown, ArrowUp, Gift, Landmark, Smartphone, Briefcase, DollarSign, Wallet, ShieldAlert, History, PlusCircle, CreditCard, ChevronRight, CheckCircle2, Clock, Calendar } from 'lucide-react-native';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
+import WorkerBalanceCard from '../../components/WorkerBalanceCard';
 import LinearGradient from 'react-native-linear-gradient';
 
 import { walletService } from '../../services/walletService';
@@ -140,22 +140,59 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
   };
 
-  const handleProceedToPay = async () => {
+  const [paymentGatewayVisible, setPaymentGatewayVisible] = useState(false);
+  const [paymentContext, setPaymentContext] = useState(''); // 'PLAN' or 'WALLET'
+  const [paymentMethod, setPaymentMethod] = useState('UPI'); // 'UPI', 'CC', 'NETBANKING'
+  const [paymentAmount, setPaymentAmount] = useState(0);
+
+  const handlePlanProceed = () => {
     if (!selectedPlan) {
       Alert.alert("Error", "Please select a plan to continue.");
       return;
     }
+    const plan = dynamicPlans.find(p => p.id === selectedPlan);
+    const amt = plan ? parseFloat(plan.price.replace('₹','')) : 0;
+    setPaymentAmount(amt);
+    setPaymentContext('PLAN');
+    setPlanModalVisible(false);
+    setTimeout(() => setPaymentGatewayVisible(true), 400);
+  };
+
+  const handleTopUpProceed = () => {
+    if (!topUpAmount || isNaN(topUpAmount) || Number(topUpAmount) <= 0) {
+      Alert.alert("Invalid Amount", "Please enter a valid amount.");
+      return;
+    }
+    setPaymentAmount(Number(topUpAmount));
+    setPaymentContext('WALLET');
+    setTopUpModalVisible(false);
+    setTimeout(() => setPaymentGatewayVisible(true), 400);
+  };
+
+  const handleFinalPayment = async () => {
     try {
       setLoading(true);
-      const res = await api.post('/subscriptions/subscribe', { planId: selectedPlan });
-      if (res.data?.status === 'success') {
-        Alert.alert("Success", "Your subscription plan has been successfully updated!");
-        setPlanModalVisible(false);
-        fetchWalletAndProfile();
+      // Simulate Payment Gateway delay
+      await new Promise(resolve => setTimeout(resolve, 1500)); 
+
+      if (paymentContext === 'PLAN') {
+        const res = await api.post('/subscriptions/subscribe', { planId: selectedPlan, paymentId: 'sim_pay_' + Date.now() });
+        if (res.data?.status === 'success') {
+          Alert.alert("Success", "Your subscription plan has been successfully updated! 🎉");
+          setPaymentGatewayVisible(false);
+          fetchWalletAndProfile();
+        }
+      } else {
+        const res = await walletService.topupWallet(paymentAmount, { method: paymentMethod });
+        if (res.data.status === 'success') {
+          Alert.alert("Success", "Wallet topped up successfully! ✅");
+          setPaymentGatewayVisible(false);
+          setTopUpAmount('');
+          fetchWalletAndProfile();
+        }
       }
-    } catch (error) {
-      console.log('Topup failed:', error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to process subscription top up.");
+    } catch (e) {
+      Alert.alert("Payment Failed", e.response?.data?.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -168,7 +205,6 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [selectedPayout, setSelectedPayout] = useState(null);
   const [topUpModalVisible, setTopUpModalVisible] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState('');
-  const [topUpMethod, setTopUpMethod] = useState('UPI');
   
 
 
@@ -197,86 +233,75 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
   };
 
-  const handleTopup = async () => {
-    if (!topUpAmount || isNaN(topUpAmount) || Number(topUpAmount) <= 0) {
-      Alert.alert("Invalid Amount", "Please enter a valid amount.");
-      return;
-    }
-    const selectedAcc = accounts.find(a => a.id === topUpMethod) || accounts[0];
-    if (!selectedAcc && accounts.length === 0) {
-      Alert.alert("No Payment Method", "Please add a payment method in settings.");
-      return;
-    }
-    try {
-      setLoading(true);
-      const res = await walletService.topupWallet(Number(topUpAmount), { method: selectedAcc ? selectedAcc.type : 'UPI', accountId: selectedAcc ? selectedAcc.id : undefined });
-      if (res.data.status === 'success') {
-        Alert.alert("Success", "Wallet topped up successfully ✅");
-        setTopUpModalVisible(false);
-        setTopUpAmount('');
-        fetchWalletAndProfile();
-      }
-    } catch (e) {
-      Alert.alert("Error", "Failed to top up wallet.");
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
-      <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
-
+      {/* Custom Earnings Header */}
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={{ paddingTop: 60, paddingBottom: 40, paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff' }}>Earnings & Wallet</Text>
+            <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>Manage your balance and plans</Text>
+          </View>
+          <Wallet size={32} color="#fff" />
+        </View>
+      </LinearGradient>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
-        {/* Balance Card */}
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Available Balance</Text>
-          <Text style={styles.balanceValue}>₹{wallet.balance.toFixed(2)}</Text>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <TouchableOpacity style={[styles.withdrawBtn, { backgroundColor: '#0284c7' }]} onPress={() => setTopUpModalVisible(true)}>
-              <Text style={styles.withdrawBtnText}>+ Top Up</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.withdrawBtn} onPress={() => setWithdrawModalVisible(true)}>
-              <Text style={styles.withdrawBtnText}>Withdraw</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Balance Card using the new shared component */}
+        <WorkerBalanceCard 
+           balance={wallet.balance} 
+           onTopUp={() => setTopUpModalVisible(true)} 
+           onWithdraw={() => setWithdrawModalVisible(true)} 
+        />
 
         {/* Free Trial / Plan Card */}
-        <View style={styles.trialCard}>
-          <View style={styles.trialHeaderRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Gift size={20} color={isActive ? "#d97706" : "#dc2626"} style={{ marginRight: 8 }} />
-              <Text style={styles.trialTitle}>
-                {isPlanActive ? 'Plan Active' : isTrialActive ? 'Free Trial Active' : 'Trial Expired'}
+        <View style={styles.planContainer}>
+           <LinearGradient
+             colors={isActive ? (isPlanActive ? ['#6C47FF', '#8B6FFF'] : ['#f59e0b', '#fbbf24']) : ['#dc2626', '#ef4444']}
+             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+             style={styles.planCardNew}
+           >
+              <View style={styles.planCardHeader}>
+                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Calendar size={20} color="#fff" />
+                    <Text style={styles.planTitleNew}>
+                       {isPlanActive ? 'Plan Active' : isTrialActive ? 'Free Trial Active' : 'Trial Expired'}
+                    </Text>
+                 </View>
+                 <View style={styles.planBadge}>
+                    <Text style={styles.planBadgeText}>{isActive ? `${daysLeft} Days` : 'Expired'}</Text>
+                 </View>
+              </View>
+              
+              <Text style={styles.planDescNew}>
+                 {isPlanActive 
+                  ? 'Your subscription is active. Top up to extend.'
+                  : isTrialActive 
+                    ? 'Your free trial is active. Top up to extend.'
+                    : 'Your trial has ended. Top up to continue.'}
               </Text>
-            </View>
-            <View style={[styles.trialBadge, !isActive && { backgroundColor: '#fee2e2' }]}>
-              <Text style={[styles.trialBadgeText, !isActive && { color: '#dc2626' }]}>
-                {isActive ? `${daysLeft} Days Left` : '0 Days Left'}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.trialDesc}>
-            {isPlanActive 
-              ? 'Your subscription is currently active. Top up your plan to extend.'
-              : isTrialActive 
-                ? 'Your free trial is currently active. Top up your plan to extend.'
-                : 'Your free trial has ended. Please select a plan and top up to continue getting jobs.'}
-          </Text>
-          <TouchableOpacity 
-            style={styles.topUpBtn}
-            onPress={() => setPlanModalVisible(true)}
-          >
-            <Text style={styles.topUpBtnText}>Select Plan & Top Up</Text>
-          </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.planActionBtn} onPress={() => setPlanModalVisible(true)}>
+                 <Text style={[styles.planActionBtnText, { color: isActive ? (isPlanActive ? '#6C47FF' : '#f59e0b') : '#dc2626' }]}>Select Plan & Top Up</Text>
+              </TouchableOpacity>
+           </LinearGradient>
         </View>
 
         {/* Weekly Earnings Chart */}
-        <Text style={styles.sectionTitle}>Weekly Earnings</Text>
+        <View style={styles.sectionHeader}>
+           <Text style={styles.sectionTitle}>Weekly Earnings</Text>
+           <Text style={styles.weeklyEarnAmount}>₹{(wallet.balance * 0.8).toFixed(2)}</Text>
+        </View>
+        <Text style={styles.sectionSubtitle}>You've earned ₹{(wallet.balance * 0.8).toFixed(2)} this week</Text>
+        
         <View style={styles.chartCard}>
           <View style={styles.chartBars}>
             <View style={styles.chartCol}>
@@ -396,7 +421,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 ))}
               </View>
 
-              <Button title={loading ? "Processing..." : "Proceed to Pay"} disabled={loading} onPress={handleProceedToPay} />
+              <Button title="Proceed to Pay" onPress={handlePlanProceed} />
             </View>
           </TouchableWithoutFeedback>
         </TouchableOpacity>
@@ -568,33 +593,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
                   <Text style={styles.sheetTitle}>Top Up Wallet</Text>
                   <Text style={styles.sheetSub}>Select payment method and enter amount</Text>
 
-                  {/* Payment Method Selection */}
-                  {accounts.length > 0 ? (
-                    <ScrollView style={{ maxHeight: 160, marginBottom: 16 }} showsVerticalScrollIndicator={false}>
-                      {accounts.map(acc => (
-                        <TouchableOpacity 
-                          key={acc.id} 
-                          style={[styles.accountCard, topUpMethod === acc.id && styles.accountCardPrimary, { padding: 12, marginBottom: 8 }]}
-                          onPress={() => setTopUpMethod(acc.id)}
-                        >
-                          <View style={styles.accountLeft}>
-                            <View style={[styles.accountIconBox, { width: 36, height: 36, borderRadius: 18 }]}>
-                              {acc.type === 'bank' ? <Landmark size={18} color="#0d9488" /> : <Smartphone size={18} color="#e11d48" />}
-                            </View>
-                            <View style={styles.accountInfo}>
-                              <Text style={[styles.accountName, { fontSize: 14 }]}>{acc.name}</Text>
-                              <Text style={[styles.accountDetail, { fontSize: 12 }]}>{acc.detail}</Text>
-                            </View>
-                          </View>
-                          {topUpMethod === acc.id && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.primary }} />}
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  ) : (
-                    <TouchableOpacity style={[styles.addAccountBtn, { paddingVertical: 12, marginBottom: 16 }]} onPress={() => { setTopUpModalVisible(false); navigation.navigate('Profile'); }}>
-                      <Text style={styles.addAccountBtnText}>+ Add Payment Method</Text>
-                    </TouchableOpacity>
-                  )}
+
 
                   <TextInput
                     style={[styles.amountInput, { fontSize: 24, textAlign: 'center', height: 70 }]}
@@ -615,13 +614,93 @@ const WorkerEarningsScreen = ({ navigation }) => {
                   </View>
 
                   <View style={{marginTop: 16}}>
-                    <Button title={loading ? "Processing..." : "Proceed to Pay"} disabled={loading} onPress={handleTopup} />
+                    <Button title="Proceed to Pay" onPress={handleTopUpProceed} />
                   </View>
                 </View>
               </TouchableWithoutFeedback>
             </View>
           </TouchableOpacity>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Payment Gateway Modal */}
+      <Modal
+        visible={paymentGatewayVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => !loading && setPaymentGatewayVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.bottomSheet, { height: '60%' }]}>
+            <View style={styles.sheetHeaderHandle} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={styles.sheetTitle}>Payment Gateway</Text>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: theme.colors.primary }}>₹{paymentAmount}</Text>
+            </View>
+
+            <Text style={{ fontSize: 14, color: theme.colors.textDim, marginBottom: 16 }}>Select a payment method</Text>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* UPI Option */}
+              <TouchableOpacity 
+                style={[styles.accountCard, paymentMethod === 'UPI' && styles.accountCardPrimary, { padding: 16, marginBottom: 12 }]}
+                onPress={() => setPaymentMethod('UPI')}
+              >
+                <View style={styles.accountLeft}>
+                  <View style={[styles.accountIconBox, { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f0fdf4' }]}>
+                    <Smartphone size={22} color="#16a34a" />
+                  </View>
+                  <View style={styles.accountInfo}>
+                    <Text style={[styles.accountName, { fontSize: 16 }]}>UPI</Text>
+                    <Text style={[styles.accountDetail, { fontSize: 13 }]}>Google Pay, PhonePe, Paytm</Text>
+                  </View>
+                </View>
+                {paymentMethod === 'UPI' && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: theme.colors.primary }} />}
+              </TouchableOpacity>
+
+              {/* Credit/Debit Card Option */}
+              <TouchableOpacity 
+                style={[styles.accountCard, paymentMethod === 'CC' && styles.accountCardPrimary, { padding: 16, marginBottom: 12 }]}
+                onPress={() => setPaymentMethod('CC')}
+              >
+                <View style={styles.accountLeft}>
+                  <View style={[styles.accountIconBox, { width: 44, height: 44, borderRadius: 22, backgroundColor: '#e0f2fe' }]}>
+                    <CreditCard size={22} color="#0284c7" />
+                  </View>
+                  <View style={styles.accountInfo}>
+                    <Text style={[styles.accountName, { fontSize: 16 }]}>Credit / Debit Card</Text>
+                    <Text style={[styles.accountDetail, { fontSize: 13 }]}>Visa, Mastercard, RuPay</Text>
+                  </View>
+                </View>
+                {paymentMethod === 'CC' && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: theme.colors.primary }} />}
+              </TouchableOpacity>
+
+              {/* Netbanking Option */}
+              <TouchableOpacity 
+                style={[styles.accountCard, paymentMethod === 'NETBANKING' && styles.accountCardPrimary, { padding: 16, marginBottom: 24 }]}
+                onPress={() => setPaymentMethod('NETBANKING')}
+              >
+                <View style={styles.accountLeft}>
+                  <View style={[styles.accountIconBox, { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fef3c7' }]}>
+                    <Landmark size={22} color="#d97706" />
+                  </View>
+                  <View style={styles.accountInfo}>
+                    <Text style={[styles.accountName, { fontSize: 16 }]}>Netbanking</Text>
+                    <Text style={[styles.accountDetail, { fontSize: 13 }]}>All Indian Banks</Text>
+                  </View>
+                </View>
+                {paymentMethod === 'NETBANKING' && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: theme.colors.primary }} />}
+              </TouchableOpacity>
+            </ScrollView>
+
+            <View style={{ marginTop: 'auto', gap: 12 }}>
+              <Button title={loading ? "Processing Payment..." : `Pay ₹${paymentAmount}`} disabled={loading} onPress={handleFinalPayment} />
+              <TouchableOpacity style={{ alignItems: 'center', paddingVertical: 8 }} onPress={() => !loading && setPaymentGatewayVisible(false)}>
+                <Text style={{ color: theme.colors.textDim, fontSize: 14, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
     </SafeAreaView>
@@ -709,6 +788,70 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccfbf1',
     marginBottom: 30,
+  },
+  planContainer: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 20,
+  },
+  planCardNew: {
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  planCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  planTitleNew: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
+    marginLeft: 8,
+  },
+  planBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  planBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  planDescNew: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  planActionBtn: {
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  planActionBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  weeklyEarnAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#6C47FF',
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textDim,
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
   trialHeaderRow: {
     flexDirection: 'row',

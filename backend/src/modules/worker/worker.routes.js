@@ -9,6 +9,7 @@ router.use(authMiddleware);
 
 // -- Worker Profile & Settings --
 router.get('/me', authorize('WORKER'), workerController.getProfile);
+router.get('/me/stats', authorize('WORKER'), workerController.getStats);
 router.patch('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateProfile);
 router.post('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateProfile);
 router.put('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateFullProfile);

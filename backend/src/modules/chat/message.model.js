@@ -2,9 +2,9 @@ const mongoose = require('mongoose');
 
 const MessageSchema = new mongoose.Schema({
     jobId: { type: mongoose.Schema.Types.ObjectId, ref: 'Job' }, // Null if chat is with Admin
-    senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+    senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' }, // Null if sender is Admin/System
     receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' }, // Null if receiver is Admin/System
-    text: { type: String, required: true },
+    text: { type: String, default: '' }, // Can be empty for image-only messages
     mediaUrl: { type: String },
     isRead: { type: Boolean, default: false }
 }, { timestamps: true });

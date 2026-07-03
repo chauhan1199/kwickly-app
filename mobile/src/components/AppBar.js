@@ -32,6 +32,7 @@ const AppBar = ({
   hideRightIcons = false,
   transparent = false,
   showLogo = true,
+  hideCart = false,
 }) => {
   const navigation = useNavigation();
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -104,13 +105,15 @@ const AppBar = ({
       {!hideRightIcons && (
         <View style={styles.right}>
           {/* Shop Orders */}
-          <TouchableOpacity
-            style={[styles.iconBtn, { backgroundColor: iconBg }]}
-            onPress={() => navigation.navigate('CustomerShopOrders')}
-            activeOpacity={0.7}
-          >
-            <Package size={20} color={textColor} />
-          </TouchableOpacity>
+          {!hideCart && (
+            <TouchableOpacity
+              style={[styles.iconBtn, { backgroundColor: iconBg }]}
+              onPress={() => navigation.navigate('CustomerShopOrders')}
+              activeOpacity={0.7}
+            >
+              <Package size={20} color={textColor} />
+            </TouchableOpacity>
+          )}
 
           {/* Dark / Light Toggle */}
           <TouchableOpacity

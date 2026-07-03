@@ -3,13 +3,9 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, FlatList, ActivityIndicator, Alert
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { Briefcase, CheckCircle, XCircle, Clock, ChevronRight } from 'lucide-react-native';
-import AppBar from '../../components/AppBar';
+import { Briefcase, CheckCircle, XCircle, Clock, ChevronRight, FileText } from 'lucide-react-native';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
-import LinearGradient from 'react-native-linear-gradient';
 import { jobService } from '../../services/jobService';
 
 const FILTERS = ['All', 'Pending', 'Accepted', 'Rejected'];
@@ -63,6 +59,9 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
   const filterMap = { All: null, Pending: 'PENDING', Accepted: 'ACCEPTED', Rejected: 'REJECTED' };
 
   const filtered = quotes.filter(b => {
+    if (searchQuery) {
+        if (!b.jobId?.category?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    }
     const f = filterMap[activeFilter];
     return f ? b.status === f : true;
   });
@@ -119,7 +118,7 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
       <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       {loading ? (
@@ -128,6 +127,31 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
         </View>
       ) : (
         <>
+          {/* Filter Tabs */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: 10 }} contentContainerStyle={styles.filtersRow}>
+            {FILTERS.map(f => (
+              <TouchableOpacity
+                key={f}
+                style={[
+                    styles.filterTab, 
+                    activeFilter === f && styles.filterTabActive,
+                    activeFilter === f && f === 'Pending' && { backgroundColor: '#fef3c7', borderColor: '#fef3c7' },
+                    activeFilter === f && f === 'Accepted' && { backgroundColor: '#d1fae5', borderColor: '#d1fae5' },
+                    activeFilter === f && f === 'Rejected' && { backgroundColor: '#fee2e2', borderColor: '#fee2e2' },
+                ]}
+                onPress={() => setActiveFilter(f)}
+              >
+                <Text style={[
+                    styles.filterText, 
+                    activeFilter === f && styles.filterTextActive,
+                    activeFilter === f && f === 'Pending' && { color: '#d97706' },
+                    activeFilter === f && f === 'Accepted' && { color: '#059669' },
+                    activeFilter === f && f === 'Rejected' && { color: '#dc2626' },
+                ]}>{f}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <View style={[styles.statBox, { borderColor: '#d1fae5' }]}>
@@ -148,19 +172,6 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Filter Tabs */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.filtersRow}>
-            {FILTERS.map(f => (
-              <TouchableOpacity
-                key={f}
-                style={[styles.filterTab, activeFilter === f && styles.filterTabActive]}
-                onPress={() => setActiveFilter(f)}
-              >
-                <Text style={[styles.filterText, activeFilter === f && styles.filterTextActive]}>{f}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
           <FlatList
             data={filtered}
             keyExtractor={i => i._id}
@@ -169,8 +180,11 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Briefcase size={40} color={theme.colors.textDim} />
-                <Text style={styles.emptyText}>No quotes found</Text>
+                <View style={styles.emptyIconContainer}>
+                   <Text style={{ fontSize: 40 }}>📋</Text>
+                </View>
+                <Text style={styles.emptyTitle}>No quotes found</Text>
+                <Text style={styles.emptyText}>You don't have any jobs in this category right now.</Text>
               </View>
             }
           />
@@ -182,17 +196,17 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:       { flex: 1, backgroundColor: theme.colors.background },
-  statsRow:        { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginTop: 8, marginBottom: 4 },
-  statBox:         { flex: 1, backgroundColor: theme.colors.surface, borderWidth: 1.5, borderRadius: 14, padding: 12, alignItems: 'center' },
+  statsRow:        { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginTop: 8, marginBottom: 12 },
+  statBox:         { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderRadius: 14, padding: 12, alignItems: 'center' },
   statNum:         { fontSize: 22, fontWeight: '900' },
   statLabel:       { fontSize: 11, color: theme.colors.textDim, fontWeight: '600', marginTop: 2 },
   filtersRow:      { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
-  filterTab:       { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
-  filterTabActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  filterTab:       { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border },
+  filterTabActive: { backgroundColor: '#6C47FF', borderColor: '#6C47FF' },
   filterText:      { fontSize: 13, fontWeight: '700', color: theme.colors.textMuted },
-  filterTextActive:{ color: '#001016' },
+  filterTextActive:{ color: '#fff' },
   list:            { paddingHorizontal: 20, paddingBottom: 100, gap: 12 },
-  quoteCard:         { backgroundColor: theme.colors.surface, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: theme.colors.border },
+  quoteCard:         { backgroundColor: theme.colors.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: theme.colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   quoteTop:          { flexDirection: 'row', justifyContent: 'space-between' },
   quoteLeft:         { flex: 1 },
   quoteRight:        { alignItems: 'flex-end', gap: 6 },
@@ -207,8 +221,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   quoteActions:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: theme.colors.border },
   withdrawBtn:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#fca5a5', backgroundColor: '#fee2e2' },
   withdrawBtnText: { fontSize: 13, fontWeight: '700', color: '#dc2626' },
-  emptyState:      { alignItems: 'center', paddingTop: 60, gap: 12 },
-  emptyText:       { fontSize: 15, color: theme.colors.textDim, fontWeight: '600' },
+  emptyState:      { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
+  emptyIconContainer: { width: 100, height: 100, borderRadius: 20, backgroundColor: '#6C47FF15', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle:      { fontSize: 18, fontWeight: '800', color: theme.colors.text, marginBottom: 8 },
+  emptyText:       { fontSize: 13, color: theme.colors.textDim, fontWeight: '500', textAlign: 'center', lineHeight: 20 },
 });
 
 export default WorkerMyQuotesScreen;

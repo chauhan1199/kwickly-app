@@ -203,7 +203,7 @@ exports.setPassword = catchAsync(async (req, res) => {
 
 exports.getMe = catchAsync(async (req, res) => {
     // req.user is already populated by auth middleware (from Redis or DB)
-    const user = await Customer.findById(req.user._id).select('-password');
+    const user = await Customer.findById(req.user._id).select('-password').populate('services.category');
     return successResponse(res, user, COMMON.SUCCESS);
 });
 

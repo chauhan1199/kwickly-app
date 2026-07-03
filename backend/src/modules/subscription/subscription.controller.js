@@ -78,18 +78,8 @@ exports.subscribe = catchAsync(async (req, res) => {
             const updatedShop = await Shop.findByIdAndUpdate(shop._id, {
                 'subscription.planId':     activePlan.id,
                 'subscription.expiryDate': endDate,
-                'subscription.isTrial':    false,
-                $inc: { 'wallet.balance': activePlan.price }
+                'subscription.isTrial':    false
             }, { new: true, session });
-
-            await WalletTxn.create([{
-                userId:      userId, // WalletTxn maps to Customer ID for auth
-                type:        'TOPUP',
-                amount:      activePlan.price,
-                balance:     updatedShop.wallet.balance,
-                refId:       String(sub._id),
-                description: `Shop Plan Recharge: ${activePlan.label || activePlan.id}`
-            }], { session });
         } else {
             // WORKER logic
             const worker = await Customer.findById(userId).session(session);
@@ -132,20 +122,10 @@ exports.subscribe = catchAsync(async (req, res) => {
                 { 
                     'subscription.planId':     activePlan.id,
                     'subscription.expiryDate': endDate,
-                    'subscription.isTrial':    false,
-                    $inc: { 'wallet.balance': activePlan.price } 
+                    'subscription.isTrial':    false
                 },
                 { new: true, session }
             );
-
-            await WalletTxn.create([{
-                userId:      userId,
-                type:        'TOPUP',
-                amount:      activePlan.price,
-                balance:     updatedWorker.wallet.balance,
-                refId:       String(sub._id),
-                description: `Plan Recharge: ${activePlan.label || activePlan.id}`
-            }], { session });
         }
 
         if (session) await session.commitTransaction();
@@ -179,6 +159,14 @@ exports.subscribe = catchAsync(async (req, res) => {
         targetRole: 'ADMIN'
     });
 
+    const userNotif = await Notification.create({
+        userId: userId,
+        title: 'Plan Activated! 🎉',
+        message: `Your ${activePlan.label || activePlan.id} subscription is now active!`,
+        type: 'SYSTEM',
+        action: 'UPDATE'
+    });
+    
     const { getIO, emitToUser } = require('../../helpers/socket.helper');
     emitToUser(userId.toString(), 'NEW_NOTIFICATION', userNotif);
     const io = getIO();

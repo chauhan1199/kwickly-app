@@ -11,21 +11,30 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { MessageSquare, PhoneCall, Mail, ChevronRight } from 'lucide-react-native';
 
 const HelpSupportScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
-  const faqs = [
+  const isWorker = user?.role === 'WORKER';
+
+  const customerFaqs = [
     { q: 'How do I cancel a booking?', a: 'You can cancel a booking from the "Quotes/My Bookings" tab up to 2 hours before the scheduled time without any penalty.' },
     { q: 'When will my shop order arrive?', a: 'Shop orders are typically delivered within 30-45 minutes depending on the store\'s distance.' },
     { q: 'How do refunds work?', a: 'Refunds for cancelled prepaid orders are processed immediately and reflect in your account within 3-5 business days.' },
   ];
+
+  const workerFaqs = [
+    { q: 'How do I withdraw my earnings?', a: 'Go to the Earnings tab and click on the Withdraw button. You can select your saved Bank or UPI account. Transfers take 1-2 business days.' },
+    { q: 'How do I contact a customer?', a: 'You can contact a customer directly from the Active Job details screen by clicking the Chat or Call button.' },
+    { q: 'How do subscription plans work?', a: 'Subscription plans give you access to premium features and lower commission rates. You can manage your plan in the Earnings tab.' },
+  ];
+
+  const faqs = isWorker ? workerFaqs : customerFaqs;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -36,7 +45,7 @@ const HelpSupportScreen = ({ navigation }) => {
         colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingBottom: 30, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+        style={{ paddingBottom: 30, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, overflow: 'hidden', position: 'relative' }}
       >
         {/* Dynamic background shapes */}
         <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
@@ -47,7 +56,8 @@ const HelpSupportScreen = ({ navigation }) => {
           showBack={true}
           transparent={true} 
           showLogo={false} 
-          onBackPress={() => navigation.navigate('Profile')}
+          hideCart={isWorker}
+          onBackPress={() => navigation.goBack()}
         />
       </LinearGradient>
 
@@ -57,31 +67,50 @@ const HelpSupportScreen = ({ navigation }) => {
         <Text style={styles.headerSub}>How can we help you today?</Text>
 
         <View style={styles.contactRow}>
-          <TouchableOpacity style={styles.contactCard} onPress={() => {}}>
-            <Text style={{fontSize: 24, marginBottom: 8}}>💬</Text>
+          <TouchableOpacity 
+            style={styles.contactCard} 
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('Chat', { partnerId: 'admin', partnerName: 'Kwickly Support', partnerRole: 'Support Team' })}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#e0e7ff' }]}>
+               <MessageSquare size={24} color="#4f46e5" />
+            </View>
             <Text style={styles.contactTitle}>Chat Support</Text>
             <Text style={styles.contactSub}>Usually responds in 5 mins</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.contactCard} onPress={() => Linking.openURL('tel:18001234567')}>
-            <Text style={{fontSize: 24, marginBottom: 8}}>📞</Text>
+          <TouchableOpacity 
+            style={styles.contactCard} 
+            activeOpacity={0.7}
+            onPress={() => Linking.openURL('tel:18001234567')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#dcfce7' }]}>
+               <PhoneCall size={24} color="#16a34a" />
+            </View>
             <Text style={styles.contactTitle}>Call Us</Text>
             <Text style={styles.contactSub}>Available 24/7</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.emailCard} onPress={() => Linking.openURL('mailto:support@kwickly.com')}>
-          <Text style={{fontSize: 24, marginRight: 16}}>✉️</Text>
+        <TouchableOpacity 
+          style={styles.emailCard} 
+          activeOpacity={0.7}
+          onPress={() => Linking.openURL('mailto:support@kwickly.com')}
+        >
+          <View style={[styles.iconBox, { backgroundColor: '#fef3c7', marginRight: 16 }]}>
+            <Mail size={24} color="#d97706" />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.contactTitle}>Email Support</Text>
             <Text style={styles.contactSub}>support@kwickly.com</Text>
           </View>
+          <ChevronRight size={20} color={theme.colors.textDim} />
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
         
         <View style={styles.faqContainer}>
           {faqs.map((faq, index) => (
-            <View key={index} style={styles.faqItem}>
+            <View key={index} style={[styles.faqItem, index === faqs.length - 1 && { borderBottomWidth: 0 }]}>
               <Text style={styles.faqQ}>{faq.q}</Text>
               <Text style={styles.faqA}>{faq.a}</Text>
             </View>
@@ -96,34 +125,34 @@ const HelpSupportScreen = ({ navigation }) => {
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  appBar: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14,
-  },
-  backBtn: {
-    width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 18, backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-  },
-  backBtnText: { fontSize: 24, color: theme.colors.text, lineHeight: 28 },
-  appBarTitle: { fontSize: 20, fontWeight: '800', color: theme.colors.text, marginLeft: 12 },
   content: { padding: 20 },
   headerTitle: { fontSize: 28, fontWeight: '800', color: theme.colors.text, marginBottom: 4 },
   headerSub: { fontSize: 15, color: theme.colors.textDim, marginBottom: 24 },
   contactRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, marginBottom: 16 },
   contactCard: {
-    flex: 1, backgroundColor: theme.colors.surface, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center'
+    flex: 1, backgroundColor: theme.colors.surface, borderRadius: 20, padding: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 5,
+    alignItems: 'center'
   },
-  contactTitle: { fontSize: 15, fontWeight: '800', color: theme.colors.text, marginBottom: 4 },
-  contactSub: { fontSize: 12, color: theme.colors.textDim, textAlign: 'center' },
+  iconBox: {
+    width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginBottom: 12
+  },
+  contactTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.text, marginBottom: 4 },
+  contactSub: { fontSize: 13, color: theme.colors.textDim, textAlign: 'center' },
   emailCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: theme.colors.border, marginBottom: 40
+    flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: 20, padding: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 5,
+    marginBottom: 40
   },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.text, marginBottom: 16 },
-  faqContainer: { backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border },
-  faqItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
-  faqQ: { fontSize: 15, fontWeight: '700', color: theme.colors.text, marginBottom: 8 },
-  faqA: { fontSize: 13, color: theme.colors.textDim, lineHeight: 20 },
+  sectionTitle: { fontSize: 20, fontWeight: '800', color: theme.colors.text, marginBottom: 16 },
+  faqContainer: { 
+    backgroundColor: theme.colors.surface, borderRadius: 20, 
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3,
+    overflow: 'hidden'
+  },
+  faqItem: { padding: 20, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  faqQ: { fontSize: 16, fontWeight: '800', color: theme.colors.text, marginBottom: 8 },
+  faqA: { fontSize: 14, color: theme.colors.textDim, lineHeight: 22 },
 });
 
 export default HelpSupportScreen;

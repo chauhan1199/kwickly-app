@@ -330,14 +330,13 @@ const WorkerManageServicesScreen = ({ navigation }) => {
           })}
 
           <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
-            <Text style={styles.addBtnText}>+ Add New Category</Text>
+            <Plus size={20} color="#fff" />
+            <Text style={styles.addBtnText}>Add New Category</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.addBtn, { borderColor: theme.colors.textDim, borderStyle: 'solid', marginTop: 12 }]} 
-            onPress={() => setSuggestModalVisible(true)}
-          >
-            <Text style={[styles.addBtnText, { color: theme.colors.textDim, fontSize: 14 }]}>💡 Suggest Missing Category</Text>
+          <TouchableOpacity style={styles.suggestBtn} onPress={() => setSuggestModalVisible(true)}>
+            <Text style={{fontSize: 16}}>💡</Text>
+            <Text style={styles.suggestBtnText}>Suggest Missing Category</Text>
           </TouchableOpacity>
         </View>
 
@@ -389,11 +388,8 @@ const WorkerManageServicesScreen = ({ navigation }) => {
                 </Text>
               )}
               
-              <TouchableOpacity 
-                style={[styles.addBtn, { marginTop: 24, paddingVertical: 12, borderColor: theme.colors.textDim, marginBottom: 40 }]} 
-                onPress={() => { setModalVisible(false); setSuggestModalVisible(true); }}
-              >
-                <Text style={[styles.addBtnText, { color: theme.colors.textDim, fontSize: 14 }]}>+ Suggest Missing Category</Text>
+              <TouchableOpacity style={[styles.suggestBtn, { marginTop: 24, marginBottom: 40 }]} onPress={() => { setModalVisible(false); setSuggestModalVisible(true); }}>
+                <Text style={styles.suggestBtnText}>Suggest Missing Category</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -536,10 +532,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   manageBtnText: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim },
   addBtn: {
-    borderWidth: 1, borderColor: theme.colors.primary, borderStyle: 'dashed',
+    backgroundColor: '#6C47FF',
     borderRadius: 20, paddingVertical: 16, alignItems: 'center', marginTop: 8,
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
+    shadowColor: '#6C47FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4,
   },
-  addBtnText: { color: theme.colors.primary, fontWeight: '800', fontSize: 16 },
+  addBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  suggestBtn: {
+    backgroundColor: 'rgba(108, 71, 255, 0.05)',
+    borderWidth: 1, borderColor: 'rgba(108, 71, 255, 0.2)',
+    borderRadius: 20, paddingVertical: 16, alignItems: 'center', marginTop: 12,
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
+  },
+  suggestBtnText: { color: '#6C47FF', fontWeight: '700', fontSize: 14 },
   radiusContainer: {
     backgroundColor: theme.colors.surface, padding: 20, borderRadius: 24,
     borderWidth: 1, borderColor: theme.colors.border, marginBottom: 32,

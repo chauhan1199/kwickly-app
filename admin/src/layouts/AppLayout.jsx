@@ -145,6 +145,7 @@ export default function AppLayout({ onLogout }) {
     ]},
     { label: 'Platform', items: [
       { path: '/promotions', label: 'Promotions', icon: '🎯' },
+      { path: '/support-chats', label: 'Support Chats', icon: '💬' },
       { path: '/settlements', label: 'Settlements', icon: '🏦' },
       { path: '/disputes', label: 'Disputes', icon: '⚖️', badge: badges.disputes },
     ]},

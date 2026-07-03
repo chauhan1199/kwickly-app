@@ -41,7 +41,8 @@ import {
   MapPin,
   Trash2,
   Edit2,
-  Crosshair
+  Crosshair,
+  Briefcase
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -386,66 +387,81 @@ const WorkerProfileScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         
-        {/* Profile Hero */}
-        <View style={styles.heroSection}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
+        {/* Top Gradient Header */}
+        <LinearGradient
+          colors={['#6C47FF', '#8B6FFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.profileHeaderGradient}
+        >
+          <View style={styles.profileHeaderContent}>
+            <View style={styles.avatarWrapperNew}>
               {profile?.profileImage ? (
-                <Image source={{ uri: getImageUri(profile.profileImage) }} style={styles.avatarImage} />
+                <Image source={{ uri: getImageUri(profile.profileImage) }} style={styles.avatarImageNew} />
               ) : (
-                <Text style={styles.avatarText}>{profile?.name ? profile.name.charAt(0) : 'W'}</Text>
+                <View style={[styles.avatarImageNew, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Text style={{ fontSize: 40, fontWeight: '800', color: '#fff' }}>{profile?.name ? profile.name.charAt(0) : 'W'}</Text>
+                </View>
+              )}
+              {saving ? (
+                <ActivityIndicator style={styles.avatarEditBtnNew} color="#6C47FF" />
+              ) : (
+                <TouchableOpacity style={styles.avatarEditBtnNew} onPress={handlePickPhoto}>
+                  <Camera size={14} color="#6C47FF" />
+                </TouchableOpacity>
               )}
             </View>
-            {saving ? (
-              <ActivityIndicator style={styles.avatarEditBtn} color={theme.colors.primary} />
-            ) : (
-              <TouchableOpacity style={styles.avatarEditBtn} onPress={handlePickPhoto}>
-                <Camera size={14} color="#001016" />
-              </TouchableOpacity>
-            )}
+            
+            <Text style={styles.profileNameNew}>{profile?.name || 'Worker'}</Text>
+            
+            {(() => {
+              const expiryDate = profile?.subscription?.expiryDate;
+              if (expiryDate) {
+                const diffTime = new Date(expiryDate).getTime() - new Date().getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays > 0) {
+                  return <Text style={styles.profileRoleNew}>Premium: {diffDays} days left</Text>;
+                } else {
+                  return <Text style={[styles.profileRoleNew, { color: '#ef4444' }]}>Plan Expired. Please recharge!</Text>;
+                }
+              }
+              return <Text style={styles.profileRoleNew}>Member since {profile?.createdAt ? new Date(profile.createdAt).getFullYear() : '2023'}</Text>;
+            })()}
           </View>
-          
-          <Text style={styles.profileName}>{profile?.name || 'Worker'}</Text>
-          <Text style={styles.profileRole}>{profile?.phone}</Text>
-          
-          <TouchableOpacity style={styles.editProfileBtn} onPress={() => setActiveModal('editProfile')}>
-            <Text style={styles.editProfileBtnText}>Edit Profile</Text>
-          </TouchableOpacity>
+        </LinearGradient>
 
-          <View style={styles.onlineToggle}>
-            <View style={[styles.onlineDot, { backgroundColor: isOnline ? '#10B981' : '#9CA3AF' }]} />
-            <Text style={styles.onlineText}>{isOnline ? 'Online' : 'Offline'}</Text>
-            <Switch 
-              value={isOnline}
-              onValueChange={async (val) => {
-                setIsOnline(val);
-                try { await workerService.setOnlineStatus(val); } catch (e) {}
-              }}
-              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-              thumbColor="#FFFFFF"
-              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-            />
-          </View>
-          
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>--</Text>
-              <Text style={styles.statLabel}>Jobs</Text>
+        {/* Floating Stats Card */}
+        <View style={styles.statsCardWrapper}>
+          <View style={styles.statsCardNew}>
+            <View style={styles.statBoxNew}>
+              <View style={[styles.statIconBox, { backgroundColor: '#6C47FF15' }]}>
+                 <Briefcase size={20} color="#6C47FF" />
+              </View>
+              <Text style={styles.statValueNew}>{profile?.jobsCompleted || 0}</Text>
+              <Text style={styles.statLabelNew}>Jobs Done</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>★ {ratingAvg.toFixed(1)}</Text>
-              <Text style={styles.statLabel}>Rating</Text>
+            
+            <View style={styles.statDividerNew} />
+            
+            <View style={styles.statBoxNew}>
+              <View style={[styles.statIconBox, { backgroundColor: '#f59e0b15' }]}>
+                 <Star size={20} color="#f59e0b" />
+              </View>
+              <Text style={styles.statValueNew}>{ratingAvg.toFixed(1)}</Text>
+              <Text style={styles.statLabelNew}>Rating</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>NEW</Text>
-              <Text style={styles.statLabel}>Member</Text>
+            
+            <View style={styles.statDividerNew} />
+            
+            <View style={styles.statBoxNew}>
+              <View style={[styles.statIconBox, { backgroundColor: '#10b98115' }]}>
+                 <ShieldCheck size={20} color="#10b981" />
+              </View>
+              <Text style={styles.statValueNew}>Pro</Text>
+              <Text style={styles.statLabelNew}>Level</Text>
             </View>
           </View>
         </View>
@@ -859,24 +875,106 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   heroSection: {
     alignItems: 'center', backgroundColor: theme.colors.surface,
     paddingVertical: 32, paddingHorizontal: 20, borderRadius: 24,
-    borderWidth: 1, borderColor: theme.colors.border, marginBottom: 24,
   },
-  avatarContainer: { position: 'relative', marginBottom: 16 },
-  avatar: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: theme.colors.primary,
-    justifyContent: 'center', alignItems: 'center', overflow: 'hidden'
+  profileHeaderGradient: {
+    paddingTop: 60,
+    paddingBottom: 70,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    alignItems: 'center',
   },
-  avatarImage: { width: '100%', height: '100%' },
-  avatarText: { fontSize: 32, fontWeight: '800', color: '#001016' },
-  avatarEditBtn: {
-    position: 'absolute', bottom: 0, right: 0,
-    backgroundColor: '#FFFFFF', padding: 6, borderRadius: 16,
-    borderWidth: 2, borderColor: theme.colors.surface,
-    elevation: 2,
+  profileHeaderContent: {
+    alignItems: 'center',
   },
-  profileName: { fontSize: 22, fontWeight: '900', color: theme.colors.text, marginBottom: 4 },
-  profileRole: { fontSize: 14, color: theme.colors.textDim, marginBottom: 12 },
+  avatarWrapperNew: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  avatarImageNew: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.2)'
+  },
+  avatarEditBtnNew: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  profileNameNew: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  profileRoleNew: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+  },
+  statsCardWrapper: {
+    paddingHorizontal: 20,
+    marginTop: -40,
+    marginBottom: 24,
+    zIndex: 10,
+  },
+  statsCardNew: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 20,
+    paddingVertical: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  statBoxNew: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statValueNew: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  statLabelNew: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+  statDividerNew: {
+    width: 1,
+    height: 40,
+    backgroundColor: theme.colors.border,
+  },
   editProfileBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16 },
   editProfileBtnText: { fontSize: 13, fontWeight: '700', color: theme.colors.text },
   onlineToggle: {
@@ -891,14 +989,14 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   statValue: { fontSize: 16, fontWeight: '800', color: theme.colors.primary, marginBottom: 4 },
   statLabel: { fontSize: 12, color: theme.colors.textDim, fontWeight: '600' },
   statDivider: { width: 1, height: 24, backgroundColor: theme.colors.border },
-  menuContainer: { gap: 12 },
+  menuContainer: { paddingHorizontal: 20 },
   menuItem: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface,
-    padding: 16, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent',
+    paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border,
   },
   menuIconBox: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: isDarkMode ? '#1F2937' : '#F3F4F6',
+    backgroundColor: '#6C47FF10',
     justifyContent: 'center', alignItems: 'center', marginRight: 16,
   },
   menuItemTextContainer: { flex: 1 },

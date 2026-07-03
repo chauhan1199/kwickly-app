@@ -10,29 +10,29 @@ import {
   StatusBar,
   RefreshControl,
   Switch,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
-import { jobService } from '../../services/jobService';
 import api from '../../services/api';
-import AppBar from '../../components/AppBar';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
-import { Bell, Moon, Sun } from 'lucide-react-native';
+import WorkerBalanceCard from '../../components/WorkerBalanceCard';
+import { getImageUrl } from '../../utils/helpers';
+import { Briefcase, CheckCircle, Clock, XCircle, ChevronRight, Settings } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
 const WorkerDashboard = ({ navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
-  const { user, signOut, fetchUser } = useAuth();
+  const { theme, isDarkMode } = useTheme();
+  const { user, fetchUser } = useAuth();
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? false);
   const [refreshing, setRefreshing] = useState(false);
   const [availableJobs, setAvailableJobs] = useState([]);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [stats, setStats] = useState({ todayJobs: 0, completed: 0, inProgress: 0, cancelled: 0 });
   const [errorMsg, setErrorMsg] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(undefined); // undefined means no search bar on Home
 
   const { socket } = useSocket({
     role: 'WORKER',
@@ -42,18 +42,23 @@ const WorkerDashboard = ({ navigation }) => {
   useFocusEffect(
     React.useCallback(() => {
       fetchData();
-    }, [isOnline]) // Re-fetch when online status changes or screen is focused
+    }, [isOnline]) 
   );
 
   useEffect(() => {
+    const { DeviceEventEmitter } = require('react-native');
+    const sub = DeviceEventEmitter.addListener('toggleDutyStatus', () => {
+      handleToggleOnline(!isOnline);
+    });
+    return () => sub.remove();
+  }, [isOnline]);
+
+  useEffect(() => {
     if (socket) {
-      // Listen for new jobs globally broadcasted
       const handleNewJob = (jobAlert) => {
         if (!isOnline) return;
         setAvailableJobs(prev => {
-          // Prevent duplicates
           if (prev.find(j => j._id === jobAlert.jobId)) return prev;
-          // Map alert format to available job format
           return [{
             _id: jobAlert.jobId,
             category: jobAlert.category,
@@ -62,13 +67,12 @@ const WorkerDashboard = ({ navigation }) => {
             addressDetails: jobAlert.location?.addressDetails,
             preferredDate: jobAlert.preferredDate,
             timeSlot: jobAlert.timeSlot,
-            customerId: jobAlert.customerId, // Capture customer data for display
+            customerId: jobAlert.customerId,
             createdAt: new Date()
           }, ...prev];
         });
       };
 
-      // Listen for when a quote placed by this worker is accepted!
       const handleQuoteAccepted = (data) => {
         Alert.alert(
           '🎉 Quote Accepted!',
@@ -94,15 +98,14 @@ const WorkerDashboard = ({ navigation }) => {
     setIsOnline(value);
     try {
       await api.patch('/workers/me/online', { isOnline: value });
+      if (fetchUser) fetchUser('WORKER');
       if (value) {
-        // Fetch available jobs immediately when going online
         fetchData();
       } else {
         setAvailableJobs([]);
         setErrorMsg('');
       }
     } catch (e) {
-      // Revert on error
       setIsOnline(!value);
       Alert.alert('Error', 'Could not update online status');
     }
@@ -112,147 +115,250 @@ const WorkerDashboard = ({ navigation }) => {
     try {
       setRefreshing(true);
       setErrorMsg('');
-      const jobsRes = await api.get('/jobs/available');
-      if (jobsRes.data?.status === 'success') {
+      
+      const [jobsRes, userRes, statsRes] = await Promise.all([
+        api.get('/jobs/available').catch(() => null),
+        api.get('/auth/me').catch(() => null),
+        api.get('/workers/me/stats').catch(() => null)
+      ]);
+
+      if (jobsRes?.data?.status === 'success') {
         setAvailableJobs(jobsRes.data.data);
+      } else {
+         if (jobsRes?.response?.status === 403 || jobsRes?.response?.status === 402) {
+           setAvailableJobs([]);
+           setErrorMsg(jobsRes.response?.data?.message || 'Action restricted.');
+         }
       }
 
-      const userRes = await api.get('/auth/me');
-      if (userRes.data?.data?.wallet) {
+      if (userRes?.data?.data?.wallet) {
          setWalletBalance(userRes.data.data.wallet.balance || 0);
-      } else if (user?.wallet) {
-         setWalletBalance(user.wallet.balance || 0);
       }
+
+      if (statsRes?.data?.status === 'success') {
+         setStats(statsRes.data.data);
+      }
+
     } catch (e) {
-      if (e.response?.status === 403 || e.response?.status === 402) {
-        setAvailableJobs([]);
-        setErrorMsg(e.response?.data?.message || 'Action restricted.');
-      } else {
-        console.log('Fetching worker data failed:', e.message);
-        setErrorMsg('Failed to load jobs. Please check connection.');
-      }
+      console.log('Fetching worker data failed:', e.message);
+      if (!errorMsg) setErrorMsg('Failed to load data.');
     } finally {
       setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
-    fetchData();
-  };
-
   const styles = createStyles(theme, isDarkMode);
+
+  // Derive active categories
+  const activeCategories = user?.services?.length > 0 ? user.services : [];
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
       
       <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       
+      <WorkerBalanceCard 
+         balance={walletBalance} 
+         onTopUp={() => navigation.navigate('Earnings')} 
+         onWithdraw={() => navigation.navigate('Earnings')} 
+      />
+
       <ScrollView 
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={theme.colors.primary} />}
         contentContainerStyle={styles.scrollContent}
       >
-        
-        {/* Header Section */}
-        <View style={styles.header}>
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
-              <Text style={{fontSize: 24}}>👨‍🔧</Text>
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.workerName}>{user?.name || 'Worker'}</Text>
-              <Text style={styles.workerStats}>★ 4.8 · {user?.jobsCompleted || 0} jobs done</Text>
-            </View>
-          </View>
-          
-          <View style={styles.onlineToggleRow}>
-            <View>
-              <Text style={styles.onlineToggleLabel}>Duty Status</Text>
-              <Text style={[styles.onlineToggleStatus, { color: isOnline ? '#10b981' : theme.colors.textDim }]}>
+        {/* Duty Status Toggle */}
+        <View style={styles.dutyStatusRow}>
+          <View>
+            <Text style={styles.sectionTitle}>Duty Status</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+              <View style={[styles.statusDot, { backgroundColor: isOnline ? '#10b981' : theme.colors.textDim }]} />
+              <Text style={[styles.statusText, { color: isOnline ? '#10b981' : theme.colors.textDim }]}>
                 {isOnline ? 'You are Online' : 'You are Offline'}
               </Text>
             </View>
-            <Switch
-              trackColor={{ false: theme.colors.border, true: '#10b981' }}
-              thumbColor={'#ffffff'}
-              onValueChange={handleToggleOnline}
-              value={isOnline}
-            />
           </View>
-
-          {/* Stats Row */}
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statVal}>{user?.todaysJobs || 0}</Text>
-              <Text style={styles.statLabel}>Today's Jobs</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statVal}>₹{user?.totalEarned || 0}</Text>
-              <Text style={styles.statLabel}>Earned</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statVal}>₹{walletBalance}</Text>
-              <Text style={styles.statLabel}>Wallet</Text>
-            </View>
-          </View>
+          <Switch
+            trackColor={{ false: theme.colors.border, true: '#10b981' }}
+            thumbColor={'#ffffff'}
+            onValueChange={handleToggleOnline}
+            value={isOnline}
+          />
         </View>
 
-        {/* New Job Alerts */}
-        {isOnline && availableJobs.length > 0 && (
-          <View style={styles.alertSection}>
-            <View style={styles.alertHeader}>
-              <Text style={styles.alertTitle}>🔔 New Job Alerts ({availableJobs.length})</Text>
-            </View>
-
-            {availableJobs.map(job => (
-              <View key={job._id} style={[styles.jobCard, { marginBottom: 12 }]}>
-                <View style={styles.jobHeaderRow}>
-                  <Text style={styles.jobTitle}>{job.category} · {job.description?.slice(0, 20)}...</Text>
-                  <View style={styles.newBadge}>
-                    <Text style={styles.newBadgeText}>NEW</Text>
-                  </View>
-                </View>
-                
-                <Text style={styles.jobDistance}>{job.location?.coordinates ? 'Within your city' : 'Location hidden'}</Text>
-                
-                <View style={styles.chipRow}>
-                  <View style={styles.chip}>
-                    <Text style={styles.chipText}>📍 {job.addressDetails?.city || 'Local Area'}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.actionRow}>
-                  <TouchableOpacity style={styles.skipBtn} onPress={() => {
-                    setAvailableJobs(prev => prev.filter(j => j._id !== job._id));
-                  }}>
-                    <Text style={styles.skipBtnText}>Skip</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.bidBtn} onPress={() => navigation.navigate('WorkerJobDetails', { job })}>
-                    <Text style={styles.bidBtnText}>View & Quote →</Text>
-                  </TouchableOpacity>
-                </View>
+        {/* 4-Item Stats Grid */}
+        <View style={styles.statsGrid}>
+           <View style={styles.statCard}>
+              <View style={[styles.statIconWrapper, { backgroundColor: '#6C47FF15' }]}>
+                <Briefcase size={20} color="#6C47FF" />
               </View>
-            ))}
-          </View>
-        )}
-        
-        {isOnline && availableJobs.length === 0 && (
-          <View style={{ padding: 30, alignItems: 'center' }}>
+              <Text style={styles.statValue}>{stats.todayJobs}</Text>
+              <Text style={styles.statLabel}>Today's Jobs</Text>
+           </View>
+           
+           <View style={styles.statCard}>
+              <View style={[styles.statIconWrapper, { backgroundColor: '#10b98115' }]}>
+                <CheckCircle size={20} color="#10b981" />
+              </View>
+              <Text style={styles.statValue}>{stats.completed}</Text>
+              <Text style={styles.statLabel}>Completed</Text>
+           </View>
+           
+           <View style={styles.statCard}>
+              <View style={[styles.statIconWrapper, { backgroundColor: '#f59e0b15' }]}>
+                <Clock size={20} color="#f59e0b" />
+              </View>
+              <Text style={styles.statValue}>{stats.inProgress}</Text>
+              <Text style={styles.statLabel}>In Progress</Text>
+           </View>
+           
+           <View style={styles.statCard}>
+              <View style={[styles.statIconWrapper, { backgroundColor: '#ef444415' }]}>
+                <XCircle size={20} color="#ef4444" />
+              </View>
+              <Text style={styles.statValue}>{stats.cancelled}</Text>
+              <Text style={styles.statLabel}>Cancelled</Text>
+           </View>
+        </View>
+
+        {/* Premium Banner */}
+        {(() => {
+          const expiryDate = user?.subscription?.expiryDate;
+          const diffTime = expiryDate ? new Date(expiryDate).getTime() - new Date().getTime() : 0;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const isPremium = diffDays > 0;
+
+          if (isPremium) {
+            return (
+              <LinearGradient
+                colors={['#10b981', '#34d399']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.premiumBanner}
+              >
+                 <View style={{ flex: 1 }}>
+                    <Text style={styles.premiumTitle}>Premium Active 🌟</Text>
+                    <Text style={styles.premiumSub}>You are getting priority job alerts.</Text>
+                    <View style={[styles.premiumBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                       <Text style={styles.premiumBtnText}>{diffDays} Days Remaining</Text>
+                    </View>
+                 </View>
+                 <Text style={{ fontSize: 60, alignSelf: 'flex-end', marginLeft: 10 }}>🎉</Text>
+              </LinearGradient>
+            );
+          }
+
+          return (
+            <LinearGradient
+              colors={['#6C47FF', '#8B6FFF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.premiumBanner}
+            >
+               <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumTitle}>Boost Your Earnings</Text>
+                  <Text style={styles.premiumSub}>Go Premium and get more job opportunities</Text>
+                  <TouchableOpacity style={styles.premiumBtn} onPress={() => navigation.navigate('Earnings')}>
+                     <Text style={styles.premiumBtnText}>Upgrade Now</Text>
+                  </TouchableOpacity>
+               </View>
+               <Text style={{ fontSize: 60, alignSelf: 'flex-end', marginLeft: 10 }}>🚀</Text>
+            </LinearGradient>
+          );
+        })()}
+
+        {/* Active Categories */}
+        <View style={styles.sectionHeader}>
+           <Text style={styles.sectionTitle}>Active Categories</Text>
+           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => navigation.navigate('Services')}>
+              <Text style={styles.linkText}>Manage</Text>
+              <ChevronRight size={16} color="#6C47FF" />
+           </TouchableOpacity>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, paddingHorizontal: 20 }}>
+           {activeCategories.length > 0 ? (
+             activeCategories.map((cat, i) => {
+                const categoryObj = cat.category || {};
+                const name = categoryObj.name || cat.categoryName || 'Category';
+                const imageUri = categoryObj.imageUrl ? getImageUrl(categoryObj.imageUrl) : null;
+                
+                return (
+                 <View key={i} style={styles.categoryCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                       {imageUri ? (
+                          <Image source={{ uri: imageUri }} style={{ width: 36, height: 36, marginRight: 12, borderRadius: 8 }} />
+                       ) : (
+                          <Text style={{ fontSize: 24, marginRight: 12 }}>🔧</Text>
+                       )}
+                       <View>
+                          <Text style={styles.catName}>{name}</Text>
+                          <Text style={styles.catSub}>{cat.subcategories?.length || 0} Subcategories</Text>
+                       </View>
+                    </View>
+                 </View>
+                );
+             })
+           ) : (
+             <View style={styles.categoryCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                   <Settings size={24} color={theme.colors.primary} style={{ marginRight: 12 }} />
+                   <View>
+                      <Text style={styles.catName}>No Categories</Text>
+                      <Text style={styles.catSub}>Tap manage to add</Text>
+                   </View>
+                </View>
+             </View>
+           )}
+           <View style={{ width: 40 }} />
+        </ScrollView>
+
+        {/* Recent Jobs */}
+        <View style={[styles.sectionHeader, { marginTop: 30 }]}>
+           <Text style={styles.sectionTitle}>Recent Jobs</Text>
+           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => navigation.navigate('Quotes')}>
+              <Text style={styles.linkText}>View All</Text>
+              <ChevronRight size={16} color="#6C47FF" />
+           </TouchableOpacity>
+        </View>
+
+        {isOnline && availableJobs.length > 0 ? (
+          availableJobs.map(job => (
+            <View key={job._id} style={styles.jobCard}>
+              <View style={styles.jobHeaderRow}>
+                 <View style={styles.newBadge}>
+                    <Text style={styles.newBadgeText}>NEW</Text>
+                 </View>
+                 <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.jobTitle} numberOfLines={1}>{job.category}</Text>
+                    <Text style={styles.jobLocation} numberOfLines={1}>
+                       📍 {job.addressDetails?.city || 'Local Area'}
+                    </Text>
+                 </View>
+              </View>
+              <View style={styles.jobFooter}>
+                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Text style={styles.jobTime}>⏱️ Today, {job.timeSlot}</Text>
+                    <Text style={styles.jobTime}>💰 ₹{job.description?.match(/\d+/) ? job.description.match(/\d+/)[0] : 'Offer'}</Text>
+                 </View>
+                 <TouchableOpacity style={styles.acceptBtn} onPress={() => navigation.navigate('WorkerJobDetails', { job })}>
+                    <Text style={styles.acceptBtnText}>Accept</Text>
+                 </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyState}>
             <Text style={{ fontSize: 40, marginBottom: 10 }}>{errorMsg ? '⚠️' : '📡'}</Text>
-            <Text style={{ color: errorMsg ? '#ef4444' : theme.colors.textDim, textAlign: 'center', lineHeight: 22, fontWeight: errorMsg ? '600' : '400' }}>
-              {errorMsg ? errorMsg : 'Looking for jobs near you...'}
+            <Text style={styles.emptyStateText}>
+              {errorMsg || (!isOnline ? 'Go online to receive jobs.' : 'Waiting for new jobs near you...')}
             </Text>
           </View>
         )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
-
-      
-
     </SafeAreaView>
   );
 };
@@ -263,249 +369,205 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   scrollContent: {
-    paddingTop: 16,
+    paddingTop: 30,
     paddingHorizontal: 20,
   },
-  header: {
-    marginBottom: 30,
-  },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  profileInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  workerName: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  workerStats: {
-    fontSize: 13,
-    color: theme.colors.textDim,
-    marginTop: 2,
-  },
-  onlineToggleRow: {
+  dutyStatusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.card,
     padding: 16,
     borderRadius: 16,
     marginBottom: 24,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  onlineToggleLabel: {
+  sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.colors.text,
   },
-  onlineToggleStatus: {
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
     fontSize: 13,
     fontWeight: '600',
-    marginTop: 2,
   },
-  profileStats: {
-    fontSize: 13,
-    color: theme.colors.textDim,
-    marginTop: 2,
-  },
-  topActionsRow: {
+  statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 16,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  badge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: theme.colors.surface,
-    borderRadius: 20,
-    paddingVertical: 20,
-    paddingHorizontal: 10,
+    marginBottom: 24,
+  },
+  statCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 16,
+    padding: 12,
+    alignItems: 'center',
+    width: '23%',
     borderWidth: 1,
     borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
   },
-  statBox: {
-    flex: 1,
+  statIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 8,
   },
-  statVal: {
-    fontSize: 22,
+  statValue: {
+    fontSize: 18,
     fontWeight: '800',
-    color: theme.colors.primary,
-    marginBottom: 4,
+    color: theme.colors.text,
+    marginBottom: 2,
   },
   statLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.colors.textDim,
+    textAlign: 'center',
+  },
+  premiumBanner: {
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 30,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  premiumTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  premiumSub: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  premiumBtn: {
+    backgroundColor: '#1c2136',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  premiumBtnText: {
+    color: '#fff',
     fontSize: 12,
+    fontWeight: '700',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  linkText: {
+    color: '#6C47FF',
+    fontSize: 13,
+    fontWeight: '600',
+    marginRight: 2,
+  },
+  categoryCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 16,
+    padding: 16,
+    marginRight: 12,
+    minWidth: 160,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  catName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  catSub: {
+    fontSize: 11,
     color: theme.colors.textDim,
     fontWeight: '500',
   },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: theme.colors.border,
-  },
-  alertSection: {
-    marginTop: 10,
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  alertTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  timerText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#f59e0b',
-  },
   jobCard: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.card,
     borderRadius: 20,
-    padding: 20,
-    borderWidth: 1.5,
-    borderColor: theme.colors.primary,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   jobHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  jobTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: theme.colors.text,
-    flex: 1,
-    marginRight: 10,
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
   newBadge: {
-    backgroundColor: theme.colors.primary + '1A',
+    backgroundColor: '#10b98115',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   newBadgeText: {
-    color: theme.colors.primary,
+    color: '#10b981',
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.5,
   },
-  jobDistance: {
-    fontSize: 13,
-    color: theme.colors.textDim,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  jobNote: {
-    fontSize: 14,
-    color: '#f59e0b',
-    fontStyle: 'italic',
-    marginBottom: 16,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-  },
-  chip: {
-    backgroundColor: theme.colors.background,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  chipText: {
-    fontSize: 12,
-    color: theme.colors.textDim,
-    fontWeight: '600',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  skipBtn: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  skipBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  bidBtn: {
-    flex: 2,
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  bidBtnText: {
+  jobTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#001016',
+    color: theme.colors.text,
+    marginBottom: 4,
   },
-  
-  
-  tabText: {
-    fontSize: 11,
-    fontWeight: '600',
+  jobLocation: {
+    fontSize: 12,
     color: theme.colors.textDim,
+  },
+  jobFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  jobTime: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    fontWeight: '500',
+  },
+  acceptBtn: {
+    backgroundColor: '#6C47FF',
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  acceptBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  emptyState: {
+    padding: 30,
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  emptyStateText: {
+    color: theme.colors.textDim,
+    textAlign: 'center',
+    lineHeight: 22,
+    fontWeight: '500',
   }
 });
 

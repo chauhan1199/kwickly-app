@@ -23,6 +23,7 @@ import Settlements    from './modules/settlements/Settlements'
 import Orders         from './modules/orders/Orders'
 import Wallets        from './modules/wallets/Wallets'
 import AdminWallet    from './modules/admin-wallet/AdminWallet'
+import SupportChats   from './modules/support/SupportChats'
 import './index.css'
 
 function App() {
@@ -71,6 +72,7 @@ function App() {
           
           {/* Communications */}
           <Route path="notifications" element={<Notifications />} />
+          <Route path="support-chats" element={<SupportChats />} />
           
           {/* System & Analytics */}
           <Route path="reports"      element={<Reports />} />

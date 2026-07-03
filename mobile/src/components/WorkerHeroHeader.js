@@ -66,8 +66,8 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
         {/* Greeting + mascot row */}
         <View style={styles.heroMiddleRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.heroGreeting}>Hi, {firstName}!</Text>
-            <Text style={styles.heroSubtitle}>Manage your jobs and earnings</Text>
+            <Text style={styles.heroGreeting}>Hi, {firstName}! 👋</Text>
+            <Text style={styles.heroSubtitle}>{searchQuery !== undefined ? 'Let\'s complete more jobs today' : 'Ready to get more jobs today?'}</Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
             {user?.profileImage ? (
@@ -81,20 +81,25 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
                 <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff' }}>{firstName[0]?.toUpperCase()}</Text>
               </View>
             )}
+            <View style={styles.cameraIconBadge}>
+              <Text style={{fontSize: 8}}>📷</Text>
+            </View>
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
-      {/* Search bar component - overlapping the header and body */}
-      <View style={{ zIndex: 10 }}>
-        <SearchBar 
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          theme={theme}
-          onFilterPress={() => {}}
-          style={{ marginHorizontal: 20, marginTop: -26 }}
-        />
-      </View>
+      {/* Search bar component - overlapping the header and body (Only if search is enabled for the screen) */}
+      {searchQuery !== undefined && (
+        <View style={{ zIndex: 10 }}>
+          <SearchBar 
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            theme={theme}
+            onFilterPress={() => {}}
+            style={{ marginHorizontal: 20, marginTop: -26 }}
+          />
+        </View>
+      )}
     </View>
   );
 };
@@ -103,10 +108,26 @@ const styles = StyleSheet.create({
   heroGradient: {
     paddingHorizontal: 18,
     paddingBottom: 40,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     overflow: 'hidden',
     position: 'relative',
+  },
+  cameraIconBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   blob1: {
     position: 'absolute',
