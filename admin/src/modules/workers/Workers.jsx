@@ -79,6 +79,28 @@ export default function Workers() {
   })
 
 
+  const renderValidity = (w) => {
+    let daysLeft = 0;
+    let isTrial = w.subscription?.isTrial !== false;
+    if (w.subscription?.expiryDate && new Date(w.subscription.expiryDate) > new Date()) {
+      daysLeft = Math.ceil((new Date(w.subscription.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+      isTrial = false;
+    } else if (w.subscription?.trialEndDate && new Date(w.subscription.trialEndDate) > new Date()) {
+      daysLeft = Math.ceil((new Date(w.subscription.trialEndDate) - new Date()) / (1000 * 60 * 60 * 24));
+    } else {
+      daysLeft = 0;
+    }
+    
+    const regDate = new Date(w.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--mid)' }}>Reg: {regDate}</div>
+        {daysLeft <= 0 ? <Badge label="Expired" variant="danger" /> : <Badge label={`${daysLeft} Days (${isTrial ? 'Trial' : 'Plan'})`} variant={isTrial ? 'warning' : 'success'} />}
+      </div>
+    );
+  };
+
   const columns = [
     { header: 'Worker', render: (w) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -90,6 +112,7 @@ export default function Workers() {
     { header: 'KYC', render: (w) => <Badge label={w.kyc?.status || 'PENDING'} variant={KYC_VARIANT[w.kyc?.status] ? KYC_VARIANT[w.kyc?.status].toLowerCase() : 'neutral'} /> },
     { header: 'Services', render: (w) => <div style={{ fontSize: 12 }}>{renderServices(w.services)}</div> },
     { header: 'Wallet', render: (w) => <strong>₹{(w.wallet?.balance || 0).toLocaleString('en-IN')}</strong> },
+    { header: 'Validity', render: (w) => renderValidity(w) },
     { header: 'Status', render: (w) => (
       <div style={{ display: 'flex', gap: 6 }}>
         <Badge label={w.isVerified ? 'Active' : 'Inactive'} variant={w.isVerified ? 'success' : 'neutral'} />
@@ -522,6 +545,14 @@ export default function Workers() {
                   <div className="detail-row"><span>Rating</span><strong>{detail.rating?.average ? `${detail.rating.average} (${detail.rating.count} reviews)` : 'No ratings'}</strong></div>
                   <div className="detail-row"><span>Service Radius</span><strong>{detail.serviceRadius || 10} km</strong></div>
                   <div className="detail-row"><span>Joined</span><strong>{new Date(detail.createdAt).toLocaleDateString('en-IN')}</strong></div>
+                </div>
+
+                <div className="divider" />
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Subscription & Validity</div>
+                <div className="detail-grid">
+                  <div className="detail-row"><span>Status</span><strong>{renderValidity(detail)}</strong></div>
+                  <div className="detail-row"><span>Registration Date</span><strong>{new Date(detail.createdAt).toLocaleString()}</strong></div>
+                  <div className="detail-row"><span>Expiry Date</span><strong>{detail.subscription?.expiryDate ? new Date(detail.subscription.expiryDate).toLocaleString() : (detail.subscription?.trialEndDate ? new Date(detail.subscription.trialEndDate).toLocaleString() : 'N/A')}</strong></div>
                 </div>
 
                 {addr && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -7,7 +7,11 @@ import {
   ScrollView, 
   TouchableOpacity, 
   StatusBar,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Alert,
+  Platform
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -20,6 +24,7 @@ import AppBar from '../../components/AppBar';
 import { SearchBar } from '../../components/ui/SearchBar';
 
 const LiveBidsScreen = ({ route, navigation }) => {
+  console.log("LiveBidsScreen mounting...");
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
   const { 
@@ -40,6 +45,44 @@ const LiveBidsScreen = ({ route, navigation }) => {
   const [bids, setBids] = useState([]);
   const [isAccepting, setIsAccepting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [jobStatus, setJobStatus] = useState('BROADCASTING');
+  const [cancelReason, setCancelReason] = useState('');
+  const [currentRadius, setCurrentRadius] = useState(15); // Start with default 15
+
+  const [anims] = useState(() => [
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0)
+  ]);
+  const [pulseAnim1, pulseAnim2, pulseAnim3] = anims;
+
+  useEffect(() => {
+    // Reset state when navigating to a new job using the same screen instance
+    setJobStatus('BROADCASTING');
+    setCancelReason('');
+    setCurrentRadius(15);
+    setBids([]);
+  }, [jobId]);
+
+  useEffect(() => {
+    const createPulse = (anim, delay) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 3000,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          })
+        ])
+      );
+    };
+
+    createPulse(pulseAnim1, 0).start();
+    createPulse(pulseAnim2, 1000).start();
+    createPulse(pulseAnim3, 2000).start();
+  }, [pulseAnim1, pulseAnim2, pulseAnim3]);
 
   useEffect(() => {
     // 1. Fetch any existing bids for this job
@@ -66,10 +109,27 @@ const LiveBidsScreen = ({ route, navigation }) => {
         }
       };
 
+      const handleJobStatus = (data) => {
+        if (data.jobId === jobId && data.status === 'CANCELLED') {
+          setJobStatus('CANCELLED');
+          setCancelReason(data.reason || 'Job auto-cancelled');
+        }
+      };
+
+      const handleRadiusExpanded = (data) => {
+        if (data.jobId === jobId) {
+          setCurrentRadius(data.radiusKm);
+        }
+      };
+
       socket.on('NEW_QUOTE', handleNewQuote);
+      socket.on('JOB_STATUS_CHANGED', handleJobStatus);
+      socket.on('JOB_RADIUS_EXPANDED', handleRadiusExpanded);
 
       return () => {
         socket.off('NEW_QUOTE', handleNewQuote);
+        socket.off('JOB_STATUS_CHANGED', handleJobStatus);
+        socket.off('JOB_RADIUS_EXPANDED', handleRadiusExpanded);
       };
     }
   }, [jobId, socket]);
@@ -94,11 +154,36 @@ const LiveBidsScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleCancelJob = () => {
+    Alert.alert(
+      "Cancel Request",
+      "Are you sure you want to stop searching and cancel this request?",
+      [
+        { text: "No", style: "cancel" },
+        { 
+          text: "Yes, Cancel", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await jobService.cancelJob(jobId);
+              if (res.data?.status === 'success') {
+                setJobStatus('CANCELLED');
+                setCancelReason('Cancelled by you');
+              }
+            } catch (err) {
+              Alert.alert('Error', err.response?.data?.message || 'Failed to cancel job');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const styles = createStyles(theme, isDarkMode);
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
+      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" translucent={true} />
       
       <LinearGradient colors={['#6C47FF', '#8B6FFF']} style={styles.headerGradient}>
         <View style={styles.appBar}>
@@ -145,9 +230,59 @@ const LiveBidsScreen = ({ route, navigation }) => {
 
         {bids.length === 0 ? (
           <View style={styles.waitingCard}>
-            <Text style={styles.radarIcon}>📡</Text>
-            <Text style={styles.waitingTitle}>Waiting for bids...</Text>
-            <Text style={styles.waitingSub}>Nearby pros are being notified</Text>
+            {jobStatus === 'CANCELLED' ? (
+              <>
+                <View style={[styles.radarContainer, { backgroundColor: 'rgba(255, 71, 87, 0.1)' }]}>
+                  <Text style={styles.radarIcon}>❌</Text>
+                </View>
+                <Text style={styles.waitingTitle}>Job Cancelled</Text>
+                <Text style={styles.waitingSub}>{cancelReason}</Text>
+                <TouchableOpacity 
+                  style={{ marginTop: 20, backgroundColor: '#6C47FF', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 100 }}
+                  onPress={() => navigation.goBack()}
+                >
+                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Go Back</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <View style={styles.radarContainer}>
+                  <Animated.View style={[
+                    styles.pulseCircle,
+                    {
+                      transform: [{ scale: pulseAnim1.interpolate({ inputRange: [0, 1], outputRange: [0.8, 4] }) }],
+                      opacity: pulseAnim1.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 0.2, 0] })
+                    }
+                  ]} />
+                  <Animated.View style={[
+                    styles.pulseCircle,
+                    {
+                      transform: [{ scale: pulseAnim2.interpolate({ inputRange: [0, 1], outputRange: [0.8, 4] }) }],
+                      opacity: pulseAnim2.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 0.2, 0] })
+                    }
+                  ]} />
+                  <Animated.View style={[
+                    styles.pulseCircle,
+                    {
+                      transform: [{ scale: pulseAnim3.interpolate({ inputRange: [0, 1], outputRange: [0.8, 4] }) }],
+                      opacity: pulseAnim3.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 0.2, 0] })
+                    }
+                  ]} />
+                  <View style={styles.radarCenter}>
+                    <Text style={styles.radarIcon}>📡</Text>
+                  </View>
+                </View>
+                <Text style={styles.waitingTitle}>Searching for Workers...</Text>
+                <Text style={styles.waitingSub}>Checking in {currentRadius} km radius</Text>
+                
+                <TouchableOpacity 
+                  style={{ marginTop: 30, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ef4444', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 100 }}
+                  onPress={handleCancelJob}
+                >
+                  <Text style={{ color: '#ef4444', fontWeight: 'bold' }}>Cancel Request</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         ) : null}
 
@@ -216,7 +351,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingTop: 10,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 10 : 10,
     paddingBottom: 14,
   },
   backBtn: {
@@ -297,19 +432,51 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  radarIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
   waitingTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     color: theme.colors.text,
+    marginTop: 20,
+    marginBottom: 6,
   },
   waitingSub: {
-    fontSize: 12,
+    fontSize: 14,
     color: theme.colors.textDim,
-    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  radarContainer: {
+    width: 100,
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 40,
+  },
+  radarCenter: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#6C47FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    elevation: 8,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+  },
+  pulseCircle: {
+    position: 'absolute',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(108, 71, 255, 0.5)',
+    zIndex: 1,
+  },
+  radarIcon: {
+    fontSize: 28,
   },
   workerCard: {
     backgroundColor: theme.colors.surface,

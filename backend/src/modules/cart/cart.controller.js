@@ -32,7 +32,7 @@ exports.addToCart = catchAsync(async (req, res) => {
     }
 
     const shop = await Shop.findById(shopId);
-    if (!shop || shop.status !== 'APPROVED') {
+    if (!shop || shop.kyc?.status !== 'APPROVED') {
         return errorResponse(res, 'Shop not approved', StatusCodes.FORBIDDEN);
     }
 

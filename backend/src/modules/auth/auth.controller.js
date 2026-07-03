@@ -102,7 +102,23 @@ exports.verifyOTP = catchAsync(async (req, res) => {
 
     if (!user) {
         // New account for this role
-        user = await Customer.create({ phone, role, isVerified: true });
+        const payload = { phone, role, isVerified: true };
+        
+        if (role === 'WORKER' || role === 'SHOP') {
+            const AppSettings = require('../settings/settings.model');
+            let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+            const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+            const trialEndDate = new Date();
+            trialEndDate.setDate(trialEndDate.getDate() + freeTrialDays);
+            
+            payload.subscription = {
+                isTrial: true,
+                trialEndDate: trialEndDate,
+                expiryDate: trialEndDate
+            };
+        }
+        
+        user = await Customer.create(payload);
     }
 
     const token = generateToken(user);

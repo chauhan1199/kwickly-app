@@ -12,7 +12,8 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  Switch
+  Switch,
+  Linking
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -23,6 +24,7 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
+import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import { workerService } from '../../services/workerService';
 import { 
   Camera, 
@@ -41,6 +43,22 @@ import {
   Edit2,
   Crosshair
 } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
+
+const getImageUri = (path) => {
+  if (!path) return null;
+  let cleanPath = path;
+  if (cleanPath.startsWith('http://localhost')) {
+    cleanPath = cleanPath.replace('http://localhost', 'http://10.0.2.2');
+  } else if (cleanPath.startsWith('http://127.0.0.1')) {
+    cleanPath = cleanPath.replace('http://127.0.0.1', 'http://10.0.2.2');
+  }
+  
+  if (cleanPath.startsWith('http')) {
+    return cleanPath;
+  }
+  return 'http://10.0.2.2:5000' + (cleanPath.startsWith('/') ? '' : '/') + cleanPath;
+};
 
 const WorkerProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -49,9 +67,18 @@ const WorkerProfileScreen = ({ navigation }) => {
 
   const [activeModal, setActiveModal] = useState(null); // 'kyc', 'bank', 'editProfile'
   const [loading, setLoading] = useState(true);
+  const [subCatModalVisible, setSubCatModalVisible] = useState(false);
+  const [selectedCategoryForSubCats, setSelectedCategoryForSubCats] = useState(null);
+  const [tempSelectedSubCats, setTempSelectedSubCats] = useState([]);
+  
+  // Image Viewer Modal State
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerImage, setViewerImage] = useState(null);
+
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState(null);
   const [isOnline, setIsOnline] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Form states for Edit Profile
   const [editName, setEditName] = useState('');
@@ -121,28 +148,42 @@ const WorkerProfileScreen = ({ navigation }) => {
     }
     setSaving(true);
     try {
-      const formData = new FormData();
-      formData.append('document', {
-        uri: docUrl.uri,
-        type: docUrl.type || 'image/jpeg',
-        name: docUrl.fileName || 'document.jpg',
-      });
-      formData.append('documentType', kycType);
+      const payload = {
+        documentType: kycType,
+        documentBase64: `data:${docUrl.type || 'image/jpeg'};base64,${docUrl.base64}`
+      };
       
-      await workerService.updateKyc(formData);
+      await workerService.updateKyc(payload);
       Alert.alert('Success', 'KYC document uploaded successfully!');
       setActiveModal(null);
       setDocUrl(''); // Clear selected image
       fetchProfile();
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload KYC document.');
+      Alert.alert('Error', 'Failed to upload KYC document. ' + (error.message || JSON.stringify(error)));
     } finally {
       setSaving(false);
     }
   };
 
+  const handleRemoveKyc = async (index) => {
+    Alert.alert('Confirm Delete', 'Are you sure you want to remove this document?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+          setSaving(true);
+          try {
+            await workerService.removeKycDocument(index);
+            fetchProfile();
+          } catch(e) {
+            Alert.alert('Error', 'Failed to delete document');
+          } finally {
+            setSaving(false);
+          }
+      }}
+    ]);
+  };
+
   const pickKycImage = async () => {
-    const options = { mediaType: 'photo', quality: 0.8 };
+    const options = { mediaType: 'photo', quality: 0.8, includeBase64: true };
     const response = await launchImageLibrary(options);
     if (!response.didCancel && !response.errorCode && response.assets?.length > 0) {
       setDocUrl(response.assets[0]);
@@ -283,7 +324,7 @@ const WorkerProfileScreen = ({ navigation }) => {
   const handlePickPhoto = async () => {
     const options = {
       mediaType: 'photo',
-      includeBase64: false,
+      includeBase64: true,
       maxHeight: 1024,
       maxWidth: 1024,
     };
@@ -298,18 +339,15 @@ const WorkerProfileScreen = ({ navigation }) => {
       const asset = response.assets[0];
       setSaving(true);
       try {
-        const formData = new FormData();
-        formData.append('profileImage', {
-          uri: asset.uri,
-          type: asset.type || 'image/jpeg',
-          name: asset.fileName || 'profile.jpg',
-        });
+        const payload = {
+          profileImageBase64: `data:${asset.type || 'image/jpeg'};base64,${asset.base64}`
+        };
         
-        await workerService.updateProfilePhoto(formData);
+        await workerService.updateProfilePhoto(payload);
         Alert.alert('Success', 'Profile photo updated');
         fetchProfile();
       } catch (error) {
-        Alert.alert('Error', 'Failed to update photo');
+        Alert.alert('Error', 'Failed to update photo. ' + (error.message || JSON.stringify(error)));
         console.error(error);
       } finally {
         setSaving(false);
@@ -349,7 +387,7 @@ const WorkerProfileScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      <AppBar title="My Profile" showBack={false} />
+      <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
@@ -358,7 +396,7 @@ const WorkerProfileScreen = ({ navigation }) => {
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
               {profile?.profileImage ? (
-                <Image source={{ uri: 'http://10.0.2.2:5000' + profile.profileImage }} style={styles.avatarImage} />
+                <Image source={{ uri: getImageUri(profile.profileImage) }} style={styles.avatarImage} />
               ) : (
                 <Text style={styles.avatarText}>{profile?.name ? profile.name.charAt(0) : 'W'}</Text>
               )}
@@ -472,6 +510,31 @@ const WorkerProfileScreen = ({ navigation }) => {
               <Text style={styles.modalTitle}>KYC Documents</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}><X color={theme.colors.text} /></TouchableOpacity>
             </View>
+
+            {profile?.kyc?.documents?.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Uploaded Documents:</Text>
+                {profile.kyc.documents.map((doc, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: theme.colors.background, padding: 8, borderRadius: 12 }}>
+                    <TouchableOpacity onPress={() => { setViewerImage(getImageUri(doc.url)); setViewerVisible(true); }}>
+                      <Image source={{ uri: getImageUri(doc.url) }} style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }} />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{doc.type}</Text>
+                      <Text style={{ color: theme.colors.textDim, fontSize: 12, marginTop: 2 }}>
+                        Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleRemoveKyc(idx)} disabled={saving} style={{ padding: 8 }}>
+                      <Trash2 size={20} color={theme.colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 12 }} />
+              </View>
+            )}
+
+            <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Upload New Document</Text>
             <Text style={styles.modalSub}>Select document type and upload an image (Gallery/Camera).</Text>
             
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
@@ -765,6 +828,24 @@ const WorkerProfileScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Full Screen Image Viewer Modal */}
+      <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity 
+            style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }}
+            onPress={() => setViewerVisible(false)}
+          >
+            <X color="#fff" size={32} />
+          </TouchableOpacity>
+          {viewerImage && (
+            <Image 
+              source={{ uri: viewerImage }} 
+              style={{ width: '95%', height: '80%', resizeMode: 'contain' }} 
+            />
+          )}
         </View>
       </Modal>
 

@@ -23,6 +23,7 @@ const flattenSettings = (s) => ({
     logoUrl: s.branding?.logoUrl || '',
     iconUrl: s.branding?.iconUrl || '',
     // Subscriptions (Flat keys for standard plans)
+    freeTrialDays: s.subscription?.freeTrialDays || 14,
     monthlyPlan: s.subscriptionPlans?.find(p => p.id === 'monthly')?.price || 499,
     semiPlan: s.subscriptionPlans?.find(p => p.id === 'semi')?.price || 2499,
     annualPlan: s.subscriptionPlans?.find(p => p.id === 'annual')?.price || 4499,
@@ -45,6 +46,7 @@ const mapFlatToNested = (body) => {
         appName: 'branding.appName',
         logoUrl: 'branding.logoUrl',
         iconUrl: 'branding.iconUrl',
+        freeTrialDays: 'subscription.freeTrialDays',
         monthlyPlan: 'subscriptionPlans.0.price',
         semiPlan: 'subscriptionPlans.1.price',
         annualPlan: 'subscriptionPlans.2.price'
@@ -52,7 +54,7 @@ const mapFlatToNested = (body) => {
 
     const numericFields = [
         'feeAmount', 'gstPercentage', 'walletMinimum',
-        'monthlyPlan', 'semiPlan', 'annualPlan', 'maxRadius'
+        'monthlyPlan', 'semiPlan', 'annualPlan', 'maxRadius', 'freeTrialDays'
     ];
     const booleanFields = ['maintenanceMode'];
 
@@ -111,7 +113,8 @@ exports.getPublicSettings = catchAsync(async (req, res) => {
         maintenanceMsg: settings.maintenance?.message || '',
         appName: settings.branding?.appName || 'Kwickly',
         logoUrl: settings.branding?.logoUrl || '',
-        iconUrl: settings.branding?.iconUrl || ''
+        iconUrl: settings.branding?.iconUrl || '',
+        freeTrialDays: settings.subscription?.freeTrialDays || 14
     };
 
     await setCache('public_settings', publicSettings, 86400);

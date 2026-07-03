@@ -77,7 +77,16 @@ exports.approveSuggestion = catchAsync(async (req, res) => {
             active: true
         });
         await cat.save();
-        createdSubcategory = { name: sug.payload.name, categoryName: cat.name };
+        
+        // The new subcategory will be the last one added
+        const newSubCatObj = cat.subcategories[cat.subcategories.length - 1];
+        
+        createdSubcategory = { 
+            name: sug.payload.name, 
+            categoryName: cat.name,
+            categoryId: cat._id,
+            subcategoryId: newSubCatObj._id
+        };
         await delCache('categories_list');
     }
 
@@ -89,6 +98,49 @@ exports.approveSuggestion = catchAsync(async (req, res) => {
     triggerDashboardUpdate();
 
     const workerUserId = typeof sug.workerId === 'object' ? sug.workerId._id : sug.workerId;
+    
+    // Automatically add to worker's services if they are a worker
+    if (workerUserId && sug.source === 'worker') {
+        const Customer = require('../customer/customer.model'); // Assuming worker is in Customer collection with role WORKER
+        const worker = await Customer.findById(workerUserId);
+        
+        if (worker) {
+            let servicesUpdated = false;
+            
+            if (sug.type === 'new_category' && createdCategory) {
+                // Add the new category to their services
+                const alreadyHasCat = worker.services.some(s => s.category.toString() === createdCategory._id.toString());
+                if (!alreadyHasCat) {
+                    worker.services.push({
+                        category: createdCategory._id,
+                        subcategories: createdCategory.subcategories.map(sub => sub.name),
+                        isActive: true
+                    });
+                    servicesUpdated = true;
+                }
+            } else if (sug.type === 'new_subcategory' && createdSubcategory) {
+                // Add the new subcategory to their existing category service, or create it if missing
+                const existingServiceIndex = worker.services.findIndex(s => s.category.toString() === createdSubcategory.categoryId.toString());
+                if (existingServiceIndex >= 0) {
+                    if (!worker.services[existingServiceIndex].subcategories.includes(createdSubcategory.name)) {
+                        worker.services[existingServiceIndex].subcategories.push(createdSubcategory.name);
+                        servicesUpdated = true;
+                    }
+                } else {
+                    worker.services.push({
+                        category: createdSubcategory.categoryId,
+                        subcategories: [createdSubcategory.name],
+                        isActive: true
+                    });
+                    servicesUpdated = true;
+                }
+            }
+            
+            if (servicesUpdated) {
+                await worker.save();
+            }
+        }
+    }
     if (workerUserId) {
         const title = sug.type === 'new_category'
             ? `Category "${sug.payload.name}" Approved`

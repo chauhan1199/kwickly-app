@@ -7,12 +7,14 @@ import {
   ScrollView, 
   TouchableOpacity, 
   StatusBar,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import { jobService } from '../../services/jobService';
 
 const LiveTrackingScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -90,6 +92,31 @@ const LiveTrackingScreen = ({ route, navigation }) => {
     </body>
     </html>
   `;
+
+  const handleCancelJob = () => {
+    Alert.alert(
+      "Cancel Job",
+      "Are you sure you want to cancel this job?",
+      [
+        { text: "No", style: "cancel" },
+        { 
+          text: "Yes, Cancel", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await jobService.cancelJob(job?._id);
+              if (res.data?.status === 'success') {
+                Alert.alert("Cancelled", "Your job has been cancelled.");
+                navigation.goBack();
+              }
+            } catch (err) {
+              Alert.alert('Error', err.response?.data?.message || 'Failed to cancel job');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const styles = createStyles(theme, isDarkMode);
 
@@ -241,6 +268,12 @@ const LiveTrackingScreen = ({ route, navigation }) => {
 
           </View>
         </View>
+
+        {(job?.status === 'ALLOCATED' || job?.status === 'ARRIVING' || !job?.status) && (
+          <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelJob}>
+            <Text style={styles.cancelBtnText}>Cancel Job</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -484,6 +517,21 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: '#001016',
     fontSize: 15,
     fontWeight: '800',
+  },
+  cancelBtn: {
+    marginTop: 24,
+    backgroundColor: 'rgba(255, 71, 87, 0.1)',
+    borderColor: '#ef4444',
+    borderWidth: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    color: '#ef4444',
+    fontWeight: '700',
+    fontSize: 15,
   }
 });
 

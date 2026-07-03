@@ -162,7 +162,7 @@ const BookServiceScreen = ({ navigation }) => {
 
           <Text style={styles.sectionTitle}>All Service Categories</Text>
           
-          <View style={styles.serviceGrid}>
+          <View style={[styles.serviceGrid, { justifyContent: 'flex-start' }]}>
             {isLoading ? (
               <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20, width: '100%' }} />
             ) : (
@@ -174,6 +174,7 @@ const BookServiceScreen = ({ navigation }) => {
                   cat={cat} 
                   index={index} 
                   theme={theme} 
+                  style={{ width: '31%', marginRight: (index % 3 === 2) ? 0 : '3.5%' }}
                   onPress={(cat) => navigation.navigate('SubCategories', cat)} 
                 />
               ))

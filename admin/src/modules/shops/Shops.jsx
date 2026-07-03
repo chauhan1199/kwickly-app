@@ -889,8 +889,12 @@ export default function Shops() {
             <div className="drawer-body">
               {/* Shop Info Header */}
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 20 }}>
-                <div className="avatar avatar-lg" style={{ background: 'linear-gradient(135deg, #F97316, #DC2626)', borderRadius: 12 }}>
-                  <Store size={24} />
+                <div className="avatar avatar-lg" style={{ background: 'linear-gradient(135deg, #F97316, #DC2626)', borderRadius: 12, overflow: 'hidden' }}>
+                  {detail.logoUrl ? (
+                    <img src={detail.logoUrl} alt={detail.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <Store size={24} />
+                  )}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 20 }}>{detail.name}</div>

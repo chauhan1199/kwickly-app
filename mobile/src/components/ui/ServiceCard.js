@@ -86,7 +86,7 @@ export const getServiceRating = (name) => {
   return SERVICE_RATINGS.default;
 };
 
-export const ServiceCard = ({ cat, index, theme, onPress }) => {
+export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
   const { rating, reviews } = getServiceRating(cat.label || cat.name);
   const hasNetworkImg = !!cat.imageUrl;
   const localImg = cat.localImage || getServiceImage(cat.name || cat.label);
@@ -98,8 +98,9 @@ export const ServiceCard = ({ cat, index, theme, onPress }) => {
         { 
           backgroundColor: theme.colors.card, 
           borderColor: theme.colors.border,
-          marginRight: (index + 1) % 3 !== 0 ? 12 : 0 
-        }
+          marginRight: isLast ? 0 : 12 
+        },
+        style
       ]}
       onPress={() => onPress(cat)}
       activeOpacity={0.88}

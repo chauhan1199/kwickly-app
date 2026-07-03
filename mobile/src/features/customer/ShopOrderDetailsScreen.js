@@ -16,6 +16,8 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
+import LinearGradient from 'react-native-linear-gradient';
+import AppBar from '../../components/AppBar';
 
 const ShopOrderDetailsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -126,23 +128,24 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnText}>‹</Text>
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.appBarTitle} numberOfLines={1}>Order Details</Text>
-          <Text style={styles.appBarSub} numberOfLines={1}>Order #{o.id}</Text>
-        </View>
-        <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Text style={{fontSize: 16}}>🔔</Text>
-          <View style={styles.badge} />
-        </TouchableOpacity>
-      </View>
+      {/* App Bar - Themed */}
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingBottom: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, position: 'relative', overflow: 'hidden' }}
+      >
+        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+
+        <AppBar 
+          showBack={true} 
+          title="Order Details" 
+          subtitle={`Order #${o.id}`} 
+          transparent={true} 
+          showLogo={false} 
+        />
+      </LinearGradient>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
@@ -161,11 +164,46 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
             </View>
           </View>
           
-          {isActive && (
-            <View style={styles.deliveryBox}>
-              <Text style={styles.deliveryText}>🛵 Shop partner is processing your order.</Text>
+          {/* Order Tracking Timeline */}
+          <View style={styles.timelineBox}>
+            <Text style={styles.sectionHeader}>Order Tracking</Text>
+            <View style={{ marginTop: 16 }}>
+              {[
+                { key: 'NEW', label: 'Order Placed', icon: '📝', sub: 'Waiting for shop to accept' },
+                { key: 'PACKING', label: 'Processing & Packing', icon: '📦', sub: 'Shop is preparing your items' },
+                { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: '🛵', sub: 'Assigning delivery partner' },
+                { key: 'DELIVERED', label: 'Delivered', icon: '🎉', sub: 'Order completed' }
+              ].map((step, idx, arr) => {
+                const statusOrder = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+                const currentIndex = statusOrder.indexOf(o.s);
+                const stepIndex = statusOrder.indexOf(step.key);
+                
+                const isCompleted = stepIndex < currentIndex;
+                const isCurrent = stepIndex === currentIndex;
+                const isPending = stepIndex > currentIndex;
+
+                let iconColor = isCompleted ? '#10b981' : isCurrent ? '#6C47FF' : theme.colors.border;
+                let textColor = (isCompleted || isCurrent) ? theme.colors.text : theme.colors.textDim;
+
+                return (
+                  <View key={step.key} style={{ flexDirection: 'row', marginBottom: idx === arr.length - 1 ? 0 : 20 }}>
+                    <View style={{ alignItems: 'center', marginRight: 12 }}>
+                      <View style={[styles.timelineDot, { backgroundColor: isCompleted || isCurrent ? iconColor + '20' : theme.colors.background, borderColor: iconColor, borderWidth: 2 }]}>
+                        {isCompleted ? <Text style={{fontSize: 14}}>✓</Text> : <Text style={{fontSize: 12}}>{step.icon}</Text>}
+                      </View>
+                      {idx !== arr.length - 1 && (
+                        <View style={[styles.timelineLine, { backgroundColor: isCompleted ? '#10b981' : theme.colors.border }]} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1, paddingTop: 2 }}>
+                      <Text style={{ fontSize: 15, fontWeight: isCurrent ? '800' : '600', color: textColor }}>{step.label}</Text>
+                      <Text style={{ fontSize: 13, color: theme.colors.textDim, marginTop: 2 }}>{step.sub}</Text>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
-          )}
+          </View>
         </View>
 
         {(isOutForDelivery || showMap) && (
@@ -485,6 +523,27 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.text,
     fontSize: 14,
     fontWeight: '700',
+  },
+  timelineBox: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  timelineDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  timelineLine: {
+    width: 2,
+    height: 36,
+    position: 'absolute',
+    top: 28,
+    zIndex: 1,
   }
 });
 

@@ -10,21 +10,27 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
-  TextInput
+  TextInput,
+  Image,
+  RefreshControl
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import AppBar from '../../components/AppBar';
+import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import { workerService } from '../../services/workerService';
 import { jobService } from '../../services/jobService';
+import { getImageUrl } from '../../utils/helpers';
 import { Settings, Wrench, Zap, X, MapPin, Plus, Minus, Trash2, CheckSquare, Square } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
 
 const WorkerManageServicesScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const styles = createStyles(theme, isDarkMode);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState([]);
   const [radius, setRadius] = useState(10);
@@ -65,6 +71,23 @@ const WorkerManageServicesScreen = ({ navigation }) => {
       Alert.alert('Error', 'Failed to load services');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const [profileRes, catRes] = await Promise.all([
+        workerService.getProfile(),
+        jobService.getCategories()
+      ]);
+      setServices(profileRes.data.data.services || []);
+      setRadius(profileRes.data.data.serviceRadius || 10);
+      setAllCategories(catRes.data.data || []);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to refresh services');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -205,9 +228,15 @@ const WorkerManageServicesScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      <AppBar title="My Services" subtitle="Categories you serve" />
+      <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} />
+        }
+      >
         
         {/* Service Radius */}
         <View style={styles.radiusContainer}>
@@ -262,8 +291,12 @@ const WorkerManageServicesScreen = ({ navigation }) => {
             const subCount = cat.subcategories?.length || 0;
             return (
               <View key={index} style={styles.card}>
-                <View style={styles.iconWrapper}>
-                  {renderIcon(catTitle)}
+                <View style={[styles.iconWrapper, fullCat?.imageUrl && { backgroundColor: 'transparent' }]}>
+                  {fullCat?.imageUrl ? (
+                    <Image source={{ uri: getImageUrl(fullCat.imageUrl) }} style={{ width: 48, height: 48, borderRadius: 24 }} />
+                  ) : (
+                    renderIcon(catTitle)
+                  )}
                 </View>
                 <View style={styles.cardInfo}>
                   <Text style={styles.cardTitle}>{catTitle}</Text>
@@ -299,6 +332,13 @@ const WorkerManageServicesScreen = ({ navigation }) => {
           <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
             <Text style={styles.addBtnText}>+ Add New Category</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.addBtn, { borderColor: theme.colors.textDim, borderStyle: 'solid', marginTop: 12 }]} 
+            onPress={() => setSuggestModalVisible(true)}
+          >
+            <Text style={[styles.addBtnText, { color: theme.colors.textDim, fontSize: 14 }]}>💡 Suggest Missing Category</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={{ height: 100 }} />
@@ -331,7 +371,16 @@ const WorkerManageServicesScreen = ({ navigation }) => {
                   style={styles.modalCatItem}
                   onPress={() => handleAddService(c)}
                 >
-                  <Text style={styles.modalCatText}>{c.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {c.imageUrl ? (
+                      <Image source={{ uri: getImageUrl(c.imageUrl) }} style={{ width: 32, height: 32, borderRadius: 8, marginRight: 12 }} />
+                    ) : (
+                      <View style={{ width: 32, height: 32, borderRadius: 8, marginRight: 12, backgroundColor: theme.colors.border, justifyContent: 'center', alignItems: 'center' }}>
+                        {renderIcon(c.name)}
+                      </View>
+                    )}
+                    <Text style={styles.modalCatText}>{c.name}</Text>
+                  </View>
                   <Plus size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
               )) : (
@@ -435,7 +484,12 @@ const WorkerManageServicesScreen = ({ navigation }) => {
                       style={styles.modalCatItem}
                       onPress={() => toggleTempSubCat(sub.name)}
                     >
-                      <Text style={styles.modalCatText}>{sub.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        {sub.imageUrl && (
+                          <Image source={{ uri: getImageUrl(sub.imageUrl) }} style={{ width: 32, height: 32, borderRadius: 8, marginRight: 12 }} />
+                        )}
+                        <Text style={styles.modalCatText}>{sub.name}</Text>
+                      </View>
                       {isChecked ? (
                         <CheckSquare color={theme.colors.primary} size={24} />
                       ) : (

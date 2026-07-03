@@ -19,8 +19,39 @@ exports.updateKyc = catchAsync(async (req, res) => {
         });
         user.kyc.status = 'PENDING';
         await user.save();
+    } else if (req.body.documentBase64) {
+        const base64Data = req.body.documentBase64.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(base64Data, 'base64');
+        const filename = `document-${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
+        require('fs').writeFileSync(require('path').join(__dirname, '../../../public/uploads', filename), buffer);
+        user.kyc.documents.push({
+            type: documentType || 'OTHER',
+            url: '/uploads/' + filename
+        });
+        user.kyc.status = 'PENDING';
+        await user.save();
     }
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
     return successResponse(res, user.kyc, 'KYC document uploaded successfully');
+});
+
+exports.removeKycDocument = catchAsync(async (req, res) => {
+    const { docIndex } = req.params;
+    const user = await Customer.findById(req.user._id);
+
+    if (!user.kyc.documents || !user.kyc.documents[docIndex]) {
+        return errorResponse(res, 'Document not found', StatusCodes.NOT_FOUND);
+    }
+
+    user.kyc.documents.splice(Number(docIndex), 1);
+    await user.save();
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${user._id}`);
+
+    return successResponse(res, user.kyc, 'Document removed');
 });
 
 exports.updateProfile = catchAsync(async (req, res) => {
@@ -28,6 +59,12 @@ exports.updateProfile = catchAsync(async (req, res) => {
     const updateData = {};
     if (req.file) {
         updateData.profileImage = '/uploads/' + req.file.filename;
+    } else if (req.body.profileImageBase64) {
+        const base64Data = req.body.profileImageBase64.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(base64Data, 'base64');
+        const filename = `profile-${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
+        require('fs').writeFileSync(require('path').join(__dirname, '../../../public/uploads', filename), buffer);
+        updateData.profileImage = '/uploads/' + filename;
     } else if (req.body.profileImage !== undefined) {
         updateData.profileImage = req.body.profileImage;
     }
@@ -74,6 +111,9 @@ exports.updateBank = catchAsync(async (req, res) => {
         { $set: updateData },
         { new: true }
     );
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
     return successResponse(res, user.wallet, 'Bank details updated successfully');
 });
 
@@ -84,6 +124,9 @@ exports.updateServices = catchAsync(async (req, res) => {
         { $set: { services } },
         { new: true }
     );
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
     return successResponse(res, user.services, 'Services updated successfully');
 });
 
@@ -104,6 +147,10 @@ exports.updateLocation = catchAsync(async (req, res) => {
         { $set: updateData },
         { new: true }
     );
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
+    
     return successResponse(res, { 
         serviceRadius: user.serviceRadius, 
         activeLocation: user.activeLocation 
@@ -121,6 +168,9 @@ exports.toggleOnlineStatus = catchAsync(async (req, res) => {
         { $set: { isOnline } },
         { new: true }
     );
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
     return successResponse(res, { isOnline: user.isOnline }, isOnline ? 'You are now online' : 'You are now offline');
 });
 
@@ -179,6 +229,9 @@ exports.addAddress = catchAsync(async (req, res) => {
 
     user.addresses.push(newAddress);
     await user.save();
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
     return successResponse(res, user.addresses, 'Address added successfully');
 });
 
@@ -207,6 +260,9 @@ exports.updateAddress = catchAsync(async (req, res) => {
     }
 
     await user.save();
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
     return successResponse(res, user.addresses, 'Address updated successfully');
 });
 
@@ -230,6 +286,9 @@ exports.deleteAddress = catchAsync(async (req, res) => {
     }
     
     await user.save();
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
     return successResponse(res, user.addresses, 'Address deleted successfully');
 });
 
@@ -250,6 +309,9 @@ exports.setPrimaryAddress = catchAsync(async (req, res) => {
     }
 
     await user.save();
+    
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
     return successResponse(res, user.addresses, 'Primary address updated successfully');
 });
 
@@ -275,6 +337,8 @@ exports.updateFullProfile = catchAsync(async (req, res) => {
 
     const user = await Customer.findByIdAndUpdate(req.user._id, { $set: updateData }, { new: true }).select('-password');
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
+    
+    await user.save();
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);

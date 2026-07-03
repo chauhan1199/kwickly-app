@@ -65,9 +65,9 @@ const seedData = async () => {
             otp: { validityMinutes: 10, maxAttempts: 5, resendCooldownSeconds: 60 },
             maintenance: { mode: false, message: 'Platform under maintenance' },
             subscriptionPlans: [
-                { id: 'monthly', name: 'Monthly Pro', price: 499, interval: 'month', features: ['Priority support', 'Reduced commission', 'Featured tag'], active: true },
-                { id: 'semi', name: 'Half-Yearly Pro', price: 2499, interval: 'month', features: ['Priority support', 'Reduced commission', 'Featured tag'], active: true },
-                { id: 'annual', name: 'Annual Pro', price: 4499, interval: 'month', features: ['Priority support', 'Reduced commission', 'Featured tag'], active: true }
+                { id: 'monthly', label: 'Monthly Pro', price: 499, durationDays: 30, features: ['Priority support', 'Reduced commission', 'Featured tag'], isActive: true },
+                { id: 'semi', label: 'Half-Yearly Pro', price: 2499, durationDays: 180, features: ['Priority support', 'Reduced commission', 'Featured tag'], isActive: true },
+                { id: 'annual', label: 'Annual Pro', price: 4499, durationDays: 365, features: ['Priority support', 'Reduced commission', 'Featured tag'], isActive: true }
             ]
         });
         logger.info('App settings initialized.');

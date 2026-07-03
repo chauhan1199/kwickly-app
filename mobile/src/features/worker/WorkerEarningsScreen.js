@@ -20,6 +20,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { ArrowDown, ArrowUp, Gift, Landmark, Smartphone, Briefcase, DollarSign, Wallet, ShieldAlert, History, PlusCircle, CreditCard, ChevronRight, CheckCircle2, Clock } from 'lucide-react-native';
 import AppBar from '../../components/AppBar';
+import WorkerHeroHeader from '../../components/WorkerHeroHeader';
+import LinearGradient from 'react-native-linear-gradient';
 
 import { walletService } from '../../services/walletService';
 import { workerService } from '../../services/workerService';
@@ -32,6 +34,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
   const [wallet, setWallet] = useState({ balance: 0 });
   const [transactions, setTransactions] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [profile, setProfile] = useState(null);
   const [accounts, setAccounts] = useState([]);
 
@@ -50,12 +53,13 @@ const WorkerEarningsScreen = ({ navigation }) => {
   if (profile?.subscription?.expiryDate && new Date(profile.subscription.expiryDate) > new Date()) {
     isPlanActive = true;
     daysLeft = Math.ceil((new Date(profile.subscription.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-  } else {
-    const registrationDate = new Date(profile?.createdAt || Date.now());
-    const trialDurationDays = 180;
-    const trialEndDate = new Date(registrationDate.getTime() + trialDurationDays * 24 * 60 * 60 * 1000);
-    daysLeft = Math.max(0, Math.ceil((trialEndDate - new Date()) / (1000 * 60 * 60 * 24)));
+  } else if (profile?.subscription?.trialEndDate) {
+    daysLeft = Math.ceil((new Date(profile.subscription.trialEndDate) - new Date()) / (1000 * 60 * 60 * 24));
     isTrialActive = daysLeft > 0;
+    daysLeft = Math.max(0, daysLeft);
+  } else {
+    isTrialActive = false;
+    daysLeft = 0;
   }
   const isActive = isTrialActive || isPlanActive;
 
@@ -223,7 +227,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
-      <AppBar title="Earnings & Plan" />
+      <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
@@ -260,7 +264,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
             {isPlanActive 
               ? 'Your subscription is currently active. Top up your plan to extend.'
               : isTrialActive 
-                ? 'Your 6 months free trial is currently active. Top up your plan to extend.'
+                ? 'Your free trial is currently active. Top up your plan to extend.'
                 : 'Your free trial has ended. Please select a plan and top up to continue getting jobs.'}
           </Text>
           <TouchableOpacity 

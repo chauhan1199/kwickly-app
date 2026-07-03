@@ -20,7 +20,9 @@ import useSocket from '../../hooks/useSocket';
 import { jobService } from '../../services/jobService';
 import api from '../../services/api';
 import AppBar from '../../components/AppBar';
+import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import { Bell, Moon, Sun } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
 
 const WorkerDashboard = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -30,6 +32,7 @@ const WorkerDashboard = ({ navigation }) => {
   const [availableJobs, setAvailableJobs] = useState([]);
   const [walletBalance, setWalletBalance] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { socket } = useSocket({
     role: 'WORKER',
@@ -143,7 +146,7 @@ const WorkerDashboard = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
-      <AppBar title="Jobs" showBack={false} rightActions={true} />
+      <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       
       <ScrollView 
         showsVerticalScrollIndicator={false}
@@ -260,7 +263,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   scrollContent: {
-    paddingTop: 10,
+    paddingTop: 16,
     paddingHorizontal: 20,
   },
   header: {

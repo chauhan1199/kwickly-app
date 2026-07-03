@@ -16,10 +16,11 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
+import { shopService } from '../../services/shopService';
 import api from '../../services/api';
 import { ServiceCard } from '../../components/ui/ServiceCard';
 import LinearGradient from 'react-native-linear-gradient';
-import { Search, SlidersHorizontal, ChevronRight, Star, Zap, MapPin, Bell, Sun, Moon, User, Package } from 'lucide-react-native';
+import { Search, SlidersHorizontal, ChevronRight, Star, Zap, MapPin, Bell, Sun, Moon, User, Package, Store } from 'lucide-react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { SearchBar } from '../../components/ui/SearchBar';
 
@@ -113,6 +114,8 @@ const getServiceRating = (name) => {
   return SERVICE_RATINGS.default;
 };
 
+import { getImageUrl } from '../../utils/helpers';
+
 const HomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -121,6 +124,7 @@ const HomeScreen = ({ navigation }) => {
   const [activeJobs, setActiveJobs] = useState([]);
   const [activeShopOrders, setActiveShopOrders] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [shops, setShops] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Animations
@@ -164,6 +168,24 @@ const HomeScreen = ({ navigation }) => {
           })) || [],
           localImage: getServiceImage(c.name),
         })));
+      }
+
+      // Fetch Shops
+      try {
+        const shopsRes = await shopService.getShops({ limit: 5 });
+        if (shopsRes.data?.status === 'success') {
+          setShops(shopsRes.data.data?.shops || shopsRes.data.data || []);
+          
+          // TEMPORARY TEST:
+          if (shopsRes.data.data && shopsRes.data.data[0] && shopsRes.data.data[0].logoUrl) {
+            const testUrl = getImageUrl(shopsRes.data.data[0].logoUrl);
+            fetch(testUrl)
+              .then(r => console.log('EMULATOR FETCH TEST:', r.status, testUrl))
+              .catch(e => console.log('EMULATOR FETCH ERROR:', e.message));
+          }
+        }
+      } catch (e) {
+        console.error('Fetch shops error:', e);
       }
 
       if (userToken) {
@@ -307,15 +329,25 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {/* 3-column service grid */}
-          <View style={styles.serviceGrid}>
+          {/* Horizontal service slider */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            contentContainerStyle={styles.serviceSlider}
+          >
             {categories
               .filter(c => !searchQuery || c.label.toLowerCase().includes(searchQuery.toLowerCase()))
-              .slice(0, 6)
-              .map((cat, index) => (
-              <ServiceCard key={cat.id || index} cat={cat} index={index} theme={theme} onPress={(c) => navigation.navigate('SubCategories', c)} />
+              .map((cat, index, arr) => (
+              <ServiceCard 
+                key={cat.id || index} 
+                cat={cat} 
+                index={index} 
+                theme={theme} 
+                isLast={index === arr.length - 1}
+                onPress={(c) => navigation.navigate('SubCategories', c)} 
+              />
             ))}
-          </View>
+          </ScrollView>
 
           {/* ── BROWSE SHOPS ── */}
           <View style={[styles.sectionHeader, { marginTop: 12 }]}>
@@ -326,21 +358,50 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.shopGrid}>
-            {SHOP_CATEGORIES.map(cat => (
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            contentContainerStyle={styles.serviceSlider}
+          >
+            {shops.length > 0 ? shops.map((shop, index, arr) => (
               <TouchableOpacity
-                key={cat.id}
-                style={[styles.shopItem, { backgroundColor: theme.colors.card }]}
-                onPress={() => navigation.navigate('Shop')}
-                activeOpacity={0.8}
+                key={shop._id}
+                style={[
+                  styles.serviceCard, 
+                  { 
+                    backgroundColor: theme.colors.card, 
+                    borderColor: theme.colors.border,
+                    marginRight: index === arr.length - 1 ? 0 : 12
+                  }
+                ]}
+                onPress={() => navigation.navigate('ShopDetail', { shopId: shop._id })}
+                activeOpacity={0.88}
               >
-                <View style={[styles.shopIconBox, { backgroundColor: cat.color + '18' }]}>
-                  <Text style={{ fontSize: 24 }}>{cat.icon}</Text>
+                <View style={[styles.serviceCardImgBox, { backgroundColor: theme.colors.card }]}>
+                  {shop.logoUrl ? (
+                    <Image 
+                      source={{ uri: getImageUrl(shop.logoUrl) }} 
+                      style={styles.serviceCardImg} 
+                      resizeMode="contain" 
+                    />
+                  ) : (
+                    <View style={[styles.serviceCardImgFallback, { backgroundColor: PURPLE_LIGHT }]}>
+                      <Store color={PURPLE} size={32} />
+                    </View>
+                  )}
                 </View>
-                <Text style={[styles.shopLabel, { color: theme.colors.text }]}>{cat.label}</Text>
+                <View style={styles.serviceCardFooter}>
+                  <Text style={[styles.serviceCardName, { color: theme.colors.text }]} numberOfLines={1}>{shop.name}</Text>
+                  <View style={styles.serviceCardRatingRow}>
+                    <Star size={12} color="#F5A623" fill="#F5A623" />
+                    <Text style={styles.serviceCardRating}> {shop.rating || '4.5'} ({shop.totalOrders || 0})</Text>
+                  </View>
+                </View>
               </TouchableOpacity>
-            ))}
-          </View>
+            )) : (
+              <Text style={{ color: theme.colors.text, padding: 20 }}>No shops found near you.</Text>
+            )}
+          </ScrollView>
 
           {/* ── PROMO BANNER ── */}
           <LinearGradient
@@ -409,20 +470,20 @@ const HomeScreen = ({ navigation }) => {
               {activeShopOrders.map(order => (
                 <TouchableOpacity
                   key={order._id}
-                  style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: '#10b981' }]}
+                  style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: PURPLE }]}
                   activeOpacity={0.8}
                   onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order._id })}
                 >
                   <View style={styles.jobCardTop}>
-                    <View style={[styles.jobIconBox, { backgroundColor: '#10b98118' }]}>
+                    <View style={[styles.jobIconBox, { backgroundColor: PURPLE + '18' }]}>
                       <Text style={{ fontSize: 22 }}>📦</Text>
                     </View>
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>Order from {order.shopId?.name || 'Shop'}</Text>
                       <Text style={styles.jobSub}>Status: {order.status}</Text>
                     </View>
-                    <View style={[styles.statusPill, { backgroundColor: '#10b98118' }]}>
-                      <Text style={[styles.statusPillText, { color: '#10b981' }]}>TRACK</Text>
+                    <View style={[styles.statusPill, { backgroundColor: PURPLE + '18' }]}>
+                      <Text style={[styles.statusPillText, { color: PURPLE }]}>TRACK</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -684,11 +745,10 @@ const styles = StyleSheet.create({
   },
 
   // ── Service Cards (3-col, white bg, image top, text bottom) ──
-  serviceGrid: {
+  serviceSlider: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    marginBottom: 24,
+    alignItems: 'center',
+    paddingBottom: 24,
   },
   serviceCard: {
     width: CARD_W,

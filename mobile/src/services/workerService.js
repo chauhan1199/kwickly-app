@@ -22,23 +22,8 @@ export const workerService = {
   updateProfile: (data) =>
     api.patch('/workers/me/profile', data),
 
-  updateProfilePhoto: async (formData) => {
-    const token = await AsyncStorage.getItem('userToken');
-    const response = await fetch(`${BASE_URL}/workers/me/profile`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
-      body: formData,
-    });
-    if (!response.ok) {
-      let errorData;
-      try { errorData = await response.json(); } catch(e) { errorData = { message: 'Network Error or Server Error' }; }
-      throw { response: { data: errorData } };
-    }
-    return response.json();
-  },
+  updateProfilePhoto: (data) =>
+    api.post('/workers/me/profile', data),
 
   updateFullProfile: (data) =>
     api.put('/workers/me/profile', data),
@@ -52,23 +37,11 @@ export const workerService = {
   updateLocation: (data) =>
     api.patch('/workers/me/location', data),
 
-  updateKyc: async (formData) => {
-    const token = await AsyncStorage.getItem('userToken');
-    const response = await fetch(`${BASE_URL}/workers/me/kyc`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
-      body: formData,
-    });
-    if (!response.ok) {
-      let errorData;
-      try { errorData = await response.json(); } catch(e) { errorData = { message: 'Network Error or Server Error' }; }
-      throw { response: { data: errorData } };
-    }
-    return response.json();
-  },
+  updateKyc: (data) =>
+    api.post('/workers/me/kyc', data),
+
+  removeKycDocument: (docIndex) =>
+    api.delete(`/workers/me/kyc/${docIndex}`),
 
   updateBank: (data) =>
     api.patch('/workers/me/bank', data),

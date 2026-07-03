@@ -15,6 +15,9 @@ const AppSettingsSchema = new mongoose.Schema({
         minimumBalance: { type: Number, default: 100 },
         topupPresets: { type: [Number], default: [50, 100, 200, 500] }
     },
+    subscription: {
+        freeTrialDays: { type: Number, default: 14 }
+    },
     subscriptionPlans: [{
         id: String,
         label: String,

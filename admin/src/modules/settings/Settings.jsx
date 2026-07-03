@@ -50,7 +50,7 @@ export default function Settings() {
 
   const tabs = [
     { key: 'fees', label: '💰 Fees & Payments' },
-    { key: 'wallet', label: '👛 Wallet Config' },
+    { key: 'wallet', label: '👛 Wallet & Trials' },
     { key: 'radius', label: '📍 Search Radius' },
     { key: 'branding', label: '🏷️ Branding' },
     { key: 'maintenance', label: '🛠 Maintenance' },
@@ -144,7 +144,17 @@ export default function Settings() {
         {/* WALLET & TRIAL */}
         {activeTab === 'wallet' && (
           <div>
-            <div className="settings-section-title">Worker Wallet Configuration</div>
+            <div className="settings-section-title">Worker Wallet & Trial Configuration</div>
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">Worker Free Trial Duration</div>
+                <div className="settings-hint">Number of days a worker gets for free upon registration</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="number" className="form-control" style={{ width: 100 }} value={settings.freeTrialDays} onChange={e => set('freeTrialDays', e.target.value)} />
+                <span style={{ fontSize: 12, color: 'var(--mid)' }}>days</span>
+              </div>
+            </div>
             <div className="settings-row">
               <div>
                 <div className="settings-label">Minimum Wallet Balance</div>

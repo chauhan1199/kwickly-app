@@ -245,7 +245,7 @@ export default function Subscriptions() {
               </div>
               <div style={{ fontWeight: 800, fontSize: 28, color: 'var(--dark)' }}>
                 {plan.price === 0 ? 'Free' : `₹${plan.price}`}
-                <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--mid)' }}>/{plan.durationUnit}</span>
+                <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--mid)' }}>/{plan.durationDays} days</span>
               </div>
             </div>
             <div style={{ padding: '14px 20px 20px' }}>

@@ -8,6 +8,8 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { Briefcase, CheckCircle, XCircle, Clock, ChevronRight } from 'lucide-react-native';
 import AppBar from '../../components/AppBar';
+import WorkerHeroHeader from '../../components/WorkerHeroHeader';
+import LinearGradient from 'react-native-linear-gradient';
 import { jobService } from '../../services/jobService';
 
 const FILTERS = ['All', 'Pending', 'Accepted', 'Rejected'];
@@ -26,6 +28,7 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchQuotes();
@@ -117,7 +120,7 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <AppBar title="My Quotes" subtitle={`${stats.total} total quotes`} />
+      <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

@@ -47,12 +47,18 @@ exports.subscribe = catchAsync(async (req, res) => {
                 return errorResponse(res, 'Shop not found for this user', StatusCodes.NOT_FOUND);
             }
 
+            const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+
             if (shop.subscription?.expiryDate && new Date(shop.subscription.expiryDate) > new Date()) {
                 startDate = new Date(shop.subscription.expiryDate);
             } else if (shop.subscription?.isTrial !== false) {
-                const registrationDate = new Date(shop.createdAt || Date.now());
-                const trialEndDate = new Date(registrationDate.getTime() + 180 * 24 * 60 * 60 * 1000);
-                if (trialEndDate > new Date()) startDate = trialEndDate;
+                if (shop.subscription?.trialEndDate && new Date(shop.subscription.trialEndDate) > new Date()) {
+                    startDate = new Date(shop.subscription.trialEndDate);
+                } else {
+                    const registrationDate = new Date(shop.createdAt || Date.now());
+                    const trialEndDate = new Date(registrationDate.getTime() + freeTrialDays * 24 * 60 * 60 * 1000);
+                    if (trialEndDate > new Date()) startDate = trialEndDate;
+                }
             }
 
             endDate = new Date(startDate);
@@ -93,12 +99,18 @@ exports.subscribe = catchAsync(async (req, res) => {
                 return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
             }
 
+            const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+
             if (worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > new Date()) {
                 startDate = new Date(worker.subscription.expiryDate);
             } else if (worker.subscription?.isTrial !== false) {
-                const registrationDate = new Date(worker.createdAt || Date.now());
-                const trialEndDate = new Date(registrationDate.getTime() + 180 * 24 * 60 * 60 * 1000);
-                if (trialEndDate > new Date()) startDate = trialEndDate;
+                if (worker.subscription?.trialEndDate && new Date(worker.subscription.trialEndDate) > new Date()) {
+                    startDate = new Date(worker.subscription.trialEndDate);
+                } else {
+                    const registrationDate = new Date(worker.createdAt || Date.now());
+                    const trialEndDate = new Date(registrationDate.getTime() + freeTrialDays * 24 * 60 * 60 * 1000);
+                    if (trialEndDate > new Date()) startDate = trialEndDate;
+                }
             }
 
             endDate = new Date(startDate);

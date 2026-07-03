@@ -90,7 +90,7 @@ const WalletTopupScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <AppBar title="Top Up Wallet" packageRoute="CustomerShopOrders" />
+      <AppBar title="Top Up Wallet" packageRoute="CustomerShopOrders" showBack={true} />
 
       {/* Current Balance */}
       <View style={styles.balanceCard}>

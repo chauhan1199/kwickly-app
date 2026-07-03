@@ -258,6 +258,8 @@ exports.addKycDocument = catchAsync(async (req, res) => {
     worker.kyc.status = 'PENDING';
     await worker.save();
 
+    await delCache(`session:${id}`);
+
     logAdminActivity('KYC', 'KYC', id, 'KYC Document Added', `Admin added ${docType || 'document'} for worker "${worker.name}"`, req.user?._id);
 
     return successResponse(res, worker, 'Document uploaded successfully');
@@ -275,6 +277,8 @@ exports.removeKycDocument = catchAsync(async (req, res) => {
 
     worker.kyc.documents.splice(Number(docIndex), 1);
     await worker.save();
+    
+    await delCache(`session:${id}`);
 
     return successResponse(res, worker, 'Document removed');
 });
@@ -399,7 +403,7 @@ exports.updateUser = catchAsync(async (req, res) => {
         }
     }
 
-    if (services && services.length > 0) {
+    if (services !== undefined) {
         user.services = services.map(s => ({
             category: s.category,
             subcategories: s.subcategories || [],
@@ -420,6 +424,7 @@ exports.updateUser = catchAsync(async (req, res) => {
 
     await user.save();
 
+    await delCache(`session:${id}`);
     await delCache('admin_dashboard_stats');
     triggerDashboardUpdate();
 
@@ -1293,7 +1298,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
     }
 
     // Update corresponding WalletTxn if available
-    const mappedStatus = status === 'APPROVED' || status === 'TRANSFERRED' ? 'COMPLETED' : status;
+    const mappedStatus = status === 'TRANSFERRED' ? 'COMPLETED' : (status === 'APPROVED' ? 'PENDING' : status);
     const entityId = payout.workerId || payout.shopId;
     
     // In Kwickly Shop logic, WalletTxn userId is the owner's userId, but for shop it might be different. 
@@ -1305,7 +1310,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
         // Fallback for existing payouts
         wTxn = await WalletTxn.findOneAndUpdate({
             amount: payout.amount,
-            status: 'PENDING',
+            status: { $in: ['PENDING', 'APPROVED'] },
             type: 'WITHDRAWAL',
             ...(payout.workerId ? { userId: payout.workerId } : {})
         }, { status: mappedStatus }, { new: true });
@@ -1322,6 +1327,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
         title,
         message,
         type: 'DIRECT',
+        action: 'WALLET_UPDATE',
         targetRole: payout.shopId ? 'SHOP' : 'WORKER'
     });
 

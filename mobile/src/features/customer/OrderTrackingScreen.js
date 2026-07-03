@@ -112,7 +112,7 @@ const OrderTrackingScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <AppBar title={`Order ${order.orderNumber || '#' + order._id?.slice(-6)}`} packageRoute="CustomerShopOrders" />
+      <AppBar title={`Order ${order.orderNumber || '#' + order._id?.slice(-6)}`} packageRoute="CustomerShopOrders" showBack={true} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Status Hero */}

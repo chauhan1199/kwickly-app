@@ -75,6 +75,7 @@ const ShopProductsScreen = () => {
             icon: p.category === 'Grocery' ? '🛒' : '📦',
             color: colors[idx],
             bg: bgs[idx],
+            imageUrl: p.imageUrl,
             original: p
           };
         });
@@ -113,6 +114,7 @@ const ShopProductsScreen = () => {
       icon: product.icon,
       color: product.color,
       bg: product.bg,
+      imageUrl: product.imageUrl,
       image: null
     });
     setIsModalVisible(true);
@@ -244,8 +246,16 @@ const ShopProductsScreen = () => {
         <View style={styles.productsList}>
           {filteredProducts.map((product) => (
             <View key={product.id} style={styles.productCard}>
-              <View style={[styles.productIconBox, { backgroundColor: product.bg }]}>
-                <Text style={{ fontSize: 24 }}>{product.icon}</Text>
+              <View style={[styles.productIconBox, { backgroundColor: product.bg, overflow: 'hidden' }]}>
+                {product.imageUrl ? (
+                  <Image 
+                    source={{ uri: product.imageUrl.replace(/(localhost|127\.0\.0\.1)/, '10.0.2.2') + `?t=${new Date().getTime()}` }} 
+                    style={{ width: '100%', height: '100%' }} 
+                    resizeMode="cover" 
+                  />
+                ) : (
+                  <Text style={{ fontSize: 24 }}>{product.icon}</Text>
+                )}
               </View>
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{product.name}</Text>

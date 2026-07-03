@@ -18,7 +18,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const CustomerWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { fetchUser } = useAuth();
+  const { user, fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
   const [loading, setLoading] = useState(true);
@@ -105,6 +105,15 @@ const CustomerWalletScreen = ({ navigation }) => {
         });
 
         if (verifyRes.data?.status === 'success') {
+          // Add money to wallet via wallet topup endpoint
+          await api.post('/wallet/topup', {
+            amount,
+            paymentDetails: {
+              method: 'Razorpay',
+              paymentId: razorpayResponse.razorpay_payment_id
+            }
+          });
+
           if (fetchUser) await fetchUser();
           fetchWallet();
           setAddMoneyModal(false);
@@ -160,10 +169,10 @@ const CustomerWalletScreen = ({ navigation }) => {
         <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
         <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
 
-        <AppBar title="My Wallet" transparent={true} />
+        <AppBar title="My Wallet" transparent={true} showLogo={false} showBack={true} />
       </LinearGradient>
 
-      {/* Search - overlapping header */}
+      {/* Sticky Search - overlapping header */}
       <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
         <SearchBar 
           value={searchQuery}
@@ -172,7 +181,6 @@ const CustomerWalletScreen = ({ navigation }) => {
           placeholder="Search transactions..."
         />
       </View>
-
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -181,33 +189,20 @@ const CustomerWalletScreen = ({ navigation }) => {
       ) : (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
 
-        {/* Balance Card */}
-        <LinearGradient
-          colors={['#6C47FF', '#8B6FFF']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={styles.balanceCard}
-        >
+        {/* Clean Balance Card */}
+        <View style={styles.balanceCard}>
           <View style={styles.balanceCardInner}>
-            <Wallet size={28} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.balanceLabel}>Kwickly Wallet</Text>
+            <View style={{ backgroundColor: theme.colors.primary + '20', padding: 10, borderRadius: 16 }}>
+              <Wallet size={24} color={theme.colors.primary} />
+            </View>
+            <Text style={styles.balanceLabel}>Available Balance</Text>
           </View>
           <Text style={styles.balanceAmount}>₹{balance.toLocaleString('en-IN')}</Text>
-          <Text style={styles.balanceSub}>Available Balance</Text>
           <TouchableOpacity style={styles.addBtn} onPress={() => setAddMoneyModal(true)}>
-            <Plus size={16} color="#0e9aa7" />
+            <Plus size={16} color="#fff" />
             <Text style={styles.addBtnText}>Add Money</Text>
           </TouchableOpacity>
-        </LinearGradient>
-
-      {/* Search - overlapping header */}
-      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
-        <SearchBar 
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          theme={theme}
-          placeholder="Search transactions..."
-        />
-      </View>
+        </View>
 
         {/* Stats Row */}
         <View style={styles.statsRow}>
@@ -327,13 +322,12 @@ const CustomerWalletScreen = ({ navigation }) => {
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:      { flex: 1, backgroundColor: theme.colors.background },
   scroll:         { padding: 20 },
-  balanceCard:    { borderRadius: 28, padding: 28, marginBottom: 24, elevation: 8, shadowColor: '#0e9aa7', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10 },
-  balanceCardInner:{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  balanceLabel:   { fontSize: 15, color: 'rgba(255,255,255,0.9)', fontWeight: '700' },
-  balanceAmount:  { fontSize: 44, fontWeight: '900', color: '#fff', marginBottom: 4, letterSpacing: -1 },
-  balanceSub:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 24, fontWeight: '500' },
-  addBtn:         { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', alignSelf: 'flex-start', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  addBtnText:     { fontSize: 14, fontWeight: '800', color: '#6C47FF' },
+  balanceCard:    { backgroundColor: theme.colors.surface, borderRadius: 24, padding: 24, marginBottom: 24, borderWidth: 1, borderColor: theme.colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
+  balanceCardInner:{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  balanceLabel:   { fontSize: 16, color: theme.colors.textDim, fontWeight: '700' },
+  balanceAmount:  { fontSize: 40, fontWeight: '900', color: theme.colors.text, marginBottom: 20, letterSpacing: -1 },
+  addBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.colors.primary, paddingHorizontal: 22, paddingVertical: 14, borderRadius: 16 },
+  addBtnText:     { fontSize: 15, fontWeight: '800', color: '#fff' },
   statsRow:       { flexDirection: 'row', backgroundColor: theme.colors.surface, borderRadius: 24, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 32, paddingVertical: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   statBox:        { flex: 1, alignItems: 'center', paddingVertical: 16, gap: 8 },
   statNum:        { fontSize: 17, fontWeight: '900', color: theme.colors.text },

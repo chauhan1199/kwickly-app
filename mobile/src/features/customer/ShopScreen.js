@@ -9,7 +9,8 @@ import {
   TextInput,
   StatusBar,
   Dimensions,
-  Platform
+  Platform,
+  Image
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -25,6 +26,8 @@ import { SearchBar } from '../../components/ui/SearchBar';
 
 
 
+import { getImageUrl } from '../../utils/helpers';
+
 const ShopScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const [filter, setFilter] = useState('All');
@@ -32,6 +35,7 @@ const ShopScreen = ({ navigation }) => {
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debugError, setDebugError] = useState(null);
 
   const chips = ['All', 'Groceries', 'Pharmacy', 'Dairy', 'Bakery'];
 
@@ -43,8 +47,9 @@ const ShopScreen = ({ navigation }) => {
     try {
       setLoading(true);
       const res = await shopService.getShops();
-      // Backend returns array directly in data.data
-      const fetchedShops = Array.isArray(res.data.data) ? res.data.data : [];
+      // Handle both array and paginated object
+      const payload = res.data?.data;
+      const fetchedShops = Array.isArray(payload) ? payload : (payload?.shops || []);
       
       const mappedShops = fetchedShops.map((s) => ({
         id: s._id,
@@ -58,7 +63,8 @@ const ShopScreen = ({ navigation }) => {
         icon: '🏪',
         color: '#0E9AA7',
         isOnline: s.isOnline,
-        address: s.address || ''
+        address: s.address || '',
+        logoUrl: s.logoUrl || null
       }));
       setShops(mappedShops);
 
@@ -73,7 +79,7 @@ const ShopScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.log("Error fetching shops:", error);
-      // Removed fallback to let it show empty state if error occurs
+      setDebugError(error.response?.data?.message || error.message);
     } finally {
       setLoading(false);
     }
@@ -98,7 +104,7 @@ const ShopScreen = ({ navigation }) => {
         <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
         <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
 
-        <AppBar title="Nearby Shops" subtitle="Buy daily essentials" transparent={true} showLogo={false} />
+        <AppBar title="Nearby Shops" subtitle="Buy daily essentials" transparent={true} showLogo={false} showBack={true} />
       </LinearGradient>
 
       {/* Search - overlapping header */}
@@ -141,6 +147,8 @@ const ShopScreen = ({ navigation }) => {
       <View style={styles.content}>
         {loading ? (
           <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
+        ) : debugError ? (
+          <Text style={{ textAlign: 'center', marginTop: 40, color: 'red' }}>Error: {debugError}</Text>
         ) : filteredShops.length === 0 ? (
           <Text style={{ textAlign: 'center', marginTop: 40, color: theme.colors.textDim }}>No shops found.</Text>
         ) : filteredShops.map((shop) => (
@@ -150,9 +158,13 @@ const ShopScreen = ({ navigation }) => {
             isDarkMode={isDarkMode}
             onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id })}
           >
-            <View style={styles.shopRow}>
-               <View style={[styles.shopIconBox, { backgroundColor: shop.color + '26' }]}>
-                 <Text style={{fontSize: 26}}>{shop.icon}</Text>
+             <View style={styles.shopRow}>
+               <View style={[styles.shopIconBox, { backgroundColor: shop.color + '26', overflow: 'hidden' }]}>
+                 {shop.logoUrl ? (
+                   <Image source={{ uri: getImageUrl(shop.logoUrl) }} style={{ width: 54, height: 54, borderRadius: 16 }} resizeMode="cover" />
+                 ) : (
+                   <Text style={{fontSize: 26}}>{shop.icon}</Text>
+                 )}
                </View>
                <View style={{ flex: 1 }}>
                  <Text style={styles.shopName}>{shop.name}</Text>

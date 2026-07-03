@@ -55,7 +55,8 @@ exports.createOrder = catchAsync(async (req, res) => {
         }, 'Razorpay order created', StatusCodes.CREATED);
 
     } catch (error) {
-        return errorResponse(res, 'Failed to create payment order: ' + error.message, StatusCodes.INTERNAL_SERVER_ERROR);
+        const errMsg = error.error?.description || error.message || 'Unknown payment error';
+        return errorResponse(res, 'Failed to create payment order: ' + errMsg, StatusCodes.INTERNAL_SERVER_ERROR);
     }
 });
 

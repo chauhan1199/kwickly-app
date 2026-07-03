@@ -16,6 +16,8 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { customerService } from '../../services/customerService';
+import LinearGradient from 'react-native-linear-gradient';
+import AppBar from '../../components/AppBar';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 
 const EditProfileScreen = ({ navigation }) => {
@@ -100,15 +102,27 @@ const EditProfileScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
       
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('Profile')}>
-          <Text style={styles.backBtnText}>‹</Text>
-        </TouchableOpacity>
-        <Text style={styles.appBarTitle}>Edit Profile</Text>
-      </View>
+      {/* Unified App Bar inside a purple gradient */}
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingBottom: 30, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+      >
+        {/* Dynamic background shapes */}
+        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+
+        <AppBar 
+          title="Edit Profile"
+          showBack={true}
+          transparent={true} 
+          showLogo={false}
+          onBackPress={() => navigation.navigate('Profile')}
+        />
+      </LinearGradient>
 
       <View style={styles.content}>
         

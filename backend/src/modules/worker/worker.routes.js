@@ -10,8 +10,11 @@ router.use(authMiddleware);
 // -- Worker Profile & Settings --
 router.get('/me', authorize('WORKER'), workerController.getProfile);
 router.patch('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateProfile);
+router.post('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateProfile);
 router.put('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateFullProfile);
 router.patch('/me/kyc', authorize('WORKER'), upload.single('document'), workerController.updateKyc);
+router.post('/me/kyc', authorize('WORKER'), upload.single('document'), workerController.updateKyc);
+router.delete('/me/kyc/:docIndex', authorize('WORKER'), workerController.removeKycDocument);
 router.patch('/me/bank', workerController.updateBank);
 router.patch('/me/services', workerController.updateServices);
 router.patch('/me/location', workerController.updateLocation);

@@ -48,22 +48,16 @@ const SubCategoriesScreen = ({ route, navigation }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Provide default values so it doesn't crash if accessed directly
   const {
-    id = 'cleaning',
-    name = 'Cleaning',
-    icon = '🧹',
+    id,
+    name = 'Category',
+    icon = '✨',
     color = PURPLE,
     imageUrl = null,
-    subs = ['Home Cleaning', 'Sofa Cleaning', 'Kitchen Deep Clean', 'Bathroom Cleaning']
+    subs = []
   } = route.params || {};
 
-  console.log('SubCategoriesScreen loaded with route.params:', JSON.stringify(route.params));
-
-  // Pick a gradient based on simple string hash of id
   const heroGradient = ['#6C47FF', '#8B6FFF'];
-
-  // Resolve image URL
   const resolvedHeroImage = imageUrl ? (imageUrl.startsWith('http') ? imageUrl : `${BASE_IMAGE_URL}${imageUrl}`) : null;
 
   const [localSubs, setLocalSubs] = useState(subs || []);
@@ -73,7 +67,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
     try {
       const res = await jobService.getCategories();
       if (res.data?.status === 'success') {
-        const cat = res.data.data.find(c => c._id === id || c.name === name);
+        const cat = res.data.data.find(c => (id && c._id === id) || c.name === name);
         if (cat && cat.subcategories) {
           setLocalSubs(cat.subcategories);
         }
@@ -90,12 +84,15 @@ const SubCategoriesScreen = ({ route, navigation }) => {
   };
 
   React.useEffect(() => {
+    if (route.params?.subs?.length) {
+      setLocalSubs(route.params.subs);
+    }
     loadSubs();
     const sub = DeviceEventEmitter.addListener('NEW_NOTIFICATION', () => {
       loadSubs();
     });
     return () => sub.remove();
-  }, []);
+  }, [route.params]);
 
   const styles = createStyles(theme, isDarkMode);
 

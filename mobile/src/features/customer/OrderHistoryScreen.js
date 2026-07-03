@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, FlatList,
-  TouchableOpacity, StatusBar, ActivityIndicator, RefreshControl
+  TouchableOpacity, StatusBar, ActivityIndicator, RefreshControl, TextInput
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import AppBar from '../../components/AppBar';
 import api from '../../services/api';
-import { Package, ChevronRight, Clock } from 'lucide-react-native';
+import { Package, ChevronRight, Clock, Search } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { SearchBar } from '../../components/ui/SearchBar';
 
 const STATUS_COLORS = {
   NEW: { bg: '#FEF3C7', text: '#D97706', label: 'New' },
@@ -25,8 +27,9 @@ const OrderHistoryScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => { loadOrders(); }, [filter]);
+  useEffect(() => { loadOrders(); }, []);
 
   const loadOrders = async () => {
     try {
@@ -47,9 +50,12 @@ const OrderHistoryScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const filteredOrders = filter === 'all'
-    ? orders
-    : orders.filter(o => o.status === filter);
+  const filteredOrders = orders.filter(o => {
+    const matchesFilter = filter === 'all' || o.status === filter;
+    const matchesSearch = o.shopId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (o.orderNumber || '').toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
 
   const renderOrder = ({ item }) => {
     const status = STATUS_COLORS[item.status] || STATUS_COLORS.NEW;
@@ -101,7 +107,30 @@ const OrderHistoryScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <AppBar title="My Orders" subtitle={`${orders.length} orders`} packageRoute="CustomerShopOrders" />
+      
+      {/* Unified App Bar inside a purple gradient */}
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, position: 'relative', overflow: 'hidden' }}
+      >
+        {/* Dynamic background shapes */}
+        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+
+        <AppBar title="My Orders" subtitle={`${orders.length} orders`} hideRightIcons={true} transparent={true} showLogo={false} showBack={true} onBackPress={() => navigation.navigate('Profile')} />
+      </LinearGradient>
+
+      {/* Search - overlapping header */}
+      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
+        <SearchBar 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          theme={theme}
+          placeholder="Search by shop or order number..."
+        />
+      </View>
 
       {/* Filter Tabs */}
       <View style={styles.filterRow}>
@@ -129,8 +158,8 @@ const OrderHistoryScreen = ({ navigation }) => {
           !loading ? (
             <View style={styles.emptyState}>
               <Package size={48} color={theme.colors.textDim} />
-              <Text style={styles.emptyTitle}>No orders yet</Text>
-              <Text style={styles.emptyDesc}>Your order history will appear here</Text>
+              <Text style={styles.emptyTitle}>No orders found</Text>
+              <Text style={styles.emptyDesc}>Try adjusting your search or filter</Text>
             </View>
           ) : null
         }

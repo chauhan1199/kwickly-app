@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView,
   TouchableOpacity, StatusBar, FlatList, Alert, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal, Image
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -14,6 +15,7 @@ import {
   ShoppingCart, Minus, Plus, Trash2, MapPin, CreditCard,
   Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone
 } from 'lucide-react-native';
+import { getImageUrl } from '../../utils/helpers';
 
 const CartScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -214,7 +216,15 @@ const CartScreen = ({ route, navigation }) => {
   const renderCartItem = ({ item }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemEmoji}>
-        <Text style={{ fontSize: 24 }}>{item.imageUrl || '📦'}</Text>
+        {item.imageUrl && (item.imageUrl.startsWith('/') || item.imageUrl.startsWith('http')) ? (
+          <Image 
+            source={{ uri: getImageUrl(item.imageUrl) }} 
+            style={{ width: '100%', height: '100%', borderRadius: 12 }} 
+            resizeMode="contain" 
+          />
+        ) : (
+          <Text style={{ fontSize: 24 }}>{item.imageUrl || '📦'}</Text>
+        )}
       </View>
       <View style={styles.itemInfo}>
         <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
@@ -248,8 +258,26 @@ const CartScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <AppBar title="My Cart" subtitle={`${itemCount} items`} packageRoute="CustomerShopOrders" />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
+      
+      {/* CUSTOM HEADER */}
+      <LinearGradient
+        colors={['#6C47FF', '#8B6FFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingBottom: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, position: 'relative', overflow: 'hidden' }}
+      >
+        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+
+        <AppBar 
+          showBack={true} 
+          title="My Cart" 
+          subtitle={`${itemCount} items`} 
+          transparent={true} 
+          showLogo={false} 
+        />
+      </LinearGradient>
 
       {!cart || !cart.items?.length ? (
         <View style={styles.emptyState}>

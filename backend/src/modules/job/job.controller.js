@@ -7,7 +7,7 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToAll, emitToRoom } = require('../../helpers/socket.helper');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
-
+const { findEligibleWorkers } = require('../../helpers/worker.helper');
 
 /**
  * ─── WORKER ELIGIBILITY CRITERIA (ALL must be true) ─────────────────────────
@@ -46,6 +46,16 @@ exports.createJob = catchAsync(async (req, res) => {
         return errorResponse(res, 'Job location coordinates are required', StatusCodes.BAD_REQUEST);
     }
 
+    // Check maximum active jobs limit (max 5)
+    const activeJobsCount = await Job.countDocuments({
+        customerId: req.user._id,
+        status: { $nin: ['COMPLETED', 'CANCELLED'] }
+    });
+
+    if (activeJobsCount >= 5) {
+        return errorResponse(res, 'You can only have up to 5 ongoing requests at a time. Please wait for them to complete or cancel an existing request.', StatusCodes.BAD_REQUEST);
+    }
+
     // ── Step 1: Load platform settings (Redis cached, 10 min TTL) ──────────────
     let settings = await getCache('app_settings');
     if (!settings) {
@@ -81,90 +91,12 @@ exports.createJob = catchAsync(async (req, res) => {
         broadcast: { round: 0, lastAttemptAt: new Date(), radiusKm: initialRadiusKm }
     });
 
-    const now = new Date();
-    const [jobLng, jobLat] = location.coordinates;  // GeoJSON: [longitude, latitude]
+    // ── Step 2 & 3: Find ALL eligible workers using server-side criteria ────────────
+    const eligibleWorkerIds = await findEligibleWorkers(job, initialRadiusKm, minBalance);
 
-    // ── Step 2: Find ALL eligible workers using server-side criteria ────────────
-
-    const globalRadiusRadians = initialRadiusKm / 6371; // Earth radius 6371 km
-
-    const workerQuery = {
-        role: 'WORKER',
-        isVerified: true,
-        'kyc.status': 'APPROVED',
-        isOnline: true,
-        $or: [
-            { 'subscription.isTrial': true },
-            { 'subscription.expiryDate': { $gt: now } },
-            { createdAt: { $gt: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000) } }
-        ],
-        'wallet.balance': { $gte: minBalance },
-        activeLocation: {
-            $geoWithin: {
-                $centerSphere: [
-                    location.coordinates,
-                    globalRadiusRadians     // outer bound: current radius
-                ]
-            }
-        }
-    };
-
-    if (targetCity) {
-        workerQuery.city = { $regex: new RegExp('^' + targetCity + '$', 'i') }; // Case-insensitive exact match
-    }
-
-    // Fetch candidate workers within global max radius (coarse filter via index)
-    const candidateWorkers = await Customer.find(workerQuery)
-        .select('_id services serviceRadius activeLocation city')
-        .lean();
-
-    // ── Step 3: Fine-filter per worker — category match + own serviceRadius ─────
-    //
-    // MongoDB can't do per-document dynamic radius in a single query,
-    // so we do the precise radius and category checks in JS (fast — only
-    // workers already within globalMaxKm are in candidateWorkers array).
-
-    const targetJobCategory = (category || '').trim().toLowerCase();
-
-    const eligibleWorkerIds = candidateWorkers.filter(worker => {
-
-        // ── Criteria 7: Category match ─────────────────────────────────────────
-        // Worker must have an ACTIVE service whose category name matches the job
-        const hasMatchingCategory = (worker.services || []).some(svc => {
-            if (!svc.isActive) return false;
-            // svc.category may be an ObjectId (not populated here) or a name string
-            // We store it as ObjectId ref to Category, but we also match by name
-            // stored in worker.services[].subcategories or directly.
-            // Since we don't populate here, we match by the string field if present.
-            // If category is stored as ObjectId, a separate pre-computed name cache
-            // on the worker document is needed. We handle both cases:
-            const catName = (svc.categoryName || svc.category?.name || '').toString().trim().toLowerCase();
-            return catName === targetJobCategory;
-        });
-
-        if (!hasMatchingCategory) return false;
-
-        // ── Criteria 8: Worker's OWN serviceRadius ─────────────────────────────
-        const workerCoords = worker.activeLocation?.coordinates;
-        if (!workerCoords || workerCoords.length !== 2) return false;
-
-        const [wLng, wLat] = workerCoords;
-        const workerRadiusKm = worker.serviceRadius || globalMaxKm;
-
-        // Haversine distance calculation (km)
-        const R = 6371;
-        const dLat = ((jobLat - wLat) * Math.PI) / 180;
-        const dLng = ((jobLng - wLng) * Math.PI) / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos((wLat * Math.PI) / 180) *
-            Math.cos((jobLat * Math.PI) / 180) *
-            Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        const distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        return distanceKm <= workerRadiusKm; // Worker's own radius, not global
-    }).map(w => w._id.toString());
-
+    // Update job to broadcast round 1
+    job.broadcast.round = 1;
+    await job.save();
     // ── Step 4: Load customer info for the notification payload ─────────────────
     const customer = await Customer.findById(req.user._id)
         .select('name phone profileImage')
@@ -305,8 +237,15 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
     const isPaidSubActive = worker.subscription?.expiryDate &&
         new Date(worker.subscription.expiryDate) > now;
 
-    // Fallback: 180 days from registration
-    const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + 180 * 24 * 60 * 60 * 1000 > now.getTime();
+    // Fallback: Use freeTrialDays from registration
+    let settings = await getCache('app_settings');
+    if (!settings) {
+        const AppSettings = require('../settings/settings.model');
+        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+        if (settings) await setCache('app_settings', settings, 600);
+    }
+    const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+    const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
 
     const isSubscriptionValid = isTrialActive || isPaidSubActive || isFallbackTrialActive;
 
@@ -319,12 +258,6 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
     }
 
     // ── Criteria 6: Wallet balance ──────────────────────────────────────────────
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
     const minBalance = settings?.wallet?.minimumBalance || 100;
     if ((worker.wallet?.balance || 0) < minBalance) {
         return errorResponse(
@@ -709,11 +642,21 @@ exports.rateJob = catchAsync(async (req, res) => {
     return successResponse(res, job, 'Job rated successfully');
 });
 
-// ─── DELETE /api/v1/jobs/:id (Admin cancel) ───────────────────────────────────
+// ─── PATCH /api/v1/jobs/:id/cancel ───────────────────────────────────
 exports.cancelJob = catchAsync(async (req, res) => {
     const job = await Job.findById(req.params.id);
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
 
+    if (req.user.role === 'CUSTOMER' && String(job.customerId) !== String(req.user._id)) {
+        return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
+    }
+
+    const forbiddenStates = ['IN_PROGRESS', 'COMPLETED', 'PAID', 'CLOSED', 'CANCELLED', 'DISPUTED'];
+    if (forbiddenStates.includes(job.status)) {
+        return errorResponse(res, `Job cannot be cancelled because it is already ${job.status.toLowerCase()}`, StatusCodes.BAD_REQUEST);
+    }
+
+    const previousStatus = job.status;
     job.status = 'CANCELLED';
     await job.save();
 
@@ -731,7 +674,14 @@ exports.cancelJob = catchAsync(async (req, res) => {
             targetRole: 'CUSTOMER'
         });
     }
-    if (job.workerId) {
+
+    if (job.workerId) { // ALLOCATED or ARRIVING
+        emitToRoom(`worker_${job.workerId}`, 'JOB_STATUS_CHANGED', { 
+            jobId: job._id, 
+            status: 'CANCELLED', 
+            reason: req.user.role === 'CUSTOMER' ? 'Cancelled by customer' : 'Cancelled by admin'
+        });
+
         notifyUser({
             userId: job.workerId,
             title: '❌ Job Cancelled',
@@ -740,6 +690,26 @@ exports.cancelJob = catchAsync(async (req, res) => {
             entityType: 'JOB',
             entityId: job._id,
             targetRole: 'WORKER'
+        });
+    } else if (previousStatus === 'QUOTES_RECEIVED' || previousStatus === 'BROADCASTING') {
+        // Find if anyone quoted and notify them
+        const Quote = require('../quote/quote.model');
+        const quotes = await Quote.find({ jobId: job._id });
+        quotes.forEach(q => {
+            emitToRoom(`worker_${q.workerId}`, 'JOB_STATUS_CHANGED', { 
+                jobId: job._id, 
+                status: 'CANCELLED', 
+                reason: req.user.role === 'CUSTOMER' ? 'Cancelled by customer' : 'Cancelled by admin'
+            });
+            notifyUser({
+                userId: q.workerId,
+                title: '❌ Job Cancelled',
+                message: `Job #${String(job._id).slice(-6)} you bid on has been cancelled.`,
+                action: 'JOB_UPDATED',
+                entityType: 'JOB',
+                entityId: job._id,
+                targetRole: 'WORKER'
+            });
         });
     }
 
