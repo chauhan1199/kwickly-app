@@ -22,7 +22,7 @@ const NotificationSchema = new mongoose.Schema({
     action: {
         type: String,
         enum: ['CREATE', 'UPDATE', 'DELETE', 'TOGGLE_STATUS', 'KYC', 'PAYOUT',
-               'WALLET_CREDIT', 'WALLET_DEBIT', 'IMPERSONATE', 'SETTLE',
+               'WALLET_CREDIT', 'WALLET_DEBIT', 'WALLET_UPDATE', 'IMPERSONATE', 'SETTLE',
                'BROADCAST', 'SYSTEM', 'OTHER', 'JOB_CREATED', 'JOB_UPDATED',
                'JOB_CANCELLED', 'QUOTE_RECEIVED', 'ORDER_PLACED', 'ORDER_UPDATED',
                'ORDER_CANCELLED', 'ORDER_DELIVERED'],

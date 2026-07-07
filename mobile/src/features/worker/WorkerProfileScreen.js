@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -471,13 +471,13 @@ const WorkerProfileScreen = ({ navigation }) => {
           {renderMenuItem(
             <ShieldCheck size={20} color={isKycApproved ? theme.colors.primary : theme.colors.danger} />, 
             'KYC & Documents', 
-            isKycApproved ? 'Verified ✓' : `Status: ${kycStatus}`, 
+            `${profile?.kyc?.documents?.length || 0} Docs Uploaded`, 
             () => setActiveModal('kyc')
           )}
           {renderMenuItem(
             <Building2 size={20} color={theme.colors.textDim} />, 
             'Bank Account & UPI', 
-            hasBank ? 'Setup Completed' : 'Add Account', 
+            `${(profile?.wallet?.bankDetails?.accountNumber ? 1 : 0) + (profile?.wallet?.upiId ? 1 : 0)} Saved Accounts`, 
             () => setActiveModal('bank')
           )}
           {renderMenuItem(
@@ -821,6 +821,7 @@ const WorkerProfileScreen = ({ navigation }) => {
               <Text style={[styles.inputLabel, { marginTop: 16 }]}>Pin Location</Text>
               <View style={{ height: 150, borderRadius: 12, overflow: 'hidden', marginBottom: 16, backgroundColor: theme.colors.border }}>
                 <MapView
+                  provider={PROVIDER_GOOGLE}
                   style={{ flex: 1 }}
                   initialRegion={{
                     latitude: addrCoordinate?.latitude || 19.0760,

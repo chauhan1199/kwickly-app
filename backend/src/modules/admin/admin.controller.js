@@ -568,7 +568,7 @@ exports.toggleShopStatus = catchAsync(async (req, res) => {
 });
 
 exports.createShopAdmin = catchAsync(async (req, res) => {
-    const { ownerPhone, ownerName, ownerEmail, name, category, description, address, logoUrl, location, delivery, businessHours, subscription } = req.body;
+    const { ownerPhone, ownerName, ownerEmail, name, category, description, address, logoUrl, location, delivery, deliveryConfig, businessHours, subscription } = req.body;
 
     let owner = await Customer.findOne({ phone: ownerPhone, role: 'SHOP' });
     if (!owner) {
@@ -591,6 +591,7 @@ exports.createShopAdmin = catchAsync(async (req, res) => {
         name, category, description, address, logoUrl,
         location: location || { type: 'Point', coordinates: [0, 0] },
         delivery: delivery || { radiusKm: 3, fee: 40, freeAbove: 1000 },
+        deliveryConfig: deliveryConfig || { deliveryRadiusKm: 3, deliveryCharge: 40, freeDeliveryAbove: 1000, minOrderAmount: 100, discountEnabled: false, discountAbove: 1000, discountType: 'flat', discountValue: 100, discountPct: 10, maxDiscountCap: 200, sameDayDelivery: true, deliverySlots: [] },
         businessHours: businessHours || { monFri: '9 AM - 10 PM', sat: '9 AM - 10 PM', sun: '9 AM - 10 PM' },
         subscription: subscription || { plan: 'FREE_TRIAL' },
         kyc: { status: 'PENDING' }
@@ -613,7 +614,7 @@ exports.createShopAdmin = catchAsync(async (req, res) => {
 });
 
 exports.updateShopAdminFull = catchAsync(async (req, res) => {
-    const { name, category, description, address, logoUrl, location, delivery, businessHours, subscription, isOnline } = req.body;
+    const { name, category, description, address, logoUrl, location, delivery, deliveryConfig, businessHours, subscription, isOnline } = req.body;
 
     const shop = await Shop.findById(req.params.id);
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
@@ -633,6 +634,14 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
     const parsedDelivery = safeParse(delivery);
     if (parsedDelivery) shop.delivery = { ...shop.delivery, ...parsedDelivery };
 
+    const parsedDeliveryConfig = safeParse(deliveryConfig);
+    if (parsedDeliveryConfig) {
+        if (!shop.deliveryConfig) shop.deliveryConfig = {};
+        for (const key in parsedDeliveryConfig) {
+            shop.deliveryConfig[key] = parsedDeliveryConfig[key];
+        }
+    }
+
     const parsedHours = safeParse(businessHours);
     if (parsedHours) shop.businessHours = { ...shop.businessHours, ...parsedHours };
 
@@ -642,6 +651,11 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
     if (req.file) {
         shop.logoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     }
+
+    shop.markModified('delivery');
+    shop.markModified('deliveryConfig');
+    shop.markModified('businessHours');
+    shop.markModified('subscription');
 
     await shop.save();
     const populated = await shop.populate('ownerId', 'name phone email');

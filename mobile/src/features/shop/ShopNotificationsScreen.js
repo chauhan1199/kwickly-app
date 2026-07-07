@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
-import { Bell, CheckCheck, ChevronLeft, CircleAlert } from 'lucide-react-native';
+import { Bell, CheckCheck, ChevronLeft, CircleAlert, Sun, Moon } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
 export default function ShopNotificationsScreen({ navigation }) {
-  const { theme, isDarkMode } = useTheme();
-  const styles = createStyles(theme);
+  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const styles = createStyles(theme, isDarkMode);
   const { user } = useAuth();
   
   const [notifications, setNotifications] = useState([]);
@@ -83,14 +84,25 @@ export default function ShopNotificationsScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
+      {/* ── App Bar ── */}
       <View style={styles.appBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.appBarTitle}>Notifications</Text>
-        <TouchableOpacity onPress={markAllAsRead} style={styles.markAllBtn}>
-          <CheckCheck size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity style={[styles.appBarIconBtn, { marginRight: 12, borderWidth: 0, backgroundColor: 'transparent' }]} onPress={() => navigation.goBack()}>
+            <ChevronLeft size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.appBarTitle} numberOfLines={1}>Notifications</Text>
+            <Text style={styles.appBarSubtitle}>Your shop alerts</Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
+            {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.appBarIconBtn} onPress={markAllAsRead}>
+            <CheckCheck size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -110,31 +122,15 @@ export default function ShopNotificationsScreen({ navigation }) {
   );
 }
 
-const createStyles = (theme) => StyleSheet.create({
+const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  appBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  backBtn: {
-    padding: 4,
-  },
-  appBarTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  markAllBtn: {
-    padding: 4,
-  },
+  appBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: theme.colors.background },
+  appBarTitle:  { fontSize: 20, fontWeight: '800', color: theme.colors.text },
+  appBarSubtitle: { fontSize: 13, color: theme.colors.textDim, marginTop: 2 },
+  appBarIconBtn:{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, justifyContent: 'center', alignItems: 'center' },
   listContent: {
     padding: 16,
   },

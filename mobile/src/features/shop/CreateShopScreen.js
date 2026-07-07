@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Store, MapPin } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
@@ -187,6 +187,7 @@ export default function CreateShopScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
               <MapView
+                provider={PROVIDER_GOOGLE}
                 style={{ flex: 1 }}
                 initialRegion={{ latitude: tempLocation.lat, longitude: tempLocation.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
                 onPress={(e) => setTempLocation({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude })}

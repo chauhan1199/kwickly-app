@@ -82,6 +82,7 @@ export default function Shops() {
     ownerName: '', ownerPhone: '', ownerEmail: '',
     businessHoursMonFri: '9 AM - 10 PM', businessHoursSat: '9 AM - 10 PM', businessHoursSun: 'Closed',
     deliveryRadius: 3, deliveryFee: 40, deliveryFreeAbove: 1000,
+    minOrderAmount: 100, discountEnabled: false, discountAbove: 1000, discountType: 'flat', discountValue: 100, discountPct: 10, maxDiscountCap: 200, sameDayDelivery: true, deliverySlots: [],
     subscriptionPlan: 'FREE_TRIAL',
   })
   const [shopFormErrors, setShopFormErrors] = useState({})
@@ -136,14 +137,20 @@ export default function Shops() {
   const [savingHours, setSavingHours] = useState(false)
 
   const [showDeliveryEditModal, setShowDeliveryEditModal] = useState(false)
-  const [deliveryEditForm, setDeliveryEditForm] = useState({ radiusKm: 3, fee: 40, freeAbove: 1000 })
+  const [deliveryEditForm, setDeliveryEditForm] = useState({ radiusKm: 3, fee: 40, freeAbove: 1000, minOrderAmount: 100, discountEnabled: false, discountAbove: 1000, discountType: 'flat', discountValue: 100, discountPct: 10, maxDiscountCap: 200, sameDayDelivery: true, deliverySlots: [] })
   const [savingDelivery, setSavingDelivery] = useState(false)
+  const [newSlot, setNewSlot] = useState({ label: '', slotOpen: '', slotClose: '' })
 
   const [showSubEditModal, setShowSubEditModal] = useState(false)
   const [subEditPlan, setSubEditPlan] = useState('FREE_TRIAL')
   const [savingSub, setSavingSub] = useState(false)
 
-  useEffect(() => { fetchShops() }, [])
+  useEffect(() => {
+    fetchShops()
+    const handler = () => fetchShops()
+    window.addEventListener('admin-action', handler)
+    return () => window.removeEventListener('admin-action', handler)
+  }, [])
 
   const fetchShops = async () => {
     setLoading(true)
@@ -236,7 +243,15 @@ export default function Shops() {
     }
   }
 
-  const openEditShop = (shop) => {
+  const openEditShop = async (initialShop) => {
+    let shop = initialShop;
+    try {
+      const res = await api.get(`/shops/${shop._id}`);
+      if (res.data.status === 'success') {
+        shop = res.data.data;
+      }
+    } catch (e) {}
+
     const addr = parseAddress(shop.address)
     const loc = shop.location?.coordinates || [0, 0]
     setEditShop(shop)
@@ -246,7 +261,8 @@ export default function Shops() {
       latitude: loc[1] ? String(loc[1]) : '', longitude: loc[0] ? String(loc[0]) : '',
       ownerName: shop.ownerId?.name || '', ownerPhone: shop.ownerId?.phone || '', ownerEmail: shop.ownerId?.email || '',
       businessHoursMonFri: shop.businessHours?.monFri || '9 AM - 10 PM', businessHoursSat: shop.businessHours?.sat || '9 AM - 10 PM', businessHoursSun: shop.businessHours?.sun || 'Closed',
-      deliveryRadius: shop.delivery?.radiusKm || 3, deliveryFee: shop.delivery?.fee || 40, deliveryFreeAbove: shop.delivery?.freeAbove || 1000,
+      deliveryRadius: shop.delivery?.radiusKm || shop.deliveryConfig?.deliveryRadiusKm || 3, deliveryFee: shop.delivery?.fee || shop.deliveryConfig?.deliveryCharge || 40, deliveryFreeAbove: shop.delivery?.freeAbove || shop.deliveryConfig?.freeDeliveryAbove || 1000,
+      minOrderAmount: shop.deliveryConfig?.minOrderAmount ?? 100, discountEnabled: shop.deliveryConfig?.discountEnabled ?? false, discountAbove: shop.deliveryConfig?.discountAbove ?? 1000, discountType: shop.deliveryConfig?.discountType ?? 'flat', discountValue: shop.deliveryConfig?.discountValue ?? 100, discountPct: shop.deliveryConfig?.discountPct ?? 10, maxDiscountCap: shop.deliveryConfig?.maxDiscountCap ?? 200, sameDayDelivery: shop.deliveryConfig?.sameDayDelivery ?? true, deliverySlots: shop.deliveryConfig?.deliverySlots || [],
       subscriptionPlan: shop.subscription?.plan || 'FREE_TRIAL',
     })
     setShopFormErrors({})
@@ -311,6 +327,20 @@ export default function Shops() {
             fee: Number(shopForm.deliveryFee),
             freeAbove: Number(shopForm.deliveryFreeAbove),
           },
+          deliveryConfig: {
+            deliveryRadiusKm: Number(shopForm.deliveryRadius),
+            deliveryCharge: Number(shopForm.deliveryFee),
+            freeDeliveryAbove: Number(shopForm.deliveryFreeAbove),
+            minOrderAmount: Number(shopForm.minOrderAmount),
+            discountEnabled: shopForm.discountEnabled,
+            discountAbove: Number(shopForm.discountAbove),
+            discountType: shopForm.discountType,
+            discountValue: Number(shopForm.discountValue),
+            discountPct: Number(shopForm.discountPct),
+            maxDiscountCap: Number(shopForm.maxDiscountCap),
+            sameDayDelivery: shopForm.sameDayDelivery,
+            deliverySlots: (newSlot.label && newSlot.slotOpen && newSlot.slotClose) ? [...(shopForm.deliverySlots || []), { ...newSlot }] : (shopForm.deliverySlots || []),
+          },
           subscription: { plan: shopForm.subscriptionPlan },
         }
         if (loc) payload.location = loc
@@ -344,6 +374,20 @@ export default function Shops() {
             radiusKm: Number(shopForm.deliveryRadius),
             fee: Number(shopForm.deliveryFee),
             freeAbove: Number(shopForm.deliveryFreeAbove),
+          },
+          deliveryConfig: {
+            deliveryRadiusKm: Number(shopForm.deliveryRadius),
+            deliveryCharge: Number(shopForm.deliveryFee),
+            freeDeliveryAbove: Number(shopForm.deliveryFreeAbove),
+            minOrderAmount: Number(shopForm.minOrderAmount),
+            discountEnabled: shopForm.discountEnabled,
+            discountAbove: Number(shopForm.discountAbove),
+            discountType: shopForm.discountType,
+            discountValue: Number(shopForm.discountValue),
+            discountPct: Number(shopForm.discountPct),
+            maxDiscountCap: Number(shopForm.maxDiscountCap),
+            sameDayDelivery: shopForm.sameDayDelivery,
+            deliverySlots: (newSlot.label && newSlot.slotOpen && newSlot.slotClose) ? [...(shopForm.deliverySlots || []), { ...newSlot }] : (shopForm.deliverySlots || []),
           },
           subscription: { plan: shopForm.subscriptionPlan },
         }
@@ -439,10 +483,15 @@ export default function Shops() {
     setLoadingProducts(true)
     setAdminWalletBalance(null)
     try {
-      const [prodRes, walletRes] = await Promise.all([
+      const [freshRes, prodRes, walletRes] = await Promise.all([
+        api.get(`/shops/${shop._id}`),
         api.get(`/products?shopId=${shop._id}`),
         api.get('/admin/admin-wallet/balance')
       ])
+      // Use fresh shop data so delivery slots & other fields are up-to-date
+      if (freshRes.data.status === 'success') {
+        setDetail(freshRes.data.data)
+      }
       if (prodRes.data.status === 'success') setShopProducts(prodRes.data.data || [])
       if (walletRes.data?.data?.balance != null) setAdminWalletBalance(walletRes.data.data.balance)
     } catch { /* silent */ } finally {
@@ -768,7 +817,24 @@ export default function Shops() {
   const handleUpdateDelivery = async () => {
     setSavingDelivery(true)
     try {
-      await api.patch(`/admin/shops/${detail._id}`, { delivery: { radiusKm: Number(deliveryEditForm.radiusKm), fee: Number(deliveryEditForm.fee), freeAbove: Number(deliveryEditForm.freeAbove) } })
+      const payload = {
+        delivery: { radiusKm: Number(deliveryEditForm.radiusKm), fee: Number(deliveryEditForm.fee), freeAbove: Number(deliveryEditForm.freeAbove) },
+        deliveryConfig: {
+          deliveryRadiusKm: Number(deliveryEditForm.radiusKm),
+          deliveryCharge: Number(deliveryEditForm.fee),
+          freeDeliveryAbove: Number(deliveryEditForm.freeAbove),
+          minOrderAmount: Number(deliveryEditForm.minOrderAmount),
+          discountEnabled: deliveryEditForm.discountEnabled,
+          discountAbove: Number(deliveryEditForm.discountAbove),
+          discountType: deliveryEditForm.discountType,
+          discountValue: Number(deliveryEditForm.discountValue),
+          discountPct: Number(deliveryEditForm.discountPct),
+          maxDiscountCap: Number(deliveryEditForm.maxDiscountCap),
+          sameDayDelivery: deliveryEditForm.sameDayDelivery,
+          deliverySlots: (newSlot.label && newSlot.slotOpen && newSlot.slotClose) ? [...(deliveryEditForm.deliverySlots || []), { ...newSlot }] : (deliveryEditForm.deliverySlots || []),
+        }
+      }
+      await api.patch(`/admin/shops/${detail._id}`, payload)
       showToast('Delivery settings updated')
       try { await api.post('/admin/notifications/broadcast', { title: 'Delivery Settings Updated', message: `Admin updated delivery settings for shop "${detail.name}"`, targetRole: 'SHOP' }) } catch {}
       setShowDeliveryEditModal(false)
@@ -960,20 +1026,49 @@ export default function Shops() {
 
               {/* Delivery Settings */}
               <div className="divider" />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  <Truck size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
-                  Delivery Settings
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--mid)', letterSpacing: '0.5px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Truck size={14} /> DELIVERY SETTINGS</span>
+                  <button className="btn-secondary" style={{ height: 28, padding: '0 10px', fontSize: 11 }} onClick={() => { 
+                    setDeliveryEditForm({ 
+                      radiusKm: detail.delivery?.radiusKm || detail.deliveryConfig?.deliveryRadiusKm || 3, 
+                      fee: detail.delivery?.fee || detail.deliveryConfig?.deliveryCharge || 40, 
+                      freeAbove: detail.delivery?.freeAbove || detail.deliveryConfig?.freeDeliveryAbove || 1000,
+                      minOrderAmount: detail.deliveryConfig?.minOrderAmount ?? 100, 
+                      discountEnabled: detail.deliveryConfig?.discountEnabled ?? false, 
+                      discountAbove: detail.deliveryConfig?.discountAbove ?? 1000, 
+                      discountType: detail.deliveryConfig?.discountType ?? 'flat', 
+                      discountValue: detail.deliveryConfig?.discountValue ?? 100, 
+                      discountPct: detail.deliveryConfig?.discountPct ?? 10, 
+                      maxDiscountCap: detail.deliveryConfig?.maxDiscountCap ?? 200, 
+                      sameDayDelivery: detail.deliveryConfig?.sameDayDelivery ?? true,
+                      deliverySlots: detail.deliveryConfig?.deliverySlots || []
+                    }); 
+                    setShowDeliveryEditModal(true) 
+                  }}>
+                    <Edit3 size={12} /> Edit
+                  </button>
                 </div>
-                <button className="btn-secondary" style={{ height: 28, padding: '0 10px', fontSize: 11 }} onClick={() => { setDeliveryEditForm({ radiusKm: detail.delivery?.radiusKm || 3, fee: detail.delivery?.fee || 40, freeAbove: detail.delivery?.freeAbove || 1000 }); setShowDeliveryEditModal(true) }}>
-                  <Edit3 size={12} /> Edit
-                </button>
-              </div>
               <div className="detail-grid">
-                <div className="detail-row"><span>Radius</span><strong>{detail.delivery?.radiusKm || 3} km</strong></div>
-                <div className="detail-row"><span>Delivery Fee</span><strong>₹{detail.delivery?.fee || 40}</strong></div>
-                <div className="detail-row"><span>Free Above</span><strong>₹{detail.delivery?.freeAbove || 1000}</strong></div>
+                <div className="detail-row"><span>Radius</span><strong>{detail.delivery?.radiusKm || detail.deliveryConfig?.deliveryRadiusKm || 3} km</strong></div>
+                <div className="detail-row"><span>Delivery Fee</span><strong>₹{detail.delivery?.fee || detail.deliveryConfig?.deliveryCharge || 40}</strong></div>
+                <div className="detail-row"><span>Free Above</span><strong>₹{detail.delivery?.freeAbove || detail.deliveryConfig?.freeDeliveryAbove || 1000}</strong></div>
+                <div className="detail-row"><span>Min Order</span><strong>₹{detail.deliveryConfig?.minOrderAmount ?? 100}</strong></div>
+                <div className="detail-row"><span>Same Day Delivery</span><strong>{detail.deliveryConfig?.sameDayDelivery === false ? 'No' : 'Yes'}</strong></div>
+                <div className="detail-row"><span>Discount</span><strong>{detail.deliveryConfig?.discountEnabled ? (detail.deliveryConfig.discountType === 'percent' ? `${detail.deliveryConfig.discountPct}% up to ₹${detail.deliveryConfig.maxDiscountCap} (above ₹${detail.deliveryConfig.discountAbove})` : `₹${detail.deliveryConfig.discountValue} off (above ₹${detail.deliveryConfig.discountAbove})`) : 'Disabled'}</strong></div>
               </div>
+              {detail.deliveryConfig?.deliverySlots && detail.deliveryConfig.deliverySlots.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--mid)', marginBottom: 8 }}>DELIVERY SLOTS</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {detail.deliveryConfig.deliverySlots.map((slot, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-dark)', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }}>
+                        <strong style={{ color: 'var(--text)' }}>{slot.label}</strong>
+                        <span style={{ color: 'var(--primary)' }}>{slot.slotOpen} - {slot.slotClose}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Subscription */}
               <div className="divider" />
@@ -1257,7 +1352,81 @@ export default function Shops() {
                 <TextInput label="Radius (km)" value={shopForm.deliveryRadius} onChange={e => handleShopFieldChange('deliveryRadius', e.target.value)} type="number" disabled={saving} />
                 <TextInput label="Delivery Fee (₹)" value={shopForm.deliveryFee} onChange={e => handleShopFieldChange('deliveryFee', e.target.value)} type="number" disabled={saving} />
               </FormRow>
-              <TextInput label="Free Delivery Above (₹)" value={shopForm.deliveryFreeAbove} onChange={e => handleShopFieldChange('deliveryFreeAbove', e.target.value)} type="number" disabled={saving} />
+              <FormRow>
+                <TextInput label="Free Delivery Above (₹)" value={shopForm.deliveryFreeAbove} onChange={e => handleShopFieldChange('deliveryFreeAbove', e.target.value)} type="number" disabled={saving} />
+                <TextInput label="Min Order Amount (₹)" value={shopForm.minOrderAmount} onChange={e => handleShopFieldChange('minOrderAmount', e.target.value)} type="number" disabled={saving} />
+              </FormRow>
+              
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '10px 12px', background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 13, color: 'var(--text)' }}>Same Day Delivery</span>
+                <input type="checkbox" checked={shopForm.sameDayDelivery} onChange={e => handleShopFieldChange('sameDayDelivery', e.target.checked)} disabled={saving} style={{ width: 18, height: 18, accentColor: 'var(--primary)' }} />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '10px 12px', background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 13, color: 'var(--text)' }}>Enable Discount</span>
+                <input type="checkbox" checked={shopForm.discountEnabled} onChange={e => handleShopFieldChange('discountEnabled', e.target.checked)} disabled={saving} style={{ width: 18, height: 18, accentColor: 'var(--primary)' }} />
+              </div>
+
+              {shopForm.discountEnabled && (
+                <div style={{ padding: 12, background: 'var(--bg-dark)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 12 }}>
+                  <FormRow>
+                    <TextInput label="Discount Above (₹)" value={shopForm.discountAbove} onChange={e => handleShopFieldChange('discountAbove', e.target.value)} type="number" disabled={saving} />
+                    <div style={{ marginBottom: 16, flex: 1 }}>
+                      <label className="input-label">Type</label>
+                      <select className="form-control" value={shopForm.discountType} onChange={e => handleShopFieldChange('discountType', e.target.value)} disabled={saving} style={{ height: 42, padding: '0 12px', width: '100%' }}>
+                        <option value="flat">Flat (₹)</option>
+                        <option value="percent">Percent (%)</option>
+                      </select>
+                    </div>
+                  </FormRow>
+                  {shopForm.discountType === 'flat' ? (
+                    <TextInput label="Discount Value (₹)" value={shopForm.discountValue} onChange={e => handleShopFieldChange('discountValue', e.target.value)} type="number" disabled={saving} />
+                  ) : (
+                    <FormRow>
+                      <TextInput label="Discount Percent (%)" value={shopForm.discountPct} onChange={e => handleShopFieldChange('discountPct', e.target.value)} type="number" disabled={saving} />
+                      <TextInput label="Max Cap (₹)" value={shopForm.maxDiscountCap} onChange={e => handleShopFieldChange('maxDiscountCap', e.target.value)} type="number" disabled={saving} />
+                    </FormRow>
+                  )}
+                </div>
+              )}
+              
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--dark)', marginBottom: 12 }}>Delivery Slots</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  {(shopForm.deliverySlots || []).map((slot, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--dark)' }}>{slot.label}</div>
+                        <div style={{ fontSize: 11, color: 'var(--mid)' }}>{slot.slotOpen} - {slot.slotClose}</div>
+                      </div>
+                      <button type="button" className="btn-secondary" style={{ padding: '4px 8px', height: 28, fontSize: 11, color: 'var(--danger)', borderColor: 'var(--danger-light)' }} onClick={() => {
+                        const updated = [...(shopForm.deliverySlots || [])]
+                        updated.splice(i, 1)
+                        handleShopFieldChange('deliverySlots', updated)
+                      }} disabled={saving}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', background: 'var(--input-bg)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="input-label" style={{ fontSize: 11 }}>Label</label>
+                    <input type="text" className="form-control" placeholder="e.g. Morning Slot" value={newSlot.label} onChange={e => setNewSlot(p => ({ ...p, label: e.target.value }))} disabled={saving} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="input-label" style={{ fontSize: 11 }}>Start Time</label>
+                    <input type="text" className="form-control" placeholder="e.g. 10:00 AM" value={newSlot.slotOpen} onChange={e => setNewSlot(p => ({ ...p, slotOpen: e.target.value }))} disabled={saving} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="input-label" style={{ fontSize: 11 }}>End Time</label>
+                    <input type="text" className="form-control" placeholder="e.g. 1:00 PM" value={newSlot.slotClose} onChange={e => setNewSlot(p => ({ ...p, slotClose: e.target.value }))} disabled={saving} />
+                  </div>
+                  <button type="button" className="btn-primary" style={{ height: 42, padding: '0 16px' }} onClick={() => {
+                    if (!newSlot.label || !newSlot.slotOpen || !newSlot.slotClose) return showToast('Please fill all slot fields', 'error')
+                    handleShopFieldChange('deliverySlots', [...(shopForm.deliverySlots || []), newSlot])
+                    setNewSlot({ label: '', slotOpen: '', slotClose: '' })
+                  }} disabled={saving || !newSlot.label || !newSlot.slotOpen || !newSlot.slotClose}>Add</button>
+                </div>
+              </div>
             </>
           )}
 
@@ -1309,12 +1478,88 @@ export default function Shops() {
         </div>
       </Modal>
 
-      {/* Delivery Edit Modal */}
-      <Modal open={showDeliveryEditModal} onClose={() => !savingDelivery && setShowDeliveryEditModal(false)} title="Edit Delivery Settings" width="420px">
-        <TextInput label="Radius (km)" value={deliveryEditForm.radiusKm} onChange={e => setDeliveryEditForm(p => ({ ...p, radiusKm: e.target.value }))} type="number" disabled={savingDelivery} />
-        <TextInput label="Delivery Fee (₹)" value={deliveryEditForm.fee} onChange={e => setDeliveryEditForm(p => ({ ...p, fee: e.target.value }))} type="number" disabled={savingDelivery} />
-        <TextInput label="Free Delivery Above (₹)" value={deliveryEditForm.freeAbove} onChange={e => setDeliveryEditForm(p => ({ ...p, freeAbove: e.target.value }))} type="number" disabled={savingDelivery} />
-        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              {/* Delivery Edit Modal */}
+      <Modal open={showDeliveryEditModal} onClose={() => !savingDelivery && setShowDeliveryEditModal(false)} title="Edit Delivery Settings" width="500px">
+        <FormRow>
+          <TextInput label="Radius (km)" value={deliveryEditForm.radiusKm} onChange={e => setDeliveryEditForm(p => ({ ...p, radiusKm: e.target.value }))} type="number" disabled={savingDelivery} />
+          <TextInput label="Delivery Fee (₹)" value={deliveryEditForm.fee} onChange={e => setDeliveryEditForm(p => ({ ...p, fee: e.target.value }))} type="number" disabled={savingDelivery} />
+        </FormRow>
+        <FormRow>
+          <TextInput label="Free Delivery Above (₹)" value={deliveryEditForm.freeAbove} onChange={e => setDeliveryEditForm(p => ({ ...p, freeAbove: e.target.value }))} type="number" disabled={savingDelivery} />
+          <TextInput label="Min Order Amount (₹)" value={deliveryEditForm.minOrderAmount} onChange={e => setDeliveryEditForm(p => ({ ...p, minOrderAmount: e.target.value }))} type="number" disabled={savingDelivery} />
+        </FormRow>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '10px 12px', background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>Same Day Delivery</span>
+          <input type="checkbox" checked={deliveryEditForm.sameDayDelivery} onChange={e => setDeliveryEditForm(p => ({ ...p, sameDayDelivery: e.target.checked }))} disabled={savingDelivery} style={{ width: 18, height: 18, accentColor: 'var(--primary)' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '10px 12px', background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>Enable Discount</span>
+          <input type="checkbox" checked={deliveryEditForm.discountEnabled} onChange={e => setDeliveryEditForm(p => ({ ...p, discountEnabled: e.target.checked }))} disabled={savingDelivery} style={{ width: 18, height: 18, accentColor: 'var(--primary)' }} />
+        </div>
+        {deliveryEditForm.discountEnabled && (
+          <div style={{ padding: 12, background: 'var(--bg-dark)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 12 }}>
+            <FormRow>
+              <TextInput label="Discount Above (₹)" value={deliveryEditForm.discountAbove} onChange={e => setDeliveryEditForm(p => ({ ...p, discountAbove: e.target.value }))} type="number" disabled={savingDelivery} />
+              <div style={{ marginBottom: 16, flex: 1 }}>
+                <label className="input-label">Type</label>
+                <select className="form-control" value={deliveryEditForm.discountType} onChange={e => setDeliveryEditForm(p => ({ ...p, discountType: e.target.value }))} disabled={savingDelivery} style={{ height: 42, padding: '0 12px', width: '100%' }}>
+                  <option value="flat">Flat (₹)</option>
+                  <option value="percent">Percent (%)</option>
+                </select>
+              </div>
+            </FormRow>
+            {deliveryEditForm.discountType === 'flat' ? (
+              <TextInput label="Discount Value (₹)" value={deliveryEditForm.discountValue} onChange={e => setDeliveryEditForm(p => ({ ...p, discountValue: e.target.value }))} type="number" disabled={savingDelivery} />
+            ) : (
+              <FormRow>
+                <TextInput label="Discount Percent (%)" value={deliveryEditForm.discountPct} onChange={e => setDeliveryEditForm(p => ({ ...p, discountPct: e.target.value }))} type="number" disabled={savingDelivery} />
+                <TextInput label="Max Cap (₹)" value={deliveryEditForm.maxDiscountCap} onChange={e => setDeliveryEditForm(p => ({ ...p, maxDiscountCap: e.target.value }))} type="number" disabled={savingDelivery} />
+              </FormRow>
+            )}
+          </div>
+        )}
+        
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--dark)', marginBottom: 12 }}>Delivery Slots</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+            {(deliveryEditForm.deliverySlots || []).map((slot, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--dark)' }}>{slot.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--mid)' }}>{slot.slotOpen} - {slot.slotClose}</div>
+                </div>
+                <button type="button" className="btn-secondary" style={{ padding: '4px 8px', height: 28, fontSize: 11, color: 'var(--danger)', borderColor: 'var(--danger-light)' }} onClick={() => {
+                  setDeliveryEditForm(p => {
+                    const updated = [...(p.deliverySlots || [])]
+                    updated.splice(i, 1)
+                    return { ...p, deliverySlots: updated }
+                  })
+                }} disabled={savingDelivery}>Remove</button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', background: 'var(--input-bg)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+            <div style={{ flex: 1 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>Label</label>
+              <input type="text" className="form-control" placeholder="e.g. Morning Slot" value={newSlot.label} onChange={e => setNewSlot(p => ({ ...p, label: e.target.value }))} disabled={savingDelivery} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>Start Time</label>
+              <input type="text" className="form-control" placeholder="e.g. 10:00 AM" value={newSlot.slotOpen} onChange={e => setNewSlot(p => ({ ...p, slotOpen: e.target.value }))} disabled={savingDelivery} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>End Time</label>
+              <input type="text" className="form-control" placeholder="e.g. 1:00 PM" value={newSlot.slotClose} onChange={e => setNewSlot(p => ({ ...p, slotClose: e.target.value }))} disabled={savingDelivery} />
+            </div>
+            <button type="button" className="btn-primary" style={{ height: 42, padding: '0 16px' }} onClick={() => {
+              if (!newSlot.label || !newSlot.slotOpen || !newSlot.slotClose) return showToast('Please fill all slot fields', 'error')
+              setDeliveryEditForm(p => ({ ...p, deliverySlots: [...(p.deliverySlots || []), newSlot] }))
+              setNewSlot({ label: '', slotOpen: '', slotClose: '' })
+            }} disabled={savingDelivery || !newSlot.label || !newSlot.slotOpen || !newSlot.slotClose}>Add</button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowDeliveryEditModal(false)} disabled={savingDelivery}>Cancel</button>
           <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={handleUpdateDelivery} disabled={savingDelivery}>{savingDelivery ? 'Saving...' : 'Save Delivery'}</button>
         </div>
@@ -1579,19 +1824,19 @@ export default function Shops() {
                 <div style={{ fontSize: 12, color: 'var(--mid)' }}>{previewDoc.docType || 'Document'}</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ height: 32, padding: '0 12px', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>Open in Tab</a>
+                <a href={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ height: 32, padding: '0 12px', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>Open in Tab</a>
                 <button className="btn-icon" onClick={() => setPreviewDoc(null)} title="Close">✕</button>
               </div>
             </div>
             {previewDoc.url?.match(/\.(jpg|jpeg|png)$/i) ? (
-              <img src={previewDoc.url} alt={previewDoc.name} style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 8, objectFit: 'contain', background: '#000' }} />
+              <img src={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} alt={previewDoc.name} style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 8, objectFit: 'contain', background: '#000' }} />
             ) : previewDoc.url?.match(/\.pdf$/i) ? (
-              <iframe src={previewDoc.url} title={previewDoc.name} style={{ width: '80vw', height: '70vh', border: 'none', borderRadius: 8 }} />
+              <iframe src={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} title={previewDoc.name} style={{ width: '80vw', height: '70vh', border: 'none', borderRadius: 8 }} />
             ) : (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>
                 <FileText size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
                 <div>Preview not available for this file type</div>
-                <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ marginTop: 12, display: 'inline-block', padding: '8px 20px', borderRadius: 8, textDecoration: 'none' }}>Open File</a>
+                <a href={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ marginTop: 12, display: 'inline-block', padding: '8px 20px', borderRadius: 8, textDecoration: 'none' }}>Open File</a>
               </div>
             )}
           </div>

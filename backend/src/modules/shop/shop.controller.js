@@ -309,6 +309,200 @@ exports.updateShopAdmin = catchAsync(async (req, res) => {
     const { name, category, description, address } = req.body;
     if (!name || !name.trim()) return errorResponse(res, 'Shop name is required', StatusCodes.BAD_REQUEST);
     if (!category || !category.trim()) return errorResponse(res, 'Category is required', StatusCodes.BAD_REQUEST);
+    await setCache(cacheKey, result, 300);
+
+    return successResponse(res, result, 'Shops fetched');
+});
+
+
+/**
+ * GET /api/v1/shops/:id
+ * Fetch a single shop by id (admin or customer browsing)
+ */
+exports.getShopById = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone');
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    return successResponse(res, shop, 'Shop fetched');
+});
+
+/**
+ * PATCH /api/v1/shops/:id/kyc
+ * Admin approves or rejects a shop's KYC
+ */
+exports.reviewShopKyc = catchAsync(async (req, res) => {
+    const { status } = req.body; // 'APPROVED' | 'REJECTED'
+    if (!['APPROVED', 'REJECTED'].includes(status)) {
+        return errorResponse(res, 'Invalid status', StatusCodes.BAD_REQUEST);
+    }
+
+    const shop = await Shop.findByIdAndUpdate(
+        req.params.id,
+        { 'kyc.status': status },
+        { new: true }
+    );
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    emitToAll('DASHBOARD_UPDATE', { type: 'SHOP_KYC', id: shop._id, status });
+
+    notifyUser({
+        userId: shop.ownerId,
+        title: `Shop KYC ${status === 'APPROVED' ? 'Approved' : 'Rejected'}`,
+        message: status === 'APPROVED' 
+            ? 'Your shop KYC has been approved. You can now accept orders.'
+            : 'Your shop KYC was rejected. Please contact support.',
+        action: 'KYC',
+        entityType: 'SHOP',
+        entityId: shop._id,
+        targetRole: 'CUSTOMER'
+    });
+
+    return successResponse(res, shop, `Shop KYC ${status.toLowerCase()}`);
+});
+
+/**
+ * PATCH /api/v1/shops/:id/toggle
+ * Admin blocks/unblocks a shop
+ */
+exports.toggleShop = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    shop.isOnline = !shop.isOnline;
+    await shop.save();
+
+    notifyUser({
+        userId: shop.ownerId,
+        title: shop.isOnline ? 'Shop Activated' : 'Shop Blocked',
+        message: shop.isOnline 
+            ? 'Your shop is now online and visible to customers.'
+            : 'Your shop has been blocked by the admin.',
+        action: 'UPDATE',
+        entityType: 'SHOP',
+        entityId: shop._id,
+        targetRole: 'CUSTOMER'
+    });
+
+    return successResponse(res, shop, `Shop ${shop.isOnline ? 'activated' : 'blocked'}`);
+});
+
+/**
+ * POST /api/v1/shops/my/payout-methods
+ * Shop owner adds a bank/UPI payout method
+ */
+exports.addPayoutMethod = catchAsync(async (req, res) => {
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    // If first method, make it primary
+    if (shop.payoutMethods.length === 0) req.body.isPrimary = true;
+    shop.payoutMethods.push(req.body);
+    await shop.save();
+
+    return successResponse(res, shop.payoutMethods, 'Payout method added');
+});
+
+/**
+ * PATCH /api/v1/shops/my/payout-methods/:methodId/primary
+ * Set a payout method as primary
+ */
+exports.setPrimaryPayout = catchAsync(async (req, res) => {
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    shop.payoutMethods.forEach(m => { m.isPrimary = String(m._id) === String(req.params.methodId); });
+    await shop.save();
+
+    return successResponse(res, shop.payoutMethods, 'Primary payout method updated');
+});
+
+/**
+ * DELETE /api/v1/shops/my/payout-methods/:methodId
+ */
+exports.deletePayoutMethod = catchAsync(async (req, res) => {
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    shop.payoutMethods = shop.payoutMethods.filter(m => String(m._id) !== String(req.params.methodId));
+    await shop.save();
+
+    return successResponse(res, shop.payoutMethods, 'Payout method deleted');
+});
+
+/**
+ * POST /api/v1/shops/my/withdraw
+ * Shop owner requests a payout withdrawal
+ */
+exports.requestWithdrawal = catchAsync(async (req, res) => {
+    const { amount, payoutMethod } = req.body; // payoutMethod is label/details string
+
+    const mongoose = require('mongoose');
+    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
+    const session = isSingle ? null : await mongoose.startSession();
+    if (session) session.startTransaction();
+    try {
+        const shop = await Shop.findOne({ ownerId: req.user._id }).session(session);
+        if (!shop) {
+            if (session) await session.abortTransaction();
+            if (session) session.endSession();
+            return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+        }
+        if (shop.wallet.balance < amount) {
+            if (session) await session.abortTransaction();
+            if (session) session.endSession();
+            return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
+        }
+
+        // Deduct from wallet
+        shop.wallet.balance -= amount;
+        await shop.save({ session });
+
+        const [txn] = await WalletTxn.create([{
+            userId:      req.user._id,
+            type:        'WITHDRAWAL',
+            amount,
+            balance:     shop.wallet.balance,
+            status:      'PENDING',
+            description: `Shop Withdrawal to ${payoutMethod || 'bank'}`
+        }], { session });
+
+        const paymentMethodType = (payoutMethod || '').toLowerCase().includes('upi') ? 'UPI' : 'BANK';
+        await Payout.create([{
+            shopId: shop._id,
+            amount,
+            paymentMethod: paymentMethodType,
+            paymentDetails: payoutMethod || 'bank',
+            walletTxnId: txn._id
+        }], { session });
+
+        if (session) await session.commitTransaction();
+        if (session) session.endSession();
+        return successResponse(res, txn, 'Withdrawal initiated');
+    } catch (error) {
+        if (session) await session.abortTransaction();
+        if (session) session.endSession();
+        throw error;
+    }
+});
+
+/**
+ * PATCH /api/v1/shops/my/owner
+ */
+exports.updateOwnerName = catchAsync(async (req, res) => {
+    const { name } = req.body;
+    if (!name) return errorResponse(res, 'Name is required', StatusCodes.BAD_REQUEST);
+
+    // Update the User/Customer document attached to this ownerId
+    const Customer = require('../customer/customer.model');
+    const user = await Customer.findByIdAndUpdate(req.user._id, { name }, { new: true });
+    
+    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
+    
+    return successResponse(res, user, 'Owner name updated');
+});
+
+exports.updateShopAdmin = catchAsync(async (req, res) => {
+    const { name, category, description, address } = req.body;
+    if (!name || !name.trim()) return errorResponse(res, 'Shop name is required', StatusCodes.BAD_REQUEST);
+    if (!category || !category.trim()) return errorResponse(res, 'Category is required', StatusCodes.BAD_REQUEST);
     if (!address || !address.trim()) return errorResponse(res, 'Address is required', StatusCodes.BAD_REQUEST);
 
     const shop = await Shop.findById(req.params.id);
@@ -318,6 +512,24 @@ exports.updateShopAdmin = catchAsync(async (req, res) => {
     shop.category = category.trim();
     shop.description = (description || '').trim();
     shop.address = address.trim();
+
+    if (req.body.delivery) {
+        shop.delivery = { ...shop.delivery, ...req.body.delivery };
+        shop.markModified('delivery');
+    }
+    if (req.body.deliveryConfig) {
+        shop.deliveryConfig = { ...shop.deliveryConfig, ...req.body.deliveryConfig };
+        shop.markModified('deliveryConfig');
+    }
+    if (req.body.businessHours) {
+        shop.businessHours = { ...shop.businessHours, ...req.body.businessHours };
+        shop.markModified('businessHours');
+    }
+    if (req.body.subscription) {
+        shop.subscription = { ...shop.subscription, ...req.body.subscription };
+        shop.markModified('subscription');
+    }
+
     await shop.save();
 
     return successResponse(res, shop, 'Shop updated successfully');
@@ -359,8 +571,11 @@ exports.getDeliveryConfig = catchAsync(async (req, res) => {
 });
 
 exports.updateDeliveryConfig = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
-    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+    let query = { _id: req.params.id };
+    if (req.user.role !== 'SUPER_ADMIN') query.ownerId = req.user._id;
+
+    const shop = await Shop.findOne(query);
+    if (!shop) return errorResponse(res, 'Shop not found or unauthorized', StatusCodes.NOT_FOUND);
 
     const {
         deliveryRadiusKm, minOrderAmount, freeDeliveryAbove, deliveryCharge,
@@ -385,8 +600,18 @@ exports.updateDeliveryConfig = catchAsync(async (req, res) => {
         };
     }
 
+    shop.deliveryConfig = {
+        deliveryRadiusKm, minOrderAmount, freeDeliveryAbove, deliveryCharge,
+        discountEnabled, discountAbove, discountType, discountValue, discountPct, maxDiscountCap,
+        sameDayDelivery, deliverySlots
+    };
+
     shop.markModified('delivery');
+    shop.markModified('deliveryConfig');
     await shop.save();
+
+    const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
+    triggerDashboardUpdate();
 
     return successResponse(res, shop, 'Delivery config updated');
 });

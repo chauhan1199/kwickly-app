@@ -1,53 +1,124 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { Home, ShoppingBag, Plus, MessageSquare, User, Wallet } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Theme from '../../constants/Theme';
 import { useTheme } from '../../context/ThemeContext';
-import HomeScreen from '../../features/customer/HomeScreen';
-import BookServiceScreen from '../../features/customer/BookServiceScreen';
 
-import SubCategoriesScreen from '../../features/customer/SubCategoriesScreen';
-import DescribeJobScreen from '../../features/customer/DescribeJobScreen';
-import LiveBidsScreen from '../../features/customer/LiveBidsScreen';
-import LiveTrackingScreen from '../../features/customer/LiveTrackingScreen';
-import WorkCompletedScreen from '../../features/customer/WorkCompletedScreen';
-import RateExperienceScreen from '../../features/customer/RateExperienceScreen';
-import PastJobDetailsScreen from '../../features/customer/PastJobDetailsScreen';
-import ShopScreen from '../../features/customer/ShopScreen';
-import WorkerProfileScreen from '../../features/customer/WorkerProfileScreen';
-import QuotesScreen from '../../features/customer/QuotesScreen';
-import ShopOrderDetailsScreen from '../../features/customer/ShopOrderDetailsScreen';
+// Main tab screens
+import HomeScreen              from '../../features/customer/HomeScreen';
+import BookServiceScreen       from '../../features/customer/BookServiceScreen';
+import ShopScreen              from '../../features/customer/ShopScreen';
+import CustomerWalletScreen    from '../../features/customer/CustomerWalletScreen';
+import ProfileScreen           from '../../features/customer/ProfileScreen';
+
+// Sub-screens
+import SubCategoriesScreen     from '../../features/customer/SubCategoriesScreen';
+import DescribeJobScreen       from '../../features/customer/DescribeJobScreen';
+import LiveBidsScreen          from '../../features/customer/LiveBidsScreen';
+import LiveTrackingScreen      from '../../features/customer/LiveTrackingScreen';
+import WorkCompletedScreen     from '../../features/customer/WorkCompletedScreen';
+import RateExperienceScreen    from '../../features/customer/RateExperienceScreen';
+import PastJobDetailsScreen    from '../../features/customer/PastJobDetailsScreen';
+import WorkerProfileScreen     from '../../features/customer/WorkerProfileScreen';
+import ShopOrderDetailsScreen  from '../../features/customer/ShopOrderDetailsScreen';
 import CustomerShopOrdersScreen from '../../features/customer/CustomerShopOrdersScreen';
-import ProfileScreen from '../../features/customer/ProfileScreen';
-import EditProfileScreen from '../../features/customer/EditProfileScreen';
-import SavedAddressesScreen from '../../features/customer/SavedAddressesScreen';
-import PaymentMethodsScreen from '../../features/customer/PaymentMethodsScreen';
-import ReferEarnScreen from '../../features/customer/ReferEarnScreen';
-import HelpSupportScreen from '../../features/customer/HelpSupportScreen';
-import PrivacyScreen from '../../features/customer/PrivacyScreen';
-import CustomerWalletScreen from '../../features/customer/CustomerWalletScreen';
-import CartScreen from '../../features/customer/CartScreen';
-import NotificationsScreen from '../../features/shared/NotificationsScreen';
-import ShopDetailScreen from '../../features/customer/ShopDetailScreen';
-import OrderTrackingScreen from '../../features/customer/OrderTrackingScreen';
-import OrderHistoryScreen from '../../features/customer/OrderHistoryScreen';
-import WalletTopupScreen from '../../features/customer/WalletTopupScreen';
+import EditProfileScreen       from '../../features/customer/EditProfileScreen';
+import SavedAddressesScreen    from '../../features/customer/SavedAddressesScreen';
+import PaymentMethodsScreen    from '../../features/customer/PaymentMethodsScreen';
+import ReferEarnScreen         from '../../features/customer/ReferEarnScreen';
+import HelpSupportScreen       from '../../features/customer/HelpSupportScreen';
+import PrivacyScreen           from '../../features/customer/PrivacyScreen';
+import CartScreen              from '../../features/customer/CartScreen';
+import NotificationsScreen     from '../../features/shared/NotificationsScreen';
+import ShopDetailScreen        from '../../features/customer/ShopDetailScreen';
+import OrderTrackingScreen     from '../../features/customer/OrderTrackingScreen';
+import OrderHistoryScreen      from '../../features/customer/OrderHistoryScreen';
+import WalletTopupScreen       from '../../features/customer/WalletTopupScreen';
+import QuotesScreen            from '../../features/customer/QuotesScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
 
+/* ──────────────────────────────────────────────
+   Per-tab Stack navigators so goBack() works
+────────────────────────────────────────────── */
+const HomeStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="HomeMain"         component={HomeScreen} />
+    <Stack.Screen name="LiveBids"         component={LiveBidsScreen} />
+    <Stack.Screen name="LiveTracking"     component={LiveTrackingScreen} />
+    <Stack.Screen name="WorkCompleted"    component={WorkCompletedScreen} />
+    <Stack.Screen name="RateExperience"   component={RateExperienceScreen} />
+    <Stack.Screen name="PastJobDetails"   component={PastJobDetailsScreen} />
+    <Stack.Screen name="WorkerProfile"    component={WorkerProfileScreen} />
+    <Stack.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
+    <Stack.Screen name="Notifications"    component={NotificationsScreen} />
+  </Stack.Navigator>
+);
+
+const ShopStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="ShopMain"         component={ShopScreen} />
+    <Stack.Screen name="ShopDetail"       component={ShopDetailScreen} />
+    <Stack.Screen name="Cart"             component={CartScreen} />
+    <Stack.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
+    <Stack.Screen name="OrderTracking"    component={OrderTrackingScreen} />
+  </Stack.Navigator>
+);
+
+const BookStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="BookMain"         component={BookServiceScreen} />
+    <Stack.Screen name="SubCategories"    component={SubCategoriesScreen} />
+    <Stack.Screen name="DescribeJob"      component={DescribeJobScreen} />
+    <Stack.Screen name="SavedAddresses"   component={SavedAddressesScreen} />
+    <Stack.Screen name="LiveBids"         component={LiveBidsScreen} />
+    <Stack.Screen name="LiveTracking"     component={LiveTrackingScreen} />
+    <Stack.Screen name="WorkCompleted"    component={WorkCompletedScreen} />
+    <Stack.Screen name="RateExperience"   component={RateExperienceScreen} />
+    <Stack.Screen name="WorkerProfile"    component={WorkerProfileScreen} />
+    <Stack.Screen name="Quotes"           component={QuotesScreen} />
+  </Stack.Navigator>
+);
+
+const WalletStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="WalletMain"       component={CustomerWalletScreen} />
+    <Stack.Screen name="WalletTopup"      component={WalletTopupScreen} />
+    <Stack.Screen name="Notifications"    component={NotificationsScreen} />
+  </Stack.Navigator>
+);
+
+const ProfileStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="ProfileMain"         component={ProfileScreen} />
+    <Stack.Screen name="EditProfile"         component={EditProfileScreen} />
+    <Stack.Screen name="SavedAddresses"      component={SavedAddressesScreen} />
+    <Stack.Screen name="PaymentMethods"      component={PaymentMethodsScreen} />
+    <Stack.Screen name="CustomerShopOrders"  component={CustomerShopOrdersScreen} />
+    <Stack.Screen name="OrderHistory"        component={OrderHistoryScreen} />
+    <Stack.Screen name="OrderTracking"       component={OrderTrackingScreen} />
+    <Stack.Screen name="ShopOrderDetails"    component={ShopOrderDetailsScreen} />
+    <Stack.Screen name="ReferEarn"           component={ReferEarnScreen} />
+    <Stack.Screen name="HelpSupport"         component={HelpSupportScreen} />
+    <Stack.Screen name="Privacy"             component={PrivacyScreen} />
+    <Stack.Screen name="Notifications"       component={NotificationsScreen} />
+  </Stack.Navigator>
+);
+
+/* ──────────────────────────────────────────────
+   Custom Tab Bar
+────────────────────────────────────────────── */
 const CustomTabBar = ({ state, descriptors, navigation }) => {
-  const { theme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
 
   return (
-    <View style={[styles.tabBar, { backgroundColor: theme.colors.card, borderTopColor: theme.colors.border }]}>
+    <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
-        
-        // Only render the 5 main tabs in the bottom bar
-        const mainTabs = ['Home', 'Shop', 'Book', 'Wallet', 'Profile'];
-        if (!mainTabs.includes(route.name)) return null;
 
         const label = options.tabBarLabel !== undefined ? options.tabBarLabel : route.name;
         const isFocused = state.index === index;
@@ -79,10 +150,9 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
         }
 
         let Icon = Home;
-        if (route.name === 'Home')   Icon = Home;
-        if (route.name === 'Shop')   Icon = ShoppingBag;
-        if (route.name === 'Wallet') Icon = Wallet;
-        if (route.name === 'Quotes') Icon = MessageSquare;
+        if (route.name === 'Home')    Icon = Home;
+        if (route.name === 'Shop')    Icon = ShoppingBag;
+        if (route.name === 'Wallet')  Icon = Wallet;
         if (route.name === 'Profile') Icon = User;
 
         return (
@@ -104,53 +174,27 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   );
 };
 
-const CustomerTabs = () => {
-  return (
-    <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
-    >
-      <Tab.Screen name="Home"   component={HomeScreen} />
-      <Tab.Screen name="Shop"   component={ShopScreen} />
-      <Tab.Screen name="Book"   component={BookServiceScreen} />
-      <Tab.Screen name="Wallet" component={CustomerWalletScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
-      
-      {/* Sub-screens registered here so they have the bottom tab bar */}
-      <Tab.Screen name="SubCategories" component={SubCategoriesScreen} />
-      <Tab.Screen name="DescribeJob" component={DescribeJobScreen} />
-      <Tab.Screen name="LiveBids" component={LiveBidsScreen} />
-      <Tab.Screen name="LiveTracking" component={LiveTrackingScreen} />
-      <Tab.Screen name="WorkCompleted" component={WorkCompletedScreen} />
-      <Tab.Screen name="RateExperience" component={RateExperienceScreen} />
-      <Tab.Screen name="PastJobDetails" component={PastJobDetailsScreen} />
-      <Tab.Screen name="WorkerProfile" component={WorkerProfileScreen} />
-      <Tab.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
-      <Tab.Screen name="CustomerShopOrders" component={CustomerShopOrdersScreen} />
-      <Tab.Screen name="EditProfile" component={EditProfileScreen} />
-      <Tab.Screen name="SavedAddresses" component={SavedAddressesScreen} />
-      <Tab.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
-      <Tab.Screen name="ReferEarn"      component={ReferEarnScreen}       />
-      <Tab.Screen name="HelpSupport"     component={HelpSupportScreen}     />
-      <Tab.Screen name="Privacy"         component={PrivacyScreen}         />
-      <Tab.Screen name="Cart"            component={CartScreen}            />
-      <Tab.Screen name="Notifications"   component={NotificationsScreen}   />
-      <Tab.Screen name="Quotes"          component={QuotesScreen}          />
-      <Tab.Screen name="ShopDetail"       component={ShopDetailScreen}            />
-      <Tab.Screen name="OrderTracking"    component={OrderTrackingScreen}         />
-      <Tab.Screen name="OrderHistory"     component={OrderHistoryScreen}          />
-      <Tab.Screen name="WalletTopup"      component={WalletTopupScreen}           />
-    </Tab.Navigator>
-  );
-};
+/* ──────────────────────────────────────────────
+   CustomerTabs — main bottom tab navigator
+────────────────────────────────────────────── */
+const CustomerTabs = () => (
+  <Tab.Navigator
+    tabBar={(props) => <CustomTabBar {...props} />}
+    screenOptions={{ headerShown: false }}
+  >
+    <Tab.Screen name="Home"    component={HomeStack} />
+    <Tab.Screen name="Shop"    component={ShopStack} />
+    <Tab.Screen name="Book"    component={BookStack} />
+    <Tab.Screen name="Wallet"  component={WalletStack} />
+    <Tab.Screen name="Profile" component={ProfileStack} />
+  </Tab.Navigator>
+);
 
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     height: 72,
-    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
     alignItems: 'center',
   },
   tabItem: {
@@ -199,7 +243,6 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   fabActive: {
-    // Optionally dim the FAB when active
   }
 });
 

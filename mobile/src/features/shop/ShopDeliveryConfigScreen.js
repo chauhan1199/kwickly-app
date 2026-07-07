@@ -9,11 +9,12 @@ import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import api from '../../services/api';
 import {
-  Truck, DollarSign, MapPin, Clock, Tag, Save, ChevronRight, Plus, X
+  Truck, DollarSign, MapPin, Clock, Tag, Save, ChevronRight, Plus, X,
+  ChevronLeft, Sun, Moon, Bell
 } from 'lucide-react-native';
 
 const ShopDeliveryConfigScreen = ({ navigation }) => {
-  const { theme, isDarkMode } = useTheme();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
@@ -68,11 +69,19 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
 
   const handleSave = async () => {
     if (!shopId) return;
+    
+    let finalConfig = { ...config };
+    if (showAddSlot && newSlot.label.trim()) {
+      finalConfig.deliverySlots = [...(finalConfig.deliverySlots || []), { ...newSlot }];
+      setConfig(finalConfig);
+      setNewSlot({ label: '', slotOpen: '10:00', slotClose: '13:00' });
+      setShowAddSlot(false);
+    }
+
     try {
       setSaving(true);
-      await api.patch(`/shops/${shopId}/delivery-config`, config);
+      await api.patch(`/shops/${shopId}/delivery-config`, finalConfig);
       Alert.alert('Saved! ✅', 'Delivery configuration updated successfully');
-      navigation.goBack();
     } catch (e) {
       Alert.alert('Error', e?.response?.data?.message || 'Failed to save');
     } finally {
@@ -112,7 +121,27 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      <AppBar title="Delivery Config" subtitle="Manage delivery settings" />
+      
+      {/* ── App Bar ── */}
+      <View style={styles.appBar}>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity style={[styles.appBarIconBtn, { marginRight: 12, borderWidth: 0, backgroundColor: 'transparent' }]} onPress={() => navigation.goBack()}>
+            <ChevronLeft size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.appBarTitle} numberOfLines={1}>Delivery Config</Text>
+            <Text style={styles.appBarSubtitle}>Manage delivery settings</Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
+            {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
+            <Bell size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Delivery Radius */}
@@ -371,6 +400,10 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:    { flex: 1, backgroundColor: theme.colors.background },
+  appBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: theme.colors.background },
+  appBarTitle:  { fontSize: 20, fontWeight: '800', color: theme.colors.text },
+  appBarSubtitle: { fontSize: 13, color: theme.colors.textDim, marginTop: 2 },
+  appBarIconBtn:{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, justifyContent: 'center', alignItems: 'center' },
   content:      { padding: 16 },
   section:      { backgroundColor: theme.colors.surface, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border },
   sectionHeader:{ flexDirection: 'row', alignItems: 'center', gap: 8 },

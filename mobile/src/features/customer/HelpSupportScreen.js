@@ -34,7 +34,13 @@ const HelpSupportScreen = ({ navigation }) => {
     { q: 'How do subscription plans work?', a: 'Subscription plans give you access to premium features and lower commission rates. You can manage your plan in the Earnings tab.' },
   ];
 
-  const faqs = isWorker ? workerFaqs : customerFaqs;
+  const shopFaqs = [
+    { q: 'How do I update my business hours?', a: 'Go to Settings -> Business Hours. Changes will reflect instantly on your store profile.' },
+    { q: 'When do I receive my payouts?', a: 'Payouts are processed automatically every Monday and Thursday to your primary Bank or UPI account.' },
+    { q: 'How to handle an out-of-stock item?', a: 'Go to Products, search for the item, and toggle its availability. This prevents customers from ordering it.' },
+  ];
+
+  const faqs = isWorker ? workerFaqs : user?.role === 'SHOP' ? shopFaqs : customerFaqs;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -56,7 +62,7 @@ const HelpSupportScreen = ({ navigation }) => {
           showBack={true}
           transparent={true} 
           showLogo={false} 
-          hideCart={isWorker}
+          hideCart={isWorker || user?.role === 'SHOP'}
           onBackPress={() => navigation.goBack()}
         />
       </LinearGradient>

@@ -86,7 +86,7 @@ const WorkerJobCompleteScreen = ({ route, navigation }) => {
         <View style={styles.actionsContainer}>
           <TouchableOpacity 
             style={styles.doneBtn} 
-            onPress={() => navigation.navigate('WorkerApp')}
+            onPress={() => navigation.navigate('Dashboard')}
           >
             <Text style={styles.doneBtnText}>Done - Back Home</Text>
           </TouchableOpacity>

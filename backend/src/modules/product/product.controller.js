@@ -85,6 +85,18 @@ exports.createProduct = catchAsync(async (req, res) => {
     const productData = { ...req.body };
     if (req.file) {
         productData.imageUrl = `/uploads/${req.file.filename}`;
+    } else if (req.body.imageBase64) {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const filename = `image-${Date.now()}-${Math.floor(Math.random() * 10000)}.jpg`;
+            const filepath = path.join(__dirname, '../../../../uploads', filename);
+            const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, '');
+            fs.writeFileSync(filepath, base64Data, 'base64');
+            productData.imageUrl = `/uploads/${filename}`;
+        } catch (e) {
+            console.log('Error saving base64 image:', e);
+        }
     }
     
     // Parse attributes if sent as a JSON string from FormData
@@ -130,6 +142,18 @@ exports.updateProduct = catchAsync(async (req, res) => {
     const updateData = { ...req.body };
     if (req.file) {
         updateData.imageUrl = `/uploads/${req.file.filename}`;
+    } else if (req.body.imageBase64) {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const filename = `image-${Date.now()}-${Math.floor(Math.random() * 10000)}.jpg`;
+            const filepath = path.join(__dirname, '../../../../uploads', filename);
+            const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, '');
+            fs.writeFileSync(filepath, base64Data, 'base64');
+            updateData.imageUrl = `/uploads/${filename}`;
+        } catch (e) {
+            console.log('Error saving base64 image:', e);
+        }
     }
 
     // Parse attributes if sent as a JSON string from FormData

@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView, 
   TouchableOpacity,
   StatusBar,
@@ -14,6 +13,7 @@ import { WebView } from 'react-native-webview';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { TextInput } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { ChevronLeft, Bell, FileText, Phone, CheckCircle2, Box, Truck } from 'lucide-react-native';
 import api from '../../services/api';

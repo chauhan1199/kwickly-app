@@ -40,6 +40,7 @@ const findEligibleWorkers = async (job, radiusKm, minBalance = 100) => {
     // Fetch candidate workers within global max radius
     const candidateWorkers = await Customer.find(workerQuery)
         .select('_id services serviceRadius activeLocation city')
+        .populate('services.category', 'name')
         .lean();
 
     const targetJobCategory = (job.category || '').trim().toLowerCase();

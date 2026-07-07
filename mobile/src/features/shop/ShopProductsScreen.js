@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView, 
   TouchableOpacity,
   StatusBar,
@@ -16,11 +15,13 @@ import {
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { Bell, Search, Image as ImageIcon, X, RefreshCw, Moon, Sun } from 'lucide-react-native';
+import { Bell, Search, Image as ImageIcon, X, RefreshCw, Moon, Sun, Menu, ChevronDown } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import api from '../../services/api';
+import { getImageUrl } from '../../utils/helpers';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const ShopProductsScreen = () => {
+const ShopProductsScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const styles = createStyles(theme, isDarkMode);
 
@@ -47,6 +48,14 @@ const ShopProductsScreen = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const [showUnitDropdown, setShowUnitDropdown] = useState(false);
+  const UNIT_OPTIONS = [
+    'Piece', 'Kg (Kilogram)', 'Gram', 'Quintal (100 Kg)', 'Ton', 
+    'Liter', 'Milliliter (ml)', 'Dozen (12 pcs)', 'Pack', 'Box', 
+    'Bundle', 'Pair', 'Set', 'Bottle', 'Pouch', 'Bag', 'Roll', 
+    'Sheet', 'Carton', 'Bar'
+  ];
 
   React.useEffect(() => {
     fetchProducts();
@@ -135,9 +144,24 @@ const ShopProductsScreen = () => {
   };
 
   const pickImage = async () => {
-    const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
-    if (!result.didCancel && result.assets?.length > 0) {
-      setFormData({ ...formData, image: result.assets[0] });
+    try {
+      const result = await launchImageLibrary({ 
+        mediaType: 'photo', 
+        quality: 0.5, 
+        maxWidth: 600,
+        maxHeight: 600,
+        selectionLimit: 1,
+        includeBase64: true 
+      });
+      if (!result.didCancel && result.assets?.length > 0) {
+        setFormData({ ...formData, image: result.assets[0] });
+      } else if (result.errorCode) {
+        console.log('ImagePicker Error:', result.errorMessage);
+        Alert.alert('Error', 'Failed to pick image: ' + result.errorMessage);
+      }
+    } catch (error) {
+      console.log('ImagePicker Exception:', error);
+      Alert.alert('Error', 'An error occurred while opening the image picker.');
     }
   };
 
@@ -165,50 +189,52 @@ const ShopProductsScreen = () => {
 
     try {
       setSaving(true);
-      const fd = new FormData();
-      fd.append('name', formData.name);
-      fd.append('price', formData.price);
-      fd.append('stock', formData.stock || 0);
-      fd.append('minQty', formData.minQty || 1);
-      fd.append('brand', formData.brand || '');
-      fd.append('unit', formData.unit || 'Piece');
-      fd.append('category', formData.category || 'General');
-      fd.append('description', formData.description || '');
-      fd.append('attributes', JSON.stringify(formData.attributes || []));
+      const payload = {
+        name: String(formData.name || ''),
+        price: String(formData.price || ''),
+        stock: String(formData.stock || '0'),
+        minQty: String(formData.minQty || '1'),
+        brand: String(formData.brand || ''),
+        unit: String(formData.unit || 'Piece'),
+        category: String(formData.category || 'General'),
+        description: String(formData.description || ''),
+        attributes: formData.attributes || [],
+      };
       
-      if (formData.image?.uri) {
-        fd.append('image', {
-          uri: formData.image.uri,
-          type: formData.image.type,
-          name: formData.image.fileName || 'product.jpg'
-        });
+      if (formData.image?.base64) {
+        payload.imageBase64 = `data:${formData.image.type || 'image/jpeg'};base64,${formData.image.base64}`;
       }
 
       if (modalMode === 'add') {
-        await api.post('/products', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await api.post('/products', payload);
       } else {
-        await api.patch(`/products/${formData.id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await api.patch(`/products/${formData.id}`, payload);
       }
 
       setIsModalVisible(false);
       fetchProducts();
     } catch (e) {
+      setSaving(false);
       console.log('Error saving product:', e?.response?.data || e.message);
-      Alert.alert('Error', 'Failed to save product');
+      const errMsg = e?.response?.data?.message || JSON.stringify(e?.response?.data) || e.message;
+      Alert.alert('Error', `Failed to save product: ${errMsg}`);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
       {/* App Bar */}
       <View style={styles.appBar}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.appBarTitle}>Products</Text>
-          <Text style={styles.appBarSubtitle}>Manage your catalog</Text>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <View>
+            <Text style={styles.appBarTitle}>Products</Text>
+            <Text style={styles.appBarSubtitle}>Manage your catalog</Text>
+          </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
@@ -217,7 +243,7 @@ const ShopProductsScreen = () => {
           <TouchableOpacity style={styles.appBarIconBtn} onPress={fetchProducts}>
             <RefreshCw size={20} color={theme.colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn}>
+          <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
             <Bell size={20} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
@@ -244,46 +270,59 @@ const ShopProductsScreen = () => {
 
         {/* Product List */}
         <View style={styles.productsList}>
-          {filteredProducts.map((product) => (
+          {filteredProducts.map((product) => {
+            const resolvedImage = getImageUrl(product.imageUrl);
+            return (
             <View key={product.id} style={styles.productCard}>
-              <View style={[styles.productIconBox, { backgroundColor: product.bg, overflow: 'hidden' }]}>
-                {product.imageUrl ? (
-                  <Image 
-                    source={{ uri: product.imageUrl.replace(/(localhost|127\.0\.0\.1)/, '10.0.2.2') + `?t=${new Date().getTime()}` }} 
-                    style={{ width: '100%', height: '100%' }} 
-                    resizeMode="cover" 
-                  />
-                ) : (
-                  <Text style={{ fontSize: 24 }}>{product.icon}</Text>
-                )}
-              </View>
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{product.name}</Text>
-                {product.brand ? <Text style={{ color: theme.colors.textDim, fontSize: 12, marginBottom: 4 }}>Brand: {product.brand}</Text> : null}
-                
-                {product.attributes && product.attributes.length > 0 && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-                    {product.attributes.map((attr, idx) => (
-                      <View key={idx} style={{ backgroundColor: theme.colors.border, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                        <Text style={{ fontSize: 10, color: theme.colors.text }}>{attr.name}: {attr.value}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <View style={[styles.productIconBox, { backgroundColor: product.bg, overflow: 'hidden' }]}>
+                  {resolvedImage ? (
+                    <Image 
+                      source={{ uri: resolvedImage }} 
+                      style={{ width: '100%', height: '100%' }} 
+                      resizeMode="cover" 
+                    />
+                  ) : (
+                    <Text style={{ fontSize: 28 }}>{product.icon}</Text>
+                  )}
+                </View>
+                <View style={styles.productInfo}>
+                  <Text style={styles.productName}>{product.name}</Text>
+                  {product.brand ? <Text style={{ color: theme.colors.textDim, fontSize: 12, marginBottom: 4 }}>Brand: {product.brand}</Text> : null}
+                  
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <View style={styles.tagPill}>
+                        <Text style={styles.tagPillText}>{product.stock} Stock</Text>
                       </View>
-                    ))}
-                  </View>
-                )}
+                      <View style={styles.tagPill}>
+                        <Text style={styles.tagPillText}>Min {product.minQty}</Text>
+                      </View>
+                      <View style={styles.tagPill}>
+                        <Text style={styles.tagPillText}>{product.unit}</Text>
+                      </View>
+                      {product.attributes?.map((attr, idx) => (
+                        <View key={idx} style={styles.tagPill}>
+                          <Text style={styles.tagPillText}>{attr.name}: {attr.value}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
 
-                <Text style={styles.productStats}>Stock: {product.stock} · Min qty: {product.minQty} {product.unit}</Text>
-                <Text style={styles.productPrice}>₹{product.price} / {product.unit}</Text>
+                  <Text style={styles.productPrice}>₹{product.price} / {product.unit}</Text>
+                </View>
               </View>
+              
               <View style={styles.productActions}>
-                <TouchableOpacity style={styles.editBtn} onPress={() => handleOpenEditModal(product)}>
+                <TouchableOpacity style={[styles.editBtn, { flex: 1, marginRight: 6 }]} onPress={() => handleOpenEditModal(product)}>
                   <Text style={styles.editBtnText}>Edit</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(product.id)}>
+                <TouchableOpacity style={[styles.deleteBtn, { flex: 1, marginLeft: 6 }]} onPress={() => handleDelete(product.id)}>
                   <Text style={styles.deleteBtnText}>Delete</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          ))}
+          )})}
           {filteredProducts.length === 0 && (
             <View style={{ padding: 40, alignItems: 'center' }}>
               <Text style={{ color: theme.colors.textDim }}>No products found.</Text>
@@ -326,7 +365,7 @@ const ShopProductsScreen = () => {
                   <Text style={styles.inputLabel}>Category</Text>
                   <TextInput 
                     style={styles.inputField} 
-                    placeholder="e.g. Paint, Tools, Plumbing"
+                    placeholder="e.g. Grocery"
                     placeholderTextColor={theme.colors.textDim}
                     value={formData.category}
                     onChangeText={(t) => setFormData({...formData, category: t})}
@@ -356,15 +395,37 @@ const ShopProductsScreen = () => {
                 />
               </View>
 
-              <View style={styles.inputGroup}>
+              <View style={[styles.inputGroup, { zIndex: 5 }]}>
                 <Text style={styles.inputLabel}>Selling Unit</Text>
-                <TextInput 
-                  style={styles.inputField} 
-                  placeholder="e.g. Box, Kg, Piece"
-                  placeholderTextColor={theme.colors.textDim}
-                  value={formData.unit}
-                  onChangeText={(t) => setFormData({...formData, unit: t})}
-                />
+                <TouchableOpacity 
+                  style={[styles.inputField, { justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center' }]}
+                  onPress={() => setShowUnitDropdown(!showUnitDropdown)}
+                >
+                  <Text style={{ color: formData.unit ? theme.colors.text : theme.colors.textDim }}>
+                    {formData.unit || 'Select unit'}
+                  </Text>
+                  <ChevronDown size={16} color={theme.colors.textDim} />
+                </TouchableOpacity>
+                <Modal visible={showUnitDropdown} transparent animationType="fade" onRequestClose={() => setShowUnitDropdown(false)}>
+                  <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowUnitDropdown(false)}>
+                    <View style={{ width: '85%', maxHeight: '60%', backgroundColor: theme.colors.surface, borderRadius: 16, overflow: 'hidden', elevation: 5, shadowColor: '#000', shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.3, shadowRadius: 8 }}>
+                      <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.card }}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: theme.colors.text }}>Select Unit</Text>
+                      </View>
+                      <ScrollView showsVerticalScrollIndicator={false}>
+                        {UNIT_OPTIONS.map((unit, i) => (
+                          <TouchableOpacity 
+                            key={i} 
+                            style={{ paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: i < UNIT_OPTIONS.length - 1 ? 1 : 0, borderBottomColor: theme.colors.border }}
+                            onPress={() => { setFormData({...formData, unit}); setShowUnitDropdown(false); }}
+                          >
+                            <Text style={{ color: formData.unit === unit ? theme.colors.primary : theme.colors.text, fontWeight: formData.unit === unit ? 'bold' : 'normal', fontSize: 15 }}>{unit}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </TouchableOpacity>
+                </Modal>
               </View>
 
               <View style={styles.rowInputs}>
@@ -465,7 +526,8 @@ const ShopProductsScreen = () => {
         </View>
       </Modal>
 
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 };
 
@@ -479,7 +541,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
+    gap: 10,
     backgroundColor: theme.colors.background,
   },
   appBarTitle: {
@@ -488,9 +551,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.text,
   },
   appBarSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.textDim,
-    marginTop: 2,
+    marginTop: 1,
   },
   appBarIconBtn: {
     width: 40,
@@ -502,38 +565,25 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  badge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#F59E0B',
-    borderWidth: 1.5,
-    borderColor: theme.colors.surface,
-  },
   scrollContent: {
     padding: 16,
   },
   addBtn: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#10B981',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 16,
   },
   addBtnText: {
-    color: '#001016',
+    color: '#FFF',
     fontSize: 16,
     fontWeight: '800',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F4F4F5',
     borderRadius: 12,
     paddingHorizontal: 12,
     marginBottom: 20,
@@ -555,34 +605,38 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     overflow: 'hidden',
   },
   productCard: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
-    alignItems: 'center',
   },
   productIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
   productInfo: {
     flex: 1,
-    marginRight: 12,
   },
   productName: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.colors.text,
-    marginBottom: 2,
-  },
-  productStats: {
-    fontSize: 12,
-    color: theme.colors.textDim,
     marginBottom: 4,
+  },
+  tagPill: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  tagPillText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.colors.textDim,
   },
   productPrice: {
     fontSize: 15,
@@ -590,33 +644,35 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.primary,
   },
   productActions: {
-    gap: 8,
+    flexDirection: 'row',
   },
   editBtn: {
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: theme.colors.border,
-    alignItems: 'center',
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   editBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: theme.colors.text,
   },
   deleteBtn: {
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#FCA5A5',
-    alignItems: 'center',
+    borderColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   deleteBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: '#EF4444',
   },

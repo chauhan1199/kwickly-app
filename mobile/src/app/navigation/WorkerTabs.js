@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { Home, MessageSquare, Wallet, Wrench, User } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Theme from '../../constants/Theme';
@@ -8,25 +9,75 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 
 // Screens
-import WorkerDashboard        from '../../features/worker/WorkerDashboard';
-import WorkerMyQuotesScreen     from '../../features/worker/WorkerMyQuotesScreen';
-import WorkerEarningsScreen   from '../../features/worker/WorkerEarningsScreen';
-import WorkerManageServicesScreen from '../../features/worker/WorkerManageServicesScreen';
-import WorkerProfileScreen    from '../../features/worker/WorkerProfileScreen';
+import WorkerDashboard              from '../../features/worker/WorkerDashboard';
+import WorkerMyQuotesScreen         from '../../features/worker/WorkerMyQuotesScreen';
+import WorkerEarningsScreen         from '../../features/worker/WorkerEarningsScreen';
+import WorkerManageServicesScreen   from '../../features/worker/WorkerManageServicesScreen';
+import WorkerProfileScreen          from '../../features/worker/WorkerProfileScreen';
 
 // Sub-screens (registered but not shown in tab bar)
-import WorkerJobDetailsScreen  from '../../features/worker/WorkerJobDetailsScreen';
-import WorkerNavigateJobScreen from '../../features/worker/WorkerNavigateJobScreen';
-import WorkerArrivalOTPScreen  from '../../features/worker/WorkerArrivalOTPScreen';
-import WorkerActiveJobScreen   from '../../features/worker/WorkerActiveJobScreen';
-import WorkerJobCompleteScreen from '../../features/worker/WorkerJobCompleteScreen';
-import WorkerRateCustomerScreen from '../../features/worker/WorkerRateCustomerScreen';
-import WorkerJobCanceledScreen from '../../features/worker/WorkerJobCanceledScreen';
-import NotificationsScreen     from '../../features/shared/NotificationsScreen';
-import HelpSupportScreen       from '../../features/customer/HelpSupportScreen';
+import WorkerJobDetailsScreen       from '../../features/worker/WorkerJobDetailsScreen';
+import WorkerNavigateJobScreen      from '../../features/worker/WorkerNavigateJobScreen';
+import WorkerArrivalOTPScreen       from '../../features/worker/WorkerArrivalOTPScreen';
+import WorkerActiveJobScreen        from '../../features/worker/WorkerActiveJobScreen';
+import WorkerJobCompleteScreen      from '../../features/worker/WorkerJobCompleteScreen';
+import WorkerRateCustomerScreen     from '../../features/worker/WorkerRateCustomerScreen';
+import WorkerJobCanceledScreen      from '../../features/worker/WorkerJobCanceledScreen';
+import NotificationsScreen          from '../../features/shared/NotificationsScreen';
+import HelpSupportScreen            from '../../features/customer/HelpSupportScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
 
+/* ──────────────────────────────────────────────
+   Per-tab Stack navigators so goBack() works
+────────────────────────────────────────────── */
+const DashboardStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="WorkerDashboard"   component={WorkerDashboard} />
+    <Stack.Screen name="WorkerJobDetails"  component={WorkerJobDetailsScreen} />
+    <Stack.Screen name="WorkerNavigateJob" component={WorkerNavigateJobScreen} />
+    <Stack.Screen name="WorkerArrivalOTP"  component={WorkerArrivalOTPScreen} />
+    <Stack.Screen name="WorkerActiveJob"   component={WorkerActiveJobScreen} />
+    <Stack.Screen name="WorkerJobComplete" component={WorkerJobCompleteScreen} />
+    <Stack.Screen name="WorkerRateCustomer" component={WorkerRateCustomerScreen} />
+    <Stack.Screen name="WorkerJobCanceled" component={WorkerJobCanceledScreen} />
+    <Stack.Screen name="Notifications"     component={NotificationsScreen} />
+  </Stack.Navigator>
+);
+
+const QuotesStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="WorkerMyQuotes"    component={WorkerMyQuotesScreen} />
+    <Stack.Screen name="WorkerJobDetails"  component={WorkerJobDetailsScreen} />
+    <Stack.Screen name="WorkerNavigateJob" component={WorkerNavigateJobScreen} />
+    <Stack.Screen name="WorkerArrivalOTP"  component={WorkerArrivalOTPScreen} />
+    <Stack.Screen name="WorkerActiveJob"   component={WorkerActiveJobScreen} />
+    <Stack.Screen name="WorkerJobComplete" component={WorkerJobCompleteScreen} />
+    <Stack.Screen name="WorkerRateCustomer" component={WorkerRateCustomerScreen} />
+    <Stack.Screen name="WorkerJobCanceled" component={WorkerJobCanceledScreen} />
+  </Stack.Navigator>
+);
+
+const EarningsStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="WorkerEarnings" component={WorkerEarningsScreen} />
+    <Stack.Screen name="Notifications"  component={NotificationsScreen} />
+  </Stack.Navigator>
+);
+
+const ProfileStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="WorkerProfile"   component={WorkerProfileScreen} />
+    <Stack.Screen name="Services"        component={WorkerManageServicesScreen} />
+    <Stack.Screen name="HelpSupport"     component={HelpSupportScreen} />
+    <Stack.Screen name="Notifications"   component={NotificationsScreen} />
+  </Stack.Navigator>
+);
+
+/* ──────────────────────────────────────────────
+   Custom Tab Bar
+────────────────────────────────────────────── */
 const MAIN_TABS = ['Dashboard', 'Quotes', 'Power', 'Earnings', 'Profile'];
 
 const TAB_ICONS = {
@@ -39,15 +90,9 @@ const TAB_ICONS = {
 const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
-  
-  // Duty status is typically managed via context or a global store. 
-  // For this UI, we can toggle it visually or dispatch an event.
-  // Actually, standard practice here is to dispatch a 'TOGGLE_DUTY_STATUS' event 
-  // or use the auth context if isOnline is there. 
-  // Since we don't have the context here easily, we'll just emit an event or rely on the dashboard.
-  
+
   return (
-    <View style={[styles.tabBar, { backgroundColor: theme.colors.card, borderTopColor: theme.colors.border }]}>
+    <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
       {state.routes.map((route, index) => {
         if (!MAIN_TABS.includes(route.name) && route.name !== 'Power') return null;
 
@@ -66,7 +111,7 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
                   colors={isOnline ? ['#6C47FF', '#8B6FFF'] : ['#9CA3AF', '#D1D5DB']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={[styles.fab]}
+                  style={[styles.fab, { borderColor: theme.colors.surface }]}
                 >
                   <View style={{width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center'}}>
                     <View style={{width: 2, height: 10, backgroundColor: '#fff', position: 'absolute', top: -2}} />
@@ -101,29 +146,21 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
   );
 };
 
+const DummyScreen = () => null;
+
+/* ──────────────────────────────────────────────
+   WorkerTabs — main bottom tab navigator
+────────────────────────────────────────────── */
 const WorkerTabs = () => (
   <Tab.Navigator
     tabBar={(props) => <CustomWorkerTabBar {...props} />}
     screenOptions={{ headerShown: false }}
   >
-    {/* Main Tabs */}
-    <Tab.Screen name="Dashboard"  component={WorkerDashboard}           />
-    <Tab.Screen name="Quotes"     component={WorkerMyQuotesScreen}        />
-    <Tab.Screen name="Power"      component={View} /* Dummy component for the button */ />
-    <Tab.Screen name="Earnings"   component={WorkerEarningsScreen}      />
-    <Tab.Screen name="Profile"    component={WorkerProfileScreen}       />
-
-    {/* Sub-screens */}
-    <Tab.Screen name="Services"            component={WorkerManageServicesScreen} />
-    <Tab.Screen name="WorkerJobDetails"    component={WorkerJobDetailsScreen}   />
-    <Tab.Screen name="WorkerNavigateJob"   component={WorkerNavigateJobScreen}  />
-    <Tab.Screen name="WorkerArrivalOTP"    component={WorkerArrivalOTPScreen}   />
-    <Tab.Screen name="WorkerActiveJob"     component={WorkerActiveJobScreen}    />
-    <Tab.Screen name="WorkerJobComplete"   component={WorkerJobCompleteScreen}  />
-    <Tab.Screen name="WorkerRateCustomer"  component={WorkerRateCustomerScreen} />
-    <Tab.Screen name="WorkerJobCanceled"   component={WorkerJobCanceledScreen}  />
-    <Tab.Screen name="HelpSupport"         component={HelpSupportScreen}        />
-    <Tab.Screen name="Notifications"       component={NotificationsScreen}      />
+    <Tab.Screen name="Dashboard" component={DashboardStack} />
+    <Tab.Screen name="Quotes"    component={QuotesStack} />
+    <Tab.Screen name="Power"     component={DummyScreen} />
+    <Tab.Screen name="Earnings"  component={EarningsStack} />
+    <Tab.Screen name="Profile"   component={ProfileStack} />
   </Tab.Navigator>
 );
 
@@ -131,9 +168,7 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     height: 72,
-    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
     alignItems: 'center',
   },
   tabItem: {
@@ -142,8 +177,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     position: 'relative',
-  },
-  tabItemActive: {
   },
   tabLabel: {
     fontSize: 10,
@@ -174,8 +207,6 @@ const styles = StyleSheet.create({
     elevation: 8,
     marginBottom: 4,
   },
-  fabActive: {
-  }
 });
 
 export default WorkerTabs;

@@ -15,20 +15,38 @@ import {
   Image,
   ActivityIndicator,
   TouchableOpacity,
+  Linking,
 } from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import { getImageUrl } from '../../utils/helpers';
 import {
   Bell, Store, Clock, Truck, ShieldCheck,
   CreditCard, BarChart2, LogOut, ChevronRight,
-  Eye, Download, Moon, Sun, Trash2,
+  Eye, Download, Moon, Sun, Trash2, Menu, Leaf, MapPin, X, MessageCircle
 } from 'lucide-react-native';
+
+const getImageUri = (path) => {
+  if (!path) return null;
+  let cleanPath = path;
+  if (cleanPath.startsWith('http://localhost')) {
+    cleanPath = cleanPath.replace('http://localhost', 'http://10.0.2.2');
+  } else if (cleanPath.startsWith('http://127.0.0.1')) {
+    cleanPath = cleanPath.replace('http://127.0.0.1', 'http://10.0.2.2');
+  }
+  
+  if (cleanPath.startsWith('http')) {
+    return cleanPath;
+  }
+  return 'http://10.0.2.2:5000' + (cleanPath.startsWith('/') ? '' : '/') + cleanPath;
+};
 
 /* ─────────────────────────────────────────────────────────────
    BOTTOM SHEET MODAL COMPONENT
@@ -64,7 +82,12 @@ const BottomSheetModal = ({ visible, onClose, title, children }) => {
           }}>
             {/* Handle */}
             <View style={{ width: 40, height: 5, backgroundColor: theme.colors.border, borderRadius: 3, alignSelf: 'center', marginBottom: 16 }} />
-            <Text style={{ fontSize: 20, fontWeight: '900', color: theme.colors.text, marginBottom: 12 }}>{title}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontSize: 20, fontWeight: '900', color: theme.colors.text }}>{title}</Text>
+              <TouchableOpacity onPress={onClose} style={{ padding: 4, backgroundColor: theme.colors.surface, borderRadius: 16 }}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" bounces={false}>
               {children}
               <View style={{ height: 40 }} />
@@ -79,7 +102,7 @@ const BottomSheetModal = ({ visible, onClose, title, children }) => {
 /* ═════════════════════════════════════════════════════════════
    MAIN SCREEN
    ═════════════════════════════════════════════════════════════ */
-export default function ShopSettingsScreen() {
+export default function ShopSettingsScreen({ navigation }) {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { signOut } = useAuth();
 
@@ -91,7 +114,6 @@ export default function ShopSettingsScreen() {
   // ── Modal visibility ──
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [hoursOpen, setHoursOpen] = useState(false);
-  const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [kycOpen, setKycOpen] = useState(false);
   const [payoutOpen, setPayoutOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
@@ -103,11 +125,12 @@ export default function ShopSettingsScreen() {
   const [editLocation, setEditLocation] = useState({ lat: 0, lng: 0 });
   const [editLogo, setEditLogo] = useState(null);
   const [editHours, setEditHours] = useState({ monFri: '9 AM – 10 PM', sat: '9 AM – 10 PM', sun: 'Closed' });
-  const [editDelivery, setEditDelivery] = useState({ radiusKm: '3', fee: '40', freeAbove: '1000' });
 
   // ── KYC Form ──
   const [showDocForm, setShowDocForm] = useState(false);
   const [newDoc, setNewDoc] = useState({ name: '', type: '', uri: '' });
+  const [docViewerVisible, setDocViewerVisible] = useState(false);
+  const [docViewerUrl, setDocViewerUrl] = useState(null);
 
   // ── Payout Form ──
   const [showPayoutForm, setShowPayoutForm] = useState(false);
@@ -138,7 +161,7 @@ export default function ShopSettingsScreen() {
         setEditDetails({ name: s.name || '', description: s.description || '', ownerName: s.ownerId?.name || '' });
         setEditCategory(s.category || 'General');
         setEditAddress(s.address || '');
-        if (s.logoUrl) setEditLogo({ uri: s.logoUrl });
+        if (s.logoUrl) setEditLogo({ uri: getImageUrl(s.logoUrl) });
         if (s.location?.coordinates?.length === 2) {
           setEditLocation({ lng: s.location.coordinates[0], lat: s.location.coordinates[1] });
         }
@@ -146,11 +169,6 @@ export default function ShopSettingsScreen() {
           monFri: s.businessHours?.monFri || '9 AM – 10 PM',
           sat: s.businessHours?.sat || '9 AM – 10 PM',
           sun: s.businessHours?.sun || 'Closed',
-        });
-        setEditDelivery({
-          radiusKm: String(s.delivery?.radiusKm ?? '3'),
-          fee: String(s.delivery?.fee ?? '40'),
-          freeAbove: String(s.delivery?.freeAbove ?? '1000'),
         });
         if (Array.isArray(s.payoutMethods)) {
           setAccounts(s.payoutMethods.map((m, i) => ({
@@ -260,39 +278,39 @@ export default function ShopSettingsScreen() {
     finally { setSaving(false); }
   };
 
-  const saveDelivery = async () => {
-    try {
-      setSaving(true);
-      const res = await api.patch('/shops/my', {
-        delivery: { radiusKm: +editDelivery.radiusKm, fee: +editDelivery.fee, freeAbove: +editDelivery.freeAbove },
-      });
-      if (res.data?.status === 'success') { setShop(res.data.data); setDeliveryOpen(false); Alert.alert('✓ Saved', 'Delivery settings updated'); }
-    } catch { Alert.alert('Error', 'Failed to save delivery settings'); }
-    finally { setSaving(false); }
-  };
-
   const pickDocument = async () => {
-    const r = await launchImageLibrary({ mediaType: 'mixed', quality: 0.8 });
+    const r = await launchImageLibrary({ mediaType: 'photo', quality: 0.8, includeBase64: true });
     if (!r.didCancel && r.assets?.length) {
       const a = r.assets[0];
-      setNewDoc({ name: newDoc.name || a.fileName || 'Document', type: a.type || 'image/jpeg', uri: a.uri });
+      setNewDoc({ name: newDoc.name || a.fileName || 'Document', type: a.type || 'image/jpeg', uri: a.uri, base64: a.base64 });
     }
   };
 
   const submitDoc = async () => {
     if (!newDoc.name.trim()) return Alert.alert('Error', 'Enter a document label');
     if (!newDoc.uri) return Alert.alert('Error', 'Select a file first');
+    if (!newDoc.base64) return Alert.alert('Error', 'Invalid file format. Please select an image.');
     try {
       setSaving(true);
-      const docs = [...(shop?.kyc?.documents || []), { name: newDoc.name, type: newDoc.type, url: newDoc.uri }];
+      
+      const uploadRes = await api.post('/chat/upload-base64', {
+        base64: `data:${newDoc.type};base64,${newDoc.base64}`,
+        mimeType: newDoc.type,
+        fileName: newDoc.name
+      });
+      
+      const remoteUrl = uploadRes.data?.data?.url;
+      if (!remoteUrl) throw new Error('Upload failed');
+
+      const docs = [...(shop?.kyc?.documents || []), { name: newDoc.name, type: newDoc.type, url: remoteUrl }];
       const res = await api.patch('/shops/my', { kyc: { ...shop?.kyc, status: 'PENDING', documents: docs } });
       if (res.data?.status === 'success') {
         setShop(res.data.data);
-        setNewDoc({ name: '', type: '', uri: '' });
+        setNewDoc({ name: '', type: '', uri: '', base64: '' });
         setShowDocForm(false);
         Alert.alert('✓ Submitted', 'Document sent for admin review');
       }
-    } catch { Alert.alert('Error', 'Failed to upload document'); }
+    } catch (e) { console.log(e); Alert.alert('Error', 'Failed to upload document'); }
     finally { setSaving(false); }
   };
 
@@ -314,7 +332,7 @@ export default function ShopSettingsScreen() {
     if (newPayout.type === 'BANK') {
       if (!newPayout.name || !newPayout.accountNumber || !newPayout.ifscCode)
         return Alert.alert('Error', 'Fill all bank fields');
-      payload.bankName = newPayout.name;
+      payload.label = newPayout.name;
       payload.detail = `${newPayout.accountNumber} IFSC: ${newPayout.ifscCode}`;
     } else {
       if (!newPayout.upiId) return Alert.alert('Error', 'Enter UPI ID');
@@ -394,16 +412,20 @@ export default function ShopSettingsScreen() {
 
         {/* App Bar */}
         <View style={s.appBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.appBarTitle}>Shop Settings</Text>
-            <Text style={s.appBarSub}>{shop?.name || 'Loading...'}</Text>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+            <View>
+              <Text style={s.appBarTitle}>Shop Settings</Text>
+              <Text style={s.appBarSubtitle}>{shop?.name || 'Manage settings'}</Text>
+            </View>
           </View>
-          <TouchableOpacity style={s.iconBtn} onPress={toggleTheme}>
-            {isDarkMode ? <Sun size={20} color={c.text} /> : <Moon size={20} color={c.text} />}
-          </TouchableOpacity>
-          <TouchableOpacity style={s.iconBtn}>
-            <Bell size={20} color={c.text} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity style={s.appBarIconBtn} onPress={toggleTheme}>
+              {isDarkMode ? <Sun size={20} color={c.text} /> : <Moon size={20} color={c.text} />}
+            </TouchableOpacity>
+            <TouchableOpacity style={s.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
+              <Bell size={20} color={c.text} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
@@ -411,17 +433,22 @@ export default function ShopSettingsScreen() {
           {/* Profile Card */}
           <View style={s.card}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={s.logo}>
+              <View style={[s.logo, { backgroundColor: '#10B981' }]}>
                 {editLogo ? (
                   <Image source={{ uri: editLogo.uri }} style={{ width: 52, height: 52, borderRadius: 12 }} />
                 ) : (
-                  <Store size={24} color="#FFF" />
+                  <Leaf size={28} color="#FFF" />
                 )}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.shopName}>{shop?.name || 'My Shop'}</Text>
-                <Text style={s.shopSub}>📍 {shop?.address || 'Address not set'}</Text>
-                <Text style={s.shopSub}>★ {shop?.rating ?? '0.0'} · {shop?.totalOrders ?? 0} orders</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <MapPin size={12} color={theme.colors.error} style={{ marginRight: 4 }} />
+                  <Text style={s.shopSub}>
+                    {shop?.address || 'Address not set'}
+                  </Text>
+                </View>
+                <Text style={[s.shopSub, { marginTop: 4 }]}>📞 +91 9876543210  ·  {shop?.totalOrders ?? 0} orders</Text>
               </View>
             </View>
 
@@ -449,11 +476,11 @@ export default function ShopSettingsScreen() {
             {[
               { icon: Store,       color: '#EC4899', title: 'Shop Details & Address', sub: shop?.address || 'Name, description, location', onPress: () => setDetailsOpen(true) },
               { icon: Clock,       color: '#F59E0B', title: 'Business Hours',        sub: shop?.businessHours?.monFri || '9 AM – 10 PM', onPress: () => setHoursOpen(true) },
-              { icon: Truck,       color: '#F97316', title: 'Delivery Settings',     sub: shop ? `${shop.delivery?.radiusKm ?? 3} km · ₹${shop.delivery?.fee ?? 40} fee` : '3 km · ₹40 fee', onPress: () => setDeliveryOpen(true) },
-              { icon: Truck,       color: '#0EA5E9', title: 'Delivery Config (Advanced)', sub: 'Slots, discounts, min order', onPress: () => navigation.navigate('ShopDeliveryConfig') },
+              { icon: Truck,       color: '#0EA5E9', title: 'Delivery Config', sub: 'Slots, fees, radius', onPress: () => navigation.navigate('ShopDeliveryConfig') },
               { icon: ShieldCheck, color: '#8B5CF6', title: 'KYC / GST',            sub: `Status: ${shop?.kyc?.status || 'PENDING'}`, onPress: () => setKycOpen(true) },
               { icon: CreditCard,  color: '#64748B', title: 'Payout Methods',       sub: accounts.length ? `${accounts.length} method(s)` : 'Add Bank or UPI', onPress: () => setPayoutOpen(true) },
               { icon: BarChart2,   color: '#0EA5E9', title: 'Analytics & Reports',  sub: 'Revenue, insights, PDF', onPress: () => setAnalyticsOpen(true) },
+              { icon: MessageCircle, color: '#10B981', title: 'Help & Support',     sub: 'Chat with us, FAQs', onPress: () => navigation.navigate('HelpSupport') },
             ].map(({ icon: Icon, color, title, sub, onPress }, i, arr) => (
               <Pressable
                 key={title}
@@ -579,24 +606,6 @@ export default function ShopSettingsScreen() {
       </BottomSheetModal>
 
       {/* ══════════════════════════════════════════════
-          3. DELIVERY SETTINGS
-          ══════════════════════════════════════════════ */}
-      <BottomSheetModal visible={deliveryOpen} onClose={() => setDeliveryOpen(false)} title="Delivery Settings">
-        <Text style={s.label}>Service Radius (km)</Text>
-        <TextInput style={s.input} keyboardType="numeric" value={editDelivery.radiusKm} onChangeText={t => setEditDelivery(p => ({ ...p, radiusKm: t }))} placeholder="3" placeholderTextColor={c.textDim} />
-
-        <Text style={s.label}>Delivery Fee (₹)</Text>
-        <TextInput style={s.input} keyboardType="numeric" value={editDelivery.fee} onChangeText={t => setEditDelivery(p => ({ ...p, fee: t }))} placeholder="40" placeholderTextColor={c.textDim} />
-
-        <Text style={s.label}>Free Delivery Above (₹)</Text>
-        <TextInput style={s.input} keyboardType="numeric" value={editDelivery.freeAbove} onChangeText={t => setEditDelivery(p => ({ ...p, freeAbove: t }))} placeholder="1000" placeholderTextColor={c.textDim} />
-
-        <TouchableOpacity style={s.primaryBtn} onPress={saveDelivery} disabled={saving}>
-          {saving ? <ActivityIndicator color="#001016" /> : <Text style={s.primaryBtnText}>Save Settings</Text>}
-        </TouchableOpacity>
-      </BottomSheetModal>
-
-      {/* ══════════════════════════════════════════════
           4. KYC / GST
           ══════════════════════════════════════════════ */}
       <BottomSheetModal visible={kycOpen} onClose={() => setKycOpen(false)} title="KYC & Documents">
@@ -613,7 +622,14 @@ export default function ShopSettingsScreen() {
               <Text style={{ fontSize: 14, fontWeight: '700', color: c.text }}>{doc.name}</Text>
               <Text style={{ fontSize: 12, color: c.textDim }}>{doc.type}</Text>
             </View>
-            <TouchableOpacity style={s.docBtn} onPress={() => Alert.alert('Document URL', doc.url || 'No URL')}>
+            <TouchableOpacity style={s.docBtn} onPress={() => {
+              if (doc.url) {
+                setDocViewerUrl(getImageUri(doc.url));
+                setDocViewerVisible(true);
+              } else {
+                Alert.alert('Error', 'No document URL found');
+              }
+            }}>
               <Eye size={13} color={c.primary} />
               <Text style={{ fontSize: 12, fontWeight: '700', color: c.primary, marginLeft: 4 }}>View</Text>
             </TouchableOpacity>
@@ -807,6 +823,7 @@ export default function ShopSettingsScreen() {
             </TouchableOpacity>
           </View>
           <MapView
+            provider={PROVIDER_GOOGLE}
             style={{ flex: 1 }}
             initialRegion={{
               latitude: tempLocation.lat,
@@ -827,6 +844,27 @@ export default function ShopSettingsScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* ══════════════════════════════════════════════
+          DOCUMENT VIEWER MODAL
+          ══════════════════════════════════════════════ */}
+      <Modal visible={docViewerVisible} transparent animationType="fade" onRequestClose={() => setDocViewerVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity 
+            style={{ position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, right: 20, zIndex: 10, padding: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 }}
+            onPress={() => setDocViewerVisible(false)}
+          >
+            <X size={24} color="#FFF" />
+          </TouchableOpacity>
+          {docViewerUrl && (
+            <Image 
+              source={{ uri: docViewerUrl }} 
+              style={{ width: '90%', height: '80%' }} 
+              resizeMode="contain" 
+            />
+          )}
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -839,8 +877,8 @@ const createStyles = (theme, isDark) => {
   return StyleSheet.create({
     appBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 10 },
     appBarTitle: { fontSize: 22, fontWeight: '800', color: c.text },
-    appBarSub: { fontSize: 13, color: c.textDim, marginTop: 1 },
-    iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, justifyContent: 'center', alignItems: 'center' },
+    appBarSubtitle: { fontSize: 13, color: c.textDim, marginTop: 1 },
+    appBarIconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, justifyContent: 'center', alignItems: 'center' },
 
     card: { backgroundColor: c.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 20, elevation: 2 },
     logo: { width: 52, height: 52, borderRadius: 12, backgroundColor: '#4ADE80', justifyContent: 'center', alignItems: 'center', marginRight: 14, overflow: 'hidden' },

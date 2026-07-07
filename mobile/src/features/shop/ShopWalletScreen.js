@@ -3,7 +3,6 @@ import {
   ScrollView, 
   View, 
   StyleSheet, 
-  SafeAreaView, 
   Text, 
   TouchableOpacity,
   StatusBar,
@@ -17,8 +16,10 @@ import {
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { ArrowDown, ArrowUp, Landmark, Smartphone, Bell, ReceiptText, RefreshCw, Moon, Sun } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, Landmark, Smartphone, Bell, ReceiptText, RefreshCw, Moon, Sun, Menu } from 'lucide-react-native';
 import api from '../../services/api';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ShopWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -210,20 +211,23 @@ const ShopWalletScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
       {/* App Bar */}
       <View style={styles.appBar}>
-        <Text style={styles.appBarTitle}>Shop Wallet</Text>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <View>
+            <Text style={styles.appBarTitle}>Shop Wallet</Text>
+            <Text style={styles.appBarSubtitle}>Manage your balance</Text>
+          </View>
+        </View>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
             {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={fetchWallet}>
-            <RefreshCw size={20} color={theme.colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn}>
+          <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
             <Bell size={20} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
@@ -232,21 +236,24 @@ const ShopWalletScreen = ({ navigation }) => {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
         {/* Balance Card */}
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Available balance</Text>
-          <Text style={styles.balanceValue}>₹{balance}</Text>
+        <LinearGradient 
+          colors={isDarkMode ? ['#4C1D95', '#8B5CF6'] : ['#8B5CF6', '#C4B5FD']} 
+          start={{x: 0, y: 0}} end={{x: 1, y: 1}}
+          style={styles.balanceCard}
+        >
+          <Text style={[styles.balanceLabel, { color: 'rgba(255,255,255,0.8)' }]}>Available balance</Text>
+          <Text style={[styles.balanceValue, { color: '#FFF' }]}>₹{balance}</Text>
           
           <View style={styles.balanceActions}>
-            <TouchableOpacity 
-              style={[styles.actionBtn, styles.topUpBtn]} 
-              onPress={() => setTopUpModalVisible(true)}
-            >
-              <Text style={styles.topUpBtnText}>+ Top Up</Text>
+            <TouchableOpacity style={styles.walletBtnLeft} onPress={() => setTopUpModalVisible(true)}>
+              <Text style={styles.walletBtnLeftText}>Top Up</Text>
             </TouchableOpacity>
-            
-            <Button variant="outline" title="Withdraw" onPress={() => setWithdrawModalVisible(true)} />
+            <View style={styles.walletBtnDivider} />
+            <TouchableOpacity style={styles.walletBtnRight} onPress={() => setWithdrawModalVisible(true)}>
+              <Text style={styles.walletBtnRightText}>Withdraw</Text>
+            </TouchableOpacity>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* Recent Transactions */}
         <Text style={styles.sectionTitle}>Recent Transactions</Text>
@@ -580,7 +587,8 @@ const ShopWalletScreen = ({ navigation }) => {
         </TouchableOpacity>
       </Modal>
 
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 };
 
@@ -591,13 +599,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
+    gap: 10,
     backgroundColor: theme.colors.background,
   },
   appBarTitle: {
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: '800',
     color: theme.colors.text,
+  },
+  appBarSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textDim,
+    marginTop: 1,
   },
   appBarIconBtn: {
     width: 40,
@@ -647,26 +661,33 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   balanceActions: {
     flexDirection: 'row',
     gap: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 16,
+    overflow: 'hidden',
   },
-  actionBtn: {
+  walletBtnLeft: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
     alignItems: 'center',
   },
-  topUpBtn: {
-    backgroundColor: theme.colors.primary,
-  },
-  topUpBtnText: {
-    color: '#001016',
+  walletBtnLeftText: {
+    color: '#FFF',
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
   },
-  withdrawBtn: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  walletBtnDivider: {
+    width: 1,
+    height: '60%',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
-  withdrawBtnText: {
-    color: 'white',
+  walletBtnRight: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  walletBtnRightText: {
+    color: '#FFF',
     fontSize: 15,
     fontWeight: '700',
   },

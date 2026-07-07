@@ -37,6 +37,7 @@ const RootNavigator = () => {
           ) : userRole === 'SHOP' ? (
             <Stack.Group>
               <Stack.Screen name="ShopApp" component={ShopTabs} />
+              <Stack.Screen name="Chat" component={ChatScreen} />
             </Stack.Group>
           ) : (
             /* WORKER — now has full tab navigator */

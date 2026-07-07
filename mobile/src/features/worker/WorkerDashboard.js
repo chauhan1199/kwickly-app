@@ -11,7 +11,8 @@ import {
   RefreshControl,
   Switch,
   Alert,
-  Image
+  Image,
+  DeviceEventEmitter
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -24,7 +25,7 @@ import { Briefcase, CheckCircle, Clock, XCircle, ChevronRight, Settings } from '
 import LinearGradient from 'react-native-linear-gradient';
 
 const WorkerDashboard = ({ navigation }) => {
-  const { theme, isDarkMode } = useTheme();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, fetchUser } = useAuth();
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? false);
   const [refreshing, setRefreshing] = useState(false);
@@ -33,6 +34,13 @@ const WorkerDashboard = ({ navigation }) => {
   const [stats, setStats] = useState({ todayJobs: 0, completed: 0, inProgress: 0, cancelled: 0 });
   const [errorMsg, setErrorMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState(undefined); // undefined means no search bar on Home
+
+  useEffect(() => {
+    const listener = DeviceEventEmitter.addListener('toggleDutyStatus', () => {
+      handleToggleOnline(!isOnline);
+    });
+    return () => listener.remove();
+  }, [isOnline]);
 
   const { socket } = useSocket({
     role: 'WORKER',
@@ -45,13 +53,7 @@ const WorkerDashboard = ({ navigation }) => {
     }, [isOnline]) 
   );
 
-  useEffect(() => {
-    const { DeviceEventEmitter } = require('react-native');
-    const sub = DeviceEventEmitter.addListener('toggleDutyStatus', () => {
-      handleToggleOnline(!isOnline);
-    });
-    return () => sub.remove();
-  }, [isOnline]);
+
 
   useEffect(() => {
     if (socket) {
@@ -169,7 +171,7 @@ const WorkerDashboard = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={theme.colors.primary} />}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Duty Status Toggle */}
+        {/* Duty Status & Dark Mode Toggle */}
         <View style={styles.dutyStatusRow}>
           <View>
             <Text style={styles.sectionTitle}>Duty Status</Text>
@@ -180,12 +182,15 @@ const WorkerDashboard = ({ navigation }) => {
               </Text>
             </View>
           </View>
-          <Switch
-            trackColor={{ false: theme.colors.border, true: '#10b981' }}
-            thumbColor={'#ffffff'}
-            onValueChange={handleToggleOnline}
-            value={isOnline}
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginRight: 8, fontWeight: '500' }}>Dark Mode</Text>
+            <Switch
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor={'#ffffff'}
+              onValueChange={toggleTheme}
+              value={isDarkMode}
+            />
+          </View>
         </View>
 
         {/* 4-Item Stats Grid */}
@@ -232,21 +237,23 @@ const WorkerDashboard = ({ navigation }) => {
 
           if (isPremium) {
             return (
-              <LinearGradient
-                colors={['#10b981', '#34d399']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.premiumBanner}
-              >
-                 <View style={{ flex: 1 }}>
-                    <Text style={styles.premiumTitle}>Premium Active 🌟</Text>
-                    <Text style={styles.premiumSub}>You are getting priority job alerts.</Text>
-                    <View style={[styles.premiumBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                       <Text style={styles.premiumBtnText}>{diffDays} Days Remaining</Text>
-                    </View>
-                 </View>
-                 <Text style={{ fontSize: 60, alignSelf: 'flex-end', marginLeft: 10 }}>🎉</Text>
-              </LinearGradient>
+              <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Earnings')}>
+                <LinearGradient
+                  colors={['#6C47FF', '#8B6FFF']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.premiumBanner}
+                >
+                   <View style={{ flex: 1 }}>
+                      <Text style={styles.premiumTitle}>Premium Active 🌟</Text>
+                      <Text style={styles.premiumSub}>You are getting priority job alerts.</Text>
+                      <View style={[styles.premiumBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                         <Text style={styles.premiumBtnText}>{diffDays} Days Remaining</Text>
+                      </View>
+                   </View>
+                   <Text style={{ fontSize: 60, alignSelf: 'flex-end', marginLeft: 10 }}>🎉</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             );
           }
 
@@ -457,7 +464,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     lineHeight: 18,
   },
   premiumBtn: {
-    backgroundColor: '#1c2136',
+    backgroundColor: '#3D2C7D',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 12,

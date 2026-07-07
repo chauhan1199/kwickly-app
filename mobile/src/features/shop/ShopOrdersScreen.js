@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView, 
   TouchableOpacity,
   StatusBar
@@ -12,8 +11,9 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useFocusEffect } from '@react-navigation/native';
-import { Bell, Package, RefreshCw, Moon, Sun } from 'lucide-react-native';
+import { Bell, Package, RefreshCw, Moon, Sun, Menu } from 'lucide-react-native';
 import api from '../../services/api';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ShopOrdersScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -69,14 +69,17 @@ const ShopOrdersScreen = ({ navigation }) => {
   });
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
       {/* App Bar */}
       <View style={styles.appBar}>
-        <View>
-          <Text style={styles.appBarTitle}>Orders</Text>
-          <Text style={styles.appBarSubtitle}>All customer orders</Text>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <View>
+            <Text style={styles.appBarTitle}>Orders</Text>
+            <Text style={styles.appBarSubtitle}>All customer orders</Text>
+          </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
@@ -84,6 +87,9 @@ const ShopOrdersScreen = ({ navigation }) => {
           </TouchableOpacity>
           <TouchableOpacity style={styles.appBarIconBtn} onPress={fetchOrders}>
             <RefreshCw size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
+            <Bell size={20} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -138,7 +144,8 @@ const ShopOrdersScreen = ({ navigation }) => {
         )}
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 };
 
@@ -152,7 +159,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
+    gap: 10,
     backgroundColor: theme.colors.background,
   },
   appBarTitle: {
@@ -161,9 +169,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.text,
   },
   appBarSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.textDim,
-    marginTop: 2,
+    marginTop: 1,
   },
   appBarIconBtn: {
     width: 40,

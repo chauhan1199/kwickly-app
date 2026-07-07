@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import api, { SERVER_URL } from '../../services/api'
 import { Eye, CheckCircle, XCircle, Store, User } from 'lucide-react'
 import Toast from '../../components/Toast'
 
@@ -214,19 +214,19 @@ export default function KYC() {
                 <div style={{ fontSize: 12, color: 'var(--mid)' }}>{previewDoc.docType || 'Document'}</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" style={{ height: 32, padding: '0 12px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: 'var(--text)' }}>Open in Tab</a>
+                <a href={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} target="_blank" rel="noopener noreferrer" style={{ height: 32, padding: '0 12px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: 'var(--text)' }}>Open in Tab</a>
                 <button className="btn-icon" onClick={() => setPreviewDoc(null)} title="Close">✕</button>
               </div>
             </div>
             {previewDoc.url?.match(/\.(jpg|jpeg|png)$/i) ? (
-              <img src={previewDoc.url} alt={previewDoc.name} style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 8, objectFit: 'contain', background: '#000' }} />
+              <img src={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} alt={previewDoc.name} style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 8, objectFit: 'contain', background: '#000' }} />
             ) : previewDoc.url?.match(/\.pdf$/i) ? (
-              <iframe src={previewDoc.url} title={previewDoc.name} style={{ width: '80vw', height: '70vh', border: 'none', borderRadius: 8 }} />
+              <iframe src={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} title={previewDoc.name} style={{ width: '80vw', height: '70vh', border: 'none', borderRadius: 8 }} />
             ) : (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>
                 <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }}>📄</div>
                 <div>Preview not available for this file type</div>
-                <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ marginTop: 12, display: 'inline-block', padding: '8px 20px', borderRadius: 8, textDecoration: 'none' }}>Open File</a>
+                <a href={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ marginTop: 12, display: 'inline-block', padding: '8px 20px', borderRadius: 8, textDecoration: 'none' }}>Open File</a>
               </div>
             )}
           </div>

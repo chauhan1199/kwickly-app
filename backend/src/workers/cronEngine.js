@@ -93,6 +93,17 @@ const sweepBroadcastingJobs = async () => {
         const nextRound = (job.broadcast.round || 1) + 1;
 
         if (nextRound > 3) {
+            // Check if it's a scheduled job in the future
+            const isScheduled = job.preferredDate && new Date(job.preferredDate) > new Date();
+
+            if (isScheduled) {
+                // Don't cancel scheduled jobs. Delay next broadcast by 30 minutes to avoid spam.
+                logger.info(`[Cron] Scheduled Job ${job._id} passed 3 rounds. Delaying next broadcast.`);
+                job.broadcast.lastAttemptAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
+                await job.save();
+                continue;
+            }
+
             // Auto cancel after 3 rounds
             logger.info(`[Cron] Cancelling job ${job._id} after 3 rounds (No workers found)`);
             job.status = 'CANCELLED';
@@ -167,6 +178,12 @@ const sweepGhostQuotes = async () => {
     const ghostJobs = await Job.find({ status: 'QUOTES_RECEIVED', updatedAt: { $lt: twoHoursAgo } });
     
     for (const job of ghostJobs) {
+        const isScheduled = job.preferredDate && new Date(job.preferredDate) > new Date();
+        if (isScheduled) {
+            // For scheduled jobs, do not auto-cancel until the preferred date passes
+            continue;
+        }
+
         logger.info(`[Cron] Cancelling ghost QUOTES_RECEIVED job ${job._id}`);
         job.status = 'CANCELLED';
         await job.save();

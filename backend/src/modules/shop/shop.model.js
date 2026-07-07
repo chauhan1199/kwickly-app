@@ -38,6 +38,21 @@ const ShopSchema = new mongoose.Schema({
         freeAbove:        { type: Number, default: 1000 }
     },
 
+    deliveryConfig: {
+        deliveryRadiusKm: { type: Number, default: 3 },
+        minOrderAmount: { type: Number, default: 100 },
+        freeDeliveryAbove: { type: Number, default: 1000 },
+        deliveryCharge: { type: Number, default: 40 },
+        discountEnabled: { type: Boolean, default: false },
+        discountAbove: { type: Number, default: 1000 },
+        discountType: { type: String, enum: ['flat', 'percent'], default: 'flat' },
+        discountValue: { type: Number, default: 100 },
+        discountPct: { type: Number, default: 10 },
+        maxDiscountCap: { type: Number, default: 200 },
+        sameDayDelivery: { type: Boolean, default: true },
+        deliverySlots: [{ label: String, slotOpen: String, slotClose: String }]
+    },
+
     kyc: {
         status:    { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
         documents: [{ name: String, url: String, docType: { type: String, default: 'OTHER' } }]
@@ -62,5 +77,25 @@ const ShopSchema = new mongoose.Schema({
 
 ShopSchema.index({ location: '2dsphere' });
 ShopSchema.index({ 'kyc.status': 1 });
+
+const clearCache = async function (doc, next) {
+    const { getRedis } = require('../../helpers/redis.helper');
+    try {
+        const client = getRedis();
+        if (client) {
+            const keys = await client.keys('*shops_list*');
+            if (keys.length > 0) await client.del(keys);
+        }
+    } catch (e) {
+        console.error('Cache clear error:', e);
+    }
+    if (typeof next === 'function') next();
+};
+
+ShopSchema.post('save', clearCache);
+ShopSchema.post('findOneAndUpdate', clearCache);
+ShopSchema.post('findOneAndDelete', clearCache);
+ShopSchema.post('updateOne', clearCache);
+ShopSchema.post('deleteMany', clearCache);
 
 module.exports = mongoose.model('Shop', ShopSchema);

@@ -59,7 +59,7 @@ export default function AppLayout({ onLogout }) {
     const token = localStorage.getItem('kwickly_admin_token')
     const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', { auth: { token } })
     socket.on('connect', () => {
-      socket.emit('JOIN_ADMIN')
+      socket.emit('JOIN_ADMIN_ROOM')
     })
     socket.on('NEW_NOTIFICATION', (data) => {
       const userId = getUserId()
@@ -74,7 +74,10 @@ export default function AppLayout({ onLogout }) {
         type: data.action || 'OTHER'
       }, ...prev])
     })
-    socket.on('DASHBOARD_UPDATE', () => fetchBadges())
+    socket.on('DASHBOARD_UPDATE', () => {
+      fetchBadges();
+      window.dispatchEvent(new Event('admin-action'));
+    })
     return () => socket.disconnect()
   }, [])
 

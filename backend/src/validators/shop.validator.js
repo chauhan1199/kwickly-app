@@ -34,8 +34,15 @@ const updateShopSchema = Joi.object({
         fee: Joi.number().min(0).optional(),
         freeAbove: Joi.number().min(0).optional(),
         estimatedMinutes: Joi.number().min(0).optional()
-    }).optional()
+    }).optional(),
+    businessHours: Joi.object({
+        monFri: Joi.string().max(50).optional(),
+        sat: Joi.string().max(50).optional(),
+        sun: Joi.string().max(50).optional()
+    }).optional(),
+    kyc: Joi.object().unknown(true).optional()
 }).min(1);
+
 
 const createShopAdminSchema = Joi.object({
     name: Joi.string().min(3).max(100).required().messages({ 'any.required': 'Shop name is required' }),
@@ -55,6 +62,7 @@ const createShopAdminSchema = Joi.object({
         fee: Joi.number().min(0).optional(),
         freeAbove: Joi.number().min(0).optional()
     }).optional(),
+    deliveryConfig: Joi.object().unknown(true).optional(),
     businessHours: Joi.object({
         monFri: Joi.string().max(50).optional(),
         sat: Joi.string().max(50).optional(),
@@ -81,6 +89,7 @@ const updateShopAdminSchema = Joi.object({
         fee: Joi.number().min(0).optional(),
         freeAbove: Joi.number().min(0).optional()
     }).optional(),
+    deliveryConfig: Joi.object().unknown(true).optional(),
     businessHours: Joi.object({
         monFri: Joi.string().max(50).optional(),
         sat: Joi.string().max(50).optional(),
@@ -100,7 +109,9 @@ const shopWalletSchema = Joi.object({
 
 const addPayoutMethodSchema = Joi.object({
     type: Joi.string().valid('BANK', 'UPI').required(),
-    details: Joi.string().required(),
+    detail: Joi.string().required(),
+    bankName: Joi.string().optional(),
+    label: Joi.string().optional(),
     isPrimary: Joi.boolean().optional()
 });
 

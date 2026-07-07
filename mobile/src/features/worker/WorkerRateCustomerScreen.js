@@ -34,7 +34,7 @@ const WorkerRateCustomerScreen = ({ navigation }) => {
       [
         {
           text: "Back to Home",
-          onPress: () => navigation.navigate('WorkerApp')
+          onPress: () => navigation.navigate('Dashboard')
         }
       ]
     );

@@ -253,14 +253,15 @@ const WorkerEarningsScreen = ({ navigation }) => {
           <Wallet size={32} color="#fff" />
         </View>
       </LinearGradient>
+      
+      {/* Balance Card using the new shared component */}
+      <WorkerBalanceCard 
+         balance={wallet.balance} 
+         onTopUp={() => setTopUpModalVisible(true)} 
+         onWithdraw={() => setWithdrawModalVisible(true)} 
+      />
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
-        {/* Balance Card using the new shared component */}
-        <WorkerBalanceCard 
-           balance={wallet.balance} 
-           onTopUp={() => setTopUpModalVisible(true)} 
-           onWithdraw={() => setWithdrawModalVisible(true)} 
-        />
 
         {/* Free Trial / Plan Card */}
         <View style={styles.planContainer}>
@@ -515,17 +516,17 @@ const WorkerEarningsScreen = ({ navigation }) => {
             <View style={styles.centerModal}>
               {selectedTransaction && (
                 <>
-                  <View style={[styles.txIconBoxLarge, { backgroundColor: ['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT'].includes(selectedTransaction.type) ? '#e0f2fe' : '#fee2e2' }]}>
-                    {['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT'].includes(selectedTransaction.type) ? (
+                  <View style={[styles.txIconBoxLarge, { backgroundColor: selectedTransaction.type === 'credit' ? '#e0f2fe' : '#fee2e2' }]}>
+                    {selectedTransaction.type === 'credit' ? (
                       <ArrowDown size={32} color="#0284c7" />
                     ) : (
                       <ArrowUp size={32} color="#dc2626" />
                     )}
                   </View>
                   
-                  <Text style={styles.txDetailTitle}>{selectedTransaction.description || selectedTransaction.type}</Text>
-                  <Text style={[styles.txDetailAmount, { color: ['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT'].includes(selectedTransaction.type) ? '#059669' : '#dc2626' }]}>
-                    {['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT'].includes(selectedTransaction.type) ? '+' : '-'}₹{selectedTransaction.amount}
+                  <Text style={styles.txDetailTitle}>{selectedTransaction.title}</Text>
+                  <Text style={[styles.txDetailAmount, { color: selectedTransaction.type === 'credit' ? '#059669' : '#dc2626' }]}>
+                    {selectedTransaction.type === 'credit' ? '+' : '-'}₹{selectedTransaction.amount}
                   </Text>
                   
                   <View style={styles.txDetailInfoBox}>
@@ -537,11 +538,11 @@ const WorkerEarningsScreen = ({ navigation }) => {
                     </View>
                     <View style={styles.txDetailRow}>
                       <Text style={styles.txDetailLabel}>Date</Text>
-                      <Text style={styles.txDetailValue}>{new Date(selectedTransaction.createdAt).toLocaleString()}</Text>
+                      <Text style={styles.txDetailValue}>{selectedTransaction.time || 'N/A'}</Text>
                     </View>
                     <View style={styles.txDetailRow}>
                       <Text style={styles.txDetailLabel}>Transaction ID</Text>
-                      <Text style={styles.txDetailValue}>{selectedTransaction._id ? selectedTransaction._id.slice(-8) : 'N/A'}</Text>
+                      <Text style={styles.txDetailValue}>{selectedTransaction.txnId || 'N/A'}</Text>
                     </View>
                   </View>
 
@@ -1138,6 +1139,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.text,
     marginBottom: 8,
+  },
+  quickAmtBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
+  },
+  quickAmtText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: '600',
   },
   processingNote: {
     fontSize: 12,

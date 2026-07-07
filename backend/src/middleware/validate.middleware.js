@@ -15,6 +15,7 @@ const validate = (schema, source = 'body') => (req, res, next) => {
 
     if (error) {
         const errorDetails = error.details.map(detail => detail.message);
+        console.log('VALIDATION ERROR:', errorDetails);
         return errorResponse(res, 'Validation Error', StatusCodes.BAD_REQUEST, errorDetails);
     }
 
