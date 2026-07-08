@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
@@ -87,7 +88,9 @@ const RoleSelection = ({ navigation }) => {
             <ChevronLeft size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create Account</Text>
-          <View style={{width: 36}} />
+          <View style={styles.headerRight}>
+            <Image source={require('../../assets/images/logo.jpeg')} style={styles.headerLogo} />
+          </View>
         </View>
         <View style={styles.stepDots}>
           <View style={[styles.stepDot, step === 'ROLE' && styles.stepDotActive]} />
@@ -265,7 +268,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 16 : 12,
     paddingBottom: 8,
     backgroundColor: theme.colors.background,
   },
@@ -284,6 +287,25 @@ const createStyles = (theme) => StyleSheet.create({
     borderColor: theme.colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerRight: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+    resizeMode: 'cover',
   },
   headerTitle: {
     fontSize: 17,
@@ -337,7 +359,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   roleCardActive: {
     borderColor: theme.colors.primary,
-    backgroundColor: 'rgba(14, 154, 167, 0.08)',
+    backgroundColor: theme.colors.primary + '10',
   },
   roleIconBox: {
     width: 52,
@@ -391,15 +413,16 @@ const createStyles = (theme) => StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   btnText: {
-    color: '#001016',
-    fontWeight: '700',
-    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
   footerLink: {
     alignItems: 'center',
@@ -423,12 +446,17 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 50,
-    marginBottom: 16,
-    fontSize: 15,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 54,
+    marginBottom: 20,
+    fontSize: 16,
     color: theme.colors.text,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   phoneRow: {
     flexDirection: 'row',
@@ -439,10 +467,15 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    borderRadius: 14,
+    paddingHorizontal: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   countryFlag: {
     fontSize: 14,
@@ -454,11 +487,16 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 50,
-    fontSize: 15,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 54,
+    fontSize: 16,
     color: theme.colors.text,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   otpLabelBox: {
     backgroundColor: theme.colors.surfaceMuted || '#f1f4f8',
@@ -484,7 +522,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   otpCardActive: {
     borderColor: theme.colors.primary,
-    backgroundColor: 'rgba(14, 154, 167, 0.08)',
+    backgroundColor: theme.colors.primary + '10',
   },
   otpIconBox: {
     width: 44,

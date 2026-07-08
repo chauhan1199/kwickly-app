@@ -355,7 +355,7 @@ export default function Shops() {
           if (res.data.status === 'success') setShops(prev => prev.map(s => s._id === editShop._id ? { ...s, ...res.data.data } : s))
         }
         showToast('Shop updated successfully')
-        try { await api.post('/admin/notifications/broadcast', { title: 'Shop Updated', message: `Admin updated shop "${shopForm.name.trim()}"`, targetRole: 'SHOP' }) } catch {}
+        
       } else {
         const payload = {
           name: shopForm.name.trim(),
@@ -394,7 +394,7 @@ export default function Shops() {
         if (loc) payload.location = loc
         await api.post('/admin/shops', payload)
         showToast('Shop created successfully')
-        try { await api.post('/admin/notifications/broadcast', { title: 'New Shop Created', message: `Admin created shop "${shopForm.name.trim()}" for owner "${shopForm.ownerName.trim() || 'Shop Owner'}"`, targetRole: 'SHOP' }) } catch {}
+        
       }
       fetchShops()
       window.dispatchEvent(new Event('admin-action'))
@@ -414,7 +414,7 @@ export default function Shops() {
         setShops(prev => prev.filter(s => s._id !== id))
         showToast('Shop deleted')
         if (detail?._id === id) setDetail(null)
-        try { await api.post('/admin/notifications/broadcast', { title: 'Shop Deleted', message: `Admin deleted shop "${shopName}". All products and data have been removed.`, targetRole: 'SHOP' }) } catch {}
+        
         window.dispatchEvent(new Event('admin-action'))
       }
     } catch {
@@ -432,7 +432,7 @@ export default function Shops() {
         const shopName = res.data.data?.name || 'Shop'
         const actionText = res.data.data?.isOnline ? 'activated' : 'blocked'
         showToast(`Shop ${actionText}`)
-        try { await api.post('/admin/notifications/broadcast', { title: `Shop ${actionText.charAt(0).toUpperCase() + actionText.slice(1)}`, message: `Shop "${shopName}" was ${actionText} by admin`, targetRole: 'SHOP' }) } catch {}
+        
         window.dispatchEvent(new Event('admin-action'))
       }
     } catch {
@@ -449,7 +449,7 @@ export default function Shops() {
         setShops(prev => prev.map(s => s._id === id ? res.data.data : s))
         if (detail?._id === id) setDetail(res.data.data)
         showToast(`KYC ${status.toLowerCase()}`)
-        try { await api.post('/admin/notifications/broadcast', { title: `Shop KYC ${status}`, message: `KYC for shop "${shopName}" has been ${status.toLowerCase()} by admin`, targetRole: 'SHOP' }) } catch {}
+        
         window.dispatchEvent(new Event('admin-action'))
       }
     } catch {
@@ -551,7 +551,7 @@ export default function Shops() {
         await api.post('/products', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       }
       showToast('Product saved')
-      try { await api.post('/admin/notifications/broadcast', { title: editProduct ? 'Product Updated' : 'Product Added', message: `"${productForm.name.trim()}" ${editProduct ? 'updated' : 'added'} for shop "${detail.name}"`, targetRole: 'ALL' }) } catch {}
+      
       setShowProductForm(false)
       window.dispatchEvent(new Event('admin-action'))
       openDetail(detail)
@@ -566,7 +566,7 @@ export default function Shops() {
   const addAttribute = () => { setProductForm(prev => ({ ...prev, attributes: [...prev.attributes, { name: '', value: '' }] })) }
   const removeAttribute = (index) => { setProductForm(prev => ({ ...prev, attributes: prev.attributes.filter((_, i) => i !== index) })) }
   const updateAttribute = (index, field, val) => { setProductForm(prev => { const newAttrs = [...prev.attributes]; newAttrs[index] = { ...newAttrs[index], [field]: val }; return { ...prev, attributes: newAttrs } }) }
-  const deleteProduct = async (id) => { try { await api.delete(`/products/${id}`); showToast('Product deleted'); try { await api.post('/admin/notifications/broadcast', { title: 'Product Deleted', message: `Product "${confirm?.name || ''}" deleted from shop "${detail?.name || ''}"`, targetRole: 'ALL' }) } catch {}; window.dispatchEvent(new Event('admin-action')); openDetail(detail) } catch { showToast('Failed to delete product', 'error') }; setConfirm(null) }
+  const deleteProduct = async (id) => { try { await api.delete(`/products/${id}`); showToast('Product deleted'); ; window.dispatchEvent(new Event('admin-action')); openDetail(detail) } catch { showToast('Failed to delete product', 'error') }; setConfirm(null) }
 
   const handleWalletSubmit = async () => {
     if (!walletAmount || isNaN(walletAmount) || Number(walletAmount) <= 0) { showToast('Enter a valid amount greater than 0', 'error'); return }
@@ -599,7 +599,7 @@ export default function Shops() {
           setShops(prev => prev.map(s => s._id === shopId ? updated : s))
         }
       } catch (e) { console.error('Refresh failed:', e) }
-      try { await api.post('/admin/notifications/broadcast', { title: `Wallet ${walletAction === 'credit' ? 'Credited' : 'Debited'}`, message: `₹${walletAmount} ${actionLabel} to "${detail.name}" wallet. ${walletDesc.trim()}`, targetRole: 'SHOP' }) } catch {}
+      
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) {
       console.error('Wallet error:', err)
@@ -621,7 +621,7 @@ export default function Shops() {
       fd.append('document', kycDocFile)
       fd.append('name', kycDocName.trim())
       const res = await api.post(`/admin/shops/${detail._id}/kyc-doc`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-      try { await api.post('/admin/notifications/broadcast', { title: 'KYC Document Uploaded', message: `Admin uploaded "${kycDocName.trim()}" for shop "${detail.name}"`, targetRole: 'SHOP' }) } catch {}
+      
       showToast('KYC document uploaded successfully')
       setShowKycDocModal(false); setKycDocName(''); setKycDocFile(null)
       const updatedShop = res.data.data
@@ -639,7 +639,7 @@ export default function Shops() {
     try {
       await api.delete(`/admin/shops/${detail._id}/kyc-doc/${docIndex}`)
       showToast('Document deleted')
-      try { await api.post('/admin/notifications/broadcast', { title: 'KYC Document Removed', message: `Admin removed KYC document "${docName}" from shop "${detail.name}"`, targetRole: 'SHOP' }) } catch {}
+      
       const fresh = await api.get(`/admin/shops/${detail._id}`)
       const updated = fresh.data?.data?.shop
       if (updated) {
@@ -676,7 +676,7 @@ export default function Shops() {
         detail: payoutForm.type === 'BANK' ? `${payoutForm.accountNumber.trim()} IFSC: ${payoutForm.ifscCode.trim().toUpperCase()}` : payoutForm.upiId.trim(),
       }
       await api.post(`/admin/shops/${detail._id}/payout-methods`, payload)
-      try { await api.post('/admin/notifications/broadcast', { title: 'Payout Method Added', message: `Admin added ${payoutForm.type} payout method "${payoutForm.label.trim()}" for shop "${detail.name}"`, targetRole: 'SHOP' }) } catch {}
+      
       showToast('Payout method added successfully')
       setShowPayoutModal(false)
       setPayoutForm({ type: 'BANK', label: '', accountNumber: '', ifscCode: '', upiId: '' })
@@ -691,7 +691,7 @@ export default function Shops() {
     try {
       await api.delete(`/admin/shops/${detail._id}/payout-methods/${methodId}`)
       showToast('Payout method deleted')
-      try { await api.post('/admin/notifications/broadcast', { title: 'Payout Method Removed', message: `Admin removed a payout method from shop "${detail.name}"`, targetRole: 'SHOP' }) } catch {}
+      
       const fresh = await api.get(`/admin/shops/${detail._id}`)
       const updated = fresh.data?.data?.shop
       if (updated) {
@@ -783,7 +783,7 @@ export default function Shops() {
     try {
       await api.patch(`/admin/shops/${detail._id}/owner`, ownerEditForm)
       showToast('Owner updated')
-      try { await api.post('/admin/notifications/broadcast', { title: 'Owner Profile Updated', message: `Admin updated owner details for shop "${detail.name}"`, targetRole: 'SHOP' }) } catch {}
+      
       setShowOwnerEditModal(false)
       const fresh = await api.get(`/admin/shops/${detail._id}`)
       const updated = fresh.data?.data?.shop
@@ -801,7 +801,7 @@ export default function Shops() {
     try {
       await api.patch(`/admin/shops/${detail._id}`, { businessHours: { monFri: hoursEditForm.monFri, sat: hoursEditForm.sat, sun: hoursEditForm.sun } })
       showToast('Business hours updated')
-      try { await api.post('/admin/notifications/broadcast', { title: 'Business Hours Updated', message: `Admin updated business hours for shop "${detail.name}"`, targetRole: 'SHOP' }) } catch {}
+      
       setShowHoursEditModal(false)
       const fresh = await api.get(`/admin/shops/${detail._id}`)
       const updated = fresh.data?.data?.shop
@@ -836,7 +836,7 @@ export default function Shops() {
       }
       await api.patch(`/admin/shops/${detail._id}`, payload)
       showToast('Delivery settings updated')
-      try { await api.post('/admin/notifications/broadcast', { title: 'Delivery Settings Updated', message: `Admin updated delivery settings for shop "${detail.name}"`, targetRole: 'SHOP' }) } catch {}
+      
       setShowDeliveryEditModal(false)
       const fresh = await api.get(`/admin/shops/${detail._id}`)
       const updated = fresh.data?.data?.shop
@@ -854,7 +854,7 @@ export default function Shops() {
     try {
       await api.patch(`/admin/shops/${detail._id}`, { subscription: { plan: subEditPlan } })
       showToast('Subscription updated')
-      try { await api.post('/admin/notifications/broadcast', { title: 'Subscription Updated', message: `Admin changed subscription plan to "${subEditPlan}" for shop "${detail.name}"`, targetRole: 'SHOP' }) } catch {}
+      
       setShowSubEditModal(false)
       const fresh = await api.get(`/admin/shops/${detail._id}`)
       const updated = fresh.data?.data?.shop

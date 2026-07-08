@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
+import { useNotifications } from '../../context/NotificationContext';
 import api from '../../services/api';
 import { getImageUrl } from '../../utils/helpers';
 import {
@@ -35,7 +36,7 @@ const ShopDashboardScreen = ({ navigation }) => {
 
   const [pendingOrders, setPendingOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount } = useNotifications();
   const [shopInfo, setShopInfo] = useState({ name: 'My Shop', address: '', logoUrl: null });
   const [shopExists, setShopExists] = useState(true);
   const [stats, setStats] = useState({ todayOrders: 0, revenue: 0, productsCount: 0, wallet: 0 });
@@ -103,13 +104,6 @@ const ShopDashboardScreen = ({ navigation }) => {
         const prodRes = await api.get('/products/shop');
         if (prodRes.data?.status === 'success') {
           setStats(prev => ({ ...prev, productsCount: prodRes.data.data.length }));
-        }
-      } catch (e) { /* ignore */ }
-
-      try {
-        const notifRes = await api.get('/notifications/my');
-        if (notifRes.data?.status === 'success') {
-          setUnreadCount(notifRes.data.data.unreadCount || 0);
         }
       } catch (e) { /* ignore */ }
     } catch (e) {

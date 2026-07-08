@@ -75,6 +75,16 @@ exports.updateMyShop = catchAsync(async (req, res) => {
         if (keys.length > 0) await redisClient.del(keys);
     }
 
+    notifyUser({
+        userId: shop.ownerId,
+        title: 'Shop Settings Updated',
+        message: 'Your shop details and settings have been successfully updated.',
+        action: 'UPDATE',
+        entityType: 'SHOP',
+        entityId: shop._id,
+        targetRole: 'SHOP_OWNER'
+    });
+
     return successResponse(res, shop, 'Shop updated');
 });
 

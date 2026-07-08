@@ -349,6 +349,17 @@ exports.createUser = catchAsync(async (req, res) => {
     const entityType = role === 'WORKER' ? 'WORKER' : 'CUSTOMER';
     logAdminActivity('CREATE', entityType, user._id, `${entityType.charAt(0) + entityType.slice(1).toLowerCase()} Created`, `New ${entityType.toLowerCase()} "${name}" (${phone}) was added to the platform`, req.user?._id);
 
+    const { notifyUser } = require('../../helpers/notifyUser.helper');
+    notifyUser({
+        userId: user._id,
+        title: 'Account Created',
+        message: `Welcome! Your ${entityType.toLowerCase()} account has been created by the admin.`,
+        action: 'OTHER',
+        entityType,
+        entityId: user._id,
+        targetRole: entityType
+    });
+
     return successResponse(res, user, 'User created successfully', StatusCodes.CREATED);
 });
 
@@ -431,6 +442,16 @@ exports.updateUser = catchAsync(async (req, res) => {
     const changes = [name && 'name', phone && 'phone', email !== undefined && 'email', city && 'city', bio !== undefined && 'bio', profileImage !== undefined && 'image', address && 'address', location && 'location', services && 'services', serviceRadius !== undefined && 'service radius', wallet && 'wallet'].filter(Boolean).join(', ');
     const entityType = user.role === 'WORKER' ? 'WORKER' : 'CUSTOMER';
     logAdminActivity('UPDATE', entityType, user._id, `${entityType.charAt(0) + entityType.slice(1).toLowerCase()} Updated`, `${entityType.charAt(0) + entityType.slice(1).toLowerCase()} "${user.name}" was updated${changes ? ' (' + changes + ')' : ''}`, req.user?._id);
+    const { notifyUser } = require('../../helpers/notifyUser.helper');
+    notifyUser({
+        userId: user._id,
+        title: 'Profile Updated',
+        message: `Your profile has been updated by the admin${changes ? ' (' + changes + ')' : ''}.`,
+        action: 'UPDATE',
+        entityType,
+        entityId: user._id,
+        targetRole: entityType
+    });
 
     return successResponse(res, user, 'User updated successfully');
 });
@@ -451,6 +472,17 @@ exports.toggleUserStatus = catchAsync(async (req, res) => {
     const statusText = user.isVerified ? 'activated' : 'deactivated';
     logAdminActivity('TOGGLE_STATUS', 'CUSTOMER', user._id, `Customer ${statusText}`, `Customer "${user.name}" was ${statusText}`, req.user?._id);
 
+    const { notifyUser } = require('../../helpers/notifyUser.helper');
+    notifyUser({
+        userId: user._id,
+        title: `Account ${user.isVerified ? 'Activated' : 'Deactivated'}`,
+        message: `Your account has been ${user.isVerified ? 'activated' : 'deactivated'} by the admin.`,
+        action: 'OTHER',
+        entityType: user.role === 'WORKER' ? 'WORKER' : 'CUSTOMER',
+        entityId: user._id,
+        targetRole: user.role === 'WORKER' ? 'WORKER' : 'CUSTOMER'
+    });
+
     return successResponse(res, user, ADMIN.USER_UPDATED);
 });
 
@@ -464,6 +496,17 @@ exports.deleteUser = catchAsync(async (req, res) => {
     triggerDashboardUpdate();
 
     logAdminActivity('DELETE', 'CUSTOMER', id, 'Customer Deleted', `Customer "${user.name}" (${user.phone}) was permanently deleted`, req.user?._id);
+
+    const { notifyUser } = require('../../helpers/notifyUser.helper');
+    notifyUser({
+        userId: user._id,
+        title: 'Account Deleted',
+        message: `Your account has been deleted by the admin.`,
+        action: 'OTHER',
+        entityType: user.role === 'WORKER' ? 'WORKER' : 'CUSTOMER',
+        entityId: user._id,
+        targetRole: user.role === 'WORKER' ? 'WORKER' : 'CUSTOMER'
+    });
 
     return successResponse(res, null, ADMIN.USER_DELETED);
 });

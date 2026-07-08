@@ -15,6 +15,7 @@ import {
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { Bell, Search, Image as ImageIcon, X, RefreshCw, Moon, Sun, Menu, ChevronDown } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import api from '../../services/api';
@@ -23,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ShopProductsScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { unreadCount } = useNotifications();
   const styles = createStyles(theme, isDarkMode);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -245,6 +247,11 @@ const ShopProductsScreen = ({ navigation }) => {
           </TouchableOpacity>
           <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
             <Bell size={20} color={theme.colors.text} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -559,11 +566,27 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative'
+  },
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: 'bold',
   },
   scrollContent: {
     padding: 16,

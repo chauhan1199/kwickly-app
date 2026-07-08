@@ -27,7 +27,7 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
 
-  const firstName = user?.name?.split(' ')[0] || 'Worker';
+  const displayName = user?.name ? user.name.split(' ').map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ') : 'Worker';
   const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
   const displayLocation = primaryAddress 
     ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || ''}`
@@ -66,7 +66,7 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
         {/* Greeting + mascot row */}
         <View style={styles.heroMiddleRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.heroGreeting}>Hi, {firstName}! 👋</Text>
+            <Text style={styles.heroGreeting}>Hi, {displayName}! 👋</Text>
             <Text style={styles.heroSubtitle}>{searchQuery !== undefined ? 'Let\'s complete more jobs today' : 'Ready to get more jobs today?'}</Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
@@ -78,7 +78,7 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
               />
             ) : (
               <View style={[styles.heroMascot, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff' }}>{firstName[0]?.toUpperCase()}</Text>
+                <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff' }}>{displayName[0]?.toUpperCase()}</Text>
               </View>
             )}
             <View style={styles.cameraIconBadge}>

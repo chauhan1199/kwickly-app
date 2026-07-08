@@ -16,13 +16,17 @@ import {
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { ArrowDown, ArrowUp, Landmark, Smartphone, Bell, ReceiptText, RefreshCw, Moon, Sun, Menu } from 'lucide-react-native';
+import { useNotifications } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
+import { ArrowDown, ArrowUp, Landmark, Smartphone, Bell, ReceiptText, RefreshCw, Moon, Sun, Menu, CreditCard } from 'lucide-react-native';
 import api from '../../services/api';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ShopWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { unreadCount } = useNotifications();
+  const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
   // Modals state
@@ -168,16 +172,16 @@ const ShopWalletScreen = ({ navigation }) => {
       Alert.alert("Invalid Amount", "Please enter a valid amount.");
       return;
     }
-    const selectedAcc = accounts.find(a => a.id === topUpMethod) || accounts[0];
-    if (!selectedAcc && accounts.length === 0) {
-      Alert.alert("No Payment Method", "Please add a payment method in settings.");
+    if (!topUpMethod) {
+      Alert.alert("No Payment Method", "Please select a payment method.");
       return;
     }
     
     try {
+      const selectedOptionName = topUpMethod === 'UPI' ? 'UPI' : (topUpMethod === 'CARD' ? 'Credit/Debit Card' : 'Net Banking');
       const res = await api.post('/wallet/topup', {
         amount: Number(topUpAmount),
-        paymentDetails: { method: selectedAcc ? selectedAcc.type : 'UPI', accountId: selectedAcc ? selectedAcc.id : undefined }
+        paymentDetails: { method: selectedOptionName }
       });
       if (res.data?.status === 'success') {
         setTopUpModalVisible(false);
@@ -229,6 +233,11 @@ const ShopWalletScreen = ({ navigation }) => {
           </TouchableOpacity>
           <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
             <Bell size={20} color={theme.colors.text} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -407,32 +416,30 @@ const ShopWalletScreen = ({ navigation }) => {
                   <Text style={styles.sheetSub}>Select payment method and enter amount</Text>
 
                   {/* Payment Method Selection */}
-                  {accounts.length > 0 ? (
-                    <ScrollView style={{ maxHeight: 160, marginBottom: 16 }} showsVerticalScrollIndicator={false}>
-                      {accounts.map(acc => (
-                        <TouchableOpacity 
-                          key={acc.id} 
-                          style={[styles.accountCard, topUpMethod === acc.id && styles.accountCardPrimary, { padding: 12, marginBottom: 8 }]}
-                          onPress={() => setTopUpMethod(acc.id)}
-                        >
-                          <View style={styles.accountLeft}>
-                            <View style={[styles.accountIconBox, { width: 36, height: 36, borderRadius: 18 }]}>
-                              {acc.type === 'bank' ? <Landmark size={18} color="#0d9488" /> : <Smartphone size={18} color="#e11d48" />}
-                            </View>
-                            <View style={styles.accountInfo}>
-                              <Text style={[styles.accountName, { fontSize: 14 }]}>{acc.name}</Text>
-                              <Text style={[styles.accountDetail, { fontSize: 12 }]}>{acc.detail}</Text>
-                            </View>
+                  <ScrollView style={{ maxHeight: 220, marginBottom: 16 }} showsVerticalScrollIndicator={false}>
+                    {[
+                      { id: 'UPI', name: 'UPI', detail: 'Google Pay, PhonePe, Paytm', icon: <Smartphone size={18} color="#e11d48" /> },
+                      { id: 'CARD', name: 'Credit / Debit Card', detail: 'Visa, Mastercard, RuPay', icon: <CreditCard size={18} color="#0284c7" /> },
+                      { id: 'NETBANKING', name: 'Net Banking', detail: 'All major Indian banks supported', icon: <Landmark size={18} color="#059669" /> }
+                    ].map(opt => (
+                      <TouchableOpacity 
+                        key={opt.id} 
+                        style={[styles.accountCard, topUpMethod === opt.id && styles.accountCardPrimary, { padding: 12, marginBottom: 8 }]}
+                        onPress={() => setTopUpMethod(opt.id)}
+                      >
+                        <View style={styles.accountLeft}>
+                          <View style={[styles.accountIconBox, { width: 36, height: 36, borderRadius: 18 }]}>
+                            {opt.icon}
                           </View>
-                          {topUpMethod === acc.id && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.primary }} />}
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  ) : (
-                    <TouchableOpacity style={[styles.addAccountBtn, { paddingVertical: 12, marginBottom: 16 }]} onPress={() => { setTopUpModalVisible(false); navigation.navigate('Settings'); }}>
-                      <Text style={styles.addAccountBtnText}>+ Add Payment Method</Text>
-                    </TouchableOpacity>
-                  )}
+                          <View style={styles.accountInfo}>
+                            <Text style={[styles.accountName, { fontSize: 14 }]}>{opt.name}</Text>
+                            <Text style={[styles.accountDetail, { fontSize: 12 }]}>{opt.detail}</Text>
+                          </View>
+                        </View>
+                        {topUpMethod === opt.id && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.primary }} />}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
 
                   {/* Amount Input */}
                   <TextInput
@@ -617,22 +624,27 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative'
   },
   badge: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#F59E0B',
-    borderWidth: 1.5,
-    borderColor: theme.colors.surface,
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: 'bold',
   },
   scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
   balanceCard: {

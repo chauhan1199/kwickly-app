@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  Image,
+  StatusBar
 } from 'react-native';
-import Theme from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { Phone, Lock, ArrowLeft } from 'lucide-react-native';
@@ -18,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const LoginScreen = ({ navigation, route }) => {
   const { role: initialRole = 'CUSTOMER', prefillPhone = '' } = route.params || {};
+  const { theme } = useTheme();
   const [role, setRole] = useState(initialRole);
   const { signIn } = useAuth();
   const [loginMode, setLoginMode] = useState('PASSWORD'); // Default to PASSWORD if they got routed here
@@ -48,6 +51,8 @@ const LoginScreen = ({ navigation, route }) => {
     }
   };
 
+  const styles = createStyles(theme);
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
@@ -55,12 +60,17 @@ const LoginScreen = ({ navigation, route }) => {
         style={{ flex: 1 }}
       >
         <View style={styles.content}>
-          <TouchableOpacity 
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <ArrowLeft size={24} color={Theme.colors.text} />
-          </TouchableOpacity>
+          <View style={styles.headerTop}>
+            <TouchableOpacity 
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <ArrowLeft size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+            <View style={styles.headerRight}>
+              <Image source={require('../../assets/images/logo.jpeg')} style={styles.headerLogo} />
+            </View>
+          </View>
 
           <View style={styles.header}>
             <Text style={styles.title}>Welcome back!</Text>
@@ -74,13 +84,13 @@ const LoginScreen = ({ navigation, route }) => {
                 onPress={() => setRole(r)}
                 style={[
                   styles.modeTab, 
-                  role === r ? { backgroundColor: Theme.colors.primary, borderWidth: 0 } : { backgroundColor: Theme.colors.card, borderWidth: 1, borderColor: Theme.colors.border },
+                  role === r ? { backgroundColor: theme.colors.primary, borderWidth: 0 } : { backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border },
                   { marginRight: r !== 'SHOP' ? 8 : 0, borderRadius: 20, paddingVertical: 8 }
                 ]}
               >
                 <Text style={[
                   styles.modeText, 
-                  role === r ? { color: Theme.colors.white } : { color: Theme.colors.textDim },
+                  role === r ? { color: '#ffffff' } : { color: theme.colors.textDim },
                   { fontSize: 13, fontWeight: '700' }
                 ]}>
                   {r === 'CUSTOMER' ? 'Customer' : r === 'WORKER' ? 'Worker' : 'Shop'}
@@ -92,15 +102,15 @@ const LoginScreen = ({ navigation, route }) => {
           <View style={styles.modeSwitcher}>
             <TouchableOpacity 
               onPress={() => setLoginMode('OTP')}
-              style={[styles.modeTab, loginMode === 'OTP' && styles.activeTab]}
+              style={[styles.modeTab, loginMode === 'OTP' && { backgroundColor: theme.colors.primary }]}
             >
-              <Text style={[styles.modeText, loginMode === 'OTP' && styles.activeModeText]}>OTP Login</Text>
+              <Text style={[styles.modeText, loginMode === 'OTP' && { color: '#ffffff' }]}>OTP Login</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               onPress={() => setLoginMode('PASSWORD')}
-              style={[styles.modeTab, loginMode === 'PASSWORD' && styles.activeTab]}
+              style={[styles.modeTab, loginMode === 'PASSWORD' && { backgroundColor: theme.colors.primary }]}
             >
-              <Text style={[styles.modeText, loginMode === 'PASSWORD' && styles.activeModeText]}>Password</Text>
+              <Text style={[styles.modeText, loginMode === 'PASSWORD' && { color: '#ffffff' }]}>Password</Text>
             </TouchableOpacity>
           </View>
 
@@ -112,7 +122,7 @@ const LoginScreen = ({ navigation, route }) => {
               maxLength={10}
               value={phone}
               onChangeText={setPhone}
-              iconLeft={<Phone size={20} color={Theme.colors.textMuted} />}
+              iconLeft={<Phone size={20} />}
             />
 
             {loginMode === 'PASSWORD' && (
@@ -122,7 +132,7 @@ const LoginScreen = ({ navigation, route }) => {
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
-                iconLeft={<Lock size={20} color={Theme.colors.textMuted} />}
+                iconLeft={<Lock size={20} />}
               />
             )}
 
@@ -134,7 +144,10 @@ const LoginScreen = ({ navigation, route }) => {
             />
 
             {loginMode === 'PASSWORD' && (
-              <TouchableOpacity style={styles.forgotPassword}>
+              <TouchableOpacity 
+                style={styles.forgotPassword}
+                onPress={() => navigation.navigate('ForgotPassword', { role, prefillPhone: phone })}
+              >
                 <Text style={styles.forgotText}>Forgot Password?</Text>
               </TouchableOpacity>
             )}
@@ -145,72 +158,96 @@ const LoginScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
-    paddingHorizontal: Theme.spacing.lg,
+    paddingHorizontal: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 16 : 16,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     justifyContent: 'center',
-    marginTop: Theme.spacing.md,
+    alignItems: 'center',
+  },
+  headerRight: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+    resizeMode: 'cover',
   },
   header: {
-    marginTop: Theme.spacing.xl,
-    marginBottom: Theme.spacing.xxl,
+    marginTop: 16,
+    marginBottom: 40,
   },
   title: {
-    fontSize: Theme.typography.sizes.xxl,
-    fontWeight: Theme.typography.weights.bold,
-    color: Theme.colors.text,
+    fontSize: 24,
+    fontWeight: '800',
+    color: theme.colors.text,
     textTransform: 'capitalize',
   },
   subtitle: {
-    fontSize: Theme.typography.sizes.md,
-    color: Theme.colors.textMuted,
-    marginTop: Theme.spacing.xs,
+    fontSize: 16,
+    color: theme.colors.textMuted,
+    marginTop: 4,
   },
   modeSwitcher: {
     flexDirection: 'row',
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.radius.lg,
+    backgroundColor: theme.colors.surfaceMuted || '#f1f4f8',
+    borderRadius: 14,
     padding: 4,
-    marginBottom: Theme.spacing.xl,
+    marginBottom: 32,
   },
   modeTab: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
-    borderRadius: Theme.radius.md,
-  },
-  activeTab: {
-    backgroundColor: Theme.colors.primary,
+    borderRadius: 12,
   },
   modeText: {
-    color: Theme.colors.textDim,
-    fontWeight: Theme.typography.weights.semiBold,
-  },
-  activeModeText: {
-    color: Theme.colors.white,
+    color: theme.colors.textDim,
+    fontWeight: '700',
+    fontSize: 14,
   },
   form: {
     flex: 1,
   },
   actionButton: {
-    marginTop: Theme.spacing.md,
+    marginTop: 16,
   },
   forgotPassword: {
-    marginTop: Theme.spacing.lg,
+    marginTop: 24,
     alignItems: 'center',
   },
   forgotText: {
-    color: Theme.colors.primary,
-    fontWeight: Theme.typography.weights.medium,
+    color: theme.colors.primary,
+    fontWeight: '700',
   },
 });
 

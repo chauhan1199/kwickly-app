@@ -54,6 +54,10 @@ const HomeStack = () => (
     <Stack.Screen name="RateExperience"   component={RateExperienceScreen} />
     <Stack.Screen name="PastJobDetails"   component={PastJobDetailsScreen} />
     <Stack.Screen name="WorkerProfile"    component={WorkerProfileScreen} />
+    <Stack.Screen name="CustomerShopOrders" component={CustomerShopOrdersScreen} />
+    <Stack.Screen name="OrderTracking"    component={OrderTrackingScreen} />
+    <Stack.Screen name="ShopDetail"       component={ShopDetailScreen} />
+    <Stack.Screen name="Cart"             component={CartScreen} />
     <Stack.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
     <Stack.Screen name="Notifications"    component={NotificationsScreen} />
   </Stack.Navigator>
@@ -62,6 +66,7 @@ const HomeStack = () => (
 const ShopStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ShopMain"         component={ShopScreen} />
+    <Stack.Screen name="CustomerShopOrders" component={CustomerShopOrdersScreen} />
     <Stack.Screen name="ShopDetail"       component={ShopDetailScreen} />
     <Stack.Screen name="Cart"             component={CartScreen} />
     <Stack.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
@@ -101,6 +106,8 @@ const ProfileStack = () => (
     <Stack.Screen name="CustomerShopOrders"  component={CustomerShopOrdersScreen} />
     <Stack.Screen name="OrderHistory"        component={OrderHistoryScreen} />
     <Stack.Screen name="OrderTracking"       component={OrderTrackingScreen} />
+    <Stack.Screen name="ShopDetail"          component={ShopDetailScreen} />
+    <Stack.Screen name="Cart"                component={CartScreen} />
     <Stack.Screen name="ShopOrderDetails"    component={ShopOrderDetailsScreen} />
     <Stack.Screen name="ReferEarn"           component={ReferEarnScreen} />
     <Stack.Screen name="HelpSupport"         component={HelpSupportScreen} />

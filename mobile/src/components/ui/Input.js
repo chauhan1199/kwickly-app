@@ -6,7 +6,7 @@ import {
   StyleSheet, 
   TouchableOpacity 
 } from 'react-native';
-import Theme from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 import { Eye, EyeOff } from 'lucide-react-native';
 
 const Input = ({ 
@@ -18,10 +18,12 @@ const Input = ({
   inputStyle,
   ...props 
 }) => {
+  const { theme } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const isPassword = secureTextEntry;
+  const styles = createStyles(theme);
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -32,11 +34,11 @@ const Input = ({
         isFocused && styles.focused,
         error && styles.errorBorder,
       ]}>
-        {iconLeft && <View style={styles.iconLeft}>{iconLeft}</View>}
+        {iconLeft && <View style={styles.iconLeft}>{React.cloneElement(iconLeft, { color: isFocused ? theme.colors.primary : theme.colors.textMuted })}</View>}
         
         <TextInput
           style={[styles.input, inputStyle]}
-          placeholderTextColor={Theme.colors.textDim}
+          placeholderTextColor={theme.colors.textDim}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           secureTextEntry={isPassword && !showPassword}
@@ -49,9 +51,9 @@ const Input = ({
             style={styles.iconRight}
           >
             {showPassword ? (
-              <EyeOff size={20} color={Theme.colors.textMuted} />
+              <EyeOff size={20} color={theme.colors.textMuted} />
             ) : (
-              <Eye size={20} color={Theme.colors.textMuted} />
+              <Eye size={20} color={theme.colors.textMuted} />
             )}
           </TouchableOpacity>
         )}
@@ -62,44 +64,49 @@ const Input = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     width: '100%',
-    marginBottom: Theme.spacing.md,
+    marginBottom: 20,
   },
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: Theme.colors.textMuted,
+    color: theme.colors.textDim,
     marginBottom: 6,
     marginLeft: 0,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.surface,
-    borderRadius: 12,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Theme.colors.border,
-    paddingHorizontal: 14,
+    borderColor: theme.colors.border,
+    paddingHorizontal: 16,
+    height: 54,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   input: {
     flex: 1,
-    paddingVertical: 12,
-    color: Theme.colors.text,
-    fontSize: 14,
+    color: theme.colors.text,
+    fontSize: 16,
     fontWeight: '500',
-    fontFamily: Theme.typography.fontFamily,
+    height: '100%',
   },
   focused: {
-    borderColor: Theme.colors.primary,
-    backgroundColor: Theme.colors.surface,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.surface,
   },
   errorBorder: {
-    borderColor: Theme.colors.danger,
+    borderColor: theme.colors.danger,
   },
   errorText: {
-    color: Theme.colors.danger,
+    color: theme.colors.danger,
     fontSize: 12,
     marginTop: 4,
   },

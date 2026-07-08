@@ -43,6 +43,7 @@ const DashboardStack = () => (
     <Stack.Screen name="WorkerRateCustomer" component={WorkerRateCustomerScreen} />
     <Stack.Screen name="WorkerJobCanceled" component={WorkerJobCanceledScreen} />
     <Stack.Screen name="Notifications"     component={NotificationsScreen} />
+    <Stack.Screen name="Services"          component={WorkerManageServicesScreen} />
   </Stack.Navigator>
 );
 

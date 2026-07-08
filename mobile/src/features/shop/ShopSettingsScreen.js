@@ -24,6 +24,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { getImageUrl } from '../../utils/helpers';
@@ -104,6 +105,7 @@ const BottomSheetModal = ({ visible, onClose, title, children }) => {
    ═════════════════════════════════════════════════════════════ */
 export default function ShopSettingsScreen({ navigation }) {
   const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { unreadCount } = useNotifications();
   const { signOut } = useAuth();
 
   // ── Data State ──
@@ -423,7 +425,12 @@ export default function ShopSettingsScreen({ navigation }) {
               {isDarkMode ? <Sun size={20} color={c.text} /> : <Moon size={20} color={c.text} />}
             </TouchableOpacity>
             <TouchableOpacity style={s.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
-              <Bell size={20} color={c.text} />
+              <Bell size={20} color={theme.colors.text} />
+              {unreadCount > 0 && (
+                <View style={s.badge}>
+                  <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -878,7 +885,32 @@ const createStyles = (theme, isDark) => {
     appBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 10 },
     appBarTitle: { fontSize: 22, fontWeight: '800', color: c.text },
     appBarSubtitle: { fontSize: 13, color: c.textDim, marginTop: 1 },
-    appBarIconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, justifyContent: 'center', alignItems: 'center' },
+    appBarIconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative'
+    },
+    badge: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      minWidth: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: '#EF4444',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 3,
+    },
+    badgeText: {
+      color: '#FFF',
+      fontSize: 9,
+      fontWeight: 'bold',
+    },
 
     card: { backgroundColor: c.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 20, elevation: 2 },
     logo: { width: 52, height: 52, borderRadius: 12, backgroundColor: '#4ADE80', justifyContent: 'center', alignItems: 'center', marginRight: 14, overflow: 'hidden' },

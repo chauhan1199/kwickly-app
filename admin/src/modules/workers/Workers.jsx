@@ -285,14 +285,14 @@ export default function Workers() {
           setWorkers(prev => prev.map(w => w._id === editWorker._id ? updated : w))
           if (detail?._id === editWorker._id) setDetail(updated)
           showToast('Worker updated successfully')
-          try { await api.post('/admin/notifications/broadcast', { title: 'Worker Updated', message: `Admin updated profile for "${editWorker.name}"`, targetRole: 'WORKER' }) } catch {}
+          
           window.dispatchEvent(new Event('admin-action'))
         }
       } else {
         const res = await api.post('/admin/users', { ...payload, role: 'WORKER' })
         if (res.data.status === 'success') {
           showToast('Worker created successfully')
-          try { await api.post('/admin/notifications/broadcast', { title: 'New Worker Created', message: `Admin created account for "${formData.name}"`, targetRole: 'WORKER' }) } catch {}
+          
           fetchWorkers()
           window.dispatchEvent(new Event('admin-action'))
         }
@@ -319,7 +319,7 @@ export default function Workers() {
         if (detail?._id === id) setDetail(updated)
         const actionText = updated.isVerified ? 'activated' : 'deactivated'
         showToast(`Worker ${actionText}`)
-        try { await api.post('/admin/notifications/broadcast', { title: `Worker ${actionText.charAt(0).toUpperCase() + actionText.slice(1)}`, message: `Your account has been ${actionText} by admin`, targetRole: 'WORKER' }) } catch {}
+        
         window.dispatchEvent(new Event('admin-action'))
       }
     } catch { showToast('Failed to update status', 'error') }
@@ -333,7 +333,7 @@ export default function Workers() {
       setWorkers(prev => prev.filter(w => w._id !== id))
       showToast('Worker deleted')
       if (detail?._id === id) setDetail(null)
-      try { await api.post('/admin/notifications/broadcast', { title: 'Worker Deleted', message: `Admin deleted worker "${workerName}". Account and all data have been removed.`, targetRole: 'WORKER' }) } catch {}
+      
       window.dispatchEvent(new Event('admin-action'))
     } catch { showToast('Failed to delete worker', 'error') }
     setConfirm(null)

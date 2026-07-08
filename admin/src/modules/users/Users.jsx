@@ -215,14 +215,14 @@ export default function Users() {
           setCustomers(prev => prev.map(c => c._id === editUser._id ? updated : c))
           if (detail?._id === editUser._id) setDetail(updated)
           showToast('Customer updated successfully')
-          try { await api.post('/admin/notifications/broadcast', { title: 'Customer Updated', message: `Admin updated profile for "${formData.name}"`, targetRole: 'CUSTOMER' }) } catch {}
+          
           window.dispatchEvent(new Event('admin-action'))
         }
       } else {
         const res = await api.post('/admin/users', { ...payload, role: 'CUSTOMER' })
         if (res.data.status === 'success') {
           showToast('Customer created successfully')
-          try { await api.post('/admin/notifications/broadcast', { title: 'New Customer Created', message: `Admin created account for "${formData.name}"`, targetRole: 'CUSTOMER' }) } catch {}
+          
           fetchCustomers()
           window.dispatchEvent(new Event('admin-action'))
         }
@@ -248,7 +248,7 @@ export default function Users() {
         if (detail?._id === id) setDetail(updated)
         const actionText = updated.isVerified ? 'activated' : 'deactivated'
         showToast(`Customer ${actionText}`)
-        try { await api.post('/admin/notifications/broadcast', { title: `Customer ${actionText.charAt(0).toUpperCase() + actionText.slice(1)}`, message: `Your account has been ${actionText} by admin`, targetRole: 'CUSTOMER' }) } catch {}
+        
         window.dispatchEvent(new Event('admin-action'))
       }
     } catch { showToast('Failed to update status', 'error') }
@@ -263,7 +263,7 @@ export default function Users() {
         setCustomers(prev => prev.filter(c => c._id !== id))
         showToast('Customer deleted')
         if (detail?._id === id) setDetail(null)
-        try { await api.post('/admin/notifications/broadcast', { title: 'Customer Deleted', message: `Admin deleted customer "${custName}". Account and all data have been removed.`, targetRole: 'CUSTOMER' }) } catch {}
+        
         window.dispatchEvent(new Event('admin-action'))
       }
     } catch { showToast('Failed to delete customer', 'error') }
@@ -308,7 +308,7 @@ export default function Users() {
         description: walletDesc || `Admin ${debit ? 'debit' : 'credit'}`
       })
       showToast(`₹${walletAmount} ${debit ? 'debited from' : 'credited to'} wallet`)
-      try { await api.post('/admin/notifications/broadcast', { title: `Wallet ${debit ? 'Debited' : 'Credited'}`, message: `₹${walletAmount} ${debit ? 'debited from' : 'credited to' } "${detail.name}" wallet${walletDesc ? '. ' + walletDesc : ''}`, targetRole: 'CUSTOMER' }) } catch {}
+      
       setWalletAmount('')
       setWalletDesc('')
       const res = await api.get('/admin/customers')

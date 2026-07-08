@@ -4,6 +4,7 @@ import RoleSelection from '../../features/auth/RoleSelection';
 import LoginScreen from '../../features/auth/LoginScreen';
 import OTPVerifyScreen from '../../features/auth/OTPVerifyScreen';
 import SetPasswordScreen from '../../features/auth/SetPasswordScreen';
+import ForgotPasswordScreen from '../../features/auth/ForgotPasswordScreen';
 import SplashScreen from '../../features/auth/SplashScreen';
 import Theme from '../../constants/Theme';
 
@@ -23,6 +24,7 @@ const AuthStack = () => {
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="OTPVerify" component={OTPVerifyScreen} />
       <Stack.Screen name="SetPassword" component={SetPasswordScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </Stack.Navigator>
   );
 };

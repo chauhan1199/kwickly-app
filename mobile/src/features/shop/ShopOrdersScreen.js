@@ -10,6 +10,7 @@ import {
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { Bell, Package, RefreshCw, Moon, Sun, Menu } from 'lucide-react-native';
 import api from '../../services/api';
@@ -17,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ShopOrdersScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { unreadCount } = useNotifications();
   const styles = createStyles(theme, isDarkMode);
 
   const [activeFilter, setActiveFilter] = useState('All');
@@ -90,6 +92,11 @@ const ShopOrdersScreen = ({ navigation }) => {
           </TouchableOpacity>
           <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
             <Bell size={20} color={theme.colors.text} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -182,17 +189,24 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderColor: theme.colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative'
   },
   badge: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#F59E0B',
-    borderWidth: 1.5,
-    borderColor: theme.colors.surface,
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: 'bold',
   },
   filtersContainer: {
     paddingVertical: 8,

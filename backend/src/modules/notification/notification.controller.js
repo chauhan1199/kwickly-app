@@ -22,14 +22,10 @@ exports.sendBroadcast = catchAsync(async (req, res) => {
 
 // ─── Admin: all notifications ─────────────────────────────────────────────────
 exports.getNotifications = catchAsync(async (req, res) => {
-    const notifications = await Notification.find({
-        $or: [
-            { type: 'BROADCAST', targetRole: { $in: ['ALL', req.user.role] } },
-            { type: 'ADMIN_ACTIVITY', targetRole: 'ADMIN' }
-        ]
-    })
+    // Admin can view all notifications across the platform
+    const notifications = await Notification.find({})
         .sort({ createdAt: -1 })
-        .limit(50);
+        .limit(100);
     
     return successResponse(res, notifications, 'Notifications fetched successfully');
 });
@@ -62,7 +58,8 @@ exports.getMyNotifications = catchAsync(async (req, res) => {
         $or: [
             { type: 'DIRECT',    userId },
             { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
-            { type: 'SYSTEM' }
+            { type: 'SYSTEM',    userId },
+            { type: 'SYSTEM',    userId: null, targetRole: { $in: ['ALL', role] } }
         ]
     };
 
@@ -98,7 +95,8 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
         $or: [
             { type: 'DIRECT',    userId },
             { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
-            { type: 'SYSTEM' },
+            { type: 'SYSTEM',    userId },
+            { type: 'SYSTEM',    userId: null, targetRole: { $in: ['ALL', role] } },
             ...(role === 'ADMIN' ? [{ type: 'ADMIN_ACTIVITY', targetRole: 'ADMIN' }] : [])
         ]
     };
@@ -129,7 +127,8 @@ exports.getUnreadCount = catchAsync(async (req, res) => {
         $or: [
             { type: 'DIRECT',    userId },
             { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
-            { type: 'SYSTEM' }
+            { type: 'SYSTEM',    userId },
+            { type: 'SYSTEM',    userId: null, targetRole: { $in: ['ALL', role] } }
         ]
     };
 

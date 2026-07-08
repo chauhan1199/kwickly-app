@@ -2,8 +2,11 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Image } from 'react-native';
 import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Circle } from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
+import { useTheme } from '../../context/ThemeContext';
 
 const SplashScreen = ({ navigation }) => {
+  const { theme, isDarkMode } = useTheme();
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
   const logoScale = useRef(new Animated.Value(0.6)).current;
@@ -41,61 +44,67 @@ const SplashScreen = ({ navigation }) => {
   }, [fadeAnim, slideAnim, logoScale, logoOpacity]);
 
   return (
-    <LinearGradient 
-      colors={['#0a1628', '#0e2040', '#071520']} 
-      style={styles.container}
-    >
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Svg height="100%" width="100%">
-          <Defs>
-            <SvgRadialGradient id="grad1" cx="50%" cy="50%" r="50%">
-              <Stop offset="0" stopColor="#0e9aa7" stopOpacity="0.5" />
-              <Stop offset="1" stopColor="#0e9aa7" stopOpacity="0" />
-            </SvgRadialGradient>
-            <SvgRadialGradient id="grad2" cx="50%" cy="50%" r="50%">
-              <Stop offset="0" stopColor="#43e3eb" stopOpacity="0.5" />
-              <Stop offset="1" stopColor="#43e3eb" stopOpacity="0" />
-            </SvgRadialGradient>
-            <SvgRadialGradient id="grad3" cx="50%" cy="50%" r="50%">
-              <Stop offset="0" stopColor="#7ed957" stopOpacity="0.5" />
-              <Stop offset="1" stopColor="#7ed957" stopOpacity="0" />
-            </SvgRadialGradient>
-          </Defs>
-          <Circle cx="100%" cy="0" r="150" fill="url(#grad1)" />
-          <Circle cx="0" cy="80%" r="130" fill="url(#grad2)" />
-          <Circle cx="40%" cy="40%" r="90" fill="url(#grad3)" />
-        </Svg>
-      </View>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? theme.colors.background : '#F8F8FF' }]}>
+      <LinearGradient 
+        colors={isDarkMode ? [theme.colors.surface, theme.colors.background] : ['#E6E0FF', '#F8F8FF', '#F8F8FF']} 
+        style={StyleSheet.absoluteFill}
+        start={{x: 0.5, y: 0}}
+        end={{x: 0.5, y: 0.5}}
+      />
 
       <View style={styles.topSection}>
-        <Animated.View style={[styles.logoWrap, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
-           <Image source={require('../../assets/images/logo.jpeg')} style={styles.logoImage} />
+        <Animated.View style={[
+          styles.logoContainerOuter, 
+          { 
+            opacity: logoOpacity, 
+            transform: [{ scale: logoScale }],
+            backgroundColor: isDarkMode ? '#222' : '#1A1A1A'
+          }
+        ]}>
+          <View style={styles.logoContainerInner}>
+             <Image source={require('../../assets/images/logo.jpeg')} style={styles.logoImage} />
+          </View>
         </Animated.View>
+
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], alignItems: 'center' }}>
-          <Text style={styles.title}>KWIC<Text style={{color: '#43e3eb'}}>KLY</Text></Text>
-          <Text style={styles.subtitle}>EVERY SERVICE • ANYTIME • NEAR YOU</Text>
+          <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#1A1A1A' }]}>KWIC<Text style={{color: '#6C47FF'}}>KLY</Text></Text>
+          <Text style={[styles.subtitle, { color: isDarkMode ? '#A0A0A0' : '#6b7280' }]}>EVERY SERVICE • ANYTIME • NEAR YOU</Text>
         </Animated.View>
       </View>
 
       <Animated.View style={[styles.midSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-        <View style={styles.stat}><Text style={styles.statVal}>50+</Text><Text style={styles.statLbl}>CATEGORIES</Text></View>
-        <View style={styles.divider} />
-        <View style={styles.stat}><Text style={styles.statVal}>1M+</Text><Text style={styles.statLbl}>USERS</Text></View>
-        <View style={styles.divider} />
-        <View style={styles.stat}><Text style={styles.statVal}>4.8★</Text><Text style={styles.statLbl}>RATING</Text></View>
+        <View style={[styles.statCard, { backgroundColor: isDarkMode ? theme.colors.card : '#ffffff' }]}>
+          <Text style={[styles.statVal, { color: '#6C47FF' }]}>50+</Text>
+          <Text style={[styles.statLbl, { color: isDarkMode ? '#888' : '#888' }]}>CATEGORIES</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: isDarkMode ? theme.colors.card : '#ffffff' }]}>
+          <Text style={[styles.statVal, { color: '#6C47FF' }]}>1M+</Text>
+          <Text style={[styles.statLbl, { color: isDarkMode ? '#888' : '#888' }]}>USERS</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: isDarkMode ? theme.colors.card : '#ffffff' }]}>
+          <Text style={[styles.statVal, { color: '#6C47FF' }]}>4.8☆</Text>
+          <Text style={[styles.statLbl, { color: isDarkMode ? '#888' : '#888' }]}>RATING</Text>
+        </View>
       </Animated.View>
 
       <Animated.View style={[styles.botSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('RoleSelection')}>
-          <LinearGradient colors={['#0e9aa7', '#43e3eb']} style={styles.btn} start={{x:0, y:0}} end={{x:1, y:1}}>
-            <Text style={styles.btnText}>Create Account →</Text>
-          </LinearGradient>
+          <View style={styles.btn}>
+            <Text style={styles.btnText}>Create Account  →</Text>
+          </View>
         </TouchableOpacity>
+        
         <TouchableOpacity style={styles.loginLink} onPress={() => navigation.navigate('Login', { role: 'CUSTOMER' })}>
-          <Text style={styles.loginLinkText}>Already have an account? <Text style={styles.loginLinkBold}>Sign In</Text></Text>
+          <Text style={[styles.loginLinkText, { color: isDarkMode ? '#A0A0A0' : '#4b5563' }]}>
+            Already have an account? <Text style={styles.loginLinkBold}>Sign In</Text>
+          </Text>
         </TouchableOpacity>
+
+        <Text style={[styles.termsText, { color: isDarkMode ? '#666' : '#9ca3af' }]}>
+          By joining, you agree to our Terms of Service and{'\n'}Privacy Policy.
+        </Text>
       </Animated.View>
-    </LinearGradient>
+    </View>
   );
 };
 
@@ -104,103 +113,124 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: 36,
+    paddingBottom: 40,
   },
   topSection: {
     alignItems: 'center',
-    paddingTop: 80,
+    paddingTop: 100,
   },
-  logoWrap: {
-    width: 110,
-    height: 110,
-    backgroundColor: '#0b0b0a',
-    borderRadius: 28,
-    marginBottom: 20,
+  logoContainerOuter: {
+    width: 130,
+    height: 130,
+    borderRadius: 36,
+    marginBottom: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(67,227,235,.35)',
-    shadowColor: '#43e3eb',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
     shadowRadius: 24,
-    elevation: 10,
+    elevation: 12,
+  },
+  logoContainerInner: {
+    width: 80,
+    height: 50,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 26,
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   },
   title: {
-    fontSize: 40,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: -1.5,
+    fontSize: 44,
+    fontWeight: '900',
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
-    color: 'rgba(255,255,255,.6)',
-    marginTop: 6,
-    letterSpacing: 0.5,
+    marginTop: 10,
+    letterSpacing: 2,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+    lineHeight: 18,
   },
   midSection: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 20,
+    gap: 12,
+    width: '100%',
+    paddingHorizontal: 24,
   },
-  stat: {
+  statCard: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   statVal: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#43e3eb',
   },
   statLbl: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,.5)',
+    fontSize: 9,
     fontWeight: '600',
     letterSpacing: 0.5,
-    marginTop: 2,
-  },
-  divider: {
-    width: 1,
-    height: 40,
-    backgroundColor: 'rgba(255,255,255,.12)',
+    marginTop: 6,
   },
   botSection: {
     width: '100%',
     paddingHorizontal: 24,
+    alignItems: 'center',
   },
   btn: {
+    backgroundColor: '#6C47FF',
     borderRadius: 16,
-    padding: 16,
+    paddingVertical: 18,
+    width: '100%',
     alignItems: 'center',
-    shadowColor: '#0e9aa7',
+    justifyContent: 'center',
+    shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 8,
   },
   btnText: {
-    color: '#001016',
-    fontWeight: '800',
+    color: '#ffffff',
+    fontWeight: '600',
     fontSize: 16,
+    letterSpacing: 0.3,
   },
   loginLink: {
     alignItems: 'center',
-    marginTop: 18,
+    marginTop: 24,
+    marginBottom: 32,
   },
   loginLinkText: {
-    color: 'rgba(255,255,255,.5)',
-    fontSize: 13,
+    fontSize: 15,
+    fontWeight: '400',
   },
   loginLinkBold: {
-    color: '#43e3eb',
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  termsText: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+    fontWeight: '400',
   }
 });
 

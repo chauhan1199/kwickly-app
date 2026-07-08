@@ -26,7 +26,7 @@ const atomicDeduct = async (userId, role, amount, session) => {
     const minBalance = settings?.wallet?.minimumBalance || 100;
     const requiredTotal = amount + minBalance;
 
-    if (role === 'SHOP') {
+    if (role === 'SHOP' || role === 'SHOP_OWNER') {
         const shop = await Shop.findOneAndUpdate(
             { ownerId: userId, 'wallet.balance': { $gte: requiredTotal } },
             { $inc: { 'wallet.balance': -amount } },
@@ -49,7 +49,7 @@ const atomicDeduct = async (userId, role, amount, session) => {
  * Helper: atomically credit amount to user/shop wallet.
  */
 const atomicCredit = async (userId, role, amount, session) => {
-    if (role === 'SHOP') {
+    if (role === 'SHOP' || role === 'SHOP_OWNER') {
         const shop = await Shop.findOneAndUpdate(
             { ownerId: userId },
             { $inc: { 'wallet.balance': amount } },
@@ -150,6 +150,16 @@ exports.topupWallet = catchAsync(async (req, res) => {
     await delCache(`session:${req.user._id}`);
     emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP', id: txn._id });
 
+    notifyUser({
+        userId: req.user._id,
+        title: 'Wallet Top-up Successful',
+        message: `Successfully added ₹${amount} to your wallet.`,
+        action: 'TOPUP',
+        entityType: 'WALLET',
+        entityId: txn._id,
+        targetRole: (user.role === 'SHOP' || user.role === 'SHOP_OWNER') ? 'SHOP_OWNER' : 'CUSTOMER'
+    });
+
     return successResponse(res, { txn, newBalance: result.newBalance }, 'Wallet top-up successful');
 });
 
@@ -190,23 +200,33 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
         }], { session });
 
         const paymentMethodType = payoutMethod.toLowerCase().includes('upi') ? 'UPI' : 'BANK';
-        await Payout.create([{
-            workerId: user.role !== 'SHOP' ? req.user._id : undefined,
-            shopId:   user.role === 'SHOP' ? result.entityId : undefined,
+        const payout = await Payout.create([{
+            workerId: (user.role !== 'SHOP' && user.role !== 'SHOP_OWNER') ? req.user._id : undefined,
+            shopId:   (user.role === 'SHOP' || user.role === 'SHOP_OWNER') ? result.entityId : undefined,
             amount,
             paymentMethod: paymentMethodType,
             paymentDetails: payoutMethod,
             walletTxnId: txn[0]._id
         }], { session });
 
-        if (session) await session.commitTransaction();
-        if (session) session.endSession();
+        await session.commitTransaction();
+        session.endSession();
 
         // Invalidate cache
         await delCache(`session:${req.user._id}`);
-        emitToAll('DASHBOARD_UPDATE', { type: 'WITHDRAWAL_REQUESTED', id: txn[0]._id });
+        emitToAll('DASHBOARD_UPDATE', { type: 'NEW_PAYOUT', id: payout[0]._id });
 
-        return successResponse(res, txn[0], 'Withdrawal initiated successfully');
+        notifyUser({
+            userId: req.user._id,
+            title: 'Withdrawal Requested',
+            message: `Your withdrawal request for ₹${amount} has been initiated and is pending approval.`,
+            action: 'WITHDRAWAL',
+            entityType: 'WALLET',
+            entityId: txn[0]._id,
+            targetRole: (user.role === 'SHOP' || user.role === 'SHOP_OWNER') ? 'SHOP_OWNER' : 'CUSTOMER'
+        });
+
+        return successResponse(res, { txn: txn[0], newBalance: result.newBalance }, 'Withdrawal request submitted successfully', StatusCodes.CREATED);
     } catch (error) {
         if (session) await session.abortTransaction();
         if (session) session.endSession();

@@ -11,9 +11,12 @@ const PRODUCT_CACHE_PREFIX = 'products_list';
 
 const logProductActivity = async (action, product, shop, adminId) => {
     try {
-        const notification = await Notification.create({
-            title: action === 'CREATE' ? 'Product Added' : action === 'UPDATE' ? 'Product Updated' : 'Product Deleted',
-            message: `"${product.name}" ${action === 'CREATE' ? 'added to' : action === 'UPDATE' ? 'updated in' : 'removed from'} "${shop.name}" (₹${product.price}/${product.unit})`,
+        const title = action === 'CREATE' ? 'Product Added' : action === 'UPDATE' ? 'Product Updated' : 'Product Deleted';
+        const msg = `"${product.name}" ${action === 'CREATE' ? 'added to' : action === 'UPDATE' ? 'updated in' : 'removed from'} "${shop.name}" (₹${product.price}/${product.unit})`;
+
+        const adminNotification = await Notification.create({
+            title,
+            message: msg,
             type: 'ADMIN_ACTIVITY',
             action,
             entityType: 'PRODUCT',
@@ -21,7 +24,24 @@ const logProductActivity = async (action, product, shop, adminId) => {
             performedBy: adminId,
             targetRole: 'ADMIN'
         });
-        try { emitToAll('NEW_NOTIFICATION', notification); } catch (_) {}
+        
+        const shopNotification = await Notification.create({
+            title,
+            message: msg,
+            type: 'DIRECT',
+            action,
+            entityType: 'PRODUCT',
+            entityId: product._id,
+            performedBy: adminId,
+            targetRole: 'SHOP',
+            userId: shop.ownerId
+        });
+        
+        try { emitToAll('NEW_NOTIFICATION', adminNotification); } catch (_) {}
+        
+        // Use emitToUser if available, else emitToAll
+        const { emitToUser } = require('../../helpers/socket.helper');
+        try { emitToUser(shop.ownerId.toString(), 'NEW_NOTIFICATION', shopNotification); } catch (_) {}
     } catch (e) { console.error('[logProductActivity] Failed:', e.message); }
 };
 
@@ -90,7 +110,7 @@ exports.createProduct = catchAsync(async (req, res) => {
             const fs = require('fs');
             const path = require('path');
             const filename = `image-${Date.now()}-${Math.floor(Math.random() * 10000)}.jpg`;
-            const filepath = path.join(__dirname, '../../../../uploads', filename);
+            const filepath = path.join(__dirname, '../../public/uploads', filename);
             const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, '');
             fs.writeFileSync(filepath, base64Data, 'base64');
             productData.imageUrl = `/uploads/${filename}`;
@@ -147,7 +167,7 @@ exports.updateProduct = catchAsync(async (req, res) => {
             const fs = require('fs');
             const path = require('path');
             const filename = `image-${Date.now()}-${Math.floor(Math.random() * 10000)}.jpg`;
-            const filepath = path.join(__dirname, '../../../../uploads', filename);
+            const filepath = path.join(__dirname, '../../public/uploads', filename);
             const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, '');
             fs.writeFileSync(filepath, base64Data, 'base64');
             updateData.imageUrl = `/uploads/${filename}`;

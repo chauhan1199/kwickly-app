@@ -10,7 +10,8 @@ import {
   Alert,
   TextInput,
   StatusBar,
-  ScrollView
+  ScrollView,
+  Image
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -114,7 +115,9 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             <ChevronLeft size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Verify OTP</Text>
-          <View style={{width: 36}} />
+          <View style={styles.headerRight}>
+            <Image source={require('../../assets/images/logo.jpeg')} style={styles.headerLogo} />
+          </View>
         </View>
         <View style={styles.stepDots}>
           <View style={[styles.stepDot, styles.stepDotDone]} />
@@ -130,7 +133,9 @@ const OTPVerifyScreen = ({ navigation, route }) => {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.body}>
-            <Text style={styles.emojiIcon}>{currentMethod === 'WHATSAPP' ? '💬' : '📱'}</Text>
+            <View style={[styles.iconWrapper, { backgroundColor: theme.colors.primary + '15' }]}>
+              <Text style={styles.emojiIcon}>{currentMethod === 'WHATSAPP' ? '💬' : '📱'}</Text>
+            </View>
             <Text style={styles.title}>Check your {currentMethod === 'WHATSAPP' ? 'WhatsApp' : 'messages'}</Text>
             <Text style={styles.subtitle}>OTP sent to <Text style={{fontWeight: 'bold', color: theme.colors.text}}>+91 {displayPhone}</Text></Text>
             <Text style={styles.demoText}>(Demo OTP: <Text style={{color: theme.colors.primary, fontWeight: 'bold'}}>4 7 2 9</Text>)</Text>
@@ -178,7 +183,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 16 : 12,
     paddingBottom: 8,
     backgroundColor: theme.colors.background,
   },
@@ -197,6 +202,25 @@ const createStyles = (theme) => StyleSheet.create({
     borderColor: theme.colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerRight: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+    resizeMode: 'cover',
   },
   headerTitle: {
     fontSize: 17,
@@ -230,9 +254,16 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 20,
   },
+  iconWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   emojiIcon: {
-    fontSize: 56,
-    marginBottom: 16,
+    fontSize: 40,
   },
   title: {
     fontSize: 22,
@@ -261,37 +292,44 @@ const createStyles = (theme) => StyleSheet.create({
     width: '100%',
   },
   otpInput: {
-    width: 60,
-    height: 60,
-    borderWidth: 1.5,
+    width: 64,
+    height: 64,
+    borderWidth: 2,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    borderRadius: 12,
+    borderRadius: 16,
     textAlign: 'center',
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     color: theme.colors.text,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   otpInputFilled: {
     borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary + '05',
   },
   btn: {
     backgroundColor: theme.colors.primary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
+    padding: 18,
     width: '100%',
     alignItems: 'center',
     shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 20,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    marginBottom: 24,
   },
   btnText: {
-    color: '#001016',
-    fontWeight: '700',
-    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
   resendContainer: {
     flexDirection: 'row',

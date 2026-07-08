@@ -7,7 +7,7 @@ import {
   View
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import Theme from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 
 const Button = ({ 
   onPress, 
@@ -21,27 +21,31 @@ const Button = ({
   style,
   textStyle
 }) => {
+  const { theme } = useTheme();
+  
   const isOutline = variant === 'outline';
   const isGhost = variant === 'ghost';
   
   const getBackgroundColor = () => {
-    if (disabled) return Theme.colors.card;
+    if (disabled) return theme.colors.card;
     if (isOutline || isGhost) return 'transparent';
     if (variant === 'primary') return 'transparent'; // handled by gradient
-    return Theme.colors[variant] || Theme.colors.primary;
+    return theme.colors[variant] || theme.colors.primary;
   };
 
   const getBorderColor = () => {
-    if (isOutline) return Theme.colors[variant] || Theme.colors.primary;
+    if (isOutline) return theme.colors[variant] || theme.colors.primary;
     return 'transparent';
   };
 
   const getTextColor = () => {
-    if (disabled) return Theme.colors.textDim;
-    if (isOutline || isGhost) return Theme.colors[variant] || Theme.colors.primary;
-    if (variant === 'primary') return Theme.colors.black; // Text color on primary gradient
-    return Theme.colors.white;
+    if (disabled) return theme.colors.textDim;
+    if (isOutline || isGhost) return theme.colors[variant] || theme.colors.primary;
+    if (variant === 'primary') return theme.colors.white; // White text on primary gradient
+    return theme.colors.white;
   };
+
+  const styles = createStyles(theme);
 
   const content = (
     <>
@@ -77,9 +81,14 @@ const Button = ({
 
   if (variant === 'primary' && !disabled && !isOutline && !isGhost) {
     return (
-      <TouchableOpacity onPress={onPress} disabled={loading} activeOpacity={0.8} style={{borderRadius: 12}}>
+      <TouchableOpacity 
+        onPress={onPress} 
+        disabled={loading} 
+        activeOpacity={0.8} 
+        style={[styles.primaryShadow, { shadowColor: theme.colors.primary }]}
+      >
         <LinearGradient
-          colors={['#0e9aa7', '#43e3eb']}
+          colors={[theme.colors.primary, theme.colors.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={wrapperStyles}
@@ -102,12 +111,19 @@ const Button = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   button: {
-    borderRadius: 12,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
+  },
+  primaryShadow: {
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderRadius: 14,
   },
   content: {
     flexDirection: 'row',
@@ -116,17 +132,17 @@ const styles = StyleSheet.create({
   },
   // Sizes
   sm: { paddingVertical: 8, paddingHorizontal: 16 },
-  md: { paddingVertical: 14, paddingHorizontal: 24 },
+  md: { paddingVertical: 16, paddingHorizontal: 24 },
   lg: { paddingVertical: 18, paddingHorizontal: 32 },
   
   text: {
-    fontFamily: Theme.typography.fontFamily,
     fontWeight: '800',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
-  text_sm: { fontSize: Theme.typography.sizes.sm },
-  text_md: { fontSize: Theme.typography.sizes.md },
-  text_lg: { fontSize: Theme.typography.sizes.lg },
+  text_sm: { fontSize: 14 },
+  text_md: { fontSize: 16 },
+  text_lg: { fontSize: 18 },
   
   iconLeft: { marginRight: 8 },
   iconRight: { marginLeft: 8 },

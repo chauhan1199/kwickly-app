@@ -10,7 +10,9 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
-  TextInput
+  TextInput,
+  Modal,
+  Image
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -27,6 +29,8 @@ const SetPasswordScreen = ({ navigation, route }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [authPayload, setAuthPayload] = useState(null);
 
   // Derived styling constants
   const roleLabels = { CUSTOMER: 'Customer', WORKER: 'Worker / Pro', SHOP: 'Shop Owner' };
@@ -50,18 +54,25 @@ const SetPasswordScreen = ({ navigation, route }) => {
       await api.patch('/auth/set-password', { password }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      Alert.alert('Success', 'Account created successfully!');
-      
-      // Pass the token and user to AuthContext
+      // Prepare auth payload for after modal dismisses
       const user = route.params?.user || { phone, role };
-      await signIn(token, user.role || role);
+      setAuthPayload({ token, role: user.role || role });
+      
+      // Show custom success modal instead of Alert
+      setShowSuccessModal(true);
       
     } catch (error) {
       console.error(error);
       Alert.alert('Error', error.response?.data?.message || 'Failed to set password');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleContinueToApp = async () => {
+    setShowSuccessModal(false);
+    if (authPayload) {
+      await signIn(authPayload.token, authPayload.role);
     }
   };
 
@@ -78,7 +89,9 @@ const SetPasswordScreen = ({ navigation, route }) => {
             <ChevronLeft size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Set Password</Text>
-          <View style={{width: 36}} />
+          <View style={styles.headerRight}>
+            <Image source={require('../../assets/images/logo.jpeg')} style={styles.headerLogo} />
+          </View>
         </View>
         <View style={styles.stepDots}>
           <View style={[styles.stepDot, styles.stepDotDone]} />
@@ -165,6 +178,23 @@ const SetPasswordScreen = ({ navigation, route }) => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Success Modal */}
+      <Modal visible={showSuccessModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.logoWrap}>
+              <Image source={require('../../assets/images/logo.jpeg')} style={styles.logoImage} />
+            </View>
+            <Text style={styles.modalTitle}>Welcome to Kwickly!</Text>
+            <Text style={styles.modalSubtitle}>Your account has been created successfully. You're all set.</Text>
+            <TouchableOpacity style={styles.modalBtn} onPress={handleContinueToApp}>
+              <Text style={styles.btnText}>Let's Go 🎉</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -176,7 +206,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 16 : 12,
     paddingBottom: 8,
     backgroundColor: theme.colors.background,
   },
@@ -195,6 +225,25 @@ const createStyles = (theme) => StyleSheet.create({
     borderColor: theme.colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerRight: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+    resizeMode: 'cover',
   },
   headerTitle: {
     fontSize: 17,
@@ -228,9 +277,9 @@ const createStyles = (theme) => StyleSheet.create({
     paddingTop: 10,
   },
   userCard: {
-    backgroundColor: 'rgba(14, 154, 167, 0.08)',
+    backgroundColor: theme.colors.primary + '10',
     borderWidth: 1,
-    borderColor: 'rgba(14, 154, 167, 0.2)',
+    borderColor: theme.colors.primary + '30',
     borderRadius: 14,
     padding: 12,
     flexDirection: 'row',
@@ -273,9 +322,14 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 12,
-    height: 52,
-    marginBottom: 14,
+    borderRadius: 14,
+    height: 54,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   textInput: {
     flex: 1,
@@ -315,26 +369,87 @@ const createStyles = (theme) => StyleSheet.create({
   },
   btn: {
     backgroundColor: theme.colors.primary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
+    padding: 18,
     width: '100%',
     alignItems: 'center',
     shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
     marginBottom: 16,
   },
   btnText: {
-    color: '#001016',
-    fontWeight: '700',
-    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
   footerText: {
     textAlign: 'center',
     fontSize: 11,
     color: theme.colors.textDim,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: theme.colors.background,
+    width: '100%',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  logoWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+    resizeMode: 'cover',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: theme.colors.textDim,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  modalBtn: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 14,
+    padding: 16,
+    width: '100%',
+    alignItems: 'center',
   }
 });
 
