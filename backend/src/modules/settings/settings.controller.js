@@ -2,7 +2,7 @@ const { StatusCodes } = require('http-status-codes');
 const AppSettings = require('./settings.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
+const { getCache, setCache, delCache, fetchWithCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 const Notification = require('../notification/notification.model');
@@ -84,16 +84,13 @@ const mapFlatToNested = (body) => {
 };
 
 exports.getSettings = catchAsync(async (req, res) => {
-    const cachedData = await getCache(CACHE_KEY);
-    if (cachedData) return successResponse(res, cachedData, 'Settings from cache');
-
-    let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
-    if (!settings) {
-        settings = await AppSettings.create({ isSingleton: 'CONFIG' });
-    }
-
-    const flat = flattenSettings(settings);
-    await setCache(CACHE_KEY, flat, 86400); 
+    const flat = await fetchWithCache(CACHE_KEY, 86400, async () => {
+        let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+        if (!settings) {
+            settings = await AppSettings.create({ isSingleton: 'CONFIG' });
+        }
+        return flattenSettings(settings);
+    });
 
     return successResponse(res, flat, 'Settings fetched successfully');
 });

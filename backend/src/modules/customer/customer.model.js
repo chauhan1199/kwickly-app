@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const CustomerSchema = new mongoose.Schema({
     role: { type: String, enum: ['CUSTOMER', 'WORKER', 'ADMIN', 'SHOP'], required: true },
     phone: { type: String, required: true },
-    email: { type: String, sparse: true },
+    email: { type: String, sparse: true, lowercase: true, trim: true },
     password: { type: String },
     isVerified: { type: Boolean, default: false },
     name: { type: String },
@@ -71,7 +71,9 @@ const CustomerSchema = new mongoose.Schema({
     notificationPreferences: {
         jobUpdates: { type: Boolean, default: true },
         promotions: { type: Boolean, default: true }
-    }
+    },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date }
 }, { timestamps: true });
 
 CustomerSchema.index({ role: 1 });
@@ -85,5 +87,8 @@ CustomerSchema.index({ role: 1, isOnline: 1, 'kyc.status': 1, isVerified: 1 });
 CustomerSchema.index({ 'subscription.expiryDate': 1 });
 CustomerSchema.index({ city: 1, role: 1 });
 CustomerSchema.index({ role: 1, isOnline: 1, city: 1 });
+
+CustomerSchema.index({ 'services.category': 1, role: 1, isOnline: 1, activeLocation: '2dsphere' });
+CustomerSchema.index({ isDeleted: 1 });
 
 module.exports = mongoose.model('Customer', CustomerSchema);

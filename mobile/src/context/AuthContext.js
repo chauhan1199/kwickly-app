@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { Platform, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
 
@@ -20,6 +20,18 @@ export const AuthProvider = ({ children }) => {
       console.log('Failed to fetch user profile:', error);
     }
   }, []);
+
+  const signOut = async () => {
+    try {
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userRole');
+      setUserToken(null);
+      setUserRole(null);
+      setUser(null);
+    } catch (e) {
+      console.error('SignOut Error:', e);
+    }
+  };
 
   useEffect(() => {
     const loadStorageData = async () => {
@@ -45,6 +57,16 @@ export const AuthProvider = ({ children }) => {
       }
     };
     loadStorageData();
+
+    // Listen for unauthorized access events from api interceptor
+    const subscription = DeviceEventEmitter.addListener('UNAUTHORIZED_ACCESS', () => {
+      console.warn('Unauthorized access detected, signing out...');
+      signOut();
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   const signIn = async (token, role, userData = null) => {
@@ -60,18 +82,6 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (e) {
       console.error('SignIn Error:', e);
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userRole');
-      setUserToken(null);
-      setUserRole(null);
-      setUser(null);
-    } catch (e) {
-      console.error('SignOut Error:', e);
     }
   };
 

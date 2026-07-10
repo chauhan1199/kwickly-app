@@ -24,7 +24,7 @@ router.delete('/me/addresses/:addressId', authorize('CUSTOMER'), customerControl
 router.patch('/me/addresses/:addressId/primary', authorize('CUSTOMER'), customerController.setPrimaryAddress);
 
 // -- Customer Jobs --
-router.get('/top-pros', customerController.getTopPros);
+router.get('/top-pros', authorize('CUSTOMER'), customerController.getTopPros);
 router.get('/jobs/active', authorize('CUSTOMER'), customerController.getActiveJob);
 router.get('/jobs/:id/receipt', authorize('CUSTOMER'), customerController.getJobReceipt);
 

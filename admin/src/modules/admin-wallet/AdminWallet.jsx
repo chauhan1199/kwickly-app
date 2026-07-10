@@ -35,6 +35,7 @@ export default function AdminWallet() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [amount, setAmount] = useState('')
   const [desc, setDesc] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [actionLoading, setActionLoading] = useState(false)
   const [toast, setToast] = useState(null)
   const [showBankForm, setShowBankForm] = useState(false)
@@ -77,10 +78,52 @@ export default function AdminWallet() {
   const handleCredit = async () => {
     if (!amount || Number(amount) <= 0) return
     setActionLoading(true)
+
+    if (paymentMethod === 'RAZORPAY') {
+      try {
+        const { data } = await api.post('/admin/admin-wallet/razorpay-order', { amount: Number(amount) });
+        const { razorpayOrderId, keyId, amount: rpAmount, currency } = data.data;
+
+        const options = {
+          key: keyId,
+          amount: rpAmount,
+          currency: currency,
+          name: 'Kwickly Admin',
+          description: desc || 'Admin Wallet Topup',
+          order_id: razorpayOrderId,
+          handler: async function (response) {
+            try {
+              await api.post('/admin/admin-wallet/razorpay-verify', {
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature
+              });
+              showToast(`₹${Number(amount).toLocaleString('en-IN')} added via Razorpay!`);
+              setAmount(''); setDesc(''); setPaymentMethod('CASH');
+              fetchWallet(); fetchTxns();
+            } catch (err) {
+              showToast(err.response?.data?.message || 'Verification failed', 'error');
+            }
+          },
+          theme: { color: '#059669' }
+        };
+        const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (response) {
+          showToast(response.error.description || 'Payment failed', 'error');
+        });
+        rzp.open();
+      } catch (e) {
+        showToast(e.response?.data?.message || 'Failed to create order', 'error');
+      } finally {
+        setActionLoading(false);
+      }
+      return;
+    }
+
     try {
-      await api.post('/admin/admin-wallet/credit', { amount: Number(amount), description: desc || 'Manual credit' })
+      await api.post('/admin/admin-wallet/credit', { amount: Number(amount), description: desc || 'Manual credit', paymentMethod })
       showToast(`₹${Number(amount).toLocaleString('en-IN')} credited to admin wallet`)
-      setAmount(''); setDesc('')
+      setAmount(''); setDesc(''); setPaymentMethod('CASH')
       fetchWallet(); fetchTxns()
     } catch (e) {
       showToast(e.response?.data?.message || 'Failed to credit', 'error')
@@ -219,13 +262,21 @@ export default function AdminWallet() {
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mid)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
               <Wallet size={12} /> Quick Credit / Debit
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
               <div>
                 <input className="form-control" type="number" min="1" placeholder="Amount (₹)" value={amount} onChange={e => setAmount(e.target.value)} style={{ fontSize: 13 }} />
                 {amount && Number(amount) > (wallet.balance || 0) && (
-                  <div style={{ fontSize: 11, color: '#EF4444', marginTop: 2 }}>Exceeds balance (₹{(wallet.balance || 0).toLocaleString('en-IN')})</div>
+                  <div style={{ fontSize: 11, color: '#EF4444', marginTop: 2 }}>Exceeds debit balance</div>
                 )}
               </div>
+              <select className="form-control" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={{ fontSize: 13 }}>
+                <option value="CASH">Cash</option>
+                <option value="CC">Credit Card</option>
+                <option value="UPI">UPI</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="OTHER">Other</option>
+                <option value="RAZORPAY">Razorpay Gateway</option>
+              </select>
               <input className="form-control" placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} style={{ fontSize: 13 }} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -294,7 +345,7 @@ export default function AdminWallet() {
         ) : (
           <table className="data-table">
             <thead>
-              <tr><th>Type</th><th>Description</th><th>Amount</th><th>Balance After</th><th>Date</th></tr>
+              <tr><th>Type</th><th>Description</th><th>Method</th><th>Amount</th><th>Balance After</th><th>Date</th></tr>
             </thead>
             <tbody>
               {filtered.map((t, i) => {
@@ -303,6 +354,7 @@ export default function AdminWallet() {
                   <tr key={t._id || i}>
                     <td><Badge label={t.type.replace(/_/g, ' ')} variant={TXN_VARIANT[t.type] || 'neutral'} /></td>
                     <td style={{ fontSize: 13 }}>{t.description || '—'}</td>
+                    <td style={{ fontSize: 13, color: 'var(--mid)', fontWeight: 600 }}>{t.meta?.paymentMethod || '—'}</td>
                     <td>
                       <span style={{ fontWeight: 800, color: isCredit ? '#059669' : '#dc2626', fontSize: 15 }}>
                         {isCredit ? '+' : '-'}₹{(t.amount || 0).toLocaleString('en-IN')}

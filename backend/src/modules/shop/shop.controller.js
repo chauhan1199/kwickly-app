@@ -4,6 +4,7 @@ const Payout     = require('../payout/payout.model');
 const WalletTxn  = require('../wallet/wallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
+const { uploadImage } = require('../../services/cloudinary.service');
 const { emitToAll } = require('../../helpers/socket.helper');
 const { setCache, getCache, delCache, getRedis } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
@@ -50,7 +51,8 @@ exports.updateMyShop = catchAsync(async (req, res) => {
     const updateData = { ...req.body };
 
     if (req.file) {
-        updateData.logoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/shops');
+        updateData.logoUrl = url;
     }
 
     if (updateData.location && typeof updateData.location === 'string') {

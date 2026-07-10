@@ -73,7 +73,8 @@ const JobSchema = new mongoose.Schema({
         resolution: { type: String, enum: ['DEDUCT_FROM_WORKER', 'WAIVE_FEE', 'REFUND_CUSTOMER', 'CLOSE'] },
         adminNote: { type: String },
         resolvedAt: { type: Date }
-    }
+    },
+    disputeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Dispute' }
 }, { timestamps: true });
 
 // ─── Indexes ──────────────────────────────────────────────────────────────────

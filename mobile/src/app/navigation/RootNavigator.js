@@ -12,6 +12,34 @@ import Theme from '../../constants/Theme';
 
 const Stack = createStackNavigator();
 
+const linking = {
+  prefixes: ['kwickly://', 'https://kwickly.app'],
+  config: {
+    screens: {
+      CustomerApp: {
+        screens: {
+          Home: 'home',
+          Orders: 'orders',
+          Profile: 'profile'
+        }
+      },
+      WorkerApp: {
+        screens: {
+          Map: 'worker/map',
+          Jobs: 'worker/jobs'
+        }
+      },
+      ShopApp: {
+        screens: {
+          Dashboard: 'shop/dashboard',
+          Orders: 'shop/orders'
+        }
+      },
+      Chat: 'chat/:id',
+    },
+  },
+};
+
 const RootNavigator = () => {
   const { userToken, userRole, isLoading } = useAuth();
 
@@ -24,7 +52,7 @@ const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {userToken == null ? (
           <Stack.Screen name="Auth" component={AuthStack} />

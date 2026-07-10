@@ -47,7 +47,7 @@ const createUserSchema = Joi.object({
     bio: Joi.string().max(500).optional().messages({
         'string.max': 'Bio must be under 500 characters'
     }),
-    profileImage: Joi.string().uri().allow('', null).optional(),
+    profileImage: Joi.string().allow('', null).optional(),
     address: addressSchema,
     location: locationSchema,
     services: Joi.array().items(serviceSchema).optional(),
@@ -77,7 +77,7 @@ const updateUserSchema = Joi.object({
     bio: Joi.string().max(500).optional().messages({
         'string.max': 'Bio must be under 500 characters'
     }),
-    profileImage: Joi.string().uri().allow('', null).optional(),
+    profileImage: Joi.string().allow('', null).optional(),
     address: addressSchema,
     location: locationSchema,
     services: Joi.array().items(serviceSchema).optional(),

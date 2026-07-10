@@ -8,7 +8,7 @@ const Suggestion = require('../suggestion/suggestion.model');
 const { delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 const Job = require('../job/job.model');
-
+const { uploadImage } = require('../../services/cloudinary.service');
 exports.getStats = catchAsync(async (req, res) => {
     const workerId = req.user._id;
     const startOfDay = new Date();
@@ -46,20 +46,20 @@ exports.updateKyc = catchAsync(async (req, res) => {
     const user = await Customer.findById(req.user._id);
     
     if (req.file) {
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/kyc');
         user.kyc.documents.push({
             type: documentType || 'OTHER',
-            url: '/uploads/' + req.file.filename
+            url
         });
         user.kyc.status = 'PENDING';
         await user.save();
     } else if (req.body.documentBase64) {
         const base64Data = req.body.documentBase64.replace(/^data:image\/\w+;base64,/, "");
         const buffer = Buffer.from(base64Data, 'base64');
-        const filename = `document-${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
-        require('fs').writeFileSync(require('path').join(__dirname, '../../../public/uploads', filename), buffer);
+        const { url } = await uploadImage(buffer, 'kwickly/kyc');
         user.kyc.documents.push({
             type: documentType || 'OTHER',
-            url: '/uploads/' + filename
+            url
         });
         user.kyc.status = 'PENDING';
         await user.save();
@@ -91,13 +91,13 @@ exports.updateProfile = catchAsync(async (req, res) => {
     const { name, city, bio, email } = req.body;
     const updateData = {};
     if (req.file) {
-        updateData.profileImage = '/uploads/' + req.file.filename;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/profiles');
+        updateData.profileImage = url;
     } else if (req.body.profileImageBase64) {
         const base64Data = req.body.profileImageBase64.replace(/^data:image\/\w+;base64,/, "");
         const buffer = Buffer.from(base64Data, 'base64');
-        const filename = `profile-${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
-        require('fs').writeFileSync(require('path').join(__dirname, '../../../public/uploads', filename), buffer);
-        updateData.profileImage = '/uploads/' + filename;
+        const { url } = await uploadImage(buffer, 'kwickly/profiles');
+        updateData.profileImage = url;
     } else if (req.body.profileImage !== undefined) {
         updateData.profileImage = req.body.profileImage;
     }
@@ -167,6 +167,9 @@ exports.updateServices = catchAsync(async (req, res) => {
 });
 
 exports.updateLocation = catchAsync(async (req, res) => {
+    if (!req.isVerifiedWorker) {
+        return errorResponse(res, 'You must be verified by an admin to update your broadcast location.', StatusCodes.FORBIDDEN);
+    }
     const { city, pincode, area, radius, coordinates } = req.body;
     const updateData = {};
     if (radius !== undefined) updateData.serviceRadius = radius;
@@ -195,6 +198,9 @@ exports.updateLocation = catchAsync(async (req, res) => {
 });
 
 exports.toggleOnlineStatus = catchAsync(async (req, res) => {
+    if (!req.isVerifiedWorker) {
+        return errorResponse(res, 'You must be verified by an admin to go online and receive jobs.', StatusCodes.FORBIDDEN);
+    }
     const { isOnline } = req.body;
     if (typeof isOnline !== 'boolean') {
         return errorResponse(res, 'isOnline (boolean) is required', StatusCodes.BAD_REQUEST);
@@ -369,7 +375,8 @@ exports.updateFullProfile = catchAsync(async (req, res) => {
     if (email !== undefined) updateData.email = email;
 
     if (req.file) {
-        updateData.profileImage = '/uploads/' + req.file.filename;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/profiles');
+        updateData.profileImage = url;
     }
 
     const user = await Customer.findByIdAndUpdate(req.user._id, { $set: updateData }, { new: true }).select('-password');

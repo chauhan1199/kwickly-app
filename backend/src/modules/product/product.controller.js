@@ -1,6 +1,7 @@
 const { StatusCodes } = require('http-status-codes');
 const Product    = require('./product.model');
 const Shop       = require('../shop/shop.model');
+const { uploadImage } = require('../../services/cloudinary.service');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
@@ -104,18 +105,16 @@ exports.createProduct = catchAsync(async (req, res) => {
 
     const productData = { ...req.body };
     if (req.file) {
-        productData.imageUrl = `/uploads/${req.file.filename}`;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/products');
+        productData.imageUrl = url;
     } else if (req.body.imageBase64) {
         try {
-            const fs = require('fs');
-            const path = require('path');
-            const filename = `image-${Date.now()}-${Math.floor(Math.random() * 10000)}.jpg`;
-            const filepath = path.join(__dirname, '../../public/uploads', filename);
-            const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, '');
-            fs.writeFileSync(filepath, base64Data, 'base64');
-            productData.imageUrl = `/uploads/${filename}`;
+            const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, "");
+            const buffer = Buffer.from(base64Data, 'base64');
+            const { url } = await uploadImage(buffer, 'kwickly/products');
+            productData.imageUrl = url;
         } catch (e) {
-            console.log('Error saving base64 image:', e);
+            console.error('Error saving base64 image:', e);
         }
     }
     
@@ -161,18 +160,16 @@ exports.updateProduct = catchAsync(async (req, res) => {
 
     const updateData = { ...req.body };
     if (req.file) {
-        updateData.imageUrl = `/uploads/${req.file.filename}`;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/products');
+        updateData.imageUrl = url;
     } else if (req.body.imageBase64) {
         try {
-            const fs = require('fs');
-            const path = require('path');
-            const filename = `image-${Date.now()}-${Math.floor(Math.random() * 10000)}.jpg`;
-            const filepath = path.join(__dirname, '../../public/uploads', filename);
-            const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, '');
-            fs.writeFileSync(filepath, base64Data, 'base64');
-            updateData.imageUrl = `/uploads/${filename}`;
+            const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, "");
+            const buffer = Buffer.from(base64Data, 'base64');
+            const { url } = await uploadImage(buffer, 'kwickly/products');
+            updateData.imageUrl = url;
         } catch (e) {
-            console.log('Error saving base64 image:', e);
+            console.error('Error saving base64 image:', e);
         }
     }
 

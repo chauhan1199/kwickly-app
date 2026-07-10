@@ -1,6 +1,7 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const logger = require('./logger.helper');
+const Customer = require('../modules/customer/customer.model');
 
 let io = null;
 
@@ -24,6 +25,19 @@ const initSocket = (server) => {
             pingInterval: 25000,
             transports: ['websocket', 'polling']
         });
+
+        // Setup Redis Pub/Sub Adapter for Horizontal Scaling
+        const { createAdapter } = require('@socket.io/redis-adapter');
+        const { getRedis } = require('./redis.helper');
+        
+        const pubClient = getRedis();
+        if (pubClient) {
+            const subClient = pubClient.duplicate();
+            io.adapter(createAdapter(pubClient, subClient));
+            logger.info('Socket.io bound to Redis Pub/Sub adapter for clustering');
+        } else {
+            logger.warn('Redis client not available. Socket.io running in local memory mode (not horizontally scalable).');
+        }
 
         // P0 FIX: JWT Authentication middleware for ALL socket connections
         io.use((socket, next) => {
@@ -56,15 +70,14 @@ const initSocket = (server) => {
                     socket.join(`customer_${socket.userId}`);
                 } else if (socket.userRole === 'WORKER') {
                     socket.join(`worker_${socket.userId}`);
+                } else if (socket.userRole === 'SHOP') {
+                    socket.join(`shop_${socket.userId}`);
+                } else if (socket.userRole === 'ADMIN') {
+                    socket.join('admin_dashboard');
                 }
             }
 
-            socket.on('JOIN_CUSTOMER_ROOM', (data) => socket.join(`customer_${data.userId}`));
-            socket.on('JOIN_WORKER_ROOM', (data) => socket.join(`worker_${data.userId}`));
-            socket.on('JOIN_SHOP_ROOM', (data) => socket.join(`shop_${data.shopId}`));
-            socket.on('JOIN_ADMIN_ROOM', () => socket.join('admin_dashboard'));
-
-            socket.on('disconnect', () => {
+            socket.on('disconnect', async () => {
                 logger.info(`[Socket] Disconnected: ${socket.id}`);
             });
         });

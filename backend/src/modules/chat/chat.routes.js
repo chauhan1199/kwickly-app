@@ -6,33 +6,34 @@ const upload = require('../../middleware/upload.middleware');
 
 router.use(authMiddleware);
 
-router.post('/upload-image', upload.single('image'), (req, res) => {
-    if (!req.file) return res.status(400).json({ status: 'error', message: 'No file uploaded' });
-    const url = `/uploads/${req.file.filename}`;
-    res.status(200).json({ status: 'success', data: { url } });
+const { uploadImage, uploadBase64 } = require('../../services/cloudinary.service');
+
+router.post('/upload-image', upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ status: 'error', message: 'No file uploaded' });
+        
+        // Upload to Cloudinary
+        const result = await uploadImage(req.file.buffer, 'kwickly/chat');
+        
+        res.status(200).json({ status: 'success', data: { url: result.url } });
+    } catch (err) {
+        console.error('Chat upload error:', err);
+        res.status(500).json({ status: 'error', message: 'Image upload failed' });
+    }
 });
 
 // Base64 upload - most reliable for React Native
 router.post('/upload-base64', async (req, res) => {
     try {
-        const { base64, mimeType = 'image/jpeg', fileName = 'chat_image.jpg' } = req.body;
+        const { base64 } = req.body;
         if (!base64) return res.status(400).json({ status: 'error', message: 'No base64 data provided' });
 
-        const path = require('path');
-        const fs = require('fs');
-        const uploadDir = path.join(__dirname, '../../../public/uploads');
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-        const ext = mimeType.split('/')[1] || 'jpg';
-        const uniqueName = `chat-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-        const filePath = path.join(uploadDir, uniqueName);
-
-        const base64Data = base64.replace(/^data:image\/\w+;base64,/, '');
-        fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
-
-        const url = `/uploads/${uniqueName}`;
-        res.status(200).json({ status: 'success', data: { url } });
+        // Let cloudinary service handle base64
+        const result = await uploadBase64(base64, 'kwickly/chat');
+        
+        res.status(200).json({ status: 'success', data: { url: result.url } });
     } catch (err) {
+        console.error('Chat base64 upload error:', err);
         res.status(500).json({ status: 'error', message: err.message });
     }
 });

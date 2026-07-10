@@ -6,7 +6,10 @@ const topupSchema = Joi.object({
         method: Joi.string().required(),
         txnId: Joi.string().optional()
     }).optional(),
-    planId: Joi.string().optional()
+    planId: Joi.string().optional(),
+    razorpayOrderId: Joi.string().optional(),
+    razorpayPaymentId: Joi.string().optional(),
+    razorpaySignature: Joi.string().optional()
 });
 
 const withdrawSchema = Joi.object({

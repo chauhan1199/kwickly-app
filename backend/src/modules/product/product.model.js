@@ -24,5 +24,6 @@ const ProductSchema = new mongoose.Schema({
 
 ProductSchema.index({ shopId: 1 });
 ProductSchema.index({ isActive: 1 });
+ProductSchema.index({ shopId: 1, category: 1 });
 
 module.exports = mongoose.model('Product', ProductSchema);

@@ -37,12 +37,8 @@ exports.placeQuote = catchAsync(async (req, res) => {
     }
 
     // Guard: Minimum wallet balance (from cache or DB)
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
     const minBalance = settings?.wallet?.minimumBalance || 100;
     if ((worker.wallet?.balance || 0) < minBalance) {
         return errorResponse(res, `Minimum wallet balance of ₹${minBalance} required to quote.`, StatusCodes.PAYMENT_REQUIRED);
@@ -148,12 +144,8 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
         .lean();
 
     // Fetch Global Settings for fee calculation
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
     const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
 
     const jobLat = job.location?.coordinates?.[1];
@@ -177,10 +169,10 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
         // Worker quote is their exact payout. Platform fee and GST added on top.
         const workerPayout = quote.amount;
         const platformFee = feeConfig.type === 'percent'
-            ? (workerPayout * (feeConfig.amount || 10)) / 100
+            ? Math.round((workerPayout * (feeConfig.amount || 10)) / 100)
             : (feeConfig.amount || 50);
         
-        const gst = (platformFee * (feeConfig.gstPercentage || 18)) / 100;
+        const gst = Math.round((platformFee * (feeConfig.gstPercentage || 18)) / 100);
         const customerPayable = workerPayout + platformFee + gst;
 
         return { 
@@ -230,19 +222,15 @@ exports.acceptQuote = catchAsync(async (req, res) => {
 
     // Calculate final pricing model 
     const { getCache, setCache } = require('../../helpers/redis.helper');
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
     const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
     
     const workerPayout = quote.amount;
     const platformFee = feeConfig.type === 'percent'
-        ? (workerPayout * (feeConfig.amount || 10)) / 100
+        ? Math.round((workerPayout * (feeConfig.amount || 10)) / 100)
         : (feeConfig.amount || 50);
-    const gst = (platformFee * (feeConfig.gstPercentage || 18)) / 100;
+    const gst = Math.round((platformFee * (feeConfig.gstPercentage || 18)) / 100);
     const customerPayable = workerPayout + platformFee + gst;
 
     const mongoose = require('mongoose');

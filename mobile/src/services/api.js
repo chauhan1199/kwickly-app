@@ -1,11 +1,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Standard Android Emulator IP to reach localhost
-const BASE_URL = 'http://10.0.2.2:5000/api/v1';
+import { DeviceEventEmitter } from 'react-native';
+import { API_BASE_URL } from '../config/env';
 
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
   timeout: 60000, // 60 seconds to allow large image uploads
 });
 
@@ -26,8 +25,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear token on auth failure
+      // Clear token on auth failure and emit event to AuthContext
       AsyncStorage.removeItem('userToken');
+      DeviceEventEmitter.emit('UNAUTHORIZED_ACCESS');
     }
     return Promise.reject(error);
   }

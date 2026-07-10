@@ -72,20 +72,19 @@ const ShopSchema = new mongoose.Schema({
         planId: { type: String },
         expiryDate: { type: Date },
         isTrial: { type: Boolean, default: true }
-    }
+    },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date }
 }, { timestamps: true });
 
 ShopSchema.index({ location: '2dsphere' });
 ShopSchema.index({ 'kyc.status': 1 });
+ShopSchema.index({ isDeleted: 1 });
 
 const clearCache = async function (doc, next) {
-    const { getRedis } = require('../../helpers/redis.helper');
+    const { delCacheByPattern } = require('../../helpers/redis.helper');
     try {
-        const client = getRedis();
-        if (client) {
-            const keys = await client.keys('*shops_list*');
-            if (keys.length > 0) await client.del(keys);
-        }
+        await delCacheByPattern('*shops_list*');
     } catch (e) {
         console.error('Cache clear error:', e);
     }

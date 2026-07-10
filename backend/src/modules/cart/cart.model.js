@@ -20,7 +20,6 @@ const CartSchema = new mongoose.Schema({
     expiresAt: { type: Date, required: true }
 }, { timestamps: true });
 
-CartSchema.index({ customerId: 1 }, { unique: true });
 CartSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('Cart', CartSchema);

@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import api, { SERVER_URL } from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
+import { useServerPagination } from '../../hooks/useServerPagination'
+import Drawer from '../../components/common/Drawer'
+import WalletAdjuster from '../../components/common/WalletAdjuster'
 import { TextInput, TextArea, FormRow, validators } from '../../components/FormInput'
 import MapPicker from '../../components/MapPicker'
 import Table from '../../components/common/Table'
@@ -61,11 +64,12 @@ const validateUpi = (val) => {
 }
 
 export default function Shops() {
-  const [shops, setShops] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
   const [kycFilter, setKycFilter] = useState('all')
-  const [page, setPage] = useState(1)
+  const filterCallback = useCallback((s) => {
+    return kycFilter === 'all' || s.kyc?.status === kycFilter.toUpperCase()
+  }, [kycFilter])
+  
+  const { data: shops, setData: setShops, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh } = useServerPagination('/shops', PAGE_SIZE, filterCallback)
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
@@ -95,6 +99,9 @@ export default function Shops() {
   const [walletDesc, setWalletDesc] = useState('')
   const [savingWallet, setSavingWallet] = useState(false)
   const [adminWalletBalance, setAdminWalletBalance] = useState(null)
+
+
+  
 
   const [showKycDocModal, setShowKycDocModal] = useState(false)
   const [kycDocName, setKycDocName] = useState('')
@@ -146,33 +153,16 @@ export default function Shops() {
   const [savingSub, setSavingSub] = useState(false)
 
   useEffect(() => {
-    fetchShops()
-    const handler = () => fetchShops()
+    const handler = () => refresh()
     window.addEventListener('admin-action', handler)
     return () => window.removeEventListener('admin-action', handler)
   }, [])
 
-  const fetchShops = async () => {
-    setLoading(true)
-    try {
-      const res = await api.get('/shops?limit=0')
-      if (res.data.status === 'success') {
-        setShops(res.data.data?.shops || res.data.data || [])
-      }
-    } catch {
-      showToast('Failed to load shops', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
+  
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
-  const filtered = shops.filter(s => {
-    const matchSearch = s.name?.toLowerCase().includes(search.toLowerCase()) || s.ownerId?.name?.toLowerCase().includes(search.toLowerCase()) || s.category?.toLowerCase().includes(search.toLowerCase())
-    const matchKyc = kycFilter === 'all' || s.kyc?.status === kycFilter.toUpperCase()
-    return matchSearch && matchKyc
-  })
+  
 
 
   const columns = [
@@ -209,8 +199,7 @@ export default function Shops() {
     )}
   ];
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged = shops;
 
   useEffect(() => { setPage(1) }, [search, kycFilter])
 
@@ -396,7 +385,7 @@ export default function Shops() {
         showToast('Shop created successfully')
         
       }
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
       setShowShopForm(false)
     } catch (err) {
@@ -566,7 +555,7 @@ export default function Shops() {
   const addAttribute = () => { setProductForm(prev => ({ ...prev, attributes: [...prev.attributes, { name: '', value: '' }] })) }
   const removeAttribute = (index) => { setProductForm(prev => ({ ...prev, attributes: prev.attributes.filter((_, i) => i !== index) })) }
   const updateAttribute = (index, field, val) => { setProductForm(prev => { const newAttrs = [...prev.attributes]; newAttrs[index] = { ...newAttrs[index], [field]: val }; return { ...prev, attributes: newAttrs } }) }
-  const deleteProduct = async (id) => { try { await api.delete(`/products/${id}`); showToast('Product deleted'); ; window.dispatchEvent(new Event('admin-action')); openDetail(detail) } catch { showToast('Failed to delete product', 'error') }; setConfirm(null) }
+  const deleteProduct = async (id) => { try { await api.delete(`/products/${id}`); showToast('Product deleted');  window.dispatchEvent(new Event('admin-action')); openDetail(detail) } catch { showToast('Failed to delete product', 'error') } setConfirm(null) }
 
   const handleWalletSubmit = async () => {
     if (!walletAmount || isNaN(walletAmount) || Number(walletAmount) <= 0) { showToast('Enter a valid amount greater than 0', 'error'); return }
@@ -629,7 +618,7 @@ export default function Shops() {
         setDetail(prev => ({ ...prev, ...updatedShop }))
         setShops(prev => prev.map(s => s._id === detail._id ? { ...s, ...updatedShop } : s))
       }
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to upload document', 'error') } finally { setSavingKycDoc(false) }
   }
@@ -646,7 +635,7 @@ export default function Shops() {
         setDetail(prev => ({ ...prev, ...updated }))
         setShops(prev => prev.map(s => s._id === detail._id ? { ...s, ...updated } : s))
       }
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to delete document', 'error') }
     setConfirm(null)
@@ -682,7 +671,7 @@ export default function Shops() {
       setPayoutForm({ type: 'BANK', label: '', accountNumber: '', ifscCode: '', upiId: '' })
       setPayoutErrors({})
       await refreshDetail()
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to add payout method', 'error') } finally { setSavingPayout(false) }
   }
@@ -698,7 +687,7 @@ export default function Shops() {
         setDetail(prev => ({ ...prev, ...updated }))
         setShops(prev => prev.map(s => s._id === detail._id ? { ...s, ...updated } : s))
       }
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to delete payout method', 'error') }
     setConfirm(null)
@@ -746,7 +735,7 @@ export default function Shops() {
       setShowEditPayoutModal(false)
       setEditPayoutMethod(null)
       await refreshDetail()
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to update payout method', 'error') } finally { setSavingEditPayout(false) }
   }
@@ -772,7 +761,7 @@ export default function Shops() {
       setShowEditKycDocModal(false)
       setEditKycDocIndex(null)
       await refreshDetail()
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to update document', 'error') } finally { setSavingEditKycDoc(false) }
   }
@@ -791,7 +780,7 @@ export default function Shops() {
         setDetail(prev => ({ ...prev, ...updated }))
         setShops(prev => prev.map(s => s._id === detail._id ? { ...s, ...updated } : s))
       }
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to update owner', 'error') } finally { setSavingOwner(false) }
   }
@@ -809,7 +798,7 @@ export default function Shops() {
         setDetail(prev => ({ ...prev, ...updated }))
         setShops(prev => prev.map(s => s._id === detail._id ? { ...s, ...updated } : s))
       }
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to update hours', 'error') } finally { setSavingHours(false) }
   }
@@ -844,7 +833,7 @@ export default function Shops() {
         setDetail(prev => ({ ...prev, ...updated }))
         setShops(prev => prev.map(s => s._id === detail._id ? { ...s, ...updated } : s))
       }
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to update delivery', 'error') } finally { setSavingDelivery(false) }
   }
@@ -862,7 +851,7 @@ export default function Shops() {
         setDetail(prev => ({ ...prev, ...updated }))
         setShops(prev => prev.map(s => s._id === detail._id ? { ...s, ...updated } : s))
       }
-      fetchShops()
+      refresh()
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) { showToast(err.response?.data?.message || 'Failed to update subscription', 'error') } finally { setSavingSub(false) }
   }
@@ -889,7 +878,7 @@ export default function Shops() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-primary" onClick={openAddShop}><Plus size={16} /> Add Shop</button>
-          <button className="btn-secondary" onClick={fetchShops}><RefreshCw size={16} /> Refresh</button>
+          <button className="btn-secondary" onClick={refresh}><RefreshCw size={16} /> Refresh</button>
         </div>
       </div>
 
@@ -910,7 +899,7 @@ export default function Shops() {
       <div className="filters-row">
         <div className="search-box">
           <Search size={16} />
-          <input placeholder="Search shops, owner, category..." value={search} onChange={e => setSearch(e.target.value)} />
+          <form onSubmit={handleSearch} style={{ display: 'flex', flex: 1, border: 'none', background: 'transparent', margin: 0, padding: 0 }}><input style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent' }} placeholder="Search shop name, category..." value={search} onChange={e => setSearch(e.target.value)} /></form>
         </div>
         <div className="filter-tabs">
           {[
@@ -923,7 +912,7 @@ export default function Shops() {
           ))}
         </div>
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--mid)', fontWeight: 600 }}>
-          {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+          {total} result{total !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -935,7 +924,7 @@ export default function Shops() {
         ) : (
           <>
             <Table columns={columns} data={paged} emptyMessage={search ? "Try a different search term" : "No shops registered yet"} />
-            <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </>
         )}
       </div>

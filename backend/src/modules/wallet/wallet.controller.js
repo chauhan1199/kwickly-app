@@ -1,4 +1,6 @@
 const { StatusCodes } = require('http-status-codes');
+const logger = require('../../helpers/logger.helper');
+const { notifyUser } = require('../../helpers/notifyUser.helper');
 const WalletTxn  = require('./wallet.model');
 const Customer   = require('../customer/customer.model');
 const Shop       = require('../shop/shop.model');
@@ -11,18 +13,15 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToAll } = require('../../helpers/socket.helper');
 const { getCache, delCache, setCache } = require('../../helpers/redis.helper');
 const mongoose = require('mongoose');
+const { verifyPaymentSignature, fetchPayment } = require('../../helpers/razorpay.helper');
 
 /**
  * Helper: atomically deduct amount from user/shop wallet.
  * Returns { newBalance, entity } or throws if insufficient funds.
  */
 const atomicDeduct = async (userId, role, amount, session) => {
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
     const minBalance = settings?.wallet?.minimumBalance || 100;
     const requiredTotal = amount + minBalance;
 
@@ -101,9 +100,25 @@ exports.getWallet = catchAsync(async (req, res) => {
 
 // ─── POST /api/v1/wallet/topup ────────────────────────────────────────────────
 exports.topupWallet = catchAsync(async (req, res) => {
-    const { amount, paymentDetails, planId } = req.body;
+    let { amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
     if (!amount || amount <= 0) {
         return errorResponse(res, 'Invalid top-up amount', StatusCodes.BAD_REQUEST);
+    }
+
+    if (razorpayOrderId && razorpayPaymentId && razorpaySignature) {
+        const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+        if (!isValid) {
+            return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
+        }
+        try {
+            const rpPayment = await fetchPayment(razorpayPaymentId);
+            if (rpPayment.status !== 'captured') {
+                return errorResponse(res, 'Payment not captured in Razorpay', StatusCodes.BAD_REQUEST);
+            }
+            amount = rpPayment.amount / 100; // Trust the captured amount from Razorpay
+        } catch (error) {
+            return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.INTERNAL_SERVER_ERROR);
+        }
     }
 
     const user = await Customer.findById(req.user._id);
@@ -146,8 +161,25 @@ exports.topupWallet = catchAsync(async (req, res) => {
         description: planId ? `Plan Top-up: ${planId}` : `Wallet Top-up via ${paymentDetails?.method || 'Online'}`
     });
 
+    let adminWallet = await AdminWallet.findOne();
+    if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
+    adminWallet.balance += amount;
+    await adminWallet.save();
+
+    await AdminWalletTxn.create({
+        type: 'TOPUP',
+        amount,
+        balanceAfter: adminWallet.balance,
+        description: `Wallet top-up by ${user.role} ${user.name || user._id}`,
+        referenceId: req.user._id,
+        referenceModel: 'Customer'
+    });
+
+
     // Invalidate user session cache so balance is fresh
     await delCache(`session:${req.user._id}`);
+    await delCache('admin_dashboard_stats');
+    
     emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP', id: txn._id });
 
     notifyUser({

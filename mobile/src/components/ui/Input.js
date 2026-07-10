@@ -18,12 +18,12 @@ const Input = ({
   inputStyle,
   ...props 
 }) => {
-  const { theme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const isPassword = secureTextEntry;
-  const styles = createStyles(theme);
+  const styles = createStyles(theme, isDarkMode);
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -64,25 +64,25 @@ const Input = ({
   );
 };
 
-const createStyles = (theme) => StyleSheet.create({
+const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     width: '100%',
     marginBottom: 20,
   },
   label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: theme.colors.textDim,
-    marginBottom: 6,
-    marginLeft: 0,
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: 10,
+    marginLeft: 4,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    backgroundColor: isDarkMode ? '#1a1a1a' : '#f9fafb',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? '#333333' : '#d1d5db',
     paddingHorizontal: 16,
     height: 54,
     shadowColor: '#000',

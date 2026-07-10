@@ -43,4 +43,6 @@ AdminWalletTxnSchema.index({ createdAt: -1 });
 const AdminWallet = mongoose.model('AdminWallet', AdminWalletSchema);
 const AdminWalletTxn = mongoose.model('AdminWalletTxn', AdminWalletTxnSchema);
 
+AdminWalletTxnSchema.index({ referenceId: 1 });
+
 module.exports = { AdminWallet, AdminWalletTxn };

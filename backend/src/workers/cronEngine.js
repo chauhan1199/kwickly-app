@@ -7,65 +7,65 @@ const WalletTxn = require('../modules/wallet/wallet.model');
 const logger = require('../helpers/logger.helper');
 const { emitToRoom, getIO } = require('../helpers/socket.helper');
 const { findEligibleWorkers } = require('../helpers/worker.helper');
-const { getCache, setCache } = require('../helpers/redis.helper');
+const { getCache, setCache, acquireLock, releaseLock } = require('../helpers/redis.helper');
 const { notifyUser } = require('../helpers/notifyUser.helper');
-let isJobSweepRunning = false;
-let isOrderSweepRunning = false;
-let isWorkerSweepRunning = false;
-let isBroadcastSweepRunning = false;
 
 const startCronEngine = () => {
     logger.info('[Cron Engine] Master engine initialized. Scheduling progressive expansion and ghost sweeps...');
 
     // Run every minute
     cron.schedule('* * * * *', async () => {
-        if (isBroadcastSweepRunning) return;
-        isBroadcastSweepRunning = true;
+        const locked = await acquireLock('cron:broadcast_sweep', 50);
+        if (!locked) return; // Another node is handling this
+        
         try {
             await sweepBroadcastingJobs();
         } catch (err) {
             logger.error('[Cron Engine] Broadcast sweep error: ' + err.message);
         } finally {
-            isBroadcastSweepRunning = false;
+            await releaseLock('cron:broadcast_sweep');
         }
     });
 
     // Run every minute (ghost quotes)
     cron.schedule('* * * * *', async () => {
-        if (isJobSweepRunning) return;
-        isJobSweepRunning = true;
+        const locked = await acquireLock('cron:job_sweep', 50);
+        if (!locked) return; // Another node is handling this
+        
         try {
             await sweepGhostQuotes();
         } catch (err) {
             logger.error('[Cron Engine] Job sweep error: ' + err.message);
         } finally {
-            isJobSweepRunning = false;
+            await releaseLock('cron:job_sweep');
         }
     });
 
-    // Run every 5 minutes
+    // Run every 5 minutes (shop orders)
     cron.schedule('*/5 * * * *', async () => {
-        if (isOrderSweepRunning) return;
-        isOrderSweepRunning = true;
+        const locked = await acquireLock('cron:order_sweep', 290);
+        if (!locked) return;
+        
         try {
             await sweepGhostOrders();
         } catch (err) {
             logger.error('[Cron Engine] Order sweep error: ' + err.message);
         } finally {
-            isOrderSweepRunning = false;
+            await releaseLock('cron:order_sweep');
         }
     });
 
-    // Run every 10 minutes
+    // Run every 10 minutes (worker timeouts)
     cron.schedule('*/10 * * * *', async () => {
-        if (isWorkerSweepRunning) return;
-        isWorkerSweepRunning = true;
+        const locked = await acquireLock('cron:worker_sweep', 590);
+        if (!locked) return;
+        
         try {
             await sweepExpiredSubscriptions();
         } catch (err) {
             logger.error('[Cron Engine] Worker sweep error: ' + err.message);
         } finally {
-            isWorkerSweepRunning = false;
+            await releaseLock('cron:worker_sweep');
         }
     });
 };
@@ -81,11 +81,8 @@ const sweepBroadcastingJobs = async () => {
     if (broadcastingJobs.length === 0) return;
 
     // Load settings once for the sweep
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
+    const SettingsService = require('../modules/settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
     const maxRadius = settings?.radius?.maxKm || 15;
     const minBalance = settings?.wallet?.minimumBalance || 100;
 
@@ -109,14 +106,14 @@ const sweepBroadcastingJobs = async () => {
             job.status = 'CANCELLED';
             await job.save();
             
-            emitToRoom(`customer_${job.customerId._id}`, 'JOB_STATUS_CHANGED', { 
+            emitToRoom(`customer_${job.customerId?._id || job.customerId}`, 'JOB_STATUS_CHANGED', { 
                 jobId: job._id, 
                 status: 'CANCELLED', 
                 reason: 'No workers found nearby after expanding radius.' 
             });
 
             notifyUser({
-                userId: job.customerId._id,
+                userId: job.customerId?._id || job.customerId,
                 title: 'Job Cancelled',
                 message: `We couldn't find any workers for your ${job.category} job. Please try again later.`,
                 action: 'JOB_CANCELLED',
@@ -137,7 +134,7 @@ const sweepBroadcastingJobs = async () => {
         logger.info(`[Cron] Job ${job._id} expanding to round ${nextRound} (Radius: ${newRadiusKm}km)`);
 
         // Notify customer of expansion
-        emitToRoom(`customer_${job.customerId._id}`, 'JOB_RADIUS_EXPANDED', { 
+        emitToRoom(`customer_${job.customerId?._id || job.customerId}`, 'JOB_RADIUS_EXPANDED', { 
             jobId: job._id, 
             radiusKm: newRadiusKm,
             round: nextRound
@@ -258,4 +255,4 @@ const sweepExpiredSubscriptions = async () => {
     }
 };
 
-module.exports = { startCronEngine };
+module.exports = { startCronEngine, sweepBroadcastingJobs };

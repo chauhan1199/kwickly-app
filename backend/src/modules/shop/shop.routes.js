@@ -9,18 +9,18 @@ const { createShopSchema, updateShopSchema, updateShopAdminSchema, addPayoutMeth
 
 // Shop owner routes
 router.post('/',                                    authMiddleware, validate(createShopSchema), ctrl.createShop);
-router.get('/my',                                   authMiddleware, ctrl.getMyShop);
-router.patch('/my',                                 authMiddleware, upload.single('logo'), validate(updateShopSchema), ctrl.updateMyShop);
-router.patch('/my/owner',                           authMiddleware, validate(updateOwnerSchema), ctrl.updateOwnerName);
-router.post('/my/payout-methods',                   authMiddleware, validate(addPayoutMethodSchema), ctrl.addPayoutMethod);
-router.post('/my/withdraw',                         authMiddleware, validate(withdrawSchema), ctrl.requestWithdrawal);
-router.patch('/my/payout-methods/:methodId/primary',authMiddleware, ctrl.setPrimaryPayout);
-router.delete('/my/payout-methods/:methodId',       authMiddleware, ctrl.deletePayoutMethod);
-router.delete('/my',                                 authMiddleware, ctrl.deleteMyShop);
+router.get('/my',                                   authMiddleware, authorize('SHOP'), ctrl.getMyShop);
+router.patch('/my',                                 authMiddleware, authorize('SHOP'), upload.single('logo'), validate(updateShopSchema), ctrl.updateMyShop);
+router.patch('/my/owner',                           authMiddleware, authorize('SHOP'), validate(updateOwnerSchema), ctrl.updateOwnerName);
+router.post('/my/payout-methods',                   authMiddleware, authorize('SHOP'), validate(addPayoutMethodSchema), ctrl.addPayoutMethod);
+router.post('/my/withdraw',                         authMiddleware, authorize('SHOP'), validate(withdrawSchema), ctrl.requestWithdrawal);
+router.patch('/my/payout-methods/:methodId/primary',authMiddleware, authorize('SHOP'), ctrl.setPrimaryPayout);
+router.delete('/my/payout-methods/:methodId',       authMiddleware, authorize('SHOP'), ctrl.deletePayoutMethod);
+router.delete('/my',                                 authMiddleware, authorize('SHOP'), ctrl.deleteMyShop);
 
 // Delivery config
 router.get('/:id/delivery-config',                  authMiddleware, ctrl.getDeliveryConfig);
-router.patch('/:id/delivery-config',                authMiddleware, ctrl.updateDeliveryConfig);
+router.patch('/:id/delivery-config',                authMiddleware, authorize('SHOP', 'ADMIN'), ctrl.updateDeliveryConfig);
 
 // Admin routes
 router.get('/',                                     authMiddleware,                       ctrl.getAllShops);

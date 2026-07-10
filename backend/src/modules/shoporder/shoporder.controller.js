@@ -93,7 +93,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
             if (promo.type === 'FLAT_DISCOUNT') {
                 discount = promo.value;
             } else if (promo.type === 'PERCENTAGE_DISCOUNT') {
-                discount = (subtotal * promo.value) / 100;
+                discount = Math.round((subtotal * promo.value) / 100);
                 if (promo.maxDiscountCap) discount = Math.min(discount, promo.maxDiscountCap);
             }
             discount = Math.min(discount, subtotal); // Discount cannot exceed subtotal
@@ -230,6 +230,16 @@ exports.getOrderById = catchAsync(async (req, res) => {
         .lean();
 
     if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
+
+    // RBAC Security Check
+    const orderCustomerId = order.customerId?._id?.toString() || order.customerId?.toString();
+    const orderShopId = order.shopId?._id?.toString() || order.shopId?.toString();
+    
+    if (req.user.role !== 'ADMIN' && 
+        orderCustomerId !== req.user._id.toString() && 
+        !(req.user.role === 'SHOP' && orderShopId === req.user.shopId?.toString())) {
+        return errorResponse(res, 'Unauthorized access to this order', StatusCodes.FORBIDDEN);
+    }
     return successResponse(res, order, 'Order fetched');
 });
 
@@ -243,6 +253,16 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
         .lean();
 
     if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
+
+    // RBAC Security Check
+    const invoiceCustomerId = order.customerId?._id?.toString() || order.customerId?.toString();
+    const invoiceShopId = order.shopId?._id?.toString() || order.shopId?.toString();
+
+    if (req.user.role !== 'ADMIN' && 
+        invoiceCustomerId !== req.user._id.toString() && 
+        !(req.user.role === 'SHOP' && invoiceShopId === req.user.shopId?.toString())) {
+        return errorResponse(res, 'Unauthorized access to this invoice', StatusCodes.FORBIDDEN);
+    }
 
     const orderDate = new Date(order.createdAt).toLocaleDateString('en-IN', {
         year: 'numeric', month: 'long', day: 'numeric'

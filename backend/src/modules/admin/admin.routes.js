@@ -31,11 +31,21 @@ router.get('/settings/branding', settingsController.getBranding);
 router.use(authMiddleware);
 router.use(authorize('ADMIN'));
 
+const { uploadImage } = require('../../services/cloudinary.service');
+
 // Image upload
-router.post('/upload-image', upload.single('image'), (req, res) => {
-    if (!req.file) return res.status(400).json({ status: 'error', message: 'No file uploaded' });
-    const url = `/uploads/${req.file.filename}`;
-    res.status(200).json({ status: 'success', data: { url } });
+router.post('/upload-image', upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ status: 'error', message: 'No file uploaded' });
+        
+        // Upload to Cloudinary
+        const result = await uploadImage(req.file.buffer, 'kwickly/admin');
+        
+        res.status(200).json({ status: 'success', data: { url: result.url } });
+    } catch (err) {
+        console.error('Admin upload error:', err);
+        res.status(500).json({ status: 'error', message: 'Image upload failed' });
+    }
 });
 
 // Dashboard

@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import api from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
+import { useServerPagination } from '../../hooks/useServerPagination'
+import Drawer from '../../components/common/Drawer'
+import WalletAdjuster from '../../components/common/WalletAdjuster'
 import { TextInput, FormRow, validators } from '../../components/FormInput'
 import MapPicker from '../../components/MapPicker'
 import Table from '../../components/common/Table'
@@ -25,15 +28,50 @@ const emptyForm = {
 }
 
 export default function Workers() {
-  const [workers, setWorkers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
   const [kycFilter, setKycFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [page, setPage] = useState(1)
+  const filterCallback = useCallback((w) => {
+    const matchKyc = kycFilter === 'all' || w.kyc?.status === kycFilter
+    const matchStatus = statusFilter === 'all' || (statusFilter === 'active' ? w.isVerified : !w.isVerified)
+    return matchKyc && matchStatus
+  }, [kycFilter, statusFilter])
+  
+  const { data: workers, setData: setWorkers, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh } = useServerPagination('/admin/workers', PAGE_SIZE, filterCallback)
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
+
+  const [walletAmount, setWalletAmount] = useState('')
+  const [walletDesc, setWalletDesc] = useState('')
+  const [walletLoading, setWalletLoading] = useState(false)
+
+  const adjustWallet = async (action) => {
+    if (!walletAmount || isNaN(walletAmount) || walletAmount <= 0) {
+      return Toast.error('Enter valid amount')
+    }
+    setWalletLoading(true)
+    try {
+      const res = await api.post('/wallet/admin/adjust', {
+        userId: detail._id,
+        userModel: 'Worker',
+        action,
+        amount: Number(walletAmount),
+        description: walletDesc || `Admin ${action}`
+      })
+      if (res.data.status === 'success') {
+        Toast.success(`Wallet ${action}ed successfully`)
+        setWalletAmount('')
+        setWalletDesc('')
+        setDetail({ ...detail, walletBalance: res.data.data.balance })
+        setWorkers(workers.map(w => w._id === detail._id ? { ...w, walletBalance: res.data.data.balance } : w))
+      }
+    } catch (err) {
+      Toast.error(err.response?.data?.message || 'Failed to adjust wallet')
+    } finally {
+      setWalletLoading(false)
+    }
+  }
+
   const [showForm, setShowForm] = useState(false)
   const [editWorker, setEditWorker] = useState(null)
   const [formData, setFormData] = useState({ ...emptyForm })
@@ -43,24 +81,15 @@ export default function Workers() {
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
   const [categories, setCategories] = useState([])
-  const [walletAmount, setWalletAmount] = useState('')
-  const [walletDesc, setWalletDesc] = useState('')
-  const [walletLoading, setWalletLoading] = useState(false)
+  
   const [docFile, setDocFile] = useState(null)
   const [docType, setDocType] = useState('AADHAR')
   const [docUploading, setDocUploading] = useState(false)
   const docInputRef = useRef(null)
 
-  useEffect(() => { fetchWorkers(); fetchCategories() }, [])
+  useEffect(() => { fetchCategories() }, [])
 
-  const fetchWorkers = async () => {
-    setLoading(true)
-    try {
-      const res = await api.get('/admin/workers?limit=0')
-      if (res.data.status === 'success') setWorkers(res.data.data.workers || [])
-    } catch { showToast('Failed to load workers', 'error') }
-    finally { setLoading(false) }
-  }
+  
 
   const fetchCategories = async () => {
     try {
@@ -71,12 +100,7 @@ export default function Workers() {
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
-  const filtered = workers.filter(w => {
-    const matchSearch = w.name?.toLowerCase().includes(search.toLowerCase()) || w.city?.toLowerCase().includes(search.toLowerCase()) || w.phone?.includes(search)
-    const matchKyc = kycFilter === 'all' || w.kyc?.status === kycFilter
-    const matchStatus = statusFilter === 'all' || (statusFilter === 'active' ? w.isVerified : !w.isVerified)
-    return matchSearch && matchKyc && matchStatus
-  })
+  
 
 
   const renderValidity = (w) => {
@@ -129,8 +153,7 @@ export default function Workers() {
     )}
   ];
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged = workers;
 
   useEffect(() => { setPage(1) }, [search, kycFilter, statusFilter])
 
@@ -293,7 +316,7 @@ export default function Workers() {
         if (res.data.status === 'success') {
           showToast('Worker created successfully')
           
-          fetchWorkers()
+          refresh()
           window.dispatchEvent(new Event('admin-action'))
         }
       }
@@ -376,32 +399,7 @@ export default function Workers() {
     return cat?.subcategories?.filter(s => s.active !== false) || []
   }
 
-  const adjustWallet = async (debit) => {
-    if (!walletAmount || Number(walletAmount) <= 0) { showToast('Enter a valid amount', 'error'); return }
-    setWalletLoading(true)
-    try {
-      await api.post('/admin/wallet/adjust', {
-        userId: detail._id,
-        amount: Number(walletAmount),
-        type: 'ADJUSTMENT',
-        debit,
-        description: walletDesc || `Admin ${debit ? 'debit' : 'credit'}`
-      })
-      showToast(`₹${walletAmount} ${debit ? 'debited from' : 'credited to'} wallet`)
-      setWalletAmount('')
-      setWalletDesc('')
-      const res = await api.get('/admin/workers')
-      if (res.data.status === 'success') {
-        const updated = res.data.data.workers.find(w => w._id === detail._id)
-        if (updated) {
-          setDetail(updated)
-          setWorkers(prev => prev.map(w => w._id === detail._id ? updated : w))
-        }
-      }
-      window.dispatchEvent(new Event('admin-action'))
-    } catch { showToast('Failed to adjust wallet', 'error') }
-    finally { setWalletLoading(false) }
-  }
+  
 
   const uploadKycDocument = async () => {
     if (!docFile) { showToast('Select a document file', 'error'); return }
@@ -469,7 +467,7 @@ export default function Workers() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-primary" onClick={openAdd}><Plus size={16} /> Add Worker</button>
-          <button className="btn-secondary" onClick={fetchWorkers}><RefreshCw size={16} /> Refresh</button>
+          <button className="btn-secondary" onClick={refresh}><RefreshCw size={16} /> Refresh</button>
         </div>
       </div>
 
@@ -488,14 +486,14 @@ export default function Workers() {
       </div>
 
       <div className="filters-row">
-        <div className="search-box"><Search size={16} /><input placeholder="Search by name, city, phone..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+        <div className="search-box"><Search size={16} /><form onSubmit={handleSearch} style={{ display: 'flex', flex: 1, border: 'none', background: 'transparent', margin: 0, padding: 0 }}><input style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent' }} placeholder="Search by name, phone, or location..." value={search} onChange={e => setSearch(e.target.value)} /></form></div>
         <select className="filter-select" value={kycFilter} onChange={e => setKycFilter(e.target.value)}>
           <option value="all">All KYC</option><option value="APPROVED">Approved</option><option value="PENDING">Pending</option><option value="REJECTED">Rejected</option>
         </select>
         <select className="filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option>
         </select>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--mid)', fontWeight: 600 }}>{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--mid)', fontWeight: 600 }}>{total} result{total !== 1 ? 's' : ''}</span>
       </div>
 
       <div className="table-card">
@@ -506,7 +504,7 @@ export default function Workers() {
         ) : (
           <>
             <Table columns={columns} data={paged} emptyMessage={search ? "Try a different search term" : "No workers registered yet"} />
-            <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </>
         )}
       </div>

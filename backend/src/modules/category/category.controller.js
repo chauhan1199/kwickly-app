@@ -2,6 +2,7 @@ const { StatusCodes } = require('http-status-codes');
 const Category = require('./category.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
+const { uploadImage } = require('../../services/cloudinary.service');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
@@ -55,7 +56,8 @@ exports.createCategory = catchAsync(async (req, res) => {
 
     const categoryData = { ...req.body };
     if (req.file) {
-        categoryData.imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/categories');
+        categoryData.imageUrl = url;
     }
 
     const category = await Category.create(categoryData);
@@ -98,7 +100,8 @@ exports.updateCategory = catchAsync(async (req, res) => {
 
     const updateData = { ...req.body };
     if (req.file) {
-        updateData.imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/categories');
+        updateData.imageUrl = url;
     }
 
     const category = await Category.findByIdAndUpdate(req.params.id, updateData, { new: true });
@@ -161,7 +164,8 @@ exports.addSubcategory = catchAsync(async (req, res) => {
 
     const subData = { ...req.body };
     if (req.file) {
-        subData.imageUrl = `/uploads/${req.file.filename}`;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/subcategories');
+        subData.imageUrl = url;
     }
 
     category.subcategories.push(subData);
@@ -210,7 +214,8 @@ exports.updateSubcategory = catchAsync(async (req, res) => {
     }
 
     if (req.file) {
-        subcategory.imageUrl = `/uploads/${req.file.filename}`;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/subcategories');
+        subcategory.imageUrl = url;
     }
 
     await category.save();

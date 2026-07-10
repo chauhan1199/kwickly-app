@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -42,6 +42,14 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
       setLoading(false);
     }
   };
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(item => 
+      !searchQuery || 
+      item.shopId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      item.status?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [orders, searchQuery]);
 
   const renderOrderItem = ({ item }) => {
     const isActive = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY'].includes(item.status);
@@ -111,11 +119,7 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={orders.filter(item => 
-            !searchQuery || 
-            item.shopId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            item.status?.toLowerCase().includes(searchQuery.toLowerCase())
-          )}
+          data={filteredOrders}
           keyExtractor={(item) => item._id}
           renderItem={renderOrderItem}
           contentContainerStyle={styles.listContainer}

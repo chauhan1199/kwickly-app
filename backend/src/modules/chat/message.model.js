@@ -13,4 +13,6 @@ MessageSchema.index({ jobId: 1 });
 MessageSchema.index({ senderId: 1, receiverId: 1 });
 MessageSchema.index({ createdAt: -1 });
 
+MessageSchema.index({ jobId: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Message', MessageSchema);

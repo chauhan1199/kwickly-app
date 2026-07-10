@@ -40,4 +40,6 @@ WalletTxnSchema.index({ userId: 1, type: 1 });           // Filter by user+type
 WalletTxnSchema.index({ type: 1, createdAt: -1 });       // Admin ledger filter
 WalletTxnSchema.index({ status: 1 });                    // Pending/failed lookup
 
+WalletTxnSchema.index({ refId: 1 });
+
 module.exports = mongoose.model('WalletTxn', WalletTxnSchema);

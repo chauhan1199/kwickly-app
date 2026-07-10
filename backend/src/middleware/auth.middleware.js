@@ -53,8 +53,12 @@ const authMiddleware = catchAsync(async (req, res, next) => {
             return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.UNAUTHORIZED);
         }
 
+        if (user.isDeleted) {
+            return errorResponse(res, 'Your account has been deleted. Please contact support.', StatusCodes.FORBIDDEN);
+        }
+
         // Re-cache for 24 hours
-        await setCache(SESSION_KEY, JSON.stringify(user), 86400);
+        await setCache(SESSION_KEY, user, 86400);
     }
 
     if (!user) {

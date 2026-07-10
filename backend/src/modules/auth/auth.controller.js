@@ -20,7 +20,7 @@ const { emitToAll } = require('../../helpers/socket.helper');
 const smsService = require('../../services/sms.service');
 
 // ─── OTP Rate Limiting ────────────────────────────────────────────────────────
-const OTP_MAX_ATTEMPTS = process.env.NODE_ENV === 'test' ? 500 : 5;
+const OTP_MAX_ATTEMPTS = (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? 500 : 5;
 const OTP_BLOCK_TTL = 3600; // 1 hour block in seconds
 
 const checkOtpAttempts = async (phone) => {
@@ -101,8 +101,11 @@ exports.verifyOTP = catchAsync(async (req, res) => {
     let user = await Customer.findOne({ phone, role });
 
     if (!user) {
+        if (!req.body.name) {
+            return errorResponse(res, 'Name is required to create a new account.', StatusCodes.BAD_REQUEST);
+        }
         // New account for this role
-        const payload = { phone, role, isVerified: true };
+        const payload = { phone, role, name: req.body.name, isVerified: true };
         
         if (role === 'WORKER' || role === 'SHOP') {
             const AppSettings = require('../settings/settings.model');
@@ -129,7 +132,7 @@ exports.verifyOTP = catchAsync(async (req, res) => {
     return successResponse(res, {
         token,
         user,
-        isNew: !user.name // Prompt profile completion if name is missing
+        isNew: !user.password // Prompt password creation if password is not set
     }, AUTH.OTP_VERIFIED);
 });
 

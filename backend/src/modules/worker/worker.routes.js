@@ -16,9 +16,9 @@ router.put('/me/profile', authorize('WORKER'), upload.single('profileImage'), wo
 router.patch('/me/kyc', authorize('WORKER'), upload.single('document'), workerController.updateKyc);
 router.post('/me/kyc', authorize('WORKER'), upload.single('document'), workerController.updateKyc);
 router.delete('/me/kyc/:docIndex', authorize('WORKER'), workerController.removeKycDocument);
-router.patch('/me/bank', workerController.updateBank);
-router.patch('/me/services', workerController.updateServices);
-router.patch('/me/location', workerController.updateLocation);
+router.patch('/me/bank', authorize('WORKER'), workerController.updateBank);
+router.patch('/me/services', authorize('WORKER'), workerController.updateServices);
+router.patch('/me/location', authorize('WORKER'), workerController.updateLocation);
 router.patch('/me/online', authorize('WORKER'), workerController.toggleOnlineStatus);
 
 // -- Worker Earnings --

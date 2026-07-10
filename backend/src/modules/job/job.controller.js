@@ -57,12 +57,8 @@ exports.createJob = catchAsync(async (req, res) => {
     }
 
     // ── Step 1: Load platform settings (Redis cached, 10 min TTL) ──────────────
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
 
     if (settings?.maintenance?.mode) {
         const msg = settings.maintenance.message || 'The platform is currently undergoing maintenance. Please try again later.';
@@ -238,12 +234,8 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         new Date(worker.subscription.expiryDate) > now;
 
     // Fallback: Use freeTrialDays from registration
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        if (settings) await setCache('app_settings', settings, 600);
-    }
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
     const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
     const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
 
@@ -418,6 +410,7 @@ exports.startJob = catchAsync(async (req, res) => {
     await job.save();
 
     emitToRoom(`customer_${job.customerId}`, 'JOB_STARTED', { jobId: job._id });
+    emitToRoom(`worker_${job.workerId}`, 'START_TIMER', { jobId: job._id });
 
     notifyUser({
         userId: job.customerId,
@@ -487,7 +480,7 @@ exports.payJob = catchAsync(async (req, res) => {
             const amount = job.payment?.amount || 0;
             if (amount >= (promo.minOrderAmount || 0)) {
                 if (promo.type === 'FLAT_DISCOUNT') promoDiscount = promo.value;
-                if (promo.type === 'PERCENTAGE_DISCOUNT') promoDiscount = (amount * promo.value) / 100;
+                if (promo.type === 'PERCENTAGE_DISCOUNT') promoDiscount = Math.round((amount * promo.value) / 100);
                 if (promo.maxDiscountCap && promoDiscount > promo.maxDiscountCap) promoDiscount = promo.maxDiscountCap;
                 if (promoDiscount > amount) promoDiscount = amount;
 
@@ -525,7 +518,8 @@ exports.payJob = catchAsync(async (req, res) => {
                     // Worker doesn't have enough balance — create debt record
                     const debtUpdated = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': -adminTotalRevenue } }, { new: true, session });
 
-                    // Automatically lock worker offline since they're in negative balance
+                    const txnType = adminTotalRevenue < 0 ? 'PROMO_CREDIT' : 'JOB_DEBIT';
+                    
                     if (debtUpdated && debtUpdated.wallet?.balance < 0) {
                         await Customer.findByIdAndUpdate(worker._id, { isOnline: false }, { session });
                         logger.warn(`[Cash Evasion] Worker ${worker._id} locked offline — wallet at ₹${debtUpdated.wallet.balance}`);
@@ -536,17 +530,18 @@ exports.payJob = catchAsync(async (req, res) => {
                     }
 
                     await WalletTxn.create([{
-                        userId: worker._id, type: 'JOB_DEBIT', amount: adminTotalRevenue,
+                        userId: worker._id, type: txnType, amount: Math.abs(adminTotalRevenue),
                         balance: debtUpdated?.wallet?.balance || 0,
                         refId: job._id.toString(), status: 'COMPLETED',
-                        description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
+                        description: adminTotalRevenue < 0 ? `Promo reimbursement for job #${job._id.toString().slice(-6)}` : `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
                     }], { session });
                 } else {
+                    const txnType = adminTotalRevenue < 0 ? 'PROMO_CREDIT' : 'JOB_DEBIT';
                     await WalletTxn.create([{
-                        userId: worker._id, type: 'JOB_DEBIT', amount: adminTotalRevenue,
+                        userId: worker._id, type: txnType, amount: Math.abs(adminTotalRevenue),
                         balance: updated.wallet.balance,
                         refId: job._id.toString(), status: 'COMPLETED',
-                        description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
+                        description: adminTotalRevenue < 0 ? `Promo reimbursement for job #${job._id.toString().slice(-6)}` : `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
                     }], { session });
                 }
             } else {
@@ -913,11 +908,8 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
         return errorResponse(res, 'Receipts are only available for completed or paid jobs', StatusCodes.BAD_REQUEST);
     }
 
-    let settings = await getCache('app_settings');
-    if (!settings) {
-        const AppSettings = require('../settings/settings.model');
-        settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-    }
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
     const gstPercentage = settings?.fees?.gstPercentage || 18;
 
     const receipt = {
@@ -951,11 +943,16 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
 
 // ─── GET /api/v1/jobs/disputes (Admin) ───────────────────────────────────────
 exports.getDisputes = catchAsync(async (req, res) => {
+    const { page = 1, limit = 20 } = req.query;
+    
+    const total = await Job.countDocuments({ status: 'CANCELLED' });
     const disputes = await Job.find({ status: 'CANCELLED' })
         .populate('customerId', 'name phone')
         .populate('workerId', 'name phone')
         .sort('-updatedAt')
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit))
         .lean();
 
-    return successResponse(res, disputes, 'Disputes fetched');
+    return successResponse(res, { disputes, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Disputes fetched');
 });

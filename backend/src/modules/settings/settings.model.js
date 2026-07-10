@@ -39,7 +39,8 @@ const AppSettingsSchema = new mongoose.Schema({
         logoUrl: { type: String, default: '' },
         iconUrl: { type: String, default: '' }
     },
-    disputeCategories: { type: [String], default: [] }
+    disputeCategories: { type: [String], default: [] },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('AppSettings', AppSettingsSchema);

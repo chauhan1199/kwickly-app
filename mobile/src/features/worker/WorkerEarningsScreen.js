@@ -22,6 +22,7 @@ import { ArrowDown, ArrowUp, Gift, Landmark, Smartphone, Briefcase, DollarSign, 
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import WorkerBalanceCard from '../../components/WorkerBalanceCard';
 import LinearGradient from 'react-native-linear-gradient';
+import RazorpayCheckout from 'react-native-razorpay';
 
 import { walletService } from '../../services/walletService';
 import { workerService } from '../../services/workerService';
@@ -140,10 +141,64 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
   };
 
-  const [paymentGatewayVisible, setPaymentGatewayVisible] = useState(false);
-  const [paymentContext, setPaymentContext] = useState(''); // 'PLAN' or 'WALLET'
-  const [paymentMethod, setPaymentMethod] = useState('UPI'); // 'UPI', 'CC', 'NETBANKING'
-  const [paymentAmount, setPaymentAmount] = useState(0);
+  const processRazorpayPayment = async (amount, context, extraData) => {
+    try {
+      setLoading(true);
+      
+      const orderRes = await api.post('/payments/create-order', {
+        amount,
+        purpose: context === 'PLAN' ? 'plan_subscription' : 'wallet_topup'
+      });
+
+      if (orderRes.data?.status !== 'success') {
+        throw new Error(orderRes.data?.message || 'Failed to create payment order');
+      }
+
+      const { razorpayOrderId, keyId, amount: rpAmount, currency } = orderRes.data.data;
+
+      const options = {
+        description: context === 'PLAN' ? 'Subscription Plan' : 'Wallet Top-up',
+        image: 'https://kwickly.app/logo.png',
+        currency: currency,
+        key: keyId,
+        amount: rpAmount,
+        name: 'Kwickly',
+        order_id: razorpayOrderId,
+        theme: { color: theme.colors.primary }
+      };
+
+      const data = await RazorpayCheckout.open(options);
+
+      if (context === 'PLAN') {
+        const res = await api.post('/subscriptions/subscribe', { 
+          planId: extraData.planId, 
+          razorpayOrderId: data.razorpay_order_id,
+          razorpayPaymentId: data.razorpay_payment_id,
+          razorpaySignature: data.razorpay_signature 
+        });
+        if (res.data?.status === 'success') {
+          Alert.alert("Success", "Your subscription plan has been successfully updated! 🎉");
+          fetchWalletAndProfile();
+        }
+      } else {
+        const res = await walletService.topupWallet(amount, { method: 'RAZORPAY', txnId: data.razorpay_payment_id }, null, data.razorpay_order_id, data.razorpay_payment_id, data.razorpay_signature);
+        if (res.data.status === 'success') {
+          Alert.alert("Success", "Wallet topped up successfully! ✅");
+          setTopUpAmount('');
+          fetchWalletAndProfile();
+        }
+      }
+    } catch (e) {
+      console.log('Payment Error:', e);
+      if (e.code === 0 || e.code === 2) {
+        Alert.alert("Payment Cancelled", "The payment was cancelled.");
+      } else {
+        Alert.alert("Payment Failed", e.reason || e.description || e.response?.data?.message || e.message || "Something went wrong.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePlanProceed = () => {
     if (!selectedPlan) {
@@ -152,10 +207,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
     const plan = dynamicPlans.find(p => p.id === selectedPlan);
     const amt = plan ? parseFloat(plan.price.replace('₹','')) : 0;
-    setPaymentAmount(amt);
-    setPaymentContext('PLAN');
     setPlanModalVisible(false);
-    setTimeout(() => setPaymentGatewayVisible(true), 400);
+    processRazorpayPayment(amt, 'PLAN', { planId: selectedPlan });
   };
 
   const handleTopUpProceed = () => {
@@ -163,39 +216,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
       Alert.alert("Invalid Amount", "Please enter a valid amount.");
       return;
     }
-    setPaymentAmount(Number(topUpAmount));
-    setPaymentContext('WALLET');
     setTopUpModalVisible(false);
-    setTimeout(() => setPaymentGatewayVisible(true), 400);
-  };
-
-  const handleFinalPayment = async () => {
-    try {
-      setLoading(true);
-      // Simulate Payment Gateway delay
-      await new Promise(resolve => setTimeout(resolve, 1500)); 
-
-      if (paymentContext === 'PLAN') {
-        const res = await api.post('/subscriptions/subscribe', { planId: selectedPlan, paymentId: 'sim_pay_' + Date.now() });
-        if (res.data?.status === 'success') {
-          Alert.alert("Success", "Your subscription plan has been successfully updated! 🎉");
-          setPaymentGatewayVisible(false);
-          fetchWalletAndProfile();
-        }
-      } else {
-        const res = await walletService.topupWallet(paymentAmount, { method: paymentMethod });
-        if (res.data.status === 'success') {
-          Alert.alert("Success", "Wallet topped up successfully! ✅");
-          setPaymentGatewayVisible(false);
-          setTopUpAmount('');
-          fetchWalletAndProfile();
-        }
-      }
-    } catch (e) {
-      Alert.alert("Payment Failed", e.response?.data?.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
+    processRazorpayPayment(Number(topUpAmount), 'WALLET', {});
   };
 
   // Data state
@@ -624,85 +646,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Payment Gateway Modal */}
-      <Modal
-        visible={paymentGatewayVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => !loading && setPaymentGatewayVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.bottomSheet, { height: '60%' }]}>
-            <View style={styles.sheetHeaderHandle} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={styles.sheetTitle}>Payment Gateway</Text>
-              <Text style={{ fontSize: 20, fontWeight: '800', color: theme.colors.primary }}>₹{paymentAmount}</Text>
-            </View>
 
-            <Text style={{ fontSize: 14, color: theme.colors.textDim, marginBottom: 16 }}>Select a payment method</Text>
-            
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* UPI Option */}
-              <TouchableOpacity 
-                style={[styles.accountCard, paymentMethod === 'UPI' && styles.accountCardPrimary, { padding: 16, marginBottom: 12 }]}
-                onPress={() => setPaymentMethod('UPI')}
-              >
-                <View style={styles.accountLeft}>
-                  <View style={[styles.accountIconBox, { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f0fdf4' }]}>
-                    <Smartphone size={22} color="#16a34a" />
-                  </View>
-                  <View style={styles.accountInfo}>
-                    <Text style={[styles.accountName, { fontSize: 16 }]}>UPI</Text>
-                    <Text style={[styles.accountDetail, { fontSize: 13 }]}>Google Pay, PhonePe, Paytm</Text>
-                  </View>
-                </View>
-                {paymentMethod === 'UPI' && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: theme.colors.primary }} />}
-              </TouchableOpacity>
-
-              {/* Credit/Debit Card Option */}
-              <TouchableOpacity 
-                style={[styles.accountCard, paymentMethod === 'CC' && styles.accountCardPrimary, { padding: 16, marginBottom: 12 }]}
-                onPress={() => setPaymentMethod('CC')}
-              >
-                <View style={styles.accountLeft}>
-                  <View style={[styles.accountIconBox, { width: 44, height: 44, borderRadius: 22, backgroundColor: '#e0f2fe' }]}>
-                    <CreditCard size={22} color="#0284c7" />
-                  </View>
-                  <View style={styles.accountInfo}>
-                    <Text style={[styles.accountName, { fontSize: 16 }]}>Credit / Debit Card</Text>
-                    <Text style={[styles.accountDetail, { fontSize: 13 }]}>Visa, Mastercard, RuPay</Text>
-                  </View>
-                </View>
-                {paymentMethod === 'CC' && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: theme.colors.primary }} />}
-              </TouchableOpacity>
-
-              {/* Netbanking Option */}
-              <TouchableOpacity 
-                style={[styles.accountCard, paymentMethod === 'NETBANKING' && styles.accountCardPrimary, { padding: 16, marginBottom: 24 }]}
-                onPress={() => setPaymentMethod('NETBANKING')}
-              >
-                <View style={styles.accountLeft}>
-                  <View style={[styles.accountIconBox, { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fef3c7' }]}>
-                    <Landmark size={22} color="#d97706" />
-                  </View>
-                  <View style={styles.accountInfo}>
-                    <Text style={[styles.accountName, { fontSize: 16 }]}>Netbanking</Text>
-                    <Text style={[styles.accountDetail, { fontSize: 13 }]}>All Indian Banks</Text>
-                  </View>
-                </View>
-                {paymentMethod === 'NETBANKING' && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: theme.colors.primary }} />}
-              </TouchableOpacity>
-            </ScrollView>
-
-            <View style={{ marginTop: 'auto', gap: 12 }}>
-              <Button title={loading ? "Processing Payment..." : `Pay ₹${paymentAmount}`} disabled={loading} onPress={handleFinalPayment} />
-              <TouchableOpacity style={{ alignItems: 'center', paddingVertical: 8 }} onPress={() => !loading && setPaymentGatewayVisible(false)}>
-                <Text style={{ color: theme.colors.textDim, fontSize: 14, fontWeight: '600' }}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
     </SafeAreaView>
   );

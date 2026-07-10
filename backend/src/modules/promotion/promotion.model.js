@@ -36,7 +36,6 @@ const PromotionSchema = new mongoose.Schema({
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' }
 }, { timestamps: true });
 
-PromotionSchema.index({ code: 1 });
 PromotionSchema.index({ isActive: 1, startAt: 1, endAt: 1 });
 
 module.exports = {

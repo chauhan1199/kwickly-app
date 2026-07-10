@@ -22,7 +22,6 @@ const PaymentSchema = new mongoose.Schema({
     webhookEventId: { type: String }
 }, { timestamps: true });
 
-PaymentSchema.index({ razorpayOrderId: 1 });
 PaymentSchema.index({ razorpayPaymentId: 1 });
 PaymentSchema.index({ userId: 1, createdAt: -1 });
 PaymentSchema.index({ status: 1 });

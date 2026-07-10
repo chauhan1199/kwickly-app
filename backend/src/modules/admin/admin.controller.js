@@ -14,7 +14,8 @@ const Notification = require('../notification/notification.model');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { ADMIN, AUTH } = require('../../constants/messages');
-const { successResponse, errorResponse } = require('../../helpers/response.helper');
+const { successResponse, errorResponse, extractPagination } = require('../../helpers/response.helper');
+const { uploadImage } = require('../../services/cloudinary.service');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate, getIO, emitToAll, emitToRoom } = require('../../helpers/socket.helper');
 const bcrypt = require('bcryptjs');
@@ -177,11 +178,13 @@ exports.getPendingKYC = catchAsync(async (req, res) => {
     const workers = await Customer.find({ role: 'WORKER', 'kyc.status': 'PENDING' })
         .select('-password')
         .sort('createdAt')
+        .limit(100)
         .lean();
 
     const shops = await Shop.find({ 'kyc.status': 'PENDING' })
         .populate('ownerId', 'name phone')
         .sort('createdAt')
+        .limit(100)
         .lean();
 
     const items = [
@@ -198,6 +201,10 @@ exports.updateKYC = catchAsync(async (req, res) => {
 
     const worker = await Customer.findById(id);
     if (!worker || worker.role !== 'WORKER') return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
+
+    if (status === 'APPROVED' && (!worker.kyc.documents || worker.kyc.documents.length === 0)) {
+        return errorResponse(res, 'Cannot approve KYC. No documents uploaded.', StatusCodes.BAD_REQUEST);
+    }
 
     worker.kyc.status = status;
     if (status === 'APPROVED') worker.isVerified = true;
@@ -249,7 +256,7 @@ exports.addKycDocument = catchAsync(async (req, res) => {
 
     if (!req.file) return errorResponse(res, 'No file uploaded', StatusCodes.BAD_REQUEST);
 
-    const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    const { url } = await uploadImage(req.file.buffer, 'kwickly/kyc');
     worker.kyc.documents.push({
         type: docType || 'OTHER',
         url,
@@ -488,8 +495,11 @@ exports.toggleUserStatus = catchAsync(async (req, res) => {
 
 exports.deleteUser = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const user = await Customer.findByIdAndDelete(id);
-    if (!user) return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
+    const user = await Customer.findByIdAndUpdate(id, { isDeleted: true, deletedAt: new Date(), isOnline: false }, { new: true });
+
+    if (!user) {
+        return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
+    }
 
     await delCache(`session:${id}`);
     await delCache('admin_dashboard_stats');
@@ -550,12 +560,15 @@ exports.updateShopKYC = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const shop = await Shop.findByIdAndUpdate(
-        id,
-        { 'kyc.status': status },
-        { new: true }
-    );
+    const shop = await Shop.findById(id);
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    if (status === 'APPROVED' && (!shop.kyc.documents || shop.kyc.documents.length === 0)) {
+        return errorResponse(res, 'Cannot approve shop KYC. No documents uploaded.', StatusCodes.BAD_REQUEST);
+    }
+
+    shop.kyc.status = status;
+    await shop.save();
 
     await delCache('admin_badge_counts');
     await delCache('admin_dashboard_stats');
@@ -642,12 +655,8 @@ exports.createShopAdmin = catchAsync(async (req, res) => {
 
     const populated = await shop.populate('ownerId', 'name phone email');
 
-    const { getRedis } = require('../../helpers/redis.helper');
-    const redisClient = getRedis();
-    if (redisClient) {
-        const keys = await redisClient.keys('*shops_list*');
-        if (keys.length > 0) await redisClient.del(keys);
-    }
+    const { delCacheByPattern } = require('../../helpers/redis.helper');
+    await delCacheByPattern('*shops_list*');
 
     logAdminActivity('CREATE', 'SHOP', shop._id, 'Shop Created', `Admin created shop "${shop.name}" for owner "${owner.name}"`, req.user?._id);
 
@@ -692,7 +701,8 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
     if (parsedSub) shop.subscription = { ...shop.subscription, ...parsedSub };
 
     if (req.file) {
-        shop.logoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/shops');
+        shop.logoUrl = url;
     }
 
     shop.markModified('delivery');
@@ -703,12 +713,8 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
     await shop.save();
     const populated = await shop.populate('ownerId', 'name phone email');
 
-    const { getRedis } = require('../../helpers/redis.helper');
-    const redisClient = getRedis();
-    if (redisClient) {
-        const keys = await redisClient.keys('*shops_list*');
-        if (keys.length > 0) await redisClient.del(keys);
-    }
+    const { delCacheByPattern } = require('../../helpers/redis.helper');
+    await delCacheByPattern('*shops_list*');
 
     await delCache('admin_badge_counts');
     await delCache('admin_dashboard_stats');
@@ -720,19 +726,14 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
 });
 
 exports.deleteShopAdmin = catchAsync(async (req, res) => {
-    const shop = await Shop.findById(req.params.id);
+    const shop = await Shop.findByIdAndUpdate(req.params.id, { isDeleted: true, deletedAt: new Date(), isOnline: false }, { new: true });
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     const Product = require('../product/product.model');
-    await Product.deleteMany({ shopId: shop._id });
-    await Shop.findByIdAndDelete(req.params.id);
+    await Product.updateMany({ shopId: shop._id }, { isActive: false });
 
-    const { getRedis } = require('../../helpers/redis.helper');
-    const redisClient = getRedis();
-    if (redisClient) {
-        const keys = await redisClient.keys('*shops_list*');
-        if (keys.length > 0) await redisClient.del(keys);
-    }
+    const { delCacheByPattern } = require('../../helpers/redis.helper');
+    await delCacheByPattern('*shops_list*');
 
     logAdminActivity('DELETE', 'SHOP', shop._id, 'Shop Deleted', `Admin deleted shop "${shop.name}"`, req.user?._id);
 
@@ -851,7 +852,7 @@ exports.uploadShopKycDoc = catchAsync(async (req, res) => {
 
     if (!req.file) return errorResponse(res, 'No file uploaded', StatusCodes.BAD_REQUEST);
 
-    const docUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    const { url: docUrl } = await uploadImage(req.file.buffer, 'kwickly/kyc');
     const docName = req.body.name || req.file.originalname;
     const docType = req.body.type || 'OTHER';
 
@@ -896,7 +897,7 @@ exports.editShopKycDoc = catchAsync(async (req, res) => {
     if (docType) shop.kyc.documents[docIndex].docType = docType;
 
     if (req.file) {
-        const docUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        const { url: docUrl } = await uploadImage(req.file.buffer, 'kwickly/kyc');
         shop.kyc.documents[docIndex].url = docUrl;
     }
 
@@ -967,10 +968,12 @@ exports.getUserDetail = catchAsync(async (req, res) => {
         { $group: { _id: '$status', count: { $sum: 1 }, totalSpent: { $sum: '$payment.amount' } } }
     ]);
 
+    const { page = 1, limit = 10 } = req.query;
     const recentJobs = await Job.find({ customerId: user._id })
-        .populate('workerId', 'name phone')
+        .populate('workerId', 'name phone profileImage')
         .sort('-createdAt')
-        .limit(10)
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit))
         .lean();
 
     return successResponse(res, { user, jobStats, recentJobs }, 'User detail fetched');
@@ -983,9 +986,12 @@ exports.getCustomerJobs = catchAsync(async (req, res) => {
     const customer = await Customer.findById(id).select('name phone').lean();
     if (!customer) return errorResponse(res, 'Customer not found', StatusCodes.NOT_FOUND);
 
+    const { page = 1, limit = 20 } = req.query;
     const jobs = await Job.find({ customerId: id })
         .populate('workerId', 'name phone')
         .sort('-createdAt')
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit))
         .lean();
 
     return successResponse(res, { customer, jobs }, 'Customer jobs fetched');
@@ -996,9 +1002,13 @@ exports.getCustomerOrders = catchAsync(async (req, res) => {
     const customer = await Customer.findById(id).select('name phone').lean();
     if (!customer) return errorResponse(res, 'Customer not found', StatusCodes.NOT_FOUND);
 
+    const { page = 1, limit = 20 } = req.query;
     const orders = await ShopOrder.find({ customerId: id })
         .populate('shopId', 'name')
+        .populate('items.product', 'name price image')
         .sort('-createdAt')
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit))
         .lean();
 
     return successResponse(res, { customer, orders }, 'Customer orders fetched');
@@ -1244,69 +1254,57 @@ exports.getJobDetail = catchAsync(async (req, res) => {
 });
 
 // ─── CSV Export Helpers ──────────────────────────────────────────────────────
-const toCsv = (rows, headers) => {
-    if (!rows.length) return '';
-    const headerLine = headers.join(',');
-    const lines = rows.map(row => headers.map(h => {
-        let val = row[h];
-        if (val === null || val === undefined) val = '';
-        if (typeof val === 'object') val = JSON.stringify(val);
-        return `"${String(val).replace(/"/g, '""')}"`;
-    }).join(','));
-    return [headerLine, ...lines].join('\n');
-};
 
 exports.exportCustomers = catchAsync(async (req, res) => {
-    const customers = await Customer.find({ role: 'CUSTOMER' }).select('-password').lean();
-    const csv = toCsv(customers, ['_id', 'name', 'phone', 'email', 'isVerified', 'createdAt']);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=customers.csv');
-    res.send(csv);
+    res.write('ID,Name,Phone,Email,Verified,CreatedAt\n');
+    
+    const cursor = Customer.find({ role: 'CUSTOMER' }).select('-password').lean().cursor();
+    for await (const doc of cursor) {
+        const row = [doc._id, doc.name || '', doc.phone || '', doc.email || '', doc.isVerified ? 'Yes' : 'No', doc.createdAt].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+        res.write(row + '\n');
+    }
+    res.end();
 });
 
 exports.exportWorkers = catchAsync(async (req, res) => {
-    const workers = await Customer.find({ role: 'WORKER' }).select('-password').lean();
-    const csv = toCsv(workers, ['_id', 'name', 'phone', 'email', 'city', 'isVerified', 'kyc.status', 'wallet.balance', 'rating.average', 'createdAt']);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=workers.csv');
-    res.send(csv);
+    res.write('ID,Name,Phone,KYC Status,Verified,CreatedAt\n');
+
+    const cursor = Customer.find({ role: 'WORKER' }).select('-password').lean().cursor();
+    for await (const doc of cursor) {
+        const row = [doc._id, doc.name || '', doc.phone || '', doc.kyc?.status || 'PENDING', doc.isVerified ? 'Yes' : 'No', doc.createdAt].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+        res.write(row + '\n');
+    }
+    res.end();
 });
 
 exports.exportJobs = catchAsync(async (req, res) => {
-    const jobs = await Job.find().populate('customerId', 'name phone').populate('workerId', 'name phone').lean();
-    const rows = jobs.map(j => ({
-        _id: j._id,
-        customer: j.customerId?.name || '',
-        worker: j.workerId?.name || '',
-        category: j.category,
-        status: j.status,
-        amount: j.payment?.amount || 0,
-        platformFee: j.payment?.platformFee || 0,
-        createdAt: j.createdAt
-    }));
-    const csv = toCsv(rows, ['_id', 'customer', 'worker', 'category', 'status', 'amount', 'platformFee', 'createdAt']);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=jobs.csv');
-    res.send(csv);
+    res.write('ID,Customer,Worker,Category,Status,Amount,CreatedAt\n');
+
+    const cursor = Job.find().populate('customerId', 'name phone').populate('workerId', 'name phone').lean().cursor();
+    for await (const doc of cursor) {
+        const row = [doc._id, doc.customerId?.name || '', doc.workerId?.name || '', doc.category || '', doc.status || '', doc.payment?.amount || 0, doc.createdAt].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+        res.write(row + '\n');
+    }
+    res.end();
 });
 
 exports.exportPayments = catchAsync(async (req, res) => {
-    const txns = await WalletTxn.find().populate('userId', 'name phone role').sort('-createdAt').lean();
-    const rows = txns.map(t => ({
-        _id: t._id,
-        user: t.userId?.name || '',
-        phone: t.userId?.phone || '',
-        role: t.userId?.role || '',
-        type: t.type,
-        amount: t.amount,
-        status: t.status,
-        description: t.description || '',
-        createdAt: t.createdAt
-    }));
-    const csv = toCsv(rows, ['_id', 'user', 'phone', 'role', 'type', 'amount', 'status', 'description', 'createdAt']);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=payments.csv');
-    res.send(csv);
+    res.write('ID,User,Type,Amount,Status,RefId,CreatedAt\n');
+
+    const cursor = WalletTxn.find().populate('userId', 'name phone role').sort('-createdAt').lean().cursor();
+    for await (const doc of cursor) {
+        const row = [doc._id, doc.userId?.name || '', doc.type || '', doc.amount || 0, doc.status || '', doc.refId || '', doc.createdAt].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+        res.write(row + '\n');
+    }
+    res.end();
 });
 
 // ─── Payout Management ────────────────────────────────────────────────────────

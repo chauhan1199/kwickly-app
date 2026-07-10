@@ -1,9 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Must match backend BASE_URL (strip /api/v1)
-const SOCKET_URL = 'http://10.0.2.2:5000';
+import { AppState } from 'react-native';
+import { SOCKET_URL } from '../config/env';
 
 /**
  * useSocket — establishes a socket.io connection and returns helper methods.
@@ -19,6 +18,7 @@ const SOCKET_URL = 'http://10.0.2.2:5000';
 const useSocket = ({ role, userId, shopId, onEvent }) => {
   const socketRef = useRef(null);
   const onEventRef = useRef(onEvent);
+  const appState = useRef(AppState.currentState);
 
   // Keep ref fresh without triggering reconnects
   useEffect(() => {
@@ -68,7 +68,22 @@ const useSocket = ({ role, userId, shopId, onEvent }) => {
 
   useEffect(() => {
     getOrCreate();
+    
+    // Handle AppState changes (background/foreground) to prevent Ghost Workers
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        getOrCreate();
+      } else if (nextAppState.match(/inactive|background/)) {
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+          socketRef.current = null;
+        }
+      }
+      appState.current = nextAppState;
+    });
+
     return () => {
+      subscription.remove();
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
@@ -82,7 +97,6 @@ const useSocket = ({ role, userId, shopId, onEvent }) => {
       if (role === 'SHOP'     && shopId) socketRef.current.emit('JOIN_SHOP_ROOM',     { shopId });
     }
   }, [role, userId, shopId]);
-  // Removed orphaned return statement
 
   const joinJobRoom = (jobId) => socketRef.current?.emit('JOIN_JOB_ROOM', { jobId });
   const leaveJobRoom = () => {}; // rooms are ephemeral in socket.io

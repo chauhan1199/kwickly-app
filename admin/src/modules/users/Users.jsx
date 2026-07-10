@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import api from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
+import { useServerPagination } from '../../hooks/useServerPagination'
+import Drawer from '../../components/common/Drawer'
+import WalletAdjuster from '../../components/common/WalletAdjuster'
 import { TextInput, validators } from '../../components/FormInput'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
@@ -21,11 +24,14 @@ const emptyForm = {
 }
 
 export default function Users() {
-  const [customers, setCustomers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
-  const [page, setPage] = useState(1)
+  const filterCallback = useCallback((c) => {
+    if (filter === 'all') return true
+    const status = c.isVerified ? 'active' : 'inactive'
+    return filter === status
+  }, [filter])
+  
+  const { data: customers, setData: setCustomers, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh } = useServerPagination('/admin/customers', PAGE_SIZE, filterCallback)
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
@@ -38,9 +44,7 @@ export default function Users() {
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
 
-  const [walletAmount, setWalletAmount] = useState('')
-  const [walletDesc, setWalletDesc] = useState('')
-  const [walletLoading, setWalletLoading] = useState(false)
+  
 
   const [detailTab, setDetailTab] = useState('details')
   const [customerJobs, setCustomerJobs] = useState([])
@@ -48,25 +52,13 @@ export default function Users() {
   const [loadingJobs, setLoadingJobs] = useState(false)
   const [loadingOrders, setLoadingOrders] = useState(false)
 
-  useEffect(() => { fetchCustomers() }, [])
+  
 
-  const fetchCustomers = async () => {
-    setLoading(true)
-    try {
-      const res = await api.get('/admin/customers?limit=0')
-      if (res.data.status === 'success') setCustomers(res.data.data.customers || [])
-    } catch { showToast('Failed to load customers', 'error') }
-    finally { setLoading(false) }
-  }
+  
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
-  const filtered = customers.filter(c => {
-    const matchSearch = c.name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search) || c.email?.toLowerCase().includes(search.toLowerCase())
-    const status = c.isVerified ? 'active' : 'inactive'
-    const matchFilter = filter === 'all' || status === filter
-    return matchSearch && matchFilter
-  })
+  
 
 
 
@@ -96,8 +88,7 @@ export default function Users() {
     )}
   ];
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged = customers;
 
   useEffect(() => { setPage(1) }, [search, filter])
 
@@ -223,7 +214,7 @@ export default function Users() {
         if (res.data.status === 'success') {
           showToast('Customer created successfully')
           
-          fetchCustomers()
+          refresh()
           window.dispatchEvent(new Event('admin-action'))
         }
       }
@@ -270,7 +261,7 @@ export default function Users() {
     setConfirm(null)
   }
 
-  const openDetail = (user) => { setDetail(user); setImpersonateToken(null); setDetailTab('details'); setCustomerJobs([]); setCustomerOrders([]); setWalletAmount(''); setWalletDesc('') }
+  const openDetail = (user) => { setDetail(user); setImpersonateToken(null); setDetailTab('details'); setCustomerJobs([]); setCustomerOrders([]); }
 
   const fetchCustomerJobs = async (customerId) => {
     setLoadingJobs(true)
@@ -296,33 +287,7 @@ export default function Users() {
     if (tab === 'orders' && detail && customerOrders.length === 0) fetchCustomerOrders(detail._id)
   }
 
-  const adjustWallet = async (debit) => {
-    if (!walletAmount || Number(walletAmount) <= 0) { showToast('Enter a valid amount', 'error'); return }
-    setWalletLoading(true)
-    try {
-      await api.post('/admin/wallet/adjust', {
-        userId: detail._id,
-        amount: Number(walletAmount),
-        type: 'ADJUSTMENT',
-        debit,
-        description: walletDesc || `Admin ${debit ? 'debit' : 'credit'}`
-      })
-      showToast(`₹${walletAmount} ${debit ? 'debited from' : 'credited to'} wallet`)
-      
-      setWalletAmount('')
-      setWalletDesc('')
-      const res = await api.get('/admin/customers')
-      if (res.data.status === 'success') {
-        const updated = res.data.data.customers.find(c => c._id === detail._id)
-        if (updated) {
-          setDetail(updated)
-          setCustomers(prev => prev.map(c => c._id === detail._id ? updated : c))
-        }
-      }
-      window.dispatchEvent(new Event('admin-action'))
-    } catch { showToast('Failed to adjust wallet', 'error') }
-    finally { setWalletLoading(false) }
-  }
+  
 
   const handleImpersonate = async (id) => {
     try {
@@ -352,13 +317,13 @@ export default function Users() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-primary" onClick={openAdd}><Plus size={16} /> Add Customer</button>
-          <button className="btn-secondary" onClick={fetchCustomers}><RefreshCw size={16} /> Refresh</button>
+          <button className="btn-secondary" onClick={refresh}><RefreshCw size={16} /> Refresh</button>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
         {[
-          { label: 'Total Customers', value: stats.total, color: '#00B4D8' },
+          { label: 'Total Customers', value: total, color: '#00B4D8' },
           { label: 'Active', value: stats.active, color: '#10B981' },
           { label: 'Inactive', value: stats.inactive, color: '#EF4444' },
         ].map(s => (
@@ -372,7 +337,7 @@ export default function Users() {
       <div className="filters-row">
         <div className="search-box">
           <Search size={16} />
-          <input placeholder="Search by name, phone, or email..." value={search} onChange={e => setSearch(e.target.value)} />
+          <form onSubmit={handleSearch} style={{ display: 'flex', flex: 1, border: 'none', background: 'transparent', margin: 0, padding: 0 }}><input style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent' }} placeholder="Search by name, phone, or email..." value={search} onChange={e => setSearch(e.target.value)} /></form>
         </div>
         <div className="filter-tabs">
           {[
@@ -387,7 +352,7 @@ export default function Users() {
           ))}
         </div>
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--mid)', fontWeight: 600 }}>
-          {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+          {total} result{total !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -399,7 +364,7 @@ export default function Users() {
         ) : (
           <>
             <Table columns={columns} data={paged} emptyMessage={search ? "Try a different search term" : "No customers registered yet"} />
-            <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </>
         )}
       </div>
@@ -409,13 +374,7 @@ export default function Users() {
         const addr = getPrimaryAddress(detail)
         return (
           <>
-            <div className="drawer-overlay" onClick={() => { setDetail(null); setImpersonateToken(null); }} />
-            <div className="drawer" style={{ width: 540 }}>
-              <div className="drawer-header">
-                <div><div style={{ fontWeight: 800, fontSize: 16 }}>Customer Profile</div><div className="cell-muted">{detail._id}</div></div>
-                <button className="modal-close" onClick={() => { setDetail(null); setImpersonateToken(null); }}>✕</button>
-              </div>
-              <div className="drawer-body">
+            <Drawer open={!!detail} onClose={() => { setDetail(null); setImpersonateToken(null); }} title="Customer Profile" subtitle={detail?._id} width={540}>
                 <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 20 }}>
                   {detail.profileImage ? (
                     <img src={detail.profileImage} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }} />
@@ -505,24 +464,7 @@ export default function Users() {
 
                     {/* Wallet Management */}
                     <div className="divider" />
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-                      <DollarSign size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
-                      Wallet Management
-                    </div>
-                    <div style={{ padding: 12, background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: 8 }}>
-                        <input className="form-control" type="number" min="1" placeholder="Amount (₹)" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} style={{ fontSize: 13 }} />
-                        <input className="form-control" placeholder="Description" value={walletDesc} onChange={e => setWalletDesc(e.target.value)} style={{ fontSize: 13 }} />
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn-primary" style={{ flex: 1, fontSize: 12 }} disabled={walletLoading || !walletAmount} onClick={() => adjustWallet(false)}>
-                          {walletLoading ? '...' : 'Credit ₹'}
-                        </button>
-                        <button className="btn-danger" style={{ flex: 1, fontSize: 12 }} disabled={walletLoading || !walletAmount} onClick={() => adjustWallet(true)}>
-                          {walletLoading ? '...' : 'Debit ₹'}
-                        </button>
-                      </div>
-                    </div>
+                    <WalletAdjuster targetId={detail._id} entityType="CUSTOMER" currentBalance={detail.wallet?.balance} onSuccess={refresh} />
 
                     <div className="divider" />
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Actions</div>
@@ -608,8 +550,7 @@ export default function Users() {
                     )}
                   </>
                 )}
-              </div>
-            </div>
+              </Drawer>
           </>
         )
       })()}

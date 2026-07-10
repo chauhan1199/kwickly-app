@@ -25,7 +25,7 @@ const NotificationSchema = new mongoose.Schema({
                'WALLET_CREDIT', 'WALLET_DEBIT', 'WALLET_UPDATE', 'IMPERSONATE', 'SETTLE',
                'BROADCAST', 'SYSTEM', 'OTHER', 'JOB_CREATED', 'JOB_UPDATED',
                'JOB_CANCELLED', 'QUOTE_RECEIVED', 'ORDER_PLACED', 'ORDER_UPDATED',
-               'ORDER_CANCELLED', 'ORDER_DELIVERED'],
+               'ORDER_CANCELLED', 'ORDER_DELIVERED', 'TOPUP'],
         default: 'OTHER'
     },
     entityType: {

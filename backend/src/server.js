@@ -65,3 +65,5 @@ process.on('SIGTERM', () => {
 });
 
 startServer();
+
+// Trigger nodemon restart

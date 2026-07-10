@@ -3,7 +3,10 @@ const Joi = require('joi');
 const subscribeSchema = Joi.object({
     planId: Joi.string().required(),
     paymentId: Joi.string().allow('', null),
-    targetRole: Joi.string().valid('WORKER', 'SHOP').default('WORKER')
+    targetRole: Joi.string().valid('WORKER', 'SHOP').default('WORKER'),
+    razorpayOrderId: Joi.string().optional(),
+    razorpayPaymentId: Joi.string().optional(),
+    razorpaySignature: Joi.string().optional()
 });
 
 const validateSubscribe = (req, res, next) => {

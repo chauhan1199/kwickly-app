@@ -79,7 +79,12 @@ const getCache = async (key) => {
     if (!client) return null;
     try {
         const data = await client.get(key);
-        return data ? JSON.parse(data) : null;
+        if (!data) return null;
+        let parsed = JSON.parse(data);
+        if (typeof parsed === 'string' && (parsed.startsWith('{') || parsed.startsWith('['))) {
+            try { parsed = JSON.parse(parsed); } catch(e) {}
+        }
+        return parsed;
     } catch (error) {
         logger.error(`Redis getCache error: ${error.message}`);
         return null;
@@ -106,10 +111,88 @@ const delCache = async (key) => {
     }
 };
 
+/**
+ * @desc Delete keys matching pattern without blocking using SCAN
+ */
+const delCacheByPattern = async (pattern) => {
+    const client = getRedis();
+    if (!client) return;
+    try {
+        let cursor = '0';
+        do {
+            const res = await client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+            cursor = res[0];
+            const keys = res[1];
+            if (keys.length > 0) {
+                await client.del(keys);
+            }
+        } while (cursor !== '0');
+    } catch (error) {
+        logger.error(`Redis delCacheByPattern error: ${error.message}`);
+    }
+};
+
+/**
+ * @desc Fetch data with Cache Stampede prevention
+ */
+const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
+    let data = await getCache(key);
+    if (data !== null) return data;
+    
+    const lockKey = `lock:${key}`;
+    const client = getRedis();
+    if (client) {
+        const acquired = await client.set(lockKey, '1', 'NX', 'EX', 10);
+        if (!acquired) {
+            await new Promise(r => setTimeout(r, 200));
+            data = await getCache(key);
+            if (data !== null) return data;
+        }
+    }
+    
+    data = await fetcher();
+    if (data !== null && data !== undefined) {
+        await setCache(key, data, ttlInSeconds);
+    }
+    
+    if (client) await client.del(lockKey);
+    return data;
+};
+
+/**
+ * @desc Acquire a distributed lock for background jobs
+ */
+const acquireLock = async (lockKey, ttlInSeconds = 50) => {
+    const client = getRedis();
+    if (!client) return false; // If redis is down, deny lock to avoid chaos
+    try {
+        const acquired = await client.set(`lock:${lockKey}`, '1', 'NX', 'EX', ttlInSeconds);
+        return !!acquired;
+    } catch (e) {
+        return false;
+    }
+};
+
+/**
+ * @desc Release a distributed lock
+ */
+const releaseLock = async (lockKey) => {
+    const client = getRedis();
+    if (client) {
+        try {
+            await client.del(`lock:${lockKey}`);
+        } catch (e) {}
+    }
+};
+
 module.exports = {
     initRedis,
     getRedis,
     setCache,
     getCache,
-    delCache
+    delCache,
+    delCacheByPattern,
+    fetchWithCache,
+    acquireLock,
+    releaseLock
 };

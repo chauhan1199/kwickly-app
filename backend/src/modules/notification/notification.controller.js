@@ -90,16 +90,20 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
     const userId = req.user._id;
     const role   = req.user.role;
 
-    const query = {
-        deletedBy: { $ne: userId },
-        $or: [
-            { type: 'DIRECT',    userId },
-            { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
-            { type: 'SYSTEM',    userId },
-            { type: 'SYSTEM',    userId: null, targetRole: { $in: ['ALL', role] } },
-            ...(role === 'ADMIN' ? [{ type: 'ADMIN_ACTIVITY', targetRole: 'ADMIN' }] : [])
-        ]
-    };
+    let query;
+    if (role === 'ADMIN') {
+        query = {}; // Admin marks EVERYTHING they see as read
+    } else {
+        query = {
+            deletedBy: { $ne: userId },
+            $or: [
+                { type: 'DIRECT',    userId },
+                { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
+                { type: 'SYSTEM',    userId },
+                { type: 'SYSTEM',    userId: null, targetRole: { $in: ['ALL', role] } }
+            ]
+        };
+    }
 
     await Notification.updateMany(query, { $addToSet: { readBy: userId } });
     return successResponse(res, null, 'All marked as read');

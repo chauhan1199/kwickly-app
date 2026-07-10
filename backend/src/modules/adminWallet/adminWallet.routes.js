@@ -12,5 +12,7 @@ router.get('/transactions', ctrl.getTransactions);
 router.post('/credit', ctrl.credit);
 router.post('/debit', ctrl.debit);
 router.patch('/bank-details', ctrl.updateBankDetails);
+router.post('/razorpay-order', ctrl.createRazorpayOrder);
+router.post('/razorpay-verify', ctrl.verifyRazorpayPayment);
 
 module.exports = router;

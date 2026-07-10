@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import api from '../../services/api';
 import { io } from 'socket.io-client';
+import { SOCKET_URL } from '../../config/env';
 import {
   Check, Clock, Package, Truck, MapPin, Phone,
   Copy, FileText, MessageCircle, ChevronRight, XCircle
@@ -49,7 +50,7 @@ const OrderTrackingScreen = ({ route, navigation }) => {
 
   const connectSocket = () => {
     try {
-      const socket = io('http://localhost:5000', { transports: ['websocket'] });
+      const socket = io(SOCKET_URL, { transports: ['websocket'] });
       socket.on('connect', () => {
         socket.emit('join', `customer_${user?._id}`);
       });

@@ -8,6 +8,7 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
 import { NotificationProvider } from './src/context/NotificationContext';
+import OfflineBanner from './src/components/OfflineBanner';
 
 
 function App() {
@@ -32,6 +33,7 @@ function AppContent() {
         barStyle="light-content" 
         backgroundColor={Theme.colors.background} 
       />
+      <OfflineBanner />
       <RootNavigator />
     </SafeAreaProvider>
   );

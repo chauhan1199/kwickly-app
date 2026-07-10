@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { 
+  // Core components
   View, 
   Text, 
   StyleSheet, 
@@ -14,6 +15,8 @@ import {
   Modal,
   Image
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import CustomAlert from '../../components/ui/CustomAlert';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
@@ -31,6 +34,29 @@ const SetPasswordScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [authPayload, setAuthPayload] = useState(null);
+  const [focusedInput, setFocusedInput] = useState(null);
+  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error' });
+  
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+
+  const getPasswordStrength = (pass) => {
+    if (!pass) return 0;
+    let score = 0;
+    if (pass.length >= 8) score += 1;
+    if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score += 1;
+    if (/\d/.test(pass)) score += 1;
+    if (/[@$!%*?&]/.test(pass)) score += 1;
+    return score;
+  };
+  
+  const strength = getPasswordStrength(password);
+  const strengthLabels = ['Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+  const strengthColors = ['#e5e7eb', '#EF4444', '#F59E0B', '#10B981', '#059669'];
+
+  const showAlert = (title, message, type = 'error') => {
+    setAlertConfig({ visible: true, title, message, type });
+  };
 
   // Derived styling constants
   const roleLabels = { CUSTOMER: 'Customer', WORKER: 'Worker / Pro', SHOP: 'Shop Owner' };
@@ -40,14 +66,23 @@ const SetPasswordScreen = ({ navigation, route }) => {
   const displayIcon = roleIcons[role] || '👤';
 
   const handleSetPassword = async () => {
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
-      return;
+    setPasswordError('');
+    setConfirmPasswordError('');
+    
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    let isValid = true;
+    
+    if (!passwordRegex.test(password)) {
+      setPasswordError('Must be 8+ chars with uppercase, lowercase, number, and special character');
+      isValid = false;
     }
+    
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
+      setConfirmPasswordError('Passwords do not match');
+      isValid = false;
     }
+    
+    if (!isValid) return;
 
     setLoading(true);
     try {
@@ -62,8 +97,8 @@ const SetPasswordScreen = ({ navigation, route }) => {
       setShowSuccessModal(true);
       
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to set password');
+      const errDetails = error.response?.data?.errors?.join(', ') || error.response?.data?.message || 'Failed to set password';
+      showAlert('Error', errDetails);
     } finally {
       setLoading(false);
     }
@@ -76,7 +111,7 @@ const SetPasswordScreen = ({ navigation, route }) => {
     }
   };
 
-  const styles = createStyles(theme);
+  const styles = createStyles(theme, isDarkMode);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -86,7 +121,7 @@ const SetPasswordScreen = ({ navigation, route }) => {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={24} color={theme.colors.text} />
+            <ChevronLeft size={22} color={isDarkMode ? '#fff' : '#111'} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Set Password</Text>
           <View style={styles.headerRight}>
@@ -121,54 +156,91 @@ const SetPasswordScreen = ({ navigation, route }) => {
             <Text style={styles.subtitle}>Use this to login next time</Text>
 
             <Text style={styles.inputLabel}>New Password</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, passwordError ? styles.inputError : null, focusedInput === 'password' && styles.inputFocused, { marginBottom: password.length > 0 ? 12 : 16 }]}>
               <TextInput 
                 style={styles.textInput}
-                placeholder="Minimum 6 characters"
+                placeholder="Minimum 8 characters"
                 placeholderTextColor={theme.colors.textDim}
                 secureTextEntry={!showPassword}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setPasswordError('');
+                }}
+                onFocus={() => setFocusedInput('password')}
+                onBlur={() => setFocusedInput(null)}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
                 {showPassword ? <EyeOff size={20} color={theme.colors.textDim} /> : <Eye size={20} color={theme.colors.textDim} />}
               </TouchableOpacity>
             </View>
+            
+            {password.length > 0 && (
+              <View style={styles.strengthContainer}>
+                <View style={styles.strengthBars}>
+                  {[1, 2, 3, 4].map(idx => (
+                    <View 
+                      key={idx} 
+                      style={[
+                        styles.strengthBar, 
+                        { backgroundColor: strength >= idx ? strengthColors[strength] : (isDarkMode ? '#333' : '#e5e7eb') }
+                      ]} 
+                    />
+                  ))}
+                </View>
+                <Text style={[styles.strengthText, { color: strengthColors[strength] }]}>
+                  {strengthLabels[strength]}
+                </Text>
+              </View>
+            )}
+
+            {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
             <Text style={styles.inputLabel}>Confirm Password</Text>
-            <View style={[styles.inputWrapper, { marginBottom: 20 }]}>
+            <View style={[styles.inputWrapper, confirmPasswordError ? styles.inputError : null, focusedInput === 'confirm' && styles.inputFocused]}>
               <TextInput 
                 style={styles.textInput}
                 placeholder="Re-enter password"
                 placeholderTextColor={theme.colors.textDim}
                 secureTextEntry={!showPassword}
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPasswordError('');
+                  setConfirmPassword(text);
+                }}
+                onFocus={() => setFocusedInput('confirm')}
+                onBlur={() => setFocusedInput(null)}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
                 {showPassword ? <EyeOff size={20} color={theme.colors.textDim} /> : <Eye size={20} color={theme.colors.textDim} />}
               </TouchableOpacity>
             </View>
+            {confirmPasswordError ? <Text style={styles.errorText}>{confirmPasswordError}</Text> : null}
 
-            {/* Password strength tips */}
             <View style={styles.tipsBox}>
               <Text style={styles.tipsTitle}>Password strength tips:</Text>
               <View style={styles.tipRow}>
                 <Text style={styles.tipBullet}>•</Text>
-                <Text style={styles.tipText}>At least 6 characters</Text>
+                <Text style={styles.tipText}>At least 8 characters</Text>
               </View>
               <View style={styles.tipRow}>
                 <Text style={styles.tipBullet}>•</Text>
-                <Text style={styles.tipText}>Mix letters & numbers</Text>
+                <Text style={styles.tipText}>1 Uppercase & 1 Lowercase letter</Text>
               </View>
               <View style={styles.tipRow}>
                 <Text style={styles.tipBullet}>•</Text>
-                <Text style={styles.tipText}>Avoid your phone number</Text>
+                <Text style={styles.tipText}>1 Number & 1 Special character (@$!%*?&)</Text>
               </View>
             </View>
 
-            <TouchableOpacity style={styles.btn} onPress={handleSetPassword} disabled={loading}>
-              <Text style={styles.btnText}>{loading ? 'Creating...' : '🎉 Create My Account'}</Text>
+            <TouchableOpacity style={styles.btnShadow} onPress={handleSetPassword} disabled={loading} activeOpacity={0.8}>
+              <LinearGradient
+                colors={['#8B5CF6', '#6C47FF']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.btnGradient}
+              >
+                <Text style={styles.btnText}>{loading ? 'Creating...' : 'Create My Account →'}</Text>
+              </LinearGradient>
             </TouchableOpacity>
 
             <Text style={styles.footerText}>
@@ -195,11 +267,18 @@ const SetPasswordScreen = ({ navigation, route }) => {
         </View>
       </Modal>
 
+      <CustomAlert 
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+      />
     </SafeAreaView>
   );
 };
 
-const createStyles = (theme) => StyleSheet.create({
+const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -217,37 +296,38 @@ const createStyles = (theme) => StyleSheet.create({
     marginBottom: 12,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: isDarkMode ? '#1a1a1a' : '#f9fafb',
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? '#333' : '#f3f4f6',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerRight: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 16,
     backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: theme.colors.primary,
+    shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
+    overflow: 'hidden',
   },
   headerLogo: {
     width: '100%',
     height: '100%',
-    borderRadius: 10,
     resizeMode: 'cover',
+    borderRadius: 16,
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: theme.colors.text,
   },
   stepDots: {
@@ -260,14 +340,16 @@ const createStyles = (theme) => StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: theme.colors.border,
+    backgroundColor: isDarkMode ? '#333' : '#e5e7eb',
   },
   stepDotDone: {
-    backgroundColor: theme.colors.text,
+    backgroundColor: isDarkMode ? '#888' : '#6b7280',
   },
   stepDotActive: {
-    width: 24,
-    backgroundColor: theme.colors.primary,
+    width: 28,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#6C47FF',
   },
   scrollContent: {
     flexGrow: 1,
@@ -319,17 +401,28 @@ const createStyles = (theme) => StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 14,
-    height: 54,
+    backgroundColor: isDarkMode ? '#1a1a1a' : '#f9fafb',
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? '#333333' : '#d1d5db',
+    borderRadius: 18,
+    height: 56,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+  },
+  inputFocused: {
+    borderColor: '#6C47FF',
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.05)' : '#ffffff',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    backgroundColor: isDarkMode ? '#2a1111' : '#fef2f2',
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: -10,
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
   textInput: {
     flex: 1,
@@ -340,6 +433,29 @@ const createStyles = (theme) => StyleSheet.create({
   },
   eyeBtn: {
     padding: 14,
+  },
+  strengthContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+    gap: 12,
+  },
+  strengthBars: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  strengthBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  strengthText: {
+    fontSize: 12,
+    fontWeight: '700',
+    width: 45,
+    textAlign: 'right',
   },
   tipsBox: {
     backgroundColor: theme.colors.surfaceMuted || '#f1f4f8',
@@ -367,18 +483,21 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 11,
     color: theme.colors.textDim,
   },
-  btn: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 14,
-    padding: 18,
+  btnShadow: {
     width: '100%',
-    alignItems: 'center',
-    shadowColor: theme.colors.primary,
+    shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
     elevation: 8,
+    borderRadius: 20,
     marginBottom: 16,
+  },
+  btnGradient: {
+    borderRadius: 20,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   btnText: {
     color: '#ffffff',

@@ -58,16 +58,14 @@ const SplashScreen = ({ navigation }) => {
           { 
             opacity: logoOpacity, 
             transform: [{ scale: logoScale }],
-            backgroundColor: isDarkMode ? '#222' : '#1A1A1A'
+            backgroundColor: '#000'
           }
         ]}>
-          <View style={styles.logoContainerInner}>
-             <Image source={require('../../assets/images/logo.jpeg')} style={styles.logoImage} />
-          </View>
+           <Image source={require('../../assets/images/logo.jpeg')} style={styles.logoImage} />
         </Animated.View>
 
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], alignItems: 'center' }}>
-          <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#1A1A1A' }]}>KWIC<Text style={{color: '#6C47FF'}}>KLY</Text></Text>
+          <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#1A1A1A' }]}>Kwic<Text style={{color: '#6C47FF'}}>kly!</Text></Text>
           <Text style={[styles.subtitle, { color: isDarkMode ? '#A0A0A0' : '#6b7280' }]}>EVERY SERVICE • ANYTIME • NEAR YOU</Text>
         </Animated.View>
       </View>
@@ -88,7 +86,7 @@ const SplashScreen = ({ navigation }) => {
       </Animated.View>
 
       <Animated.View style={[styles.botSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-        <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('RoleSelection')}>
+        <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('RoleSelection')} style={{ width: '100%' }}>
           <View style={styles.btn}>
             <Text style={styles.btnText}>Create Account  →</Text>
           </View>
@@ -126,24 +124,19 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 24,
     elevation: 12,
-  },
-  logoContainerInner: {
-    width: 80,
-    height: 50,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#000',
     overflow: 'hidden',
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'contain',
+    resizeMode: 'cover',
+    borderRadius: 36,
   },
   title: {
     fontSize: 44,

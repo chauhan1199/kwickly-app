@@ -10,8 +10,8 @@ export const walletService = {
     api.post('/wallet/withdraw', { amount, payoutMethod }),
 
   /** Top up wallet */
-  topupWallet: (amount, paymentDetails, planId) =>
-    api.post('/wallet/topup', { amount, paymentDetails, planId }),
+  topupWallet: (amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature) =>
+    api.post('/wallet/topup', { amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature }),
 
   /** Admin: get all platform transactions */
   getAllTransactions: (params) =>

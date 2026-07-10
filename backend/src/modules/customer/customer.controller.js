@@ -2,6 +2,7 @@ const { StatusCodes } = require('http-status-codes');
 const Customer = require('./customer.model');
 const Job = require('../job/job.model');
 const catchAsync = require('../../helpers/async.helper');
+const { uploadImage } = require('../../services/cloudinary.service');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
@@ -35,7 +36,10 @@ exports.updateProfile = catchAsync(async (req, res) => {
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
-    if (req.file) updateData.profileImage = '/uploads/' + req.file.filename;
+    if (req.file) {
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/customers');
+        updateData.profileImage = url;
+    }
 
     if (req.body.wallet) {
         const walletData = typeof req.body.wallet === 'string' ? JSON.parse(req.body.wallet) : req.body.wallet;

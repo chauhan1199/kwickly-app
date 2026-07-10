@@ -5,9 +5,11 @@ const WalletTxn  = require('../wallet/wallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
+const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const Shop = require('../shop/shop.model');
 const Notification = require('../notification/notification.model');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
+const { verifyPaymentSignature, fetchPayment } = require('../../helpers/razorpay.helper');
 
 
 /* ── WORKER SUBSCRIPTION ─────────────────────────────────────────────── */
@@ -17,8 +19,23 @@ const { notifyUser } = require('../../helpers/notifyUser.helper');
  * Worker purchases a plan
  */
 exports.subscribe = catchAsync(async (req, res) => {
-    const { planId, paymentId, targetRole = 'WORKER' } = req.body;
+    const { planId, paymentId, targetRole = 'WORKER', razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
     const userId = req.user._id;
+
+    if (razorpayOrderId && razorpayPaymentId && razorpaySignature) {
+        const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+        if (!isValid) {
+            return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
+        }
+        try {
+            const rpPayment = await fetchPayment(razorpayPaymentId);
+            if (rpPayment.status !== 'captured') {
+                return errorResponse(res, 'Payment not captured in Razorpay', StatusCodes.BAD_REQUEST);
+            }
+        } catch (error) {
+            return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.INTERNAL_SERVER_ERROR);
+        }
+    }
 
     const AppSettings = require('../settings/settings.model');
     const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
@@ -128,8 +145,29 @@ exports.subscribe = catchAsync(async (req, res) => {
             );
         }
 
+        // Add funds to Admin Wallet (Platform Revenue)
+        const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
+        let adminWallet = await AdminWallet.findOne().session(session);
+        if (!adminWallet) {
+            const [newWallet] = await AdminWallet.create([{ balance: 0 }], { session });
+            adminWallet = newWallet;
+        }
+        adminWallet.balance += activePlan.price;
+        await adminWallet.save({ session });
+
+        await AdminWalletTxn.create([{
+            type: 'PLATFORM_FEE_COLLECTED',
+            amount: activePlan.price,
+            balanceAfter: adminWallet.balance,
+            description: `Subscription plan ${activePlan.id} purchased by ${targetRole}`,
+            referenceId: userId,
+            referenceModel: targetRole === 'SHOP' ? 'Shop' : 'Customer'
+        }], { session });
+
         if (session) await session.commitTransaction();
         if (session) session.endSession();
+
+        await delCache('admin_dashboard_stats');
 
     } catch (error) {
         if (session) await session.abortTransaction();
