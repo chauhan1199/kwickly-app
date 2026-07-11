@@ -196,6 +196,11 @@ export default function Jobs() {
     d.paymentStatus = j.payment?.status || 'PENDING'
     d.timeSlot = j.timeSlot || '—'
     d.preferredDate = j.preferredDate ? new Date(j.preferredDate).toLocaleDateString('en-IN') : '—'
+    d.media = j.media || []
+    d.completionMedia = j.completionDetails?.media || []
+    d.completionReport = j.completionDetails?.report || ''
+    d.arrivalOtp = j.security?.arrivalOtp || '—'
+    d.completionOtp = j.security?.completionOtp || '—'
     return d
   }
 
@@ -296,12 +301,45 @@ export default function Jobs() {
                   <div className="detail-row"><span>Platform Fee</span><strong style={{ color: 'var(--success)' }}>{fd.fee}</strong></div>
                   <div className="detail-row"><span>Worker Payout</span><strong>{fd.workerPayout}</strong></div>
                   <div className="detail-row"><span>Payment Status</span><strong>{fd.paymentStatus}</strong></div>
+                  {fd.arrivalOtp !== '—' && <div className="detail-row"><span>Arrival OTP</span><strong>{fd.arrivalOtp}</strong></div>}
+                  {fd.completionOtp !== '—' && <div className="detail-row"><span>Completion OTP</span><strong>{fd.completionOtp}</strong></div>}
                 </div>
 
                 {fd.description && (
                   <>
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 16, marginBottom: 8 }}>Description</div>
                     <div style={{ background: 'var(--bg-dark)', borderRadius: 10, padding: 14, fontSize: 13, color: 'var(--dark)', lineHeight: 1.6 }}>{fd.description}</div>
+                  </>
+                )}
+
+                {fd.media && fd.media.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 16, marginBottom: 8 }}>Job Images</div>
+                    <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8 }}>
+                      {fd.media.map((m, i) => (
+                        <a key={i} href={m} target="_blank" rel="noopener noreferrer">
+                          <img src={m} alt="Job Media" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                        </a>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {(fd.completionReport || (fd.completionMedia && fd.completionMedia.length > 0)) && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 16, marginBottom: 8 }}>Completion Details</div>
+                    <div style={{ background: 'var(--bg-dark)', borderRadius: 10, padding: 14 }}>
+                      {fd.completionReport && <div style={{ fontSize: 13, color: 'var(--dark)', lineHeight: 1.6, marginBottom: fd.completionMedia?.length ? 12 : 0 }}>{fd.completionReport}</div>}
+                      {fd.completionMedia && fd.completionMedia.length > 0 && (
+                        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+                          {fd.completionMedia.map((m, i) => (
+                            <a key={i} href={m} target="_blank" rel="noopener noreferrer">
+                              <img src={m} alt="Completion Media" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
 
