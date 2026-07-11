@@ -47,19 +47,24 @@ const Stack = createStackNavigator();
 ────────────────────────────────────────────── */
 const HomeStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="HomeMain"         component={HomeScreen} />
-    <Stack.Screen name="LiveBids"         component={LiveBidsScreen} />
-    <Stack.Screen name="LiveTracking"     component={LiveTrackingScreen} />
-    <Stack.Screen name="WorkCompleted"    component={WorkCompletedScreen} />
-    <Stack.Screen name="RateExperience"   component={RateExperienceScreen} />
-    <Stack.Screen name="PastJobDetails"   component={PastJobDetailsScreen} />
-    <Stack.Screen name="WorkerProfile"    component={WorkerProfileScreen} />
+    <Stack.Screen name="HomeMain"           component={HomeScreen} />
+    {/* Booking flow — accessible from Home service cards */}
+    <Stack.Screen name="SubCategories"      component={SubCategoriesScreen} />
+    <Stack.Screen name="DescribeJob"        component={DescribeJobScreen} />
+    <Stack.Screen name="SavedAddresses"     component={SavedAddressesScreen} />
+    <Stack.Screen name="Quotes"             component={QuotesScreen} />
+    <Stack.Screen name="LiveBids"           component={LiveBidsScreen} />
+    <Stack.Screen name="LiveTracking"       component={LiveTrackingScreen} />
+    <Stack.Screen name="WorkCompleted"      component={WorkCompletedScreen} />
+    <Stack.Screen name="RateExperience"     component={RateExperienceScreen} />
+    <Stack.Screen name="PastJobDetails"     component={PastJobDetailsScreen} />
+    <Stack.Screen name="WorkerProfile"      component={WorkerProfileScreen} />
     <Stack.Screen name="CustomerShopOrders" component={CustomerShopOrdersScreen} />
-    <Stack.Screen name="OrderTracking"    component={OrderTrackingScreen} />
-    <Stack.Screen name="ShopDetail"       component={ShopDetailScreen} />
-    <Stack.Screen name="Cart"             component={CartScreen} />
-    <Stack.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
-    <Stack.Screen name="Notifications"    component={NotificationsScreen} />
+    <Stack.Screen name="OrderTracking"      component={OrderTrackingScreen} />
+    <Stack.Screen name="ShopDetail"         component={ShopDetailScreen} />
+    <Stack.Screen name="Cart"               component={CartScreen} />
+    <Stack.Screen name="ShopOrderDetails"   component={ShopOrderDetailsScreen} />
+    <Stack.Screen name="Notifications"      component={NotificationsScreen} />
   </Stack.Navigator>
 );
 

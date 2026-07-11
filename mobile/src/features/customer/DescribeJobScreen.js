@@ -13,18 +13,64 @@ import {
   Image,
   Alert,
   Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
-import { ChevronLeft, UploadCloud, X, MapPin, Bell, Camera, Video } from 'lucide-react-native';
+import {
+  ChevronLeft,
+  UploadCloud,
+  X,
+  MapPin,
+  Bell,
+  Camera,
+  Video,
+  Image as ImageIcon,
+  FileText,
+  AlertCircle,
+  CheckCircle,
+  Plus,
+} from 'lucide-react-native';
 
 const PURPLE      = '#6C47FF';
 const PURPLE_DARK = '#5535d4';
 const PURPLE_SOFT = 'rgba(108,71,255,0.13)';
+const ERROR_RED   = '#EF4444';
+const SUCCESS_GRN = '#22C55E';
+
+// Max file size in bytes (10 MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// Max number of attachments
+const MAX_MEDIA     = 5;
+// Allowed MIME type prefixes
+const ALLOWED_TYPES = ['image/', 'video/'];
+
+// ── Validation helpers ──────────────────────────────────────────────────────
+const validateAsset = (asset) => {
+  if (!asset?.uri) return 'Could not read the selected file.';
+  if (asset.fileSize && asset.fileSize > MAX_FILE_SIZE)
+    return `File too large (max 10 MB). Selected file is ${(asset.fileSize / (1024 * 1024)).toFixed(1)} MB.`;
+  const mime = asset.type || '';
+  if (mime && !ALLOWED_TYPES.some(t => mime.startsWith(t)))
+    return `Unsupported file type (${mime}). Only photos and videos are allowed.`;
+  return null; // valid
+};
+
+// ── Human-readable file-type tag ────────────────────────────────────────────
+const getMediaTag = (item) => {
+  if (item.type?.startsWith('video')) return 'VIDEO';
+  return 'PHOTO';
+};
+
+// ── Colour for tag pill ─────────────────────────────────────────────────────
+const getTagColor = (item) => {
+  if (item.type?.startsWith('video')) return '#7C3AED';
+  return '#2563EB';
+};
 
 const DescribeJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -35,21 +81,27 @@ const DescribeJobScreen = ({ route, navigation }) => {
     selectedWorker,
   } = route.params || {};
 
-  console.log('DescribeJobScreen loaded with route.params:', JSON.stringify(route.params));
-
   const { user, token } = useAuth();
 
-  const [description,    setDescription]    = useState('');
-  const [media,          setMedia]          = useState([]);     // [{ uri, type }]
-  const [addressType,    setAddressType]    = useState('Home');
-  const [address,        setAddress]        = useState('');
-  const [location,       setLocation]       = useState(null);
-  const [preferredDate,  setPreferredDate]  = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [timeSlot,       setTimeSlot]       = useState('urgent');
-  const [isSubmitting,   setIsSubmitting]   = useState(false);
+  const [description,      setDescription]      = useState('');
+  const [descriptionError, setDescriptionError] = useState('');
+  const [media,            setMedia]            = useState([]);   // [{ uri, type, name, fileSize }]
+  const [mediaError,       setMediaError]       = useState('');
+  const [addressType,      setAddressType]      = useState('Home');
+  const [address,          setAddress]          = useState('');
+  const [addressError,     setAddressError]     = useState('');
+  const [location,         setLocation]         = useState(null);
+  const [preferredDate,    setPreferredDate]    = useState(new Date());
+  const [showDatePicker,   setShowDatePicker]   = useState(false);
+  const [timeSlot,         setTimeSlot]         = useState('urgent');
+  const [isSubmitting,     setIsSubmitting]     = useState(false);
+  const [submitError,      setSubmitError]      = useState('');
+  const [submitSuccess,    setSubmitSuccess]    = useState(false);
 
-  // ── Populate address from user profile on mount ──
+  // Media action-sheet modal
+  const [showMediaSheet, setShowMediaSheet] = useState(false);
+
+  // ── Populate address from user profile on mount ──────────────────────────
   React.useEffect(() => {
     if (user?.addresses?.length > 0) {
       const primary = user.addresses.find(a => a.isPrimary) || user.addresses[0];
@@ -59,24 +111,25 @@ const DescribeJobScreen = ({ route, navigation }) => {
     }
   }, [user]);
 
-  // ── Receive address back from SavedAddressesScreen or MapPicker ──
+  // ── Receive address back from SavedAddressesScreen ───────────────────────
   useFocusEffect(
     useCallback(() => {
       const sel = route.params?.selectedAddress;
       if (sel) {
         setAddress(`${sel.street || sel.address || ''}, ${sel.city || ''} ${sel.pincode || ''}`.trim());
         setAddressType(sel.label || 'Other');
-        if (sel.location?.coordinates) setLocation(sel.location);
-        else if (sel.coordinates)       setLocation({ type: 'Point', coordinates: sel.coordinates });
-        // Clear params so re-focus doesn't re-apply
+        if (sel.location?.coordinates)  setLocation(sel.location);
+        else if (sel.coordinates)        setLocation({ type: 'Point', coordinates: sel.coordinates });
+        setAddressError('');
         navigation.setParams({ selectedAddress: undefined });
       }
     }, [route.params?.selectedAddress])
   );
 
-  // ── Address chip switch ──
+  // ── Address chip switch ──────────────────────────────────────────────────
   const switchAddressChip = (type) => {
     setAddressType(type);
+    setAddressError('');
     if (!user?.addresses?.length) return;
     const matched = user.addresses.find(a => (a.label || '').toLowerCase() === type.toLowerCase());
     if (matched) {
@@ -90,110 +143,303 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
   const hasNoAddresses = !user?.addresses?.length && !address;
 
-  const timeSlots = [
-    { id: 'urgent',    icon: '⚡', label: 'Urgent / ASAP', sub: 'Within 1-2 hrs' },
-    { id: 'morning',   icon: '🌅', label: 'Morning',       sub: '8 AM – 12 PM' },
-    { id: 'afternoon', icon: '☀️', label: 'Afternoon',     sub: '12 PM – 4 PM' },
-    { id: 'evening',   icon: '🌆', label: 'Evening',       sub: '4 PM – 8 PM' },
-  ];
-
-  const getNext7Days = () => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      days.push(d);
-    }
-    return days;
-  };
-
-  // ── Media picker (photo + video) ──
-  const handlePickMedia = async (mediaType = 'photo') => {
-    if (media.length >= 5) {
-      Alert.alert('Limit Reached', 'You can add up to 5 files.');
+  // ── Add a validated asset to media list ────────────────────────────────
+  const addAsset = (asset) => {
+    const err = validateAsset(asset);
+    if (err) {
+      Alert.alert('Cannot Add File', err);
       return;
     }
+    setMedia(prev => [
+      ...prev,
+      {
+        uri:      asset.uri,
+        type:     asset.type || 'image/jpeg',
+        name:     asset.fileName || `media_${Date.now()}`,
+        fileSize: asset.fileSize || 0,
+      },
+    ]);
+    setMediaError('');
+  };
+
+  // ── Request CAMERA permission at runtime (Android) ───────────────────
+  const requestCameraPermission = async () => {
+    if (Platform.OS !== 'android') return true;
     try {
-      const result = await launchImageLibrary({ mediaType, quality: 0.8 });
-      if (result.didCancel) return;
-      if (result.errorCode || !result.assets?.length) throw new Error(result.errorMessage || 'Picker failed');
-      const asset = result.assets[0];
-      setMedia(prev => [...prev, { uri: asset.uri, type: asset.type?.startsWith('video') ? 'video' : 'photo' }]);
-    } catch {
-      // Emulator fallback
-      setMedia(prev => [...prev, {
-        uri: 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=500&q=80',
-        type: 'photo',
-      }]);
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        {
+          title: 'Camera Permission Required',
+          message: 'Kwickly needs camera access to take photos and videos for your job request.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Deny',
+          buttonPositive: 'Allow',
+        }
+      );
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) return true;
+      Alert.alert(
+        'Camera Permission Denied',
+        'Please go to Settings → Apps → Kwickly → Permissions and enable Camera to use this feature.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    } catch (e) {
+      console.warn('Camera permission error:', e);
+      return false;
     }
   };
 
-  const handleRemoveMedia = (index) => {
-    setMedia(prev => prev.filter((_, i) => i !== index));
+  // ── Request storage/media permission at runtime (Android) ────────────
+  const requestStoragePermission = async (needVideo = false) => {
+    if (Platform.OS !== 'android') return true;
+    try {
+      const apiLevel = Platform.Version; // Android API level (number)
+      let permsToRequest = [];
+
+      if (apiLevel >= 33) {
+        // Android 13+ uses granular media permissions
+        permsToRequest = [PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES];
+        if (needVideo) permsToRequest.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO);
+      } else {
+        // Android 12 and below
+        permsToRequest = [PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE];
+      }
+
+      const results = await PermissionsAndroid.requestMultiple(permsToRequest);
+      const allGranted = Object.values(results).every(
+        r => r === PermissionsAndroid.RESULTS.GRANTED
+      );
+      if (allGranted) return true;
+
+      Alert.alert(
+        'Storage Permission Denied',
+        'Please go to Settings → Apps → Kwickly → Permissions and enable Storage/Photos to pick files.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    } catch (e) {
+      console.warn('Storage permission error:', e);
+      return false;
+    }
   };
 
-  // ── Map / Address picker ──
+  // ── Launch camera (photo or video) ────────────────────────────────────
+  const handleCamera = async (mediaType = 'photo') => {
+    setShowMediaSheet(false);
+    if (media.length >= MAX_MEDIA) {
+      Alert.alert('Limit Reached', `You can attach up to ${MAX_MEDIA} files.`);
+      return;
+    }
+
+    // Request CAMERA permission first
+    const hasCamPerm = await requestCameraPermission();
+    if (!hasCamPerm) return;
+
+    try {
+      const result = await launchCamera({
+        mediaType,
+        quality: 0.8,
+        videoQuality: 'medium',
+        durationLimit: 60,
+        saveToPhotos: true,   // Save to gallery so user can see it
+        includeBase64: false,
+      });
+
+      if (result.didCancel) return;
+
+      if (result.errorCode) {
+        const msgs = {
+          camera_unavailable: 'Camera is not available on this device or emulator.',
+          permission:         'Camera permission denied. Please enable it in App Settings.',
+          others:             result.errorMessage || 'Camera error. Please try again.',
+        };
+        Alert.alert(
+          'Camera Error',
+          msgs[result.errorCode] || result.errorMessage || 'Unknown camera error.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      if (!result.assets?.length) {
+        Alert.alert('Capture Failed', 'No file was captured. Please try again.');
+        return;
+      }
+      addAsset(result.assets[0]);
+    } catch (e) {
+      Alert.alert('Camera Error', e.message || 'Unable to open camera. Please try again.');
+    }
+  };
+
+  // ── Launch image gallery ──────────────────────────────────────────────
+  const handleGallery = async (mediaType = 'photo') => {
+    setShowMediaSheet(false);
+    if (media.length >= MAX_MEDIA) {
+      Alert.alert('Limit Reached', `You can attach up to ${MAX_MEDIA} files.`);
+      return;
+    }
+
+    // Request storage/media permission first
+    const needVideo = mediaType === 'video';
+    const hasStorePerm = await requestStoragePermission(needVideo);
+    if (!hasStorePerm) return;
+
+    try {
+      const result = await launchImageLibrary({
+        mediaType,
+        quality: 0.8,
+        selectionLimit: 1,
+        includeBase64: false,
+      });
+
+      if (result.didCancel) return;
+
+      if (result.errorCode) {
+        const msgs = {
+          permission: 'Gallery permission denied. Please enable it in App Settings.',
+          others:     result.errorMessage || 'Gallery error. Please try again.',
+        };
+        Alert.alert('Gallery Error', msgs[result.errorCode] || msgs.others, [{ text: 'OK' }]);
+        return;
+      }
+
+      if (!result.assets?.length) {
+        Alert.alert(
+          'No File Selected',
+          mediaType === 'video'
+            ? 'No video was selected. If your gallery is empty, use "Record Video" to capture one first.'
+            : 'No photo was selected. If your gallery is empty, use "Take Photo" to capture one first.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      addAsset(result.assets[0]);
+    } catch (e) {
+      Alert.alert('Gallery Error', e.message || 'Unable to open gallery. Please try again.');
+    }
+  };
+
+  // ── Remove media item ────────────────────────────────────────────────
+  const handleRemoveMedia = (index) => {
+    Alert.alert(
+      'Remove Attachment',
+      'Remove this photo/video from your job request?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive',
+          onPress: () => setMedia(prev => prev.filter((_, i) => i !== index)),
+        },
+      ]
+    );
+  };
+
+  // ── Map / Address picker ─────────────────────────────────────────────
   const handlePickMap = () => {
     navigation.navigate('SavedAddresses', { fromBooking: true });
   };
 
-  // ── Submit ──
-  const handleSubmit = async () => {
+  // ── Form validation ───────────────────────────────────────────────────
+  const validateForm = () => {
+    let valid = true;
+
     if (!description.trim()) {
-      return Alert.alert('Missing Details', 'Please describe the issue.');
+      setDescriptionError('Please describe the issue in at least a few words.');
+      valid = false;
+    } else if (description.trim().length < 10) {
+      setDescriptionError('Description is too short (minimum 10 characters).');
+      valid = false;
+    } else {
+      setDescriptionError('');
     }
+
     if (!address?.trim()) {
-      return Alert.alert('No Address', 'Please add a service address before booking.');
+      setAddressError('Please add a service address to proceed.');
+      valid = false;
+    } else {
+      setAddressError('');
     }
+
+    return valid;
+  };
+
+  // ── Submit ────────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    setSubmitError('');
+    if (!validateForm()) return;
 
     setIsSubmitting(true);
     try {
-      // Build location — use saved coords or a fallback so backend doesn't reject
       const jobLocation = location || {
         type: 'Point',
-        coordinates: [72.8777, 19.0760], // default centre; backend should allow this
+        coordinates: [72.8777, 19.0760],
       };
 
       const payload = {
         category:       category.name,
         subcategory,
-        description,
+        description:    description.trim(),
         media:          media.map(m => m.uri),
         preferredDate:  preferredDate.toISOString(),
         timeSlot,
         location:       jobLocation,
-        addressDetails: address,
+        addressDetails: address.trim(),
       };
 
       const res    = await api.post('/jobs', payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const newJob = res.data.data;
+      const newJob = res.data?.data;
 
-      if (selectedWorker) {
-        navigation.navigate('LiveTracking', { worker: selectedWorker });
-      } else {
-        navigation.navigate('LiveBids', {
-          jobId:      newJob._id,
-          job:        newJob,
-          category,
-          subcategory,
-          address,
-          timeSlot:   timeSlots.find(t => t.id === timeSlot)?.label || 'ASAP',
-        });
-      }
+      if (!newJob?._id) throw new Error('Invalid response from server.');
+
+      setSubmitSuccess(true);
+      setTimeout(() => {
+        if (selectedWorker) {
+          navigation.navigate('LiveTracking', { worker: selectedWorker });
+        } else {
+          navigation.navigate('LiveBids', {
+            jobId:      newJob._id,
+            job:        newJob,
+            category,
+            subcategory,
+            address,
+            timeSlot:   timeSlots.find(t => t.id === timeSlot)?.label || 'ASAP',
+          });
+        }
+      }, 600);
     } catch (error) {
+      const serverErrors = error.response?.data?.errors;
       const msg =
-        error.response?.data?.errors?.join(', ') ||
+        (Array.isArray(serverErrors) ? serverErrors.join('\n') : null) ||
         error.response?.data?.message ||
-        'Failed to post job. Please try again.';
-      Alert.alert('Booking Error', msg);
+        error.message ||
+        'Failed to post job. Please check your connection and try again.';
+      setSubmitError(msg);
+      Alert.alert('Booking Failed', msg, [{ text: 'OK' }]);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const timeSlots = [
+    { id: 'urgent',    icon: '⚡', label: 'Urgent / ASAP', sub: 'Within 1-2 hrs' },
+    { id: 'morning',   icon: '🌅', label: 'Morning',       sub: '8 AM – 12 PM'  },
+    { id: 'afternoon', icon: '☀️',  label: 'Afternoon',     sub: '12 PM – 4 PM'  },
+    { id: 'evening',   icon: '🌆', label: 'Evening',        sub: '4 PM – 8 PM'   },
+  ];
+
+  const getNext7Days = () => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  };
+
   const styles = createStyles(theme, isDarkMode);
+
+  const remainingSlots = MAX_MEDIA - media.length;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -215,67 +461,136 @@ const DescribeJobScreen = ({ route, navigation }) => {
           <Text style={styles.headerSub} numberOfLines={1}>{category.name} · {subcategory}</Text>
         </View>
 
-        <TouchableOpacity style={styles.headerIcon}>
+        <View style={styles.headerIcon}>
           <Bell size={20} color="#fff" />
           <View style={styles.badge} />
-        </TouchableOpacity>
+        </View>
       </LinearGradient>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
 
         {/* ── Description ── */}
-        <Text style={styles.label}>Describe the issue</Text>
+        <Text style={styles.label}>Describe the issue <Text style={styles.required}>*</Text></Text>
         <TextInput
-          style={styles.textArea}
+          style={[styles.textArea, descriptionError ? styles.inputError : null]}
           multiline
           numberOfLines={4}
           value={description}
-          onChangeText={setDescription}
-          placeholder="E.g. AC not cooling, makes loud noise…"
+          onChangeText={t => { setDescription(t); if (descriptionError) setDescriptionError(''); }}
+          placeholder="E.g. AC not cooling, makes loud noise… (min 10 characters)"
           placeholderTextColor={theme.colors.textDim}
           textAlignVertical="top"
+          maxLength={500}
         />
+        <View style={styles.descFooter}>
+          {descriptionError ? (
+            <View style={styles.errorRow}>
+              <AlertCircle size={13} color={ERROR_RED} />
+              <Text style={styles.errorText}>{descriptionError}</Text>
+            </View>
+          ) : <View />}
+          <Text style={[styles.charCount, description.length > 450 && styles.charCountWarn]}>
+            {description.length}/500
+          </Text>
+        </View>
 
         {/* ── Media Upload ── */}
-        <Text style={styles.label}>Add photos / video</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaRow}>
-          {media.map((item, idx) => (
-            <View key={idx} style={styles.mediaTileFilled}>
-              <Image source={{ uri: item.uri }} style={styles.mediaImage} />
-              {item.type === 'video' && (
-                <View style={styles.videoOverlay}>
-                  <Video size={18} color="#fff" />
+        <Text style={[styles.label, { marginTop: 14 }]}>
+          Photos / Videos
+          <Text style={styles.labelHint}> (optional · max {MAX_MEDIA})</Text>
+        </Text>
+
+        {/* Attachment grid */}
+        {media.length > 0 && (
+          <View style={styles.mediaGrid}>
+            {media.map((item, idx) => (
+              <View key={idx} style={styles.mediaTileFilled}>
+                <Image
+                  source={{ uri: item.uri }}
+                  style={styles.mediaImage}
+                  resizeMode="cover"
+                />
+                {/* Type pill */}
+                <View style={[styles.mediaTypePill, { backgroundColor: getTagColor(item) }]}>
+                  <Text style={styles.mediaTypePillText}>{getMediaTag(item)}</Text>
                 </View>
-              )}
-              <TouchableOpacity style={styles.deleteMediaBtn} onPress={() => handleRemoveMedia(idx)}>
-                <X size={12} color="#fff" />
+                {/* Video overlay icon */}
+                {item.type?.startsWith('video') && (
+                  <View style={styles.videoPlayOverlay}>
+                    <Video size={20} color="#fff" />
+                  </View>
+                )}
+                {/* Remove button */}
+                <TouchableOpacity
+                  style={styles.deleteMediaBtn}
+                  onPress={() => handleRemoveMedia(idx)}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <X size={12} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            {/* Add-more tile */}
+            {media.length < MAX_MEDIA && (
+              <TouchableOpacity
+                style={styles.mediaAddMoreTile}
+                onPress={() => setShowMediaSheet(true)}
+                activeOpacity={0.8}
+              >
+                <Plus size={26} color={PURPLE} />
+                <Text style={styles.mediaAddMoreText}>Add More</Text>
               </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Add-first button (shown when no media yet) */}
+        {media.length === 0 && (
+          <TouchableOpacity
+            style={styles.mediaEmptyBtn}
+            onPress={() => setShowMediaSheet(true)}
+            activeOpacity={0.8}
+          >
+            <UploadCloud size={28} color={PURPLE} />
+            <Text style={styles.mediaEmptyTitle}>Upload Photos or Videos</Text>
+            <Text style={styles.mediaEmptyHint}>
+              Take a photo/video with camera, or pick from your gallery.{'\n'}
+              Max {MAX_MEDIA} files · up to 10 MB each
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Counter / error */}
+        <View style={styles.mediaFooter}>
+          {mediaError ? (
+            <View style={styles.errorRow}>
+              <AlertCircle size={13} color={ERROR_RED} />
+              <Text style={styles.errorText}>{mediaError}</Text>
             </View>
-          ))}
-          {media.length < 5 && (
-            <View style={styles.mediaUploadGroup}>
-              <TouchableOpacity style={styles.mediaTileEmpty} onPress={() => handlePickMedia('photo')}>
-                <Camera size={22} color={PURPLE} />
-                <Text style={styles.mediaTileLabel}>Photo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.mediaTileEmpty} onPress={() => handlePickMedia('video')}>
-                <Video size={22} color={PURPLE} />
-                <Text style={styles.mediaTileLabel}>Video</Text>
-              </TouchableOpacity>
-            </View>
+          ) : (
+            <Text style={styles.mediaHint}>
+              {media.length === 0
+                ? 'Attach photos/videos to help workers understand the issue'
+                : `${media.length}/${MAX_MEDIA} file${media.length > 1 ? 's' : ''} attached · ${remainingSlots} slot${remainingSlots !== 1 ? 's' : ''} remaining`}
+            </Text>
           )}
-        </ScrollView>
-        <Text style={styles.mediaHint}>Max 5 files · {media.length}/5 added</Text>
+        </View>
 
         {/* ── Service Address ── */}
-        <Text style={[styles.label, { marginTop: 14 }]}>Service address</Text>
+        <Text style={[styles.label, { marginTop: 14 }]}>
+          Service address <Text style={styles.required}>*</Text>
+        </Text>
 
         {hasNoAddresses ? (
-          /* No saved addresses → prompt to add */
-          <View style={styles.noAddressBanner}>
-            <MapPin size={20} color={PURPLE} />
+          <View style={[styles.noAddressBanner, addressError && styles.noAddressBannerError]}>
+            <MapPin size={20} color={addressError ? ERROR_RED : PURPLE} />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.noAddressTitle}>No saved address</Text>
+              <Text style={[styles.noAddressTitle, addressError && { color: ERROR_RED }]}>No saved address</Text>
               <Text style={styles.noAddressSub}>Add an address to continue booking</Text>
             </View>
             <TouchableOpacity
@@ -304,15 +619,22 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
             {/* Address Text Input */}
             <TextInput
-              style={styles.addressInput}
+              style={[styles.addressInput, addressError ? styles.inputError : null]}
               value={address}
-              onChangeText={setAddress}
+              onChangeText={t => { setAddress(t); if (addressError) setAddressError(''); }}
               placeholder="Enter service address…"
               placeholderTextColor={theme.colors.textDim}
               multiline
             />
           </>
         )}
+
+        {addressError ? (
+          <View style={[styles.errorRow, { marginBottom: 6 }]}>
+            <AlertCircle size={13} color={ERROR_RED} />
+            <Text style={styles.errorText}>{addressError}</Text>
+          </View>
+        ) : null}
 
         {/* Pick from Map */}
         <TouchableOpacity style={styles.mapBtn} onPress={handlePickMap}>
@@ -349,21 +671,37 @@ const DescribeJobScreen = ({ route, navigation }) => {
           })}
         </View>
 
+        {/* ── Global submit error ── */}
+        {submitError ? (
+          <View style={styles.submitErrorBox}>
+            <AlertCircle size={16} color={ERROR_RED} />
+            <Text style={styles.submitErrorText}>{submitError}</Text>
+          </View>
+        ) : null}
+
         {/* ── Submit Button ── */}
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={handleSubmit}
-          disabled={isSubmitting}
-          style={{ marginBottom: 20, borderRadius: 14, overflow: 'hidden' }}
+          disabled={isSubmitting || submitSuccess}
+          style={{ marginBottom: 20, borderRadius: 14, overflow: 'hidden', opacity: isSubmitting ? 0.8 : 1 }}
         >
           <LinearGradient
-            colors={[PURPLE, PURPLE_DARK]}
+            colors={submitSuccess ? [SUCCESS_GRN, '#16A34A'] : [PURPLE, PURPLE_DARK]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.submitBtn}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <ActivityIndicator color="#fff" size="small" />
+                <Text style={styles.submitBtnText}>Posting Job…</Text>
+              </View>
+            ) : submitSuccess ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <CheckCircle size={20} color="#fff" />
+                <Text style={styles.submitBtnText}>Job Posted!</Text>
+              </View>
             ) : (
               <Text style={styles.submitBtnText}>
                 {selectedWorker ? `🚀 Book ${selectedWorker.name?.split(' ')[0]}` : '🚀 Post Job · Get Bids'}
@@ -375,8 +713,115 @@ const DescribeJobScreen = ({ route, navigation }) => {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* ── Date Picker Modal ── */}
-      <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
+      {/* ══════════════════════════════════════
+          MEDIA SOURCE ACTION SHEET
+      ══════════════════════════════════════ */}
+      <Modal
+        visible={showMediaSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowMediaSheet(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMediaSheet(false)}
+        >
+          <View style={styles.actionSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.actionSheetTitle}>Add Attachment</Text>
+            <Text style={styles.actionSheetSub}>
+              {remainingSlots} of {MAX_MEDIA} slots remaining · max 10 MB each
+            </Text>
+
+            {/* Emulator / fresh-device tip */}
+            <View style={styles.actionTipBox}>
+              <Text style={styles.actionTipText}>
+                💡 <Text style={{ fontWeight: '700' }}>No photos in gallery?</Text> Use{' '}
+                <Text style={{ fontWeight: '700' }}>Take Photo</Text> or{' '}
+                <Text style={{ fontWeight: '700' }}>Record Video</Text> to capture directly.
+              </Text>
+            </View>
+
+            {/* Camera — Photo */}
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => handleCamera('photo')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
+                <Camera size={22} color="#4F46E5" />
+              </View>
+              <View style={styles.actionText}>
+                <Text style={[styles.actionLabel, { color: theme.colors.text }]}>Take Photo</Text>
+                <Text style={styles.actionSub}>Capture using your camera</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Camera — Video */}
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => handleCamera('video')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#F5F3FF' }]}>
+                <Video size={22} color="#7C3AED" />
+              </View>
+              <View style={styles.actionText}>
+                <Text style={[styles.actionLabel, { color: theme.colors.text }]}>Record Video</Text>
+                <Text style={styles.actionSub}>Record up to 60 seconds</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Gallery — Photos */}
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => handleGallery('photo')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#ECFDF5' }]}>
+                <ImageIcon size={22} color="#059669" />
+              </View>
+              <View style={styles.actionText}>
+                <Text style={[styles.actionLabel, { color: theme.colors.text }]}>Choose Photo from Gallery</Text>
+                <Text style={styles.actionSub}>Pick an existing photo from your device</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Gallery — Videos */}
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => handleGallery('video')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#FFF7ED' }]}>
+                <FileText size={22} color="#EA580C" />
+              </View>
+              <View style={styles.actionText}>
+                <Text style={[styles.actionLabel, { color: theme.colors.text }]}>Choose Video from Gallery</Text>
+                <Text style={styles.actionSub}>Pick an existing video from your device</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setShowMediaSheet(false)}
+            >
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ══════════════════════════════════════
+          DATE PICKER MODAL
+      ══════════════════════════════════════ */}
+      <Modal
+        visible={showDatePicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDatePicker(false)}
+      >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowDatePicker(false)}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
@@ -465,10 +910,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   badge: {
     position: 'absolute',
-    top: 7,
-    right: 8,
-    width: 7,
-    height: 7,
+    top: 7, right: 8,
+    width: 7, height: 7,
     backgroundColor: '#f59e0b',
     borderRadius: 4,
   },
@@ -486,6 +929,15 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
+  labelHint: {
+    fontWeight: '500',
+    textTransform: 'none',
+    fontSize: 11,
+  },
+  required: {
+    color: ERROR_RED,
+    fontWeight: '900',
+  },
 
   /* Description */
   textArea: {
@@ -497,19 +949,50 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.text,
     fontSize: 14,
     minHeight: 90,
-    marginBottom: 16,
+    marginBottom: 4,
+  },
+  inputError: {
+    borderColor: ERROR_RED,
+    backgroundColor: 'rgba(239,68,68,0.04)',
+  },
+  descFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  charCount: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+  },
+  charCountWarn: {
+    color: '#F59E0B',
+    fontWeight: '700',
   },
 
-  /* Media */
-  mediaRow: {
+  /* Error */
+  errorRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  errorText: {
+    fontSize: 12,
+    color: ERROR_RED,
+    fontWeight: '600',
+    flex: 1,
+  },
+
+  /* Media grid */
+  mediaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 4,
-    paddingBottom: 4,
+    marginBottom: 8,
   },
   mediaTileFilled: {
-    width: 82,
-    height: 82,
+    width: 90,
+    height: 90,
     borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',
@@ -518,30 +1001,39 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  videoOverlay: {
+  mediaTypePill: {
     position: 'absolute',
-    inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    bottom: 5,
+    left: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  mediaTypePillText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  videoPlayOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteMediaBtn: {
     position: 'absolute',
-    top: 5,
-    right: 5,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    top: 5, right: 5,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     borderRadius: 10,
-    padding: 4,
+    padding: 5,
   },
-  mediaUploadGroup: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  mediaTileEmpty: {
-    width: 82,
-    height: 82,
+  mediaAddMoreTile: {
+    width: 90,
+    height: 90,
     borderRadius: 14,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: PURPLE,
     backgroundColor: PURPLE_SOFT,
@@ -549,15 +1041,43 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  mediaTileLabel: {
+  mediaAddMoreText: {
     fontSize: 10,
     color: PURPLE,
     fontWeight: '700',
   },
+
+  /* Media empty CTA */
+  mediaEmptyBtn: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: PURPLE,
+    backgroundColor: PURPLE_SOFT,
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  mediaEmptyTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: PURPLE,
+  },
+  mediaEmptyHint: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  mediaFooter: {
+    marginBottom: 4,
+    minHeight: 18,
+  },
   mediaHint: {
     fontSize: 11,
     color: theme.colors.textDim,
-    marginBottom: 4,
   },
 
   /* Address */
@@ -595,7 +1115,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingVertical: 12,
     color: theme.colors.text,
     fontSize: 14,
-    marginBottom: 10,
+    marginBottom: 6,
     minHeight: 48,
   },
   noAddressBanner: {
@@ -606,7 +1126,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderColor: PURPLE,
     borderRadius: 14,
     padding: 14,
-    marginBottom: 10,
+    marginBottom: 6,
+  },
+  noAddressBannerError: {
+    borderColor: ERROR_RED,
+    backgroundColor: 'rgba(239,68,68,0.06)',
   },
   noAddressTitle: {
     fontSize: 14,
@@ -702,6 +1226,24 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
 
   /* Submit */
+  submitErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderWidth: 1.5,
+    borderColor: ERROR_RED,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  submitErrorText: {
+    flex: 1,
+    fontSize: 13,
+    color: ERROR_RED,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
   submitBtn: {
     paddingVertical: 17,
     alignItems: 'center',
@@ -714,12 +1256,88 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  /* Date Picker Modal */
+  /* Action Sheet */
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
   },
+  actionSheet: {
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 36,
+  },
+  actionSheetTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  actionSheetSub: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  actionTipBox: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  actionTipText: {
+    fontSize: 12,
+    color: '#92400E',
+    lineHeight: 18,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  actionIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionText: {
+    flex: 1,
+  },
+  actionLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  actionSub: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  cancelBtn: {
+    marginTop: 14,
+    paddingVertical: 14,
+    backgroundColor: theme.colors.border,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+
+  /* Date Picker Modal */
   modalSheet: {
     backgroundColor: theme.colors.surface,
     borderTopLeftRadius: 28,
@@ -728,8 +1346,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingBottom: 36,
   },
   modalHandle: {
-    width: 40,
-    height: 4,
+    width: 40, height: 4,
     backgroundColor: theme.colors.border,
     borderRadius: 2,
     alignSelf: 'center',
@@ -747,8 +1364,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingVertical: 16,
   },
   dateCard: {
-    width: 64,
-    height: 90,
+    width: 64, height: 90,
     borderRadius: 18,
     borderWidth: 1.5,
     borderColor: theme.colors.border,
