@@ -16,6 +16,7 @@ const SupportChats = () => {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [sending, setSending] = useState(false);
+  const [fullScreenImage, setFullScreenImage] = useState(null);
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -235,7 +236,12 @@ const SupportChats = () => {
                     <div key={msg._id} className={`message-wrapper ${isAdminMsg ? 'sent' : 'received'}`}>
                       <div className="message-bubble">
                         {msg.mediaUrl && (
-                          <img src={getMediaUrl(msg.mediaUrl)} alt="Attachment" className="message-image" />
+                          <img 
+                            src={getMediaUrl(msg.mediaUrl)} 
+                            alt="Attachment" 
+                            className="message-image" 
+                            onClick={() => setFullScreenImage(getMediaUrl(msg.mediaUrl))}
+                          />
                         )}
                         {msg.text && <p className="message-text">{msg.text}</p>}
                         <span className="message-time">{formatTime(msg.createdAt)}</span>
@@ -280,6 +286,13 @@ const SupportChats = () => {
           </div>
         )}
       </div>
+
+      {fullScreenImage && (
+        <div className="fullscreen-image-overlay" onClick={() => setFullScreenImage(null)}>
+          <span className="close-fullscreen" onClick={(e) => { e.stopPropagation(); setFullScreenImage(null); }}>&times;</span>
+          <img src={fullScreenImage} alt="Fullscreen" className="fullscreen-image" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   );
 };

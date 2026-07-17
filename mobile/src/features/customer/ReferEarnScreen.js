@@ -13,26 +13,15 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
 
 const ReferEarnScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
-  const inviteCode = user?.referralCode || (user?.name ? user.name.split(' ')[0].toUpperCase() + '100' : 'KWICKLY100');
+  const messageToShare = `Hey! Check out Kwickly! It's the best app for booking local services. Let's make life easier! 🚀`;
 
-  const messageToShare = `Hey! Join me on Kwickly! Use my invite code ${inviteCode} to get ₹50 off your first service. Let's make life easier! 🚀`;
-
-  const handleCopy = () => {
-    // RNCClipboard requires a native rebuild. Fallback to Share for the code.
-    Share.share({ message: inviteCode }).catch(e => console.log(e));
-  };
-
-  const handleShare = async () => {
+  const handleShareWhatsApp = async () => {
     try {
       const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(messageToShare)}`;
       const canOpen = await Linking.canOpenURL(whatsappUrl);
@@ -46,8 +35,17 @@ const ReferEarnScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.log('Share error', error);
-      // Failsafe fallback
       Share.share({ message: messageToShare }).catch(e => console.log(e));
+    }
+  };
+
+  const handleShareNative = async () => {
+    try {
+      await Share.share({
+        message: messageToShare,
+      });
+    } catch (error) {
+      console.log('Share error', error);
     }
   };
 
@@ -67,50 +65,44 @@ const ReferEarnScreen = ({ navigation }) => {
         <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
 
         <AppBar 
-          title="Refer & Earn"
+          title="Share App"
           showBack={true}
           transparent={true} 
           showLogo={false} 
-          onBackPress={() => navigation.navigate('Profile')}
+          onBackPress={() => navigation.goBack()}
         />
       </LinearGradient>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
         <View style={styles.heroBox}>
-          <Text style={{fontSize: 70, marginBottom: 20}}>🎁</Text>
-          <Text style={styles.heroTitle}>Invite Friends & Earn</Text>
-          <Text style={styles.heroSub}>Get ₹100 in your wallet for every friend who completes their first service.</Text>
+          <Text style={{fontSize: 70, marginBottom: 20}}>📢</Text>
+          <Text style={styles.heroTitle}>Share Kwickly</Text>
+          <Text style={styles.heroSub}>Share the Kwickly app with your friends and family to make booking local services easier than ever.</Text>
         </View>
 
-        <View style={styles.codeContainer}>
-          <Text style={styles.codeLabel}>Your Invite Code</Text>
-          <View style={styles.codeBox}>
-            <Text style={styles.codeText}>{inviteCode}</Text>
-            <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
-              <Text style={styles.copyBtnText}>Copy</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <TouchableOpacity style={[styles.shareBtn, { backgroundColor: '#25D366', borderColor: '#25D366' }]} onPress={handleShare}>
+        <TouchableOpacity style={[styles.shareBtn, { backgroundColor: '#25D366', borderColor: '#25D366', marginBottom: 16 }]} onPress={handleShareWhatsApp}>
           <Text style={[styles.shareBtnText, { color: '#fff' }]}>Share via WhatsApp</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity style={[styles.shareBtn, { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.primary }]} onPress={handleShareNative}>
+          <Text style={[styles.shareBtnText, { color: theme.colors.primary }]}>More Sharing Options</Text>
+        </TouchableOpacity>
+
         <View style={styles.howItWorks}>
-          <Text style={styles.sectionTitle}>How it works</Text>
+          <Text style={styles.sectionTitle}>Why Share Kwickly?</Text>
           
           <View style={styles.stepRow}>
-            <View style={styles.stepNum}><Text style={styles.stepNumText}>1</Text></View>
-            <Text style={styles.stepText}>Share your code with friends</Text>
+            <View style={styles.stepNum}><Text style={styles.stepNumText}>✨</Text></View>
+            <Text style={styles.stepText}>Easy access to local services</Text>
           </View>
           <View style={styles.stepRow}>
-            <View style={styles.stepNum}><Text style={styles.stepNumText}>2</Text></View>
-            <Text style={styles.stepText}>They get ₹50 off their first booking</Text>
+            <View style={styles.stepNum}><Text style={styles.stepNumText}>🛡️</Text></View>
+            <Text style={styles.stepText}>Verified professionals at your doorstep</Text>
           </View>
           <View style={styles.stepRow}>
-            <View style={styles.stepNum}><Text style={styles.stepNumText}>3</Text></View>
-            <Text style={styles.stepText}>You get ₹100 when their booking completes</Text>
+            <View style={styles.stepNum}><Text style={styles.stepNumText}>⚡</Text></View>
+            <Text style={styles.stepText}>Fast and reliable bookings</Text>
           </View>
         </View>
 
@@ -121,31 +113,10 @@ const ReferEarnScreen = ({ navigation }) => {
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  appBar: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14,
-  },
-  backBtn: {
-    width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 18, backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-  },
-  backBtnText: { fontSize: 24, color: theme.colors.text, lineHeight: 28 },
-  appBarTitle: { fontSize: 20, fontWeight: '800', color: theme.colors.text, marginLeft: 12 },
   content: { padding: 20 },
   heroBox: { alignItems: 'center', marginTop: 20, marginBottom: 40 },
   heroTitle: { fontSize: 24, fontWeight: '800', color: theme.colors.text, marginBottom: 10 },
   heroSub: { fontSize: 14, color: theme.colors.textDim, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
-  codeContainer: {
-    backgroundColor: theme.colors.surface, borderRadius: 16, padding: 20, marginBottom: 20,
-    borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center'
-  },
-  codeLabel: { fontSize: 13, color: theme.colors.textDim, marginBottom: 10 },
-  codeBox: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.background,
-    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, borderColor: theme.colors.primary, borderStyle: 'dashed'
-  },
-  codeText: { fontSize: 20, fontWeight: '800', color: theme.colors.text, letterSpacing: 2, marginRight: 20 },
-  copyBtn: { backgroundColor: theme.colors.primary + '26', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  copyBtnText: { color: theme.colors.primary, fontWeight: '700', fontSize: 13 },
   shareBtn: {
     backgroundColor: theme.colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 40
   },

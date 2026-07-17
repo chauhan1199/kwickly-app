@@ -53,6 +53,7 @@ export default function Settings() {
     { key: 'wallet', label: '👛 Wallet & Trials' },
     { key: 'radius', label: '📍 Search Radius' },
     { key: 'branding', label: '🏷️ Branding' },
+    { key: 'legal', label: '📜 Legal & Policies' },
     { key: 'maintenance', label: '🛠 Maintenance' },
   ]
 
@@ -306,6 +307,40 @@ export default function Settings() {
                 )}
                 <div style={{ color: '#9CA3AF', fontSize: 12 }}>Live Preview in Sidebar</div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* LEGAL & POLICIES */}
+        {activeTab === 'legal' && (
+          <div>
+            <div className="settings-section-title">Legal & Policies</div>
+            <div className="alert alert-info" style={{ marginBottom: 16 }}>
+              ℹ️ These documents are shown to users during registration.
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Terms of Service</label>
+              <textarea 
+                className="form-control" 
+                value={settings.termsOfService || ''} 
+                onChange={e => setSettings({...settings, termsOfService: e.target.value})} 
+                onBlur={e => set('termsOfService', e.target.value)}
+                placeholder="Enter Terms of Service here..."
+                rows={10}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginTop: 24 }}>
+              <label className="form-label">Privacy Policy</label>
+              <textarea 
+                className="form-control" 
+                value={settings.privacyPolicy || ''} 
+                onChange={e => setSettings({...settings, privacyPolicy: e.target.value})} 
+                onBlur={e => set('privacyPolicy', e.target.value)}
+                placeholder="Enter Privacy Policy here..."
+                rows={10}
+              />
             </div>
           </div>
         )}

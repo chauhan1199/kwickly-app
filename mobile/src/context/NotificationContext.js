@@ -41,7 +41,7 @@ export const NotificationProvider = ({ children }) => {
     }
   });
 
-  // Poll every 30 seconds when app is active
+  // Poll every 5 minutes when app is active
   useEffect(() => {
     if (!userToken) {
       setUnreadCount(0);
@@ -50,7 +50,7 @@ export const NotificationProvider = ({ children }) => {
 
     refreshUnread(); // immediate fetch
 
-    intervalRef.current = setInterval(refreshUnread, 30000);
+    intervalRef.current = setInterval(refreshUnread, 300000);
 
     const sub = AppState.addEventListener('change', (nextState) => {
       if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {

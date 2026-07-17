@@ -17,7 +17,6 @@ import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import LinearGradient from 'react-native-linear-gradient';
 
-
 const ProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
@@ -40,7 +39,7 @@ const ProfileScreen = ({ navigation }) => {
     { id: 1, title: 'Saved Addresses', sub: `${user?.addresses?.length || 0} saved`, icon: '📍', color: '#ef4444' },
     { id: 2, title: 'Payment Methods', sub: `${pmCount} method${pmCount === 1 ? '' : 's'}`, icon: '💳', color: '#3b82f6' },
     { id: 6, title: 'My Shop Orders', sub: 'View past orders', icon: '📦', color: '#10b981' },
-    { id: 3, title: 'Refer & Earn', sub: '₹100 per friend', icon: '🎁', color: '#f5b300' },
+    { id: 3, title: 'Share App', sub: 'Invite friends & family', icon: '📢', color: '#f5b300' },
     { id: 4, title: 'Help & Support', sub: '24/7 available', icon: '💬', color: '#ec4899' },
     { id: 5, title: 'T&C / Privacy', sub: '', icon: '📄', color: '#f97316' },
   ];
@@ -339,5 +338,3 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
 });
 
 export default ProfileScreen;
-
-

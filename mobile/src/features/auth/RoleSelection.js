@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Modal
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import CustomAlert from '../../components/ui/CustomAlert';
@@ -36,6 +37,40 @@ const RoleSelection = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error' });
+  
+  const [legalModalVisible, setLegalModalVisible] = useState(false);
+  const [legalModalContent, setLegalModalContent] = useState('');
+  const [legalModalTitle, setLegalModalTitle] = useState('');
+  const [hasReadTerms, setHasReadTerms] = useState(false);
+  const [hasReadPrivacy, setHasReadPrivacy] = useState(false);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [termsText, setTermsText] = useState('');
+  const [privacyText, setPrivacyText] = useState('');
+
+  React.useEffect(() => {
+    // Fetch public settings for TOS & Privacy Policy
+    api.get('/settings/public')
+      .then(res => {
+        if (res.data?.status === 'success') {
+          setTermsText(res.data.data.termsOfService || 'Terms of Service will be updated soon.');
+          setPrivacyText(res.data.data.privacyPolicy || 'Privacy Policy will be updated soon.');
+        }
+      })
+      .catch(err => console.log('Error fetching legal text:', err));
+  }, []);
+
+  const openLegalModal = (type) => {
+    if (type === 'terms') {
+      setLegalModalTitle('Terms of Service');
+      setLegalModalContent(termsText);
+      setHasReadTerms(true);
+    } else {
+      setLegalModalTitle('Privacy Policy');
+      setLegalModalContent(privacyText);
+      setHasReadPrivacy(true);
+    }
+    setLegalModalVisible(true);
+  };
 
   const showAlert = (title, message, type = 'error') => {
     setAlertConfig({ visible: true, title, message, type });
@@ -54,6 +89,10 @@ const RoleSelection = ({ navigation }) => {
     }
     if (!validatePhone(phoneNumber)) {
       showAlert('Validation Error', 'Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (!acceptedLegal) {
+      showAlert('Validation Error', 'You must read and accept the Terms of Service and Privacy Policy before continuing.');
       return;
     }
 
@@ -286,11 +325,34 @@ const RoleSelection = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
+              {/* Legal Checkbox */}
+              <View style={styles.legalBox}>
+                <TouchableOpacity
+                  style={[styles.checkbox, acceptedLegal && styles.checkboxActive, (!hasReadTerms || !hasReadPrivacy) && { opacity: 0.5 }]}
+                  onPress={() => {
+                    if (!hasReadTerms || !hasReadPrivacy) {
+                      showAlert('Attention', 'Please open and read both the Terms of Service and Privacy Policy before accepting.');
+                    } else {
+                      setAcceptedLegal(!acceptedLegal);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  {acceptedLegal && <CheckCircle2 size={16} color="#fff" />}
+                </TouchableOpacity>
+                <Text style={styles.legalText}>
+                  I have read and agree to the{' '}
+                  <Text style={styles.legalLink} onPress={() => openLegalModal('terms')}>Terms of Service</Text>
+                  {' '}and{' '}
+                  <Text style={styles.legalLink} onPress={() => openLegalModal('privacy')}>Privacy Policy</Text>.
+                </Text>
+              </View>
+
               <View style={styles.bottomSpacer} />
 
               <TouchableOpacity style={[styles.btnShadow, { marginTop: 10 }]} onPress={handlePhoneSubmit} activeOpacity={0.8} disabled={loading}>
                 <LinearGradient
-                  colors={['#8B5CF6', '#6C47FF']}
+                  colors={(!hasReadTerms || !hasReadPrivacy || !acceptedLegal) ? ['#d1d5db', '#9ca3af'] : ['#8B5CF6', '#6C47FF']}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                   style={styles.btnGradient}
                 >
@@ -310,6 +372,22 @@ const RoleSelection = ({ navigation }) => {
         type={alertConfig.type}
         onConfirm={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
       />
+
+      {/* Legal Modal */}
+      <Modal visible={legalModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setLegalModalVisible(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{legalModalTitle}</Text>
+            <TouchableOpacity onPress={() => setLegalModalVisible(false)} style={styles.modalCloseBtn}>
+              <Text style={styles.modalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 24 }}>
+            <Text style={{ fontSize: 15, color: theme.colors.text, lineHeight: 24 }}>{legalModalContent}</Text>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -634,6 +712,61 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   selectedRoleText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  legalBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: isDarkMode ? '#444' : '#d1d5db',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#1a1a1a' : '#fff',
+  },
+  checkboxActive: {
+    backgroundColor: '#6C47FF',
+    borderColor: '#6C47FF',
+    borderWidth: 0,
+  },
+  legalText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.textDim,
+    lineHeight: 20,
+  },
+  legalLink: {
+    color: '#6C47FF',
+    fontWeight: '700',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? '#333' : '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  modalCloseBtn: {
+    padding: 8,
+  },
+  modalCloseText: {
+    fontSize: 16,
+    color: '#6C47FF',
+    fontWeight: '700',
   }
 });
 

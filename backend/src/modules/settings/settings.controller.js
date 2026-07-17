@@ -28,6 +28,8 @@ const flattenSettings = (s) => ({
     semiPlan: s.subscriptionPlans?.find(p => p.id === 'semi')?.price || 2499,
     annualPlan: s.subscriptionPlans?.find(p => p.id === 'annual')?.price || 4499,
     subscriptionPlans: s.subscriptionPlans || [],
+    termsOfService: s.legal?.termsOfService || '',
+    privacyPolicy: s.legal?.privacyPolicy || '',
     ...s.toObject() // Keep original nested for fallback
 });
 
@@ -49,7 +51,9 @@ const mapFlatToNested = (body) => {
         freeTrialDays: 'subscription.freeTrialDays',
         monthlyPlan: 'subscriptionPlans.0.price',
         semiPlan: 'subscriptionPlans.1.price',
-        annualPlan: 'subscriptionPlans.2.price'
+        annualPlan: 'subscriptionPlans.2.price',
+        termsOfService: 'legal.termsOfService',
+        privacyPolicy: 'legal.privacyPolicy'
     };
 
     const numericFields = [
@@ -111,7 +115,9 @@ exports.getPublicSettings = catchAsync(async (req, res) => {
         appName: settings.branding?.appName || 'Kwickly',
         logoUrl: settings.branding?.logoUrl || '',
         iconUrl: settings.branding?.iconUrl || '',
-        freeTrialDays: settings.subscription?.freeTrialDays || 14
+        freeTrialDays: settings.subscription?.freeTrialDays || 14,
+        termsOfService: settings.legal?.termsOfService || '',
+        privacyPolicy: settings.legal?.privacyPolicy || ''
     };
 
     await setCache('public_settings', publicSettings, 86400);

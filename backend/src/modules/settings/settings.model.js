@@ -40,6 +40,10 @@ const AppSettingsSchema = new mongoose.Schema({
         iconUrl: { type: String, default: '' }
     },
     disputeCategories: { type: [String], default: [] },
+    legal: {
+        termsOfService: { type: String, default: '' },
+        privacyPolicy: { type: String, default: '' }
+    },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' }
 }, { timestamps: true });
 

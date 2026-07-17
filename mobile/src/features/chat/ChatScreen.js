@@ -13,6 +13,8 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -56,6 +58,7 @@ const ChatScreen = ({ route, navigation }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
   const [sending, setSending] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null); // null | 0-100
   const [imageFile, setImageFile] = useState(null);
@@ -223,12 +226,14 @@ const ChatScreen = ({ route, navigation }) => {
       <View style={[styles.msgWrapper, isMine ? styles.wrapMine : styles.wrapOther]}>
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleOther]}>
           {item.mediaUrl ? (
-            <Image
-              source={{ uri: getMediaUrl(item.mediaUrl) }}
-              style={styles.msgImage}
-              resizeMode="cover"
-              onError={(e) => console.log('[Chat] Image Load Error:', e.nativeEvent.error)}
-            />
+            <Pressable onPress={() => setSelectedImage(getMediaUrl(item.mediaUrl))}>
+              <Image
+                source={{ uri: getMediaUrl(item.mediaUrl) }}
+                style={styles.msgImage}
+                resizeMode="cover"
+                onError={(e) => console.log('[Chat] Image Load Error:', e.nativeEvent.error)}
+              />
+            </Pressable>
           ) : null}
           {!!item.text && item.text !== '📸 Image' ? (
             <Text style={[styles.msgText, isMine ? styles.textMine : styles.textOther]}>
@@ -348,6 +353,15 @@ const ChatScreen = ({ route, navigation }) => {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal visible={!!selectedImage} transparent={true} onRequestClose={() => setSelectedImage(null)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setSelectedImage(null)}>
+            <Text style={styles.modalCloseText}>✕</Text>
+          </TouchableOpacity>
+          <Image source={{ uri: selectedImage }} style={styles.modalImage} resizeMode="contain" />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -458,6 +472,28 @@ const createStyles = (theme, isDarkMode) =>
       alignItems: 'center',
     },
     sendBtnDisabled: { opacity: 0.45 },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.9)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalCloseBtn: {
+      position: 'absolute',
+      top: Platform.OS === 'ios' ? 50 : 20,
+      right: 20,
+      zIndex: 10,
+      padding: 10,
+    },
+    modalCloseText: {
+      color: '#fff',
+      fontSize: 28,
+      fontWeight: 'bold',
+    },
+    modalImage: {
+      width: '100%',
+      height: '80%',
+    },
   });
 
 export default ChatScreen;

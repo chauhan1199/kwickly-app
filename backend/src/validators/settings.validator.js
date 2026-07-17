@@ -22,12 +22,15 @@ const updateSettingsSchema = Joi.object({
     iconUrl: Joi.string().uri().allow(''),
     monthlyPlan: Joi.number().min(0),
     semiPlan: Joi.number().min(0),
-    annualPlan: Joi.number().min(0)
+    annualPlan: Joi.number().min(0),
+    termsOfService: Joi.string().allow(''),
+    privacyPolicy: Joi.string().allow('')
 }).min(1);
 
 const validateUpdateSettings = (req, res, next) => {
     const { error } = updateSettingsSchema.validate(req.body);
     if (error) {
+        console.error('Validation Error Details:', error.details);
         return res.status(400).json({
             success: false,
             message: error.details[0].message
