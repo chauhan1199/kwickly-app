@@ -3,13 +3,6 @@ import api from '../../services/api'
 
 const CITIES_LIST = ['Mumbai','Delhi','Bangalore','Ahmedabad','Pune','Chennai','Hyderabad','Kolkata','Jaipur','Surat']
 
-const INITIAL_NOTIFS = [
-  { id:'n1', title:'Summer AC Offer!', body:'Get AC service starting ₹299. Book now and beat the heat!', target:'customers', city:'all', category:'AC Service', sentAt:'Apr 10, 2026 · 10:00 AM', delivered:12400, opened:3800, status:'sent' },
-  { id:'n2', title:'New Jobs Near You', body:'3 new Plumbing jobs available in your area. Open the app now!', target:'workers', city:'Mumbai', category:'Plumbing', sentAt:'Apr 10, 2026 · 2:30 PM', delivered:340, opened:210, status:'sent' },
-  { id:'n3', title:'Complete your KYC', body:'Your KYC is pending. Complete it to start receiving job requests.', target:'workers', city:'all', category:'all', sentAt:'Apr 9, 2026 · 9:00 AM', delivered:47, opened:39, status:'sent' },
-  { id:'n4', title:'Weekend Festive Sale!', body:'Flat 20% off on all services this weekend. Use code WEEKEND20', target:'customers', city:'all', category:'all', sentAt:'Scheduled: Apr 12, 2026 · 9:00 AM', delivered:0, opened:0, status:'scheduled' },
-]
-
 const TEMPLATES = [
   { label:'🎉 Festival/Sale',         title:'Festival Sale is LIVE!',         body:'Big discounts on all services. Use code FESTIVE20 for 20% off. Book now!' },
   { label:'⚡ Summer Service Push',   title:'Beat the Summer Heat!',           body:'AC service starting ₹299. Book today and get same-day appointment.' },
@@ -165,7 +158,7 @@ export default function Notifications() {
         setNotifs(data)
       }
     } catch (e) {
-      console.error('Error fetching notifications:', e)
+      showToast('Failed to load notifications')
     } finally {
       setLoading(false)
     }

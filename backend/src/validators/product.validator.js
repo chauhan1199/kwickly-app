@@ -22,7 +22,10 @@ const createProductSchema = Joi.object({
     }),
     brand: Joi.string().allow('').max(100),
     shopId: Joi.string().optional(),
-    isAvailable: Joi.boolean().default(true)
+    isAvailable: Joi.boolean().default(true),
+    imageUrl: Joi.string().allow('', null).optional(),
+    imageBase64: Joi.string().allow('', null).optional(),
+    attributes: Joi.any().optional()
 });
 
 const updateProductSchema = Joi.object({
@@ -40,7 +43,10 @@ const updateProductSchema = Joi.object({
         'number.min': 'Minimum quantity must be at least 1'
     }),
     brand: Joi.string().allow('').max(100).optional(),
-    isAvailable: Joi.boolean().optional()
+    isAvailable: Joi.boolean().optional(),
+    imageUrl: Joi.string().allow('', null).optional(),
+    imageBase64: Joi.string().allow('', null).optional(),
+    attributes: Joi.any().optional()
 }).min(1);
 
 module.exports = {

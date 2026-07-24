@@ -4,6 +4,7 @@ const { StatusCodes } = require('http-status-codes');
 const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');
 const { AUTH, COMMON } = require('../../constants/messages');
+const { OTP_TTL, OTP_BLOCK_TTL, SESSION_TTL, FREE_TRIAL_DAYS_DEFAULT } = require('../../constants/business');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { setCache, getCache, delCache, getRedis } = require('../../helpers/redis.helper');
 
@@ -19,9 +20,8 @@ const generateToken = (user) => jwt.sign(
 const { emitToAll } = require('../../helpers/socket.helper');
 const smsService = require('../../services/sms.service');
 
-// ─── OTP Rate Limiting ────────────────────────────────────────────────────────
+// â”€â”€â”€ OTP Rate Limiting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const OTP_MAX_ATTEMPTS = (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? 500 : 5;
-const OTP_BLOCK_TTL = 3600; // 1 hour block in seconds
 
 const checkOtpAttempts = async (phone) => {
     const key = `otp_attempts:${phone}`;
@@ -44,7 +44,7 @@ const resetOtpAttempts = async (phone) => {
     await delCache(`otp_attempts:${phone}`);
 };
 
-// ─── Controllers ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Controllers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 exports.checkStatus = catchAsync(async (req, res) => {
     const { phone, role } = req.body;
@@ -73,8 +73,8 @@ exports.sendOTP = catchAsync(async (req, res) => {
 
     const otp = await smsService.sendOTP(phone);
 
-    // Store OTP in Redis for 5 minutes
-    await setCache(`otp:${phone}`, otp, 300);
+    // Store OTP in Redis
+    await setCache(`otp:${phone}`, otp, OTP_TTL);
 
     // Emit for admin monitoring only in non-production
     if (process.env.NODE_ENV !== 'production') {
@@ -93,7 +93,7 @@ exports.verifyOTP = catchAsync(async (req, res) => {
         return errorResponse(res, AUTH.OTP_INVALID, StatusCodes.BAD_REQUEST);
     }
 
-    // OTP is valid — clean up
+    // OTP is valid â€” clean up
     await delCache(`otp:${phone}`);
     await resetOtpAttempts(phone);
 
@@ -126,8 +126,14 @@ exports.verifyOTP = catchAsync(async (req, res) => {
 
     const token = generateToken(user);
 
-    // Cache the user session in Redis to avoid DB lookups on every request
-    await setCache(`session:${user._id}`, JSON.stringify(user.toObject()), 86400); // 24h
+    // Cache the user session in Redis — strip sensitive fields first
+    const safeUser = { ...user.toObject() };
+    delete safeUser.password;
+    if (safeUser.wallet) {
+        delete safeUser.wallet.bankDetails;
+        delete safeUser.wallet.upiId;
+    }
+    await setCache(`session:${user._id}`, JSON.stringify(safeUser), SESSION_TTL);
 
     return successResponse(res, {
         token,
@@ -182,7 +188,7 @@ exports.logout = catchAsync(async (req, res) => {
                 await setCache(`blacklist:${token}`, '1', ttl);
             }
         } catch (e) {
-            // Token may already be invalid — that's fine
+            // Token may already be invalid â€” that's fine
         }
         // Clear user session cache
         if (req.user) {
@@ -246,7 +252,7 @@ exports.resetPassword = catchAsync(async (req, res) => {
     const user = await Customer.findOneAndUpdate(
         { phone, role: role || 'CUSTOMER' },
         { password: hashedPassword },
-        { new: true }
+        { returnDocument: 'after' }
     );
 
     if (!user) {

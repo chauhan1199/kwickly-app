@@ -38,7 +38,16 @@ const PromotionSchema = new mongoose.Schema({
 
 PromotionSchema.index({ isActive: 1, startAt: 1, endAt: 1 });
 
+const UserPromoUsageSchema = new mongoose.Schema({
+    promoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Promotion', required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+    usedAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+
+UserPromoUsageSchema.index({ promoId: 1, userId: 1 });
+
 module.exports = {
     Banner: mongoose.model('Banner', BannerSchema),
-    Promotion: mongoose.model('Promotion', PromotionSchema)
+    Promotion: mongoose.model('Promotion', PromotionSchema),
+    UserPromoUsage: mongoose.model('UserPromoUsage', UserPromoUsageSchema)
 };

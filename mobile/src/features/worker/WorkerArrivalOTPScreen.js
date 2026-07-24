@@ -10,15 +10,11 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 
 const WorkerArrivalOTPScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { signOut } = useAuth();
   
   const [otp, setOtp] = useState(['', '', '', '']);
   const inputs = useRef([]);

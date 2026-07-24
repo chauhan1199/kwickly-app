@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,13 @@ import {
   TouchableOpacity,
   StatusBar,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import { getImageUrl } from '../../utils/helpers';
 import {
   Store,
@@ -41,19 +42,13 @@ const ShopDashboardScreen = ({ navigation }) => {
   const [shopExists, setShopExists] = useState(true);
   const [stats, setStats] = useState({ todayOrders: 0, revenue: 0, productsCount: 0, wallet: 0 });
 
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchDashboardData();
-    }, [])
-  );
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       let myShop;
       let exists = true;
       try {
-        const shopRes = await api.get('/shops/my');
+        const shopRes = await shopService.getMyShop();
         if (shopRes.data?.status === 'success') {
           myShop = shopRes.data.data;
         }
@@ -75,7 +70,7 @@ const ShopDashboardScreen = ({ navigation }) => {
         setStats(prev => ({ ...prev, wallet: myShop.wallet?.balance || 0 }));
       }
 
-      const orderRes = await api.get('/shoporders/shop');
+      const orderRes = await shopService.getShopOrders();
       if (orderRes.data?.status === 'success') {
         const orders = orderRes.data.data.orders || orderRes.data.data;
         const mapped = orders.map(order => ({
@@ -101,17 +96,23 @@ const ShopDashboardScreen = ({ navigation }) => {
       }
 
       try {
-        const prodRes = await api.get('/products/shop');
+        const prodRes = await shopService.getShopProducts();
         if (prodRes.data?.status === 'success') {
           setStats(prev => ({ ...prev, productsCount: prodRes.data.data.length }));
         }
       } catch (e) { /* ignore */ }
     } catch (e) {
-      console.error('Dashboard fetch error:', e);
+      Alert.alert('Error', 'Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
-  };
+  }, [isDarkMode]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchDashboardData();
+    }, [fetchDashboardData])
+  );
 
   const s = createStyles(theme, isDarkMode);
 

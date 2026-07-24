@@ -6,10 +6,23 @@ const { successResponse } = require('../../helpers/response.helper');
 exports.getChatHistory = catchAsync(async (req, res) => {
     const { partnerId, jobId } = req.query;
     const userId = req.user._id;
-    const isAdmin = req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN';
+    const isAdmin = req.user.role === 'ADMIN';
     
     let query = {};
     if (jobId) {
+        // Authorization check: user must be involved in this job's chat
+        const Job = require('../job/job.model');
+        const job = await Job.findById(jobId).select('customerId workerId').lean();
+        if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+        
+        const isJobParticipant = 
+            job.customerId?.toString() === userId.toString() ||
+            job.workerId?.toString() === userId.toString();
+        
+        if (!isAdmin && !isJobParticipant) {
+            return errorResponse(res, 'Not authorized to view this chat', StatusCodes.FORBIDDEN);
+        }
+        
         query.jobId = jobId;
     } else if (partnerId === 'admin') {
         query.$or = [
@@ -47,7 +60,7 @@ exports.sendMessage = catchAsync(async (req, res) => {
     const { receiverId, jobId, text, mediaUrl } = req.body;
     
     // If admin is replying, senderId is null.
-    const isAdmin = req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN';
+    const isAdmin = req.user.role === 'ADMIN';
     const isSendingToSystem = receiverId === 'admin' || receiverId === null;
     
     const message = await Message.create({
@@ -81,7 +94,7 @@ exports.sendMessage = catchAsync(async (req, res) => {
 exports.markAsRead = catchAsync(async (req, res) => {
     const { partnerId } = req.body;
     const userId = req.user._id;
-    const isAdmin = req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN';
+    const isAdmin = req.user.role === 'ADMIN';
     
     let query;
     if (isAdmin && partnerId) {

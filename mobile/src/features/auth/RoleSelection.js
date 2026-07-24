@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
   SafeAreaView,
   StatusBar,
   TextInput,
@@ -25,9 +25,9 @@ import { useAuth } from '../../context/AuthContext';
 const RoleSelection = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { signIn } = useAuth();
-  
+
   // Steps: ROLE -> PHONE -> PASSWORD / OTP
-  const [step, setStep] = useState('ROLE'); 
+  const [step, setStep] = useState('ROLE');
   const [selectedRole, setSelectedRole] = useState('CUSTOMER');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [fullName, setFullName] = useState('');
@@ -37,7 +37,7 @@ const RoleSelection = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error' });
-  
+
   const [legalModalVisible, setLegalModalVisible] = useState(false);
   const [legalModalContent, setLegalModalContent] = useState('');
   const [legalModalTitle, setLegalModalTitle] = useState('');
@@ -56,7 +56,7 @@ const RoleSelection = ({ navigation }) => {
           setPrivacyText(res.data.data.privacyPolicy || 'Privacy Policy will be updated soon.');
         }
       })
-      .catch(err => console.log('Error fetching legal text:', err));
+      .catch(err => { });
   }, []);
 
   const openLegalModal = (type) => {
@@ -100,18 +100,18 @@ const RoleSelection = ({ navigation }) => {
     try {
       const response = await api.post('/auth/check-status', { phone: phoneNumber, role: selectedRole });
       const status = response.data.data;
-      
+
       if (status.hasPassword) {
         // User exists and has a password, route them to Login screen with prefilled phone
         navigation.navigate('Login', { prefillPhone: phoneNumber, role: selectedRole });
       } else {
         // Send OTP via backend
         await api.post('/auth/send-otp', { phone: phoneNumber, role: selectedRole });
-        
+
         // Navigate to OTP screen
-        navigation.navigate('OTPVerify', { 
-          phone: phoneNumber, 
-          role: selectedRole, 
+        navigation.navigate('OTPVerify', {
+          phone: phoneNumber,
+          role: selectedRole,
           otpMethod: otpMethod,
           fullName: fullName
         });
@@ -129,7 +129,7 @@ const RoleSelection = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      
+
       {/* Header matching prototype exactly */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -151,7 +151,7 @@ const RoleSelection = ({ navigation }) => {
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
+
           {step === 'ROLE' && (
             <View style={styles.body}>
               <View style={styles.titleContainer}>
@@ -160,7 +160,7 @@ const RoleSelection = ({ navigation }) => {
               </View>
 
               {/* Role Cards */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.roleCard, selectedRole === 'CUSTOMER' && styles.roleCardActive]}
                 onPress={() => setSelectedRole('CUSTOMER')}
                 activeOpacity={0.7}
@@ -177,7 +177,7 @@ const RoleSelection = ({ navigation }) => {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.roleCard, selectedRole === 'WORKER' && styles.roleCardActive]}
                 onPress={() => setSelectedRole('WORKER')}
                 activeOpacity={0.7}
@@ -194,7 +194,7 @@ const RoleSelection = ({ navigation }) => {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.roleCard, selectedRole === 'SHOP' && styles.roleCardActive]}
                 onPress={() => setSelectedRole('SHOP')}
                 activeOpacity={0.7}
@@ -250,10 +250,10 @@ const RoleSelection = ({ navigation }) => {
                   Signing up as <Text style={{ fontWeight: '800' }}>{selectedRole === 'WORKER' ? 'Worker / Pro' : selectedRole === 'SHOP' ? 'Shop Owner' : 'Customer'}</Text>
                 </Text>
               </View>
-              
+
               {/* Full Name */}
               <Text style={styles.inputLabel}>Full Name</Text>
-              <TextInput 
+              <TextInput
                 style={[styles.nameInput, focusedInput === 'name' && styles.inputFocused]}
                 placeholder="Your full name"
                 placeholderTextColor={isDarkMode ? '#666' : '#999'}
@@ -270,7 +270,7 @@ const RoleSelection = ({ navigation }) => {
                 <View style={styles.countryCodeBox}>
                   <Text style={styles.countryFlag}>🇮🇳 +91</Text>
                 </View>
-                <TextInput 
+                <TextInput
                   style={[styles.phoneInputBox, focusedInput === 'phone' && styles.inputFocused]}
                   placeholder="10-digit mobile number"
                   placeholderTextColor={isDarkMode ? '#666' : '#999'}
@@ -290,7 +290,7 @@ const RoleSelection = ({ navigation }) => {
 
               {/* OTP Method Cards */}
               <View style={styles.otpCardsContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.otpCard, otpMethod === 'SMS' && styles.otpCardActive]}
                   onPress={() => setOtpMethod('SMS')}
                   activeOpacity={0.7}
@@ -307,7 +307,7 @@ const RoleSelection = ({ navigation }) => {
                   </View>
                 </TouchableOpacity>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.otpCard, otpMethod === 'WHATSAPP' && styles.otpCardActive]}
                   onPress={() => setOtpMethod('WHATSAPP')}
                   activeOpacity={0.7}
@@ -364,8 +364,8 @@ const RoleSelection = ({ navigation }) => {
 
         </ScrollView>
       </KeyboardAvoidingView>
-      
-      <CustomAlert 
+
+      <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
         message={alertConfig.message}

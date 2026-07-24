@@ -1,4 +1,4 @@
-const { StatusCodes } = require('http-status-codes');
+﻿const { StatusCodes } = require('http-status-codes');
 const { AdminWallet, AdminWalletTxn } = require('./adminWallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -42,9 +42,11 @@ exports.credit = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid amount', StatusCodes.BAD_REQUEST);
     }
 
-    const wallet = await getOrCreateWallet();
-    wallet.balance += Number(amount);
-    await wallet.save();
+    const wallet = await AdminWallet.findOneAndUpdate(
+        {},
+        { $inc: { balance: Number(amount) } },
+        { returnDocument: 'after', upsert: true }
+    );
 
     const txn = await AdminWalletTxn.create({
         type: 'MANUAL_CREDIT',
@@ -67,13 +69,14 @@ exports.debit = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid amount', StatusCodes.BAD_REQUEST);
     }
 
-    const wallet = await getOrCreateWallet();
-    if (wallet.balance < Number(amount)) {
+    const wallet = await AdminWallet.findOneAndUpdate(
+        { balance: { $gte: Number(amount) } },
+        { $inc: { balance: -Number(amount) } },
+        { returnDocument: 'after' }
+    );
+    if (!wallet) {
         return errorResponse(res, 'Insufficient admin wallet balance', StatusCodes.PAYMENT_REQUIRED);
     }
-
-    wallet.balance -= Number(amount);
-    await wallet.save();
 
     const txn = await AdminWalletTxn.create({
         type: 'MANUAL_DEBIT',
@@ -122,9 +125,11 @@ exports.updateBankDetails = catchAsync(async (req, res) => {
 });
 
 exports.collectCommission = async (amount, description, referenceId, referenceModel, meta = {}) => {
-    const wallet = await getOrCreateWallet();
-    wallet.balance += Number(amount);
-    await wallet.save();
+    const wallet = await AdminWallet.findOneAndUpdate(
+        {},
+        { $inc: { balance: Number(amount) } },
+        { returnDocument: 'after', upsert: true }
+    );
 
     return AdminWalletTxn.create({
         type: 'COMMISSION_COLLECTED',
@@ -138,9 +143,11 @@ exports.collectCommission = async (amount, description, referenceId, referenceMo
 };
 
 exports.collectPlatformFee = async (amount, description, referenceId, referenceModel, meta = {}) => {
-    const wallet = await getOrCreateWallet();
-    wallet.balance += Number(amount);
-    await wallet.save();
+    const wallet = await AdminWallet.findOneAndUpdate(
+        {},
+        { $inc: { balance: Number(amount) } },
+        { returnDocument: 'after', upsert: true }
+    );
 
     return AdminWalletTxn.create({
         type: 'PLATFORM_FEE_COLLECTED',
@@ -154,12 +161,14 @@ exports.collectPlatformFee = async (amount, description, referenceId, referenceM
 };
 
 exports.debitForPayout = async (amount, description, referenceId, referenceModel, meta = {}) => {
-    const wallet = await getOrCreateWallet();
-    if (wallet.balance < Number(amount)) {
+    const wallet = await AdminWallet.findOneAndUpdate(
+        { balance: { $gte: Number(amount) } },
+        { $inc: { balance: -Number(amount) } },
+        { returnDocument: 'after' }
+    );
+    if (!wallet) {
         throw new Error('Insufficient admin wallet balance for payout');
     }
-    wallet.balance -= Number(amount);
-    await wallet.save();
 
     return AdminWalletTxn.create({
         type: 'PAYOUT_DEBIT',
@@ -209,7 +218,7 @@ exports.verifyRazorpayPayment = catchAsync(async (req, res) => {
     try {
         rpPayment = await fetchPayment(razorpayPaymentId);
     } catch (e) {
-        rpPayment = { status: 'captured', method: 'razorpay', amount: 0 };
+        return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.BAD_REQUEST);
     }
 
     if (rpPayment.status !== 'captured') {
@@ -218,9 +227,11 @@ exports.verifyRazorpayPayment = catchAsync(async (req, res) => {
 
     const amount = rpPayment.amount / 100; // convert paise to rupees
 
-    const wallet = await getOrCreateWallet();
-    wallet.balance += amount;
-    await wallet.save();
+    const wallet = await AdminWallet.findOneAndUpdate(
+        {},
+        { $inc: { balance: amount } },
+        { returnDocument: 'after', upsert: true }
+    );
 
     const txn = await AdminWalletTxn.create({
         type: 'TOPUP',

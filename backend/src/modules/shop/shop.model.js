@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../../helpers/logger.helper');
 
 const PayoutMethodSchema = new mongoose.Schema({
     type:      { type: String, enum: ['BANK', 'UPI'], required: true },
@@ -14,11 +15,6 @@ const ShopSchema = new mongoose.Schema({
     category:    { type: String, default: 'General' },
     description: { type: String, default: '' },
     logoUrl:     { type: String },
-
-    subscription: {
-        plan:       { type: String, enum: ['FREE_TRIAL', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY'], default: 'FREE_TRIAL' },
-        validUntil: { type: Date }
-    },
 
     address: { type: String },
     location: {
@@ -55,7 +51,7 @@ const ShopSchema = new mongoose.Schema({
 
     kyc: {
         status:    { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
-        documents: [{ name: String, url: String, docType: { type: String, default: 'OTHER' } }]
+        documents: [{ name: String, url: String, public_id: String, docType: { type: String, default: 'OTHER' } }]
     },
 
     payoutMethods: [PayoutMethodSchema],
@@ -86,7 +82,7 @@ const clearCache = async function (doc, next) {
     try {
         await delCacheByPattern('*shops_list*');
     } catch (e) {
-        console.error('Cache clear error:', e);
+        logger.error('Cache clear error:', e);
     }
     if (typeof next === 'function') next();
 };

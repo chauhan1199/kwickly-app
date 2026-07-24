@@ -26,28 +26,13 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import { getImageUrl } from '../../utils/helpers';
 import {
   Bell, Store, Clock, Truck, ShieldCheck,
   CreditCard, BarChart2, LogOut, ChevronRight,
   Eye, Download, Moon, Sun, Trash2, Menu, Leaf, MapPin, X, MessageCircle
 } from 'lucide-react-native';
-
-const getImageUri = (path) => {
-  if (!path) return null;
-  let cleanPath = path;
-  if (cleanPath.startsWith('http://localhost')) {
-    cleanPath = cleanPath.replace('http://localhost', 'http://10.0.2.2');
-  } else if (cleanPath.startsWith('http://127.0.0.1')) {
-    cleanPath = cleanPath.replace('http://127.0.0.1', 'http://10.0.2.2');
-  }
-  
-  if (cleanPath.startsWith('http')) {
-    return cleanPath;
-  }
-  return 'http://10.0.2.2:5000' + (cleanPath.startsWith('/') ? '' : '/') + cleanPath;
-};
 
 /* ─────────────────────────────────────────────────────────────
    BOTTOM SHEET MODAL COMPONENT
@@ -155,7 +140,7 @@ export default function ShopSettingsScreen({ navigation }) {
      ════════════════════════════ */
   const loadShop = useCallback(async () => {
     try {
-      const res = await api.get('/shops/my');
+      const res = await shopService.getMyShop();
       if (res.data?.status === 'success') {
         const s = res.data.data;
         setShop(s);
@@ -184,7 +169,7 @@ export default function ShopSettingsScreen({ navigation }) {
         }
       }
     } catch (err) {
-      console.warn('loadShop error:', err?.response?.data || err?.message);
+      // silently handle shop load error
     }
   }, []);
 
@@ -196,7 +181,7 @@ export default function ShopSettingsScreen({ navigation }) {
   const loadAnalytics = useCallback(async () => {
     setAnalyticsLoading(true);
     try {
-      const res = await api.get('/shoporders/shop');
+      const res = await shopService.getShopOrders();
       if (res.data?.status === 'success') {
         const list = res.data.data.orders || res.data.data;
         const orders = Array.isArray(list) ? list : [];
@@ -222,20 +207,20 @@ export default function ShopSettingsScreen({ navigation }) {
         setAnalyticsData({ revenue, orders: filtered.length, rating: shop?.rating || 0, categories });
       }
     } catch (err) {
-      console.warn('loadAnalytics error:', err?.response?.data || err?.message);
+      Alert.alert('Error', 'Failed to load analytics');
     } finally {
       setAnalyticsLoading(false);
     }
   }, [analyticsFilter, shop?.rating]);
 
-  useEffect(() => { if (analyticsOpen) loadAnalytics(); }, [analyticsOpen, analyticsFilter]);
+  useEffect(() => { if (analyticsOpen) loadAnalytics(); }, [analyticsOpen, analyticsFilter, loadAnalytics]);
 
   /* ════════════════════════════
      HANDLERS
      ════════════════════════════ */
   const toggleOnline = async (val) => {
     setIsOnline(val);
-    try { await api.patch('/shops/my', { isOnline: val }); }
+    try { await shopService.updateMyShop({ isOnline: val }); }
     catch { setIsOnline(!val); Alert.alert('Error', 'Failed to update visibility'); }
   };
 
@@ -257,10 +242,10 @@ export default function ShopSettingsScreen({ navigation }) {
         fd.append('logo', { uri: editLogo.uri, type: editLogo.type, name: editLogo.fileName || 'logo.jpg' });
       }
       if (editDetails.ownerName) {
-        await api.patch('/shops/my/owner', { name: editDetails.ownerName });
+        await shopService.updateOwnerName(editDetails.ownerName);
       }
       
-      const res = await api.patch('/shops/my', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await shopService.updateMyShop(fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       if (res.data?.status === 'success') { 
         setShop(res.data.data); 
         setDetailsOpen(false); 
@@ -274,7 +259,7 @@ export default function ShopSettingsScreen({ navigation }) {
   const saveHours = async () => {
     try {
       setSaving(true);
-      const res = await api.patch('/shops/my', { businessHours: editHours });
+      const res = await shopService.updateMyShop({ businessHours: editHours });
       if (res.data?.status === 'success') { setShop(res.data.data); setHoursOpen(false); Alert.alert('✓ Saved', 'Business hours updated'); }
     } catch { Alert.alert('Error', 'Failed to save hours'); }
     finally { setSaving(false); }
@@ -295,7 +280,7 @@ export default function ShopSettingsScreen({ navigation }) {
     try {
       setSaving(true);
       
-      const uploadRes = await api.post('/chat/upload-base64', {
+      const uploadRes = await shopService.uploadBase64({
         base64: `data:${newDoc.type};base64,${newDoc.base64}`,
         mimeType: newDoc.type,
         fileName: newDoc.name
@@ -305,14 +290,14 @@ export default function ShopSettingsScreen({ navigation }) {
       if (!remoteUrl) throw new Error('Upload failed');
 
       const docs = [...(shop?.kyc?.documents || []), { name: newDoc.name, type: newDoc.type, url: remoteUrl }];
-      const res = await api.patch('/shops/my', { kyc: { ...shop?.kyc, status: 'PENDING', documents: docs } });
+      const res = await shopService.updateMyShop({ kyc: { ...shop?.kyc, status: 'PENDING', documents: docs } });
       if (res.data?.status === 'success') {
         setShop(res.data.data);
         setNewDoc({ name: '', type: '', uri: '', base64: '' });
         setShowDocForm(false);
         Alert.alert('✓ Submitted', 'Document sent for admin review');
       }
-    } catch (e) { console.log(e); Alert.alert('Error', 'Failed to upload document'); }
+    } catch (e) { Alert.alert('Error', 'Failed to upload document'); }
     finally { setSaving(false); }
   };
 
@@ -322,7 +307,7 @@ export default function ShopSettingsScreen({ navigation }) {
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try {
           const docs = (shop?.kyc?.documents || []).filter((_, i) => i !== index);
-          const res = await api.patch('/shops/my', { kyc: { ...shop?.kyc, documents: docs } });
+          const res = await shopService.updateMyShop({ kyc: { ...shop?.kyc, documents: docs } });
           if (res.data?.status === 'success') setShop(res.data.data);
         } catch { Alert.alert('Error', 'Failed to delete document'); }
       }},
@@ -343,10 +328,10 @@ export default function ShopSettingsScreen({ navigation }) {
     try {
       setSaving(true);
       if (newPayout.id) {
-        const r = await api.post('/shops/my/payout-methods', payload);
-        if (r.data?.status === 'success') await api.delete(`/shops/my/payout-methods/${newPayout.id}`);
+        const r = await shopService.addPayoutMethod(payload);
+        if (r.data?.status === 'success') await shopService.deletePayoutMethod(newPayout.id);
       } else {
-        await api.post('/shops/my/payout-methods', payload);
+        await shopService.addPayoutMethod(payload);
       }
       await loadShop();
       setNewPayout({ id: null, type: 'BANK', name: '', accountNumber: '', ifscCode: '', upiId: '' });
@@ -356,7 +341,7 @@ export default function ShopSettingsScreen({ navigation }) {
   };
 
   const setPrimary = async (id) => {
-    try { await api.patch(`/shops/my/payout-methods/${id}/primary`); await loadShop(); }
+    try { await shopService.setPrimaryPayoutMethod(id); await loadShop(); }
     catch { Alert.alert('Error', 'Failed to set primary'); }
   };
 
@@ -364,7 +349,7 @@ export default function ShopSettingsScreen({ navigation }) {
     Alert.alert('Delete', 'Remove this account?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        try { await api.delete(`/shops/my/payout-methods/${id}`); await loadShop(); }
+        try { await shopService.deletePayoutMethod(id); await loadShop(); }
         catch { Alert.alert('Error', 'Failed to delete'); }
       }},
     ]);
@@ -382,7 +367,7 @@ export default function ShopSettingsScreen({ navigation }) {
           onPress: async () => {
             try {
               setSaving(true);
-              const res = await api.delete('/shops/my');
+              const res = await shopService.deleteMyShop();
               if (res.data?.status === 'success') {
                 Alert.alert('Shop Deleted', 'Your shop has been deleted.');
                 signOut();
@@ -631,7 +616,7 @@ export default function ShopSettingsScreen({ navigation }) {
             </View>
             <TouchableOpacity style={s.docBtn} onPress={() => {
               if (doc.url) {
-                setDocViewerUrl(getImageUri(doc.url));
+                setDocViewerUrl(getImageUrl(doc.url));
                 setDocViewerVisible(true);
               } else {
                 Alert.alert('Error', 'No document URL found');

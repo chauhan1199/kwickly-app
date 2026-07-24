@@ -3,13 +3,25 @@
  * 
  * Before building the final APK/AAB for production:
  * 1. Set IS_PROD = true
- * 2. Update PROD_IP to your AWS EC2 Public IP or Domain (e.g. 'http://54.123.45.67')
+ * 2. Update PROD_URL to your production server URL (must use HTTPS)
  */
 
 export const IS_PROD = false; // Toggle this to true for Production builds
 
-const DEV_IP = 'http://10.0.2.2:5000'; // Android emulator localhost
-const PROD_IP = 'http://YOUR_AWS_PUBLIC_IP'; // Replace with your actual live server IP/Domain
+const DEV_URL = 'http://10.0.2.2:5000'; // Android emulator localhost
+const PROD_URL = 'https://YOUR_PRODUCTION_DOMAIN'; // MUST use HTTPS in production
 
-export const API_BASE_URL = IS_PROD ? `${PROD_IP}/api/v1` : `${DEV_IP}/api/v1`;
-export const SOCKET_URL = IS_PROD ? PROD_IP : DEV_IP;
+// Warn if production URL is not configured
+if (IS_PROD && PROD_URL.includes('YOUR_PRODUCTION')) {
+  console.warn('[ENV] WARNING: PROD_URL is not configured. Set it in your .env file.');
+}
+
+// Enforce HTTPS in production
+const baseUrl = IS_PROD ? PROD_URL : DEV_URL;
+if (IS_PROD && !baseUrl.startsWith('https://')) {
+  console.error('[ENV] ERROR: Production URL must use HTTPS!');
+}
+
+export const API_BASE_URL = `${baseUrl}/api/v1`;
+export const SOCKET_URL = baseUrl;
+export const RAZORPAY_LOGO_URL = 'https://kwickly.in/logo.png';

@@ -1,19 +1,20 @@
-const { StatusCodes } = require('http-status-codes');
+﻿const { StatusCodes } = require('http-status-codes');
 const Product    = require('./product.model');
 const Shop       = require('../shop/shop.model');
-const { uploadImage } = require('../../services/cloudinary.service');
+const { uploadImage, cleanupImage } = require('../../services/cloudinary.service');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
+const { setCache, getCache, delCache, delCacheByPattern } = require('../../helpers/redis.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
 const Notification = require('../notification/notification.model');
+const logger = require('../../helpers/logger.helper');
 
 const PRODUCT_CACHE_PREFIX = 'products_list';
 
 const logProductActivity = async (action, product, shop, adminId) => {
     try {
         const title = action === 'CREATE' ? 'Product Added' : action === 'UPDATE' ? 'Product Updated' : 'Product Deleted';
-        const msg = `"${product.name}" ${action === 'CREATE' ? 'added to' : action === 'UPDATE' ? 'updated in' : 'removed from'} "${shop.name}" (₹${product.price}/${product.unit})`;
+        const msg = `"${product.name}" ${action === 'CREATE' ? 'added to' : action === 'UPDATE' ? 'updated in' : 'removed from'} "${shop.name}" (â‚¹${product.price}/${product.unit})`;
 
         const adminNotification = await Notification.create({
             title,
@@ -43,7 +44,7 @@ const logProductActivity = async (action, product, shop, adminId) => {
         // Use emitToUser if available, else emitToAll
         const { emitToUser } = require('../../helpers/socket.helper');
         try { emitToUser(shop.ownerId.toString(), 'NEW_NOTIFICATION', shopNotification); } catch (_) {}
-    } catch (e) { console.error('[logProductActivity] Failed:', e.message); }
+    } catch (e) { logger.error('[logProductActivity] Failed:', e.message); }
 };
 
 /**
@@ -61,7 +62,10 @@ exports.getProducts = catchAsync(async (req, res) => {
 
     const query = {};
     if (shopId)   query.shopId = shopId;
-    if (search)   query.name   = { $regex: search, $options: 'i' };
+    if (search) {
+        const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        query.name = { $regex: escaped, $options: 'i' };
+    }
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
     const products = await Product.find(query).sort('-createdAt');
@@ -114,7 +118,7 @@ exports.createProduct = catchAsync(async (req, res) => {
             const { url } = await uploadImage(buffer, 'kwickly/products');
             productData.imageUrl = url;
         } catch (e) {
-            console.error('Error saving base64 image:', e);
+            logger.error('Error saving base64 image:', e.message);
         }
     }
     
@@ -123,7 +127,7 @@ exports.createProduct = catchAsync(async (req, res) => {
         try {
             productData.attributes = JSON.parse(productData.attributes);
         } catch (e) {
-            console.log('Error parsing attributes', e);
+            logger.warn('Error parsing attributes:', e.message);
             productData.attributes = [];
         }
     }
@@ -137,12 +141,7 @@ exports.createProduct = catchAsync(async (req, res) => {
     } catch (_) {}
 
     // Invalidate product caches
-    const { getRedis } = require('../../helpers/redis.helper');
-    const redisClient = getRedis();
-    if (redisClient) {
-        const keys = await redisClient.keys(`*${PRODUCT_CACHE_PREFIX}*`);
-        if (keys.length > 0) await redisClient.del(keys);
-    }
+    await delCacheByPattern(`*${PRODUCT_CACHE_PREFIX}*`);
 
     return successResponse(res, product, 'Product created', StatusCodes.CREATED);
 });
@@ -158,18 +157,25 @@ exports.updateProduct = catchAsync(async (req, res) => {
         query.shopId = shop._id;
     }
 
+    const existing = await Product.findOne(query).select('imageUrl');
     const updateData = { ...req.body };
     if (req.file) {
         const { url } = await uploadImage(req.file.buffer, 'kwickly/products');
         updateData.imageUrl = url;
+        if (existing?.imageUrl && existing.imageUrl !== url) {
+            cleanupImage(existing.imageUrl);
+        }
     } else if (req.body.imageBase64) {
         try {
             const base64Data = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, "");
             const buffer = Buffer.from(base64Data, 'base64');
             const { url } = await uploadImage(buffer, 'kwickly/products');
             updateData.imageUrl = url;
+            if (existing?.imageUrl && existing.imageUrl !== url) {
+                cleanupImage(existing.imageUrl);
+            }
         } catch (e) {
-            console.error('Error saving base64 image:', e);
+            logger.error('Error saving base64 image:', e.message);
         }
     }
 
@@ -178,7 +184,7 @@ exports.updateProduct = catchAsync(async (req, res) => {
         try {
             updateData.attributes = JSON.parse(updateData.attributes);
         } catch (e) {
-            console.log('Error parsing attributes', e);
+            logger.warn('Error parsing attributes:', e.message);
             updateData.attributes = [];
         }
     }
@@ -186,7 +192,7 @@ exports.updateProduct = catchAsync(async (req, res) => {
     const product = await Product.findOneAndUpdate(
         query,
         { $set: updateData },
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
     );
     if (!product) return errorResponse(res, 'Product not found or not yours', StatusCodes.NOT_FOUND);
 
@@ -197,12 +203,7 @@ exports.updateProduct = catchAsync(async (req, res) => {
     } catch (_) {}
 
     // Invalidate product caches
-    const { getRedis } = require('../../helpers/redis.helper');
-    const redisClient = getRedis();
-    if (redisClient) {
-        const keys = await redisClient.keys(`*${PRODUCT_CACHE_PREFIX}*`);
-        if (keys.length > 0) await redisClient.del(keys);
-    }
+    await delCacheByPattern(`*${PRODUCT_CACHE_PREFIX}*`);
 
     return successResponse(res, product, 'Product updated');
 });
@@ -221,6 +222,10 @@ exports.deleteProduct = catchAsync(async (req, res) => {
     const product = await Product.findOneAndDelete(query);
     if (!product) return errorResponse(res, 'Product not found', StatusCodes.NOT_FOUND);
 
+    if (product.imageUrl) {
+        cleanupImage(product.imageUrl);
+    }
+
     // Log admin activity notification
     try {
         const shop = await Shop.findById(product.shopId);
@@ -228,12 +233,7 @@ exports.deleteProduct = catchAsync(async (req, res) => {
     } catch (_) {}
 
     // Invalidate product caches
-    const { getRedis } = require('../../helpers/redis.helper');
-    const redisClient = getRedis();
-    if (redisClient) {
-        const keys = await redisClient.keys(`*${PRODUCT_CACHE_PREFIX}*`);
-        if (keys.length > 0) await redisClient.del(keys);
-    }
+    await delCacheByPattern(`*${PRODUCT_CACHE_PREFIX}*`);
 
     return successResponse(res, null, 'Product deleted');
 });

@@ -10,7 +10,7 @@ const createJobSchema = Joi.object({
     location: Joi.object({
         type: Joi.string().valid('Point').default('Point'),
         coordinates: Joi.array().items(Joi.number()).length(2).required() // [longitude, latitude]
-    }).optional(),
+    }).required(),
     addressDetails: Joi.alternatives().try(
         Joi.string().max(500),
         Joi.object({

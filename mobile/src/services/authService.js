@@ -30,3 +30,5 @@ export const authService = {
   resetPassword: (phone, code, newPassword, role) =>
     api.post('/auth/reset-password', { phone, code, newPassword, role }),
 };
+
+export default authService;

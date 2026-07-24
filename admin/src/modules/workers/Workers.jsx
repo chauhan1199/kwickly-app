@@ -51,7 +51,7 @@ export default function Workers() {
     }
     setWalletLoading(true)
     try {
-      const res = await api.post('/wallet/admin/adjust', {
+      const res = await api.post('/wallet/adjust', {
         userId: detail._id,
         userModel: 'Worker',
         action,
@@ -633,7 +633,7 @@ export default function Workers() {
                           </a>
                           <div style={{ padding: '4px 6px', background: 'var(--bg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--mid)' }}>{doc.type || 'DOC'}</span>
-                            <button style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0 }} onClick={() => removeKycDocument(idx)} title="Remove"><X size={12} /></button>
+                            <button style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0 }} onClick={() => setConfirm({ type: 'remove_kyc_doc', docIndex: idx, name: doc.type || 'document' })} title="Remove"><X size={12} /></button>
                           </div>
                         </div>
                       ))}
@@ -810,6 +810,7 @@ export default function Workers() {
 
       {confirm?.type === 'toggle' && <ConfirmModal title={workers.find(w => w._id === confirm.id)?.isVerified ? 'Deactivate Worker' : 'Activate Worker'} message={workers.find(w => w._id === confirm.id)?.isVerified ? `Deactivate ${confirm.name}?` : `Activate ${confirm.name}?`} danger={workers.find(w => w._id === confirm.id)?.isVerified} onConfirm={() => toggleStatus(confirm.id)} onClose={() => setConfirm(null)} />}
       {confirm?.type === 'delete' && <ConfirmModal title="Delete Worker" message={`Permanently delete ${confirm.name}?`} confirmText="Delete" onConfirm={() => deleteWorker(confirm.id)} onClose={() => setConfirm(null)} />}
+      {confirm?.type === 'remove_kyc_doc' && <ConfirmModal title="Remove Document" message={`Remove KYC ${confirm.name}?`} confirmText="Remove" onConfirm={() => removeKycDocument(confirm.docIndex)} onClose={() => setConfirm(null)} />}
     </div>
   )
 }

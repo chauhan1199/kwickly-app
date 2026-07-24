@@ -1,4 +1,4 @@
-const { StatusCodes } = require('http-status-codes');
+﻿const { StatusCodes } = require('http-status-codes');
 const Settlement = require('./settlement.model');
 const Shop = require('../shop/shop.model');
 const WalletTxn = require('../wallet/wallet.model');
@@ -8,6 +8,7 @@ const { collectCommission } = require('../adminWallet/adminWallet.controller');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 const Notification = require('../notification/notification.model');
 const { emitToUser, emitToAll } = require('../../helpers/socket.helper');
+const logger = require('../../helpers/logger.helper');
 
 exports.getSettlements = catchAsync(async (req, res) => {
     const { status, type } = req.query;
@@ -39,12 +40,13 @@ exports.settle = catchAsync(async (req, res) => {
     settlement.note = note;
     await settlement.save();
 
-    // Credit shop wallet with the shop's earning
-    const shop = await Shop.findById(settlement.shopId).select('wallet ownerId');
+    // Credit shop wallet with the shop's earning (atomic)
+    const shop = await Shop.findOneAndUpdate(
+        { _id: settlement.shopId },
+        { $inc: { 'wallet.balance': settlement.shopEarning } },
+        { returnDocument: 'after' }
+    );
     if (shop) {
-        shop.wallet.balance = (shop.wallet.balance || 0) + settlement.shopEarning;
-        await shop.save();
-
         await WalletTxn.create({
             userId: shop.ownerId,
             type: 'ORDER_CREDIT',
@@ -67,13 +69,13 @@ exports.settle = catchAsync(async (req, res) => {
                 { shopId: settlement.shopId, customerId: settlement.customerId }
             );
         } catch (e) {
-            console.error('Failed to credit admin wallet:', e.message);
+            logger.error('Failed to credit admin wallet:', e.message);
         }
     }
 
     logAdminActivity('SETTLE', 'SHOP', settlement.shopId,
         'Settlement Processed',
-        `₹${settlement.shopEarning} settled to shop wallet (commission: ₹${settlement.platformCommission})`,
+        `â‚¹${settlement.shopEarning} settled to shop wallet (commission: â‚¹${settlement.platformCommission})`,
         req.user._id
     );
 
@@ -81,7 +83,7 @@ exports.settle = catchAsync(async (req, res) => {
         const notif = await Notification.create({
             userId: shop.ownerId,
             title: 'Settlement Processed',
-            message: `Your settlement of ₹${settlement.shopEarning} has been credited to your wallet.`,
+            message: `Your settlement of â‚¹${settlement.shopEarning} has been credited to your wallet.`,
             type: 'DIRECT',
             action: 'SETTLE',
             entityType: 'PAYOUT',
@@ -101,12 +103,13 @@ exports.bulkSettle = catchAsync(async (req, res) => {
     for (const id of settlementIds) {
         const settlement = await Settlement.findById(id);
         if (settlement && settlement.status === 'PENDING') {
-            // Credit shop wallet
-            const shop = await Shop.findById(settlement.shopId).select('wallet ownerId');
+            // Credit shop wallet (atomic)
+            const shop = await Shop.findOneAndUpdate(
+                { _id: settlement.shopId },
+                { $inc: { 'wallet.balance': settlement.shopEarning } },
+                { returnDocument: 'after' }
+            );
             if (shop) {
-                shop.wallet.balance = (shop.wallet.balance || 0) + settlement.shopEarning;
-                await shop.save();
-
                 await WalletTxn.create({
                     userId: shop.ownerId,
                     type: 'ORDER_CREDIT',
@@ -134,7 +137,7 @@ exports.bulkSettle = catchAsync(async (req, res) => {
                         { shopId: settlement.shopId, customerId: settlement.customerId }
                     );
                 } catch (e) {
-                    console.error('Failed to credit admin wallet:', e.message);
+                    logger.error('Failed to credit admin wallet:', e.message);
                 }
             }
 
@@ -144,7 +147,7 @@ exports.bulkSettle = catchAsync(async (req, res) => {
                 const notif = await Notification.create({
                     userId: shop.ownerId,
                     title: 'Settlement Processed',
-                    message: `Your settlement of ₹${settlement.shopEarning} has been credited to your wallet.`,
+                    message: `Your settlement of â‚¹${settlement.shopEarning} has been credited to your wallet.`,
                     type: 'DIRECT',
                     action: 'SETTLE',
                     entityType: 'PAYOUT',

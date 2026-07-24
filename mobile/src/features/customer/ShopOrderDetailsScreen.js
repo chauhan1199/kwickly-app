@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -12,10 +12,9 @@ import {
   Linking
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
+import { API_BASE_URL } from '../../config/env';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 
@@ -29,26 +28,26 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
 
   const styles = createStyles(theme, isDarkMode);
 
+  const fetchOrder = useCallback(async (showLoader = true) => {
+    try {
+      if (showLoader) setLoading(true);
+      const res = await shopService.getOrderById(orderId);
+      if (res.data?.status === 'success') {
+        setOrder(res.data.data);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to load order details. Please try again.');
+    } finally {
+      if (showLoader) setLoading(false);
+    }
+  }, [orderId]);
+
   useEffect(() => {
     if (!orderId) return;
     fetchOrder(true);
     const interval = setInterval(() => fetchOrder(false), 10000);
     return () => clearInterval(interval);
-  }, [orderId]);
-
-  const fetchOrder = async (showLoader = true) => {
-    try {
-      if (showLoader) setLoading(true);
-      const res = await api.get(`/shoporders/${orderId}`);
-      if (res.data?.status === 'success') {
-        setOrder(res.data.data);
-      }
-    } catch (e) {
-      console.log('Error fetching order', e);
-    } finally {
-      if (showLoader) setLoading(false);
-    }
-  };
+  }, [orderId, fetchOrder]);
 
   if (loading || !order) {
     return (
@@ -304,9 +303,8 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
         <TouchableOpacity 
           style={styles.secondaryBtn} 
           onPress={() => {
-            const url = `${api.defaults.baseURL}/shoporders/${orderId}/invoice`;
-            Linking.openURL(url).catch(err => {
-              console.error("Couldn't load invoice page", err);
+            const url = `${API_BASE_URL.replace('/api/v1', '')}/api/v1/shoporders/${orderId}/invoice`;
+            Linking.openURL(url).catch(() => {
               Alert.alert('Error', 'Unable to open invoice.');
             });
           }}

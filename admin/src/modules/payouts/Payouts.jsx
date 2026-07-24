@@ -47,7 +47,7 @@ export default function Payouts() {
             setLedger(mapped)
         }
     } catch (e) {
-        console.error(e)
+        // silently ignored
     }
   }
 
@@ -79,7 +79,7 @@ export default function Payouts() {
         setPayouts(data)
       }
     } catch (e) {
-      console.error('Error fetching payouts:', e)
+      // silently ignored
     } finally {
       setLoading(false)
     }
@@ -95,20 +95,21 @@ export default function Payouts() {
       showToast('Payout approved — ready to transfer')
       setConfirmModal(null)
     } catch (e) {
-      alert('Failed to approve payout')
+      showToast('Failed to approve payout')
     }
   }
 
   const transfer = async (id) => {
     try {
       const realId = payouts.find(p => p.id === id)?._id || id
-      const txn = 'TXN-' + Math.floor(Math.random() * 9000 + 1000)
+      // Generate a proper unique transaction ID using timestamp + random
+      const txn = 'TXN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase()
       await api.patch(`/admin/payouts/${realId}/status`, { status: 'TRANSFERRED', txnId: txn })
       fetchPayouts()
       showToast(`Transfer marked · ${txn}`)
       setConfirmModal(null)
     } catch (e) {
-      alert('Failed to mark transferred')
+      showToast('Failed to mark transferred', 'error')
     }
   }
 
@@ -121,7 +122,7 @@ export default function Payouts() {
       setConfirmModal(null)
       setRejectReason('')
     } catch (e) {
-      alert('Failed to reject payout')
+      showToast('Failed to reject payout')
     }
   }
 

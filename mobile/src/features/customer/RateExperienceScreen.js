@@ -10,8 +10,8 @@ import {
   StatusBar
 } from 'react-native';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
+import api from '../../services/api';
 
 const RateExperienceScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -20,6 +20,26 @@ const RateExperienceScreen = ({ route, navigation }) => {
   const w = worker || { name: 'Ramesh Kumar', cat: 'Cleaning · Home Cleaning' };
 
   const [rating, setRating] = useState(5);
+  const [review, setReview] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    const jobId = worker?.jobId || route.params?.jobId;
+    if (!jobId) {
+      // Navigate back if no job ID
+      navigation.navigate('Home');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.post(`/jobs/${jobId}/rate`, { score: rating, review });
+      navigation.navigate('Home');
+    } catch (e) {
+      navigation.navigate('Home');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const styles = createStyles(theme, isDarkMode);
 
@@ -72,9 +92,11 @@ const RateExperienceScreen = ({ route, navigation }) => {
           multiline
           numberOfLines={3}
           textAlignVertical="top"
+          value={review}
+          onChangeText={setReview}
         />
 
-        <Button title="Submit Rating" onPress={() => {}} />
+        <Button title={submitting ? "Submitting..." : "Submit Rating"} onPress={handleSubmit} disabled={submitting} />
 
         <TouchableOpacity 
           style={styles.skipBtn}

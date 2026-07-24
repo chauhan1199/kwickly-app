@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -22,10 +22,10 @@ import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { ChevronLeft, ChevronRight, Clock, IndianRupee } from 'lucide-react-native';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { getImageUrl } from '../../utils/helpers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PURPLE = '#6C47FF';
-const BASE_IMAGE_URL = 'http://10.0.2.2:5000';
 
 // Gradient palettes for hero (cycle by category index / id hash)
 const HERO_GRADIENTS = [
@@ -58,12 +58,12 @@ const SubCategoriesScreen = ({ route, navigation }) => {
   } = route.params || {};
 
   const heroGradient = ['#6C47FF', '#8B6FFF'];
-  const resolvedHeroImage = imageUrl ? (imageUrl.startsWith('http') ? imageUrl : `${BASE_IMAGE_URL}${imageUrl}`) : null;
+  const resolvedHeroImage = getImageUrl(imageUrl);
 
   const [localSubs, setLocalSubs] = useState(subs || []);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadSubs = async () => {
+  const loadSubs = useCallback(async () => {
     try {
       const res = await jobService.getCategories();
       if (res.data?.status === 'success') {
@@ -73,9 +73,8 @@ const SubCategoriesScreen = ({ route, navigation }) => {
         }
       }
     } catch (e) {
-      console.log('Failed to fetch subs', e);
     }
-  };
+  }, [id, name]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -92,7 +91,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
       loadSubs();
     });
     return () => sub.remove();
-  }, [route.params]);
+  }, [route.params, loadSubs]);
 
   const styles = createStyles(theme, isDarkMode);
 
@@ -162,7 +161,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
         {localSubs
           .filter(sub => !searchQuery || sub.name.toLowerCase().includes(searchQuery.toLowerCase()))
           .map((sub, index) => {
-            const resolvedSubImage = sub.imageUrl ? (sub.imageUrl.startsWith('http') ? sub.imageUrl : `${BASE_IMAGE_URL}${sub.imageUrl}`) : null;
+            const resolvedSubImage = getImageUrl(sub.imageUrl);
 
             return (
               <TouchableOpacity

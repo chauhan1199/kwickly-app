@@ -15,7 +15,7 @@ export default function Login({ onLogin }) {
         if (resp.data.status === 'success') {
           setSettings(resp.data.data)
         }
-      } catch (e) { console.error(e) }
+      } catch (e) { /* silently ignored */ }
     }
     fetchSettings()
   }, [])

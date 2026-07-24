@@ -17,7 +17,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Store, MapPin } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 
 export default function CreateShopScreen({ navigation }) {
   const { theme, isDarkMode } = useTheme();
@@ -68,7 +68,7 @@ export default function CreateShopScreen({ navigation }) {
         fd.append('logo', { uri: form.logo.uri, type: form.logo.type, name: form.logo.fileName || 'logo.jpg' });
       }
 
-      const res = await api.post('/shops', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await shopService.createShop(fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       if (res.data?.status === 'success') {
         Alert.alert('Shop Created', 'Your shop has been created successfully!', [
           { text: 'OK', onPress: () => navigation.replace('ShopApp') },

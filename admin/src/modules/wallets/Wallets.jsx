@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Eye, Download } from 'lucide-react'
-import Badge from '../../components/Badge'
+import Badge from '../../components/common/Badge'
 import api from '../../services/api'
+import ConfirmModal from '../../components/ConfirmModal'
 
 const ROLE_COLORS = { CUSTOMER: '#00B4D8', WORKER: '#8B5CF6', SHOP: '#10B981' }
 
@@ -32,6 +33,7 @@ export default function Wallets() {
   const [desc, setDesc] = useState('')
   const [adjusting, setAdjusting] = useState(false)
   const [toast, setToast] = useState(null)
+  const [confirmWallet, setConfirmWallet] = useState(null)
 
   // All transactions state
   const [allTxns, setAllTxns] = useState([])
@@ -65,7 +67,6 @@ export default function Wallets() {
       })) : []
       setUsers([...customers, ...workers, ...shops])
     } catch (e) {
-      console.error('Failed to fetch wallets:', e)
       showToast('Failed to load wallet data', 'error')
     } finally { setLoading(false) }
   }
@@ -81,7 +82,6 @@ export default function Wallets() {
         setAllTxns(Array.isArray(raw) ? raw : raw.transactions || raw.txns || raw.data || [])
       }
     } catch (e) {
-      console.error('Failed to fetch transactions:', e)
       showToast('Failed to load transactions', 'error')
     } finally { setAllTxnsLoading(false) }
   }
@@ -128,7 +128,7 @@ export default function Wallets() {
     if (!amount || Number(amount) <= 0) return
     setAdjusting(true)
     try {
-      await api.post('/admin/wallet/adjust', {
+      await api.post('/wallet/adjust', {
         userId: selected._walletUserId, amount: Number(amount), type: 'ADJUSTMENT',
         debit, description: desc || `Admin ${debit ? 'debit' : 'credit'}`
       })
@@ -418,10 +418,10 @@ export default function Wallets() {
                   <input className="form-control" placeholder="Description (optional)" value={desc} onChange={e => setDesc(e.target.value)} style={{ fontSize: 13 }} />
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-success" style={{ flex: 1 }} disabled={adjusting || !amount || Number(amount) <= 0} onClick={() => adjustWallet(false)}>
+                  <button className="btn btn-success" style={{ flex: 1 }} disabled={adjusting || !amount || Number(amount) <= 0} onClick={() => setConfirmWallet({ debit: false })}>
                     {adjusting ? '...' : <><ArrowDownCircle size={14} /> Credit ₹</>}
                   </button>
-                  <button className="btn btn-danger" style={{ flex: 1 }} disabled={adjusting || !amount || Number(amount) <= 0} onClick={() => adjustWallet(true)}>
+                  <button className="btn btn-danger" style={{ flex: 1 }} disabled={adjusting || !amount || Number(amount) <= 0} onClick={() => setConfirmWallet({ debit: true })}>
                     {adjusting ? '...' : <><ArrowUpCircle size={14} /> Debit ₹</>}
                   </button>
                 </div>
@@ -461,6 +461,16 @@ export default function Wallets() {
             </div>
           </div>
         </>
+      )}
+      {confirmWallet && (
+        <ConfirmModal
+          title={confirmWallet.debit ? 'Debit Wallet' : 'Credit Wallet'}
+          message={`${confirmWallet.debit ? 'Debit' : 'Credit'} ₹${Number(amount || 0).toLocaleString('en-IN')} ${confirmWallet.debit ? 'from' : 'to'} ${selected._role?.toLowerCase()} wallet for ${selected._role === 'SHOP' ? selected._displayName || selected.name : selected.name}?`}
+          danger={confirmWallet.debit}
+          confirmText={confirmWallet.debit ? 'Debit ₹' + Number(amount || 0).toLocaleString('en-IN') : 'Credit ₹' + Number(amount || 0).toLocaleString('en-IN')}
+          onConfirm={() => { adjustWallet(confirmWallet.debit); setConfirmWallet(null); }}
+          onClose={() => setConfirmWallet(null)}
+        />
       )}
     </div>
   )

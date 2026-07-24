@@ -90,7 +90,7 @@ const NotificationsScreen = ({ navigation }) => {
         refreshUnread();
       }
     } catch (e) {
-      console.log('Failed to fetch notifications', e);
+      // Non-critical, notifications will show as empty
     } finally {
       setLoading(false);
       setRefreshing(false);

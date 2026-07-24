@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { ShoppingCart, Plus, Minus, ArrowLeft, Camera, Search, Zap, Star, X } from 'lucide-react-native';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import { SearchBar } from '../../components/ui/SearchBar';
@@ -42,20 +42,12 @@ const ShopDetailScreen = ({ route, navigation }) => {
   const [qtyModalVisible, setQtyModalVisible] = useState(false);
   const [selectedProductForQty, setSelectedProductForQty] = useState(null);
 
-  useEffect(() => {
-    fetchShopAndProducts();
-  }, [shopId]);
-
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
-  const fetchShopAndProducts = async () => {
+  const fetchShopAndProducts = useCallback(async () => {
     try {
       setLoading(true);
       const [shopRes, productsRes] = await Promise.all([
-        api.get(`/shops/${shopId}`),
-        api.get(`/products?shopId=${shopId}`)
+        shopService.getShopById(shopId),
+        shopService.getProducts(shopId)
       ]);
       if (shopRes.data?.status === 'success') {
         setShop(shopRes.data.data);
@@ -64,10 +56,18 @@ const ShopDetailScreen = ({ route, navigation }) => {
         setProducts(productsRes.data.data);
       }
     } catch (e) {
-      console.log('Error fetching shop/products', e);
+      Alert.alert('Error', 'Failed to load shop details. Please try again.');
     } finally {
       setLoading(false);
     }
+  }, [shopId]);
+
+  useEffect(() => {
+    fetchShopAndProducts();
+  }, [shopId, fetchShopAndProducts]);
+
+  const handleBack = () => {
+    navigation.goBack();
   };
 
   const openQuantityModal = (product) => {
@@ -130,7 +130,6 @@ const ShopDetailScreen = ({ route, navigation }) => {
   const renderProduct = ({ item }) => {
     const cartItem = getProductCartInfo(item._id);
     const qty = cartItem ? cartItem.qty : 0;
-    const mrp = Math.round(item.price * 1.15); // Dummy 15% markup for UI
 
     return (
       <View style={styles.productCard}>
@@ -161,7 +160,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
 
             <View style={styles.priceRow}>
               <View>
-                <Text style={styles.mrpText}>MRP ₹{mrp}</Text>
+                <Text style={styles.mrpText}>MRP ₹{item.mrp || item.price}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.priceText}>₹{item.price}</Text>
                   <Text style={styles.discountText}>15% OFF</Text>

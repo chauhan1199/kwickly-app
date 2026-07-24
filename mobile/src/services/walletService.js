@@ -13,11 +13,11 @@ export const walletService = {
   topupWallet: (amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature) =>
     api.post('/wallet/topup', { amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature }),
 
-  /** Admin: get all platform transactions */
-  getAllTransactions: (params) =>
-    api.get('/wallet/transactions', { params }),
+  /** Create a Razorpay payment order */
+  createPaymentOrder: (data) =>
+    api.post('/payments/create-order', data),
 
-  /** Admin: manual credit/debit adjustment */
-  adminAdjust: (userId, amount, description, debit = false) =>
-    api.post('/wallet/adjust', { userId, amount, description, debit }),
+  /** Verify a Razorpay payment */
+  verifyPayment: (data) =>
+    api.post('/payments/verify', data),
 };

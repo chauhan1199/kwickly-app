@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
+import Toast from '../../components/Toast'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import './Reports.css'
 
@@ -8,6 +9,9 @@ export default function Reports() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('revenue') // revenue, performance, retention, demand
   const [dateRange, setDateRange] = useState('month')
+  const [toast, setToast] = useState(null)
+
+  const showToast = (msg, type = 'success') => setToast({ msg, type })
 
   useEffect(() => {
     fetchReportData()
@@ -23,19 +27,60 @@ export default function Reports() {
       setLoading(false)
 
     } catch (e) {
-      console.error('Failed to fetch reports:', e)
       setLoading(false)
     }
   }
 
   const handleExport = () => {
-    alert(`Exporting ${activeTab} report to CSV...`)
+    if (!reportData) return;
+    const headers = [];
+    const rows = [];
+    
+    if (activeTab === 'revenue') {
+      headers.push('Metric', 'Value');
+      rows.push(['Total Revenue', `₹${reportData.total || 0}`]);
+      rows.push(['Platform Commission', `₹${reportData.commission || 0}`]);
+      rows.push(['Worker Payouts', `₹${reportData.payouts || 0}`]);
+    } else if (activeTab === 'performance') {
+      headers.push('Metric', 'Value');
+      rows.push(['Active Workers', reportData.activeWorkers || 0]);
+      rows.push(['Average Rating', reportData.avgRating || 'N/A']);
+      rows.push(['Completion Rate', reportData.completionRate || 'N/A']);
+    } else if (activeTab === 'retention') {
+      headers.push('Metric', 'Value');
+      rows.push(['New Customers', reportData.newCustomers || 0]);
+      rows.push(['Returning Customers', reportData.returningCustomers || 0]);
+      rows.push(['Churn Rate', reportData.churnRate || 'N/A']);
+    } else if (activeTab === 'demand') {
+      headers.push('Metric', 'Value');
+      rows.push(['Total Jobs Completed', reportData.totalJobs || 0]);
+      rows.push(['Top Category', reportData.topCategory || 'N/A']);
+    }
+    
+    if (chartData.length > 0) {
+      headers.push('');
+      rows.push([]);
+      headers.push(...chartData.map(d => d.name || d.day || ''));
+      const dataRow = chartData.map(d => activeTab === 'revenue' ? `₹${d.revenue || 0}` : d.jobs || d.completionRate || 0);
+      rows.push(dataRow);
+    }
+    
+    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${activeTab}-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('CSV exported successfully', 'success');
   }
 
   const chartData = reportData?.chartData || []
 
   return (
     <div className="page-container">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <div className="page-header">
         <h1 className="page-title">Reports & Analytics</h1>
         <div className="header-actions">

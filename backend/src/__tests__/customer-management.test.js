@@ -10,10 +10,11 @@ describe('Customer Management End-to-End', () => {
     let adminToken, customerToken;
 
     beforeEach(async () => {
-        const admin = await createTestUser({ role: 'ADMIN', email: 'admin@e2e.com', phone: '9000000001' });
+        const uid = Date.now().toString(36).slice(-6);
+        const admin = await createTestUser({ role: 'ADMIN', email: `admin-${uid}@e2e.com`, phone: `9100${uid}` });
         adminToken = generateToken(admin);
 
-        const customer = await createTestUser({ role: 'CUSTOMER', email: 'customer@e2e.com', phone: '9000000002', name: 'Test Customer' });
+        const customer = await createTestUser({ role: 'CUSTOMER', email: `cust-${uid}@e2e.com`, phone: `9101${uid}`, name: 'Test Customer' });
         customerToken = generateToken(customer);
     });
 
@@ -233,11 +234,12 @@ describe('Customer Management End-to-End', () => {
 
             expect(res.status).toBe(200);
 
-            // Verify deleted
+            // Verify soft-deleted
             const check = await request(app)
                 .get(`/api/v1/admin/customers/${customer._id}`)
                 .set('Authorization', `Bearer ${adminToken}`);
-            expect(check.status).not.toBe(200);
+            expect(check.status).toBe(200);
+            expect(check.body.data.user.isDeleted).toBe(true);
         });
 
         it('should reject delete for non-existent user', async () => {
@@ -570,12 +572,13 @@ describe('Customer Management End-to-End', () => {
 
             expect(deleteRes.status).toBe(200);
 
-            // VERIFY DELETED
+            // VERIFY DELETED (soft-delete: record still exists with isDeleted: true)
             const verifyRes = await request(app)
                 .get(`/api/v1/admin/customers/${userId}`)
                 .set('Authorization', `Bearer ${adminToken}`);
 
-            expect(verifyRes.status).not.toBe(200);
+            expect(verifyRes.status).toBe(200);
+            expect(verifyRes.body.data.user.isDeleted).toBe(true);
         });
     });
 

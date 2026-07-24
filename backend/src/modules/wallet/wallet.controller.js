@@ -1,5 +1,4 @@
 const { StatusCodes } = require('http-status-codes');
-const logger = require('../../helpers/logger.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const WalletTxn  = require('./wallet.model');
 const Customer   = require('../customer/customer.model');
@@ -14,6 +13,7 @@ const { emitToAll } = require('../../helpers/socket.helper');
 const { getCache, delCache, setCache } = require('../../helpers/redis.helper');
 const mongoose = require('mongoose');
 const { verifyPaymentSignature, fetchPayment } = require('../../helpers/razorpay.helper');
+const { supportsTransactions } = require('../../helpers/transaction.helper');
 
 /**
  * Helper: atomically deduct amount from user/shop wallet.
@@ -29,7 +29,7 @@ const atomicDeduct = async (userId, role, amount, session) => {
         const shop = await Shop.findOneAndUpdate(
             { ownerId: userId, 'wallet.balance': { $gte: requiredTotal } },
             { $inc: { 'wallet.balance': -amount } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
         if (!shop) return null;
         return { newBalance: shop.wallet.balance, entityId: shop._id };
@@ -37,7 +37,7 @@ const atomicDeduct = async (userId, role, amount, session) => {
         const user = await Customer.findOneAndUpdate(
             { _id: userId, 'wallet.balance': { $gte: requiredTotal } },
             { $inc: { 'wallet.balance': -amount } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
         if (!user) return null;
         return { newBalance: user.wallet.balance, entityId: user._id };
@@ -52,7 +52,7 @@ const atomicCredit = async (userId, role, amount, session) => {
         const shop = await Shop.findOneAndUpdate(
             { ownerId: userId },
             { $inc: { 'wallet.balance': amount } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
         if (!shop) return null;
         return { newBalance: shop.wallet.balance };
@@ -60,14 +60,14 @@ const atomicCredit = async (userId, role, amount, session) => {
         const user = await Customer.findOneAndUpdate(
             { _id: userId },
             { $inc: { 'wallet.balance': amount } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
         if (!user) return null;
         return { newBalance: user.wallet.balance };
     }
 };
 
-// ─── GET /api/v1/wallet/balance ───────────────────────────────────────────────
+// â”€â”€â”€ GET /api/v1/wallet/balance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getWallet = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, type } = req.query;
     const user = await Customer.findById(req.user._id).select('wallet name role');
@@ -98,7 +98,7 @@ exports.getWallet = catchAsync(async (req, res) => {
     }, 'Wallet fetched');
 });
 
-// ─── POST /api/v1/wallet/topup ────────────────────────────────────────────────
+// â”€â”€â”€ POST /api/v1/wallet/topup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.topupWallet = catchAsync(async (req, res) => {
     let { amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
     if (!amount || amount <= 0) {
@@ -124,9 +124,13 @@ exports.topupWallet = catchAsync(async (req, res) => {
     const user = await Customer.findById(req.user._id);
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
-    // Handle subscription plan extension
+    // Handle subscription plan extension â€” requires payment verification first
     let subscriptionUpdate = {};
     if (planId && user.role === 'WORKER') {
+        // Must have verified Razorpay payment to get subscription benefits
+        if (!razorpayOrderId || !razorpayPaymentId) {
+            return errorResponse(res, 'Subscription plan requires verified Razorpay payment', StatusCodes.BAD_REQUEST);
+        }
         const planDays = { monthly: 30, quarterly: 90, half: 180, yearly: 365 };
         const days = planDays[planId] || 0;
         if (days > 0) {
@@ -161,10 +165,11 @@ exports.topupWallet = catchAsync(async (req, res) => {
         description: planId ? `Plan Top-up: ${planId}` : `Wallet Top-up via ${paymentDetails?.method || 'Online'}`
     });
 
-    let adminWallet = await AdminWallet.findOne();
-    if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
-    adminWallet.balance += amount;
-    await adminWallet.save();
+    const adminWallet = await AdminWallet.findOneAndUpdate(
+        {},
+        { $inc: { balance: amount } },
+        { returnDocument: 'after', upsert: true }
+    );
 
     await AdminWalletTxn.create({
         type: 'TOPUP',
@@ -185,7 +190,7 @@ exports.topupWallet = catchAsync(async (req, res) => {
     notifyUser({
         userId: req.user._id,
         title: 'Wallet Top-up Successful',
-        message: `Successfully added ₹${amount} to your wallet.`,
+        message: `Successfully added â‚¹${amount} to your wallet.`,
         action: 'TOPUP',
         entityType: 'WALLET',
         entityId: txn._id,
@@ -195,7 +200,7 @@ exports.topupWallet = catchAsync(async (req, res) => {
     return successResponse(res, { txn, newBalance: result.newBalance }, 'Wallet top-up successful');
 });
 
-// ─── POST /api/v1/wallet/withdraw ─────────────────────────────────────────────
+// â”€â”€â”€ POST /api/v1/wallet/withdraw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.requestWithdrawal = catchAsync(async (req, res) => {
     const { amount, payoutMethod } = req.body;
 
@@ -209,19 +214,29 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
     const user = await Customer.findById(req.user._id).select('role');
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
-    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-    const session = isSingle ? null : await mongoose.startSession();
-    if (session) session.startTransaction();
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
 
     try {
         // P0 FIX: Atomic check-and-deduct in a single query (prevents race condition)
-        const result = await atomicDeduct(req.user._id, user.role, amount, session);
+        const result = await atomicDeduct(req.user._id, user.role, amount, useTransaction ? session : null);
         if (!result) {
-            if (session) await session.abortTransaction();
+            if (useTransaction && session) await session.abortTransaction();
             if (session) session.endSession();
             return errorResponse(res, 'Insufficient withdrawable balance. A minimum safety balance must be maintained in your wallet.', StatusCodes.PAYMENT_REQUIRED);
         }
 
+        const createOpts = useTransaction ? { session } : {};
         const txn = await WalletTxn.create([{
             userId:      req.user._id,
             type:        'WITHDRAWAL',
@@ -229,7 +244,7 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
             balance:     result.newBalance,
             status:      'PENDING',
             description: `Withdrawal to ${payoutMethod}`
-        }], { session });
+        }], createOpts);
 
         const paymentMethodType = payoutMethod.toLowerCase().includes('upi') ? 'UPI' : 'BANK';
         const payout = await Payout.create([{
@@ -239,10 +254,12 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
             paymentMethod: paymentMethodType,
             paymentDetails: payoutMethod,
             walletTxnId: txn[0]._id
-        }], { session });
+        }], createOpts);
 
-        await session.commitTransaction();
-        session.endSession();
+        if (useTransaction) {
+            await session.commitTransaction();
+            session.endSession();
+        }
 
         // Invalidate cache
         await delCache(`session:${req.user._id}`);
@@ -251,7 +268,7 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
         notifyUser({
             userId: req.user._id,
             title: 'Withdrawal Requested',
-            message: `Your withdrawal request for ₹${amount} has been initiated and is pending approval.`,
+            message: `Your withdrawal request for â‚¹${amount} has been initiated and is pending approval.`,
             action: 'WITHDRAWAL',
             entityType: 'WALLET',
             entityId: txn[0]._id,
@@ -260,13 +277,13 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
 
         return successResponse(res, { txn: txn[0], newBalance: result.newBalance }, 'Withdrawal request submitted successfully', StatusCodes.CREATED);
     } catch (error) {
-        if (session) await session.abortTransaction();
+        if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
         throw error;
     }
 });
 
-// ─── GET /api/v1/wallet/transactions (Admin) ──────────────────────────────────
+// â”€â”€â”€ GET /api/v1/wallet/transactions (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getAllTransactions = catchAsync(async (req, res) => {
     const { type, userId, page = 1, limit = 50 } = req.query;
     const query = {};
@@ -284,52 +301,55 @@ exports.getAllTransactions = catchAsync(async (req, res) => {
     return successResponse(res, { txns, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Transactions fetched');
 });
 
-// ─── POST /api/v1/wallet/credit (Admin adjustment) ────────────────────────────
+// â”€â”€â”€ POST /api/v1/wallet/credit (Admin adjustment) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.adminAdjust = catchAsync(async (req, res) => {
     const { userId, amount, type, description, debit } = req.body;
 
     const user = await Customer.findById(userId).select('role wallet');
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
-    let adminWallet = await AdminWallet.findOne();
-    if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
-
+    let adminWallet;
     let newBalance;
     if (debit) {
-        // Admin debits from user wallet → money goes TO admin wallet
+        // Admin debits from user wallet â†’ money goes TO admin wallet
         const result = await atomicDeduct(userId, user.role, Math.abs(amount), null);
         if (!result) return errorResponse(res, 'Insufficient balance for debit', StatusCodes.PAYMENT_REQUIRED);
         newBalance = result.newBalance;
 
-        adminWallet.balance += Math.abs(amount);
-        await adminWallet.save();
+        adminWallet = await AdminWallet.findOneAndUpdate(
+            {},
+            { $inc: { balance: Math.abs(amount) } },
+            { returnDocument: 'after', upsert: true }
+        );
 
         await AdminWalletTxn.create({
             type: 'COMMISSION_COLLECTED',
             amount: Math.abs(amount),
             balanceAfter: adminWallet.balance,
-            description: `₹${Math.abs(amount)} debited from ${user.role?.toLowerCase() || 'user'} "${user.name || user._id}" wallet`,
+            description: `â‚¹${Math.abs(amount)} debited from ${user.role?.toLowerCase() || 'user'} "${user.name || user._id}" wallet`,
             referenceId: userId,
             referenceModel: 'Customer',
             meta: { performedBy: req.user?._id }
         });
     } else {
-        // Admin credits to user wallet → money comes FROM admin wallet
-        if (adminWallet.balance < Math.abs(amount)) {
-            return errorResponse(res, `Insufficient admin wallet balance. Available: ₹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
+        // Admin credits to user wallet â†’ money comes FROM admin wallet (atomic balance check)
+        adminWallet = await AdminWallet.findOneAndUpdate(
+            { balance: { $gte: Math.abs(amount) } },
+            { $inc: { balance: -Math.abs(amount) } },
+            { returnDocument: 'after' }
+        );
+        if (!adminWallet) {
+            return errorResponse(res, 'Insufficient admin wallet balance', StatusCodes.BAD_REQUEST);
         }
 
         const result = await atomicCredit(userId, user.role, Math.abs(amount), null);
         newBalance = result.newBalance;
 
-        adminWallet.balance -= Math.abs(amount);
-        await adminWallet.save();
-
         await AdminWalletTxn.create({
             type: 'SHOP_PAYOUT',
             amount: Math.abs(amount),
             balanceAfter: adminWallet.balance,
-            description: `₹${Math.abs(amount)} credited to ${user.role?.toLowerCase() || 'user'} "${user.name || user._id}" wallet`,
+            description: `â‚¹${Math.abs(amount)} credited to ${user.role?.toLowerCase() || 'user'} "${user.name || user._id}" wallet`,
             referenceId: userId,
             referenceModel: 'Customer',
             meta: { performedBy: req.user?._id }
@@ -353,14 +373,14 @@ exports.adminAdjust = catchAsync(async (req, res) => {
     const entityType = user.role === 'WORKER' ? 'WORKER' : 'CUSTOMER';
     logAdminActivity(debit ? 'WALLET_DEBIT' : 'WALLET_CREDIT', entityType, userId,
         `${entityType} Wallet ${debit ? 'Debited' : 'Credited'}`,
-        `₹${Math.abs(amount)} ${actionLabel} ${user.name || 'user'} wallet${description ? ' — ' + description : ''}`,
+        `â‚¹${Math.abs(amount)} ${actionLabel} ${user.name || 'user'} wallet${description ? ' â€” ' + description : ''}`,
         req.user?._id
     );
 
     try {
         const notif = await Notification.create({
             title: `Wallet ${debit ? 'Debited' : 'Credited'}`,
-            message: `₹${Math.abs(amount)} ${actionLabel} your wallet${description ? ' — ' + description : ''}`,
+            message: `â‚¹${Math.abs(amount)} ${actionLabel} your wallet${description ? ' â€” ' + description : ''}`,
             type: 'DIRECT',
             action: 'UPDATE',
             entityType: 'WALLET',

@@ -76,13 +76,30 @@ exports.getMyNotifications = catchAsync(async (req, res) => {
 
 // ─── User: mark one as read ───────────────────────────────────────────────────
 exports.markAsRead = catchAsync(async (req, res) => {
-    const notification = await Notification.findByIdAndUpdate(
-        req.params.id,
-        { $addToSet: { readBy: req.user._id } },
-        { new: true }
-    );
+    const notification = await Notification.findById(req.params.id);
     if (!notification) return errorResponse(res, 'Notification not found', StatusCodes.NOT_FOUND);
-    return successResponse(res, notification, 'Marked as read');
+
+    // Ownership check — only mark if notification belongs to user or is broadcast for their role
+    const userId = req.user._id;
+    const role = req.user.role;
+    const isOwner = notification.userId?.toString() === userId.toString();
+    const isBroadcast = notification.type === 'BROADCAST' && ['ALL', role].includes(notification.targetRole);
+    if (!isOwner && !isBroadcast && req.user.role !== 'ADMIN') {
+        return errorResponse(res, 'Not authorized to modify this notification', StatusCodes.FORBIDDEN);
+    }
+
+    await Notification.findByIdAndUpdate(req.params.id, { $addToSet: { readBy: userId } });
+
+    // Trim arrays to prevent unbounded growth on broadcast notifications
+    const updated = await Notification.findById(req.params.id);
+    if (updated) {
+        if (updated.readBy.length > 10000) {
+            updated.readBy = updated.readBy.slice(-10000);
+            await updated.save();
+        }
+    }
+
+    return successResponse(res, null, 'Marked as read');
 });
 
 // ─── User: mark all as read ───────────────────────────────────────────────────
@@ -106,17 +123,34 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
     }
 
     await Notification.updateMany(query, { $addToSet: { readBy: userId } });
+
     return successResponse(res, null, 'All marked as read');
 });
 
 // ─── User: soft-delete a notification ────────────────────────────────────────
 exports.deleteNotification = catchAsync(async (req, res) => {
-    const notification = await Notification.findByIdAndUpdate(
-        req.params.id,
-        { $addToSet: { deletedBy: req.user._id } },
-        { new: true }
-    );
+    const notification = await Notification.findById(req.params.id);
     if (!notification) return errorResponse(res, 'Notification not found', StatusCodes.NOT_FOUND);
+
+    // Ownership check
+    const userId = req.user._id;
+    const isOwner = notification.userId?.toString() === userId.toString();
+    const isBroadcast = notification.type === 'BROADCAST' && ['ALL', req.user.role].includes(notification.targetRole);
+    if (!isOwner && !isBroadcast && req.user.role !== 'ADMIN') {
+        return errorResponse(res, 'Not authorized to delete this notification', StatusCodes.FORBIDDEN);
+    }
+
+    await Notification.findByIdAndUpdate(req.params.id, { $addToSet: { deletedBy: userId } });
+
+    // Trim arrays to prevent unbounded growth on broadcast notifications
+    const updated = await Notification.findById(req.params.id);
+    if (updated) {
+        if (updated.deletedBy.length > 10000) {
+            updated.deletedBy = updated.deletedBy.slice(-10000);
+            await updated.save();
+        }
+    }
+
     return successResponse(res, null, 'Notification deleted');
 });
 

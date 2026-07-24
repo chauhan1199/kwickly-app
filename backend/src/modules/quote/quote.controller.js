@@ -7,7 +7,10 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { getCache, setCache } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
-
+const mongoose = require('mongoose');
+const { supportsTransactions } = require('../../helpers/transaction.helper');
+const { haversineDistance, calculateETA } = require('../../helpers/geo.helper');
+const { OTP_MIN, OTP_MAX } = require('../../constants/business');
 
 /**
  * POST /api/v1/quotes
@@ -41,13 +44,13 @@ exports.placeQuote = catchAsync(async (req, res) => {
     const settings = await SettingsService.getAppSettings();
     const minBalance = settings?.wallet?.minimumBalance || 100;
     if ((worker.wallet?.balance || 0) < minBalance) {
-        return errorResponse(res, `Minimum wallet balance of ₹${minBalance} required to quote.`, StatusCodes.PAYMENT_REQUIRED);
+        return errorResponse(res, `Minimum wallet balance of â‚¹${minBalance} required to quote.`, StatusCodes.PAYMENT_REQUIRED);
     }
 
     const job = await Job.findById(jobId);
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
 
-    // P0 FIX: Self-quote guard — worker cannot quote on a job they created
+    // P0 FIX: Self-quote guard â€” worker cannot quote on a job they created
     if (String(job.customerId) === String(workerId)) {
         return errorResponse(res, 'You cannot quote on your own job', StatusCodes.FORBIDDEN);
     }
@@ -68,13 +71,8 @@ exports.placeQuote = catchAsync(async (req, res) => {
     const workerLon = workerLocation?.coordinates?.[0] || worker.activeLocation?.coordinates?.[0];
 
     if (jobLat && jobLon && workerLat && workerLon) {
-        const R = 6371;
-        const dLat = (workerLat - jobLat) * Math.PI / 180;
-        const dLon = (workerLon - jobLon) * Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 +
-                  Math.cos(jobLat * Math.PI/180) * Math.cos(workerLat * Math.PI/180) * Math.sin(dLon/2)**2;
-        const distanceKm = +(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2);
-        const estMins = Math.max(5, Math.ceil(distanceKm * 2) + 5);
+        const distanceKm = +haversineDistance([jobLon, jobLat], [workerLon, workerLat]).toFixed(2);
+        const estMins = calculateETA(distanceKm);
         calculatedTimeToReach = `${estMins} mins`;
     }
 
@@ -113,7 +111,7 @@ exports.placeQuote = catchAsync(async (req, res) => {
     // Notify customer: new quote received
     notifyUser({
         userId: job.customerId,
-        title: '💰 New Quote Received',
+        title: 'ðŸ’° New Quote Received',
         message: `A worker has quoted \u20b9${amount} for your ${job.category} job. Tap to view all quotes!`,
         action: 'QUOTE_RECEIVED',
         entityType: 'JOB',
@@ -157,12 +155,7 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
         const wLon = quote.workerLocation?.coordinates?.[0] || quote.workerId?.activeLocation?.coordinates?.[0];
 
         if (jobLat && jobLon && wLat && wLon) {
-            const R = 6371;
-            const dLat = (wLat - jobLat) * Math.PI / 180;
-            const dLon = (wLon - jobLon) * Math.PI / 180;
-            const a = Math.sin(dLat/2)**2 +
-                      Math.cos(jobLat * Math.PI/180) * Math.cos(wLat * Math.PI/180) * Math.sin(dLon/2)**2;
-            distanceKm = +(6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2);
+            distanceKm = +haversineDistance([jobLon, jobLat], [wLon, wLat]).toFixed(2);
         }
 
         // --- NEW PRICING MODEL ---
@@ -217,11 +210,10 @@ exports.acceptQuote = catchAsync(async (req, res) => {
     }
 
     // P0 FIX: Atomic job update with status guard AND Quote Updates inside a single Transaction
-    const arrivalOtp    = Math.floor(1000 + Math.random() * 9000).toString();
-    const completionOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const arrivalOtp    = Math.floor(OTP_MIN + Math.random() * (OTP_MAX - OTP_MIN)).toString();
+    const completionOtp = Math.floor(OTP_MIN + Math.random() * (OTP_MAX - OTP_MIN)).toString();
 
     // Calculate final pricing model 
-    const { getCache, setCache } = require('../../helpers/redis.helper');
     const SettingsService = require('../settings/settings.service');
     const settings = await SettingsService.getAppSettings();
     const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
@@ -233,10 +225,18 @@ exports.acceptQuote = catchAsync(async (req, res) => {
     const gst = Math.round((platformFee * (feeConfig.gstPercentage || 18)) / 100);
     const customerPayable = workerPayout + platformFee + gst;
 
-    const mongoose = require('mongoose');
-    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-    const session = isSingle ? null : await mongoose.startSession();
-    if (session) session.startTransaction();
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
 
     let updatedJob;
     let rejectedQuotes = [];
@@ -256,11 +256,11 @@ exports.acceptQuote = catchAsync(async (req, res) => {
                 'payment.platformFee':       platformFee,
                 'payment.gst':               gst
             },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
 
         if (!updatedJob) {
-            if (session) await session.abortTransaction();
+            if (useTransaction && session) await session.abortTransaction();
             if (session) session.endSession();
             return errorResponse(res, 'This job has already been assigned to another worker', StatusCodes.CONFLICT);
         }
@@ -289,14 +289,17 @@ exports.acceptQuote = catchAsync(async (req, res) => {
             await Notification.insertMany(notificationsToInsert, { session });
         }
 
-        if (session) await session.commitTransaction();
-        if (session) session.endSession();
+        if (useTransaction) await session.commitTransaction();
+        if (useTransaction) session.endSession();
 
     } catch (error) {
-        if (session) await session.abortTransaction();
+        if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
         throw error;
     }
+
+    // Cache jobâ†’worker assignment for socket location verification (TTL: 2 hours)
+    await setCache(`job:${updatedJob._id}:assigned_worker`, String(quote.workerId), 7200);
 
     // Notify assigned worker
     emitToRoom(`worker_${quote.workerId}`, 'QUOTE_ACCEPTED', {
@@ -324,7 +327,7 @@ exports.acceptQuote = catchAsync(async (req, res) => {
     // Notify customer: worker has been assigned
     notifyUser({
         userId: job.customerId,
-        title: '👷 Worker Assigned to Your Job',
+        title: 'ðŸ‘· Worker Assigned to Your Job',
         message: `A worker has been assigned to your ${job.category} job. They will arrive shortly!`,
         action: 'JOB_UPDATED',
         entityType: 'JOB',
@@ -343,7 +346,7 @@ exports.withdrawQuote = catchAsync(async (req, res) => {
     const quote = await Quote.findOneAndUpdate(
         { _id: req.params.id, workerId: req.user._id, status: 'PENDING' },
         { status: 'WITHDRAWN' },
-        { new: true }
+        { returnDocument: 'after' }
     );
 
     if (!quote) return errorResponse(res, 'Quote not found or cannot be withdrawn', StatusCodes.NOT_FOUND);

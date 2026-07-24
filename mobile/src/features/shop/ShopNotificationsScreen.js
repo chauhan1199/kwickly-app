@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import { Bell, CheckCheck, ChevronLeft, CircleAlert, Sun, Moon } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -26,12 +26,12 @@ export default function ShopNotificationsScreen({ navigation }) {
   const fetchNotifications = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/notifications/my');
+      const res = await shopService.getMyNotifications();
       if (res.data?.status === 'success') {
         setNotifications(res.data.data.notifications || []);
       }
     } catch (e) {
-      console.log('Error fetching notifications:', e);
+      Alert.alert('Error', 'Failed to load notifications');
     } finally {
       setLoading(false);
     }
@@ -39,24 +39,24 @@ export default function ShopNotificationsScreen({ navigation }) {
 
   const markAsRead = async (id) => {
     try {
-      await api.patch(`/notifications/${id}/read`);
+      await shopService.markNotificationRead(id);
       setNotifications(prev => prev.map(n => 
         n._id === id ? { ...n, readBy: [...(n.readBy || []), user?._id] } : n
       ));
     } catch (e) {
-      console.log('Error marking as read:', e);
+      Alert.alert('Error', 'Failed to mark notification as read');
     }
   };
 
   const markAllAsRead = async () => {
     try {
-      await api.patch(`/notifications/read-all`);
+      await shopService.markAllNotificationsRead();
       setNotifications(prev => prev.map(n => ({
         ...n,
         readBy: [...(n.readBy || []), user?._id]
       })));
     } catch (e) {
-      console.log('Error marking all as read:', e);
+      Alert.alert('Error', 'Failed to mark all notifications as read');
     }
   };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Download, Building2, CreditCard } from 'lucide-react'
-import Badge from '../../components/Badge'
+import Badge from '../../components/common/Badge'
 import api from '../../services/api'
 
 const TXN_VARIANT = {
@@ -57,7 +57,7 @@ export default function AdminWallet() {
       const res = await api.get('/admin/admin-wallet/balance')
       if (res.data.status === 'success') setWallet(res.data.data)
     } catch (e) {
-      console.error('Failed to fetch admin wallet:', e)
+      // silently ignored
     } finally { setLoading(false) }
   }
 
@@ -67,7 +67,7 @@ export default function AdminWallet() {
       const res = await api.get('/admin/admin-wallet/transactions', { params: { limit: 200 } })
       if (res.data.status === 'success') setTxns(res.data.data.txns || [])
     } catch (e) {
-      console.error('Failed to fetch admin wallet transactions:', e)
+      // silently ignored
     } finally { setTxnLoading(false) }
   }
 

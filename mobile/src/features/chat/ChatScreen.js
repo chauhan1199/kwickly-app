@@ -25,18 +25,21 @@ import api from '../../services/api';
 import { Send, ChevronLeft, Image as ImageIcon, X } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import io from 'socket.io-client';
+import { SOCKET_URL, API_BASE_URL } from '../../config/env';
+import { getImageUrl } from '../../utils/helpers';
 
-const BACKEND_URL = 'http://10.0.2.2:5000';
-const API_URL = `${BACKEND_URL}/api/v1`;
+const BACKEND_URL = API_BASE_URL.replace('/api/v1', '');
+const API_URL = API_BASE_URL;
 
 // ─── Upload helper — base64 JSON (most reliable in React Native) ──────────────
 const uploadImageBase64 = async (imageAsset, apiInstance) => {
   if (!imageAsset.base64) {
     throw new Error('No base64 data on image asset. Make sure includeBase64: true is set.');
   }
+  const mimeType = imageAsset.type || 'image/jpeg';
   const res = await apiInstance.post('/chat/upload-base64', {
-    base64: imageAsset.base64,
-    mimeType: imageAsset.type || 'image/jpeg',
+    base64: `data:${mimeType};base64,${imageAsset.base64}`,
+    mimeType,
     fileName: imageAsset.fileName || 'chat_image.jpg',
   });
   if (res.data?.status !== 'success') throw new Error(res.data?.message || 'Upload failed');
@@ -75,13 +78,11 @@ const ChatScreen = ({ route, navigation }) => {
       
       // Mark as read
       try {
-        const { default: apiInstance } = await import('../../services/api');
-        await apiInstance.post('/chat/mark-read', { partnerId });
+        await chatService.markRead(partnerId);
       } catch (e) {
-        console.error('Failed to mark read', e);
+        // Non-critical, silently ignore
       }
     } catch (err) {
-      console.error('[Chat] fetchHistory error:', err?.response?.data || err.message);
     } finally {
       setLoading(false);
     }
@@ -89,19 +90,13 @@ const ChatScreen = ({ route, navigation }) => {
 
   // ─── Socket setup ────────────────────────────────────────────────────────────
   const setupSocket = useCallback(() => {
-    const socket = io(BACKEND_URL, {
+    const socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket'],
       reconnection: true,
     });
 
-    socket.on('connect', () => {
-      console.log('[Socket] Connected:', socket.id);
-    });
-
-    socket.on('connect_error', (err) => {
-      console.warn('[Socket] Connect error:', err.message);
-    });
+    socket.on('connect', () => {});
 
     // Admin reply lands here
     socket.on('NEW_MESSAGE', (message) => {
@@ -159,12 +154,9 @@ const ChatScreen = ({ route, navigation }) => {
       // Step 1: Upload image if selected
       if (imageFile) {
         setUploadProgress(0);
-        console.log('[Chat] Uploading image as base64…');
         try {
           mediaUrl = await uploadImageBase64(imageFile, api);
-          console.log('[Chat] Upload success, url:', mediaUrl);
         } catch (uploadErr) {
-          console.error('[Chat] Image upload failed:', uploadErr.message);
           Alert.alert('Upload Failed', `Could not upload image: ${uploadErr.message}`);
           setSending(false);
           setUploadProgress(null);
@@ -182,7 +174,6 @@ const ChatScreen = ({ route, navigation }) => {
         mediaUrl: mediaUrl || undefined,
       };
 
-      console.log('[Chat] Sending message:', payload);
       const res = await chatService.sendMessage(payload);
       const newMsg = res.data?.data;
 
@@ -195,7 +186,6 @@ const ChatScreen = ({ route, navigation }) => {
       }
     } catch (err) {
       const errMsg = err?.response?.data?.message || err.message;
-      console.error('[Chat] Send failed:', errMsg);
       Alert.alert('Error', `Failed to send: ${errMsg}`);
     } finally {
       setSending(false);
@@ -204,19 +194,6 @@ const ChatScreen = ({ route, navigation }) => {
   };
 
   // ─── Render a single message bubble ─────────────────────────────────────────
-  const getMediaUrl = (url) => {
-    if (!url) return null;
-    // If it's a relative URL, just prepend BACKEND_URL (which is 10.0.2.2)
-    if (!url.startsWith('http')) return `${BACKEND_URL}${url}`;
-    
-    // If the backend sent an absolute URL with 'localhost', replace it with 10.0.2.2 for the emulator
-    if (Platform.OS === 'android' && url.includes('localhost')) {
-      return url.replace('localhost', '10.0.2.2');
-    }
-    
-    return url;
-  };
-
   const renderMessage = ({ item }) => {
     const myId = user?._id;
     const senderId = item.senderId?._id || item.senderId;
@@ -226,12 +203,11 @@ const ChatScreen = ({ route, navigation }) => {
       <View style={[styles.msgWrapper, isMine ? styles.wrapMine : styles.wrapOther]}>
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleOther]}>
           {item.mediaUrl ? (
-            <Pressable onPress={() => setSelectedImage(getMediaUrl(item.mediaUrl))}>
+            <Pressable onPress={() => setSelectedImage(getImageUrl(item.mediaUrl))}>
               <Image
-                source={{ uri: getMediaUrl(item.mediaUrl) }}
+                source={{ uri: getImageUrl(item.mediaUrl) }}
                 style={styles.msgImage}
                 resizeMode="cover"
-                onError={(e) => console.log('[Chat] Image Load Error:', e.nativeEvent.error)}
               />
             </Pressable>
           ) : null}

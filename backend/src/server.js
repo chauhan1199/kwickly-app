@@ -64,6 +64,15 @@ process.on('SIGTERM', () => {
     });
 });
 
+process.on('uncaughtException', (err) => {
+    logger.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error('UNHANDLED REJECTION:', reason);
+});
+
 startServer();
 
 // Trigger nodemon restart

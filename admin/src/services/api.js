@@ -30,4 +30,15 @@ api.interceptors.response.use(
 
 export const SERVER_URL = BASE_URL.replace(/\/api\/v1\/?$/, '')
 
+/**
+ * Resolves an image URL to a full absolute URL.
+ * Handles Cloudinary URLs (always absolute), relative paths, and bare filenames.
+ */
+export const getImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return null
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  if (url.startsWith('/')) return `${SERVER_URL}${url}`
+  return `${SERVER_URL}/${url}`
+}
+
 export default api

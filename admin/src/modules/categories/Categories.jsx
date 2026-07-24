@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import api from '../../services/api'
+import api, { getImageUrl } from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 
 function CategoryModal({ cat, onSave, onClose }) {
   const [form, setForm] = useState(cat
-    ? { name: cat.name }
-    : { name: '' }
+    ? { name: cat.name, description: cat.description || '', icon: cat.icon || 'Wrench', color: cat.color || '#00d2ff' }
+    : { name: '', description: '', icon: 'Wrench', color: '#00d2ff' }
   )
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(cat?.imageUrl || null)
@@ -386,6 +386,9 @@ export default function Categories() {
       // Build FormData so we can send image file + text fields together
       const fd = new FormData()
       fd.append('name', form.name)
+      if (form.description) fd.append('description', form.description)
+      if (form.icon) fd.append('icon', form.icon)
+      if (form.color) fd.append('color', form.color)
       if (imageFile) fd.append('image', imageFile)
 
       const headers = { 'Content-Type': 'multipart/form-data' }
@@ -551,7 +554,7 @@ export default function Categories() {
 
   const filteredCats = categories.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.description.toLowerCase().includes(search.toLowerCase()) ||
+    (c.description && c.description.toLowerCase().includes(search.toLowerCase())) ||
     c.subcategories.some(s => s.name.toLowerCase().includes(search.toLowerCase()))
   )
   const filteredSugs = suggestions.filter(s => 
@@ -715,7 +718,7 @@ export default function Categories() {
                           }}>
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                               <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--input-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0, overflow: 'hidden' }}>
-                                {sub.imageUrl ? <img src={sub.imageUrl.startsWith('http') ? sub.imageUrl : `http://localhost:5000${sub.imageUrl}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="sub" /> : '📄'}
+                                {sub.imageUrl ? <img src={getImageUrl(sub.imageUrl)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="sub" /> : '📄'}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontWeight: 700, fontSize: 13, marginTop: 6 }}>{sub.name}</div>

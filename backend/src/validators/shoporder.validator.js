@@ -20,7 +20,7 @@ const placeOrderSchema = Joi.object({
 });
 
 const updateOrderStatusSchema = Joi.object({
-    status: Joi.string().valid('PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED').required(),
+    status: Joi.string().valid('CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED').required(),
     otp: Joi.string().optional()
 });
 

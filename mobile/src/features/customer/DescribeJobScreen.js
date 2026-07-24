@@ -20,7 +20,7 @@ import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../services/api';
+import { jobService } from '../../services/jobService';
 import {
   ChevronLeft,
   UploadCloud,
@@ -123,7 +123,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
         setAddressError('');
         navigation.setParams({ selectedAddress: undefined });
       }
-    }, [route.params?.selectedAddress])
+    }, [route.params?.selectedAddress, navigation])
   );
 
   // ── Address chip switch ──────────────────────────────────────────────────
@@ -184,7 +184,6 @@ const DescribeJobScreen = ({ route, navigation }) => {
       );
       return false;
     } catch (e) {
-      console.warn('Camera permission error:', e);
       return false;
     }
   };
@@ -218,7 +217,6 @@ const DescribeJobScreen = ({ route, navigation }) => {
       );
       return false;
     } catch (e) {
-      console.warn('Storage permission error:', e);
       return false;
     }
   };
@@ -375,20 +373,33 @@ const DescribeJobScreen = ({ route, navigation }) => {
         coordinates: [72.8777, 19.0760],
       };
 
+      // Upload media files first, then send URLs to backend
+      const mediaUrls = [];
+      for (const m of media) {
+        try {
+          const formData = new FormData();
+          formData.append('image', { uri: m.uri, type: m.type || 'image/jpeg', name: m.fileName || 'photo.jpg' });
+          const uploadRes = await jobService.uploadImage(formData);
+          if (uploadRes.data?.data?.url) {
+            mediaUrls.push(uploadRes.data.data.url);
+          }
+        } catch (e) {
+          Alert.alert('Upload Warning', 'Some media files could not be attached.');
+        }
+      }
+
       const payload = {
         category:       category.name,
         subcategory,
         description:    description.trim(),
-        media:          media.map(m => m.uri),
+        media:          mediaUrls,
         preferredDate:  preferredDate.toISOString(),
         timeSlot,
         location:       jobLocation,
         addressDetails: address.trim(),
       };
 
-      const res    = await api.post('/jobs', payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res    = await jobService.createJob(payload);
       const newJob = res.data?.data;
 
       if (!newJob?._id) throw new Error('Invalid response from server.');

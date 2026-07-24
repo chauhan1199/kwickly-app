@@ -10,9 +10,10 @@ const Shop = require('../shop/shop.model');
 const Notification = require('../notification/notification.model');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const { verifyPaymentSignature, fetchPayment } = require('../../helpers/razorpay.helper');
+const mongoose = require('mongoose');
+const { supportsTransactions } = require('../../helpers/transaction.helper');
 
-
-/* ── WORKER SUBSCRIPTION ─────────────────────────────────────────────── */
+/* â”€â”€ WORKER SUBSCRIPTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /**
  * POST /api/v1/subscriptions/subscribe
@@ -22,19 +23,22 @@ exports.subscribe = catchAsync(async (req, res) => {
     const { planId, paymentId, targetRole = 'WORKER', razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
     const userId = req.user._id;
 
-    if (razorpayOrderId && razorpayPaymentId && razorpaySignature) {
-        const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
-        if (!isValid) {
-            return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
+    // Payment verification is MANDATORY â€” prevent free subscription exploit
+    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return errorResponse(res, 'Payment verification required. Please complete payment via Razorpay.', StatusCodes.BAD_REQUEST);
+    }
+
+    const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+    if (!isValid) {
+        return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
+    }
+    try {
+        const rpPayment = await fetchPayment(razorpayPaymentId);
+        if (rpPayment.status !== 'captured') {
+            return errorResponse(res, 'Payment not captured in Razorpay', StatusCodes.BAD_REQUEST);
         }
-        try {
-            const rpPayment = await fetchPayment(razorpayPaymentId);
-            if (rpPayment.status !== 'captured') {
-                return errorResponse(res, 'Payment not captured in Razorpay', StatusCodes.BAD_REQUEST);
-            }
-        } catch (error) {
-            return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.INTERNAL_SERVER_ERROR);
-        }
+    } catch (error) {
+        return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.INTERNAL_SERVER_ERROR);
     }
 
     const AppSettings = require('../settings/settings.model');
@@ -46,10 +50,18 @@ exports.subscribe = catchAsync(async (req, res) => {
     
     if (!activePlan) return errorResponse(res, 'Plan not found', StatusCodes.NOT_FOUND);
 
-    const mongoose = require('mongoose');
-    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-    const session = isSingle ? null : await mongoose.startSession();
-    if (session) session.startTransaction();
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
 
     let startDate = new Date();
     let endDate = new Date();
@@ -59,7 +71,7 @@ exports.subscribe = catchAsync(async (req, res) => {
         if (targetRole === 'SHOP') {
             const shop = await Shop.findOne({ ownerId: userId }).session(session);
             if (!shop) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
                 return errorResponse(res, 'Shop not found for this user', StatusCodes.NOT_FOUND);
             }
@@ -96,12 +108,12 @@ exports.subscribe = catchAsync(async (req, res) => {
                 'subscription.planId':     activePlan.id,
                 'subscription.expiryDate': endDate,
                 'subscription.isTrial':    false
-            }, { new: true, session });
+            }, { returnDocument: 'after', session });
         } else {
             // WORKER logic
             const worker = await Customer.findById(userId).session(session);
             if (!worker) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
                 return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
             }
@@ -141,36 +153,39 @@ exports.subscribe = catchAsync(async (req, res) => {
                     'subscription.expiryDate': endDate,
                     'subscription.isTrial':    false
                 },
-                { new: true, session }
+                { returnDocument: 'after', session }
             );
         }
 
-        // Add funds to Admin Wallet (Platform Revenue)
+        // Atomic: credit Admin Wallet (Platform Revenue)
         const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
         let adminWallet = await AdminWallet.findOne().session(session);
         if (!adminWallet) {
             const [newWallet] = await AdminWallet.create([{ balance: 0 }], { session });
             adminWallet = newWallet;
         }
-        adminWallet.balance += activePlan.price;
-        await adminWallet.save({ session });
+        const creditedAdminWallet = await AdminWallet.findOneAndUpdate(
+            { _id: adminWallet._id },
+            { $inc: { balance: activePlan.price } },
+            { returnDocument: 'after', session }
+        );
 
         await AdminWalletTxn.create([{
             type: 'PLATFORM_FEE_COLLECTED',
             amount: activePlan.price,
-            balanceAfter: adminWallet.balance,
+            balanceAfter: creditedAdminWallet.balance,
             description: `Subscription plan ${activePlan.id} purchased by ${targetRole}`,
             referenceId: userId,
             referenceModel: targetRole === 'SHOP' ? 'Shop' : 'Customer'
         }], { session });
 
-        if (session) await session.commitTransaction();
-        if (session) session.endSession();
+        if (useTransaction) await session.commitTransaction();
+        if (useTransaction) session.endSession();
 
         await delCache('admin_dashboard_stats');
 
     } catch (error) {
-        if (session) await session.abortTransaction();
+        if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
         throw error;
     }
@@ -178,7 +193,7 @@ exports.subscribe = catchAsync(async (req, res) => {
     // Notify the user directly
     notifyUser({
         userId: userId,
-        title: 'Subscription Activated 🎯',
+        title: 'Subscription Activated ðŸŽ¯',
         message: `Your ${activePlan.label || activePlan.id} plan is now active!`,
         action: 'UPDATE',
         entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
@@ -189,8 +204,8 @@ exports.subscribe = catchAsync(async (req, res) => {
     // Notify the platform admins
     const adminNotif = await Notification.create({
         userId: null,
-        title: 'New Subscription Purchase 💰',
-        message: `A ${targetRole} has just purchased the ${activePlan.label || activePlan.id} plan for ₹${activePlan.price}.`,
+        title: 'New Subscription Purchase ðŸ’°',
+        message: `A ${targetRole} has just purchased the ${activePlan.label || activePlan.id} plan for â‚¹${activePlan.price}.`,
         type: 'SYSTEM',
         action: 'CREATE',
         entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
@@ -199,7 +214,7 @@ exports.subscribe = catchAsync(async (req, res) => {
 
     const userNotif = await Notification.create({
         userId: userId,
-        title: 'Plan Activated! 🎉',
+        title: 'Plan Activated! ðŸŽ‰',
         message: `Your ${activePlan.label || activePlan.id} subscription is now active!`,
         type: 'SYSTEM',
         action: 'UPDATE'
@@ -224,6 +239,17 @@ exports.getMySubscriptions = catchAsync(async (req, res) => {
         .populate('planId', 'name durationDays price')
         .sort('-createdAt');
     return successResponse(res, subs, 'Subscriptions fetched');
+});
+
+/**
+ * GET /api/v1/subscriptions/plans
+ * Returns available subscription plans from platform settings
+ */
+exports.getPlans = catchAsync(async (req, res) => {
+    const AppSettings = require('../settings/settings.model');
+    const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+    const plans = settings?.subscriptionPlans || [];
+    return successResponse(res, plans, 'Subscription plans fetched');
 });
 
 /**

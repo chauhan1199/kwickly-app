@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions } from 'react-native';
 import { Star } from 'lucide-react-native';
+import { getImageUrl } from '../../utils/helpers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_W = Math.floor((SCREEN_WIDTH - 32 - 24) / 3);
@@ -108,7 +109,7 @@ export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
       <View style={[styles.serviceCardImgBox, { backgroundColor: theme.colors.card }]}>
         {hasNetworkImg ? (
           <Image
-            source={{ uri: cat.imageUrl.startsWith('http') ? cat.imageUrl.replace('localhost', '10.0.2.2') : `http://10.0.2.2:5000${cat.imageUrl}` }}
+            source={{ uri: getImageUrl(cat.imageUrl) }}
             style={styles.serviceCardImg}
             resizeMode="contain"
           />

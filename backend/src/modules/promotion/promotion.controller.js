@@ -1,11 +1,11 @@
-const { StatusCodes } = require('http-status-codes');
-const { Banner, Promotion } = require('./promotion.model');
+﻿const { StatusCodes } = require('http-status-codes');
+const { Banner, Promotion, UserPromoUsage } = require('./promotion.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
 
-// ─── Public: mobile app fetches only active, in-range banners ────────────────
+// â”€â”€â”€ Public: mobile app fetches only active, in-range banners â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getBanners = catchAsync(async (req, res) => {
     const { position } = req.query;
     const filter = { isActive: true };
@@ -16,13 +16,13 @@ exports.getBanners = catchAsync(async (req, res) => {
     return successResponse(res, banners, 'Banners fetched');
 });
 
-// ─── Admin: all banners (including inactive) ──────────────────────────────────
+// â”€â”€â”€ Admin: all banners (including inactive) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getAllBanners = catchAsync(async (req, res) => {
     const banners = await Banner.find({}).sort({ priority: -1 });
     return successResponse(res, banners, 'All banners');
 });
 
-// ─── Admin: create banner ─────────────────────────────────────────────────────
+// â”€â”€â”€ Admin: create banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.createBanner = catchAsync(async (req, res) => {
     const banner = await Banner.create({ ...req.body, createdBy: req.user._id });
     logAdminActivity(
@@ -35,9 +35,9 @@ exports.createBanner = catchAsync(async (req, res) => {
     return successResponse(res, banner, 'Banner created', StatusCodes.CREATED);
 });
 
-// ─── Admin: update banner ─────────────────────────────────────────────────────
+// â”€â”€â”€ Admin: update banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.updateBanner = catchAsync(async (req, res) => {
-    const banner = await Banner.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const banner = await Banner.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!banner) return errorResponse(res, 'Banner not found', StatusCodes.NOT_FOUND);
     logAdminActivity(
         'UPDATE', 'BANNER', banner._id,
@@ -49,7 +49,7 @@ exports.updateBanner = catchAsync(async (req, res) => {
     return successResponse(res, banner, 'Banner updated');
 });
 
-// ─── Admin: delete banner ─────────────────────────────────────────────────────
+// â”€â”€â”€ Admin: delete banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.deleteBanner = catchAsync(async (req, res) => {
     const banner = await Banner.findByIdAndDelete(req.params.id);
     if (!banner) return errorResponse(res, 'Banner not found', StatusCodes.NOT_FOUND);
@@ -63,14 +63,29 @@ exports.deleteBanner = catchAsync(async (req, res) => {
     return successResponse(res, null, 'Banner deleted');
 });
 
-// ─── Public: validate promo code at checkout ──────────────────────────────────
+// â”€â”€â”€ Public: validate promo code at checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.validatePromoCode = catchAsync(async (req, res) => {
-    const { code, orderAmount } = req.body;
+    const { code, orderAmount, userId, userRole } = req.body;
     const promo = await Promotion.findOne({ code: code.toUpperCase(), isActive: true });
     if (!promo) return errorResponse(res, 'Invalid promo code', StatusCodes.NOT_FOUND);
     if (promo.endAt && promo.endAt < new Date()) return errorResponse(res, 'Promo code expired', StatusCodes.BAD_REQUEST);
     if (promo.maxUsesTotal && promo.usesCount >= promo.maxUsesTotal) return errorResponse(res, 'Promo code usage limit reached', StatusCodes.BAD_REQUEST);
-    if (orderAmount < promo.minOrderAmount) return errorResponse(res, `Minimum order ₹${promo.minOrderAmount} required`, StatusCodes.BAD_REQUEST);
+    if (orderAmount < promo.minOrderAmount) return errorResponse(res, `Minimum order â‚¹${promo.minOrderAmount} required`, StatusCodes.BAD_REQUEST);
+
+    // Enforce applicableRoles â€” check if user's role is allowed
+    if (promo.applicableRoles && promo.applicableRoles.length > 0 && userRole) {
+        if (!promo.applicableRoles.includes(userRole)) {
+            return errorResponse(res, 'This promo code is not available for your account type', StatusCodes.BAD_REQUEST);
+        }
+    }
+
+    // Enforce maxUsesPerUser â€” check if this user already used this promo
+    if (promo.maxUsesPerUser && userId) {
+        const usageCount = await UserPromoUsage.countDocuments({ promoId: promo._id, userId });
+        if (usageCount >= promo.maxUsesPerUser) {
+            return errorResponse(res, 'You have reached the usage limit for this promo code', StatusCodes.BAD_REQUEST);
+        }
+    }
 
     let discount = 0;
     if (promo.type === 'FLAT_DISCOUNT') {
@@ -79,43 +94,49 @@ exports.validatePromoCode = catchAsync(async (req, res) => {
         discount = (orderAmount * promo.value) / 100;
         if (promo.maxDiscountCap) discount = Math.min(discount, promo.maxDiscountCap);
     }
+
+    // Track per-user usage
+    if (userId) {
+        await UserPromoUsage.create({ promoId: promo._id, userId });
+    }
+
     return successResponse(res, { code: promo.code, discount, type: promo.type, title: promo.title, description: promo.description }, 'Promo code valid');
 });
 
-// ─── Admin: list all promotions ───────────────────────────────────────────────
+// â”€â”€â”€ Admin: list all promotions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getAllPromotions = catchAsync(async (req, res) => {
     const promos = await Promotion.find({}).sort({ createdAt: -1 });
     return successResponse(res, promos, 'All promotions');
 });
 
-// ─── Admin: create promotion ──────────────────────────────────────────────────
+// â”€â”€â”€ Admin: create promotion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.createPromotion = catchAsync(async (req, res) => {
     const promo = await Promotion.create({ ...req.body, createdBy: req.user._id });
     logAdminActivity(
         'CREATE', 'PROMO', promo._id,
         'Promo Code Created',
-        `Admin created promo code "${promo.code}" — ${promo.title} (${promo.type}, value: ${promo.value})`,
+        `Admin created promo code "${promo.code}" â€” ${promo.title} (${promo.type}, value: ${promo.value})`,
         req.user._id
     );
     emitToAll('DASHBOARD_UPDATE', { type: 'PROMO_CREATED', id: promo._id });
     return successResponse(res, promo, 'Promotion created', StatusCodes.CREATED);
 });
 
-// ─── Admin: update promotion ──────────────────────────────────────────────────
+// â”€â”€â”€ Admin: update promotion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.updatePromotion = catchAsync(async (req, res) => {
-    const promo = await Promotion.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const promo = await Promotion.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!promo) return errorResponse(res, 'Promotion not found', StatusCodes.NOT_FOUND);
     logAdminActivity(
         'UPDATE', 'PROMO', promo._id,
         'Promo Code Updated',
-        `Admin updated promo code "${promo.code}" — active: ${promo.isActive}, value: ${promo.value}`,
+        `Admin updated promo code "${promo.code}" â€” active: ${promo.isActive}, value: ${promo.value}`,
         req.user._id
     );
     emitToAll('DASHBOARD_UPDATE', { type: 'PROMO_UPDATED', id: promo._id });
     return successResponse(res, promo, 'Promotion updated');
 });
 
-// ─── Admin: delete promotion ──────────────────────────────────────────────────
+// â”€â”€â”€ Admin: delete promotion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.deletePromotion = catchAsync(async (req, res) => {
     const promo = await Promotion.findByIdAndDelete(req.params.id);
     if (!promo) return errorResponse(res, 'Promotion not found', StatusCodes.NOT_FOUND);

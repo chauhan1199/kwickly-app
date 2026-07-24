@@ -14,7 +14,7 @@ export default function WalletAdjuster({ targetId, entityType, currentBalance = 
     }
     setWalletLoading(true)
     try {
-      const endpoint = `/admin/wallets/adjust`
+      const endpoint = `/wallet/adjust`
       const res = await api.post(endpoint, {
         targetId,
         entityType,

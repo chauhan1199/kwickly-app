@@ -8,4 +8,8 @@ export const chatService = {
   /** Send a new message (fallback if sockets fail) */
   sendMessage: (data) =>
     api.post('/chat/send', data),
+
+  /** Mark messages as read from a partner */
+  markRead: (partnerId) =>
+    api.post('/chat/mark-read', { partnerId }),
 };

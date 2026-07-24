@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Search, Download, RefreshCw } from 'lucide-react'
-import Badge from '../../components/Badge'
+import Badge from '../../components/common/Badge'
 import api from '../../services/api'
 
 const TYPE_VARIANT = {
@@ -16,7 +16,7 @@ const TYPE_VARIANT = {
   COMMISSION:    'danger',
 }
 
-const CREDIT_TYPES = ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS']
+const CREDIT_TYPES = ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP', 'ADJUSTMENT']
 
 export default function Ledger() {
   const [transactions, setTransactions] = useState([])
@@ -42,7 +42,7 @@ export default function Ledger() {
         setTransactions(Array.isArray(raw) ? raw : raw.transactions || raw.txns || raw.data || [])
       }
     } catch (e) {
-      console.error('Ledger fetch error:', e)
+      // silently ignored
     } finally {
       setLoading(false)
     }
@@ -63,6 +63,27 @@ export default function Ledger() {
 
   const isCredit = (t) => CREDIT_TYPES.includes(t.type)
 
+  const exportCSV = () => {
+    const headers = ['User', 'Role', 'Type', 'Description', 'Amount', 'Balance After', 'Date']
+    const rows = filtered.map(t => [
+      t.userId?.name || t.worker || 'Unknown',
+      t.userId?.role || '',
+      t.type || '',
+      t.description || t.desc || '',
+      t.amount || 0,
+      t.balance ?? t.balanceAfter ?? 0,
+      new Date(t.createdAt || t.txnDate || Date.now()).toLocaleString('en-IN')
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `ledger_export_${new Date().toISOString().slice(0,10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -74,7 +95,7 @@ export default function Ledger() {
           <button className="btn-secondary" onClick={fetchTransactions} style={{ display:'flex',alignItems:'center',gap:8 }}>
             <RefreshCw size={15} /> Refresh
           </button>
-          <button className="btn-secondary" style={{ display:'flex',alignItems:'center',gap:8 }}>
+          <button className="btn-secondary" onClick={exportCSV} style={{ display:'flex',alignItems:'center',gap:8 }}>
             <Download size={15} /> Export CSV
           </button>
         </div>

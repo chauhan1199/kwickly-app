@@ -49,6 +49,11 @@ export const jobService = {
   getWorkerQuotes: (status) =>
     api.get('/quotes/worker', { params: { status } }),
 
+  uploadMedia: (formData) =>
+    api.post('/jobs/upload-media', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+
   acceptQuote: (quoteId) =>
     api.patch(`/quotes/${quoteId}/accept`),
 
@@ -60,4 +65,9 @@ export const jobService = {
 
   getSubCategories: (categoryId) =>
     api.get(`/categories/${categoryId}`),
+
+  uploadImage: (formData) =>
+    api.post('/chat/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
 };

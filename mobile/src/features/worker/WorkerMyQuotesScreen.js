@@ -38,7 +38,7 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
         setQuotes(res.data.data || []);
       }
     } catch (e) {
-      console.log('Failed to fetch quotes:', e);
+      Alert.alert('Error', 'Failed to load quotes.');
     } finally {
       setLoading(false);
     }

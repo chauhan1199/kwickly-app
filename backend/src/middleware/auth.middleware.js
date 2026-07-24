@@ -4,7 +4,7 @@ const Customer = require('../modules/customer/customer.model');
 const catchAsync = require('../helpers/async.helper');
 const { AUTH } = require('../constants/messages');
 const { errorResponse } = require('../helpers/response.helper');
-const { getCache, setCache } = require('../helpers/redis.helper');
+const { getCache, setCache, delCache } = require('../helpers/redis.helper');
 
 const getJwtSecret = () => process.env.JWT_SECRET; // Read at call time (guaranteed by server.js startup check)
 
@@ -45,6 +45,11 @@ const authMiddleware = catchAsync(async (req, res, next) => {
     let user;
     if (cachedSession) {
         user = typeof cachedSession === 'string' ? JSON.parse(cachedSession) : cachedSession;
+        // Always check isDeleted even for cached sessions
+        if (user.isDeleted) {
+            await delCache(SESSION_KEY);
+            return errorResponse(res, 'Your account has been deleted. Please contact support.', StatusCodes.FORBIDDEN);
+        }
     } else {
         // Cache miss — fetch from DB and repopulate cache
         user = await Customer.findById(decoded.id).select('-password').lean();

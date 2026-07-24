@@ -11,20 +11,14 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  Image,
-  Switch,
-  Linking
+  Image
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import AppBar from '../../components/AppBar';
-import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import { workerService } from '../../services/workerService';
 import { 
   Camera, 
@@ -45,21 +39,7 @@ import {
   Briefcase
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
-
-const getImageUri = (path) => {
-  if (!path) return null;
-  let cleanPath = path;
-  if (cleanPath.startsWith('http://localhost')) {
-    cleanPath = cleanPath.replace('http://localhost', 'http://10.0.2.2');
-  } else if (cleanPath.startsWith('http://127.0.0.1')) {
-    cleanPath = cleanPath.replace('http://127.0.0.1', 'http://10.0.2.2');
-  }
-  
-  if (cleanPath.startsWith('http')) {
-    return cleanPath;
-  }
-  return 'http://10.0.2.2:5000' + (cleanPath.startsWith('/') ? '' : '/') + cleanPath;
-};
+import { getImageUrl } from '../../utils/helpers';
 
 const WorkerProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -349,7 +329,6 @@ const WorkerProfileScreen = ({ navigation }) => {
         fetchProfile();
       } catch (error) {
         Alert.alert('Error', 'Failed to update photo. ' + (error.message || JSON.stringify(error)));
-        console.error(error);
       } finally {
         setSaving(false);
       }
@@ -400,7 +379,7 @@ const WorkerProfileScreen = ({ navigation }) => {
           <View style={styles.profileHeaderContent}>
             <View style={styles.avatarWrapperNew}>
               {profile?.profileImage ? (
-                <Image source={{ uri: getImageUri(profile.profileImage) }} style={styles.avatarImageNew} />
+                <Image source={{ uri: getImageUrl(profile.profileImage) }} style={styles.avatarImageNew} />
               ) : (
                 <View style={[styles.avatarImageNew, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
                   <Text style={{ fontSize: 40, fontWeight: '800', color: '#fff' }}>{profile?.name ? profile.name.charAt(0) : 'W'}</Text>
@@ -532,8 +511,8 @@ const WorkerProfileScreen = ({ navigation }) => {
                 <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Uploaded Documents:</Text>
                 {profile.kyc.documents.map((doc, idx) => (
                   <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: theme.colors.background, padding: 8, borderRadius: 12 }}>
-                    <TouchableOpacity onPress={() => { setViewerImage(getImageUri(doc.url)); setViewerVisible(true); }}>
-                      <Image source={{ uri: getImageUri(doc.url) }} style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }} />
+                    <TouchableOpacity onPress={() => { setViewerImage(getImageUrl(doc.url)); setViewerVisible(true); }}>
+                      <Image source={{ uri: getImageUrl(doc.url) }} style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }} />
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{doc.type}</Text>

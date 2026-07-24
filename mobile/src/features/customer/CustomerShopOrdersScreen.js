@@ -10,8 +10,9 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { Alert } from 'react-native';
 import { Package } from 'lucide-react-native';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import AppBar from '../../components/AppBar';
 import LinearGradient from 'react-native-linear-gradient';
 import { SearchBar } from '../../components/ui/SearchBar';
@@ -31,13 +32,13 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/shoporders/customer');
+      const res = await shopService.getCustomerOrders();
       if (res.data?.status === 'success') {
         const list = res.data.data.orders || res.data.data;
         setOrders(list);
       }
     } catch (e) {
-      console.log('Error fetching customer shop orders', e);
+      Alert.alert('Error', 'Failed to load orders. Please try again.');
     } finally {
       setLoading(false);
     }

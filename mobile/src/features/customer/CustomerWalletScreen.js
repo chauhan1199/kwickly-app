@@ -4,17 +4,16 @@ import {
   TouchableOpacity, StatusBar, Modal, TextInput,
   TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp } from 'lucide-react-native';
 import Razorpay from 'react-native-razorpay';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
-import api from '../../services/api';
+
 import { SearchBar } from '../../components/ui/SearchBar';
 import { walletService } from '../../services/walletService';
 import { useAuth } from '../../context/AuthContext';
+import { RAZORPAY_LOGO_URL } from '../../config/env';
 
 const CustomerWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -50,7 +49,7 @@ const CustomerWalletScreen = ({ navigation }) => {
         setTransactions(wallet.transactions || []);
       }
     } catch (e) {
-      console.log('Failed to fetch wallet:', e);
+      Alert.alert('Error', 'Failed to load wallet. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -69,7 +68,7 @@ const CustomerWalletScreen = ({ navigation }) => {
       const amount = Number(topupAmount);
 
       // Create Razorpay order
-      const payRes = await api.post('/payments/create-order', {
+      const payRes = await walletService.createPaymentOrder({
         amount,
         purpose: 'wallet_topup'
       });
@@ -82,7 +81,7 @@ const CustomerWalletScreen = ({ navigation }) => {
 
       const options = {
         description: `Kwickly Wallet Topup ₹${amount}`,
-        image: 'https://kwickly.in/logo.png',
+        image: RAZORPAY_LOGO_URL,
         currency: 'INR',
         key: keyId,
         amount: amount * 100,
@@ -96,7 +95,7 @@ const CustomerWalletScreen = ({ navigation }) => {
         const razorpayResponse = await Razorpay.open(options);
 
         // Verify payment
-        const verifyRes = await api.post('/payments/verify', {
+        const verifyRes = await walletService.verifyPayment({
           razorpayOrderId: razorpayResponse.razorpay_order_id,
           razorpayPaymentId: razorpayResponse.razorpay_payment_id,
           razorpaySignature: razorpayResponse.razorpay_signature,
@@ -106,12 +105,9 @@ const CustomerWalletScreen = ({ navigation }) => {
 
         if (verifyRes.data?.status === 'success') {
           // Add money to wallet via wallet topup endpoint
-          await api.post('/wallet/topup', {
-            amount,
-            paymentDetails: {
-              method: 'Razorpay',
-              paymentId: razorpayResponse.razorpay_payment_id
-            }
+          await walletService.topupWallet(amount, {
+            method: 'Razorpay',
+            paymentId: razorpayResponse.razorpay_payment_id
           });
 
           if (fetchUser) await fetchUser();
@@ -128,8 +124,7 @@ const CustomerWalletScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.log('Topup failed', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to add money. Please try again.');
+      Alert.alert('Topup Failed', error.response?.data?.message || 'Failed to add money. Please try again.');
     } finally {
       setIsProcessing(false);
     }

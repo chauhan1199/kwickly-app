@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import api, { SERVER_URL } from '../../services/api'
+import api, { getImageUrl } from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -69,7 +69,7 @@ export default function Shops() {
     return kycFilter === 'all' || s.kyc?.status === kycFilter.toUpperCase()
   }, [kycFilter])
   
-  const { data: shops, setData: setShops, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh } = useServerPagination('/shops', PAGE_SIZE, filterCallback)
+  const { data: shops, setData: setShops, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh } = useServerPagination('/admin/shops', PAGE_SIZE, filterCallback)
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
@@ -190,8 +190,8 @@ export default function Shops() {
         <button className="btn-icon" title="Edit" onClick={() => openEditShop(s)}><Edit3 size={15} /></button>
         {s.kyc?.status === 'PENDING' && (
           <>
-            <button className="btn-icon success" title="Approve KYC" onClick={() => handleKycAction(s._id, 'APPROVED')}><CheckCircle size={15} /></button>
-            <button className="btn-icon danger" title="Reject KYC" onClick={() => handleKycAction(s._id, 'REJECTED')}><Ban size={15} /></button>
+            <button className="btn-icon success" title="Approve KYC" onClick={() => setConfirm({ type: 'kyc_shop', id: s._id, status: 'APPROVED', name: s.name })}><CheckCircle size={15} /></button>
+            <button className="btn-icon danger" title="Reject KYC" onClick={() => setConfirm({ type: 'kyc_shop', id: s._id, status: 'REJECTED', name: s.name })}><Ban size={15} /></button>
           </>
         )}
         <button className="btn-icon danger" title="Delete" onClick={() => setConfirm({ type: 'delete_shop', id: s._id, name: s.name })}><Trash2 size={15} /></button>
@@ -346,25 +346,26 @@ export default function Shops() {
         showToast('Shop updated successfully')
         
       } else {
-        const payload = {
-          name: shopForm.name.trim(),
-          category: shopForm.category.trim(),
-          address: fullAddress.trim(),
-          description: shopForm.description.trim(),
-          ownerPhone: shopForm.ownerPhone.trim(),
-          ownerName: shopForm.ownerName.trim() || 'Shop Owner',
-          ownerEmail: shopForm.ownerEmail.trim(),
-          businessHours: {
+        if (shopLogo) {
+          const fd = new FormData()
+          fd.append('name', shopForm.name.trim())
+          fd.append('category', shopForm.category.trim())
+          fd.append('address', fullAddress.trim())
+          fd.append('description', shopForm.description.trim())
+          fd.append('ownerPhone', shopForm.ownerPhone.trim())
+          fd.append('ownerName', shopForm.ownerName.trim() || 'Shop Owner')
+          fd.append('ownerEmail', shopForm.ownerEmail.trim())
+          fd.append('businessHours', JSON.stringify({
             monFri: shopForm.businessHoursMonFri,
             sat: shopForm.businessHoursSat,
             sun: shopForm.businessHoursSun,
-          },
-          delivery: {
+          }))
+          fd.append('delivery', JSON.stringify({
             radiusKm: Number(shopForm.deliveryRadius),
             fee: Number(shopForm.deliveryFee),
             freeAbove: Number(shopForm.deliveryFreeAbove),
-          },
-          deliveryConfig: {
+          }))
+          fd.append('deliveryConfig', JSON.stringify({
             deliveryRadiusKm: Number(shopForm.deliveryRadius),
             deliveryCharge: Number(shopForm.deliveryFee),
             freeDeliveryAbove: Number(shopForm.deliveryFreeAbove),
@@ -377,11 +378,49 @@ export default function Shops() {
             maxDiscountCap: Number(shopForm.maxDiscountCap),
             sameDayDelivery: shopForm.sameDayDelivery,
             deliverySlots: (newSlot.label && newSlot.slotOpen && newSlot.slotClose) ? [...(shopForm.deliverySlots || []), { ...newSlot }] : (shopForm.deliverySlots || []),
-          },
-          subscription: { plan: shopForm.subscriptionPlan },
+          }))
+          fd.append('subscription', JSON.stringify({ plan: shopForm.subscriptionPlan }))
+          if (loc) fd.append('location', JSON.stringify(loc))
+          fd.append('logo', shopLogo)
+          await api.post('/admin/shops', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        } else {
+          const payload = {
+            name: shopForm.name.trim(),
+            category: shopForm.category.trim(),
+            address: fullAddress.trim(),
+            description: shopForm.description.trim(),
+            ownerPhone: shopForm.ownerPhone.trim(),
+            ownerName: shopForm.ownerName.trim() || 'Shop Owner',
+            ownerEmail: shopForm.ownerEmail.trim(),
+            businessHours: {
+              monFri: shopForm.businessHoursMonFri,
+              sat: shopForm.businessHoursSat,
+              sun: shopForm.businessHoursSun,
+            },
+            delivery: {
+              radiusKm: Number(shopForm.deliveryRadius),
+              fee: Number(shopForm.deliveryFee),
+              freeAbove: Number(shopForm.deliveryFreeAbove),
+            },
+            deliveryConfig: {
+              deliveryRadiusKm: Number(shopForm.deliveryRadius),
+              deliveryCharge: Number(shopForm.deliveryFee),
+              freeDeliveryAbove: Number(shopForm.deliveryFreeAbove),
+              minOrderAmount: Number(shopForm.minOrderAmount),
+              discountEnabled: shopForm.discountEnabled,
+              discountAbove: Number(shopForm.discountAbove),
+              discountType: shopForm.discountType,
+              discountValue: Number(shopForm.discountValue),
+              discountPct: Number(shopForm.discountPct),
+              maxDiscountCap: Number(shopForm.maxDiscountCap),
+              sameDayDelivery: shopForm.sameDayDelivery,
+              deliverySlots: (newSlot.label && newSlot.slotOpen && newSlot.slotClose) ? [...(shopForm.deliverySlots || []), { ...newSlot }] : (shopForm.deliverySlots || []),
+            },
+            subscription: { plan: shopForm.subscriptionPlan },
+          }
+          if (loc) payload.location = loc
+          await api.post('/admin/shops', payload)
         }
-        if (loc) payload.location = loc
-        await api.post('/admin/shops', payload)
         showToast('Shop created successfully')
         
       }
@@ -587,12 +626,11 @@ export default function Shops() {
           setDetail(updated)
           setShops(prev => prev.map(s => s._id === shopId ? updated : s))
         }
-      } catch (e) { console.error('Refresh failed:', e) }
+      } catch (e) { /* ignored */ }
       
       window.dispatchEvent(new Event('admin-action'))
     } catch (err) {
-      console.error('Wallet error:', err)
-      showToast(err.response?.data?.message || 'Wallet operation failed. Check console for details.', 'error')
+      showToast(err.response?.data?.message || 'Wallet operation failed', 'error')
     } finally {
       setSavingWallet(false)
     }
@@ -841,7 +879,7 @@ export default function Shops() {
   const handleUpdateSubscription = async () => {
     setSavingSub(true)
     try {
-      await api.patch(`/admin/shops/${detail._id}`, { subscription: { plan: subEditPlan } })
+      await api.patch(`/admin/shops/${detail._id}`, { subscription: { planId: subEditPlan, status: 'ACTIVE', isTrial: false } })
       showToast('Subscription updated')
       
       setShowSubEditModal(false)
@@ -1207,7 +1245,7 @@ export default function Shops() {
                     <div key={p._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
                         {p.imageUrl ? (
-                          <img src={p.imageUrl.startsWith('http') ? p.imageUrl : `${SERVER_URL}${p.imageUrl}`} alt={p.name} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} onError={e => { e.target.style.display = 'none' }} />
+                          <img src={getImageUrl(p.imageUrl)} alt={p.name} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} onError={e => { e.target.style.display = 'none' }} />
                         ) : (
                           <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>📦</div>
                         )}
@@ -1601,7 +1639,7 @@ export default function Shops() {
             <label className="input-label">Product Image</label>
             {editProduct && productForm.existingImage && !productForm.image && (
               <div style={{ marginBottom: 8 }}>
-                <img src={productForm.existingImage.startsWith('http') ? productForm.existingImage : `${SERVER_URL}${productForm.existingImage}`} alt="Current" style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} onError={e => { e.target.style.display = 'none' }} />
+                <img src={getImageUrl(productForm.existingImage)} alt="Current" style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} onError={e => { e.target.style.display = 'none' }} />
                 <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Current image</div>
               </div>
             )}
@@ -1653,6 +1691,16 @@ export default function Shops() {
       )}
       {confirm?.type === 'delete_shop' && (
         <ConfirmModal title="Delete Shop" message={`Permanently delete ${confirm.name}? All products and data will be lost.`} confirmText="Delete Permanently" onConfirm={() => deleteShop(confirm.id)} onClose={() => setConfirm(null)} />
+      )}
+      {confirm?.type === 'kyc_shop' && (
+        <ConfirmModal
+          title={confirm.status === 'APPROVED' ? 'Approve Shop KYC' : 'Reject Shop KYC'}
+          message={confirm.status === 'APPROVED' ? `Approve KYC for ${confirm.name}?` : `Reject KYC for ${confirm.name}?`}
+          danger={confirm.status === 'REJECTED'}
+          confirmText={confirm.status === 'APPROVED' ? 'Approve' : 'Reject'}
+          onConfirm={() => { handleKycAction(confirm.id, confirm.status); setConfirm(null); }}
+          onClose={() => setConfirm(null)}
+        />
       )}
       {confirm?.type === 'delete_product' && (
         <ConfirmModal title="Delete Product" message={`Remove ${confirm.name} from this shop?`} confirmText="Delete Product" onConfirm={() => deleteProduct(confirm.id)} onClose={() => setConfirm(null)} />
@@ -1813,19 +1861,19 @@ export default function Shops() {
                 <div style={{ fontSize: 12, color: 'var(--mid)' }}>{previewDoc.docType || 'Document'}</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <a href={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ height: 32, padding: '0 12px', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>Open in Tab</a>
+                <a href={getImageUrl(previewDoc.url)} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ height: 32, padding: '0 12px', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>Open in Tab</a>
                 <button className="btn-icon" onClick={() => setPreviewDoc(null)} title="Close">✕</button>
               </div>
             </div>
             {previewDoc.url?.match(/\.(jpg|jpeg|png)$/i) ? (
-              <img src={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} alt={previewDoc.name} style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 8, objectFit: 'contain', background: '#000' }} />
+              <img src={getImageUrl(previewDoc.url)} alt={previewDoc.name} style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 8, objectFit: 'contain', background: '#000' }} />
             ) : previewDoc.url?.match(/\.pdf$/i) ? (
-              <iframe src={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} title={previewDoc.name} style={{ width: '80vw', height: '70vh', border: 'none', borderRadius: 8 }} />
+              <iframe src={getImageUrl(previewDoc.url)} title={previewDoc.name} style={{ width: '80vw', height: '70vh', border: 'none', borderRadius: 8 }} />
             ) : (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>
                 <FileText size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
                 <div>Preview not available for this file type</div>
-                <a href={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ marginTop: 12, display: 'inline-block', padding: '8px 20px', borderRadius: 8, textDecoration: 'none' }}>Open File</a>
+                <a href={getImageUrl(previewDoc.url)} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ marginTop: 12, display: 'inline-block', padding: '8px 20px', borderRadius: 8, textDecoration: 'none' }}>Open File</a>
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 const Razorpay = require('razorpay');
+const logger = require('./logger.helper');
 
 let razorpayInstance = null;
 
@@ -9,7 +10,7 @@ const getRazorpay = () => {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret || keyId.includes('placeholder')) {
-        console.warn('[Razorpay] Keys not configured. Payment features will be disabled.');
+        logger.warn('[Razorpay] Keys not configured. Payment features will be disabled.');
         return null;
     }
 
@@ -52,7 +53,11 @@ const createRefund = async (paymentId, amount, notes = {}) => {
 const verifyPaymentSignature = (orderId, paymentId, signature) => {
     const crypto = require('crypto');
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    if (!keySecret || keySecret.includes('placeholder')) return true; // Skip in dev
+    if (!keySecret || keySecret.includes('placeholder')) {
+        // In dev mode with placeholder keys, skip verification but log warning
+        logger.warn('[Razorpay] Signature verification skipped — placeholder key in use');
+        return true;
+    }
 
     const body = orderId + '|' + paymentId;
     const expectedSignature = crypto
@@ -60,7 +65,11 @@ const verifyPaymentSignature = (orderId, paymentId, signature) => {
         .update(body)
         .digest('hex');
 
-    return expectedSignature === signature;
+    // Use timing-safe comparison to prevent timing attacks
+    const expectedBuf = Buffer.from(expectedSignature, 'hex');
+    const actualBuf = Buffer.from(signature, 'hex');
+    if (expectedBuf.length !== actualBuf.length) return false;
+    return crypto.timingSafeEqual(expectedBuf, actualBuf);
 };
 
 module.exports = {

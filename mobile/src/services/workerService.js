@@ -1,7 +1,4 @@
 import api from './api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BASE_URL = 'http://10.0.2.2:5000/api/v1';
 
 export const workerService = {
   getPlans: () =>
@@ -23,7 +20,7 @@ export const workerService = {
     api.patch('/workers/me/profile', data),
 
   updateProfilePhoto: (data) =>
-    api.post('/workers/me/profile', data),
+    api.patch('/workers/me/profile', data),
 
   updateFullProfile: (data) =>
     api.put('/workers/me/profile', data),
@@ -38,7 +35,7 @@ export const workerService = {
     api.patch('/workers/me/location', data),
 
   updateKyc: (data) =>
-    api.post('/workers/me/kyc', data),
+    api.patch('/workers/me/kyc', data),
 
   removeKycDocument: (docIndex) =>
     api.delete(`/workers/me/kyc/${docIndex}`),
@@ -69,6 +66,9 @@ export const workerService = {
 
   getEarningsChart: (period = 'week') =>
     api.get('/workers/earnings/chart', { params: { period } }),
+
+  getStats: () =>
+    api.get('/workers/me/stats'),
 
   getEarningsTransactions: (page = 1, limit = 20) =>
     api.get('/workers/earnings/transactions', { params: { page, limit } }),

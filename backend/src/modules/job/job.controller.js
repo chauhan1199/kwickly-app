@@ -6,23 +6,28 @@ const logger = require('../../helpers/logger.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll, emitToRoom } = require('../../helpers/socket.helper');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
+const { uploadImage } = require('../../services/cloudinary.service');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const { findEligibleWorkers } = require('../../helpers/worker.helper');
+const { haversineDistance, calculateETA } = require('../../helpers/geo.helper');
+const { MAX_ACTIVE_JOBS, MAX_AVAILABLE_JOBS, GEOFENCE_MAX_METERS, JOB_ELIGIBLE_WORKERS_TTL } = require('../../constants/business');
+const mongoose = require('mongoose');
+const { supportsTransactions } = require('../../helpers/transaction.helper');
 
 /**
- * ─── WORKER ELIGIBILITY CRITERIA (ALL must be true) ─────────────────────────
+ * â”€â”€â”€ WORKER ELIGIBILITY CRITERIA (ALL must be true) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  *  1. role === 'WORKER'
  *  2. isVerified === true
  *  3. kyc.status === 'APPROVED'
  *  4. isOnline === true
  *  5. Subscription valid (trial active OR expiryDate > now)
- *  6. wallet.balance >= minimumBalance (from settings, default ₹100)
+ *  6. wallet.balance >= minimumBalance (from settings, default â‚¹100)
  *  7. Worker has the job's CATEGORY in their active services
  *  8. Job location is within the WORKER'S OWN serviceRadius (not global maxKm)
- * ─────────────────────────────────────────────────────────────────────────────
+ * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  */
 
-// ─── POST /api/v1/jobs ────────────────────────────────────────────────────────
+// â”€â”€â”€ POST /api/v1/jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.createJob = catchAsync(async (req, res) => {
     const {
         category,
@@ -49,14 +54,14 @@ exports.createJob = catchAsync(async (req, res) => {
     // Check maximum active jobs limit (max 5)
     const activeJobsCount = await Job.countDocuments({
         customerId: req.user._id,
-        status: { $nin: ['COMPLETED', 'CANCELLED'] }
+        status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'] }
     });
 
-    if (activeJobsCount >= 5) {
+    if (activeJobsCount >= MAX_ACTIVE_JOBS) {
         return errorResponse(res, 'You can only have up to 5 ongoing requests at a time. Please wait for them to complete or cancel an existing request.', StatusCodes.BAD_REQUEST);
     }
 
-    // ── Step 1: Load platform settings (Redis cached, 10 min TTL) ──────────────
+    // â”€â”€ Step 1: Load platform settings (Redis cached, 10 min TTL) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const SettingsService = require('../settings/settings.service');
     const settings = await SettingsService.getAppSettings();
 
@@ -87,13 +92,13 @@ exports.createJob = catchAsync(async (req, res) => {
         broadcast: { round: 0, lastAttemptAt: new Date(), radiusKm: initialRadiusKm }
     });
 
-    // ── Step 2 & 3: Find ALL eligible workers using server-side criteria ────────────
+    // â”€â”€ Step 2 & 3: Find ALL eligible workers using server-side criteria â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const eligibleWorkerIds = await findEligibleWorkers(job, initialRadiusKm, minBalance);
 
     // Update job to broadcast round 1
     job.broadcast.round = 1;
     await job.save();
-    // ── Step 4: Load customer info for the notification payload ─────────────────
+    // â”€â”€ Step 4: Load customer info for the notification payload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const customer = await Customer.findById(req.user._id)
         .select('name phone profileImage')
         .lean();
@@ -115,10 +120,10 @@ exports.createJob = catchAsync(async (req, res) => {
         }
     };
 
-    // ── Step 5: Emit ONLY to eligible workers' personal Socket.io rooms ─────────
+    // â”€â”€ Step 5: Emit ONLY to eligible workers' personal Socket.io rooms â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //
     // Each worker joins 'worker_{userId}' on app open.
-    // We emit to EACH room individually — no broadcast-to-all.
+    // We emit to EACH room individually â€” no broadcast-to-all.
     // Workers who are offline or haven't joined their room won't receive it.
 
     if (eligibleWorkerIds.length > 0) {
@@ -127,11 +132,11 @@ exports.createJob = catchAsync(async (req, res) => {
         });
     }
 
-    // ── Step 6: Cache eligible worker IDs for this job (for quick re-broadcast) ─
+    // â”€â”€ Step 6: Cache eligible worker IDs for this job (for quick re-broadcast) â”€
     //  Key: job:{jobId}:eligible_workers  TTL: 30 min (job broadcast window)
-    await setCache(`job:${job._id}:eligible_workers`, eligibleWorkerIds, 1800);
+    await setCache(`job:${job._id}:eligible_workers`, eligibleWorkerIds, JOB_ELIGIBLE_WORKERS_TTL);
 
-    // ── Step 7: Invalidate admin dashboard cache + notify admin room ────────────
+    // â”€â”€ Step 7: Invalidate admin dashboard cache + notify admin room â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     await delCache('admin_dashboard_stats');
     await delCache('admin_badge_counts');
     emitToRoom('admin_dashboard', 'DASHBOARD_UPDATE', {
@@ -141,10 +146,10 @@ exports.createJob = catchAsync(async (req, res) => {
         notifiedWorkers: eligibleWorkerIds.length
     });
 
-    // ── Notify customer that job was posted successfully ──────────────────────
+    // â”€â”€ Notify customer that job was posted successfully â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     notifyUser({
         userId: req.user._id,
-        title: '✅ Job Posted Successfully',
+        title: 'âœ… Job Posted Successfully',
         message: `Your ${job.category} job has been posted. We're finding the best workers for you!`,
         action: 'JOB_CREATED',
         entityType: 'JOB',
@@ -161,7 +166,7 @@ exports.createJob = catchAsync(async (req, res) => {
 });
 
 
-// ─── GET /api/v1/jobs (Admin) ─────────────────────────────────────────────────
+// â”€â”€â”€ GET /api/v1/jobs (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getJobs = catchAsync(async (req, res) => {
     const { status, limit = 20, page = 1 } = req.query;
     const query = {};
@@ -179,7 +184,7 @@ exports.getJobs = catchAsync(async (req, res) => {
     return successResponse(res, { jobs, totalPages: Math.ceil(total / limit), currentPage: Number(page), totalJobs: total }, 'Jobs fetched');
 });
 
-// ─── GET /api/v1/jobs/my (Customer) ──────────────────────────────────────────
+// â”€â”€â”€ GET /api/v1/jobs/my (Customer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getMyJobs = catchAsync(async (req, res) => {
     const { status } = req.query;
     const query = { customerId: req.user._id };
@@ -193,12 +198,12 @@ exports.getMyJobs = catchAsync(async (req, res) => {
     return successResponse(res, jobs, 'My jobs fetched successfully');
 });
 
-// ─── GET /api/v1/jobs/available (Worker) ─────────────────────────────────────
+// â”€â”€â”€ GET /api/v1/jobs/available (Worker) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Returns jobs that the requesting worker is eligible to bid on.
 // All 8 eligibility criteria are enforced here as well.
 exports.getAvailableJobs = catchAsync(async (req, res) => {
-    // ── Fetch worker with populated category names ──────────────────────────────
+    // â”€â”€ Fetch worker with populated category names â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const worker = await Customer.findById(req.user._id)
         .populate('services.category', 'name')
         .lean();
@@ -207,7 +212,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
     }
 
-    // ── Criteria 3: KYC approved ────────────────────────────────────────────────
+    // â”€â”€ Criteria 3: KYC approved â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (worker.kyc?.status !== 'APPROVED') {
         return errorResponse(
             res,
@@ -216,7 +221,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         );
     }
 
-    // ── Criteria 4: Online ──────────────────────────────────────────────────────
+    // â”€â”€ Criteria 4: Online â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (!worker.isOnline) {
         return errorResponse(
             res,
@@ -225,7 +230,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         );
     }
 
-    // ── Criteria 5: Subscription valid ─────────────────────────────────────────
+    // â”€â”€ Criteria 5: Subscription valid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const now = new Date();
     const isTrialActive = worker.subscription?.isTrial === true &&
         worker.subscription?.trialEndDate &&
@@ -249,17 +254,17 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         );
     }
 
-    // ── Criteria 6: Wallet balance ──────────────────────────────────────────────
+    // â”€â”€ Criteria 6: Wallet balance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const minBalance = settings?.wallet?.minimumBalance || 100;
     if ((worker.wallet?.balance || 0) < minBalance) {
         return errorResponse(
             res,
-            `Minimum wallet balance of ₹${minBalance} is required to view jobs. Please top up.`,
+            `Minimum wallet balance of â‚¹${minBalance} is required to view jobs. Please top up.`,
             StatusCodes.PAYMENT_REQUIRED
         );
     }
 
-    // ── Criteria 7: Active service categories (worker's own selection) ──────────
+    // â”€â”€ Criteria 7: Active service categories (worker's own selection) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const activeCategoryNames = (worker.services || [])
         .filter(s => s.isActive && s.category?.name)
         .map(s => s.category.name.trim());
@@ -272,7 +277,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         );
     }
 
-    // ── Criteria 8: Worker's own serviceRadius + location check ────────────────
+    // â”€â”€ Criteria 8: Worker's own serviceRadius + location check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const workerRadiusKm = worker.serviceRadius || (settings?.radius?.maxKm || 15);
     const workerCoords = worker.activeLocation?.coordinates;
 
@@ -286,11 +291,11 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
 
     const workerRadiusRadians = workerRadiusKm / 6371;
 
-    // ── Exclude jobs this worker has already quoted on ──────────────────────────
+    // â”€â”€ Exclude jobs this worker has already quoted on â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const Quote = require('../quote/quote.model');
     const quotedJobIds = await Quote.distinct('jobId', { workerId: req.user._id });
 
-    // ── Fetch active jobs matching worker's categories within their radius ──────
+    // â”€â”€ Fetch active jobs matching worker's categories within their radius â”€â”€â”€â”€â”€â”€
     const query = {
         status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED'] },
         category: { $in: activeCategoryNames },        // Criteria 7: category match
@@ -314,23 +319,15 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
     const jobs = await Job.find(query)
         .populate('customerId', 'name phone profileImage')
         .sort('-createdAt')
-        .limit(50)
+        .limit(MAX_AVAILABLE_JOBS)
         .lean();
 
-    // ── Attach distance info to each job (for display in worker's app) ──────────
+    // â”€â”€ Attach distance info to each job (for display in worker's app) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const [wLng, wLat] = workerCoords;
     const jobsWithDistance = jobs.map(job => {
         const [jLng, jLat] = job.location?.coordinates || [0, 0];
-        const R = 6371;
-        const dLat = ((jLat - wLat) * Math.PI) / 180;
-        const dLng = ((jLng - wLng) * Math.PI) / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos((wLat * Math.PI) / 180) *
-            Math.cos((jLat * Math.PI) / 180) *
-            Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        const distanceKm = parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2));
-        const etaMins = Math.max(5, Math.ceil(distanceKm * 2) + 5);
+        const distanceKm = parseFloat(haversineDistance([wLng, wLat], [jLng, jLat]).toFixed(2));
+        const etaMins = calculateETA(distanceKm);
         return { ...job, distanceKm, etaMins };
     });
 
@@ -344,7 +341,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
     );
 });
 
-// ─── GET /api/v1/jobs/worker (Worker's own jobs) ──────────────────────────────
+// â”€â”€â”€ GET /api/v1/jobs/worker (Worker's own jobs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getWorkerJobs = catchAsync(async (req, res) => {
     const { status } = req.query;
     const query = { workerId: req.user._id };
@@ -358,9 +355,9 @@ exports.getWorkerJobs = catchAsync(async (req, res) => {
     return successResponse(res, jobs, 'Worker jobs fetched');
 });
 
-// ─── PATCH /api/v1/jobs/:id/start ─────────────────────────────────────────────
+// â”€â”€â”€ PATCH /api/v1/jobs/:id/start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// LOOPHOLE FIX #3 — GPS Spoofing Mitigation
+// LOOPHOLE FIX #3 â€” GPS Spoofing Mitigation
 //   Verifies worker is within 200 meters of job location using Haversine distance
 //   This prevents workers from using GPS spoofing apps to fake arrival
 exports.startJob = catchAsync(async (req, res) => {
@@ -376,21 +373,19 @@ exports.startJob = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid Arrival OTP', StatusCodes.BAD_REQUEST);
     }
 
-    // ─── GPS Spoofing Check: Geofence verification (≤200 meters) ───────────────
-    const GEOFENCE_MAX_METERS = 200;
+    // GPS Spoofing Check: Geofence verification (â‰¤200 meters)
     const jobCoords = job.location?.coordinates;
-    if (currentCoordinates && currentCoordinates.length === 2 && jobCoords && jobCoords.length === 2) {
+    if (!currentCoordinates || currentCoordinates.length !== 2) {
+        return errorResponse(
+            res,
+            'Current location coordinates are required to start the job. Please enable GPS.',
+            StatusCodes.BAD_REQUEST
+        );
+    }
+    if (jobCoords && jobCoords.length === 2) {
         const [jobLon, jobLat] = jobCoords;
         const [curLon, curLat] = currentCoordinates;
-        const R = 6371000; // Earth radius in meters
-        const dLat = ((curLat - jobLat) * Math.PI) / 180;
-        const dLon = ((curLon - jobLon) * Math.PI) / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos((jobLat * Math.PI) / 180) *
-            Math.cos((curLat * Math.PI) / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const distanceMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distanceMeters = haversineDistance([jobLon, jobLat], [curLon, curLat]) * 1000;
 
         if (distanceMeters > GEOFENCE_MAX_METERS) {
             return errorResponse(
@@ -399,11 +394,6 @@ exports.startJob = catchAsync(async (req, res) => {
                 StatusCodes.FORBIDDEN
             );
         }
-    }
-    // If no coordinates provided, still allow with arrival OTP (fallback)
-    // but log a warning for admin auditing
-    if (!currentCoordinates || currentCoordinates.length !== 2) {
-        logger.warn(`[GPS Spoofing] Worker ${req.user._id} started job ${id} without location data`);
     }
 
     job.status = 'IN_PROGRESS';
@@ -414,7 +404,7 @@ exports.startJob = catchAsync(async (req, res) => {
 
     notifyUser({
         userId: job.customerId,
-        title: '🛠️ Work Started',
+        title: 'ðŸ› ï¸ Work Started',
         message: `The worker has started your ${job.category} job.`,
         action: 'JOB_UPDATED',
         entityType: 'JOB',
@@ -425,7 +415,7 @@ exports.startJob = catchAsync(async (req, res) => {
     return successResponse(res, job, 'Job started successfully');
 });
 
-// ─── PATCH /api/v1/jobs/:id/complete ─────────────────────────────────────────
+// â”€â”€â”€ PATCH /api/v1/jobs/:id/complete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.completeJob = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { media, report } = req.body;
@@ -440,11 +430,13 @@ exports.completeJob = catchAsync(async (req, res) => {
     job.completionDetails = { media: media || [], report: report || '', completedAt: new Date() };
     await job.save();
 
+    await delCache(`job:${job._id}:assigned_worker`);
+
     emitToRoom(`customer_${job.customerId}`, 'JOB_COMPLETED', { jobId: job._id });
 
     notifyUser({
         userId: job.customerId,
-        title: '✅ Job Completed',
+        title: 'âœ… Job Completed',
         message: `The worker has marked your ${job.category} job as completed. Please review and process payment.`,
         action: 'JOB_UPDATED',
         entityType: 'JOB',
@@ -455,7 +447,7 @@ exports.completeJob = catchAsync(async (req, res) => {
     return successResponse(res, job, 'Job completed successfully');
 });
 
-// ─── PATCH /api/v1/jobs/:id/pay ───────────────────────────────────────────────
+// â”€â”€â”€ PATCH /api/v1/jobs/:id/pay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.payJob = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { method, completionOtp, promoCode } = req.body;
@@ -497,32 +489,40 @@ exports.payJob = catchAsync(async (req, res) => {
 
     const adminTotalRevenue = (platformFee + gst) - promoDiscount;
 
-    const mongoose = require('mongoose');
-    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-    const session = isSingle ? null : await mongoose.startSession();
-    if (session) session.startTransaction();
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
     try {
         const WalletTxn = require('../wallet/wallet.model');
         const worker = await Customer.findById(job.workerId).session(session);
 
         if (worker) {
             if (method === 'CASH') {
-                // Worker got cash — Kwickly deducts commission from worker wallet
+                // Worker got cash â€” Kwickly deducts commission from worker wallet
                 const updated = await Customer.findOneAndUpdate(
                     { _id: worker._id, 'wallet.balance': { $gte: adminTotalRevenue } },
                     { $inc: { 'wallet.balance': -adminTotalRevenue } },
-                    { new: true, session }
+                    { returnDocument: 'after', session }
                 );
                 if (!updated) {
-                    // LOOPHOLE FIX #1 — Cash Payment Evasion Mitigation
-                    // Worker doesn't have enough balance — create debt record
-                    const debtUpdated = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': -adminTotalRevenue } }, { new: true, session });
+                    // LOOPHOLE FIX #1 â€” Cash Payment Evasion Mitigation
+                    // Worker doesn't have enough balance â€” create debt record
+                    const debtUpdated = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': -adminTotalRevenue } }, { returnDocument: 'after', session });
 
                     const txnType = adminTotalRevenue < 0 ? 'PROMO_CREDIT' : 'JOB_DEBIT';
                     
                     if (debtUpdated && debtUpdated.wallet?.balance < 0) {
                         await Customer.findByIdAndUpdate(worker._id, { isOnline: false }, { session });
-                        logger.warn(`[Cash Evasion] Worker ${worker._id} locked offline — wallet at ₹${debtUpdated.wallet.balance}`);
+                        logger.warn(`[Cash Evasion] Worker ${worker._id} locked offline â€” wallet at â‚¹${debtUpdated.wallet.balance}`);
                         emitToRoom(`worker_${worker._id}`, 'FORCED_OFFLINE', {
                             reason: 'Negative wallet balance from cash job. Please top-up to continue receiving jobs.',
                             walletBalance: debtUpdated.wallet.balance
@@ -545,7 +545,7 @@ exports.payJob = catchAsync(async (req, res) => {
                     }], { session });
                 }
             } else {
-                const creditedWorker = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': workerPayout } }, { new: true, session });
+                const creditedWorker = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': workerPayout } }, { returnDocument: 'after', session });
                 await WalletTxn.create([{
                     userId: worker._id, type: 'JOB_CREDIT', amount: workerPayout,
                     balance: creditedWorker?.wallet?.balance || 0,
@@ -559,20 +559,20 @@ exports.payJob = catchAsync(async (req, res) => {
         job.payment.status = 'PAID';
         await job.save({ session });
 
-        if (session) await session.commitTransaction();
-        if (session) session.endSession();
+        if (useTransaction) await session.commitTransaction();
+        if (useTransaction) session.endSession();
 
         try {
             const { collectPlatformFee } = require('../adminWallet/adminWallet.controller');
             await collectPlatformFee(
                 adminTotalRevenue,
-                `Platform fee + GST ${promoDiscount > 0 ? `(less ₹${promoDiscount} promo discount)` : ''} from job #${job._id.toString().slice(-6)} (${method})`,
+                `Platform fee + GST ${promoDiscount > 0 ? `(less â‚¹${promoDiscount} promo discount)` : ''} from job #${job._id.toString().slice(-6)} (${method})`,
                 job._id,
                 'Job',
                 { workerId: job.workerId, customerId: job.customerId, method }
             );
         } catch (e) {
-            console.error('Failed to credit admin wallet for platform fee:', e.message);
+            logger.error('Failed to credit admin wallet for platform fee:', e.message);
         }
 
         await delCache(`session:${job.workerId}`);
@@ -580,7 +580,7 @@ exports.payJob = catchAsync(async (req, res) => {
 
         notifyUser({
             userId: job.workerId,
-            title: '💸 Payment Received',
+            title: 'ðŸ’¸ Payment Received',
             message: `You have received payment for job #${String(job._id).slice(-6)}.`,
             action: 'JOB_UPDATED',
             entityType: 'JOB',
@@ -590,13 +590,13 @@ exports.payJob = catchAsync(async (req, res) => {
 
         return successResponse(res, job, 'Payment completed successfully');
     } catch (error) {
-        if (session) await session.abortTransaction();
+        if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
         throw error;
     }
 });
 
-// ─── POST /api/v1/jobs/:id/rate ───────────────────────────────────────────────
+// â”€â”€â”€ POST /api/v1/jobs/:id/rate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.rateJob = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { score, review } = req.body;
@@ -624,7 +624,7 @@ exports.rateJob = catchAsync(async (req, res) => {
             
             notifyUser({
                 userId: job.workerId,
-                title: '⭐ New Rating Received',
+                title: 'â­ New Rating Received',
                 message: `You received a ${score}-star rating for your recent job.`,
                 action: 'RATING_RECEIVED',
                 entityType: 'JOB',
@@ -637,7 +637,7 @@ exports.rateJob = catchAsync(async (req, res) => {
     return successResponse(res, job, 'Job rated successfully');
 });
 
-// ─── PATCH /api/v1/jobs/:id/cancel ───────────────────────────────────
+// â”€â”€â”€ PATCH /api/v1/jobs/:id/cancel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.cancelJob = catchAsync(async (req, res) => {
     const job = await Job.findById(req.params.id);
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
@@ -655,13 +655,14 @@ exports.cancelJob = catchAsync(async (req, res) => {
     job.status = 'CANCELLED';
     await job.save();
 
+    await delCache(`job:${job._id}:assigned_worker`);
     await delCache('admin_dashboard_stats');
     emitToAll('DASHBOARD_UPDATE', { type: 'JOB_CANCELLED', id: job._id });
 
     if (job.customerId) {
         notifyUser({
             userId: job.customerId,
-            title: '❌ Job Cancelled',
+            title: 'âŒ Job Cancelled',
             message: `Your job #${String(job._id).slice(-6)} has been cancelled.`,
             action: 'JOB_UPDATED',
             entityType: 'JOB',
@@ -679,7 +680,7 @@ exports.cancelJob = catchAsync(async (req, res) => {
 
         notifyUser({
             userId: job.workerId,
-            title: '❌ Job Cancelled',
+            title: 'âŒ Job Cancelled',
             message: `Job #${String(job._id).slice(-6)} assigned to you has been cancelled.`,
             action: 'JOB_UPDATED',
             entityType: 'JOB',
@@ -698,7 +699,7 @@ exports.cancelJob = catchAsync(async (req, res) => {
             });
             notifyUser({
                 userId: q.workerId,
-                title: '❌ Job Cancelled',
+                title: 'âŒ Job Cancelled',
                 message: `Job #${String(job._id).slice(-6)} you bid on has been cancelled.`,
                 action: 'JOB_UPDATED',
                 entityType: 'JOB',
@@ -711,7 +712,7 @@ exports.cancelJob = catchAsync(async (req, res) => {
     return successResponse(res, job, 'Job cancelled successfully');
 });
 
-// ─── PATCH /api/v1/jobs/:id/reassign (Admin) ─────────────────────────────────
+// â”€â”€â”€ PATCH /api/v1/jobs/:id/reassign (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.reassignWorker = catchAsync(async (req, res) => {
     const { workerId } = req.body;
     const job = await Job.findById(req.params.id);
@@ -721,12 +722,16 @@ exports.reassignWorker = catchAsync(async (req, res) => {
     job.status = 'ALLOCATED';
     await job.save();
 
+    // Invalidate old assignment cache and set new one
+    await delCache(`job:${job._id}:assigned_worker`);
+    await setCache(`job:${job._id}:assigned_worker`, String(workerId), 7200);
+
     emitToAll('DASHBOARD_UPDATE', { type: 'WORKER_REASSIGNED', id: job._id });
 
     if (job.customerId) {
         notifyUser({
             userId: job.customerId,
-            title: '👷 Worker Reassigned',
+            title: 'ðŸ‘· Worker Reassigned',
             message: `A new worker has been assigned to your job #${String(job._id).slice(-6)} by the admin.`,
             action: 'JOB_UPDATED',
             entityType: 'JOB',
@@ -737,7 +742,7 @@ exports.reassignWorker = catchAsync(async (req, res) => {
 
     notifyUser({
         userId: workerId,
-        title: '👷 New Job Assigned',
+        title: 'ðŸ‘· New Job Assigned',
         message: `You have been manually assigned to job #${String(job._id).slice(-6)} by the admin.`,
         action: 'JOB_UPDATED',
         entityType: 'JOB',
@@ -748,9 +753,9 @@ exports.reassignWorker = catchAsync(async (req, res) => {
     return successResponse(res, job, 'Worker reassigned successfully');
 });
 
-// ─── POST /api/v1/jobs/:id/report-partial-payment ─────────────────────────────
+// â”€â”€â”€ POST /api/v1/jobs/:id/report-partial-payment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// LOOPHOLE FIX #9 — Partial Cash Payment (Worker Short-Changing)
+// LOOPHOLE FIX #9 â€” Partial Cash Payment (Worker Short-Changing)
 //   If a customer pays less than the agreed amount, the worker can report it
 //   This shifts the job to DISPUTED status and freezes the commission deduction
 exports.reportPartialPayment = catchAsync(async (req, res) => {
@@ -773,7 +778,7 @@ exports.reportPartialPayment = catchAsync(async (req, res) => {
         return errorResponse(res, 'Amount received is equal to or greater than the agreed amount. Use normal payment flow instead.', StatusCodes.BAD_REQUEST);
     }
 
-    // Mark job as DISPUTED — freezes commission deduction
+    // Mark job as DISPUTED â€” freezes commission deduction
     job.status = 'DISPUTED';
     // Store dispute info on the job
     job.dispute = {
@@ -803,11 +808,11 @@ exports.reportPartialPayment = catchAsync(async (req, res) => {
         status: 'DISPUTED',
         amountReceived,
         shortAmount,
-        message: `Dispute reported. The remaining ₹${shortAmount} has been flagged. Admin will review and mediate.`
+        message: `Dispute reported. The remaining â‚¹${shortAmount} has been flagged. Admin will review and mediate.`
     }, 'Partial payment reported. Admin notified.');
 });
 
-// ─── PATCH /api/v1/jobs/:id/resolve-dispute (Admin) ──────────────────────────
+// â”€â”€â”€ PATCH /api/v1/jobs/:id/resolve-dispute (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.resolveDispute = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { resolution, adminNote } = req.body; // resolution: 'DEDUCT_FROM_WORKER' | 'WAIVE_FEE' | 'REFUND_CUSTOMER' | 'CLOSE'
@@ -819,10 +824,18 @@ exports.resolveDispute = catchAsync(async (req, res) => {
     const dispute = job.dispute;
     if (!dispute) return errorResponse(res, 'No dispute found on this job', StatusCodes.NOT_FOUND);
 
-    const mongoose = require('mongoose');
-    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-    const session = isSingle ? null : await mongoose.startSession();
-    if (session) session.startTransaction();
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
 
     try {
         const WalletTxn = require('../wallet/wallet.model');
@@ -841,13 +854,13 @@ exports.resolveDispute = catchAsync(async (req, res) => {
             await WalletTxn.create([{
                 userId: job.workerId, type: 'JOB_DEBIT', amount: actualFee,
                 refId: job._id.toString(), status: 'COMPLETED',
-                description: `Partial fee for disputed job #${job._id.toString().slice(-6)} (worker received ₹${actualAmount})`
+                description: `Partial fee for disputed job #${job._id.toString().slice(-6)} (worker received â‚¹${actualAmount})`
             }], { session });
 
             job.status = 'CLOSED';
             job.payment.status = 'PAID';
         } else if (resolution === 'WAIVE_FEE') {
-            // Platform waives the commission — worker keeps what they got
+            // Platform waives the commission â€” worker keeps what they got
             job.status = 'CLOSED';
             job.payment.status = 'PAID';
         } else if (resolution === 'REFUND_CUSTOMER') {
@@ -863,7 +876,7 @@ exports.resolveDispute = catchAsync(async (req, res) => {
             job.status = 'CLOSED';
             job.payment.status = 'REFUNDED';
         } else {
-            // CLOSE — just close without financial action
+            // CLOSE â€” just close without financial action
             job.status = 'CLOSED';
         }
 
@@ -873,21 +886,21 @@ exports.resolveDispute = catchAsync(async (req, res) => {
         job.dispute.status = 'RESOLVED';
         await job.save({ session });
 
-        if (session) await session.commitTransaction();
-        if (session) session.endSession();
+        if (useTransaction) await session.commitTransaction();
+        if (useTransaction) session.endSession();
 
         emitToRoom(`worker_${job.workerId}`, 'DISPUTE_RESOLVED', { jobId: job._id, resolution });
         emitToRoom(`customer_${job.customerId}`, 'DISPUTE_RESOLVED', { jobId: job._id, resolution });
 
         return successResponse(res, job, `Dispute resolved: ${resolution}`);
     } catch (error) {
-        if (session) await session.abortTransaction();
+        if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
         throw error;
     }
 });
 
-// ─── GET /api/v1/jobs/:id/receipt ─────────────────────────────────────────────
+// â”€â”€â”€ GET /api/v1/jobs/:id/receipt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getJobReceipt = catchAsync(async (req, res) => {
     const job = await Job.findById(req.params.id)
         .populate('customerId', 'name phone email location')
@@ -941,12 +954,12 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
     return successResponse(res, receipt, 'Job receipt generated successfully');
 });
 
-// ─── GET /api/v1/jobs/disputes (Admin) ───────────────────────────────────────
+// â”€â”€â”€ GET /api/v1/jobs/disputes (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getDisputes = catchAsync(async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     
-    const total = await Job.countDocuments({ status: 'CANCELLED' });
-    const disputes = await Job.find({ status: 'CANCELLED' })
+    const total = await Job.countDocuments({ status: 'DISPUTED' });
+    const disputes = await Job.find({ status: 'DISPUTED' })
         .populate('customerId', 'name phone')
         .populate('workerId', 'name phone')
         .sort('-updatedAt')
@@ -955,4 +968,24 @@ exports.getDisputes = catchAsync(async (req, res) => {
         .lean();
 
     return successResponse(res, { disputes, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Disputes fetched');
+});
+
+// â”€â”€â”€ GET /api/v1/jobs/:id (Job detail) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+exports.getJobById = catchAsync(async (req, res) => {
+    const job = await Job.findById(req.params.id)
+        .populate('customerId', 'name phone profileImage')
+        .populate('workerId', 'name phone profileImage rating')
+        .lean();
+
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+
+    return successResponse(res, job, 'Job fetched');
+});
+
+// â”€â”€â”€ POST /api/v1/jobs/upload-media â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+exports.uploadMedia = catchAsync(async (req, res) => {
+    if (!req.file) return errorResponse(res, 'No file uploaded', StatusCodes.BAD_REQUEST);
+
+    const result = await uploadImage(req.file.buffer, 'kwickly/jobs');
+    return successResponse(res, { url: result.url }, 'Media uploaded');
 });

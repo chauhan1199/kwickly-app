@@ -11,7 +11,11 @@ jest.mock('../helpers/redis.helper', () => ({
     getRedis: jest.fn(),
     setCache: jest.fn(),
     getCache: jest.fn(),
-    delCache: jest.fn()
+    delCache: jest.fn(),
+    delCacheByPattern: jest.fn(),
+    fetchWithCache: jest.fn(),
+    acquireLock: jest.fn().mockResolvedValue(true),
+    releaseLock: jest.fn()
 }));
 
 // Mock rate limiter - pass through all requests
@@ -38,9 +42,6 @@ jest.mock('../helpers/socket.helper', () => ({
 jest.mock('../services/sms.service', () => ({
     sendOTP: jest.fn().mockResolvedValue('1234')
 }));
-
-// Mock Redis init (prevent real Redis connections)
-jest.mock('../helpers/redis.helper');
 
 const setup = async () => {
     process.env.JWT_SECRET = 'test_secret_key';

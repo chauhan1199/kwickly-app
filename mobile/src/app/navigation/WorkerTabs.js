@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, DeviceEventEmitter } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Home, MessageSquare, Wallet, Wrench, User } from 'lucide-react-native';
@@ -105,7 +105,6 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
           return (
             <View key={route.key} style={styles.fabWrapper}>
               <TouchableOpacity activeOpacity={0.8} onPress={() => {
-                const { DeviceEventEmitter } = require('react-native');
                 DeviceEventEmitter.emit('toggleDutyStatus');
               }}>
                 <LinearGradient

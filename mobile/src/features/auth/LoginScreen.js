@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Phone, Lock, ChevronLeft, ArrowRight, Eye, EyeOff } from 'lucide-react-native';
-import api from '../../services/api';
+import { authService } from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
 import CustomAlert from '../../components/ui/CustomAlert';
 import LinearGradient from 'react-native-linear-gradient';
@@ -51,15 +51,15 @@ const LoginScreen = ({ navigation, route }) => {
     setLoading(true);
     try {
       if (loginMode === 'OTP') {
-        await api.post('/auth/send-otp', { phone, role });
+        await authService.sendOtp(phone, role);
         navigation.navigate('OTPVerify', { phone, role });
       } else {
-        const response = await api.post('/auth/login', { phone, password, role });
+        const response = await authService.login(phone, password, role);
         const { token, user } = response.data.data;
         await signIn(token, user.role);
       }
     } catch (error) {
-      const errorMsg = error.response?.data?.message || 'Something went wrong';
+      const errorMsg = error.response?.data?.errors?.join(', ') || error.response?.data?.message || error.message || 'Something went wrong';
       showAlert('Error', errorMsg);
     } finally {
       setLoading(false);

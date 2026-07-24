@@ -6,10 +6,10 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
-  StatusBar
+  StatusBar,
+  Linking,
+  Alert
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 
 const PastJobDetailsScreen = ({ route, navigation }) => {
@@ -113,7 +113,16 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.rebookBtnText}>↺ Rebook Service</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.invoiceBtn}>
+        <TouchableOpacity 
+          style={styles.invoiceBtn}
+          onPress={() => {
+            if (job?.receipt?.invoiceUrl) {
+              Linking.openURL(job.receipt.invoiceUrl);
+            } else {
+              Alert.alert('Invoice', 'Invoice not available yet');
+            }
+          }}
+        >
           <Text style={styles.invoiceBtnText}>📄 Download Invoice</Text>
         </TouchableOpacity>
 

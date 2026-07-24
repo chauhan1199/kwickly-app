@@ -1,22 +1,21 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  ScrollView, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
   StatusBar,
   Alert,
   Modal,
   TextInput,
   ActivityIndicator
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import { useAuth } from '../../context/AuthContext';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { customerService } from '../../services/customerService';
 import { useNotifications } from '../../context/NotificationContext';
@@ -52,33 +51,11 @@ const PaymentMethodsScreen = ({ navigation }) => {
     setMethods(loadedMethods);
   }, [user]);
 
-  React.useEffect(() => {
-    const loadMethods = async () => {
-      try {
-        const stored = await AsyncStorage.getItem('mockPaymentMethods');
-        if (stored) {
-          setMethods(JSON.parse(stored));
-        } else {
-          const defaultMethods = [
-            { id: 1, type: 'UPI', details: 'anita@upi', icon: '📱', isDefault: true },
-            { id: 2, type: 'HDFC Debit Card', details: '****4321', icon: '💳', isDefault: false },
-          ];
-          setMethods(defaultMethods);
-          await AsyncStorage.setItem('mockPaymentMethods', JSON.stringify(defaultMethods));
-        }
-      } catch (e) {
-        console.log(e);
-      }
-    };
-    loadMethods();
-  }, []);
-
   const saveMethods = async (newMethods) => {
     setMethods(newMethods);
     try {
       await AsyncStorage.setItem('mockPaymentMethods', JSON.stringify(newMethods));
     } catch (e) {
-      console.log(e);
     }
   };
 
@@ -103,7 +80,7 @@ const PaymentMethodsScreen = ({ navigation }) => {
       
       customerService.triggerNotification({ title: 'Payment Method Removed', message: 'Payment method successfully deleted.' })
         .then(() => refreshUnread())
-        .catch(e=>console.log(e));
+        .catch(()=>{});
     } catch (e) {
       Alert.alert('Error', 'Failed to remove payment method');
     } finally {
@@ -176,7 +153,7 @@ const PaymentMethodsScreen = ({ navigation }) => {
       
       customerService.triggerNotification({ title, message: msg })
         .then(() => refreshUnread())
-        .catch(e=>console.log(e));
+        .catch(()=>{});
         
       setShowAddModal(false);
       setNewUpiId('');
@@ -184,7 +161,6 @@ const PaymentMethodsScreen = ({ navigation }) => {
       setNewIfsc('');
       setEditMethodId(null);
     } catch (e) {
-      console.log('Update payment error:', e.response?.data || e.message);
       Alert.alert('Error', e.response?.data?.message || e.message || 'Failed to save payment method');
     } finally {
       setLoading(false);

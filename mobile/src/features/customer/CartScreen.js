@@ -9,13 +9,15 @@ import { useTheme } from '../../context/ThemeContext';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
+import { walletService } from '../../services/walletService';
 import Razorpay from 'react-native-razorpay';
 import {
   ShoppingCart, Minus, Plus, Trash2, MapPin, CreditCard,
   Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone
 } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
+import { RAZORPAY_LOGO_URL } from '../../config/env';
 
 const CartScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -35,19 +37,19 @@ const CartScreen = ({ route, navigation }) => {
   const [slots, setSlots] = useState([]);
   const [showSlotModal, setShowSlotModal] = useState(false);
 
-  useEffect(() => { fetchCart(); }, []);
+  useEffect(() => { fetchCart(); }, [fetchCart]);
 
   useEffect(() => {
     if (cart?.shopId) {
       loadDeliverySlots();
     }
-  }, [cart?.shopId]);
+  }, [cart?.shopId, loadDeliverySlots]);
 
-  const loadDeliverySlots = async () => {
+  const loadDeliverySlots = useCallback(async () => {
     try {
       const shopId = typeof cart?.shopId === 'object' ? cart.shopId._id : cart?.shopId;
       if (!shopId) return;
-      const res = await api.get(`/shops/${shopId}`);
+      const res = await shopService.getShopById(shopId);
       const shopData = res.data?.data;
       if (shopData?.deliveryConfig?.deliverySlots) {
         setSlots(shopData.deliveryConfig.deliverySlots);
@@ -59,8 +61,8 @@ const CartScreen = ({ route, navigation }) => {
           setSlots([{ label: `By ${eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, slotOpen: now.toISOString(), slotClose: eta.toISOString() }]);
         }
       }
-    } catch (e) { console.log('Could not load delivery slots'); }
-  };
+    } catch (e) { Alert.alert('Error', 'Could not load delivery slots'); }
+  }, [cart?.shopId]);
 
   const handleApplyPromo = async () => {
     if (!promoInput.trim()) return;
@@ -114,7 +116,7 @@ const CartScreen = ({ route, navigation }) => {
         deliverySlot: selectedSlot
       };
 
-      const res = await api.post('/shoporders', orderData);
+      const res = await shopService.placeOrder(orderData);
       if (res.data?.status !== 'success') {
         throw new Error(res.data?.message || 'Failed to place order');
       }
@@ -124,7 +126,7 @@ const CartScreen = ({ route, navigation }) => {
       // Step 2: If Razorpay payment, create Razorpay order and open checkout
       if (paymentMethod === 'RAZORPAY') {
         try {
-          const payRes = await api.post('/payments/create-order', {
+          const payRes = await walletService.createPaymentOrder({
             amount: total,
             orderId: order._id,
             purpose: 'order_payment'
@@ -136,7 +138,7 @@ const CartScreen = ({ route, navigation }) => {
             // Open Razorpay checkout
             const options = {
               description: `Kwickly Order #${order.orderNumber || order._id?.slice(-6)}`,
-              image: 'https://kwickly.in/logo.png',
+              image: RAZORPAY_LOGO_URL,
               currency: 'INR',
               key: keyId,
               amount: amount,
@@ -153,7 +155,7 @@ const CartScreen = ({ route, navigation }) => {
               const razorpayResponse = await Razorpay.open(options);
 
               // Step 3: Verify payment on backend
-              const verifyRes = await api.post('/payments/verify', {
+              const verifyRes = await walletService.verifyPayment({
                 razorpayOrderId: razorpayResponse.razorpay_order_id,
                 razorpayPaymentId: razorpayResponse.razorpay_payment_id,
                 razorpaySignature: razorpayResponse.razorpay_signature,
@@ -216,14 +218,14 @@ const CartScreen = ({ route, navigation }) => {
   const renderCartItem = ({ item }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemEmoji}>
-        {item.imageUrl && (item.imageUrl.startsWith('/') || item.imageUrl.startsWith('http')) ? (
+        {item.imageUrl && getImageUrl(item.imageUrl) ? (
           <Image 
             source={{ uri: getImageUrl(item.imageUrl) }} 
             style={{ width: '100%', height: '100%', borderRadius: 12 }} 
             resizeMode="contain" 
           />
         ) : (
-          <Text style={{ fontSize: 24 }}>{item.imageUrl || '📦'}</Text>
+          <Text style={{ fontSize: 24 }}>📦</Text>
         )}
       </View>
       <View style={styles.itemInfo}>
@@ -366,7 +368,7 @@ const CartScreen = ({ route, navigation }) => {
                   ].filter(Boolean).map(([k, v]) => (
                     <View key={k} style={styles.billRow}>
                       <Text style={styles.billKey}>{k}</Text>
-                      <Text style={[styles.billVal, v.includes('FREE') && { color: '#059669' }]}>
+                      <Text style={[styles.billVal, typeof v === 'string' && v.includes('FREE') && { color: '#059669' }]}>
                         {v}
                       </Text>
                     </View>

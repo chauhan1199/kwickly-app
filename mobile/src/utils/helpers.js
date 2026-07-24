@@ -1,27 +1,22 @@
-import api from '../services/api';
+import { API_BASE_URL } from '../config/env';
 
 export const getImageUrl = (url) => {
   if (!url) return null;
-  
-  if (!url.includes('/') && !url.startsWith('http')) return null;
-  
-  let serverUrl = 'http://10.0.2.2:5000';
-  if (api.defaults && api.defaults.baseURL) {
-    serverUrl = api.defaults.baseURL.replace('/api/v1', '');
+
+  if (typeof url !== 'string') return null;
+
+  // Already a full URL
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
   }
-  
-  let finalUrl = url;
+
+  const serverUrl = API_BASE_URL.replace('/api/v1', '');
+
+  // Relative path starting with /
   if (url.startsWith('/')) {
-    finalUrl = `${serverUrl}${url}`;
-  } else {
-    const hostMatch = serverUrl.match(/https?:\/\/([^\/:]+)/);
-    if (hostMatch && hostMatch[1]) {
-      finalUrl = url.replace(/(localhost|127\.0\.0\.1)/, hostMatch[1]);
-    }
+    return `${serverUrl}${url}`;
   }
-  
-  // Removed cache buster to prevent infinite re-renders in React Native Image components
-  
-  console.log(`[getImageUrl] Original: ${url} -> Final: ${finalUrl}`);
-  return finalUrl;
+
+  // Relative path without leading / (e.g., "uploads/foo.webp")
+  return `${serverUrl}/${url}`;
 };

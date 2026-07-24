@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { 
-  ScrollView, 
-  View, 
-  StyleSheet, 
-  SafeAreaView, 
-  Text, 
+import {
+  ScrollView,
+  View,
+  StyleSheet,
+  SafeAreaView,
+  Text,
   TouchableOpacity,
-  StatusBar
+  StatusBar,
+  Linking,
+  Alert
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { Phone, MessageCircle } from 'lucide-react-native';
@@ -23,7 +23,8 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const { jobId, job, quoteAmount } = route.params || {};
 
   const amount = quoteAmount || job?.payment?.amount || 0;
-  const commission = Math.round(amount * 0.1);
+  const commissionRate = job?.commissionRate || 0.1;
+  const commission = Math.round(amount * commissionRate);
   const earning = amount - commission;
 
   const jobLat = job?.location?.coordinates?.[1] || 19.0760;
@@ -124,7 +125,17 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
             <Text style={styles.customerLocation} numberOfLines={1}>📍 {job?.addressDetails || 'Address'}</Text>
           </View>
           <View style={styles.contactActions}>
-            <TouchableOpacity style={styles.iconBtn}>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => {
+                const phone = job?.customerId?.phone;
+                if (phone) {
+                  Linking.openURL(`tel:${phone}`);
+                } else {
+                  Alert.alert('Unavailable', 'Customer phone number is not available.');
+                }
+              }}
+            >
               <Phone size={18} color="#ef4444" />
             </TouchableOpacity>
           </View>
@@ -135,7 +146,7 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
           <View style={styles.priceRow}>
             <View>
               <Text style={styles.priceLabel}>Job amount</Text>
-              <Text style={styles.priceSub}>Commission (10%)</Text>
+              <Text style={styles.priceSub}>Commission ({Math.round(commissionRate * 100)}%)</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.priceValPositive}>₹{amount}</Text>

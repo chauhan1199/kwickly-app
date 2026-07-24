@@ -18,7 +18,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { Bell, Search, Image as ImageIcon, X, RefreshCw, Moon, Sun, Menu, ChevronDown } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import { getImageUrl } from '../../utils/helpers';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -66,7 +66,7 @@ const ShopProductsScreen = ({ navigation }) => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/products/shop');
+      const res = await shopService.getShopProducts();
       if (res.data?.status === 'success') {
         const mapped = res.data.data.map((p, i) => {
           const colors = ['#F43F5E', '#84CC16', '#EAB308', '#0EA5E9', '#8B5CF6'];
@@ -93,7 +93,7 @@ const ShopProductsScreen = ({ navigation }) => {
         setProducts(mapped);
       }
     } catch (e) {
-      console.log('Error fetching products', e);
+      Alert.alert('Error', 'Failed to load products');
     } finally {
       setLoading(false);
     }
@@ -136,7 +136,7 @@ const ShopProductsScreen = ({ navigation }) => {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try {
-          await api.delete(`/products/${id}`);
+          await shopService.deleteProduct(id);
           fetchProducts();
         } catch (e) {
           Alert.alert('Error', 'Failed to delete product');
@@ -158,11 +158,9 @@ const ShopProductsScreen = ({ navigation }) => {
       if (!result.didCancel && result.assets?.length > 0) {
         setFormData({ ...formData, image: result.assets[0] });
       } else if (result.errorCode) {
-        console.log('ImagePicker Error:', result.errorMessage);
         Alert.alert('Error', 'Failed to pick image: ' + result.errorMessage);
       }
     } catch (error) {
-      console.log('ImagePicker Exception:', error);
       Alert.alert('Error', 'An error occurred while opening the image picker.');
     }
   };
@@ -208,16 +206,15 @@ const ShopProductsScreen = ({ navigation }) => {
       }
 
       if (modalMode === 'add') {
-        await api.post('/products', payload);
+        await shopService.createProduct(payload);
       } else {
-        await api.patch(`/products/${formData.id}`, payload);
+        await shopService.updateProduct(formData.id, payload);
       }
 
       setIsModalVisible(false);
       fetchProducts();
     } catch (e) {
       setSaving(false);
-      console.log('Error saving product:', e?.response?.data || e.message);
       const errMsg = e?.response?.data?.message || JSON.stringify(e?.response?.data) || e.message;
       Alert.alert('Error', `Failed to save product: ${errMsg}`);
     } finally {
@@ -479,6 +476,8 @@ const ShopProductsScreen = ({ navigation }) => {
                   <TouchableOpacity style={styles.imageUploadBtn} onPress={pickImage}>
                     {formData.image ? (
                       <Image source={{ uri: formData.image.uri }} style={{ width: '100%', height: '100%', borderRadius: 8 }} />
+                    ) : formData.imageUrl ? (
+                      <Image source={{ uri: getImageUrl(formData.imageUrl) }} style={{ width: '100%', height: '100%', borderRadius: 8 }} />
                     ) : (
                       <Text style={styles.imageUploadText}>+ Upload Image</Text>
                     )}

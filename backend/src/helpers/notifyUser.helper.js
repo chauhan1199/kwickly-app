@@ -11,6 +11,7 @@
  * @param {string} [params.targetRole] - 'CUSTOMER' | 'WORKER' | 'SHOP' (default 'CUSTOMER')
  */
 const Notification = require('../modules/notification/notification.model');
+const logger = require('./logger.helper');
 
 const notifyUser = async ({ userId, title, message, action, entityType, entityId, targetRole = 'CUSTOMER' }) => {
     try {
@@ -26,7 +27,7 @@ const notifyUser = async ({ userId, title, message, action, entityType, entityId
         });
     } catch (err) {
         // Never throw from notification helper — don't break the main flow
-        console.error('[notifyUser] Failed to create notification:', err.message);
+        logger.error('[notifyUser] Failed to create notification:', err.message);
     }
 };
 

@@ -14,7 +14,18 @@ const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
 const { collectCommission } = require('../adminWallet/adminWallet.controller');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
+const { supportsTransactions } = require('../../helpers/transaction.helper');
+const { OTP_MIN, OTP_MAX } = require('../../constants/business');
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
 /**
  * POST /api/v1/shoporders
@@ -34,23 +45,23 @@ exports.placeOrder = catchAsync(async (req, res) => {
     }
 
     // P0 FIX: Validate stock and atomically reserve it BEFORE creating the order
-    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-    const session = isSingle ? null : await mongoose.startSession();
-    if (session) session.startTransaction();
+    let session = null, useTransaction = false;
+    if (supportsTransactions()) { try { session = await mongoose.startSession(); session.startTransaction(); useTransaction = true; } catch (e) { session = null; useTransaction = false; } }
 
     try {
-        // Atomically decrement stock for each item — if any item has insufficient stock, the whole operation fails
+        const sessOpts = useTransaction ? { session } : {};
+        // Atomically decrement stock for each item â€” if any item has insufficient stock, the whole operation fails
         for (const item of items) {
             if (!item.productId) continue;
 
             const updated = await Product.findOneAndUpdate(
                 { _id: item.productId, shopId, stock: { $gte: item.qty }, isActive: true },
                 { $inc: { stock: -item.qty } },
-                { new: true, session }
+                { returnDocument: 'after', ...sessOpts }
             );
 
             if (!updated) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
                 return errorResponse(
                     res,
@@ -70,24 +81,24 @@ exports.placeOrder = catchAsync(async (req, res) => {
         if (promoCode) {
             const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), isActive: true });
             if (!promo) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
                 return errorResponse(res, 'Invalid promo code', StatusCodes.BAD_REQUEST);
             }
             if (promo.endAt && promo.endAt < new Date()) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
                 return errorResponse(res, 'Promo code expired', StatusCodes.BAD_REQUEST);
             }
             if (promo.maxUsesTotal && promo.usesCount >= promo.maxUsesTotal) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
                 return errorResponse(res, 'Promo code usage limit reached', StatusCodes.BAD_REQUEST);
             }
             if (subtotal < promo.minOrderAmount) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
-                return errorResponse(res, `Minimum order ₹${promo.minOrderAmount} required for this promo`, StatusCodes.BAD_REQUEST);
+                return errorResponse(res, `Minimum order â‚¹${promo.minOrderAmount} required for this promo`, StatusCodes.BAD_REQUEST);
             }
 
             if (promo.type === 'FLAT_DISCOUNT') {
@@ -111,11 +122,11 @@ exports.placeOrder = catchAsync(async (req, res) => {
             const customer = await Customer.findOneAndUpdate(
                 { _id: req.user._id, 'wallet.balance': { $gte: total } },
                 { $inc: { 'wallet.balance': -total } },
-                { new: true, session }
+                { returnDocument: 'after', ...sessOpts }
             );
 
             if (!customer) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
                 return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
             }
@@ -127,15 +138,18 @@ exports.placeOrder = catchAsync(async (req, res) => {
                 balance: customer.wallet.balance,
                 status: 'COMPLETED',
                 description: `Order payment to ${shop.name}`
-            }], { session });
+            }], sessOpts);
 
             paymentStatus = 'PAID';
             await delCache(`session:${req.user._id}`);
         }
 
-        const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
-        const orderCount = await ShopOrder.countDocuments();
-        const orderNumber = `ORD-${new Date().getFullYear()}-${String(orderCount + 1).padStart(4, '0')}`;
+        const deliveryOtp = Math.floor(OTP_MIN + Math.random() * (OTP_MAX - OTP_MIN)).toString();
+        // Use timestamp + random to avoid collisions from countDocuments() race conditions
+        const now = new Date();
+        const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const orderNumber = `ORD-${ts}-${rand}`;
 
         const [order] = await ShopOrder.create([{
             orderNumber,
@@ -153,9 +167,9 @@ exports.placeOrder = catchAsync(async (req, res) => {
             promoCode: promoDetails?.code || undefined,
             promoDiscount: discount > 0 ? discount : undefined,
             statusHistory: [{ status: 'NEW', timestamp: new Date(), note: 'Order placed' }]
-        }], { session });
+        }], sessOpts);
 
-        if (session) await session.commitTransaction();
+        if (useTransaction) await session.commitTransaction();
         if (session) session.endSession();
 
         // Notify shop owner
@@ -165,8 +179,8 @@ exports.placeOrder = catchAsync(async (req, res) => {
         // Notify customer: order placed
         notifyUser({
             userId: req.user._id,
-            title: '🛎️ Order Placed Successfully',
-            message: `Your order has been placed with ${shop.name}. Total: ₹${total}. Order ID: #${String(order._id).slice(-6).toUpperCase()}`,
+            title: 'ðŸ›Žï¸ Order Placed Successfully',
+            message: `Your order has been placed with ${shop.name}. Total: â‚¹${total}. Order ID: #${String(order._id).slice(-6).toUpperCase()}`,
             action: 'ORDER_PLACED',
             entityType: 'ORDER',
             entityId: order._id,
@@ -176,7 +190,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
         return successResponse(res, order, 'Order placed successfully', StatusCodes.CREATED);
 
     } catch (error) {
-        if (session) await session.abortTransaction();
+        if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
         throw error;
     }
@@ -231,13 +245,20 @@ exports.getOrderById = catchAsync(async (req, res) => {
 
     if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
 
-    // RBAC Security Check
+    // RBAC Security Check â€” Shop owners are identified by ownerId, not shopId on user
     const orderCustomerId = order.customerId?._id?.toString() || order.customerId?.toString();
     const orderShopId = order.shopId?._id?.toString() || order.shopId?.toString();
     
+    let isShopOwner = false;
+    if (req.user.role === 'SHOP' && orderShopId) {
+        const Shop = require('../shop/shop.model');
+        const shop = await Shop.findById(orderShopId).select('ownerId').lean();
+        isShopOwner = shop && shop.ownerId?.toString() === req.user._id.toString();
+    }
+
     if (req.user.role !== 'ADMIN' && 
         orderCustomerId !== req.user._id.toString() && 
-        !(req.user.role === 'SHOP' && orderShopId === req.user.shopId?.toString())) {
+        !isShopOwner) {
         return errorResponse(res, 'Unauthorized access to this order', StatusCodes.FORBIDDEN);
     }
     return successResponse(res, order, 'Order fetched');
@@ -254,13 +275,20 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
 
     if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
 
-    // RBAC Security Check
+    // RBAC Security Check â€” Shop owners are identified by ownerId, not shopId on user
     const invoiceCustomerId = order.customerId?._id?.toString() || order.customerId?.toString();
     const invoiceShopId = order.shopId?._id?.toString() || order.shopId?.toString();
 
+    let isInvoiceShopOwner = false;
+    if (req.user.role === 'SHOP' && invoiceShopId) {
+        const Shop = require('../shop/shop.model');
+        const shop = await Shop.findById(invoiceShopId).select('ownerId').lean();
+        isInvoiceShopOwner = shop && shop.ownerId?.toString() === req.user._id.toString();
+    }
+
     if (req.user.role !== 'ADMIN' && 
         invoiceCustomerId !== req.user._id.toString() && 
-        !(req.user.role === 'SHOP' && invoiceShopId === req.user.shopId?.toString())) {
+        !isInvoiceShopOwner) {
         return errorResponse(res, 'Unauthorized access to this invoice', StatusCodes.FORBIDDEN);
     }
 
@@ -300,22 +328,22 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
 <body>
     <div class="page">
         <div class="header">
-            <h1>⚡ Kwickly Invoice</h1>
-            <p>Order #${order._id.toString().slice(-6).toUpperCase()} · ${orderDate} · <span class="status-badge" style="background:rgba(255,255,255,0.2);color:#fff;">${order.status}</span></p>
+            <h1>âš¡ Kwickly Invoice</h1>
+            <p>Order #${order._id.toString().slice(-6).toUpperCase()} Â· ${orderDate} Â· <span class="status-badge" style="background:rgba(255,255,255,0.2);color:#fff;">${escapeHtml(order.status)}</span></p>
         </div>
         <div class="body">
             <div class="meta-grid">
                 <div class="meta-box">
                     <h4>From (Shop)</h4>
-                    <p class="name">${order.shopId?.name || 'Shop'}</p>
-                    <p>${order.shopId?.address || ''}</p>
-                    <p>${order.shopId?.phone || ''}</p>
+                    <p class="name">${escapeHtml(order.shopId?.name || 'Shop')}</p>
+                    <p>${escapeHtml(order.shopId?.address || '')}</p>
+                    <p>${escapeHtml(order.shopId?.phone || '')}</p>
                 </div>
                 <div class="meta-box" style="text-align:right">
                     <h4>To (Customer)</h4>
-                    <p class="name">${order.customerId?.name || 'Customer'}</p>
-                    <p>${order.deliveryAddress || ''}</p>
-                    <p>${order.customerId?.phone || ''}</p>
+                    <p class="name">${escapeHtml(order.customerId?.name || 'Customer')}</p>
+                    <p>${escapeHtml(order.deliveryAddress || '')}</p>
+                    <p>${escapeHtml(order.customerId?.phone || '')}</p>
                 </div>
             </div>
 
@@ -331,22 +359,22 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
                 <tbody>
                     ${order.items.map(item => `
                     <tr>
-                        <td>${item.name}</td>
+                        <td>${escapeHtml(item.name)}</td>
                         <td>${item.qty}</td>
-                        <td>₹${item.price.toFixed(2)}</td>
-                        <td style="text-align:right;font-weight:600">₹${(item.price * item.qty).toFixed(2)}</td>
+                        <td>â‚¹${item.price.toFixed(2)}</td>
+                        <td style="text-align:right;font-weight:600">â‚¹${(item.price * item.qty).toFixed(2)}</td>
                     </tr>`).join('')}
                 </tbody>
             </table>
 
             <div class="totals">
-                <div class="total-row"><span>Subtotal</span><span>₹${order.subtotal.toFixed(2)}</span></div>
-                <div class="total-row"><span>Delivery Fee</span><span>₹${order.deliveryFee.toFixed(2)}</span></div>
-                <div class="total-row grand"><span>Grand Total</span><span>₹${order.total.toFixed(2)}</span></div>
+                <div class="total-row"><span>Subtotal</span><span>â‚¹${order.subtotal.toFixed(2)}</span></div>
+                <div class="total-row"><span>Delivery Fee</span><span>â‚¹${order.deliveryFee.toFixed(2)}</span></div>
+                <div class="total-row grand"><span>Grand Total</span><span>â‚¹${order.total.toFixed(2)}</span></div>
             </div>
         </div>
         <div class="footer">
-            <p>Thank you for shopping with Kwickly! 🙏</p>
+            <p>Thank you for shopping with Kwickly! ðŸ™</p>
             <button class="no-print" onclick="window.print()" style="margin-top:12px;padding:10px 24px;background:#0e9aa7;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Print / Save as PDF</button>
         </div>
     </div>
@@ -378,7 +406,7 @@ exports.cancelOrder = catchAsync(async (req, res) => {
     if (order.payment.status === 'PAID') {
         const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {
             $inc: { 'wallet.balance': order.total }
-        }, { new: true });
+        }, { returnDocument: 'after' });
         await WalletTxn.create({
             userId: order.customerId,
             type: 'REFUND',
@@ -404,7 +432,7 @@ exports.cancelOrder = catchAsync(async (req, res) => {
     if (shop) {
         notifyUser({
             userId: shop.ownerId,
-            title: '❌ Order Cancelled',
+            title: 'âŒ Order Cancelled',
             message: `Order #${String(order._id).slice(-6).toUpperCase()} was cancelled by the customer.`,
             action: 'ORDER_CANCELLED',
             entityType: 'ORDER',
@@ -471,16 +499,15 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         order.payment.status = 'PAID';
         await order.save();
     } else if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
-        const mongoose = require('mongoose');
-        const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-        const session = isSingle ? null : await mongoose.startSession();
-        if (session) session.startTransaction();
+        let session = null, useTransaction = false;
+        if (supportsTransactions()) { try { session = await mongoose.startSession(); session.startTransaction(); useTransaction = true; } catch (e) { session = null; useTransaction = false; } }
 
         try {
+            const sessOpts = useTransaction ? { session } : {};
             // Restore stock for all items
             for (const item of order.items) {
                 if (item.productId) {
-                    await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } }, { session });
+                    await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } }, sessOpts);
                 }
             }
 
@@ -488,8 +515,8 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
             if (order.payment.status === 'PAID') {
                 const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {
                     $inc: { 'wallet.balance': order.total }
-                }, { new: true, session });
-                
+                }, { returnDocument: 'after', ...sessOpts });
+
                 await WalletTxn.create([{
                     userId: order.customerId,
                     type: 'REFUND',
@@ -498,17 +525,17 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
                     refId: String(order._id),
                     status: 'COMPLETED',
                     description: `Refund for cancelled order #${String(order._id).slice(-6)}`
-                }], { session });
+                }], sessOpts);
                 await delCache(`session:${order.customerId}`);
             }
 
             order.status = status;
-            await order.save({ session });
+            await order.save(sessOpts);
 
-            if (session) await session.commitTransaction();
+            if (useTransaction) await session.commitTransaction();
             if (session) session.endSession();
         } catch (error) {
-            if (session) await session.abortTransaction();
+            if (useTransaction && session) await session.abortTransaction();
             if (session) session.endSession();
             throw error;
         }
@@ -523,11 +550,11 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
 
     // Notify customer via notification
     const statusMessages = {
-        CONFIRMED:        { emoji: '✅', msg: 'Your order has been confirmed by the shop and is being prepared.' },
-        PACKING:          { emoji: '📦', msg: 'Your order is being packed and will be dispatched soon.' },
-        OUT_FOR_DELIVERY: { emoji: '🚚', msg: 'Your order is out for delivery! Prepare your OTP for handover.' },
-        DELIVERED:        { emoji: '🎉', msg: 'Your order has been delivered successfully. Enjoy!' },
-        CANCELLED:        { emoji: '❌', msg: 'Your order has been cancelled. A refund will be processed if applicable.' },
+        CONFIRMED:        { emoji: 'âœ…', msg: 'Your order has been confirmed by the shop and is being prepared.' },
+        PACKING:          { emoji: 'ðŸ“¦', msg: 'Your order is being packed and will be dispatched soon.' },
+        OUT_FOR_DELIVERY: { emoji: 'ðŸšš', msg: 'Your order is out for delivery! Prepare your OTP for handover.' },
+        DELIVERED:        { emoji: 'ðŸŽ‰', msg: 'Your order has been delivered successfully. Enjoy!' },
+        CANCELLED:        { emoji: 'âŒ', msg: 'Your order has been cancelled. A refund will be processed if applicable.' },
     };
     const sm = statusMessages[status];
     if (sm) {

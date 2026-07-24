@@ -73,6 +73,9 @@ exports.addToCart = catchAsync(async (req, res) => {
 
 exports.updateCartItem = catchAsync(async (req, res) => {
     const { qty } = req.body;
+    if (qty === undefined || qty === null) {
+        return errorResponse(res, 'Quantity is required', StatusCodes.BAD_REQUEST);
+    }
     const cart = await Cart.findOne({ customerId: req.user._id });
     if (!cart) return errorResponse(res, 'Cart not found', StatusCodes.NOT_FOUND);
 
@@ -82,6 +85,12 @@ exports.updateCartItem = catchAsync(async (req, res) => {
     if (qty <= 0) {
         cart.items.pull(req.params.itemId);
     } else {
+        // Check stock availability
+        const Product = require('../product/product.model');
+        const product = await Product.findById(item.productId).select('stock');
+        if (product && product.stock < qty) {
+            return errorResponse(res, `Only ${product.stock} items available in stock`, StatusCodes.BAD_REQUEST);
+        }
         item.qty = qty;
     }
 

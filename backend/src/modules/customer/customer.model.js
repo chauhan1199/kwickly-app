@@ -24,6 +24,7 @@ const CustomerSchema = new mongoose.Schema({
         documents: [{
             type: { type: String, enum: ['AADHAR', 'PAN', 'LICENSE', 'OTHER'] },
             url: { type: String },
+            public_id: { type: String },
             uploadedAt: { type: Date, default: Date.now }
         }]
     },
@@ -90,5 +91,6 @@ CustomerSchema.index({ role: 1, isOnline: 1, city: 1 });
 
 CustomerSchema.index({ 'services.category': 1, role: 1, isOnline: 1, activeLocation: '2dsphere' });
 CustomerSchema.index({ isDeleted: 1 });
+CustomerSchema.index({ role: 1, isVerified: 1, isOnline: 1, 'kyc.status': 1, 'wallet.balance': 1, activeLocation: '2dsphere' });
 
 module.exports = mongoose.model('Customer', CustomerSchema);

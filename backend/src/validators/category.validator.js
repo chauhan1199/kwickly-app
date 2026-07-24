@@ -18,18 +18,18 @@ const createCategorySchema = Joi.object({
         'string.max': 'Category name must not exceed 100 characters',
         'any.required': 'Category name is required'
     }),
-    description: Joi.string().required(),
-    icon: Joi.string().required(),
-    color: Joi.string().required(),
+    description: Joi.string().allow('', null).optional().default(''),
+    icon: Joi.string().allow('', null).optional().default('Wrench'),
+    color: Joi.string().allow('', null).optional().default('#00d2ff'),
     active: Joi.boolean().default(true),
     subcategories: Joi.array().items(subcategorySchema).default([])
 });
 
 const updateCategorySchema = Joi.object({
     name: Joi.string().min(2).max(100).optional(),
-    description: Joi.string().optional(),
-    icon: Joi.string().optional(),
-    color: Joi.string().optional(),
+    description: Joi.string().allow('', null).optional(),
+    icon: Joi.string().allow('', null).optional(),
+    color: Joi.string().allow('', null).optional(),
     active: Joi.boolean().optional(),
     subcategories: Joi.array().items(subcategorySchema).optional()
 }).min(1).messages({

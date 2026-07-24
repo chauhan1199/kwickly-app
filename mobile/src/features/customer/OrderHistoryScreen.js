@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, FlatList,
-  TouchableOpacity, StatusBar, ActivityIndicator, RefreshControl, TextInput
+  TouchableOpacity, StatusBar, ActivityIndicator, RefreshControl, TextInput, Alert
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import AppBar from '../../components/AppBar';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import { Package, ChevronRight, Clock, Search } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SearchBar } from '../../components/ui/SearchBar';
@@ -34,11 +34,11 @@ const OrderHistoryScreen = ({ navigation }) => {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/shoporders/customer');
+      const res = await shopService.getCustomerOrders();
       const data = res.data?.data;
       setOrders(data?.orders || []);
     } catch (e) {
-      console.error('Failed to load orders', e);
+      Alert.alert('Error', 'Failed to load orders. Please try again.');
     } finally {
       setLoading(false);
     }

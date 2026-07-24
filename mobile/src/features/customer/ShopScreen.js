@@ -6,14 +6,11 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
-  TextInput,
   StatusBar,
   Dimensions,
   Platform,
   Image
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
 import api from '../../services/api';
@@ -75,10 +72,8 @@ const ShopScreen = ({ navigation }) => {
           setBanners(bannerRes.data.data.filter(b => b.position === 'SHOP_PAGE'));
         }
       } catch (err) {
-        console.log('Error fetching shop banners:', err);
       }
     } catch (error) {
-      console.log("Error fetching shops:", error);
       setDebugError(error.response?.data?.message || error.message);
     } finally {
       setLoading(false);

@@ -11,11 +11,9 @@ import {
   Alert,
   ActivityIndicator
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { Clock, CheckSquare, Square, UploadCloud } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -23,7 +21,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const styles = createStyles(theme, isDarkMode);
   
-  const { jobId } = route.params;
+  const { jobId } = route.params || {};
   
   const [seconds, setSeconds] = useState(1458); 
   const [completing, setCompleting] = useState(false);
@@ -52,9 +50,32 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
   };
 
   const toggleCheck = (id) => {
-    setChecklist(prev => prev.map(item => 
+    setChecklist(prev => prev.map(item =>
       item.id === id ? { ...item, checked: !item.checked } : item
     ));
+  };
+
+  const pickAndUploadMedia = async (mediaType) => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: mediaType === 'video' ? 'video' : 'photo',
+        quality: 0.8,
+      });
+      if (result.didCancel || !result.assets?.length) return;
+      const file = result.assets[0];
+      const formData = new FormData();
+      formData.append('media', {
+        uri: file.uri,
+        type: file.type,
+        name: file.fileName || `media-${Date.now()}`,
+      });
+      const res = await jobService.uploadMedia(formData);
+      if (res.data?.status === 'success') {
+        setMediaUrl(res.data.data.url);
+      }
+    } catch (e) {
+      Alert.alert('Upload Failed', e.response?.data?.message || 'Could not upload media.');
+    }
   };
 
   const handleCompleteJob = async () => {
@@ -136,9 +157,9 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
           <Text style={styles.sectionSub}>Provide media proof before completion</Text>
           
           <View style={styles.mediaGrid}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.mediaTileUpload}
-              onPress={() => setMediaUrl('simulated-before.jpg')}
+              onPress={() => pickAndUploadMedia('photo')}
             >
               {mediaUrl ? (
                 <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
@@ -149,9 +170,9 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.mediaTileUpload}
-              onPress={() => setMediaUrl('simulated-after.jpg')}
+              onPress={() => pickAndUploadMedia('photo')}
             >
               {mediaUrl ? (
                 <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>
@@ -162,9 +183,9 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.mediaTileUpload}
-              onPress={() => setMediaUrl('simulated-video.mp4')}
+              onPress={() => pickAndUploadMedia('video')}
             >
               {mediaUrl ? (
                 <LinearGradient colors={['#8b5cf6', '#06b6d4']} style={styles.mediaTileFilled}>

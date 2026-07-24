@@ -14,8 +14,6 @@ import {
   Image,
   RefreshControl
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import AppBar from '../../components/AppBar';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';

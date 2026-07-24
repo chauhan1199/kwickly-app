@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import {
   Truck, DollarSign, MapPin, Clock, Tag, Save, ChevronRight, Plus, X,
   ChevronLeft, Sun, Moon, Bell
@@ -45,7 +45,7 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const shopRes = await api.get('/shops/my');
+      const shopRes = await shopService.getMyShop();
       if (shopRes.data?.status === 'success' && shopRes.data.data) {
         const shop = shopRes.data.data;
         setShopId(shop._id);
@@ -80,7 +80,7 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
 
     try {
       setSaving(true);
-      await api.patch(`/shops/${shopId}/delivery-config`, finalConfig);
+      await shopService.updateDeliveryConfig(shopId, finalConfig);
       Alert.alert('Saved! ✅', 'Delivery configuration updated successfully');
     } catch (e) {
       Alert.alert('Error', e?.response?.data?.message || 'Failed to save');

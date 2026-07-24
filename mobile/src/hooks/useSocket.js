@@ -50,6 +50,10 @@ const useSocket = ({ role, userId, shopId, onEvent }) => {
       'START_TIMER', 'JOB_STARTED', 'JOB_COMPLETED', 'JOB_PAID',
       'NEW_ORDER', 'ORDER_STATUS',
       'DASHBOARD_UPDATE', 'NEW_NOTIFICATION',
+      // P1: Previously missing events — now handled
+      'FORCED_OFFLINE', 'JOB_RADIUS_EXPANDED',
+      'JOB_DISPUTED', 'DISPUTE_RESOLVED',
+      'JOB_STATUS_CHANGED',
     ];
 
     EVENTS.forEach(ev => {

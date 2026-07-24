@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, StatusBar, ActivityIndicator, Alert, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import AppBar from '../../components/AppBar';
 import {
   Check, Package, Truck, MapPin, Phone, Clock,
@@ -25,25 +25,23 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
   const [otpInput, setOtpInput] = useState('');
   const [showOtpModal, setShowOtpModal] = useState(false);
 
-  useEffect(() => { fetchOrder(); }, []);
-
-  const fetchOrder = async () => {
+  const fetchOrder = useCallback(async () => {
     try {
-      const res = await api.get(`/shoporders/${orderId}`);
+      const res = await shopService.getOrderById(orderId);
       if (res.data?.status === 'success') setOrder(res.data.data);
     } catch (e) {
       Alert.alert('Error', 'Failed to load order');
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
+
+  useEffect(() => { fetchOrder(); }, [fetchOrder]);
 
   const updateStatus = async (status, otp) => {
     try {
       setUpdating(true);
-      const body = { status };
-      if (otp) body.otp = otp;
-      await api.patch(`/shoporders/${orderId}/status`, body);
+      await shopService.updateOrderStatus(orderId, status, otp);
       fetchOrder();
     } catch (e) {
       Alert.alert('Error', e?.response?.data?.message || 'Failed to update status');

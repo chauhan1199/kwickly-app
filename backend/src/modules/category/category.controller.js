@@ -1,11 +1,15 @@
-const { StatusCodes } = require('http-status-codes');
+﻿const { StatusCodes } = require('http-status-codes');
 const Category = require('./category.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { uploadImage } = require('../../services/cloudinary.service');
+const { uploadImage, cleanupImage } = require('../../services/cloudinary.service');
+
+// Helper to escape regex special characters
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
+const logger = require('../../helpers/logger.helper');
 
 const CACHE_KEY = 'categories_list';
 
@@ -37,8 +41,27 @@ exports.getCategories = catchAsync(async (req, res) => {
     return successResponse(res, categories, 'Categories fetched successfully');
 });
 
+// â”€â”€â”€ GET /api/v1/categories/:categoryId (Public - subcategories by category) â”€â”€
+exports.getCategoryById = catchAsync(async (req, res) => {
+    const { categoryId } = req.params;
+
+    const cachedData = await getCache(CACHE_KEY);
+    let categories = cachedData;
+    if (!categories) {
+        categories = await Category.find().sort('name').lean();
+        if (categories) await setCache(CACHE_KEY, categories, 3600);
+    }
+
+    const category = categories.find(c => c._id.toString() === categoryId);
+    if (!category) return errorResponse(res, 'Category not found', StatusCodes.NOT_FOUND);
+
+    const subcategories = (category.subcategories || []).filter(s => s.active !== false);
+    return successResponse(res, { ...category, subcategories }, 'Category fetched');
+});
+
+// â”€â”€â”€ POST /api/v1/categories (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.createCategory = catchAsync(async (req, res) => {
-    const existing = await Category.findOne({ name: { $regex: new RegExp(`^${req.body.name.trim()}$`, 'i') } });
+    const existing = await Category.findOne({ name: { $regex: new RegExp(`^${escapeRegex(req.body.name.trim())}$`, 'i') } });
     if (existing) {
         return errorResponse(res, `Category "${existing.name}" already exists`, StatusCodes.CONFLICT);
     }
@@ -71,7 +94,7 @@ exports.createCategory = catchAsync(async (req, res) => {
         'Category Created',
         `New category "${category.name}" created with ${category.subcategories.length} subcategories`,
         req.user?._id
-    ).catch(() => {});
+    ).catch(e => logger.error('Activity log failed:', e.message));
     
     return successResponse(res, category, 'Category created successfully', StatusCodes.CREATED);
 });
@@ -79,7 +102,7 @@ exports.createCategory = catchAsync(async (req, res) => {
 exports.updateCategory = catchAsync(async (req, res) => {
     if (req.body.name) {
         const existing = await Category.findOne({
-            name: { $regex: new RegExp(`^${req.body.name.trim()}$`, 'i') },
+            name: { $regex: new RegExp(`^${escapeRegex(req.body.name.trim())}$`, 'i') },
             _id: { $ne: req.params.id }
         });
         if (existing) {
@@ -100,11 +123,15 @@ exports.updateCategory = catchAsync(async (req, res) => {
 
     const updateData = { ...req.body };
     if (req.file) {
+        const existing = await Category.findById(req.params.id).select('imageUrl');
         const { url } = await uploadImage(req.file.buffer, 'kwickly/categories');
         updateData.imageUrl = url;
+        if (existing?.imageUrl && existing.imageUrl !== url) {
+            cleanupImage(existing.imageUrl);
+        }
     }
 
-    const category = await Category.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    const category = await Category.findByIdAndUpdate(req.params.id, updateData, { returnDocument: 'after' });
     if (!category) {
         return errorResponse(res, 'Category not found', StatusCodes.NOT_FOUND);
     }
@@ -122,9 +149,9 @@ exports.updateCategory = catchAsync(async (req, res) => {
     logAdminActivity(
         'UPDATE', 'CATEGORY', category._id,
         'Category Updated',
-        `Category "${category.name}" updated${changes.length ? ' — ' + changes.join(', ') : ''}`,
+        `Category "${category.name}" updated${changes.length ? ' â€” ' + changes.join(', ') : ''}`,
         req.user?._id
-    ).catch(() => {});
+    ).catch(e => logger.error('Activity log failed:', e.message));
 
     return successResponse(res, category, 'Category updated successfully');
 });
@@ -133,6 +160,19 @@ exports.deleteCategory = catchAsync(async (req, res) => {
     const category = await Category.findByIdAndDelete(req.params.id);
     if (!category) {
         return errorResponse(res, 'Category not found', StatusCodes.NOT_FOUND);
+    }
+
+    // Clean up category image from Cloudinary
+    if (category.imageUrl) {
+        cleanupImage(category.imageUrl);
+    }
+    // Clean up subcategory images from Cloudinary
+    if (category.subcategories?.length) {
+        for (const sub of category.subcategories) {
+            if (sub.imageUrl) {
+                cleanupImage(sub.imageUrl);
+            }
+        }
     }
 
     await delCache(CACHE_KEY);
@@ -144,7 +184,7 @@ exports.deleteCategory = catchAsync(async (req, res) => {
         'Category Deleted',
         `Category "${category.name}" deleted with ${category.subcategories.length} subcategories`,
         req.user?._id
-    ).catch(() => {});
+    ).catch(e => logger.error('Activity log failed:', e.message));
 
     return successResponse(res, null, 'Category deleted successfully');
 });
@@ -180,7 +220,7 @@ exports.addSubcategory = catchAsync(async (req, res) => {
         'Subcategory Added',
         `Subcategory "${req.body.name}" added to "${category.name}"`,
         req.user?._id
-    ).catch(() => {});
+    ).catch(e => logger.error('Activity log failed:', e.message));
 
     return successResponse(res, category, 'Subcategory added successfully');
 });
@@ -215,6 +255,9 @@ exports.updateSubcategory = catchAsync(async (req, res) => {
 
     if (req.file) {
         const { url } = await uploadImage(req.file.buffer, 'kwickly/subcategories');
+        if (subcategory.imageUrl && subcategory.imageUrl !== url) {
+            cleanupImage(subcategory.imageUrl);
+        }
         subcategory.imageUrl = url;
     }
 
@@ -229,7 +272,7 @@ exports.updateSubcategory = catchAsync(async (req, res) => {
         'Subcategory Updated',
         `Subcategory updated in "${category.name}"`,
         req.user?._id
-    ).catch(() => {});
+    ).catch(e => logger.error('Activity log failed:', e.message));
 
     return successResponse(res, category, 'Subcategory updated successfully');
 });
@@ -247,6 +290,9 @@ exports.deleteSubcategory = catchAsync(async (req, res) => {
     }
 
     const subName = sub.name;
+    if (sub.imageUrl) {
+        cleanupImage(sub.imageUrl);
+    }
     category.subcategories.pull(subId);
     await category.save();
 
@@ -259,7 +305,7 @@ exports.deleteSubcategory = catchAsync(async (req, res) => {
         'Subcategory Deleted',
         `Subcategory "${subName}" removed from "${category.name}"`,
         req.user?._id
-    ).catch(() => {});
+    ).catch(e => logger.error('Activity log failed:', e.message));
 
     return successResponse(res, category, 'Subcategory deleted successfully');
 });
@@ -286,13 +332,13 @@ exports.processSuggestion = catchAsync(async (req, res) => {
 
     if (status === 'APPROVED') {
         if (suggestion.type === 'new_category') {
-            const existingCat = await Category.findOne({ name: { $regex: new RegExp(`^${suggestion.payload?.name || suggestion.name}$`, 'i') } });
+            const existingCat = await Category.findOne({ name: { $regex: new RegExp(`^${escapeRegex(suggestion.payload?.name || suggestion.name)}$`, 'i') } });
             if (existingCat) {
                 return errorResponse(res, `Category "${existingCat.name}" already exists`, StatusCodes.CONFLICT);
             }
             await Category.create({
                 name: suggestion.payload?.name || suggestion.name,
-                icon: suggestion.payload?.icon || '📋',
+                icon: suggestion.payload?.icon || 'ðŸ“‹',
                 color: '#6366F1',
                 description: suggestion.payload?.description || '',
                 active: true,

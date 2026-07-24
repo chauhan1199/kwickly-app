@@ -11,8 +11,6 @@ import {
   Alert
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
@@ -20,7 +18,7 @@ import { jobService } from '../../services/jobService';
 
 const WorkerJobDetailsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { job } = route.params || {};
   
   const [price, setPrice] = useState('');
@@ -130,10 +128,10 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
-      <AppBar 
-        title="Job Details" 
-        subtitle="AC & HVAC · AC Service" 
-        showBack={true} 
+      <AppBar
+        title="Job Details"
+        subtitle={job?.subcategory ? `${job.category || 'Service'} · ${job.subcategory}` : job?.category || 'Job Details'}
+        showBack={true}
       />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -152,7 +150,7 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
         {/* Problem Description */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Problem Description</Text>
-          <Text style={styles.problemText}>"Not cooling since 2 days"</Text>
+          <Text style={styles.problemText}>"{job?.description || 'No description provided'}"</Text>
         </View>
 
         {/* Media */}

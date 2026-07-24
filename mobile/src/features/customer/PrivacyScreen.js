@@ -35,7 +35,6 @@ const PrivacyScreen = ({ navigation }) => {
         setPrivacy(res.data.data.privacyPolicy || 'No privacy policy specified yet.');
       }
     } catch (err) {
-      console.log('Error fetching policies', err);
       setTerms('Failed to load terms.');
       setPrivacy('Failed to load privacy policy.');
     } finally {

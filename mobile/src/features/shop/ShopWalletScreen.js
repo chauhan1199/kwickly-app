@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   ScrollView, 
   View, 
@@ -19,7 +19,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { ArrowDown, ArrowUp, Landmark, Smartphone, Bell, ReceiptText, RefreshCw, Moon, Sun, Menu, CreditCard } from 'lucide-react-native';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -48,16 +48,12 @@ const ShopWalletScreen = ({ navigation }) => {
   const [selectedPlan, setSelectedPlan] = useState('');
   const [dynamicPlans, setDynamicPlans] = useState([]);
 
-  React.useEffect(() => {
-    fetchWallet();
-  }, []);
-
-  const fetchWallet = async () => {
+  const fetchWallet = useCallback(async () => {
     try {
       const [walletRes, settingsRes, balanceRes] = await Promise.all([
-        api.get('/shops/my'),
-        api.get('/settings/public').catch(() => null),
-        api.get('/wallet/balance').catch(() => null)
+        shopService.getMyShop(),
+        shopService.getPublicSettings().catch(() => null),
+        shopService.getWalletBalance().catch(() => null)
       ]);
 
       if (settingsRes?.data?.status === 'success') {
@@ -109,15 +105,25 @@ const ShopWalletScreen = ({ navigation }) => {
         setTxns(mappedTxns);
       }
     } catch (e) {
-      console.log('Error fetching wallet:', e);
+      // silently handle wallet fetch error
     }
-  };
+  }, [selectedPlan]);
 
-  const handleSetPrimary = (id) => {
-    setAccounts(accounts.map(acc => ({
-      ...acc,
-      isPrimary: acc.id === id
-    })));
+  React.useEffect(() => {
+    fetchWallet();
+  }, [fetchWallet]);
+
+  const handleSetPrimary = async (id) => {
+    try {
+      await shopService.setPrimaryPayoutMethod(id);
+      setAccounts(accounts.map(acc => ({
+        ...acc,
+        isPrimary: acc.id === id
+      })));
+    } catch (e) {
+      Alert.alert('Error', 'Failed to set primary');
+      Alert.alert('Error', 'Failed to set primary account');
+    }
   };
 
   const handleDeleteAccount = (id) => {
@@ -129,8 +135,14 @@ const ShopWalletScreen = ({ navigation }) => {
         { 
           text: "Delete", 
           style: "destructive",
-          onPress: () => {
-            setAccounts(accounts.filter(acc => acc.id !== id));
+          onPress: async () => {
+            try {
+              await shopService.deletePayoutMethod(id);
+              setAccounts(accounts.filter(acc => acc.id !== id));
+            } catch (e) {
+              Alert.alert('Error', 'Failed to delete account');
+              Alert.alert('Error', 'Failed to delete account');
+            }
           }
         }
       ]
@@ -152,10 +164,7 @@ const ShopWalletScreen = ({ navigation }) => {
       return;
     }
     try {
-      const res = await api.post('/wallet/withdraw', {
-        amount: Number(withdrawAmount),
-        payoutMethod: selectedAcc.detail
-      });
+      const res = await shopService.withdraw(Number(withdrawAmount), selectedAcc.detail);
       if (res.data?.status === 'success') {
         setWithdrawModalVisible(false);
         setWithdrawAmount('');
@@ -179,10 +188,7 @@ const ShopWalletScreen = ({ navigation }) => {
     
     try {
       const selectedOptionName = topUpMethod === 'UPI' ? 'UPI' : (topUpMethod === 'CARD' ? 'Credit/Debit Card' : 'Net Banking');
-      const res = await api.post('/wallet/topup', {
-        amount: Number(topUpAmount),
-        paymentDetails: { method: selectedOptionName }
-      });
+      const res = await shopService.topUp(Number(topUpAmount), { method: selectedOptionName });
       if (res.data?.status === 'success') {
         setTopUpModalVisible(false);
         setTopUpAmount('');
@@ -202,7 +208,7 @@ const ShopWalletScreen = ({ navigation }) => {
       const d = new Date();
       d.setDate(d.getDate() + days);
 
-      const res = await api.patch('/shops/my', {
+      const res = await shopService.updateMyShop({
         subscription: { plan: selectedPlan, validUntil: d }
       });
       if (res.data?.status === 'success') {

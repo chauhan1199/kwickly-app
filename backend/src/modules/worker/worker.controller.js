@@ -8,7 +8,10 @@ const Suggestion = require('../suggestion/suggestion.model');
 const { delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 const Job = require('../job/job.model');
-const { uploadImage } = require('../../services/cloudinary.service');
+const { uploadImage, cleanupImage } = require('../../services/cloudinary.service');
+const mongoose = require('mongoose');
+const { supportsTransactions } = require('../../helpers/transaction.helper');
+
 exports.getStats = catchAsync(async (req, res) => {
     const workerId = req.user._id;
     const startOfDay = new Date();
@@ -23,9 +26,9 @@ exports.getStats = catchAsync(async (req, res) => {
             workerId, 
             status: 'COMPLETED' 
         }),
-        Job.countDocuments({ 
-            workerId, 
-            status: { $in: ['ACCEPTED', 'IN_PROGRESS', 'ARRIVED'] } 
+        Job.countDocuments({
+            workerId,
+            status: { $in: ['ALLOCATED', 'ARRIVING', 'IN_PROGRESS'] }
         }),
         Job.countDocuments({ 
             workerId, 
@@ -44,22 +47,24 @@ exports.getStats = catchAsync(async (req, res) => {
 exports.updateKyc = catchAsync(async (req, res) => {
     const { documentType } = req.body;
     const user = await Customer.findById(req.user._id);
-    
+
     if (req.file) {
-        const { url } = await uploadImage(req.file.buffer, 'kwickly/kyc');
+        const { url, public_id } = await uploadImage(req.file.buffer, 'kwickly/kyc');
         user.kyc.documents.push({
             type: documentType || 'OTHER',
-            url
+            url,
+            public_id
         });
         user.kyc.status = 'PENDING';
         await user.save();
     } else if (req.body.documentBase64) {
         const base64Data = req.body.documentBase64.replace(/^data:image\/\w+;base64,/, "");
         const buffer = Buffer.from(base64Data, 'base64');
-        const { url } = await uploadImage(buffer, 'kwickly/kyc');
+        const { url, public_id } = await uploadImage(buffer, 'kwickly/kyc');
         user.kyc.documents.push({
             type: documentType || 'OTHER',
-            url
+            url,
+            public_id
         });
         user.kyc.status = 'PENDING';
         await user.save();
@@ -78,6 +83,9 @@ exports.removeKycDocument = catchAsync(async (req, res) => {
         return errorResponse(res, 'Document not found', StatusCodes.NOT_FOUND);
     }
 
+    const doc = user.kyc.documents[docIndex];
+    cleanupImage(doc);
+
     user.kyc.documents.splice(Number(docIndex), 1);
     await user.save();
     
@@ -91,13 +99,21 @@ exports.updateProfile = catchAsync(async (req, res) => {
     const { name, city, bio, email } = req.body;
     const updateData = {};
     if (req.file) {
-        const { url } = await uploadImage(req.file.buffer, 'kwickly/profiles');
+        const existing = await Customer.findById(req.user._id).select('profileImage');
+        const { url, public_id } = await uploadImage(req.file.buffer, 'kwickly/profiles');
         updateData.profileImage = url;
+        if (existing?.profileImage && existing.profileImage !== url) {
+            cleanupImage(existing.profileImage);
+        }
     } else if (req.body.profileImageBase64) {
         const base64Data = req.body.profileImageBase64.replace(/^data:image\/\w+;base64,/, "");
         const buffer = Buffer.from(base64Data, 'base64');
+        const existing = await Customer.findById(req.user._id).select('profileImage');
         const { url } = await uploadImage(buffer, 'kwickly/profiles');
         updateData.profileImage = url;
+        if (existing?.profileImage && existing.profileImage !== url) {
+            cleanupImage(existing.profileImage);
+        }
     } else if (req.body.profileImage !== undefined) {
         updateData.profileImage = req.body.profileImage;
     }
@@ -113,7 +129,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
     const user = await Customer.findByIdAndUpdate(
         req.user._id,
         { $set: updateData },
-        { new: true }
+        { returnDocument: 'after' }
     ).select('-password');
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
     
@@ -143,7 +159,7 @@ exports.updateBank = catchAsync(async (req, res) => {
     const user = await Customer.findByIdAndUpdate(
         req.user._id,
         { $set: updateData },
-        { new: true }
+        { returnDocument: 'after' }
     );
     
     const { delCache } = require('../../helpers/redis.helper');
@@ -157,7 +173,7 @@ exports.updateServices = catchAsync(async (req, res) => {
     const user = await Customer.findByIdAndUpdate(
         req.user._id,
         { $set: { services } },
-        { new: true }
+        { returnDocument: 'after' }
     );
     
     const { delCache } = require('../../helpers/redis.helper');
@@ -184,7 +200,7 @@ exports.updateLocation = catchAsync(async (req, res) => {
     const user = await Customer.findByIdAndUpdate(
         req.user._id,
         { $set: updateData },
-        { new: true }
+        { returnDocument: 'after' }
     );
     
     const { delCache } = require('../../helpers/redis.helper');
@@ -209,7 +225,7 @@ exports.toggleOnlineStatus = catchAsync(async (req, res) => {
     const user = await Customer.findByIdAndUpdate(
         req.user._id,
         { $set: { isOnline } },
-        { new: true }
+        { returnDocument: 'after' }
     );
     
     const { delCache } = require('../../helpers/redis.helper');
@@ -371,15 +387,19 @@ exports.updateFullProfile = catchAsync(async (req, res) => {
     const updateData = {};
 
     if (name !== undefined) updateData.name = name;
-    if (bio !== undefined) updateData['wallet.bankDetails'] = req.body.bankDetails;
+    if (bio !== undefined) updateData.bio = bio;
     if (email !== undefined) updateData.email = email;
 
     if (req.file) {
+        const existing = await Customer.findById(req.user._id).select('profileImage');
         const { url } = await uploadImage(req.file.buffer, 'kwickly/profiles');
         updateData.profileImage = url;
+        if (existing?.profileImage && existing.profileImage !== url) {
+            cleanupImage(existing.profileImage);
+        }
     }
 
-    const user = await Customer.findByIdAndUpdate(req.user._id, { $set: updateData }, { new: true }).select('-password');
+    const user = await Customer.findByIdAndUpdate(req.user._id, { $set: updateData }, { returnDocument: 'after' }).select('-password');
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
     
     await user.save();
@@ -489,24 +509,32 @@ exports.requestEarningsWithdrawal = catchAsync(async (req, res) => {
     const WalletTxn = require('../wallet/wallet.model');
     const Payout = require('../payout/payout.model');
     const { delCache } = require('../../helpers/redis.helper');
-    const mongoose = require('mongoose');
 
     if (!amount || amount <= 0) return errorResponse(res, 'Invalid amount', StatusCodes.BAD_REQUEST);
     if (!payoutMethod) return errorResponse(res, 'Payout method required', StatusCodes.BAD_REQUEST);
 
-    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-    const session = isSingle ? null : await mongoose.startSession();
-    if (session) session.startTransaction();
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
 
     try {
         const updated = await Customer.findOneAndUpdate(
             { _id: req.user._id, 'wallet.balance': { $gte: amount } },
             { $inc: { 'wallet.balance': -amount } },
-            { new: true, session }
+            { returnDocument: 'after', session }
         );
 
         if (!updated) {
-            if (session) await session.abortTransaction();
+            if (useTransaction && session) await session.abortTransaction();
             if (session) session.endSession();
             return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
         }
@@ -523,13 +551,13 @@ exports.requestEarningsWithdrawal = catchAsync(async (req, res) => {
             paymentDetails: payoutMethod, walletTxnId: txn._id
         }], { session });
 
-        if (session) await session.commitTransaction();
-        if (session) session.endSession();
+        if (useTransaction) await session.commitTransaction();
+        if (useTransaction) session.endSession();
 
         await delCache(`session:${req.user._id}`);
         return successResponse(res, txn, 'Withdrawal initiated');
     } catch (error) {
-        if (session) await session.abortTransaction();
+        if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
         throw error;
     }

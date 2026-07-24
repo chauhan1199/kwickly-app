@@ -25,7 +25,8 @@ const NotificationSchema = new mongoose.Schema({
                'WALLET_CREDIT', 'WALLET_DEBIT', 'WALLET_UPDATE', 'IMPERSONATE', 'SETTLE',
                'BROADCAST', 'SYSTEM', 'OTHER', 'JOB_CREATED', 'JOB_UPDATED',
                'JOB_CANCELLED', 'QUOTE_RECEIVED', 'ORDER_PLACED', 'ORDER_UPDATED',
-               'ORDER_CANCELLED', 'ORDER_DELIVERED', 'TOPUP'],
+               'ORDER_CANCELLED', 'ORDER_DELIVERED', 'TOPUP', 'RATING_RECEIVED',
+               'EXTEND_SUBSCRIPTION', 'SUBSCRIPTION_EXPIRING', 'SUBSCRIPTION_EXPIRED'],
         default: 'OTHER'
     },
     entityType: {
@@ -43,7 +44,7 @@ const NotificationSchema = new mongoose.Schema({
     },
     targetRole: {
         type: String,
-        enum: ['ALL', 'ADMIN', 'CUSTOMER', 'WORKER', 'SHOP'],
+        enum: ['ALL', 'ADMIN', 'CUSTOMER', 'WORKER', 'SHOP', 'SHOP_OWNER'],
         default: 'ALL'
     },
     readBy: [{
@@ -59,5 +60,6 @@ const NotificationSchema = new mongoose.Schema({
 NotificationSchema.index({ type: 1, targetRole: 1, createdAt: -1 });
 NotificationSchema.index({ type: 1, action: 1, createdAt: -1 });
 NotificationSchema.index({ userId: 1, createdAt: -1 });
+NotificationSchema.index({ userId: 1, type: 1, deletedBy: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', NotificationSchema);

@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { validateRequest } = require('./auth.validator'); // Re-using validateRequest middleware pattern
+const logger = require('../helpers/logger.helper');
 
 const updateSettingsSchema = Joi.object({
     feeAmount: Joi.number().min(0),
@@ -30,7 +30,7 @@ const updateSettingsSchema = Joi.object({
 const validateUpdateSettings = (req, res, next) => {
     const { error } = updateSettingsSchema.validate(req.body);
     if (error) {
-        console.error('Validation Error Details:', error.details);
+        logger.error('Settings validation failed:', error.details);
         return res.status(400).json({
             success: false,
             message: error.details[0].message

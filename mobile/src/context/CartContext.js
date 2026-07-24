@@ -85,7 +85,7 @@ export const CartProvider = ({ children }) => {
       setPromoDiscount(0);
       setPromoCode(null);
     } catch (e) {
-      console.error('Failed to clear cart', e);
+      // Cart clear failure silently ignored
     }
   }, []);
 

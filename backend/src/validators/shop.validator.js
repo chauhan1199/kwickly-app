@@ -40,7 +40,11 @@ const updateShopSchema = Joi.object({
         sat: Joi.string().max(50).optional(),
         sun: Joi.string().max(50).optional()
     }).optional(),
-    kyc: Joi.object().unknown(true).optional()
+    kyc: Joi.object().unknown(true).optional(),
+    bannerUrl: Joi.string().allow('', null).optional(),
+    bannerBase64: Joi.string().allow('', null).optional(),
+    logoUrl: Joi.string().allow('', null).optional(),
+    logoBase64: Joi.string().allow('', null).optional()
 }).min(1);
 
 
@@ -96,8 +100,9 @@ const updateShopAdminSchema = Joi.object({
         sun: Joi.string().max(50).optional()
     }).optional(),
     subscription: Joi.object({
-        plan: Joi.string().valid('FREE_TRIAL', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY').optional(),
-        validUntil: Joi.date().optional()
+        planId: Joi.string().optional(),
+        status: Joi.string().optional(),
+        isTrial: Joi.boolean().optional()
     }).optional(),
     isOnline: Joi.boolean().optional()
 }).min(1);

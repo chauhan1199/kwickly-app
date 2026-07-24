@@ -61,5 +61,6 @@ const ShopOrderSchema = new mongoose.Schema({
 ShopOrderSchema.index({ shopId: 1, status: 1, createdAt: -1 }); // Shop dashboard filter
 ShopOrderSchema.index({ customerId: 1, createdAt: -1 });        // Customer order history
 ShopOrderSchema.index({ createdAt: -1 });                       // Admin list sort
+ShopOrderSchema.index({ status: 1, createdAt: -1 });            // Status-based filtering
 
 module.exports = mongoose.model('ShopOrder', ShopOrderSchema);

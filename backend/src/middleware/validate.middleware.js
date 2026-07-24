@@ -1,5 +1,6 @@
 const { StatusCodes } = require('http-status-codes');
 const { errorResponse } = require('../helpers/response.helper');
+const logger = require('../helpers/logger.helper');
 
 /**
  * @desc Generic Validation Middleware
@@ -15,7 +16,7 @@ const validate = (schema, source = 'body') => (req, res, next) => {
 
     if (error) {
         const errorDetails = error.details.map(detail => detail.message);
-        console.log('VALIDATION ERROR:', errorDetails);
+        logger.error('VALIDATION ERROR:', errorDetails);
         return errorResponse(res, 'Validation Error', StatusCodes.BAD_REQUEST, errorDetails);
     }
 

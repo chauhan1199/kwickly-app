@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   ScrollView, 
   View, 
@@ -15,10 +15,10 @@ import {
   Platform
 } from 'react-native';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
+
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowDown, ArrowUp, Gift, Landmark, Smartphone, Briefcase, DollarSign, Wallet, ShieldAlert, History, PlusCircle, CreditCard, ChevronRight, CheckCircle2, Clock, Calendar } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, Landmark, Smartphone, Wallet, Calendar } from 'lucide-react-native';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import WorkerBalanceCard from '../../components/WorkerBalanceCard';
 import LinearGradient from 'react-native-linear-gradient';
@@ -26,15 +26,18 @@ import RazorpayCheckout from 'react-native-razorpay';
 
 import { walletService } from '../../services/walletService';
 import { workerService } from '../../services/workerService';
-import api from '../../services/api';
+import settingsService from '../../services/settingsService';
+import { RAZORPAY_LOGO_URL } from '../../config/env';
 
 const WorkerEarningsScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
   const [wallet, setWallet] = useState({ balance: 0 });
   const [transactions, setTransactions] = useState([]);
+  const [chartData, setChartData] = useState([]);
+  const [weeklyEarnings, setWeeklyEarnings] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [profile, setProfile] = useState(null);
   const [accounts, setAccounts] = useState([]);
@@ -45,6 +48,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [transactionModalVisible, setTransactionModalVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dynamicPlans, setDynamicPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState('');
+  const [selectedPayout, setSelectedPayout] = useState(null);
+  const [topUpMethod, setTopUpMethod] = useState(null);
 
   // Trial/Plan Calculation
   let daysLeft = 0;
@@ -64,16 +70,13 @@ const WorkerEarningsScreen = ({ navigation }) => {
   }
   const isActive = isTrialActive || isPlanActive;
 
-  React.useEffect(() => {
-    fetchWalletAndProfile();
-  }, []);
-
-  const fetchWalletAndProfile = async () => {
+  const fetchWalletAndProfile = useCallback(async () => {
     try {
-      const [walletRes, profileRes, settingsRes] = await Promise.all([
+      const [walletRes, profileRes, settingsRes, chartRes] = await Promise.all([
         walletService.getWallet(),
         workerService.getProfile(),
-        api.get('/settings/public').catch(() => null)
+        settingsService.getPublicSettings().catch(() => null),
+        workerService.getEarningsChart('week').catch(() => null)
       ]);
       
       if (settingsRes?.data?.status === 'success') {
@@ -86,7 +89,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
             sub: p.durationDays ? `${p.durationDays} days` : 'Custom duration',
             price: `₹${p.price || 0}`
           }));
-        const tlist = walletRes.data.data.transactions || [];
+        const tlist = walletRes.data?.data?.transactions || [];
         const mappedTxns = tlist.map(t => ({
           id: t._id,
           txnId: t._id.slice(-8).toUpperCase(),
@@ -98,6 +101,13 @@ const WorkerEarningsScreen = ({ navigation }) => {
         }));
         setTransactions(mappedTxns);
         setDynamicPlans(formatted);
+
+        if (chartRes?.data?.status === 'success') {
+          const cData = chartRes.data.data;
+          setChartData(cData.labels || []);
+          setWeeklyEarnings(cData.total || 0);
+        }
+
         if (formatted.length > 0 && selectedPlan === 'yearly') {
             setSelectedPlan(formatted[0].id);
         }
@@ -135,17 +145,21 @@ const WorkerEarningsScreen = ({ navigation }) => {
         }
       }
     } catch (e) {
-      console.log('Failed to fetch data:', e);
+      Alert.alert('Error', 'Failed to load earnings data.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedPayout, selectedPlan, topUpMethod]);
+
+  React.useEffect(() => {
+    fetchWalletAndProfile();
+  }, [fetchWalletAndProfile]);
 
   const processRazorpayPayment = async (amount, context, extraData) => {
     try {
       setLoading(true);
       
-      const orderRes = await api.post('/payments/create-order', {
+      const orderRes = await walletService.createPaymentOrder({
         amount,
         purpose: context === 'PLAN' ? 'plan_subscription' : 'wallet_topup'
       });
@@ -158,7 +172,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
       const options = {
         description: context === 'PLAN' ? 'Subscription Plan' : 'Wallet Top-up',
-        image: 'https://kwickly.app/logo.png',
+        image: RAZORPAY_LOGO_URL,
         currency: currency,
         key: keyId,
         amount: rpAmount,
@@ -170,12 +184,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
       const data = await RazorpayCheckout.open(options);
 
       if (context === 'PLAN') {
-        const res = await api.post('/subscriptions/subscribe', { 
-          planId: extraData.planId, 
-          razorpayOrderId: data.razorpay_order_id,
-          razorpayPaymentId: data.razorpay_payment_id,
-          razorpaySignature: data.razorpay_signature 
-        });
+        // TODO: Move subscription flow to workerService.subscribe()
+        const res = await walletService.topupWallet(amount, { method: 'RAZORPAY', planId: extraData.planId, txnId: data.razorpay_payment_id }, null, data.razorpay_order_id, data.razorpay_payment_id, data.razorpay_signature);
         if (res.data?.status === 'success') {
           Alert.alert("Success", "Your subscription plan has been successfully updated! 🎉");
           fetchWalletAndProfile();
@@ -189,7 +199,6 @@ const WorkerEarningsScreen = ({ navigation }) => {
         }
       }
     } catch (e) {
-      console.log('Payment Error:', e);
       if (e.code === 0 || e.code === 2) {
         Alert.alert("Payment Cancelled", "The payment was cancelled.");
       } else {
@@ -221,13 +230,11 @@ const WorkerEarningsScreen = ({ navigation }) => {
   };
 
   // Data state
-  const [selectedPlan, setSelectedPlan] = useState('');
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [selectedPayout, setSelectedPayout] = useState(null);
   const [topUpModalVisible, setTopUpModalVisible] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState('');
-  
+
 
 
   const handleSubmitWithdrawal = async () => {
@@ -321,40 +328,31 @@ const WorkerEarningsScreen = ({ navigation }) => {
         {/* Weekly Earnings Chart */}
         <View style={styles.sectionHeader}>
            <Text style={styles.sectionTitle}>Weekly Earnings</Text>
-           <Text style={styles.weeklyEarnAmount}>₹{(wallet.balance * 0.8).toFixed(2)}</Text>
+           <Text style={styles.weeklyEarnAmount}>₹{weeklyEarnings.toFixed(2)}</Text>
         </View>
-        <Text style={styles.sectionSubtitle}>You've earned ₹{(wallet.balance * 0.8).toFixed(2)} this week</Text>
-        
+        <Text style={styles.sectionSubtitle}>You've earned ₹{weeklyEarnings.toFixed(2)} this week</Text>
+
         <View style={styles.chartCard}>
           <View style={styles.chartBars}>
-            <View style={styles.chartCol}>
-              <View style={[styles.chartBar, { height: '30%' }]} />
-              <Text style={styles.chartLabel}>Mon</Text>
-            </View>
-            <View style={styles.chartCol}>
-              <View style={[styles.chartBar, { height: '50%' }]} />
-              <Text style={styles.chartLabel}>Tue</Text>
-            </View>
-            <View style={styles.chartCol}>
-              <View style={[styles.chartBar, { height: '20%' }]} />
-              <Text style={styles.chartLabel}>Wed</Text>
-            </View>
-            <View style={styles.chartCol}>
-              <View style={[styles.chartBar, { height: '80%' }]} />
-              <Text style={styles.chartLabel}>Thu</Text>
-            </View>
-            <View style={styles.chartCol}>
-              <View style={[styles.chartBar, { height: '60%', backgroundColor: theme.colors.primary }]} />
-              <Text style={styles.chartLabel}>Fri</Text>
-            </View>
-            <View style={styles.chartCol}>
-              <View style={[styles.chartBar, { height: '10%' }]} />
-              <Text style={styles.chartLabel}>Sat</Text>
-            </View>
-            <View style={styles.chartCol}>
-              <View style={[styles.chartBar, { height: '40%' }]} />
-              <Text style={styles.chartLabel}>Sun</Text>
-            </View>
+            {(chartData.length > 0 ? chartData : [
+              { label: 'Mon', value: 0 },
+              { label: 'Tue', value: 0 },
+              { label: 'Wed', value: 0 },
+              { label: 'Thu', value: 0 },
+              { label: 'Fri', value: 0 },
+              { label: 'Sat', value: 0 },
+              { label: 'Sun', value: 0 },
+            ]).map((bar, idx) => {
+              const maxVal = Math.max(...chartData.map(d => d.value), 1);
+              const pct = maxVal > 0 ? `${Math.max((bar.value / maxVal) * 100, 5)}%` : '5%';
+              const isToday = idx === new Date().getDay() - 1;
+              return (
+                <View key={idx} style={styles.chartCol}>
+                  <View style={[styles.chartBar, { height: pct, backgroundColor: isToday ? theme.colors.primary : theme.colors.primary + '40' }]} />
+                  <Text style={styles.chartLabel}>{bar.label}</Text>
+                </View>
+              );
+            })}
           </View>
         </View>
 

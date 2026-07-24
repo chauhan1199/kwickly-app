@@ -1,4 +1,15 @@
 const request = require('supertest');
+
+// Mock rate limiter to pass through all requests
+jest.mock('../middleware/rateLimit.middleware', () => {
+    const passThrough = (req, res, next) => next();
+    return {
+        globalLimiter: passThrough,
+        authLimiter: passThrough,
+        otpSendLimiter: passThrough
+    };
+});
+
 const app = require('../app');
 const { setup, teardown, clearCollections, createTestUser, generateToken } = require('./testSetup');
 

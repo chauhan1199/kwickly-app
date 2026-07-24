@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -6,14 +6,12 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity,
-  TextInput,
   StatusBar,
   ActivityIndicator,
   Dimensions,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { jobService } from '../../services/jobService';
@@ -39,7 +37,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
-const BookServiceScreen = ({ navigation }) => {
+const BookServiceScreen = ({ navigation, route }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
   const chips = ['🔥 Popular', '🏠 Home', '🚗 Vehicle', '💄 Beauty', '🌿 Garden', '💻 Tech'];
@@ -49,12 +47,9 @@ const BookServiceScreen = ({ navigation }) => {
   const [banners, setBanners] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       const [catRes, workerRes, bannerRes] = await Promise.all([
@@ -84,9 +79,18 @@ const BookServiceScreen = ({ navigation }) => {
       }
 
       if (workerRes.data?.status === 'success') {
-        // Assume customer location is approx Mumbai center for this demonstration if no device GPS
-        const custLat = 19.0760;
-        const custLon = 72.8777;
+        // Try to get customer's actual location, fallback to API-provided coordinates
+        let custLat = 19.0760;
+        let custLon = 72.8777;
+        try {
+          // Use location from route params or user's saved address if available
+          if (route.params?.location) {
+            custLat = route.params.location.latitude || custLat;
+            custLon = route.params.location.longitude || custLon;
+          }
+        } catch (e) {
+          Alert.alert('Location', 'Using default location');
+        }
 
         const mappedWorkers = workerRes.data.data.map(w => {
           const wLat = w.activeLocation?.coordinates?.[1] || 19.0800;
@@ -109,11 +113,15 @@ const BookServiceScreen = ({ navigation }) => {
         setWorkers(mappedWorkers);
       }
     } catch (e) {
-      console.error('Error fetching dynamic data for BookService:', e);
+      setError('Failed to load data. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [route.params?.location]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const styles = createStyles(theme, isDarkMode);
 
@@ -147,6 +155,12 @@ const BookServiceScreen = ({ navigation }) => {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
+        {error && (
+          <View style={{ padding: 14, marginBottom: 10, backgroundColor: '#FEE2E2', borderRadius: 12 }}>
+            <Text style={{ color: '#991B1B', textAlign: 'center', fontWeight: '600' }}>{error}</Text>
+          </View>
+        )}
+
         <View style={styles.listContainer}>
           {/* Dynamic Banners */}
           {banners.length > 0 && (
@@ -318,10 +332,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.primary,
     borderRadius: 4,
   },
-  content: {
+  contentSpacer: {
     paddingTop: 30,
   },
-  searchBar: {
+  searchBarContainer: {
     marginHorizontal: 14,
     marginBottom: 14,
   },

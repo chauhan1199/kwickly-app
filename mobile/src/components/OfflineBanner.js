@@ -1,17 +1,21 @@
-import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
-import { useNetwork } from '../hooks/useNetwork';
-import { WifiOff } from 'lucide-react-native';
-import Theme from '../constants/Theme';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 
 const OfflineBanner = () => {
-  const { isOffline } = useNetwork();
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOffline(!state.isConnected);
+    });
+    return () => unsubscribe();
+  }, []);
 
   if (!isOffline) return null;
 
   return (
     <View style={styles.container}>
-      <WifiOff size={16} color="#fff" style={styles.icon} />
       <Text style={styles.text}>No Internet Connection</Text>
     </View>
   );
@@ -19,22 +23,22 @@ const OfflineBanner = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Theme.colors.error || '#ef4444',
-    padding: Platform.OS === 'ios' ? 12 : 8,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    backgroundColor: '#EF4444',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 9999,
   },
   text: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
-    marginLeft: 8,
   },
-  icon: {
-    marginRight: 4,
-  }
 });
 
 export default OfflineBanner;

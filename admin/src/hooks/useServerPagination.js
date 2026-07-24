@@ -46,12 +46,16 @@ export function useServerPagination(endpoint, pageSize = 15, extraFilter = null)
         }
       } else {
         setError(res.data.message || 'Failed to fetch data')
-        Toast.error(res.data.message || 'Failed to fetch data')
+        if (typeof Toast === 'function') Toast(res.data.message || 'Failed to fetch data')
+        else if (Toast?.error) Toast.error(res.data.message || 'Failed to fetch data')
+        else if (Toast?.show) Toast.show(res.data.message || 'Failed to fetch data')
       }
     } catch (e) {
       const errorMsg = e.response?.data?.message || 'Error fetching data'
       setError(errorMsg)
-      Toast.error(errorMsg)
+      if (typeof Toast === 'function') Toast(errorMsg)
+      else if (Toast?.error) Toast.error(errorMsg)
+      else if (Toast?.show) Toast.show(errorMsg)
     } finally {
       setLoading(false)
     }

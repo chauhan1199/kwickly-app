@@ -10,14 +10,15 @@ describe('Worker Routes', () => {
     let workerToken, customerToken;
 
     beforeEach(async () => {
+        const uid = Date.now().toString(36).slice(-6);
         const worker = await createTestUser({
-            role: 'WORKER', email: 'workerw@test.com', phone: '1234567890',
+            role: 'WORKER', email: `workerw-${uid}@test.com`, phone: `9800${uid}`,
             activeLocation: { type: 'Point', coordinates: [72.8777, 19.0760] },
-            kyc: { status: 'PENDING', documents: [] }
+            kyc: { status: 'APPROVED', documents: [] }
         });
         workerToken = generateToken(worker);
 
-        const customer = await createTestUser({ role: 'CUSTOMER', email: 'workerc@test.com', phone: '1234567891' });
+        const customer = await createTestUser({ role: 'CUSTOMER', email: `workerc-${uid}@test.com`, phone: `9801${uid}` });
         customerToken = generateToken(customer);
     });
 

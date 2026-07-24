@@ -8,6 +8,7 @@
  *   admin_dashboard      — admin panel live stats (requires ADMIN role)
  */
 const { getIO } = require('../helpers/socket.helper');
+const { getCache } = require('../helpers/redis.helper');
 const logger    = require('../helpers/logger.helper');
 
 const initSocketHandlers = () => {
@@ -19,7 +20,7 @@ const initSocketHandlers = () => {
         /* ── Room Join Handlers (with authentication guards) ──────── */
         // Removed JOIN_CUSTOMER_ROOM, JOIN_WORKER_ROOM, JOIN_SHOP_ROOM, JOIN_ADMIN
         // as they are automatically handled securely in socket.helper.js on connection based on JWT role.
-        
+
         socket.on('JOIN_JOB_ROOM', ({ jobId }) => {
             // Workers and customers can join job rooms to receive bid updates
             if (!socket.isAuthenticated) return socket.emit('ERROR', { message: 'Authentication required' });
@@ -27,12 +28,18 @@ const initSocketHandlers = () => {
             logger.info(`[Socket] Socket ${socket.id} joined job room ${jobId}`);
         });
 
-        /* ── Worker Location Updates ──────────────────────────────── */
+        /* ── Worker Location Updates (P0: Server-verified assignment) ── */
 
-        socket.on('WORKER_LOCATION_UPDATE', ({ jobId, customerId, coords }) => {
+        socket.on('WORKER_LOCATION_UPDATE', async ({ jobId, customerId, coords }) => {
             if (!socket.isAuthenticated || socket.userRole !== 'WORKER') return;
-            // TODO: Secure this! Ensure worker is assigned to this job before broadcasting.
-            // For performance, we assume the initial DB join validated it, but ideally check Redis cache.
+
+            // Verify this worker is actually assigned to this job via Redis cache
+            const assignedWorkerId = await getCache(`job:${jobId}:assigned_worker`);
+            if (!assignedWorkerId || String(assignedWorkerId) !== String(socket.userId)) {
+                logger.warn(`[Socket] Location spoofing blocked: worker ${socket.userId} tried to broadcast for job ${jobId}`);
+                return;
+            }
+
             io.to(`customer_${customerId}`).emit('WORKER_LOCATION', { jobId, coords });
         });
 

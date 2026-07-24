@@ -1,4 +1,4 @@
-const { StatusCodes } = require('http-status-codes');
+﻿const { StatusCodes } = require('http-status-codes');
 const Dispute = require('./dispute.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -78,6 +78,11 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
     const dispute = await Dispute.findById(id).populate('jobId').populate('shopOrderId');
     if (!dispute) return errorResponse(res, 'Dispute not found', StatusCodes.NOT_FOUND);
 
+    // Idempotency guard â€” prevent double refund
+    if (status === 'refunded' && dispute.status === 'refunded') {
+        return errorResponse(res, 'This dispute has already been refunded', StatusCodes.CONFLICT);
+    }
+
     // Wallet execution for REFUND
     let actualRefundAmount = 0;
     if (status === 'refunded') {
@@ -92,7 +97,7 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
             const { emitToUser } = require('../../helpers/socket.helper');
 
             // 1. Credit Customer
-            const customer = await Customer.findByIdAndUpdate(dispute.customerId, { $inc: { 'wallet.balance': actualRefundAmount } }, { new: true });
+            const customer = await Customer.findByIdAndUpdate(dispute.customerId, { $inc: { 'wallet.balance': actualRefundAmount } }, { returnDocument: 'after' });
             if (customer) {
                 await WalletTxn.create({
                     userId: customer._id,
@@ -105,10 +110,10 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
 
                 await Notification.create({
                     userId: customer._id, title: 'Dispute Refunded',
-                    message: `Your dispute has been resolved. ₹${actualRefundAmount} has been refunded to your wallet.`,
+                    message: `Your dispute has been resolved. â‚¹${actualRefundAmount} has been refunded to your wallet.`,
                     type: 'DIRECT', action: 'WALLET_CREDIT', entityType: 'DISPUTE', entityId: dispute._id
                 });
-                emitToUser(customer._id.toString(), 'NOTIFICATION', { message: `₹${actualRefundAmount} refunded for dispute.` });
+                emitToUser(customer._id.toString(), 'NOTIFICATION', { message: `â‚¹${actualRefundAmount} refunded for dispute.` });
             }
 
             // 2. Handle Provider Deduction
@@ -128,7 +133,7 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
 
                     await Notification.create({
                         userId: dispute.workerId, title: 'Settlement Cancelled',
-                        message: `A dispute was resolved against you. Your pending settlement of ₹${settlement.shopEarning} has been cancelled.`,
+                        message: `A dispute was resolved against you. Your pending settlement of â‚¹${settlement.shopEarning} has been cancelled.`,
                         type: 'DIRECT', action: 'SYSTEM', entityType: 'DISPUTE', entityId: dispute._id
                     });
                     emitToUser(dispute.workerId.toString(), 'NOTIFICATION', { message: `Pending settlement cancelled due to dispute.` });
@@ -143,24 +148,34 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
                         pQuery = { _id: shop._id };
                     }
 
-                    const provider = await pModel.findOneAndUpdate(pQuery, { $inc: { 'wallet.balance': -actualRefundAmount } }, { new: true });
-                    if (provider) {
+                    // Check provider has sufficient balance before debiting
+                    const provider = await pModel.findById(pQuery._id).select('wallet.balance');
+                    if (!provider || (provider.wallet?.balance || 0) < actualRefundAmount) {
+                        // Provider doesn't have enough â€” only deduct what they have
+                        const maxDeduct = Math.max(0, provider?.wallet?.balance || 0);
+                        if (maxDeduct > 0) {
+                            await pModel.findByIdAndUpdate(pQuery._id, { $inc: { 'wallet.balance': -maxDeduct } });
+                            await WalletTxn.create({
+                                userId: dispute.workerId, type: 'ADJUSTMENT', amount: maxDeduct,
+                                balance: 0, status: 'COMPLETED',
+                                description: `Partial dispute deduction (max available) Ref: ${dispute._id.toString().slice(-8)}`
+                            });
+                        }
+                    } else {
+                        await pModel.findByIdAndUpdate(pQuery._id, { $inc: { 'wallet.balance': -actualRefundAmount } });
                         await WalletTxn.create({
-                            userId: dispute.workerId, // WalletTxn always uses User ID, even if shop
-                            type: 'ADJUSTMENT',
-                            amount: actualRefundAmount,
-                            balance: provider.wallet.balance,
-                            status: 'COMPLETED',
-                            description: `Dispute Deduction for Ref: ${dispute._id.toString().slice(-8)}`
+                            userId: dispute.workerId, type: 'ADJUSTMENT', amount: actualRefundAmount,
+                            balance: (provider.wallet?.balance || 0) - actualRefundAmount, status: 'COMPLETED',
+                            description: `Dispute Deduction Ref: ${dispute._id.toString().slice(-8)}`
                         });
-
-                        await Notification.create({
-                            userId: dispute.workerId, title: 'Dispute Adjustment',
-                            message: `A dispute was resolved against you. ₹${actualRefundAmount} has been deducted from your wallet.`,
-                            type: 'DIRECT', action: 'WALLET_DEBIT', entityType: 'DISPUTE', entityId: dispute._id
-                        });
-                        emitToUser(dispute.workerId.toString(), 'NOTIFICATION', { message: `₹${actualRefundAmount} deducted for dispute.` });
                     }
+
+                    await Notification.create({
+                        userId: dispute.workerId, title: 'Dispute Adjustment',
+                        message: `A dispute was resolved against you. â‚¹${actualRefundAmount} has been deducted from your wallet.`,
+                        type: 'DIRECT', action: 'WALLET_DEBIT', entityType: 'DISPUTE', entityId: dispute._id
+                    });
+                    emitToUser(dispute.workerId.toString(), 'NOTIFICATION', { message: `â‚¹${actualRefundAmount} deducted for dispute.` });
                 }
             }
         }
@@ -168,12 +183,12 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
 
     dispute.status = status;
     dispute.resolutionNotes = finalResolution;
-    if (['resolved', 'refunded'].includes(status)) dispute.resolvedAt = new Date();
+    if (['resolved', 'refunded', 'dismissed'].includes(status)) dispute.resolvedAt = new Date();
     await dispute.save();
 
     logAdminActivity('UPDATE', 'DISPUTE', dispute._id, 
         `Dispute marked as ${status.toUpperCase()}`, 
-        `Resolution: ${finalResolution || 'None'}${status==='refunded' ? ` | Refunded: ₹${actualRefundAmount}` : ''}`, 
+        `Resolution: ${finalResolution || 'None'}${status==='refunded' ? ` | Refunded: â‚¹${actualRefundAmount}` : ''}`, 
         req.user._id
     );
 

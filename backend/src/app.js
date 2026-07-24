@@ -4,8 +4,6 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const sanitizeMiddleware = require('./middleware/sanitize.middleware');
 const compression = require('compression');
-const mongoSanitize = require('express-mongo-sanitize');
-const hpp = require('hpp');
 const errorHandler = require('./middleware/error.middleware');
 const { globalLimiter } = require('./middleware/rateLimit.middleware');
 
@@ -34,12 +32,7 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
-// HTTP Parameter Pollution protection (Incompatible with Express 5 getters)
-// app.use(hpp());
 
-// NoSQL Injection protection (sanitize mongo queries)
-// Incompatible with Express 5 getters. Relying on Joi validation instead.
-// app.use(mongoSanitize());
 
 // Development logging
 if (process.env.NODE_ENV === 'development') {
@@ -64,9 +57,6 @@ app.use(compression());
 // Static file serving
 const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
-
-// ─── Global Rate Limiter ─────────────────────────────────────────────────────
-app.use('/api/', globalLimiter);
 
 // ─── Route Handlers ──────────────────────────────────────────────────────────
 app.use('/api/v1/auth',          require('./modules/auth/auth.routes'));
@@ -93,7 +83,7 @@ app.use('/api/v1/payments',      require('./modules/payment/payment.routes'));
 app.use('/api/v1/admin/admin-wallet', require('./modules/adminWallet/adminWallet.routes'));
 
 // Health check — no auth, no rate limit
-app.get('/health', (req, res) => {
+app.get('/health', globalLimiter, (req, res) => {
     res.status(200).json({ status: 'ok', message: 'Kwickly API is running' });
 });
 

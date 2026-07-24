@@ -9,6 +9,8 @@ const { emitToRoom, getIO } = require('../helpers/socket.helper');
 const { findEligibleWorkers } = require('../helpers/worker.helper');
 const { getCache, setCache, acquireLock, releaseLock } = require('../helpers/redis.helper');
 const { notifyUser } = require('../helpers/notifyUser.helper');
+const mongoose = require('mongoose');
+const { supportsTransactions } = require('../helpers/transaction.helper');
 
 const startCronEngine = () => {
     logger.info('[Cron Engine] Master engine initialized. Scheduling progressive expansion and ghost sweeps...');
@@ -198,17 +200,25 @@ const sweepGhostOrders = async () => {
         order.status = 'CANCELLED';
         order.statusHistory.push({ status: 'CANCELLED', timestamp: new Date(), note: 'Auto-cancelled due to shop inactivity' });
         
-        const mongoose = require('mongoose');
-        const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-        const session = isSingle ? null : await mongoose.startSession();
-        if (session) session.startTransaction();
+        let session = null;
+        let useTransaction = false;
+        if (supportsTransactions()) {
+            try {
+                session = await mongoose.startSession();
+                session.startTransaction();
+                useTransaction = true;
+            } catch (e) {
+                session = null;
+                useTransaction = false;
+            }
+        }
 
         try {
             // Refund if paid
             if (order.payment.status === 'PAID') {
                 const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {
                     $inc: { 'wallet.balance': order.total }
-                }, { new: true, session });
+                }, { returnDocument: 'after', session });
                 
                 await WalletTxn.create([{
                     userId: order.customerId,
@@ -222,10 +232,10 @@ const sweepGhostOrders = async () => {
             }
             await order.save({ session });
             
-            if (session) await session.commitTransaction();
-            if (session) session.endSession();
+            if (useTransaction) await session.commitTransaction();
+            if (useTransaction) session.endSession();
         } catch (error) {
-            if (session) await session.abortTransaction();
+            if (useTransaction && session) await session.abortTransaction();
             if (session) session.endSession();
             logger.error(`[Cron] Error cancelling ghost order ${order._id}: ${error.message}`);
             continue; // Move to the next order instead of crashing the whole sweep

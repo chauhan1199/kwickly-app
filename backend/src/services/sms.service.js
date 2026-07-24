@@ -9,8 +9,10 @@
  */
 
 exports.sendOTP = async (phone) => {
-    // Generate a secure random 4-digit OTP
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    // Generate a secure random 4-digit OTP using crypto
+    const crypto = require('crypto');
+    const logger = require('../helpers/logger.helper');
+    const otp = String(crypto.randomInt(1000, 10000));
 
     const useRealSMS = process.env.ENABLE_REAL_SMS === 'true';
 
@@ -42,11 +44,11 @@ exports.sendOTP = async (phone) => {
         //     template_id: process.env.MSG91_TEMPLATE_ID
         // }, { headers: { authkey: process.env.MSG91_API_KEY } });
 
-        console.log(`[SMS] Real SMS would be sent to +91${phone} with OTP: ${otp}`);
+        logger.info(`[SMS] Real SMS would be sent to +91${phone} with OTP: ${otp}`);
     } else {
         // Development mode — log to console, use static OTP for easier testing
         const devOtp = process.env.DEV_STATIC_OTP || otp;
-        console.log(`[SMS Dev] OTP for ${phone}: ${devOtp} (set ENABLE_REAL_SMS=true for production)`);
+        logger.info(`[SMS Dev] OTP for ${phone}: ${devOtp} (set ENABLE_REAL_SMS=true for production)`);
         return devOtp;
     }
 

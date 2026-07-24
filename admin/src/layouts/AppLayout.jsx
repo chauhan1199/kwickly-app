@@ -108,7 +108,7 @@ export default function AppLayout({ onLogout }) {
         read: userId ? (n.readBy || []).includes(userId) : false,
         type: n.action || (n.targetRole === 'WORKER' ? 'warning' : 'info')
       })))
-    } catch (e) { console.error('[fetchNotifications] failed:', e) }
+    } catch (e) { /* silently ignored */ }
   }
 
   const markAllRead = async () => {

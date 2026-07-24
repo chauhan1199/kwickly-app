@@ -9,18 +9,17 @@ import {
   StatusBar
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
 import LinearGradient from 'react-native-linear-gradient';
 
 const WorkerJobCompleteScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { signOut } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
   const { job, quoteAmount } = route.params || {};
 
   const amount = quoteAmount || job?.payment?.amount || 499;
-  const commission = Math.round(amount * 0.1);
+  const commissionRate = job?.commissionRate || 0.1;
+  const commission = Math.round(amount * commissionRate);
   const earning = amount - commission;
 
   return (
@@ -63,7 +62,7 @@ const WorkerJobCompleteScreen = ({ route, navigation }) => {
           <View style={styles.priceRow}>
             <View>
               <Text style={styles.priceLabel}>Bid amount</Text>
-              <Text style={styles.priceSub}>Commission (10%)</Text>
+              <Text style={styles.priceSub}>Commission ({Math.round(commissionRate * 100)}%)</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.priceValPositive}>₹{amount}</Text>

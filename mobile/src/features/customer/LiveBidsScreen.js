@@ -13,8 +13,6 @@ import {
   Alert,
   Platform
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
@@ -24,7 +22,6 @@ import AppBar from '../../components/AppBar';
 import { SearchBar } from '../../components/ui/SearchBar';
 
 const LiveBidsScreen = ({ route, navigation }) => {
-  console.log("LiveBidsScreen mounting...");
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
   const { 
@@ -93,7 +90,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
           setBids(res.data.data);
         }
       } catch (e) {
-        console.log('Failed to fetch existing bids', e);
+        Alert.alert('Error', 'Failed to load bids');
       }
     };
     fetchBids();
@@ -148,7 +145,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
         });
       }
     } catch (e) {
-      console.log('Accept bid error:', e);
+      Alert.alert('Error', 'Failed to accept quote');
     } finally {
       setIsAccepting(false);
     }

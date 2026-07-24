@@ -6,6 +6,9 @@ const authorize          = require('../../middleware/role.middleware');
 
 const { validateSubscribe } = require('../../validators/subscription.validator');
 
+// Public — get available plans (no auth required)
+router.get('/plans',           ctrl.getPlans);
+
 // Worker / Shop — subscribe
 router.post('/subscribe',   authMiddleware, authorize('WORKER', 'SHOP'), validateSubscribe, ctrl.subscribe);
 router.get('/my',           authMiddleware, authorize('WORKER', 'SHOP'), ctrl.getMySubscriptions);

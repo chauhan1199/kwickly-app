@@ -24,5 +24,3 @@ const logAdminActivity = async (action, entityType, entityId, title, message, ad
 };
 
 module.exports = { logAdminActivity };
-
-module.exports = { logAdminActivity };

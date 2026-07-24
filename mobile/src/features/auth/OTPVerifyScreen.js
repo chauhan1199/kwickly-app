@@ -98,14 +98,24 @@ const OTPVerifyScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleResend = async () => {
-    showAlert('OTP Sent', `A new code has been sent via ${currentMethod}`, 'success');
+  const sendOtp = async (method) => {
+    try {
+      await api.post('/auth/send-otp', { phone, role, method });
+      showAlert('OTP Sent', `A new code has been sent via ${method}`, 'success');
+    } catch (error) {
+      const errDetails = error.response?.data?.message || 'Failed to send OTP';
+      showAlert('Error', errDetails);
+    }
   };
 
-  const toggleMethod = () => {
+  const handleResend = async () => {
+    await sendOtp(currentMethod);
+  };
+
+  const toggleMethod = async () => {
     const nextMethod = currentMethod === 'SMS' ? 'WHATSAPP' : 'SMS';
     setCurrentMethod(nextMethod);
-    showAlert('Switched', `Switched to ${nextMethod}`, 'success');
+    await sendOtp(nextMethod);
   };
 
   const styles = createStyles(theme, isDarkMode);
@@ -146,7 +156,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             </View>
             <Text style={styles.title}>Check your {currentMethod === 'WHATSAPP' ? 'WhatsApp' : 'messages'}</Text>
             <Text style={styles.subtitle}>OTP sent to <Text style={{fontWeight: '700', color: theme.colors.text}}>+91 {displayPhone}</Text></Text>
-            <Text style={styles.demoText}>(Demo OTP: <Text style={{color: '#6C47FF', fontWeight: '800'}}>1 2 3 4</Text>)</Text>
+            {__DEV__ && <Text style={styles.demoText}>(Dev OTP: <Text style={{color: '#6C47FF', fontWeight: '800'}}>1 2 3 4</Text>)</Text>}
 
             <View style={styles.otpContainer}>
               {code.map((digit, index) => (

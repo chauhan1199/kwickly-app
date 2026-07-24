@@ -32,7 +32,7 @@ export default function Orders() {
   const fetchOrders = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/admin/shoporders/all')
+      const res = await api.get('/admin/shoporders/all', { params: { page, limit: PAGE_SIZE } })
       const payload = res.data.data
       setOrders(payload?.orders || payload || [])
     } catch {

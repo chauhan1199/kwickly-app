@@ -9,9 +9,11 @@ router.use(authMiddleware);
 
 const validate = require('../../middleware/validate.middleware');
 const { createJobSchema } = require('../../validators/job.validator');
+const upload = require('../../middleware/upload.middleware');
 
 // -- CUSTOMER ROUTES --
 router.post('/', authorize('CUSTOMER'), validate(createJobSchema), jobController.createJob);
+router.get('/', authorize('CUSTOMER'), jobController.getMyJobs);
 router.get('/my', authorize('CUSTOMER'), jobController.getMyJobs);
 router.post('/:id/pay', authorize('CUSTOMER'), jobController.payJob);
 router.post('/:id/rate', authorize('CUSTOMER'), jobController.rateJob);
@@ -35,5 +37,7 @@ router.patch('/:id/resolve-dispute', authorize('ADMIN'), jobController.resolveDi
 
 // -- SHARED ROUTES --
 router.get('/:id/receipt', authorize('CUSTOMER', 'WORKER', 'ADMIN'), jobController.getJobReceipt);
+router.get('/:id', jobController.getJobById);
+router.post('/upload-media', upload.single('media'), jobController.uploadMedia);
 
 module.exports = router;

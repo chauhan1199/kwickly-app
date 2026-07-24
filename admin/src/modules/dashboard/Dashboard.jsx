@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { io } from 'socket.io-client'
 import api from '../../services/api'
+import Toast from '../../components/Toast'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -17,6 +18,7 @@ export default function Dashboard() {
     topWorkers: []
   })
   const [loading, setLoading] = useState(true)
+  const [toast, setToast] = useState(null)
   const [showAllActivity, setShowAllActivity] = useState(false)
   const [activitySearch, setActivitySearch] = useState('')
 
@@ -24,8 +26,10 @@ export default function Dashboard() {
     fetchStats()
     let socket
     try {
+      const token = localStorage.getItem('kwickly_admin_token')
       socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
-        transports: ['websocket'],
+        auth: { token },
+        transports: ['websocket', 'polling'],
         reconnectionAttempts: 3,
       })
       socket.on('DASHBOARD_UPDATE', () => fetchStats())
@@ -37,7 +41,9 @@ export default function Dashboard() {
     try {
       const res = await api.get(`/admin/stats?range=${range}`)
       if (res.data.status === 'success') setStats(res.data.data)
-    } catch {} finally { setLoading(false) }
+    } catch (err) {
+      setToast({ msg: 'Failed to load dashboard data', type: 'error' })
+    } finally { setLoading(false) }
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>Loading dashboard...</div>
@@ -72,6 +78,8 @@ export default function Dashboard() {
 
   return (
     <div>
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
       {/* KPI Cards */}
       <div className="kpi-grid">
         {kpis.map((k, i) => (

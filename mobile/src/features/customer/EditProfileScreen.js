@@ -11,14 +11,15 @@ import {
   Image,
   ActivityIndicator
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { customerService } from '../../services/customerService';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
+import { getImageUrl } from '../../utils/helpers';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+
+const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?name=User&background=6C47FF&color=fff';
 
 const EditProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -27,7 +28,7 @@ const EditProfileScreen = ({ navigation }) => {
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [email, setEmail] = useState(user?.email || '');
-  const [imageUri, setImageUri] = useState(user?.profileImage ? 'http://10.0.2.2:5000' + user.profileImage : null);
+  const [imageUri, setImageUri] = useState(user?.profileImage ? getImageUrl(user.profileImage) : null);
   const [imageFile, setImageFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -56,8 +57,8 @@ const EditProfileScreen = ({ navigation }) => {
               setImageUri(result.assets[0].uri);
               setImageFile({ base64: result.assets[0].base64, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
             } catch (e) {
-              Alert.alert('Emulator Fallback', 'Camera failed. Using mock image.');
-              setImageUri('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80');
+              Alert.alert('Emulator Fallback', 'Camera failed. Using default avatar.');
+              setImageUri(DEFAULT_AVATAR);
             }
           }
         },
@@ -71,8 +72,8 @@ const EditProfileScreen = ({ navigation }) => {
               setImageUri(result.assets[0].uri);
               setImageFile({ base64: result.assets[0].base64, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
             } catch (e) {
-              Alert.alert('Emulator Fallback', 'Gallery failed. Using mock image.');
-              setImageUri('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80');
+              Alert.alert('Emulator Fallback', 'Gallery failed. Using default avatar.');
+              setImageUri(DEFAULT_AVATAR);
             }
           }
         },
@@ -87,13 +88,12 @@ const EditProfileScreen = ({ navigation }) => {
       const payload = { name };
       if (email) payload.email = email;
       if (imageFile && imageFile.base64) {
-        payload.profileImageBase64 = imageFile.base64;
+        payload.profileImageBase64 = `data:${imageFile.type || 'image/jpeg'};base64,${imageFile.base64}`;
       }
       await customerService.updateProfile(payload);
       await fetchUser();
       navigation.navigate('Profile');
     } catch (error) {
-      console.log('Update profile error:', error?.response?.data || error);
       Alert.alert('Error', JSON.stringify(error?.response?.data || error.message));
     } finally {
       setIsLoading(false);

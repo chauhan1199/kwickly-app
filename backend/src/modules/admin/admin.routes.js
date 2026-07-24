@@ -4,11 +4,13 @@ const adminController = require('./admin.controller');
 const { authMiddleware } = require('../../middleware/auth.middleware');
 const authorize = require('../../middleware/role.middleware');
 const validate = require('../../middleware/validate.middleware');
-const { updateKYCSchema, createUserSchema, updateUserSchema, adminCreateJobSchema, adminUpdateJobSchema, adminCreateOrderSchema } = require('../../validators/admin.validator');
+const { updateKYCSchema, createUserSchema, updateUserSchema, adminCreateJobSchema, adminUpdateJobSchema, adminCreateOrderSchema, extendSubscriptionSchema, addPayoutMethodSchema, editPayoutMethodSchema, addKycDocSchema } = require('../../validators/admin.validator');
 const { createShopAdminSchema, updateShopAdminSchema, shopWalletSchema } = require('../../validators/shop.validator');
 const suggestionController = require('../suggestion/suggestion.controller');
 const disputeController = require('../dispute/dispute.controller');
 const settingsController = require('../settings/settings.controller');
+const { otpSendLimiter } = require('../../middleware/rateLimit.middleware');
+const logger = require('../../helpers/logger.helper');
 
 // Middleware to parse stringified JSON from FormData before Joi validation
 const parseShopFormData = (req, res, next) => {
@@ -25,7 +27,7 @@ const parseShopFormData = (req, res, next) => {
 const upload = require('../../middleware/upload.middleware');
 
 // ─── Public Routes (no auth required) ────────────────────────────────────────
-router.get('/settings/branding', settingsController.getBranding);
+router.get('/settings/branding', otpSendLimiter, settingsController.getBranding);
 
 // ─── All Other Admin Routes (ADMIN role required) ─────────────────────────────
 router.use(authMiddleware);
@@ -43,7 +45,7 @@ router.post('/upload-image', upload.single('image'), async (req, res) => {
         
         res.status(200).json({ status: 'success', data: { url: result.url } });
     } catch (err) {
-        console.error('Admin upload error:', err);
+        logger.error('Admin upload error:', err);
         res.status(500).json({ status: 'error', message: 'Image upload failed' });
     }
 });
@@ -73,13 +75,14 @@ router.post('/customers/:id/jobs',         validate(adminCreateJobSchema), admin
 router.patch('/jobs/:id/details',          validate(adminUpdateJobSchema), adminController.adminUpdateJob);
 router.post('/customers/:id/orders',       validate(adminCreateOrderSchema), adminController.adminCreateOrder);
 router.patch('/workers/:id/kyc', validate(updateKYCSchema), adminController.updateKYC);
-router.post('/workers/:id/kyc-documents', upload.single('document'), adminController.addKycDocument);
+router.patch('/workers/:id/extend-subscription', validate(extendSubscriptionSchema), adminController.extendWorkerSubscription);
+router.post('/workers/:id/kyc-documents', upload.single('document'), validate(addKycDocSchema), adminController.addKycDocument);
 router.delete('/workers/:id/kyc-documents/:docIndex', adminController.removeKycDocument);
 
 // Shop management (P1: Previously missing)
 router.get('/shops',                   adminController.getShops);
 router.get('/shops/:id',               adminController.getShopDetailAdmin);
-router.post('/shops',                  validate(createShopAdminSchema), adminController.createShopAdmin);
+router.post('/shops',                  upload.single('logo'), parseShopFormData, validate(createShopAdminSchema), adminController.createShopAdmin);
 router.patch('/shops/:id',             upload.single('logo'), parseShopFormData, validate(updateShopAdminSchema), adminController.updateShopAdminFull);
 router.delete('/shops/:id',            adminController.deleteShopAdmin);
 router.patch('/shops/:id/kyc',         adminController.updateShopKYC);
@@ -88,14 +91,22 @@ router.post('/shops/:id/wallet/credit', validate(shopWalletSchema), adminControl
 router.post('/shops/:id/wallet/debit',  validate(shopWalletSchema), adminController.debitShopWallet);
 router.post('/shops/:id/kyc-doc',      upload.single('document'), adminController.uploadShopKycDoc);
 router.delete('/shops/:id/kyc-doc/:docIndex', adminController.deleteShopKycDoc);
-router.post('/shops/:id/payout-methods',           adminController.addShopPayoutMethod);
-router.patch('/shops/:id/payout-methods/:methodId', adminController.editShopPayoutMethod);
+router.post('/shops/:id/payout-methods',           validate(addPayoutMethodSchema), adminController.addShopPayoutMethod);
+router.patch('/shops/:id/payout-methods/:methodId', validate(editPayoutMethodSchema), adminController.editShopPayoutMethod);
 router.delete('/shops/:id/payout-methods/:methodId', adminController.deleteShopPayoutMethod);
 router.patch('/shops/:id/payout-methods/:methodId/primary', adminController.setShopPrimaryPayout);
 router.patch('/shops/:id/kyc-doc/:docIndex', upload.single('document'), adminController.editShopKycDoc);
 router.patch('/shops/:id/owner',                   adminController.updateShopOwner);
 
-// Sub-module routes (mount before specific /:id params to avoid conflicts)
+// Jobs (specific routes — BEFORE param routes to avoid catch-all conflicts)
+router.get('/jobs/export',             adminController.exportJobs);
+router.get('/jobs/all',                require('../job/job.controller').getJobs);
+router.get('/jobs/:id',                adminController.getJobDetail);
+
+// Payments
+router.get('/payments/export',         adminController.exportPayments);
+
+// Sub-module routes
 router.use('/jobs',         require('../job/job.routes'));
 router.use('/reports',      require('./reports.routes'));
 router.use('/categories',   require('../category/category.routes'));
@@ -105,13 +116,6 @@ router.use('/wallet',       require('../wallet/wallet.routes'));
 router.use('/shoporders',   require('../shoporder/shoporder.routes'));
 router.use('/settlements',  require('../settlement/settlement.routes'));
 router.use('/promotions',   require('../promotion/promotion.routes'));
-
-// Jobs (specific params — after sub-module mounts)
-router.get('/jobs/export',             adminController.exportJobs);
-router.get('/jobs/:id',                adminController.getJobDetail);
-
-// Payments
-router.get('/payments/export',         adminController.exportPayments);
 
 // Payout management
 router.get('/payouts',                 adminController.getPayouts);

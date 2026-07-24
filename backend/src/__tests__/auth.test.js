@@ -200,7 +200,7 @@ describe('Auth Routes', () => {
             const res = await request(app)
                 .patch('/api/v1/auth/set-password')
                 .set('Authorization', `Bearer ${token}`)
-                .send({ password: 'newpassword123' });
+                .send({ password: 'NewPassword1@' });
             expect(res.status).toBe(200);
         });
     });

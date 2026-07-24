@@ -15,6 +15,7 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
+import { getImageUrl } from '../../utils/helpers';
 import LinearGradient from 'react-native-linear-gradient';
 
 const ProfileScreen = ({ navigation }) => {
@@ -68,7 +69,7 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
             {user?.profileImage ? (
-              <Image source={{ uri: 'http://10.0.2.2:5000' + user.profileImage }} style={styles.avatar} />
+              <Image source={{ uri: getImageUrl(user.profileImage) }} style={styles.avatar} />
             ) : (
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>

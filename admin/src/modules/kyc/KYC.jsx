@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import api, { SERVER_URL } from '../../services/api'
+import api, { getImageUrl } from '../../services/api'
 import { Eye, CheckCircle, XCircle, Store, User } from 'lucide-react'
 import Toast from '../../components/Toast'
+import ConfirmModal from '../../components/ConfirmModal'
 
 export default function KYC() {
   const [pending, setPending] = useState([])
@@ -12,6 +13,7 @@ export default function KYC() {
   const [toast, setToast] = useState(null)
   const [previewDoc, setPreviewDoc] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [confirmApproval, setConfirmApproval] = useState(null)
 
   useEffect(() => { fetchPendingKYC() }, [])
 
@@ -21,7 +23,6 @@ export default function KYC() {
       const response = await api.get('/admin/pending-kyc')
       if (response.data.status === 'success') setPending(response.data.data)
     } catch (error) {
-      console.error('Error fetching KYC queue:', error)
       showToast('Error fetching KYC queue', 'error')
     } finally { setLoading(false) }
   }
@@ -97,7 +98,7 @@ export default function KYC() {
               </div>
 
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                <button className="btn btn-success btn-sm" onClick={() => handleUpdateStatus(item._id, 'APPROVED', item.kycType)}>✓ Approve</button>
+                <button className="btn btn-success btn-sm" onClick={() => setConfirmApproval({ id: item._id, status: 'APPROVED', kycType: item.kycType, name: item.name })}>✓ Approve</button>
                 <button className="btn btn-danger btn-sm" onClick={() => { setSelected(item); setRejectModal(true); }}>✕ Reject</button>
               </div>
             </div>
@@ -160,7 +161,7 @@ export default function KYC() {
               )}
 
               <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-success" style={{ flex: 1 }} onClick={() => handleUpdateStatus(selected._id, 'APPROVED', selected.kycType)}>
+                <button className="btn btn-success" style={{ flex: 1 }} onClick={() => setConfirmApproval({ id: selected._id, status: 'APPROVED', kycType: selected.kycType, name: selected.name })}>
                   ✓ Approve KYC
                 </button>
                 <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => setRejectModal(true)}>
@@ -204,6 +205,17 @@ export default function KYC() {
         </div>
       )}
 
+      {/* Confirm Approval Modal */}
+      {confirmApproval && (
+        <ConfirmModal
+          title="Approve KYC"
+          message={`Approve KYC for ${confirmApproval.name}? This will verify their identity.`}
+          confirmText="Approve"
+          onConfirm={() => { handleUpdateStatus(confirmApproval.id, confirmApproval.status, confirmApproval.kycType); setConfirmApproval(null); }}
+          onClose={() => setConfirmApproval(null)}
+        />
+      )}
+
       {/* Document Preview Modal */}
       {previewDoc && (
         <div className="drawer-overlay" onClick={() => setPreviewDoc(null)} style={{ zIndex: 2000 }}>
@@ -214,19 +226,19 @@ export default function KYC() {
                 <div style={{ fontSize: 12, color: 'var(--mid)' }}>{previewDoc.docType || 'Document'}</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <a href={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} target="_blank" rel="noopener noreferrer" style={{ height: 32, padding: '0 12px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: 'var(--text)' }}>Open in Tab</a>
+                <a href={getImageUrl(previewDoc.url)} target="_blank" rel="noopener noreferrer" style={{ height: 32, padding: '0 12px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: 'var(--text)' }}>Open in Tab</a>
                 <button className="btn-icon" onClick={() => setPreviewDoc(null)} title="Close">✕</button>
               </div>
             </div>
             {previewDoc.url?.match(/\.(jpg|jpeg|png)$/i) ? (
-              <img src={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} alt={previewDoc.name} style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 8, objectFit: 'contain', background: '#000' }} />
+              <img src={getImageUrl(previewDoc.url)} alt={previewDoc.name} style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 8, objectFit: 'contain', background: '#000' }} />
             ) : previewDoc.url?.match(/\.pdf$/i) ? (
-              <iframe src={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} title={previewDoc.name} style={{ width: '80vw', height: '70vh', border: 'none', borderRadius: 8 }} />
+              <iframe src={getImageUrl(previewDoc.url)} title={previewDoc.name} style={{ width: '80vw', height: '70vh', border: 'none', borderRadius: 8 }} />
             ) : (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>
                 <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }}>📄</div>
                 <div>Preview not available for this file type</div>
-                <a href={previewDoc.url?.startsWith('http') ? previewDoc.url : SERVER_URL + previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ marginTop: 12, display: 'inline-block', padding: '8px 20px', borderRadius: 8, textDecoration: 'none' }}>Open File</a>
+                <a href={getImageUrl(previewDoc.url)} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ marginTop: 12, display: 'inline-block', padding: '8px 20px', borderRadius: 8, textDecoration: 'none' }}>Open File</a>
               </div>
             )}
           </div>

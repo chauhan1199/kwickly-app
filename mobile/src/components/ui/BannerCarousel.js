@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { FlatList, TouchableOpacity, Image, Text, StyleSheet, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import { getImageUrl } from '../../utils/helpers';
 
 const BannerCarousel = ({ 
   banners, 
@@ -44,7 +45,7 @@ const BannerCarousel = ({
         if (item.linkType === 'CATEGORY') navigation.navigate('Book');
       }}
     >
-      <Image source={{ uri: item.imageUrl }} style={styles.image} />
+      <Image source={{ uri: getImageUrl(item.imageUrl) }} style={styles.image} />
       <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.overlay}>
         <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
         {item.subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{item.subtitle}</Text> : null}

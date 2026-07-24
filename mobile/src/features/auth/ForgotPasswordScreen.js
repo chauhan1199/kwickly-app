@@ -51,7 +51,6 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
       await api.post('/auth/forgot-password', { phone, role });
       setStep('RESET');
     } catch (error) {
-      console.error(error);
       const errDetails = error.response?.data?.message || 'Failed to send reset OTP';
       showAlert('Error', errDetails);
     } finally {
@@ -83,7 +82,6 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
       });
       setShowSuccessModal(true);
     } catch (error) {
-      console.error(error);
       const errDetails = error.response?.data?.message || 'Failed to reset password';
       showAlert('Error', errDetails);
     } finally {

@@ -15,14 +15,21 @@ const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.mode
 const catchAsync = require('../../helpers/async.helper');
 const { ADMIN, AUTH } = require('../../constants/messages');
 const { successResponse, errorResponse, extractPagination } = require('../../helpers/response.helper');
-const { uploadImage } = require('../../services/cloudinary.service');
+const { uploadImage, cleanupImage } = require('../../services/cloudinary.service');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate, getIO, emitToAll, emitToRoom } = require('../../helpers/socket.helper');
 const bcrypt = require('bcryptjs');
+const logger = require('../../helpers/logger.helper');
 
+const crypto = require('crypto');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
+const { supportsTransactions } = require('../../helpers/transaction.helper');
+const { BADGE_COUNTS_TTL, DASHBOARD_STATS_TTL } = require('../../constants/business');
 
-// ─── Dashboard Stats ──────────────────────────────────────────────────────────
+// Helper: escape user input to prevent ReDoS in regex queries
+const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// â”€â”€â”€ Dashboard Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getBadgeCounts = catchAsync(async (req, res) => {
     const cacheKey = 'admin_badge_counts';
     const cached = await getCache(cacheKey);
@@ -37,7 +44,7 @@ exports.getBadgeCounts = catchAsync(async (req, res) => {
     ]);
 
     const data = { kyc, payouts, disputes, suggestions, shopKyc };
-    await setCache(cacheKey, data, 60); // 1 min TTL for real-time feel
+    await setCache(cacheKey, data, BADGE_COUNTS_TTL); // 1 min TTL for real-time feel
     return successResponse(res, data, 'Badges fetched');
 });
 
@@ -101,7 +108,7 @@ exports.getStats = catchAsync(async (req, res) => {
 
     const activities = recentJobs.map(job => ({
         color: job.status === 'COMPLETED' || job.status === 'PAID' ? 'green' : job.status === 'CANCELLED' ? 'red' : 'blue',
-        text: `Job #${job._id.toString().slice(-6)} — ${job.category} [${job.status}]${job.customerId?.name ? ' by ' + job.customerId.name : ''}`,
+        text: `Job #${job._id.toString().slice(-6)} â€” ${job.category} [${job.status}]${job.customerId?.name ? ' by ' + job.customerId.name : ''}`,
         time: job.createdAt
     }));
 
@@ -119,7 +126,7 @@ exports.getStats = catchAsync(async (req, res) => {
         category: (row.worker.services?.[0]?.category) || 'Service',
         jobs:     row.totalJobs,
         rating:   row.worker.rating?.average?.toFixed(1) || '0.0',
-        earned:   `₹${(row.totalEarnings || 0).toFixed(0)}`,
+        earned:   `â‚¹${(row.totalEarnings || 0).toFixed(0)}`,
         status:   row.worker.isOnline ? 'online' : 'offline'
     }));
 
@@ -136,15 +143,15 @@ exports.getStats = catchAsync(async (req, res) => {
     };
 
     const cacheKey = `admin_dashboard_stats_${range}`;
-    await setCache(cacheKey, responseData, 300);
+    await setCache(cacheKey, responseData, DASHBOARD_STATS_TTL);
     return successResponse(res, responseData, ADMIN.STATS_FETCHED);
 });
 
-// ─── User Management ──────────────────────────────────────────────────────────
+// â”€â”€â”€ User Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getCustomers = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, search } = req.query;
     const query = { role: 'CUSTOMER' };
-    if (search) query.$or = [{ name: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }];
+    if (search) { const safeSearch = escapeRegex(search); query.$or = [{ name: { $regex: safeSearch, $options: 'i' } }, { phone: { $regex: safeSearch, $options: 'i' } }]; }
 
     const total = await Customer.countDocuments(query);
     const customers = await Customer.find(query)
@@ -160,7 +167,7 @@ exports.getCustomers = catchAsync(async (req, res) => {
 exports.getWorkers = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, search, kycStatus } = req.query;
     const query = { role: 'WORKER' };
-    if (search) query.$or = [{ name: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }];
+    if (search) { const safeSearch = escapeRegex(search); query.$or = [{ name: { $regex: safeSearch, $options: 'i' } }, { phone: { $regex: safeSearch, $options: 'i' } }]; }
     if (kycStatus) query['kyc.status'] = kycStatus.toUpperCase();
 
     const total = await Customer.countDocuments(query);
@@ -247,6 +254,44 @@ exports.updateKYC = catchAsync(async (req, res) => {
     return successResponse(res, worker, ADMIN.KYC_UPDATED);
 });
 
+exports.extendWorkerSubscription = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { days } = req.body;
+
+    if (!days || days <= 0) return errorResponse(res, 'Please provide a valid number of days', StatusCodes.BAD_REQUEST);
+
+    const worker = await Customer.findById(id);
+    if (!worker || worker.role !== 'WORKER') return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
+
+    const now = new Date();
+    const currentExpiry = worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > now
+        ? new Date(worker.subscription.expiryDate)
+        : now;
+
+    worker.subscription.expiryDate = new Date(currentExpiry.getTime() + days * 24 * 60 * 60 * 1000);
+    worker.subscription.isTrial = false;
+    worker.subscription.planId = worker.subscription.planId || 'ADMIN_EXTEND';
+    await worker.save();
+
+    await delCache(`session:${id}`);
+    triggerDashboardUpdate();
+
+    logAdminActivity('EXTEND_SUBSCRIPTION', 'WORKER', id, 'Subscription Extended', `Extended "${worker.name}" subscription by ${days} days. New expiry: ${worker.subscription.expiryDate}`, req.user?._id);
+
+    const { notifyUser } = require('../../helpers/notifyUser.helper');
+    notifyUser({
+        userId: worker._id,
+        title: 'Subscription Extended',
+        message: `Your subscription has been extended by ${days} days by the admin.`,
+        action: 'OTHER',
+        entityType: 'WORKER',
+        entityId: worker._id,
+        targetRole: 'WORKER'
+    });
+
+    return successResponse(res, { worker, expiryDate: worker.subscription.expiryDate }, `Subscription extended by ${days} days`);
+});
+
 exports.addKycDocument = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { docType } = req.body;
@@ -256,10 +301,11 @@ exports.addKycDocument = catchAsync(async (req, res) => {
 
     if (!req.file) return errorResponse(res, 'No file uploaded', StatusCodes.BAD_REQUEST);
 
-    const { url } = await uploadImage(req.file.buffer, 'kwickly/kyc');
+    const { url, public_id } = await uploadImage(req.file.buffer, 'kwickly/kyc');
     worker.kyc.documents.push({
         type: docType || 'OTHER',
         url,
+        public_id,
         uploadedAt: new Date()
     });
     worker.kyc.status = 'PENDING';
@@ -281,6 +327,9 @@ exports.removeKycDocument = catchAsync(async (req, res) => {
     if (!worker.kyc.documents || !worker.kyc.documents[docIndex]) {
         return errorResponse(res, 'Document not found', StatusCodes.NOT_FOUND);
     }
+
+    const doc = worker.kyc.documents[docIndex];
+    cleanupImage(doc);
 
     worker.kyc.documents.splice(Number(docIndex), 1);
     await worker.save();
@@ -376,6 +425,11 @@ exports.updateUser = catchAsync(async (req, res) => {
 
     const user = await Customer.findById(id);
     if (!user) return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
+
+    // Security: prevent modifying other admins unless you are super admin
+    if (user.role === 'ADMIN' && req.user._id.toString() !== id) {
+        return errorResponse(res, 'Cannot modify other admin accounts', StatusCodes.FORBIDDEN);
+    }
 
     if (name) user.name = name;
     if (phone) user.phone = phone;
@@ -495,7 +549,7 @@ exports.toggleUserStatus = catchAsync(async (req, res) => {
 
 exports.deleteUser = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const user = await Customer.findByIdAndUpdate(id, { isDeleted: true, deletedAt: new Date(), isOnline: false }, { new: true });
+    const user = await Customer.findByIdAndUpdate(id, { isDeleted: true, deletedAt: new Date(), isOnline: false }, { returnDocument: 'after' });
 
     if (!user) {
         return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
@@ -538,11 +592,11 @@ exports.impersonateUser = catchAsync(async (req, res) => {
     return successResponse(res, { token, user: { name: user.name, role: user.role } }, 'Impersonation token generated');
 });
 
-// ─── Shop Management (P1 FIX: Missing admin shop visibility) ─────────────────
+// â”€â”€â”€ Shop Management (P1 FIX: Missing admin shop visibility) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getShops = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, search, kycStatus } = req.query;
     const query = {};
-    if (search) query.name = { $regex: search, $options: 'i' };
+    if (search) query.name = { $regex: escapeRegex(search), $options: 'i' };
     if (kycStatus) query['kyc.status'] = kycStatus.toUpperCase();
 
     const total = await Shop.countDocuments(query);
@@ -624,11 +678,13 @@ exports.toggleShopStatus = catchAsync(async (req, res) => {
 });
 
 exports.createShopAdmin = catchAsync(async (req, res) => {
-    const { ownerPhone, ownerName, ownerEmail, name, category, description, address, logoUrl, location, delivery, deliveryConfig, businessHours, subscription } = req.body;
+    const { ownerPhone, ownerName, ownerEmail, name, category, description, address, location, delivery, deliveryConfig, businessHours, subscription } = req.body;
 
     let owner = await Customer.findOne({ phone: ownerPhone, role: 'SHOP' });
+    let tempPassword = null;
     if (!owner) {
-        const hashedPwd = await bcrypt.hash('shop123', 12);
+        tempPassword = crypto.randomBytes(8).toString('hex');
+        const hashedPwd = await bcrypt.hash(tempPassword, 12);
         owner = await Customer.create({
             name: ownerName || 'Shop Owner',
             phone: ownerPhone,
@@ -642,16 +698,23 @@ exports.createShopAdmin = catchAsync(async (req, res) => {
     const existingShop = await Shop.findOne({ ownerId: owner._id });
     if (existingShop) return errorResponse(res, 'This owner already has a registered shop', StatusCodes.CONFLICT);
 
-    const shop = await Shop.create({
+    const shopData = {
         ownerId: owner._id,
-        name, category, description, address, logoUrl,
+        name, category, description, address,
         location: location || { type: 'Point', coordinates: [0, 0] },
         delivery: delivery || { radiusKm: 3, fee: 40, freeAbove: 1000 },
         deliveryConfig: deliveryConfig || { deliveryRadiusKm: 3, deliveryCharge: 40, freeDeliveryAbove: 1000, minOrderAmount: 100, discountEnabled: false, discountAbove: 1000, discountType: 'flat', discountValue: 100, discountPct: 10, maxDiscountCap: 200, sameDayDelivery: true, deliverySlots: [] },
         businessHours: businessHours || { monFri: '9 AM - 10 PM', sat: '9 AM - 10 PM', sun: '9 AM - 10 PM' },
-        subscription: subscription || { plan: 'FREE_TRIAL' },
+        subscription: subscription || { status: 'TRIAL', isTrial: true },
         kyc: { status: 'PENDING' }
-    });
+    };
+
+    if (req.file) {
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/shops');
+        shopData.logoUrl = url;
+    }
+
+    const shop = await Shop.create(shopData);
 
     const populated = await shop.populate('ownerId', 'name phone email');
 
@@ -662,7 +725,11 @@ exports.createShopAdmin = catchAsync(async (req, res) => {
 
     triggerDashboardUpdate();
 
-    return successResponse(res, populated, 'Shop created successfully', StatusCodes.CREATED);
+    const responseData = { populated };
+    // Include temp password in response so admin can share it with the shop owner
+    if (tempPassword) responseData.tempPassword = tempPassword;
+
+    return successResponse(res, responseData, 'Shop created successfully', StatusCodes.CREATED);
 });
 
 exports.updateShopAdminFull = catchAsync(async (req, res) => {
@@ -701,8 +768,12 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
     if (parsedSub) shop.subscription = { ...shop.subscription, ...parsedSub };
 
     if (req.file) {
+        const oldLogo = shop.logoUrl;
         const { url } = await uploadImage(req.file.buffer, 'kwickly/shops');
         shop.logoUrl = url;
+        if (oldLogo && oldLogo !== url) {
+            cleanupImage(oldLogo);
+        }
     }
 
     shop.markModified('delivery');
@@ -726,8 +797,15 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
 });
 
 exports.deleteShopAdmin = catchAsync(async (req, res) => {
-    const shop = await Shop.findByIdAndUpdate(req.params.id, { isDeleted: true, deletedAt: new Date(), isOnline: false }, { new: true });
+    const shop = await Shop.findById(req.params.id);
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    // Clean up shop logo from Cloudinary
+    if (shop.logoUrl) {
+        cleanupImage(shop.logoUrl);
+    }
+
+    await Shop.findByIdAndUpdate(req.params.id, { isDeleted: true, deletedAt: new Date(), isOnline: false }, { returnDocument: 'after' });
 
     const Product = require('../product/product.model');
     await Product.updateMany({ shopId: shop._id }, { isActive: false });
@@ -762,20 +840,32 @@ exports.creditShopWallet = catchAsync(async (req, res) => {
     let adminWallet = await AdminWallet.findOne();
     if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
     if (adminWallet.balance < amount) {
-        return errorResponse(res, `Insufficient admin wallet balance. Available: ₹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
+        return errorResponse(res, `Insufficient admin wallet balance. Available: â‚¹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
     }
 
-    adminWallet.balance -= amount;
-    await adminWallet.save();
+    // Atomic: debit admin wallet with $gte guard
+    const debitedAdminWallet = await AdminWallet.findOneAndUpdate(
+        { _id: adminWallet._id, balance: { $gte: amount } },
+        { $inc: { balance: -amount } },
+        { returnDocument: 'after' }
+    );
+    if (!debitedAdminWallet) {
+        return errorResponse(res, `Insufficient admin wallet balance. Available: â‚¹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
+    }
 
-    shop.wallet.balance += amount;
-    await shop.save();
+    // Atomic: credit shop wallet
+    const creditedShop = await Shop.findOneAndUpdate(
+        { _id: shop._id },
+        { $inc: { 'wallet.balance': amount } },
+        { returnDocument: 'after' }
+    );
+    if (!creditedShop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     await WalletTxn.create({
         userId: shop.ownerId._id,
         type: 'ADJUSTMENT',
         amount,
-        balance: shop.wallet.balance,
+        balance: creditedShop.wallet.balance,
         status: 'COMPLETED',
         description: description || `Admin credit to "${shop.name}"`,
         refId: shop._id.toString()
@@ -784,20 +874,20 @@ exports.creditShopWallet = catchAsync(async (req, res) => {
     await AdminWalletTxn.create({
         type: 'SHOP_PAYOUT',
         amount,
-        balanceAfter: adminWallet.balance,
-        description: `₹${amount} credited to "${shop.name}" wallet`,
+        balanceAfter: debitedAdminWallet.balance,
+        description: `â‚¹${amount} credited to "${shop.name}" wallet`,
         referenceId: shop._id,
         referenceModel: 'Shop',
         meta: { performedBy: req.user?._id }
     });
 
-    logAdminActivity('WALLET_CREDIT', 'SHOP', shop._id, 'Shop Wallet Credited', `₹${amount} credited to "${shop.name}" wallet from admin wallet`, req.user?._id);
+    logAdminActivity('WALLET_CREDIT', 'SHOP', shop._id, 'Shop Wallet Credited', `â‚¹${amount} credited to "${shop.name}" wallet from admin wallet`, req.user?._id);
 
     await delCache('admin_badge_counts');
     await delCache('admin_dashboard_stats');
     triggerDashboardUpdate();
 
-    return successResponse(res, { shop, adminBalance: adminWallet.balance }, `₹${amount} credited successfully`);
+    return successResponse(res, { shop: creditedShop, adminBalance: debitedAdminWallet.balance }, `â‚¹${amount} credited successfully`);
 });
 
 exports.debitShopWallet = catchAsync(async (req, res) => {
@@ -805,23 +895,30 @@ exports.debitShopWallet = catchAsync(async (req, res) => {
     const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone');
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
-    if (shop.wallet.balance < amount) {
-        return errorResponse(res, `Insufficient balance. Available: ₹${shop.wallet.balance}`, StatusCodes.BAD_REQUEST);
+    // Atomic: debit shop wallet with $gte guard
+    const debitedShop = await Shop.findOneAndUpdate(
+        { _id: shop._id, 'wallet.balance': { $gte: amount } },
+        { $inc: { 'wallet.balance': -amount } },
+        { returnDocument: 'after' }
+    );
+    if (!debitedShop) {
+        return errorResponse(res, `Insufficient balance. Available: â‚¹${shop.wallet.balance}`, StatusCodes.BAD_REQUEST);
     }
 
-    shop.wallet.balance -= amount;
-    await shop.save();
-
+    // Atomic: credit admin wallet
     let adminWallet = await AdminWallet.findOne();
     if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
-    adminWallet.balance += amount;
-    await adminWallet.save();
+    const creditedAdminWallet = await AdminWallet.findOneAndUpdate(
+        { _id: adminWallet._id },
+        { $inc: { balance: amount } },
+        { returnDocument: 'after' }
+    );
 
     await WalletTxn.create({
         userId: shop.ownerId._id,
         type: 'ADJUSTMENT',
         amount,
-        balance: shop.wallet.balance,
+        balance: debitedShop.wallet.balance,
         status: 'COMPLETED',
         description: description || `Admin debit from "${shop.name}"`,
         refId: shop._id.toString()
@@ -830,20 +927,20 @@ exports.debitShopWallet = catchAsync(async (req, res) => {
     await AdminWalletTxn.create({
         type: 'COMMISSION_COLLECTED',
         amount,
-        balanceAfter: adminWallet.balance,
-        description: `₹${amount} debited from "${shop.name}" wallet to admin`,
+        balanceAfter: creditedAdminWallet.balance,
+        description: `â‚¹${amount} debited from "${shop.name}" wallet to admin`,
         referenceId: shop._id,
         referenceModel: 'Shop',
         meta: { performedBy: req.user?._id }
     });
 
-    logAdminActivity('WALLET_DEBIT', 'SHOP', shop._id, 'Shop Wallet Debited', `₹${amount} debited from "${shop.name}" wallet to admin wallet`, req.user?._id);
+    logAdminActivity('WALLET_DEBIT', 'SHOP', shop._id, 'Shop Wallet Debited', `â‚¹${amount} debited from "${shop.name}" wallet to admin wallet`, req.user?._id);
 
     await delCache('admin_badge_counts');
     await delCache('admin_dashboard_stats');
     triggerDashboardUpdate();
 
-    return successResponse(res, { shop, adminBalance: adminWallet.balance }, `₹${amount} debited successfully`);
+    return successResponse(res, { shop: debitedShop, adminBalance: creditedAdminWallet.balance }, `â‚¹${amount} debited successfully`);
 });
 
 exports.uploadShopKycDoc = catchAsync(async (req, res) => {
@@ -852,11 +949,11 @@ exports.uploadShopKycDoc = catchAsync(async (req, res) => {
 
     if (!req.file) return errorResponse(res, 'No file uploaded', StatusCodes.BAD_REQUEST);
 
-    const { url: docUrl } = await uploadImage(req.file.buffer, 'kwickly/kyc');
+    const { url: docUrl, public_id: docPublicId } = await uploadImage(req.file.buffer, 'kwickly/kyc');
     const docName = req.body.name || req.file.originalname;
     const docType = req.body.type || 'OTHER';
 
-    shop.kyc.documents.push({ name: docName, url: docUrl, docType: docType });
+    shop.kyc.documents.push({ name: docName, url: docUrl, public_id: docPublicId, docType: docType });
     shop.kyc.status = 'PENDING';
     await shop.save();
 
@@ -874,7 +971,10 @@ exports.deleteShopKycDoc = catchAsync(async (req, res) => {
         return errorResponse(res, 'Document not found', StatusCodes.NOT_FOUND);
     }
 
-    const docName = shop.kyc.documents[docIndex].name;
+    const doc = shop.kyc.documents[docIndex];
+    cleanupImage(doc);
+
+    const docName = doc.name;
     shop.kyc.documents.splice(docIndex, 1);
     await shop.save();
 
@@ -897,8 +997,11 @@ exports.editShopKycDoc = catchAsync(async (req, res) => {
     if (docType) shop.kyc.documents[docIndex].docType = docType;
 
     if (req.file) {
-        const { url: docUrl } = await uploadImage(req.file.buffer, 'kwickly/kyc');
+        const oldDoc = shop.kyc.documents[docIndex];
+        cleanupImage(oldDoc);
+        const { url: docUrl, public_id: docPublicId } = await uploadImage(req.file.buffer, 'kwickly/kyc');
         shop.kyc.documents[docIndex].url = docUrl;
+        shop.kyc.documents[docIndex].public_id = docPublicId;
     }
 
     await shop.save();
@@ -906,16 +1009,16 @@ exports.editShopKycDoc = catchAsync(async (req, res) => {
     return successResponse(res, shop, 'KYC document updated');
 });
 
-// ─── Platform Health (P1 FIX: Real socket count) ─────────────────────────────
+// â”€â”€â”€ Platform Health (P1 FIX: Real socket count) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getPlatformHealth = catchAsync(async (req, res) => {
-    const dbStatus = mongoose.connection.readyState === 1 ? '✓ Connected' : '✗ Disconnected';
+    const dbStatus = mongoose.connection.readyState === 1 ? 'âœ“ Connected' : 'âœ— Disconnected';
 
     let connectedClients = 0;
-    let socketStatus = '✗ Not initialized';
+    let socketStatus = 'âœ— Not initialized';
     try {
         const io = getIO();
         connectedClients = io.engine.clientsCount;
-        socketStatus = '✓ Active';
+        socketStatus = 'âœ“ Active';
     } catch (e) { /* io not ready */ }
 
     const health = {
@@ -936,7 +1039,7 @@ exports.getPlatformHealth = catchAsync(async (req, res) => {
     return successResponse(res, health, 'Platform health fetched');
 });
 
-// ─── P1 FIX: Ledger now uses WalletTxn (not legacy Transaction model) ─────────
+// â”€â”€â”€ P1 FIX: Ledger now uses WalletTxn (not legacy Transaction model) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getLedger = catchAsync(async (req, res) => {
     const { page = 1, limit = 50, type } = req.query;
 
@@ -958,7 +1061,7 @@ exports.getLedger = catchAsync(async (req, res) => {
     }, 'Ledger fetched');
 });
 
-// ─── Detail Views ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Detail Views â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getUserDetail = catchAsync(async (req, res) => {
     const user = await Customer.findById(req.params.id).select('-password').lean();
     if (!user) return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
@@ -979,7 +1082,7 @@ exports.getUserDetail = catchAsync(async (req, res) => {
     return successResponse(res, { user, jobStats, recentJobs }, 'User detail fetched');
 });
 
-// ─── Admin manages customer activities (jobs & orders on behalf of customer) ───
+// â”€â”€â”€ Admin manages customer activities (jobs & orders on behalf of customer) â”€â”€â”€
 
 exports.getCustomerJobs = catchAsync(async (req, res) => {
     const { id } = req.params;
@@ -1005,7 +1108,7 @@ exports.getCustomerOrders = catchAsync(async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const orders = await ShopOrder.find({ customerId: id })
         .populate('shopId', 'name')
-        .populate('items.product', 'name price image')
+        .populate('items.product', 'name price imageUrl')
         .sort('-createdAt')
         .limit(Number(limit))
         .skip((Number(page) - 1) * Number(limit))
@@ -1126,9 +1229,18 @@ exports.adminCreateOrder = catchAsync(async (req, res) => {
 
     const Product = require('../product/product.model');
 
-    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-    const session = isSingle ? null : await mongoose.startSession();
-    if (session) session.startTransaction();
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
 
     try {
         for (const item of items) {
@@ -1136,10 +1248,10 @@ exports.adminCreateOrder = catchAsync(async (req, res) => {
             const updated = await Product.findOneAndUpdate(
                 { _id: item.productId, shopId, stock: { $gte: item.qty }, isActive: true },
                 { $inc: { stock: -item.qty } },
-                { new: true, session }
+                { returnDocument: 'after', session }
             );
             if (!updated) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
                 return errorResponse(res, `Product "${item.name}" is out of stock or unavailable`, StatusCodes.CONFLICT);
             }
@@ -1154,10 +1266,10 @@ exports.adminCreateOrder = catchAsync(async (req, res) => {
             const cust = await Customer.findOneAndUpdate(
                 { _id: customerId, 'wallet.balance': { $gte: total } },
                 { $inc: { 'wallet.balance': -total } },
-                { new: true, session }
+                { returnDocument: 'after', session }
             );
             if (!cust) {
-                if (session) await session.abortTransaction();
+                if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
                 return errorResponse(res, 'Customer has insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
             }
@@ -1192,8 +1304,8 @@ exports.adminCreateOrder = catchAsync(async (req, res) => {
             statusHistory: [{ status: 'NEW', timestamp: new Date(), note: 'Order placed by admin' }]
         }], { session });
 
-        if (session) await session.commitTransaction();
-        if (session) session.endSession();
+        if (useTransaction) await session.commitTransaction();
+        if (useTransaction) session.endSession();
 
         emitToRoom(`shop_${shopId}`, 'NEW_ORDER', { orderId: order._id, total });
         emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SHOP_ORDER', id: order._id });
@@ -1202,7 +1314,7 @@ exports.adminCreateOrder = catchAsync(async (req, res) => {
 
         return successResponse(res, order, 'Order placed on behalf of customer', StatusCodes.CREATED);
     } catch (error) {
-        if (session) await session.abortTransaction();
+        if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
         throw error;
     }
@@ -1253,7 +1365,7 @@ exports.getJobDetail = catchAsync(async (req, res) => {
     return successResponse(res, { job, quotes, walletTxns }, 'Job detail fetched');
 });
 
-// ─── CSV Export Helpers ──────────────────────────────────────────────────────
+// â”€â”€â”€ CSV Export Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 exports.exportCustomers = catchAsync(async (req, res) => {
     res.setHeader('Content-Type', 'text/csv');
@@ -1307,7 +1419,7 @@ exports.exportPayments = catchAsync(async (req, res) => {
     res.end();
 });
 
-// ─── Payout Management ────────────────────────────────────────────────────────
+// â”€â”€â”€ Payout Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getPayouts = catchAsync(async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query;
     const query = {};
@@ -1360,7 +1472,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
     // Usually Shop Owner ID created it, so we fallback to finding by amount if walletTxnId is missing.
     let wTxn;
     if (payout.walletTxnId) {
-        wTxn = await WalletTxn.findByIdAndUpdate(payout.walletTxnId, { status: mappedStatus }, { new: true });
+        wTxn = await WalletTxn.findByIdAndUpdate(payout.walletTxnId, { status: mappedStatus }, { returnDocument: 'after' });
     } else {
         // Fallback for existing payouts
         wTxn = await WalletTxn.findOneAndUpdate({
@@ -1368,12 +1480,12 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
             status: { $in: ['PENDING', 'APPROVED'] },
             type: 'WITHDRAWAL',
             ...(payout.workerId ? { userId: payout.workerId } : {})
-        }, { status: mappedStatus }, { new: true });
+        }, { status: mappedStatus }, { returnDocument: 'after' });
     }
 
     // Send Notification
     let title = 'Withdrawal Request Updated';
-    let message = `Your withdrawal request of ₹${payout.amount} has been ${status.toLowerCase()}.`;
+    let message = `Your withdrawal request of â‚¹${payout.amount} has been ${status.toLowerCase()}.`;
     if (status === 'REJECTED') message += ` Reason: ${rejectReason}`;
     if (status === 'TRANSFERRED') message += ` Txn ID: ${txnId}`;
 
@@ -1394,7 +1506,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
     await delCache('admin_badge_counts');
     triggerDashboardUpdate();
 
-    logAdminActivity('PAYOUT', 'PAYOUT', payout._id, `Payout ${status}`, `Payout of ₹${payout.amount} was ${status.toLowerCase()}`, req.user?._id);
+    logAdminActivity('PAYOUT', 'PAYOUT', payout._id, `Payout ${status}`, `Payout of â‚¹${payout.amount} was ${status.toLowerCase()}`, req.user?._id);
 
     if (status === 'TRANSFERRED') {
         try {
@@ -1402,13 +1514,13 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
             const recipientName = payout.shopId ? 'shop' : 'worker';
             await debitForPayout(
                 payout.amount,
-                `Payout transferred to ${recipientName} — Txn: ${txnId || 'N/A'}`,
+                `Payout transferred to ${recipientName} â€” Txn: ${txnId || 'N/A'}`,
                 payout._id,
                 'Payout',
                 { workerId: payout.workerId, shopId: payout.shopId }
             );
         } catch (e) {
-            console.error('Failed to debit admin wallet for payout:', e.message);
+            logger.error('Failed to debit admin wallet for payout:', e.message);
         }
     }
 

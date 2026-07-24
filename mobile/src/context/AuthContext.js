@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
       const userData = res.data.data;
       setUser(userData);
     } catch (error) {
-      console.log('Failed to fetch user profile:', error);
+      console.error('Failed to fetch user profile:', error);
     }
   }, []);
 
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
             const userData = res.data.data;
             setUser(userData);
           } catch (e) {
-            console.log('Error fetching initial profile', e);
+            console.error('Error fetching initial profile', e);
           }
         }
       } catch (e) {
@@ -60,7 +60,6 @@ export const AuthProvider = ({ children }) => {
 
     // Listen for unauthorized access events from api interceptor
     const subscription = DeviceEventEmitter.addListener('UNAUTHORIZED_ACCESS', () => {
-      console.warn('Unauthorized access detected, signing out...');
       signOut();
     });
 

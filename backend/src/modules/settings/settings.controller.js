@@ -1,4 +1,4 @@
-const { StatusCodes } = require('http-status-codes');
+﻿const { StatusCodes } = require('http-status-codes');
 const AppSettings = require('./settings.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -154,7 +154,7 @@ exports.updateSettings = catchAsync(async (req, res) => {
     const settings = await AppSettings.findOneAndUpdate(
         { isSingleton: 'CONFIG' },
         { $set: updatePaths },
-        { new: true, upsert: true }
+        { returnDocument: 'after', upsert: true }
     );
     
     await delCache(CACHE_KEY);
@@ -170,7 +170,7 @@ exports.updateSettings = catchAsync(async (req, res) => {
         // Send a broadcast notification about plan updates to Workers
         await Notification.create({
             userId: null,
-            title: 'Subscription Plans Updated 🎯',
+            title: 'Subscription Plans Updated ðŸŽ¯',
             message: 'We have updated our subscription plans. Check out the new benefits in the app!',
             type: 'BROADCAST',
             action: 'UPDATE',
@@ -181,7 +181,7 @@ exports.updateSettings = catchAsync(async (req, res) => {
         // Send a broadcast notification about plan updates to Shops
         await Notification.create({
             userId: null,
-            title: 'Subscription Plans Updated 🎯',
+            title: 'Subscription Plans Updated ðŸŽ¯',
             message: 'We have updated our subscription plans. Check out the new benefits in the app!',
             type: 'BROADCAST',
             action: 'UPDATE',
@@ -191,14 +191,14 @@ exports.updateSettings = catchAsync(async (req, res) => {
 
         const { emitToAll } = require('../../helpers/socket.helper');
         emitToAll('NEW_NOTIFICATION', {
-            title: 'Subscription Plans Updated 🎯',
+            title: 'Subscription Plans Updated ðŸŽ¯',
             message: 'We have updated our subscription plans. Check out the new benefits in the app!',
             targetRole: 'WORKER',
             action: 'UPDATE',
             entityType: 'SETTINGS'
         });
         emitToAll('NEW_NOTIFICATION', {
-            title: 'Subscription Plans Updated 🎯',
+            title: 'Subscription Plans Updated ðŸŽ¯',
             message: 'We have updated our subscription plans. Check out the new benefits in the app!',
             targetRole: 'SHOP',
             action: 'UPDATE',

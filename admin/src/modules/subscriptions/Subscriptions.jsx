@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
 import Toast from '../../components/Toast'
+import ConfirmModal from '../../components/ConfirmModal'
 
 const planColor = { trial: 'badge-purple', monthly: 'badge-primary', annual: 'badge-success', expired: 'badge-danger' }
 
@@ -82,6 +83,7 @@ export default function Subscriptions() {
   const [toast, setToast] = useState({ message: '', type: 'success' })
   const [subFilter, setSubFilter] = useState('all')
   const [activeTab, setActiveTab] = useState('WORKER') // 'WORKER' or 'SHOP'
+  const [confirmExtend, setConfirmExtend] = useState(null)
 
   useEffect(() => {
     fetchData()
@@ -148,7 +150,7 @@ export default function Subscriptions() {
 
       setWorkers(allUsers)
     } catch (e) {
-      console.error('Error fetching subscription data:', e)
+      showToast('Failed to load subscription data', 'error')
     } finally {
       setLoading(false)
     }
@@ -185,16 +187,18 @@ export default function Subscriptions() {
       setEditPlan(null)
       fetchData()
     } catch (e) {
-      console.error(e)
       showToast('Failed to update plan', 'error')
     }
   }
 
   const extendSub = async (wid) => {
-    // TODO: No backend endpoint exists for extending subscriptions.
-    // Add PATCH /admin/workers/:id/extend-subscription endpoint to admin.routes.js
-    // before this can work. Currently a no-op.
-    showToast('Subscription extension requires a backend endpoint (not yet implemented)', 'error')
+    try {
+      await api.patch(`/admin/workers/${wid}/extend-subscription`, { days: 30 })
+      showToast('Subscription extended by 30 days')
+      fetchData()
+    } catch (e) {
+      showToast('Failed to extend subscription', 'error')
+    }
   }
 
   const filtered = workers.filter(w => subFilter === 'all' || w.plan === subFilter || (subFilter === 'expired' && w.status === 'expired'))
@@ -303,7 +307,7 @@ export default function Subscriptions() {
                   <td>{w.autoRenew ? <span className="badge badge-success" style={{ fontSize: 10 }}>✓ Yes</span> : <span className="badge badge-gray" style={{ fontSize: 10 }}>No</span>}</td>
                   <td onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <button className="btn btn-outline btn-sm" onClick={() => extendSub(w._id)}>+30d</button>
+                      <button className="btn btn-outline btn-sm" onClick={() => setConfirmExtend({ id: w._id, name: w.name })}>+30d</button>
                     </div>
                   </td>
                 </tr>
@@ -314,6 +318,15 @@ export default function Subscriptions() {
       </div>
 
       {editPlan && <EditPlanModal plan={editPlan} onSave={savePlan} onClose={() => setEditPlan(null)} />}
+      {confirmExtend && (
+        <ConfirmModal
+          title="Extend Subscription"
+          message={`Extend ${confirmExtend.name}'s subscription by 30 days?`}
+          confirmText="Extend +30d"
+          onConfirm={() => { extendSub(confirmExtend.id); setConfirmExtend(null); }}
+          onClose={() => setConfirmExtend(null)}
+        />
+      )}
     </div>
   )
 }

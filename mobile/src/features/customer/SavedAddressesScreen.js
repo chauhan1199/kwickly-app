@@ -15,13 +15,10 @@ import {
   Platform
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
-import MapView, { Marker } from 'react-native-maps';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import { useAuth } from '../../context/AuthContext';
 import { customerService } from '../../services/customerService';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 
@@ -111,7 +108,7 @@ const SavedAddressesScreen = ({ route, navigation }) => {
             if (!newLabel) setNewLabel('Current Location');
           }
         } catch (e) {
-          console.log("Reverse Geocoding failed", e);
+          Alert.alert('Location', 'Could not fetch address');
         }
         
         setIsFetchingGPS(false);
@@ -120,7 +117,6 @@ const SavedAddressesScreen = ({ route, navigation }) => {
       async err => {
         // Fallback for emulator if GPS fails
         setIsFetchingGPS(false);
-        console.log("GPS Error:", err);
         Alert.alert('Emulator Fallback', 'Using mock location (Mumbai) because GPS failed.');
         const lat = 19.0760; const lon = 72.8777;
         setNewLocation({ coordinates: [lon, lat] });
@@ -161,7 +157,6 @@ const SavedAddressesScreen = ({ route, navigation }) => {
       setShowAddModal(false);
       setEditAddressId(null);
     } catch (e) {
-      console.log('SAVE ADDRESS ERROR:', e?.response?.data || e.message || e);
       Alert.alert('Error', e?.response?.data?.message || e.message || 'Failed to save address');
     } finally {
       setIsSaving(false);

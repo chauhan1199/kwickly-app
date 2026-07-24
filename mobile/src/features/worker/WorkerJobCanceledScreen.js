@@ -8,15 +8,13 @@ import {
   TouchableOpacity,
   StatusBar
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
 
-const WorkerJobCanceledScreen = ({ navigation }) => {
+const WorkerJobCanceledScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { signOut } = useAuth();
   const styles = createStyles(theme, isDarkMode);
+
+  const { cancellationReason } = route.params || {};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -42,7 +40,7 @@ const WorkerJobCanceledScreen = ({ navigation }) => {
 
         <View style={styles.infoBox}>
           <Text style={styles.infoLabel}>Reason:</Text>
-          <Text style={styles.infoText}>Found another professional who could arrive sooner.</Text>
+          <Text style={styles.infoText}>{cancellationReason || 'No reason provided.'}</Text>
         </View>
 
         {/* Actions */}

@@ -6,7 +6,8 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
-import api from '../../services/api';
+import { walletService } from '../../services/walletService';
+import { RAZORPAY_LOGO_URL } from '../../config/env';
 import Razorpay from 'react-native-razorpay';
 import { Wallet, CreditCard, Zap, Check } from 'lucide-react-native';
 
@@ -29,7 +30,7 @@ const WalletTopupScreen = ({ navigation }) => {
     setProcessing(true);
     try {
       // Create Razorpay order for topup
-      const payRes = await api.post('/payments/create-order', {
+      const payRes = await walletService.createPaymentOrder({
         amount: topupAmount,
         purpose: 'wallet_topup'
       });
@@ -42,7 +43,7 @@ const WalletTopupScreen = ({ navigation }) => {
 
       const options = {
         description: `Kwickly Wallet Topup ₹${topupAmount}`,
-        image: 'https://kwickly.in/logo.png',
+        image: RAZORPAY_LOGO_URL,
         currency: 'INR',
         key: keyId,
         amount: topupAmount * 100,
@@ -59,7 +60,7 @@ const WalletTopupScreen = ({ navigation }) => {
         const razorpayResponse = await Razorpay.open(options);
 
         // Verify and credit wallet
-        const verifyRes = await api.post('/payments/verify', {
+        const verifyRes = await walletService.verifyPayment({
           razorpayOrderId: razorpayResponse.razorpay_order_id,
           razorpayPaymentId: razorpayResponse.razorpay_payment_id,
           razorpaySignature: razorpayResponse.razorpay_signature,

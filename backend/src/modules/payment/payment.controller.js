@@ -11,6 +11,7 @@ const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
+const logger = require('../../helpers/logger.helper');
 const {
     createRazorpayOrder, fetchPayment, capturePayment, createRefund, verifyPaymentSignature
 } = require('../../helpers/razorpay.helper');
@@ -82,7 +83,8 @@ exports.verifyPayment = catchAsync(async (req, res) => {
     try {
         rpPayment = await fetchPayment(razorpayPaymentId);
     } catch (e) {
-        rpPayment = { status: 'captured', method: 'upi' };
+        // Do NOT fallback to fake data — reject the verification
+        return errorResponse(res, 'Unable to verify payment with Razorpay. Please try again.', StatusCodes.BAD_REQUEST);
     }
 
     // Update our payment record
@@ -129,27 +131,45 @@ exports.verifyPayment = catchAsync(async (req, res) => {
  * Handles Razorpay webhook events (server-to-server)
  */
 exports.handleWebhook = catchAsync(async (req, res) => {
+    // express.raw() leaves req.body as a Buffer — parse it to JSON
+    let body;
+    if (Buffer.isBuffer(req.body)) {
+        body = JSON.parse(req.body.toString('utf8'));
+    } else {
+        body = req.body;
+    }
+
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
     // Verify webhook signature if secret is set
     if (webhookSecret && !webhookSecret.includes('placeholder')) {
         const signature = req.headers['x-razorpay-signature'];
-        const body = JSON.stringify(req.body);
+        const bodyStr = JSON.stringify(body);
         const expectedSignature = crypto
             .createHmac('sha256', webhookSecret)
-            .update(body)
+            .update(bodyStr)
             .digest('hex');
 
         if (signature !== expectedSignature) {
-            console.warn('[Razorpay Webhook] Invalid signature');
+            logger.warn('[Razorpay Webhook] Invalid signature');
             return res.status(400).json({ error: 'Invalid signature' });
         }
     }
 
-    const event = req.body?.event;
-    const payload = req.body?.payload;
+    const event = body?.event;
+    const payload = body?.payload;
+    const eventId = body?.id; // Razorpay event ID for dedup
 
-    console.log(`[Razorpay Webhook] Event: ${event}`);
+    // Idempotency: skip if this event was already processed
+    if (eventId) {
+        const existing = await Payment.findOne({ webhookEventId: eventId });
+        if (existing) {
+            logger.info(`[Razorpay Webhook] Duplicate event ${eventId} — skipping`);
+            return res.status(200).json({ status: 'ok', message: 'Event already processed' });
+        }
+    }
+
+    logger.info(`[Razorpay Webhook] Event: ${event}`);
 
     switch (event) {
         case 'payment.captured': {
@@ -174,11 +194,20 @@ exports.handleWebhook = catchAsync(async (req, res) => {
             break;
         }
         case 'order.paid': {
-            console.log('[Razorpay Webhook] Order paid event received');
+            logger.info('[Razorpay Webhook] Order paid event received');
             break;
         }
         default:
-            console.log(`[Razorpay Webhook] Unhandled event: ${event}`);
+            logger.info(`[Razorpay Webhook] Unhandled event: ${event}`);
+    }
+
+    // Mark event as processed for idempotency
+    if (eventId) {
+        const lastPayment = await Payment.findOne({}).sort({ createdAt: -1 });
+        if (lastPayment) {
+            lastPayment.webhookEventId = eventId;
+            await lastPayment.save();
+        }
     }
 
     // Always return 200 to Razorpay
@@ -343,6 +372,12 @@ exports.getPaymentByOrder = catchAsync(async (req, res) => {
         .populate('userId', 'name phone');
 
     if (!payment) return errorResponse(res, 'Payment not found', StatusCodes.NOT_FOUND);
+
+    // Ownership check: only the payment owner or admin can view
+    if (req.user.role !== 'ADMIN' && payment.userId?._id?.toString() !== req.user._id.toString()) {
+        return errorResponse(res, 'Not authorized to view this payment', StatusCodes.FORBIDDEN);
+    }
+
     return successResponse(res, payment, 'Payment fetched');
 });
 

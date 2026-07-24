@@ -40,7 +40,7 @@ const initSocket = (server) => {
         }
 
         // P0 FIX: JWT Authentication middleware for ALL socket connections
-        io.use((socket, next) => {
+        io.use(async (socket, next) => {
             const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
 
             if (!token) {
@@ -52,6 +52,15 @@ const initSocket = (server) => {
 
             try {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+                // P0 FIX: Check if token has been blacklisted (logged out)
+                const { getCache } = require('./redis.helper');
+                const isBlacklisted = await getCache(`blacklist:${token}`);
+                if (isBlacklisted) {
+                    socket.isAuthenticated = false;
+                    return next(new Error('Token has been invalidated'));
+                }
+
                 socket.userId = decoded.id;
                 socket.userRole = decoded.role;
                 socket.isAuthenticated = true;
@@ -114,6 +123,7 @@ const emitToUser = (userId, event, data) => {
     if (io) {
         io.to(`customer_${userId}`).emit(event, data);
         io.to(`worker_${userId}`).emit(event, data);
+        io.to(`shop_${userId}`).emit(event, data);
     }
 };
 

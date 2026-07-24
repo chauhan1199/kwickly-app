@@ -2,7 +2,7 @@ const { StatusCodes } = require('http-status-codes');
 const Customer = require('./customer.model');
 const Job = require('../job/job.model');
 const catchAsync = require('../../helpers/async.helper');
-const { uploadImage } = require('../../services/cloudinary.service');
+const { uploadImage, cleanupImage } = require('../../services/cloudinary.service');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
@@ -37,12 +37,21 @@ exports.updateProfile = catchAsync(async (req, res) => {
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
     if (req.file) {
+        const existing = await Customer.findById(req.user._id).select('profileImage');
         const { url } = await uploadImage(req.file.buffer, 'kwickly/customers');
         updateData.profileImage = url;
+        if (existing?.profileImage && existing.profileImage !== url) {
+            cleanupImage(existing.profileImage);
+        }
     }
 
     if (req.body.wallet) {
-        const walletData = typeof req.body.wallet === 'string' ? JSON.parse(req.body.wallet) : req.body.wallet;
+        let walletData;
+        try {
+            walletData = typeof req.body.wallet === 'string' ? JSON.parse(req.body.wallet) : req.body.wallet;
+        } catch (e) {
+            return errorResponse(res, 'Invalid wallet data format', StatusCodes.BAD_REQUEST);
+        }
         
         if (walletData.bankDetails !== undefined) {
             updateData['wallet.bankDetails'] = walletData.bankDetails;
@@ -54,27 +63,21 @@ exports.updateProfile = catchAsync(async (req, res) => {
     }
 
     if (req.body.profileImageBase64) {
-        const fs = require('fs');
-        const path = require('path');
-        const matches = req.body.profileImageBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        let buffer;
-        if (matches && matches.length === 3) {
-            buffer = Buffer.from(matches[2], 'base64');
-        } else {
-            buffer = Buffer.from(req.body.profileImageBase64, 'base64');
+        const base64Data = req.body.profileImageBase64.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const existing = await Customer.findById(req.user._id).select('profileImage');
+        const { url } = await uploadImage(buffer, 'kwickly/customers');
+        updateData.profileImage = url;
+        if (existing?.profileImage && existing.profileImage !== url) {
+            cleanupImage(existing.profileImage);
         }
-        const filename = 'profile-' + Date.now() + '.jpg';
-        const filepath = path.join(__dirname, '../../../public/uploads', filename);
-        if (!fs.existsSync(path.dirname(filepath))) fs.mkdirSync(path.dirname(filepath), { recursive: true });
-        fs.writeFileSync(filepath, buffer);
-        updateData.profileImage = '/uploads/' + filename;
     }
 
     if (Object.keys(updateData).length === 0) {
         return errorResponse(res, 'No data provided', StatusCodes.BAD_REQUEST);
     }
 
-    const user = await Customer.findByIdAndUpdate(req.user._id, { $set: updateData }, { new: true }).select('-password');
+    const user = await Customer.findByIdAndUpdate(req.user._id, { $set: updateData }, { returnDocument: 'after' }).select('-password');
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
     await delCache(`session:${req.user._id}`);
@@ -103,10 +106,14 @@ exports.deleteAccount = catchAsync(async (req, res) => {
         if (!isMatch) return errorResponse(res, 'Invalid password', StatusCodes.UNAUTHORIZED);
     }
 
+    // Properly soft-delete the account
+    user.isDeleted = true;
+    user.deletedAt = new Date();
     user.isVerified = false;
+    user.isOnline = false;
     await user.save();
     await delCache(`session:${user._id}`);
-    return successResponse(res, null, 'Account deactivated');
+    return successResponse(res, null, 'Account deleted successfully');
 });
 
 exports.getActiveJob = catchAsync(async (req, res) => {
@@ -123,7 +130,7 @@ exports.getActiveJob = catchAsync(async (req, res) => {
 
 exports.getWorkerProfile = catchAsync(async (req, res) => {
     const worker = await Customer.findById(req.params.id)
-        .select('name phone profileImage rating services city kyc.status isOnline')
+        .select('name phone profileImage rating services city kyc.status isOnline role bio')
         .populate('services.category', 'name icon')
         .lean();
 
@@ -141,7 +148,7 @@ exports.updateNotificationPreferences = catchAsync(async (req, res) => {
     const user = await Customer.findByIdAndUpdate(
         req.user._id,
         { $set: { notificationPreferences: { jobUpdates, promotions } } },
-        { new: true }
+        { returnDocument: 'after' }
     ).select('-password');
     return successResponse(res, user, 'Notification preferences updated');
 });
@@ -203,11 +210,12 @@ exports.updateAddress = catchAsync(async (req, res) => {
         user.addresses.forEach(a => a.isPrimary = false);
     }
 
-    if (label) address.label = label;
-    if (street) address.street = street;
-    if (city) address.city = city;
-    if (pincode) address.pincode = pincode;
-    if (location) address.location = location;
+    // Use !== undefined to allow empty strings for clearing fields
+    if (label !== undefined) address.label = label;
+    if (street !== undefined) address.street = street;
+    if (city !== undefined) address.city = city;
+    if (pincode !== undefined) address.pincode = pincode;
+    if (location !== undefined) address.location = location;
     if (isPrimary !== undefined) address.isPrimary = isPrimary;
 
     await user.save();

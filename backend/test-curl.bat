@@ -1,1 +1,0 @@
-curl.exe -X POST http://127.0.0.1:5000/api/v1/payments/create-order -H "Content-Type: application/json" -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhM2JiMjljYjNiMmQzNDJkZTljMDI1ZSIsInJvbGUiOiJXT1JLRVIiLCJpYXQiOjE3ODM2NjIyNzMsImV4cCI6MTc4Mzc0ODY3M30.tOnxUUUXOOiCtow9j_RCOSqVXwZ0Ec8S2yZOmo6AZpM" -d "{\"amount\":100,\"purpose\":\"wallet_topup\"}"

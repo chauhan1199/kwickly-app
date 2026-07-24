@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView,
   View,
@@ -17,10 +17,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 import { shopService } from '../../services/shopService';
-import api from '../../services/api';
+
 import { ServiceCard } from '../../components/ui/ServiceCard';
 import LinearGradient from 'react-native-linear-gradient';
-import { Search, SlidersHorizontal, ChevronRight, Star, Zap, MapPin, Bell, Sun, Moon, User, Package, Store } from 'lucide-react-native';
+import { Search, ChevronRight, Star, Zap, MapPin, Bell, Sun, Moon, User, Package, Store } from 'lucide-react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { SearchBar } from '../../components/ui/SearchBar';
 
@@ -95,23 +95,10 @@ const getServiceImage = (categoryName) => {
   return null;
 };
 
-// Ratings data per service
-const SERVICE_RATINGS = {
-  default: { rating: 4.8, reviews: 230 },
-  cleaning: { rating: 4.8, reviews: 250 },
-  plumbing: { rating: 4.7, reviews: 210 },
-  car: { rating: 4.8, reviews: 180 },
-  'home cook': { rating: 4.8, reviews: 165 },
-  astrology: { rating: 4.7, reviews: 130 },
-  'yoga & fitness': { rating: 4.9, reviews: 150 },
-};
-
-const getServiceRating = (name) => {
-  const lower = name?.toLowerCase() || '';
-  for (const [key, val] of Object.entries(SERVICE_RATINGS)) {
-    if (lower.includes(key)) return val;
-  }
-  return SERVICE_RATINGS.default;
+// Rating display helper — uses actual category data if available
+const getServiceRating = (category) => {
+  // Return null if no real rating data available
+  return null;
 };
 
 import { getImageUrl } from '../../utils/helpers';
@@ -145,9 +132,9 @@ const HomeScreen = ({ navigation }) => {
       }),
     ]).start();
     fetchData();
-  }, []);
+  }, [fetchData, fadeAnim, slideAnim]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setRefreshing(true);
 
@@ -175,17 +162,9 @@ const HomeScreen = ({ navigation }) => {
         const shopsRes = await shopService.getShops({ limit: 5 });
         if (shopsRes.data?.status === 'success') {
           setShops(shopsRes.data.data?.shops || shopsRes.data.data || []);
-          
-          // TEMPORARY TEST:
-          if (shopsRes.data.data && shopsRes.data.data[0] && shopsRes.data.data[0].logoUrl) {
-            const testUrl = getImageUrl(shopsRes.data.data[0].logoUrl);
-            fetch(testUrl)
-              .then(r => console.log('EMULATOR FETCH TEST:', r.status, testUrl))
-              .catch(e => console.log('EMULATOR FETCH ERROR:', e.message));
-          }
         }
       } catch (e) {
-        console.error('Fetch shops error:', e);
+        // Silently handle shop fetch errors
       }
 
       if (userToken) {
@@ -219,7 +198,7 @@ const HomeScreen = ({ navigation }) => {
 
         // Shop orders
         try {
-          const oRes = await api.get('/shoporders/customer');
+          const oRes = await shopService.getCustomerOrders();
           if (oRes.data?.status === 'success') {
             const list = oRes.data.data.orders || oRes.data.data;
             setActiveShopOrders(list.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)));
@@ -227,11 +206,11 @@ const HomeScreen = ({ navigation }) => {
         } catch (_) {}
       }
     } catch (e) {
-      console.error('Home fetch error:', e);
+      // Error handled by UI state
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [userToken]);
 
   const firstName = user?.name?.split(' ')[0] || 'there';
   const hour = new Date().getHours();
@@ -290,10 +269,10 @@ const HomeScreen = ({ navigation }) => {
             </View>
             <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
               {user?.profileImage ? (
-                <Image 
-                  source={{ uri: user.profileImage.startsWith('http') ? user.profileImage.replace('localhost', '10.0.2.2') : `http://10.0.2.2:5000${user.profileImage}` }}
-                  style={styles.heroMascot} 
-                  resizeMode="cover" 
+                <Image
+                  source={{ uri: getImageUrl(user.profileImage) }}
+                  style={styles.heroMascot}
+                  resizeMode="cover"
                 />
               ) : (
                 <View style={[styles.heroMascot, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
@@ -572,15 +551,6 @@ const ActiveJobCard = ({ job, navigation, theme }) => {
 
 // ── Fallback categories removed as requested (dynamic only) ─────────
 
-
-// ── Shop categories ─────────
-const SHOP_CATEGORIES = [
-  { id: 1, label: 'Groceries', icon: '🥬', color: '#10b981' },
-  { id: 2, label: 'Pharmacy', icon: '💊', color: '#ef4444' },
-  { id: 3, label: 'Dairy', icon: '🥛', color: '#3b82f6' },
-  { id: 4, label: 'Bakery', icon: '🍞', color: '#f5b300' },
-  { id: 5, label: 'Snacks', icon: '🍫', color: '#8b5cf6' },
-];
 
 // ── Trust items ─────────────────────────────────────────
 const TRUST_ITEMS = [

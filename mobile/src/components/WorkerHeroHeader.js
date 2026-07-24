@@ -16,6 +16,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchBar } from './ui/SearchBar';
 import { useTheme } from '../context/ThemeContext';
+import { getImageUrl } from '../utils/helpers';
 import { useNavigation } from '@react-navigation/native';
 
 const PURPLE = '#6C47FF';
@@ -71,11 +72,11 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
             {user?.profileImage ? (
-              <Image 
-                source={{ uri: user.profileImage.startsWith('http') ? user.profileImage.replace('localhost', '10.0.2.2') : `http://10.0.2.2:5000${user.profileImage}` }}
-                style={styles.heroMascot} 
-                resizeMode="cover" 
-              />
+                <Image
+                  source={{ uri: getImageUrl(user.profileImage) }}
+                  style={styles.heroMascot}
+                  resizeMode="cover"
+                />
             ) : (
               <View style={[styles.heroMascot, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff' }}>{displayName[0]?.toUpperCase()}</Text>

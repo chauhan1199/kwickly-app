@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
+import Toast from '../../components/Toast'
+import ConfirmModal from '../../components/ConfirmModal'
 
 export default function Settings() {
   const [settings, setSettings] = useState(null)
@@ -7,6 +9,10 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [savedMsg, setSavedMsg] = useState('')
   const [activeTab, setActiveTab] = useState('fees')
+  const [toast, setToast] = useState(null)
+  const [confirmMaintenance, setConfirmMaintenance] = useState(false)
+
+  const showToast = (msg, type = 'success') => setToast({ msg, type })
 
   useEffect(() => {
     fetchSettings()
@@ -19,7 +25,7 @@ export default function Settings() {
       if (resp.data.status === 'success') {
         setHealth(resp.data.data)
       }
-    } catch (e) { console.error(e) }
+    } catch (e) { /* ignored */ }
   }
 
   const fetchSettings = async () => {
@@ -30,7 +36,7 @@ export default function Settings() {
         setSettings(response.data.data)
       }
     } catch (e) {
-      console.error('Error fetching settings:', e)
+      showToast('Failed to load settings', 'error')
     } finally {
       setLoading(false)
     }
@@ -44,7 +50,7 @@ export default function Settings() {
       setSavedMsg('✓ Settings saved and broadcast to all connected clients via Socket.io')
       setTimeout(() => setSavedMsg(''), 3500)
     } catch (e) {
-      console.error('Error saving setting:', e)
+      showToast('Failed to save setting', 'error')
     }
   }
 
@@ -250,7 +256,7 @@ export default function Settings() {
                             if (resp.data.status === 'success') {
                               set('logoUrl', resp.data.data.url);
                             }
-                          } catch (err) { console.error(err); }
+                          } catch (err) { /* ignored */ }
                         }
                       }}
                     />
@@ -287,7 +293,7 @@ export default function Settings() {
                             if (resp.data.status === 'success') {
                               set('iconUrl', resp.data.data.url);
                             }
-                          } catch (err) { console.error(err); }
+                          } catch (err) { /* ignored */ }
                         }
                       }}
                     />
@@ -356,7 +362,7 @@ export default function Settings() {
               </div>
               <button
                 className={`toggle ${settings.maintenanceMode ? 'on' : ''}`}
-                onClick={() => set('maintenanceMode', !settings.maintenanceMode)}
+                onClick={() => setConfirmMaintenance(true)}
               />
             </div>
 
@@ -404,6 +410,17 @@ export default function Settings() {
         <button className="btn btn-outline" onClick={() => fetchSettings()}>Reset to Default</button>
         <button className="btn btn-primary btn-lg" onClick={() => setSavedMsg('✓ All settings are auto-saved on change')}>💾 Settings Secured</button>
       </div>
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {confirmMaintenance && (
+        <ConfirmModal
+          title={settings.maintenanceMode ? 'Disable Maintenance Mode' : 'Enable Maintenance Mode'}
+          message={settings.maintenanceMode ? 'Disable maintenance mode? New bookings will resume immediately.' : 'Enable maintenance mode? New bookings will be blocked for all customers.'}
+          danger={!settings.maintenanceMode}
+          confirmText={settings.maintenanceMode ? 'Disable' : 'Enable'}
+          onConfirm={() => { set('maintenanceMode', !settings.maintenanceMode); setConfirmMaintenance(false); }}
+          onClose={() => setConfirmMaintenance(false)}
+        />
+      )}
     </div>
   )
 }

@@ -68,7 +68,6 @@ const QuotesScreen = ({ navigation }) => {
         setOrders(ordersRes.value.data.data || []);
       }
     } catch (e) {
-      console.log('QuotesScreen fetch error:', e.message);
     } finally {
       setLoading(false);
       setRefreshing(false);

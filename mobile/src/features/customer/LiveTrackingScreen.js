@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { jobService } from '../../services/jobService';
 

@@ -3,17 +3,17 @@ const Job = require('../job/job.model');
 const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse } = require('../../helpers/response.helper');
+const { fetchWithCache } = require('../../helpers/redis.helper');
 
 exports.getReportData = catchAsync(async (req, res) => {
     const { tab } = req.params;
     const { period } = req.query; // e.g., 'week', 'month', 'year', 'all'
 
-    // We can filter by date if needed based on period, but for now we aggregate based on existing data
-    // to give a realistic fallback, we'll build dynamic chartData grouping by created dates
+    const cacheKey = `admin_report_${tab}_${period || 'default'}`;
+    const data = await fetchWithCache(cacheKey, 300, async () => {
+        let result = {};
 
-    let data = {};
-
-    if (tab === 'revenue') {
+        if (tab === 'revenue') {
         const revenueData = await Job.aggregate([
             { $match: { 'payment.status': 'PAID' } },
             { $group: { 
@@ -46,13 +46,13 @@ exports.getReportData = catchAsync(async (req, res) => {
         }
 
         const agg = revenueData[0] || { totalCommission: 0, totalRevenue: 0 };
-        data = {
+        result = {
             total: agg.totalRevenue,
             commission: agg.totalCommission,
             payouts: agg.totalRevenue - agg.totalCommission,
             chartData
         };
-    } 
+    }
     else if (tab === 'performance') {
         const activeWorkers = await Customer.countDocuments({ role: 'WORKER', isVerified: true });
         const totalJobs = await Job.countDocuments();
@@ -80,7 +80,7 @@ exports.getReportData = catchAsync(async (req, res) => {
             completionRate: c.total > 0 ? Math.round((c.completed / c.total) * 100) : 0
         }));
 
-        data = {
+        result = {
             activeWorkers,
             avgRating,
             completionRate: totalJobs ? Math.round((completedJobs / totalJobs) * 100) + '%' : '0%',
@@ -114,7 +114,7 @@ exports.getReportData = catchAsync(async (req, res) => {
             new: Math.ceil(c.count * 0.6)
         }));
 
-        data = {
+        result = {
             newCustomers,
             returningCustomers,
             churnRate,
@@ -134,12 +134,15 @@ exports.getReportData = catchAsync(async (req, res) => {
             jobs: d.count
         }));
 
-        data = {
+        result = {
             topCategory: demandAgg[0] ? String(demandAgg[0]._id) : 'N/A',
             totalJobs,
             chartData
         };
     }
+
+        return result;
+    });
 
     return successResponse(res, data, 'Report fetched successfully');
 });

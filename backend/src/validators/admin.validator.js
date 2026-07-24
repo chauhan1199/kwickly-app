@@ -150,6 +150,39 @@ const adminCreateOrderSchema = Joi.object({
     paymentMethod: Joi.string().valid('WALLET', 'UPI', 'CASH').default('WALLET')
 });
 
+const extendSubscriptionSchema = Joi.object({
+    days: Joi.number().integer().positive().required().messages({
+        'number.base': 'Days must be a number',
+        'number.integer': 'Days must be a whole number',
+        'number.positive': 'Days must be a positive number',
+        'any.required': 'Days is required'
+    })
+});
+
+const addPayoutMethodSchema = Joi.object({
+    type: Joi.string().valid('BANK', 'UPI', 'PAYTM', 'PHONEPE', 'OTHER').required().messages({
+        'any.required': 'Payout method type is required',
+        'any.only': 'Invalid payout method type'
+    }),
+    detail: Joi.string().max(255).optional(),
+    details: Joi.string().max(255).optional(),
+    isPrimary: Joi.boolean().optional(),
+    label: Joi.string().max(50).optional()
+}).or('detail', 'details');
+
+const editPayoutMethodSchema = Joi.object({
+    type: Joi.string().valid('BANK', 'UPI', 'PAYTM', 'PHONEPE', 'OTHER').optional(),
+    detail: Joi.string().max(255).optional(),
+    details: Joi.string().max(255).optional(),
+    isPrimary: Joi.boolean().optional(),
+    label: Joi.string().max(50).allow('', null).optional()
+}).min(1);
+
+const addKycDocSchema = Joi.object({
+    docType: Joi.string().valid('AADHAR', 'PAN', 'LICENSE', 'OTHER').optional(),
+    name: Joi.string().max(200).optional()
+});
+
 module.exports = {
     createUserSchema,
     updateUserSchema,
@@ -157,5 +190,9 @@ module.exports = {
     toggleStatusSchema,
     adminCreateJobSchema,
     adminUpdateJobSchema,
-    adminCreateOrderSchema
+    adminCreateOrderSchema,
+    extendSubscriptionSchema,
+    addPayoutMethodSchema,
+    editPayoutMethodSchema,
+    addKycDocSchema
 };

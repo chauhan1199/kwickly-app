@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { 
   ScrollView, 
@@ -17,7 +17,9 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
-import api from '../../services/api';
+import { workerService } from '../../services/workerService';
+import { jobService } from '../../services/jobService';
+import { authService } from '../../services/authService';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import WorkerBalanceCard from '../../components/WorkerBalanceCard';
 import { getImageUrl } from '../../utils/helpers';
@@ -35,12 +37,65 @@ const WorkerDashboard = ({ navigation }) => {
   const [errorMsg, setErrorMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState(undefined); // undefined means no search bar on Home
 
+  const fetchData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      setErrorMsg('');
+      
+      const [jobsRes, userRes, statsRes] = await Promise.all([
+        jobService.getAvailableJobs().catch(() => null),
+        authService.getProfile().catch(() => null),
+        workerService.getStats().catch(() => null)
+      ]);
+
+      if (jobsRes?.data?.status === 'success') {
+        setAvailableJobs(jobsRes.data.data);
+      } else {
+         if (jobsRes?.response?.status === 403 || jobsRes?.response?.status === 402) {
+           setAvailableJobs([]);
+           setErrorMsg(jobsRes.response?.data?.message || 'Action restricted.');
+         }
+      }
+
+      if (userRes?.data?.data?.wallet) {
+         setWalletBalance(userRes.data.data.wallet.balance || 0);
+      }
+
+      if (statsRes?.data?.status === 'success') {
+         setStats(statsRes.data.data);
+      }
+
+    } catch (e) {
+      Alert.alert('Error', 'Failed to load data.');
+      setErrorMsg('Failed to load data.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  const handleToggleOnline = useCallback(async (value) => {
+    setIsOnline(value);
+    try {
+      await workerService.setOnlineStatus(value);
+      if (fetchUser) fetchUser('WORKER');
+      if (value) {
+        fetchData();
+      } else {
+        setAvailableJobs([]);
+        setErrorMsg('');
+      }
+    } catch (e) {
+      setIsOnline(!value);
+      Alert.alert('Error', 'Could not update online status');
+    }
+  }, [fetchData, fetchUser]);
+
   useEffect(() => {
     const listener = DeviceEventEmitter.addListener('toggleDutyStatus', () => {
       handleToggleOnline(!isOnline);
     });
     return () => listener.remove();
-  }, [isOnline]);
+  }, [isOnline, handleToggleOnline]);
 
   const { socket } = useSocket({
     role: 'WORKER',
@@ -50,7 +105,7 @@ const WorkerDashboard = ({ navigation }) => {
   useFocusEffect(
     React.useCallback(() => {
       fetchData();
-    }, [isOnline]) 
+    }, [fetchData])
   );
 
 
@@ -94,60 +149,7 @@ const WorkerDashboard = ({ navigation }) => {
         socket.off('QUOTE_ACCEPTED', handleQuoteAccepted);
       };
     }
-  }, [socket, isOnline]);
-
-  const handleToggleOnline = async (value) => {
-    setIsOnline(value);
-    try {
-      await api.patch('/workers/me/online', { isOnline: value });
-      if (fetchUser) fetchUser('WORKER');
-      if (value) {
-        fetchData();
-      } else {
-        setAvailableJobs([]);
-        setErrorMsg('');
-      }
-    } catch (e) {
-      setIsOnline(!value);
-      Alert.alert('Error', 'Could not update online status');
-    }
-  };
-
-  const fetchData = async () => {
-    try {
-      setRefreshing(true);
-      setErrorMsg('');
-      
-      const [jobsRes, userRes, statsRes] = await Promise.all([
-        api.get('/jobs/available').catch(() => null),
-        api.get('/auth/me').catch(() => null),
-        api.get('/workers/me/stats').catch(() => null)
-      ]);
-
-      if (jobsRes?.data?.status === 'success') {
-        setAvailableJobs(jobsRes.data.data);
-      } else {
-         if (jobsRes?.response?.status === 403 || jobsRes?.response?.status === 402) {
-           setAvailableJobs([]);
-           setErrorMsg(jobsRes.response?.data?.message || 'Action restricted.');
-         }
-      }
-
-      if (userRes?.data?.data?.wallet) {
-         setWalletBalance(userRes.data.data.wallet.balance || 0);
-      }
-
-      if (statsRes?.data?.status === 'success') {
-         setStats(statsRes.data.data);
-      }
-
-    } catch (e) {
-      console.log('Fetching worker data failed:', e.message);
-      if (!errorMsg) setErrorMsg('Failed to load data.');
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  }, [socket, isOnline, fetchData, navigation]);
 
   const styles = createStyles(theme, isDarkMode);
 

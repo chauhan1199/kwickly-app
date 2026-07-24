@@ -5,6 +5,8 @@ const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
+const mongoose = require('mongoose');
+const { supportsTransactions } = require('../../helpers/transaction.helper');
 
 const CACHE_KEY = 'admin_payouts';
 
@@ -31,14 +33,22 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { status, txnId, rejectReason } = req.body;
 
-    const mongoose = require('mongoose');
-    const isSingle = mongoose.connection.client.topology.s.description.type === 'Single';
-    const session = isSingle ? null : await mongoose.startSession();
-    if (session) session.startTransaction();
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
     try {
         const payout = await Payout.findById(id).session(session);
         if (!payout) {
-            if (session) await session.abortTransaction();
+            if (useTransaction && session) await session.abortTransaction();
             if (session) session.endSession();
             return errorResponse(res, 'Payout request not found', StatusCodes.NOT_FOUND);
         }
@@ -50,14 +60,16 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
 
         await payout.save({ session });
 
-        // If rejected, refund the amount to the specific entity's wallet
+        // If rejected, refund the amount to the specific entity's wallet (atomic)
         if (status.toUpperCase() === 'REJECTED') {
             const WalletTxn = require('../wallet/wallet.model');
             if (payout.workerId) {
-                const worker = await Customer.findById(payout.workerId).session(session);
+                const worker = await Customer.findOneAndUpdate(
+                    { _id: payout.workerId },
+                    { $inc: { 'wallet.balance': payout.amount } },
+                    { returnDocument: 'after', session }
+                );
                 if (worker) {
-                    worker.wallet.balance += payout.amount;
-                    await worker.save({ session });
                     await WalletTxn.create([{
                         userId: worker._id,
                         type: 'REFUND',
@@ -68,10 +80,12 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
                 }
             } else if (payout.shopId) {
                 const Shop = require('../shop/shop.model');
-                const shop = await Shop.findById(payout.shopId).session(session);
+                const shop = await Shop.findOneAndUpdate(
+                    { _id: payout.shopId },
+                    { $inc: { 'wallet.balance': payout.amount } },
+                    { returnDocument: 'after', session }
+                );
                 if (shop) {
-                    shop.wallet.balance += payout.amount;
-                    await shop.save({ session });
                     await WalletTxn.create([{
                         userId: shop.ownerId, // Mapping to owner's wallet
                         type: 'REFUND',
@@ -83,8 +97,8 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
             }
         }
 
-        if (session) await session.commitTransaction();
-        if (session) session.endSession();
+        if (useTransaction) await session.commitTransaction();
+        if (useTransaction) session.endSession();
 
         await delCache(CACHE_KEY);
 
@@ -103,8 +117,8 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
             userId: actualUserId,
             title: `Payout ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}`,
             message: status.toUpperCase() === 'COMPLETED' 
-                ? `Your payout of ₹${payout.amount} has been successfully processed.`
-                : `Your payout request of ₹${payout.amount} was rejected. Reason: ${rejectReason || 'Admin review'}. The amount has been refunded to your wallet.`,
+                ? `Your payout of â‚¹${payout.amount} has been successfully processed.`
+                : `Your payout request of â‚¹${payout.amount} was rejected. Reason: ${rejectReason || 'Admin review'}. The amount has been refunded to your wallet.`,
             action: 'WALLET_UPDATE',
             entityType: 'WALLET',
             entityId: actualUserId,
@@ -113,7 +127,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
 
         return successResponse(res, payout, `Payout ${status.toLowerCase()} successfully`);
     } catch (error) {
-        if (session) await session.abortTransaction();
+        if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
         throw error;
     }

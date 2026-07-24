@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api from '../../services/api';
+import api, { getImageUrl } from '../../services/api';
 import Toast from '../../components/Toast';
 import { io } from 'socket.io-client';
 import './SupportChats.css';
@@ -61,19 +61,11 @@ const SupportChats = () => {
     socketRef.current = socket;
   };
 
-  const getMediaUrl = (url) => {
-    if (!url) return null;
-    if (url.startsWith('http')) return url;
-    const baseUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
-    return `${baseUrl}${url}`;
-  };
-
   const fetchThreads = async () => {
     try {
       const res = await api.get('/chat/support/threads');
       setThreads(res.data?.data || []);
     } catch (err) {
-      console.error(err);
       Toast.error('Failed to load support threads');
     } finally {
       setLoadingThreads(false);
@@ -90,13 +82,12 @@ const SupportChats = () => {
       setTimeout(scrollToBottom, 100);
       
       // Mark as read
-      await api.post('/chat/mark-read', { partnerId: thread.user._id }).catch(console.error);
+      await api.post('/chat/mark-read', { partnerId: thread.user._id }).catch(() => {});
 
       setThreads(prev => prev.map(t => 
         t.user._id === thread.user._id ? { ...t, unreadCount: 0 } : t
       ));
     } catch (err) {
-      console.error(err);
       Toast.error('Failed to load chat history');
     } finally {
       setLoadingMessages(false);
@@ -155,7 +146,6 @@ const SupportChats = () => {
       setTimeout(scrollToBottom, 100);
       fetchThreads();
     } catch (err) {
-      console.error('[SupportChats] Send error:', err?.response?.data || err.message);
       Toast.error('Failed to send: ' + (err?.response?.data?.message || err.message));
     } finally {
       setSending(false);
@@ -237,10 +227,10 @@ const SupportChats = () => {
                       <div className="message-bubble">
                         {msg.mediaUrl && (
                           <img 
-                            src={getMediaUrl(msg.mediaUrl)} 
+                            src={getImageUrl(msg.mediaUrl)} 
                             alt="Attachment" 
                             className="message-image" 
-                            onClick={() => setFullScreenImage(getMediaUrl(msg.mediaUrl))}
+                            onClick={() => setFullScreenImage(getImageUrl(msg.mediaUrl))}
                           />
                         )}
                         {msg.text && <p className="message-text">{msg.text}</p>}

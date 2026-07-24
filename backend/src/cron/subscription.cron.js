@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const Customer = require('../modules/customer/customer.model');
 const { notifyUser } = require('../helpers/notifyUser.helper');
 const { emitToRoom } = require('../helpers/socket.helper');
+const logger = require('../helpers/logger.helper');
 
 /**
  * Run every day at Midnight (0 0 * * *)
@@ -9,7 +10,7 @@ const { emitToRoom } = require('../helpers/socket.helper');
  */
 const startSubscriptionCron = () => {
     cron.schedule('0 0 * * *', async () => {
-        console.log('[CRON] Running daily subscription check...');
+        logger.info('[CRON] Running daily subscription check...');
         const now = new Date();
         const threeDaysFromNow = new Date();
         threeDaysFromNow.setDate(now.getDate() + 3);
@@ -81,9 +82,9 @@ const startSubscriptionCron = () => {
                 });
             }
 
-            console.log(`[CRON] Subscription check complete. Notified ${expiringSoonWorkers.length} expiring soon, deactivated ${expiredWorkers.length} expired workers.`);
+            logger.info(`[CRON] Subscription check complete. Notified ${expiringSoonWorkers.length} expiring soon, deactivated ${expiredWorkers.length} expired workers.`);
         } catch (error) {
-            console.error('[CRON] Error checking subscriptions:', error);
+            logger.error('[CRON] Error checking subscriptions:', error.message);
         }
     });
 };

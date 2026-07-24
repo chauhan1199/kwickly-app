@@ -17,17 +17,14 @@ const WorkerProfileScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
   const { worker } = route.params || {};
-  const w = worker || { 
-    id: 'w1', 
-    name: 'Ramesh Kumar', 
-    rating: 4.8, 
-    jobs: 312, 
-    price: 399, 
-    eta: 25, 
-    verified: true, 
-    dist: '1.2 km', 
-    cat: 'AC & HVAC' 
-  };
+  
+  // If no worker data passed, go back
+  if (!worker) {
+    navigation.goBack();
+    return null;
+  }
+  
+  const w = worker;
 
   const styles = createStyles(theme, isDarkMode);
 

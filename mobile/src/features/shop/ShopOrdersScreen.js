@@ -5,7 +5,8 @@ import {
   StyleSheet, 
   ScrollView, 
   TouchableOpacity,
-  StatusBar
+  StatusBar,
+  Alert
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -13,7 +14,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { Bell, Package, RefreshCw, Moon, Sun, Menu } from 'lucide-react-native';
-import api from '../../services/api';
+import { shopService } from '../../services/shopService';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ShopOrdersScreen = ({ navigation }) => {
@@ -36,7 +37,7 @@ const ShopOrdersScreen = ({ navigation }) => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/shoporders/shop');
+      const res = await shopService.getShopOrders();
       if (res.data?.status === 'success') {
         const list = res.data.data.orders || res.data.data;
         const mapped = list.map(order => {
@@ -59,7 +60,7 @@ const ShopOrdersScreen = ({ navigation }) => {
         setOrders(mapped);
       }
     } catch (e) {
-      console.log('Error fetching orders:', e);
+      Alert.alert('Error', 'Failed to load orders');
     } finally {
       setLoading(false);
     }

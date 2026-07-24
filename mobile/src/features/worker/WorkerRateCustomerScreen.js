@@ -14,30 +14,42 @@ import {
   Alert
 } from 'react-native';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
 import { Star } from 'lucide-react-native';
+import { jobService } from '../../services/jobService';
 
-const WorkerRateCustomerScreen = ({ navigation }) => {
+const WorkerRateCustomerScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { signOut } = useAuth();
   const [rating, setRating] = useState(5);
   const [note, setNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const { jobId, customerName } = route.params || {};
   
   const styles = createStyles(theme, isDarkMode);
 
-  const handleSubmit = () => {
-    Alert.alert(
-      "Rating Submitted",
-      "Thank you for your feedback!",
-      [
-        {
-          text: "Back to Home",
-          onPress: () => navigation.navigate('Dashboard')
-        }
-      ]
-    );
+  const handleSubmit = async () => {
+    if (!jobId) {
+      Alert.alert('Error', 'No job ID found');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await jobService.rateJob(jobId, { score: rating, review: note });
+      Alert.alert(
+        "Rating Submitted",
+        "Thank you for your feedback!",
+        [
+          {
+            text: "Back to Home",
+            onPress: () => navigation.navigate('Dashboard')
+          }
+        ]
+      );
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Failed to submit rating');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -61,10 +73,10 @@ const WorkerRateCustomerScreen = ({ navigation }) => {
           <View style={styles.centerBox}>
             
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>A</Text>
+              <Text style={styles.avatarText}>{customerName ? customerName[0] : 'C'}</Text>
             </View>
 
-            <Text style={styles.customerName}>Anita Sharma</Text>
+            <Text style={styles.customerName}>{customerName || 'Customer'}</Text>
             <Text style={styles.subText}>How was the customer?</Text>
 
             <View style={styles.starsContainer}>
@@ -90,7 +102,7 @@ const WorkerRateCustomerScreen = ({ navigation }) => {
               textAlignVertical="top"
             />
 
-            <Button title="Submit Rating" onPress={() => {}} />
+            <Button title={submitting ? "Submitting..." : "Submit Rating"} onPress={handleSubmit} disabled={submitting} />
 
           </View>
         </TouchableWithoutFeedback>

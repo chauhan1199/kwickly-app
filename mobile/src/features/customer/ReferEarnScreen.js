@@ -34,8 +34,7 @@ const ReferEarnScreen = ({ navigation }) => {
         });
       }
     } catch (error) {
-      console.log('Share error', error);
-      Share.share({ message: messageToShare }).catch(e => console.log(e));
+      Share.share({ message: messageToShare }).catch(() => {});
     }
   };
 
@@ -45,7 +44,7 @@ const ReferEarnScreen = ({ navigation }) => {
         message: messageToShare,
       });
     } catch (error) {
-      console.log('Share error', error);
+      Alert.alert('Share', 'Could not share at this time');
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, ActivityIndicator, Alert
@@ -6,9 +6,8 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
-import api from '../../services/api';
-import { io } from 'socket.io-client';
-import { SOCKET_URL } from '../../config/env';
+import { shopService } from '../../services/shopService';
+import useSocket from '../../hooks/useSocket';
 import {
   Check, Clock, Package, Truck, MapPin, Phone,
   Copy, FileText, MessageCircle, ChevronRight, XCircle
@@ -40,32 +39,11 @@ const OrderTrackingScreen = ({ route, navigation }) => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showOtpInput, setShowOtpInput] = useState(false);
-  const socketRef = useRef(null);
+  const socket = useSocket();
 
-  useEffect(() => {
-    fetchOrder();
-    connectSocket();
-    return () => { if (socketRef.current) socketRef.current.disconnect(); };
-  }, [orderId]);
-
-  const connectSocket = () => {
+  const fetchOrder = useCallback(async () => {
     try {
-      const socket = io(SOCKET_URL, { transports: ['websocket'] });
-      socket.on('connect', () => {
-        socket.emit('join', `customer_${user?._id}`);
-      });
-      socket.on('ORDER_STATUS', (data) => {
-        if (data.orderId === orderId) {
-          fetchOrder();
-        }
-      });
-      socketRef.current = socket;
-    } catch (e) { console.log('Socket connection failed'); }
-  };
-
-  const fetchOrder = async () => {
-    try {
-      const res = await api.get(`/shoporders/${orderId}`);
+      const res = await shopService.getOrderById(orderId);
       if (res.data?.status === 'success') {
         setOrder(res.data.data);
       }
@@ -74,7 +52,21 @@ const OrderTrackingScreen = ({ route, navigation }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
+
+  useEffect(() => {
+    fetchOrder();
+    if (socket) {
+      socket.on('ORDER_STATUS', (data) => {
+        if (data.orderId === orderId) {
+          fetchOrder();
+        }
+      });
+    }
+    return () => {
+      if (socket) socket.off('ORDER_STATUS');
+    };
+  }, [fetchOrder, orderId, socket]);
 
   const copyOtp = () => {
     if (order?.deliveryOtp) {
@@ -278,7 +270,7 @@ const OrderTrackingScreen = ({ route, navigation }) => {
                     text: 'Yes, Cancel', style: 'destructive',
                     onPress: async () => {
                       try {
-                        await api.patch(`/shoporders/${orderId}/status`, { status: 'CANCELLED' });
+                        await shopService.updateOrderStatus(orderId, 'CANCELLED');
                         fetchOrder();
                       } catch (e) {
                         Alert.alert('Error', e?.response?.data?.message || 'Failed to cancel');
