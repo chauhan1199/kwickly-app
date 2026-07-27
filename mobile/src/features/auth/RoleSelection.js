@@ -22,13 +22,13 @@ import Button from '../../components/ui/Button';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
-const RoleSelection = ({ navigation }) => {
+const RoleSelection = ({ navigation, route }) => {
   const { theme, isDarkMode } = useTheme();
   const { signIn } = useAuth();
 
   // Steps: ROLE -> PHONE -> PASSWORD / OTP
-  const [step, setStep] = useState('ROLE');
-  const [selectedRole, setSelectedRole] = useState('CUSTOMER');
+  const [step, setStep] = useState(route?.params?.step || 'ROLE');
+  const [selectedRole, setSelectedRole] = useState(route?.params?.role || 'CUSTOMER');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [fullName, setFullName] = useState('');
   const [otpMethod, setOtpMethod] = useState('SMS');
@@ -41,9 +41,9 @@ const RoleSelection = ({ navigation }) => {
   const [legalModalVisible, setLegalModalVisible] = useState(false);
   const [legalModalContent, setLegalModalContent] = useState('');
   const [legalModalTitle, setLegalModalTitle] = useState('');
-  const [hasReadTerms, setHasReadTerms] = useState(false);
-  const [hasReadPrivacy, setHasReadPrivacy] = useState(false);
-  const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [hasReadTerms, setHasReadTerms] = useState(true);
+  const [hasReadPrivacy, setHasReadPrivacy] = useState(true);
+  const [acceptedLegal, setAcceptedLegal] = useState(true);
   const [termsText, setTermsText] = useState('');
   const [privacyText, setPrivacyText] = useState('');
 
@@ -242,13 +242,41 @@ const RoleSelection = ({ navigation }) => {
                 <Text style={styles.subtitle}>We'll send an OTP to verify your number</Text>
               </View>
 
-              <View style={[styles.selectedRoleBadge, { backgroundColor: isDarkMode ? '#1a1a1a' : '#f8f7ff', borderColor: isDarkMode ? '#333' : '#ede9fe' }]}>
-                {selectedRole === 'CUSTOMER' && <User size={18} color="#6C47FF" />}
-                {selectedRole === 'WORKER' && <Wrench size={18} color="#6C47FF" />}
-                {selectedRole === 'SHOP' && <Store size={18} color="#f59e0b" />}
-                <Text style={[styles.selectedRoleText, { color: theme.colors.text }]}>
-                  Signing up as <Text style={{ fontWeight: '800' }}>{selectedRole === 'WORKER' ? 'Worker / Pro' : selectedRole === 'SHOP' ? 'Shop Owner' : 'Customer'}</Text>
-                </Text>
+              <View style={{ marginBottom: 16 }}>
+                <Text style={styles.inputLabel}>Registering As</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                  {[
+                    { id: 'CUSTOMER', label: 'Customer', icon: User },
+                    { id: 'WORKER', label: 'Worker', icon: Wrench },
+                    { id: 'SHOP', label: 'Shop Owner', icon: Store },
+                  ].map(r => {
+                    const IconComp = r.icon;
+                    const isActive = selectedRole === r.id;
+                    return (
+                      <TouchableOpacity
+                        key={r.id}
+                        onPress={() => setSelectedRole(r.id)}
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          paddingVertical: 10,
+                          paddingHorizontal: 6,
+                          borderRadius: 12,
+                          borderWidth: 1.5,
+                          borderColor: isActive ? '#6C47FF' : (isDarkMode ? '#333' : '#E5E7EB'),
+                          backgroundColor: isActive ? (isDarkMode ? 'rgba(108,71,255,0.25)' : '#F3F0FF') : (isDarkMode ? '#1F2937' : '#FFFFFF'),
+                        }}
+                      >
+                        <IconComp size={15} color={isActive ? '#6C47FF' : (isDarkMode ? '#9CA3AF' : '#6B7280')} />
+                        <Text style={{ marginLeft: 5, fontSize: 12, fontWeight: isActive ? '700' : '500', color: isActive ? '#6C47FF' : (isDarkMode ? '#F3F4F6' : '#374151') }}>
+                          {r.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
               {/* Full Name */}
@@ -328,13 +356,11 @@ const RoleSelection = ({ navigation }) => {
               {/* Legal Checkbox */}
               <View style={styles.legalBox}>
                 <TouchableOpacity
-                  style={[styles.checkbox, acceptedLegal && styles.checkboxActive, (!hasReadTerms || !hasReadPrivacy) && { opacity: 0.5 }]}
+                  style={[styles.checkbox, acceptedLegal && styles.checkboxActive]}
                   onPress={() => {
-                    if (!hasReadTerms || !hasReadPrivacy) {
-                      showAlert('Attention', 'Please open and read both the Terms of Service and Privacy Policy before accepting.');
-                    } else {
-                      setAcceptedLegal(!acceptedLegal);
-                    }
+                    setHasReadTerms(true);
+                    setHasReadPrivacy(true);
+                    setAcceptedLegal(!acceptedLegal);
                   }}
                   activeOpacity={0.8}
                 >

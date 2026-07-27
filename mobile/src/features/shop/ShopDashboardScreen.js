@@ -174,49 +174,49 @@ const ShopDashboardScreen = ({ navigation }) => {
           <View style={s.statsGrid}>
             {/* Today's Orders */}
             <TouchableOpacity style={s.statCard} onPress={() => navigation.navigate('Orders')}>
-              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(16,185,129,0.15)' : '#ECFDF5', borderColor: isDarkMode ? 'rgba(16,185,129,0.3)' : '#A7F3D0' }]}>
-                <ShoppingBag size={22} color="#10B981" />
+              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F3F0FF', borderColor: isDarkMode ? 'rgba(108,71,255,0.3)' : '#DDD6FE' }]}>
+                <ShoppingBag size={22} color="#6C47FF" />
               </View>
               <View style={s.statInfo}>
                 <Text style={s.statLabel}>Today's Orders</Text>
-                <Text style={[s.statValue, { color: '#10B981' }]}>{stats.todayOrders}</Text>
-                <Text style={[s.statSub, { color: '#10B981' }]}>Updated</Text>
+                <Text style={[s.statValue, { color: '#6C47FF' }]}>{stats.todayOrders}</Text>
+                <Text style={[s.statSub, { color: '#6C47FF' }]}>Updated</Text>
               </View>
             </TouchableOpacity>
 
             {/* Revenue */}
             <TouchableOpacity style={s.statCard} onPress={() => navigation.navigate('Wallet')}>
-              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(139,92,246,0.15)' : '#F5F3FF', borderColor: isDarkMode ? 'rgba(139,92,246,0.3)' : '#DDD6FE' }]}>
-                <IndianRupee size={22} color="#8B5CF6" />
+              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(124,58,237,0.15)' : '#EDE9FE', borderColor: isDarkMode ? 'rgba(124,58,237,0.3)' : '#C4B5FD' }]}>
+                <IndianRupee size={22} color="#7C3AED" />
               </View>
               <View style={s.statInfo}>
                 <Text style={s.statLabel}>Revenue</Text>
-                <Text style={[s.statValue, { color: '#8B5CF6' }]}>₹{stats.revenue}</Text>
-                <Text style={s.statSub}>Today</Text>
+                <Text style={[s.statValue, { color: '#7C3AED' }]}>₹{stats.revenue}</Text>
+                <Text style={[s.statSub, { color: '#7C3AED' }]}>Today</Text>
               </View>
             </TouchableOpacity>
 
             {/* Total Products */}
             <TouchableOpacity style={s.statCard} onPress={() => navigation.navigate('Products')}>
-              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(14,165,233,0.15)' : '#E0F2FE', borderColor: isDarkMode ? 'rgba(14,165,233,0.3)' : '#BAE6FD' }]}>
-                <Box size={22} color="#0EA5E9" />
+              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(139,92,246,0.15)' : '#F5F3FF', borderColor: isDarkMode ? 'rgba(139,92,246,0.3)' : '#DDD6FE' }]}>
+                <Box size={22} color="#8B5CF6" />
               </View>
               <View style={s.statInfo}>
                 <Text style={s.statLabel}>Total Products</Text>
-                <Text style={[s.statValue, { color: '#0EA5E9' }]}>{stats.productsCount}</Text>
-                <Text style={s.statSub}>In catalog</Text>
+                <Text style={[s.statValue, { color: '#8B5CF6' }]}>{stats.productsCount}</Text>
+                <Text style={[s.statSub, { color: '#8B5CF6' }]}>In catalog</Text>
               </View>
             </TouchableOpacity>
 
             {/* Wallet */}
             <TouchableOpacity style={s.statCard} onPress={() => navigation.navigate('Wallet')}>
-              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(249,115,22,0.15)' : '#FFEDD5', borderColor: isDarkMode ? 'rgba(249,115,22,0.3)' : '#FED7AA' }]}>
-                <Wallet size={22} color="#F97316" />
+              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(147,51,234,0.15)' : '#FAF5FF', borderColor: isDarkMode ? 'rgba(147,51,234,0.3)' : '#E9D5FF' }]}>
+                <Wallet size={22} color="#9333EA" />
               </View>
               <View style={s.statInfo}>
                 <Text style={s.statLabel}>Wallet</Text>
-                <Text style={[s.statValue, { color: '#F97316' }]}>₹{stats.wallet}</Text>
-                <Text style={s.statSub}>Available</Text>
+                <Text style={[s.statValue, { color: '#9333EA' }]}>₹{stats.wallet}</Text>
+                <Text style={[s.statSub, { color: '#9333EA' }]}>Available</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -242,8 +242,8 @@ const ShopDashboardScreen = ({ navigation }) => {
             <View style={s.ordersCard}>
               {pendingOrders.length === 0 && !loading ? (
                 <View style={s.emptyOrders}>
-                  <View style={[s.emptyOrdersIcon, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#F3F4F6' }]}>
-                    <ClipboardList size={40} color={isDarkMode ? '#4B5563' : '#9CA3AF'} />
+                  <View style={[s.emptyOrdersIcon, { backgroundColor: isDarkMode ? 'rgba(108,71,255,0.12)' : '#F3F0FF' }]}>
+                    <ClipboardList size={40} color="#6C47FF" />
                   </View>
                   <Text style={s.emptyOrdersText}>No pending orders.</Text>
                 </View>
@@ -271,18 +271,18 @@ const ShopDashboardScreen = ({ navigation }) => {
 
             {/* ── Grow Your Business banner ── */}
             <View style={[s.growBanner, {
-              backgroundColor: isDarkMode ? '#0D2818' : '#F0FDF4',
-              borderColor: isDarkMode ? '#14532D' : '#BBF7D0',
+              backgroundColor: isDarkMode ? 'rgba(108,71,255,0.18)' : '#F3F0FF',
+              borderColor: isDarkMode ? 'rgba(139,92,246,0.3)' : '#DDD6FE',
             }]}>
               <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={[s.growTitle, { color: isDarkMode ? '#4ADE80' : '#15803D' }]}>
+                <Text style={[s.growTitle, { color: isDarkMode ? '#E9D5FF' : '#4C1D95' }]}>
                   Grow Your Business
                 </Text>
-                <Text style={[s.growDesc, { color: isDarkMode ? '#86EFAC' : '#166534' }]}>
+                <Text style={[s.growDesc, { color: isDarkMode ? '#C4B5FD' : '#6C47FF' }]}>
                   Add more products and reach more customers today!
                 </Text>
                 <TouchableOpacity
-                  style={[s.addProductsBtn, { backgroundColor: isDarkMode ? '#16A34A' : '#22C55E' }]}
+                  style={[s.addProductsBtn, { backgroundColor: '#6C47FF' }]}
                   onPress={() => navigation.navigate('Products')}
                 >
                   <Text style={s.addProductsBtnText}>Add Products</Text>

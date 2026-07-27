@@ -1,5 +1,5 @@
 import React from 'react';
-import { StatusBar } from 'react-native';
+import { StatusBar, LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/app/navigation/RootNavigator';
 import Theme from './src/constants/Theme';
@@ -12,6 +12,7 @@ import OfflineBanner from './src/components/OfflineBanner';
 
 
 function App() {
+  LogBox.ignoreAllLogs();
   return (
     <AuthProvider>
       <ThemeProvider>

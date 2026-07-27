@@ -220,14 +220,38 @@ const ShopProductsScreen = ({ navigation }) => {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.price) {
-      Alert.alert('Validation Error', 'Product name and price are required.');
+    const nameStr = String(formData.name || '').trim();
+    if (!nameStr || nameStr.length < 2) {
+      Alert.alert('Validation Error', 'Product name must be at least 2 characters.');
       return;
     }
 
-    const priceNum = Number(formData.price);
+    const priceRaw = String(formData.price || '').trim();
+    if (!priceRaw) {
+      Alert.alert('Validation Error', 'Price is required.');
+      return;
+    }
+    const priceNum = Number(priceRaw);
     if (isNaN(priceNum) || priceNum <= 0) {
-      Alert.alert('Validation Error', 'Price must be a valid number greater than 0.');
+      Alert.alert('Validation Error', 'Price must be a valid numeric value greater than 0 (e.g. 100).');
+      return;
+    }
+
+    const stockRaw = String(formData.stock ?? '').trim();
+    if (stockRaw === '') {
+      Alert.alert('Validation Error', 'Stock quantity is required.');
+      return;
+    }
+    const stockNum = Number(stockRaw);
+    if (isNaN(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
+      Alert.alert('Validation Error', 'Stock must be a valid non-negative integer (e.g. 10).');
+      return;
+    }
+
+    const minQtyRaw = String(formData.minQty ?? '1').trim();
+    const minQtyNum = Number(minQtyRaw);
+    if (isNaN(minQtyNum) || minQtyNum < 1 || !Number.isInteger(minQtyNum)) {
+      Alert.alert('Validation Error', 'Minimum quantity must be a valid integer of at least 1 (e.g. 1).');
       return;
     }
 
@@ -238,10 +262,10 @@ const ShopProductsScreen = ({ navigation }) => {
         .map(a => ({ name: String(a.name).trim(), value: String(a.value).trim() }));
 
       const payload = {
-        name: String(formData.name || '').trim(),
+        name: nameStr,
         price: priceNum,
-        stock: Number(formData.stock || '0') || 0,
-        minQty: Number(formData.minQty || '1') || 1,
+        stock: stockNum,
+        minQty: minQtyNum,
         brand: String(formData.brand || '').trim(),
         unit: String(formData.unit || 'Piece').trim(),
         category: String(formData.category || 'General').trim() || 'General',
@@ -390,7 +414,7 @@ const ShopProductsScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* Add/Edit Product Modal */}
-      <Modal visible={isModalVisible} animationType="slide" transparent={true}>
+      <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={() => setIsModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             
@@ -490,10 +514,10 @@ const ShopProductsScreen = ({ navigation }) => {
                   <TextInput 
                     style={styles.inputField} 
                     placeholder="99"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     placeholderTextColor={theme.colors.textDim}
                     value={formData.price}
-                    onChangeText={(t) => setFormData({...formData, price: t})}
+                    onChangeText={(t) => setFormData({...formData, price: t.replace(/[^0-9.]/g, '')})}
                   />
                 </View>
                 <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
@@ -501,10 +525,10 @@ const ShopProductsScreen = ({ navigation }) => {
                   <TextInput 
                     style={styles.inputField} 
                     placeholder="50"
-                    keyboardType="numeric"
+                    keyboardType="number-pad"
                     placeholderTextColor={theme.colors.textDim}
                     value={formData.stock}
-                    onChangeText={(t) => setFormData({...formData, stock: t})}
+                    onChangeText={(t) => setFormData({...formData, stock: t.replace(/[^0-9]/g, '')})}
                   />
                   <Text style={{ fontSize: 10, color: theme.colors.textDim, marginTop: 4 }}>Total inventory</Text>
                 </View>
@@ -516,10 +540,10 @@ const ShopProductsScreen = ({ navigation }) => {
                   <TextInput 
                     style={styles.inputField} 
                     placeholder="1"
-                    keyboardType="numeric"
+                    keyboardType="number-pad"
                     placeholderTextColor={theme.colors.textDim}
                     value={formData.minQty}
-                    onChangeText={(t) => setFormData({...formData, minQty: t})}
+                    onChangeText={(t) => setFormData({...formData, minQty: t.replace(/[^0-9]/g, '')})}
                   />
                   <Text style={{ fontSize: 10, color: theme.colors.textDim, marginTop: 4 }}>Min order limit</Text>
                 </View>
@@ -643,11 +667,16 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     padding: 16,
   },
   addBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#6C47FF',
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     marginBottom: 16,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   addBtnText: {
     color: '#FFF',
@@ -702,20 +731,20 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 4,
   },
   tagPill: {
-    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F3F0FF',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   tagPillText: {
     fontSize: 10,
-    fontWeight: '600',
-    color: theme.colors.textDim,
+    fontWeight: '700',
+    color: '#6C47FF',
   },
   productPrice: {
     fontSize: 15,
     fontWeight: '800',
-    color: theme.colors.primary,
+    color: '#6C47FF',
   },
   productActions: {
     flexDirection: 'row',
@@ -724,24 +753,24 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'transparent',
+    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.12)' : '#F3F0FF',
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: '#6C47FF',
     justifyContent: 'center',
     alignItems: 'center'
   },
   editBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: '#6C47FF',
   },
   deleteBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
     borderWidth: 1,
-    borderColor: '#EF4444',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
     justifyContent: 'center',
     alignItems: 'center'
   },

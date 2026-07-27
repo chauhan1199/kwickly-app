@@ -301,7 +301,7 @@ const ShopWalletScreen = ({ navigation }) => {
         
         {/* Balance Card */}
         <LinearGradient 
-          colors={isDarkMode ? ['#4C1D95', '#8B5CF6'] : ['#8B5CF6', '#C4B5FD']} 
+          colors={isDarkMode ? ['#3B0764', '#6C47FF'] : ['#6C47FF', '#9333EA']} 
           start={{x: 0, y: 0}} end={{x: 1, y: 1}}
           style={styles.balanceCard}
         >

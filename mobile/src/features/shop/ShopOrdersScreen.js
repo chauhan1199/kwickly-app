@@ -132,13 +132,13 @@ const ShopOrdersScreen = ({ navigation }) => {
           <View style={styles.ordersList}>
             {filteredOrders.map((order) => (
               <TouchableOpacity 
-                key={order.id} 
-                style={styles.orderCard} 
-                onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order.rawId || order._id })}
-              >
-                <View style={[styles.orderIconBox, { backgroundColor: order.bg }]}>
-                  <Package size={20} color={order.color} />
-                </View>
+              key={order.rawId} 
+              style={styles.orderCard}
+              onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order.rawId })}
+            >
+              <View style={styles.orderIconBox}>
+                <Package size={22} color="#6C47FF" />
+              </View>
                 <View style={{ flex: 1, marginLeft: 16 }}>
                   <Text style={styles.orderId}>{order.id}</Text>
                   <Text style={styles.orderDetails}>{order.customer} · {order.items} items · ₹{order.total}</Text>
@@ -228,8 +228,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
   },
   filterChipActive: {
-    backgroundColor: theme.colors.primary + '15',
-    borderColor: theme.colors.primary,
+    backgroundColor: '#6C47FF',
+    borderColor: '#6C47FF',
   },
   filterText: {
     fontSize: 14,
@@ -237,7 +237,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.textDim,
   },
   filterTextActive: {
-    color: theme.colors.primary,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   scrollContent: {
@@ -261,6 +261,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
+    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F3F0FF',
     justifyContent: 'center',
     alignItems: 'center',
   },

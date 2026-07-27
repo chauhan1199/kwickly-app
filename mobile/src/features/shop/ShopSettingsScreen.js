@@ -512,13 +512,13 @@ export default function ShopSettingsScreen({ navigation }) {
                 <Text style={{ fontSize: 12, color: c.textDim }}>Allow customers to place orders</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: isOnline ? '#10B981' : '#9CA3AF' }} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: isOnline ? '#10B981' : '#9CA3AF' }}>
+                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: isOnline ? '#6C47FF' : '#9CA3AF' }} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: isOnline ? '#6C47FF' : '#9CA3AF' }}>
                   {isOnline ? 'Online' : 'Offline'}
                 </Text>
                 <Switch value={isOnline} onValueChange={toggleOnline}
-                  trackColor={{ false: '#D1D5DB', true: '#A7F3D0' }}
-                  thumbColor={isOnline ? '#10B981' : '#f4f3f4'} />
+                  trackColor={{ false: '#D1D5DB', true: '#C4B5FD' }}
+                  thumbColor={isOnline ? '#6C47FF' : '#f4f3f4'} />
               </View>
             </View>
           </View>
@@ -526,13 +526,13 @@ export default function ShopSettingsScreen({ navigation }) {
           {/* Menu */}
           <View style={s.menuCard}>
             {[
-              { icon: Store,       color: '#EC4899', title: 'Shop Details & Address', sub: shop?.address || 'Name, description, location', onPress: () => setDetailsOpen(true) },
-              { icon: Clock,       color: '#F59E0B', title: 'Business Hours',        sub: shop?.businessHours?.monFri || '9 AM – 10 PM', onPress: () => setHoursOpen(true) },
-              { icon: Truck,       color: '#0EA5E9', title: 'Delivery Config', sub: 'Slots, fees, radius', onPress: () => navigation.navigate('ShopDeliveryConfig') },
-              { icon: ShieldCheck, color: '#8B5CF6', title: 'KYC / GST',            sub: `Status: ${shop?.kyc?.status || 'PENDING'}`, onPress: () => setKycOpen(true) },
-              { icon: CreditCard,  color: '#64748B', title: 'Payout Methods',       sub: accounts.length ? `${accounts.length} method(s)` : 'Add Bank or UPI', onPress: () => setPayoutOpen(true) },
-              { icon: BarChart2,   color: '#0EA5E9', title: 'Analytics & Reports',  sub: 'Revenue, insights, PDF', onPress: () => setAnalyticsOpen(true) },
-              { icon: MessageCircle, color: '#10B981', title: 'Help & Support',     sub: 'Chat with us, FAQs', onPress: () => navigation.navigate('HelpSupport') },
+              { icon: Store,       color: '#6C47FF', title: 'Shop Details & Address', sub: shop?.address || 'Name, description, location', onPress: () => setDetailsOpen(true) },
+              { icon: Clock,       color: '#7C3AED', title: 'Business Hours',        sub: shop?.businessHours?.monFri || '9 AM – 10 PM', onPress: () => setHoursOpen(true) },
+              { icon: Truck,       color: '#8B5CF6', title: 'Delivery Config', sub: 'Slots, fees, radius', onPress: () => navigation.navigate('ShopDeliveryConfig') },
+              { icon: ShieldCheck, color: '#9333EA', title: 'KYC / GST',            sub: `Status: ${shop?.kyc?.status || 'PENDING'}`, onPress: () => setKycOpen(true) },
+              { icon: CreditCard,  color: '#A855F7', title: 'Payout Methods',       sub: accounts.length ? `${accounts.length} method(s)` : 'Add Bank or UPI', onPress: () => setPayoutOpen(true) },
+              { icon: BarChart2,   color: '#6C47FF', title: 'Analytics & Reports',  sub: 'Revenue, insights, PDF', onPress: () => setAnalyticsOpen(true) },
+              { icon: MessageCircle, color: '#7C3AED', title: 'Help & Support',     sub: 'Chat with us, FAQs', onPress: () => navigation.navigate('HelpSupport') },
             ].map(({ icon: Icon, color, title, sub, onPress }, i, arr) => (
               <Pressable
                 key={title}

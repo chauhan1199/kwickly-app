@@ -390,7 +390,7 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
           disabled={saving}
           onPress={handleSave}
         >
-          <Save size={18} color="#001016" />
+          <Save size={18} color="#FFF" />
           <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Configuration'}</Text>
         </TouchableOpacity>
       </View>
@@ -414,32 +414,32 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   unit:         { fontSize: 14, fontWeight: '700', color: theme.colors.textDim },
   radiusChips:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   chip:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.background },
-  chipActive:   { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '15' },
+  chipActive:   { borderColor: '#6C47FF', backgroundColor: '#F3F0FF' },
   chipText:     { fontSize: 13, fontWeight: '700', color: theme.colors.textDim },
-  chipTextActive:{ color: theme.colors.primary },
+  chipTextActive:{ color: '#6C47FF' },
   row:          { flexDirection: 'row', gap: 12, marginTop: 10 },
   halfField:    { flex: 1 },
   label:        { fontSize: 12, fontWeight: '600', color: theme.colors.textDim, marginBottom: 6 },
   input:        { backgroundColor: theme.colors.background, borderRadius: 10, padding: 12, fontSize: 14, fontWeight: '600', color: theme.colors.text, borderWidth: 1, borderColor: theme.colors.border },
   typeRow:      { flexDirection: 'row', gap: 8 },
   typeBtn:      { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.background, alignItems: 'center' },
-  typeBtnActive:{ borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '15' },
+  typeBtnActive:{ borderColor: '#6C47FF', backgroundColor: '#F3F0FF' },
   typeText:     { fontSize: 13, fontWeight: '700', color: theme.colors.textDim },
-  typeTextActive:{ color: theme.colors.primary },
-  addSlotBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  addSlotText:  { fontSize: 12, fontWeight: '800', color: '#001016' },
+  typeTextActive:{ color: '#6C47FF' },
+  addSlotBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#6C47FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  addSlotText:  { fontSize: 12, fontWeight: '800', color: '#FFF' },
   slotItem:     { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.background },
   slotLabel:    { fontSize: 14, fontWeight: '700', color: theme.colors.text },
   slotTime:     { fontSize: 12, color: theme.colors.textDim, marginTop: 2 },
-  addSlotForm:  { marginTop: 10, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: theme.colors.primary + '30', backgroundColor: theme.colors.primary + '05' },
+  addSlotForm:  { marginTop: 10, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(108,71,255,0.3)', backgroundColor: '#F3F0FF' },
   slotFormActions:{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 },
   cancelBtn:    { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
   cancelText:   { fontSize: 13, fontWeight: '700', color: theme.colors.textDim },
-  confirmBtn:   { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: theme.colors.primary },
-  confirmText:  { fontSize: 13, fontWeight: '800', color: '#001016' },
+  confirmBtn:   { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: '#6C47FF' },
+  confirmText:  { fontSize: 13, fontWeight: '800', color: '#FFF' },
   saveBar:      { padding: 16, paddingBottom: 24, backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border },
-  saveBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: theme.colors.primary, paddingVertical: 16, borderRadius: 14 },
-  saveBtnText:  { fontSize: 16, fontWeight: '800', color: '#001016' },
+  saveBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#6C47FF', paddingVertical: 16, borderRadius: 14 },
+  saveBtnText:  { fontSize: 16, fontWeight: '800', color: '#FFF' },
 });
 
 export default ShopDeliveryConfigScreen;

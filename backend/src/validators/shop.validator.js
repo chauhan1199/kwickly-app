@@ -49,7 +49,8 @@ const updateShopSchema = Joi.object({
     bannerUrl: Joi.string().allow('', null).optional(),
     bannerBase64: Joi.string().allow('', null).optional(),
     logoUrl: Joi.string().allow('', null).optional(),
-    logoBase64: Joi.string().allow('', null).optional()
+    logoBase64: Joi.string().allow('', null).optional(),
+    isOnline: Joi.boolean().optional()
 }).min(1);
 
 
