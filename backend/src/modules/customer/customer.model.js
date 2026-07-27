@@ -36,32 +36,38 @@ const CustomerSchema = new mongoose.Schema({
     },
     activeLocation: {
         type: { type: String, default: 'Point' },
-        coordinates: { type: [Number], default: [0, 0] }, // [longitude, latitude]
+        coordinates: { type: [Number], default: null }, // [longitude, latitude]
         addressDetails: {
             city: { type: String },
             pincode: { type: String },
             area: { type: String }
         }
     },
-    addresses: [{
-        isPrimary: { type: Boolean, default: false },
-        label: { type: String }, // e.g. Home, Office, Default
-        street: { type: String },
-        city: { type: String },
-        area: { type: String },
-        pincode: { type: String },
-        location: {
-            type: { type: String, default: 'Point' },
-            coordinates: { type: [Number], default: [0, 0] } // [lng, lat]
-        }
-    }],
+    addresses: {
+        type: [{
+            isPrimary: { type: Boolean, default: false },
+            label: { type: String }, // e.g. Home, Office, Default
+            street: { type: String },
+            city: { type: String },
+            area: { type: String },
+            pincode: { type: String },
+            location: {
+                type: { type: String, default: 'Point' },
+                coordinates: { type: [Number], default: null } // [lng, lat]
+            }
+        }],
+        validate: [arr => arr.length <= 10, 'Maximum 10 addresses']
+    },
     serviceRadius: { type: Number, default: 10 }, // in km
-    services: [{
-        category:     { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
-        categoryName: { type: String },  // ← denormalized name for fast category filtering
-        subcategories: [{ type: String }],
-        isActive:     { type: Boolean, default: true }
-    }],
+    services: {
+        type: [{
+            category:     { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+            categoryName: { type: String },  // ← denormalized name for fast category filtering
+            subcategories: [{ type: String }],
+            isActive:     { type: Boolean, default: true }
+        }],
+        validate: [arr => arr.length <= 20, 'Maximum 20 services']
+    },
     isOnline: { type: Boolean, default: false },
     city: { type: String },
     bio: { type: String },

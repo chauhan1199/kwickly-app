@@ -17,7 +17,6 @@ const generateToken = (user) => jwt.sign(
     { expiresIn: JWT_EXPIRES_IN }
 );
 
-const { emitToAll } = require('../../helpers/socket.helper');
 const smsService = require('../../services/sms.service');
 
 // â”€â”€â”€ OTP Rate Limiting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -76,11 +75,6 @@ exports.sendOTP = catchAsync(async (req, res) => {
     // Store OTP in Redis
     await setCache(`otp:${phone}`, otp, OTP_TTL);
 
-    // Emit for admin monitoring only in non-production
-    if (process.env.NODE_ENV !== 'production') {
-        emitToAll('OTP_SENT', { phone, timestamp: new Date() });
-    }
-
     return successResponse(res, null, AUTH.OTP_SENT);
 });
 
@@ -122,6 +116,11 @@ exports.verifyOTP = catchAsync(async (req, res) => {
         }
         
         user = await Customer.create(payload);
+
+        if (role === 'SHOP') {
+            const Shop = require('../shop/shop.model');
+            await Shop.getOrCreateForOwner(user._id, user.name);
+        }
     }
 
     const token = generateToken(user);

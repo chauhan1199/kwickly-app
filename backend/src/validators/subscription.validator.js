@@ -1,4 +1,6 @@
 const Joi = require('joi');
+const { errorResponse } = require('../helpers/response.helper');
+const { StatusCodes } = require('http-status-codes');
 
 const subscribeSchema = Joi.object({
     planId: Joi.string().required(),
@@ -12,10 +14,7 @@ const subscribeSchema = Joi.object({
 const validateSubscribe = (req, res, next) => {
     const { error } = subscribeSchema.validate(req.body);
     if (error) {
-        return res.status(400).json({
-            success: false,
-            message: error.details[0].message
-        });
+        return errorResponse(res, error.details[0].message, StatusCodes.BAD_REQUEST);
     }
     next();
 };

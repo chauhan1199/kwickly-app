@@ -13,9 +13,9 @@ import {
   ActivityIndicator,
   Image
 } from 'react-native';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import LeafletMapPicker from '../../components/LeafletMapPicker';
 import Geolocation from '@react-native-community/geolocation';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -163,12 +163,35 @@ const WorkerProfileScreen = ({ navigation }) => {
     ]);
   };
 
-  const pickKycImage = async () => {
-    const options = { mediaType: 'photo', quality: 0.8, includeBase64: true };
-    const response = await launchImageLibrary(options);
-    if (!response.didCancel && !response.errorCode && response.assets?.length > 0) {
-      setDocUrl(response.assets[0]);
-    }
+  const pickKycImage = () => {
+    Alert.alert(
+      'Upload KYC Document',
+      'Choose an option to upload document',
+      [
+        {
+          text: '📷 Take Photo (Camera)',
+          onPress: async () => {
+            const options = { mediaType: 'photo', quality: 0.8, includeBase64: true };
+            const response = await launchCamera(options);
+            if (!response.didCancel && !response.errorCode && response.assets?.length > 0) {
+              setDocUrl(response.assets[0]);
+            }
+          },
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: async () => {
+            const options = { mediaType: 'photo', quality: 0.8, includeBase64: true };
+            const response = await launchImageLibrary(options);
+            if (!response.didCancel && !response.errorCode && response.assets?.length > 0) {
+              setDocUrl(response.assets[0]);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleSaveBank = async () => {
@@ -799,21 +822,12 @@ const WorkerProfileScreen = ({ navigation }) => {
 
               <Text style={[styles.inputLabel, { marginTop: 16 }]}>Pin Location</Text>
               <View style={{ height: 150, borderRadius: 12, overflow: 'hidden', marginBottom: 16, backgroundColor: theme.colors.border }}>
-                <MapView
-                  provider={PROVIDER_GOOGLE}
+                <LeafletMapPicker
                   style={{ flex: 1 }}
-                  initialRegion={{
-                    latitude: addrCoordinate?.latitude || 19.0760,
-                    longitude: addrCoordinate?.longitude || 72.8777,
-                    latitudeDelta: 0.05,
-                    longitudeDelta: 0.05,
-                  }}
-                  onPress={(e) => setAddrCoordinate(e.nativeEvent.coordinate)}
-                >
-                  {addrCoordinate && (
-                    <Marker coordinate={addrCoordinate} />
-                  )}
-                </MapView>
+                  latitude={addrCoordinate?.latitude}
+                  longitude={addrCoordinate?.longitude}
+                  onLocationSelect={(coords) => setAddrCoordinate({ latitude: coords.lat, longitude: coords.lng })}
+                />
               </View>
               <Text style={{ fontSize: 12, color: theme.colors.textDim, marginBottom: 8, textAlign: 'center' }}>
                 {addrCoordinate ? `Pinned: ${addrCoordinate.latitude.toFixed(4)}, ${addrCoordinate.longitude.toFixed(4)}` : 'Tap on the map to drop a pin'}

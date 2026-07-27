@@ -28,8 +28,8 @@ const SuggestionSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected'],
-        default: 'pending'
+        enum: ['PENDING', 'APPROVED', 'REJECTED'],
+        default: 'PENDING'
     },
     rejectReason: { type: String },
     approveReason: { type: String },

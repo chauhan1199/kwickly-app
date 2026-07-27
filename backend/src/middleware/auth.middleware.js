@@ -66,10 +66,6 @@ const authMiddleware = catchAsync(async (req, res, next) => {
         await setCache(SESSION_KEY, user, 86400);
     }
 
-    if (!user) {
-        return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.UNAUTHORIZED);
-    }
-
     // Attach additional worker-specific metadata
     if (user.role === 'WORKER') {
         req.isVerifiedWorker = user.isVerified && user.kyc?.status === 'APPROVED';
@@ -77,6 +73,8 @@ const authMiddleware = catchAsync(async (req, res, next) => {
     }
 
     req.user = user;
+    req.isImpersonated = decoded.isImpersonated || false;
+    req.impersonatedBy = decoded.impersonatedBy || null;
     next();
 });
 

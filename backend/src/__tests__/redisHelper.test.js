@@ -307,8 +307,9 @@ describe('Redis Helper Functions', () => {
 
             const result = await acquireLock('my:lock', 50);
 
-            expect(result).toBe(true);
-            expect(mockRedisInstance.set).toHaveBeenCalledWith('lock:my:lock', '1', 'NX', 'EX', 50);
+            expect(result).toBeTruthy();
+            expect(typeof result).toBe('string');
+            expect(mockRedisInstance.set).toHaveBeenCalledWith('lock:my:lock', expect.any(String), 'NX', 'EX', 50);
         });
 
         it('should return false when lock is already held', async () => {
@@ -333,7 +334,7 @@ describe('Redis Helper Functions', () => {
             await acquireLock('default:ttl:lock');
 
             expect(mockRedisInstance.set).toHaveBeenCalledWith(
-                'lock:default:ttl:lock', '1', 'NX', 'EX', 50
+                'lock:default:ttl:lock', expect.any(String), 'NX', 'EX', 50
             );
         });
     });

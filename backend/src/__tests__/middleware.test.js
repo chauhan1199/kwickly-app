@@ -264,7 +264,7 @@ describe('error.middleware', () => {
         expect(res.status).toHaveBeenCalledWith(409);
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
             status: 'error',
-            message: expect.stringContaining('email')
+            message: expect.stringContaining('already exists')
         }));
     });
 

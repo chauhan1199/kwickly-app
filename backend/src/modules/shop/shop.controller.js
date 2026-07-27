@@ -5,7 +5,7 @@ const Payout     = require('../payout/payout.model');
 const WalletTxn  = require('../wallet/wallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { uploadImage, cleanupImage } = require('../../services/cloudinary.service');
+const { uploadImage, uploadBase64, cleanupImage } = require('../../services/cloudinary.service');
 const { emitToAll } = require('../../helpers/socket.helper');
 const { setCache, getCache, delCache, delCacheByPattern } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
@@ -18,17 +18,39 @@ const SHOP_CACHE_PREFIX = 'shops_list';
  * Create / register a shop for the logged-in owner
  */
 exports.createShop = catchAsync(async (req, res) => {
-    const ownerId = req.user._id;
-    const existing = await Shop.findOne({ ownerId });
-    if (existing) return errorResponse(res, 'You already have a registered shop', StatusCodes.CONFLICT);
+    const { name, category, description, address, location, delivery } = req.body;
+    let logoUrl = null;
 
-    const shop = await Shop.create({ ownerId, ...req.body });
+    if (req.body.logoBase64) {
+        const { url } = await uploadBase64(req.body.logoBase64, 'kwickly/shops');
+        logoUrl = url;
+    } else if (req.file) {
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/shops');
+        logoUrl = url;
+    }
 
-    // Invalidate shop caches
+    let parsedLocation = { type: 'Point', coordinates: [77.2090, 28.6139] };
+    if (location) {
+        if (typeof location === 'string') {
+            try { parsedLocation = JSON.parse(location); } catch (e) {}
+        } else if (typeof location === 'object') {
+            parsedLocation = location;
+        }
+    }
+
+    const shop = await Shop.create({
+        ownerId: req.user._id,
+        name,
+        category: category || 'General',
+        description,
+        address,
+        location: parsedLocation,
+        delivery: delivery || {},
+        logoUrl
+    });
+
     await delCacheByPattern(`*${SHOP_CACHE_PREFIX}*`);
-
-    emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SHOP', id: shop._id });
-    return successResponse(res, shop, 'Shop created', StatusCodes.CREATED);
+    return successResponse(res, shop, 'Shop created successfully', StatusCodes.CREATED);
 });
 
 /**
@@ -36,7 +58,7 @@ exports.createShop = catchAsync(async (req, res) => {
  * Shop owner fetches their own shop
  */
 exports.getMyShop = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id }).populate('ownerId', 'name phone');
+    const shop = await Shop.findOne({ ownerId: req.user._id }).populate('ownerId', 'name phone').select('-payoutMethods');
     if (!shop) return errorResponse(res, 'No shop found for this account', StatusCodes.NOT_FOUND);
     return successResponse(res, shop, 'Shop fetched');
 });
@@ -48,7 +70,21 @@ exports.getMyShop = catchAsync(async (req, res) => {
 exports.updateMyShop = catchAsync(async (req, res) => {
     const updateData = { ...req.body };
 
-    if (req.file) {
+    // Strip fields that shop owners must not modify (admin-only)
+    delete updateData.kyc;
+    delete updateData.ownerId;
+    delete updateData.subscription;
+    delete updateData.wallet;
+
+    if (updateData.logoBase64) {
+        const existing = await Shop.findOne({ ownerId: req.user._id }).select('logoUrl');
+        const { url } = await uploadBase64(updateData.logoBase64, 'kwickly/shops');
+        updateData.logoUrl = url;
+        delete updateData.logoBase64;
+        if (existing?.logoUrl && existing.logoUrl !== url) {
+            cleanupImage(existing.logoUrl);
+        }
+    } else if (req.file) {
         const existing = await Shop.findOne({ ownerId: req.user._id }).select('logoUrl');
         const { url } = await uploadImage(req.file.buffer, 'kwickly/shops');
         updateData.logoUrl = url;
@@ -142,6 +178,15 @@ exports.getAllShops = catchAsync(async (req, res) => {
 exports.getShopById = catchAsync(async (req, res) => {
     const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone');
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const isOwner = req.user && String(shop.ownerId._id) === String(req.user._id);
+    const isAdmin = req.user && req.user.role === 'ADMIN';
+    if (!isOwner && !isAdmin) {
+        shop.wallet = undefined;
+        shop.payoutMethods = undefined;
+        shop.subscription = undefined;
+    }
+
     return successResponse(res, shop, 'Shop fetched');
 });
 
@@ -173,7 +218,7 @@ exports.reviewShopKyc = catchAsync(async (req, res) => {
         action: 'KYC',
         entityType: 'SHOP',
         entityId: shop._id,
-        targetRole: 'CUSTOMER'
+        targetRole: 'SHOP'
     });
 
     return successResponse(res, shop, `Shop KYC ${status.toLowerCase()}`);
@@ -241,7 +286,14 @@ exports.deletePayoutMethod = catchAsync(async (req, res) => {
     const shop = await Shop.findOne({ ownerId: req.user._id });
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
+    const deletedMethod = shop.payoutMethods.find(m => String(m._id) === String(req.params.methodId));
     shop.payoutMethods = shop.payoutMethods.filter(m => String(m._id) !== String(req.params.methodId));
+
+    // If deleted method was primary and other methods remain, auto-assign primary
+    if (deletedMethod?.isPrimary && shop.payoutMethods.length > 0) {
+        shop.payoutMethods[0].isPrimary = true;
+    }
+
     await shop.save();
 
     return successResponse(res, shop.payoutMethods, 'Payout method deleted');
@@ -345,10 +397,6 @@ exports.updateShopAdmin = catchAsync(async (req, res) => {
     shop.description = (description || '').trim();
     shop.address = address.trim();
 
-    if (req.body.delivery) {
-        shop.delivery = { ...shop.delivery, ...req.body.delivery };
-        shop.markModified('delivery');
-    }
     if (req.body.deliveryConfig) {
         shop.deliveryConfig = { ...shop.deliveryConfig, ...req.body.deliveryConfig };
         shop.markModified('deliveryConfig');
@@ -423,30 +471,12 @@ exports.updateDeliveryConfig = catchAsync(async (req, res) => {
         sameDayDelivery, deliverySlots
     } = req.body;
 
-    if (shop.delivery) {
-        shop.delivery = {
-            ...shop.delivery,
-            radiusKm: deliveryRadiusKm ?? shop.delivery.radiusKm,
-            fee: deliveryCharge ?? shop.delivery.fee,
-            freeAbove: freeDeliveryAbove ?? shop.delivery.freeAbove,
-        };
-    }
-
-    if (!shop.delivery) {
-        shop.delivery = {
-            radiusKm: deliveryRadiusKm || 5,
-            fee: deliveryCharge || 0,
-            freeAbove: freeDeliveryAbove || 0
-        };
-    }
-
     shop.deliveryConfig = {
         deliveryRadiusKm, minOrderAmount, freeDeliveryAbove, deliveryCharge,
         discountEnabled, discountAbove, discountType, discountValue, discountPct, maxDiscountCap,
         sameDayDelivery, deliverySlots
     };
 
-    shop.markModified('delivery');
     shop.markModified('deliveryConfig');
     await shop.save();
 

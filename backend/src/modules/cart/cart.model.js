@@ -12,7 +12,7 @@ const CartItemSchema = new mongoose.Schema({
 const CartSchema = new mongoose.Schema({
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true, unique: true },
     shopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true },
-    items: [CartItemSchema],
+    items: { type: [CartItemSchema], validate: [arr => arr.length <= 50, 'Maximum 50 items'] },
     subtotal: { type: Number, default: 0 },
     deliveryCharge: { type: Number, default: 0 },
     discount: { type: Number, default: 0 },

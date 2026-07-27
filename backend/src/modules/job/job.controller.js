@@ -13,6 +13,15 @@ const { haversineDistance, calculateETA } = require('../../helpers/geo.helper');
 const { MAX_ACTIVE_JOBS, MAX_AVAILABLE_JOBS, GEOFENCE_MAX_METERS, JOB_ELIGIBLE_WORKERS_TTL } = require('../../constants/business');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
+const crypto = require('crypto');
+
+const timingSafeEqual = (a, b) => {
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+};
 
 /**
  * â”€â”€â”€ WORKER ELIGIBILITY CRITERIA (ALL must be true) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -75,22 +84,38 @@ exports.createJob = catchAsync(async (req, res) => {
     const initialRadiusKm = settings?.radius?.rounds?.[0]?.maxKm || settings?.radius?.maxKm || 15;
 
     // Create the job
-    const job = await Job.create({
-        customerId: req.user._id,
-        category,
-        subcategory,
-        description,
-        media,
-        preferredDate,
-        timeSlot,
-        location,
-        addressDetails: typeof addressDetails === 'string'
-            ? { fullAddress: addressDetails, city: targetCity }
-            : { ...addressDetails, city: targetCity },
-        status: 'BROADCASTING',
-        payment: { amount: 0, status: 'PENDING' },
-        broadcast: { round: 0, lastAttemptAt: new Date(), radiusKm: initialRadiusKm }
-    });
+    let job;
+    try {
+        job = await Job.create({
+            customerId: req.user._id,
+            category,
+            subcategory,
+            description,
+            media,
+            preferredDate,
+            timeSlot,
+            location,
+            addressDetails: typeof addressDetails === 'string'
+                ? { fullAddress: addressDetails, city: targetCity }
+                : { ...addressDetails, city: targetCity },
+            status: 'BROADCASTING',
+            payment: { amount: 0, status: 'PENDING' },
+            broadcast: { round: 0, lastAttemptAt: new Date(), radiusKm: initialRadiusKm }
+        });
+
+        // Race condition guard: re-check count after creation, delete if exceeded
+        const postCount = await Job.countDocuments({
+            customerId: req.user._id,
+            status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'] }
+        });
+        if (postCount > MAX_ACTIVE_JOBS) {
+            await Job.deleteOne({ _id: job._id });
+            return errorResponse(res, 'You can only have up to 5 ongoing requests at a time. Please wait for them to complete or cancel an existing request.', StatusCodes.BAD_REQUEST);
+        }
+    } catch (err) {
+        logger.error('[createJob] Failed to create job', err);
+        throw err;
+    }
 
     // â”€â”€ Step 2 & 3: Find ALL eligible workers using server-side criteria â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const eligibleWorkerIds = await findEligibleWorkers(job, initialRadiusKm, minBalance);
@@ -308,11 +333,12 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
     };
 
     if (worker.city) {
+        const escapedCity = worker.city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         query.$or = [
             { 'addressDetails.city': { $exists: false } },
             { 'addressDetails.city': null },
             { 'addressDetails.city': '' },
-            { 'addressDetails.city': { $regex: new RegExp('^' + worker.city + '$', 'i') } }
+            { 'addressDetails.city': { $regex: new RegExp('^' + escapedCity + '$', 'i') } }
         ];
     }
 
@@ -369,8 +395,10 @@ exports.startJob = catchAsync(async (req, res) => {
     if (!['ALLOCATED', 'ARRIVING'].includes(job.status)) {
         return errorResponse(res, 'Job cannot be started in this status', StatusCodes.BAD_REQUEST);
     }
-    if (job.security?.arrivalOtp && job.security.arrivalOtp !== arrivalOtp) {
-        return errorResponse(res, 'Invalid Arrival OTP', StatusCodes.BAD_REQUEST);
+    if (job.security?.arrivalOtp != null) {
+        if (!arrivalOtp || !timingSafeEqual(job.security.arrivalOtp, arrivalOtp)) {
+            return errorResponse(res, 'Invalid Arrival OTP', StatusCodes.BAD_REQUEST);
+        }
     }
 
     // GPS Spoofing Check: Geofence verification (â‰¤200 meters)
@@ -397,6 +425,7 @@ exports.startJob = catchAsync(async (req, res) => {
     }
 
     job.status = 'IN_PROGRESS';
+    job.security = { ...job.security, arrivalOtp: undefined };
     await job.save();
 
     emitToRoom(`customer_${job.customerId}`, 'JOB_STARTED', { jobId: job._id });
@@ -455,7 +484,7 @@ exports.payJob = catchAsync(async (req, res) => {
     const job = await Job.findOne({ _id: id, customerId: req.user._id });
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
     if (job.status !== 'COMPLETED') return errorResponse(res, 'Job is not completed yet', StatusCodes.BAD_REQUEST);
-    if (job.security?.completionOtp && job.security.completionOtp !== completionOtp) {
+    if (job.security?.completionOtp && !timingSafeEqual(job.security.completionOtp, completionOtp)) {
         return errorResponse(res, 'Invalid Completion OTP', StatusCodes.BAD_REQUEST);
     }
 
@@ -476,9 +505,15 @@ exports.payJob = catchAsync(async (req, res) => {
                 if (promo.maxDiscountCap && promoDiscount > promo.maxDiscountCap) promoDiscount = promo.maxDiscountCap;
                 if (promoDiscount > amount) promoDiscount = amount;
 
-                // Track usage
-                promo.usesCount += 1;
-                await promo.save();
+                // Track usage atomically with conditional check to prevent race condition
+                const incremented = await Promotion.findOneAndUpdate(
+                    { _id: promo._id, isActive: true, $or: [{ maxUses: { $exists: false } }, { maxUses: null }, { $expr: { $lt: ['$usesCount', '$maxUses'] } }] },
+                    { $inc: { usesCount: 1 } },
+                    { returnDocument: 'after' }
+                );
+                if (!incremented) {
+                    return errorResponse(res, 'This promo code has reached its usage limit', StatusCodes.BAD_REQUEST);
+                }
 
                 // Save promo info on job
                 job.promoCode = promoCode;
@@ -516,7 +551,11 @@ exports.payJob = catchAsync(async (req, res) => {
                 if (!updated) {
                     // LOOPHOLE FIX #1 â€” Cash Payment Evasion Mitigation
                     // Worker doesn't have enough balance â€” create debt record
-                    const debtUpdated = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': -adminTotalRevenue } }, { returnDocument: 'after', session });
+                    const debtUpdated = await Customer.findOneAndUpdate(
+                        { _id: worker._id, 'wallet.balance': { $gt: -500 } },
+                        { $inc: { 'wallet.balance': -adminTotalRevenue } },
+                        { returnDocument: 'after', session }
+                    );
 
                     const txnType = adminTotalRevenue < 0 ? 'PROMO_CREDIT' : 'JOB_DEBIT';
                     
@@ -557,23 +596,22 @@ exports.payJob = catchAsync(async (req, res) => {
 
         job.status = 'PAID';
         job.payment.status = 'PAID';
+        job.security = { ...job.security, completionOtp: undefined };
         await job.save({ session });
 
-        if (useTransaction) await session.commitTransaction();
-        if (useTransaction) session.endSession();
-
-        try {
-            const { collectPlatformFee } = require('../adminWallet/adminWallet.controller');
-            await collectPlatformFee(
+        // Collect platform fee inside the transaction so it's atomic with the payment
+        const { collectPlatformFee } = require('../adminWallet/adminWallet.controller');
+        await collectPlatformFee(
                 adminTotalRevenue,
                 `Platform fee + GST ${promoDiscount > 0 ? `(less â‚¹${promoDiscount} promo discount)` : ''} from job #${job._id.toString().slice(-6)} (${method})`,
                 job._id,
                 'Job',
-                { workerId: job.workerId, customerId: job.customerId, method }
+                { workerId: job.workerId, customerId: job.customerId, method },
+                { session }
             );
-        } catch (e) {
-            logger.error('Failed to credit admin wallet for platform fee:', e.message);
-        }
+
+        if (useTransaction) await session.commitTransaction();
+        if (useTransaction) session.endSession();
 
         await delCache(`session:${job.workerId}`);
         emitToRoom(`worker_${job.workerId}`, 'JOB_PAID', { jobId: job._id });
@@ -978,6 +1016,13 @@ exports.getJobById = catchAsync(async (req, res) => {
         .lean();
 
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+
+    if (req.user.role === 'CUSTOMER' && String(job.customerId._id) !== String(req.user._id)) {
+        return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
+    }
+    if (req.user.role === 'WORKER' && String(job.workerId?._id) !== String(req.user._id)) {
+        return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
+    }
 
     return successResponse(res, job, 'Job fetched');
 });

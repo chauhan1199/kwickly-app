@@ -106,6 +106,21 @@ exports.deleteAccount = catchAsync(async (req, res) => {
         if (!isMatch) return errorResponse(res, 'Invalid password', StatusCodes.UNAUTHORIZED);
     }
 
+    // Cancel all active jobs for this customer
+    const activeJobStatuses = ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'IN_PROGRESS'];
+    await Job.updateMany(
+        { customerId: req.user._id, status: { $in: activeJobStatuses } },
+        { status: 'CANCELLED', $push: { statusHistory: { status: 'CANCELLED', timestamp: new Date(), note: 'Cancelled due to account deletion' } } }
+    );
+
+    // Cancel all pending shop orders for this customer
+    const ShopOrder = require('../shoporder/shoporder.model');
+    const pendingOrderStatuses = ['NEW', 'CONFIRMED', 'PACKING'];
+    await ShopOrder.updateMany(
+        { customerId: req.user._id, status: { $in: pendingOrderStatuses } },
+        { status: 'CANCELLED', $push: { statusHistory: { status: 'CANCELLED', timestamp: new Date(), note: 'Cancelled due to account deletion' } } }
+    );
+
     // Properly soft-delete the account
     user.isDeleted = true;
     user.deletedAt = new Date();
@@ -183,6 +198,12 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
 
 exports.addAddress = catchAsync(async (req, res) => {
     const { label, street, city, pincode, location, isPrimary } = req.body;
+    if (!label || !street || !city) {
+        return errorResponse(res, 'label, street, and city are required', StatusCodes.BAD_REQUEST);
+    }
+    if (pincode !== undefined && pincode !== null && pincode !== '' && !/^\d{6}$/.test(pincode)) {
+        return errorResponse(res, 'Pincode must be a 6-digit string', StatusCodes.BAD_REQUEST);
+    }
     const user = await Customer.findById(req.user._id);
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
@@ -211,10 +232,24 @@ exports.updateAddress = catchAsync(async (req, res) => {
     }
 
     // Use !== undefined to allow empty strings for clearing fields
-    if (label !== undefined) address.label = label;
-    if (street !== undefined) address.street = street;
-    if (city !== undefined) address.city = city;
-    if (pincode !== undefined) address.pincode = pincode;
+    if (label !== undefined) {
+        if (!label) return errorResponse(res, 'label must be a non-empty string', StatusCodes.BAD_REQUEST);
+        address.label = label;
+    }
+    if (street !== undefined) {
+        if (!street) return errorResponse(res, 'street must be a non-empty string', StatusCodes.BAD_REQUEST);
+        address.street = street;
+    }
+    if (city !== undefined) {
+        if (!city) return errorResponse(res, 'city must be a non-empty string', StatusCodes.BAD_REQUEST);
+        address.city = city;
+    }
+    if (pincode !== undefined) {
+        if (pincode !== '' && !/^\d{6}$/.test(pincode)) {
+            return errorResponse(res, 'Pincode must be a 6-digit string', StatusCodes.BAD_REQUEST);
+        }
+        address.pincode = pincode;
+    }
     if (location !== undefined) address.location = location;
     if (isPrimary !== undefined) address.isPrimary = isPrimary;
 
@@ -258,7 +293,10 @@ exports.setPrimaryAddress = catchAsync(async (req, res) => {
 
 exports.triggerNotification = catchAsync(async (req, res) => {
     const { title, message } = req.body;
-    await notifyUser({ userId: req.user._id, entityType: 'OTHER', action: 'SYSTEM', title, message });
+    if (title !== 'test' && title !== 'Test Notification') {
+        return errorResponse(res, 'Only test notifications are allowed', StatusCodes.FORBIDDEN);
+    }
+    await notifyUser({ userId: req.user._id, entityType: 'OTHER', action: 'SYSTEM', title: 'Test Notification', message: message || 'This is a test notification.' });
     return successResponse(res, null, 'Notification triggered');
 });
 

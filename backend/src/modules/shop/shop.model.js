@@ -19,19 +19,13 @@ const ShopSchema = new mongoose.Schema({
     address: { type: String },
     location: {
         type:        { type: String, default: 'Point' },
-        coordinates: { type: [Number], default: [0, 0] }
+        coordinates: { type: [Number], default: null }
     },
 
     businessHours: {
         monFri: { type: String, default: '9 AM - 10 PM' },
         sat:    { type: String, default: '9 AM - 10 PM' },
         sun:    { type: String, default: '9 AM - 10 PM' }
-    },
-
-    delivery: {
-        radiusKm:         { type: Number, default: 3 },
-        fee:              { type: Number, default: 40 },
-        freeAbove:        { type: Number, default: 1000 }
     },
 
     deliveryConfig: {
@@ -51,10 +45,13 @@ const ShopSchema = new mongoose.Schema({
 
     kyc: {
         status:    { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
-        documents: [{ name: String, url: String, public_id: String, docType: { type: String, default: 'OTHER' } }]
+        documents: {
+            type: [{ name: String, url: String, public_id: String, docType: { type: String, default: 'OTHER' } }],
+            validate: [arr => arr.length <= 10, 'Maximum 10 documents']
+        }
     },
 
-    payoutMethods: [PayoutMethodSchema],
+    payoutMethods: { type: [PayoutMethodSchema], validate: [arr => arr.length <= 5, 'Maximum 5 payout methods'] },
 
     wallet: {
         balance: { type: Number, default: 0 }
@@ -76,6 +73,20 @@ const ShopSchema = new mongoose.Schema({
 ShopSchema.index({ location: '2dsphere' });
 ShopSchema.index({ 'kyc.status': 1 });
 ShopSchema.index({ isDeleted: 1 });
+
+ShopSchema.statics.getOrCreateForOwner = async function (ownerId, name) {
+    let shop = await this.findOne({ ownerId });
+    if (!shop) {
+        shop = await this.create({
+            ownerId,
+            name: name ? `${name}'s Shop` : 'My Shop',
+            category: 'General',
+            kyc: { status: 'PENDING' },
+            isOnline: true
+        });
+    }
+    return shop;
+};
 
 const clearCache = async function (doc, next) {
     const { delCacheByPattern } = require('../../helpers/redis.helper');

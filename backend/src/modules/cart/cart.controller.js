@@ -49,17 +49,17 @@ exports.addToCart = catchAsync(async (req, res) => {
         cart = await Cart.create({
             customerId,
             shopId,
-            items: [{ productId, name: product.name, price: product.sellingPrice || product.price, qty, imageUrl: product.imageUrl, stockAtAdd: product.stock }],
+            items: [{ productId, name: product.name, price: product.price, qty, imageUrl: product.imageUrl, stockAtAdd: product.stock }],
             expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
         });
     } else {
         const existingItem = cart.items.find(i => i.productId.toString() === productId);
         if (existingItem) {
             existingItem.qty += qty;
-            existingItem.price = product.sellingPrice || product.price;
+            existingItem.price = product.price;
             existingItem.stockAtAdd = product.stock;
         } else {
-            cart.items.push({ productId, name: product.name, price: product.sellingPrice || product.price, qty, imageUrl: product.imageUrl, stockAtAdd: product.stock });
+            cart.items.push({ productId, name: product.name, price: product.price, qty, imageUrl: product.imageUrl, stockAtAdd: product.stock });
         }
         cart.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     }

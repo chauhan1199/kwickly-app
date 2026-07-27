@@ -21,4 +21,6 @@ const CategorySchema = new mongoose.Schema({
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' }
 }, { timestamps: true });
 
+CategorySchema.index({ active: 1 });
+
 module.exports = mongoose.model('Category', CategorySchema);

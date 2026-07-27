@@ -44,7 +44,15 @@ const PayoutSchema = new mongoose.Schema({
     processedAt: {
         type: Date
     }
-}, { timestamps: true });
+}, {
+    timestamps: true,
+    validate: {
+        validator: function () {
+            return this.workerId || this.shopId;
+        },
+        message: 'At least one of workerId or shopId must be present.'
+    }
+});
 
 PayoutSchema.index({ status: 1 });
 PayoutSchema.index({ workerId: 1 });

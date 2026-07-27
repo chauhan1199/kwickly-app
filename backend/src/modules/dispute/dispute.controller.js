@@ -1,4 +1,4 @@
-﻿const { StatusCodes } = require('http-status-codes');
+const { StatusCodes } = require('http-status-codes');
 const Dispute = require('./dispute.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -20,7 +20,7 @@ exports.getDisputes = catchAsync(async (req, res) => {
         .sort('-createdAt')
         .lean();
     
-    await setCache(CACHE_KEY, disputes, 3600);
+    await setCache(CACHE_KEY, disputes, 300);
     
     return successResponse(res, disputes, 'Disputes fetched');
 });
@@ -46,7 +46,7 @@ exports.openDispute = catchAsync(async (req, res) => {
         return errorResponse(res, 'Unauthorized to open dispute for this item', StatusCodes.FORBIDDEN);
     }
 
-    const existingDispute = await Dispute.findOne({ customerId, [field]: targetId, status: { $ne: 'resolved' } });
+    const existingDispute = await Dispute.findOne({ customerId, [field]: targetId, status: { $ne: 'RESOLVED' } });
     if (existingDispute) {
         return errorResponse(res, 'An active dispute already exists for this item', StatusCodes.CONFLICT);
     }
@@ -60,8 +60,14 @@ exports.openDispute = catchAsync(async (req, res) => {
         issue: issue || reason,
         reason,
         description,
-        status: 'open'
+        status: 'OPEN'
     });
+
+    // Link Dispute collection entry to the job's embedded dispute system
+    if (field === 'jobId' && item.dispute) {
+        item.disputeId = dispute._id;
+        await item.save();
+    }
 
     await delCache(CACHE_KEY);
     triggerDashboardUpdate();
@@ -79,15 +85,19 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
     if (!dispute) return errorResponse(res, 'Dispute not found', StatusCodes.NOT_FOUND);
 
     // Idempotency guard â€” prevent double refund
-    if (status === 'refunded' && dispute.status === 'refunded') {
+    if (status === 'REFUNDED' && dispute.status === 'REFUNDED') {
         return errorResponse(res, 'This dispute has already been refunded', StatusCodes.CONFLICT);
     }
 
     // Wallet execution for REFUND
     let actualRefundAmount = 0;
-    if (status === 'refunded') {
+    if (status === 'REFUNDED') {
         const originalAmount = dispute.jobId?.payment?.amount || dispute.shopOrderId?.total || 0;
         actualRefundAmount = refundAmount !== undefined ? Number(refundAmount) : originalAmount;
+
+        if (actualRefundAmount > originalAmount) {
+            return errorResponse(res, `Refund amount (₹${actualRefundAmount}) cannot exceed the original payment amount (₹${originalAmount})`, StatusCodes.BAD_REQUEST);
+        }
 
         if (actualRefundAmount > 0) {
             const Customer = require('../customer/customer.model');
@@ -183,12 +193,12 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
 
     dispute.status = status;
     dispute.resolutionNotes = finalResolution;
-    if (['resolved', 'refunded', 'dismissed'].includes(status)) dispute.resolvedAt = new Date();
+    if (['RESOLVED', 'REFUNDED', 'DISMISSED'].includes(status)) dispute.resolvedAt = new Date();
     await dispute.save();
 
     logAdminActivity('UPDATE', 'DISPUTE', dispute._id, 
         `Dispute marked as ${status.toUpperCase()}`, 
-        `Resolution: ${finalResolution || 'None'}${status==='refunded' ? ` | Refunded: â‚¹${actualRefundAmount}` : ''}`, 
+        `Resolution: ${finalResolution || 'None'}${status==='REFUNDED' ? ` | Refunded: ₹${actualRefundAmount}` : ''}`, 
         req.user._id
     );
 

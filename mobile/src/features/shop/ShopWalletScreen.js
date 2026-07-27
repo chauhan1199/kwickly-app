@@ -141,16 +141,64 @@ const ShopWalletScreen = ({ navigation }) => {
               setAccounts(accounts.filter(acc => acc.id !== id));
             } catch (e) {
               Alert.alert('Error', 'Failed to delete account');
-              Alert.alert('Error', 'Failed to delete account');
             }
           }
         }
       ]
     );
   };
+  // Add Account State
+  const [addAccountModalVisible, setAddAccountModalVisible] = useState(false);
+  const [newAccountType, setNewAccountType] = useState('BANK'); // 'BANK' or 'UPI'
+  const [newAccountBankName, setNewAccountBankName] = useState('');
+  const [newAccountDetail, setNewAccountDetail] = useState('');
+  const [newAccountIfsc, setNewAccountIfsc] = useState('');
+  const [savingAccount, setSavingAccount] = useState(false);
 
   const handleAddAccount = () => {
-    Alert.alert("Add Account", "This would open the add bank/UPI flow.");
+    setNewAccountType('BANK');
+    setNewAccountBankName('');
+    setNewAccountDetail('');
+    setNewAccountIfsc('');
+    setAddAccountModalVisible(true);
+  };
+
+  const handleSubmitAddAccount = async () => {
+    if (newAccountType === 'BANK') {
+      if (!newAccountBankName.trim() || !newAccountDetail.trim() || !newAccountIfsc.trim()) {
+        Alert.alert('Validation Error', 'Bank name, Account Number, and IFSC Code are required.');
+        return;
+      }
+    } else {
+      if (!newAccountDetail.trim() || !newAccountDetail.includes('@')) {
+        Alert.alert('Validation Error', 'Please enter a valid UPI ID (e.g. name@upi).');
+        return;
+      }
+    }
+
+    try {
+      setSavingAccount(true);
+      const detailString = newAccountType === 'BANK'
+        ? `Acc: ${newAccountDetail.trim()} | IFSC: ${newAccountIfsc.trim().toUpperCase()}`
+        : newAccountDetail.trim();
+
+      const payload = {
+        type: newAccountType,
+        bankName: newAccountType === 'BANK' ? newAccountBankName.trim() : 'UPI',
+        detail: detailString,
+      };
+
+      const res = await shopService.addPayoutMethod(payload);
+      if (res.data?.status === 'success') {
+        setAddAccountModalVisible(false);
+        Alert.alert('Success', 'Payout method added successfully ✅');
+        fetchWallet();
+      }
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Failed to add payout method');
+    } finally {
+      setSavingAccount(false);
+    }
   };
 
   const handleSubmitWithdrawal = async () => {
@@ -172,7 +220,8 @@ const ShopWalletScreen = ({ navigation }) => {
         fetchWallet();
       }
     } catch (e) {
-      Alert.alert("Error", e.response?.data?.message || "Failed to withdraw.");
+      const msg = e.response?.data?.message || "Failed to withdraw.";
+      Alert.alert("Withdrawal Failed", msg);
     }
   };
 
@@ -534,6 +583,106 @@ const ShopWalletScreen = ({ navigation }) => {
             </TouchableWithoutFeedback>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Add Payout Account Modal */}
+      <Modal
+        visible={addAccountModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setAddAccountModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity 
+            style={{ flex: 1, width: '100%' }} 
+            activeOpacity={1} 
+            onPress={() => setAddAccountModalVisible(false)}
+          >
+            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+              <TouchableWithoutFeedback>
+                <View style={[styles.bottomSheet, { maxHeight: '85%' }]}>
+                  <View style={styles.sheetHeaderHandle} />
+                  <Text style={styles.sheetTitle}>Add Payout Method</Text>
+                  <Text style={styles.sheetSub}>Receive withdrawals to your bank or UPI</Text>
+
+                  {/* Type Selector */}
+                  <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+                    <TouchableOpacity 
+                      style={[{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center' }, newAccountType === 'BANK' ? { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary } : { borderColor: theme.colors.border }]}
+                      onPress={() => setNewAccountType('BANK')}
+                    >
+                      <Text style={{ fontWeight: '700', color: newAccountType === 'BANK' ? '#fff' : theme.colors.text }}>🏦 Bank Account</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center' }, newAccountType === 'UPI' ? { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary } : { borderColor: theme.colors.border }]}
+                      onPress={() => setNewAccountType('UPI')}
+                    >
+                      <Text style={{ fontWeight: '700', color: newAccountType === 'UPI' ? '#fff' : theme.colors.text }}>📱 UPI ID</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView showsVerticalScrollIndicator={false}>
+                    {newAccountType === 'BANK' ? (
+                      <>
+                        <Text style={styles.inputLabel}>Bank Name</Text>
+                        <TextInput 
+                          style={styles.inputField} 
+                          placeholder="e.g. HDFC Bank / State Bank of India"
+                          placeholderTextColor={theme.colors.textDim}
+                          value={newAccountBankName}
+                          onChangeText={setNewAccountBankName}
+                        />
+                        
+                        <Text style={[styles.inputLabel, { marginTop: 12 }]}>Account Number</Text>
+                        <TextInput 
+                          style={styles.inputField} 
+                          placeholder="Enter account number"
+                          keyboardType="numeric"
+                          placeholderTextColor={theme.colors.textDim}
+                          value={newAccountDetail}
+                          onChangeText={setNewAccountDetail}
+                        />
+
+                        <Text style={[styles.inputLabel, { marginTop: 12 }]}>IFSC Code</Text>
+                        <TextInput 
+                          style={styles.inputField} 
+                          placeholder="e.g. HDFC0001234"
+                          autoCapitalize="characters"
+                          placeholderTextColor={theme.colors.textDim}
+                          value={newAccountIfsc}
+                          onChangeText={setNewAccountIfsc}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.inputLabel}>UPI ID</Text>
+                        <TextInput 
+                          style={styles.inputField} 
+                          placeholder="e.g. mobilenumber@upi or name@okaxis"
+                          autoCapitalize="none"
+                          placeholderTextColor={theme.colors.textDim}
+                          value={newAccountDetail}
+                          onChangeText={setNewAccountDetail}
+                        />
+                      </>
+                    )}
+                  </ScrollView>
+
+                  <TouchableOpacity 
+                    style={[styles.withdrawSubmitBtn, { marginTop: 20 }]} 
+                    onPress={handleSubmitAddAccount}
+                    disabled={savingAccount}
+                  >
+                    <Text style={styles.withdrawSubmitBtnText}>{savingAccount ? 'Saving...' : 'Save Payout Method'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Transaction Details Modal */}

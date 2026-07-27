@@ -46,12 +46,14 @@ exports.getStats = catchAsync(async (req, res) => {
 
 exports.updateKyc = catchAsync(async (req, res) => {
     const { documentType } = req.body;
+    const validDocTypes = ['AADHAR', 'PAN', 'LICENSE', 'OTHER'];
+    const validatedDocType = validDocTypes.includes(documentType) ? documentType : 'OTHER';
     const user = await Customer.findById(req.user._id);
 
     if (req.file) {
         const { url, public_id } = await uploadImage(req.file.buffer, 'kwickly/kyc');
         user.kyc.documents.push({
-            type: documentType || 'OTHER',
+            type: validatedDocType,
             url,
             public_id
         });
@@ -62,7 +64,7 @@ exports.updateKyc = catchAsync(async (req, res) => {
         const buffer = Buffer.from(base64Data, 'base64');
         const { url, public_id } = await uploadImage(buffer, 'kwickly/kyc');
         user.kyc.documents.push({
-            type: documentType || 'OTHER',
+            type: validatedDocType,
             url,
             public_id
         });
@@ -165,7 +167,12 @@ exports.updateBank = catchAsync(async (req, res) => {
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
     triggerDashboardUpdate();
-    return successResponse(res, user.wallet, 'Bank details updated successfully');
+    const wallet = user.wallet?.toObject ? user.wallet.toObject() : { ...user.wallet };
+    if (wallet.bankDetails?.accountNumber) {
+        const acct = String(wallet.bankDetails.accountNumber);
+        wallet.bankDetails.accountNumber = '****' + acct.slice(-4);
+    }
+    return successResponse(res, wallet, 'Bank details updated successfully');
 });
 
 exports.updateServices = catchAsync(async (req, res) => {
@@ -187,6 +194,9 @@ exports.updateLocation = catchAsync(async (req, res) => {
         return errorResponse(res, 'You must be verified by an admin to update your broadcast location.', StatusCodes.FORBIDDEN);
     }
     const { city, pincode, area, radius, coordinates } = req.body;
+    if (radius !== undefined && (radius < 1 || radius > 100)) {
+        return errorResponse(res, 'Service radius must be between 1 and 100 km', StatusCodes.BAD_REQUEST);
+    }
     const updateData = {};
     if (radius !== undefined) updateData.serviceRadius = radius;
     if (city || pincode || area) {
@@ -220,6 +230,14 @@ exports.toggleOnlineStatus = catchAsync(async (req, res) => {
     const { isOnline } = req.body;
     if (typeof isOnline !== 'boolean') {
         return errorResponse(res, 'isOnline (boolean) is required', StatusCodes.BAD_REQUEST);
+    }
+
+    if (isOnline) {
+        const currentUser = await Customer.findById(req.user._id).select('activeLocation');
+        const loc = currentUser?.activeLocation?.coordinates;
+        if (!loc || (loc[0] === 0 && loc[1] === 0)) {
+            return errorResponse(res, 'You must set your location before going online', StatusCodes.BAD_REQUEST);
+        }
     }
 
     const user = await Customer.findByIdAndUpdate(
@@ -271,6 +289,10 @@ exports.addAddress = catchAsync(async (req, res) => {
     const { label, street, city, area, pincode, isPrimary, location } = req.body;
     const user = await Customer.findById(req.user._id);
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
+
+    if (user.addresses.length >= 10) {
+        return errorResponse(res, 'Maximum of 10 addresses allowed', StatusCodes.BAD_REQUEST);
+    }
 
     const newAddress = { label, street, city, area, pincode, isPrimary: !!isPrimary };
     if (location && location.coordinates) {
@@ -389,6 +411,8 @@ exports.updateFullProfile = catchAsync(async (req, res) => {
     if (name !== undefined) updateData.name = name;
     if (bio !== undefined) updateData.bio = bio;
     if (email !== undefined) updateData.email = email;
+    if (working_days !== undefined) updateData.working_days = working_days;
+    if (availability_hours !== undefined) updateData.availability_hours = availability_hours;
 
     if (req.file) {
         const existing = await Customer.findById(req.user._id).select('profileImage');
@@ -511,6 +535,7 @@ exports.requestEarningsWithdrawal = catchAsync(async (req, res) => {
     const { delCache } = require('../../helpers/redis.helper');
 
     if (!amount || amount <= 0) return errorResponse(res, 'Invalid amount', StatusCodes.BAD_REQUEST);
+    if (amount > 100000) return errorResponse(res, 'Maximum withdrawal amount is ₹1,00,000', StatusCodes.BAD_REQUEST);
     if (!payoutMethod) return errorResponse(res, 'Payout method required', StatusCodes.BAD_REQUEST);
 
     let session = null;

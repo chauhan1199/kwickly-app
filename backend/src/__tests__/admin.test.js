@@ -1,8 +1,31 @@
+// Mock Redis before loading app so auth middleware gets the mock
+jest.mock('../helpers/redis.helper', () => ({
+    initRedis: jest.fn(),
+    getRedis: jest.fn(),
+    setCache: jest.fn(),
+    getCache: jest.fn(),
+    delCache: jest.fn(),
+    delCacheByPattern: jest.fn(),
+    fetchWithCache: jest.fn(async (_key, _ttl, fetcher) => fetcher()),
+    acquireLock: jest.fn().mockResolvedValue('mock-holder-id'),
+    releaseLock: jest.fn()
+}));
+
+// Mock rate limiter before loading app
+jest.mock('../middleware/rateLimit.middleware', () => {
+    const passThrough = (req, res, next) => next();
+    return {
+        globalLimiter: passThrough,
+        authLimiter: passThrough,
+        otpSendLimiter: passThrough
+    };
+});
+
 const request = require('supertest');
 const app = require('../app');
 const { setup, teardown, clearCollections, createTestUser, generateToken } = require('./testSetup');
 
-beforeAll(async () => { await setup(); }, 60000);
+beforeAll(async () => { await setup(); await clearCollections(); }, 60000);
 afterAll(async () => { await teardown(); }, 30000);
 afterEach(async () => { await clearCollections(); }, 10000);
 

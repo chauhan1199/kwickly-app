@@ -44,10 +44,7 @@ const initSocket = (server) => {
             const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
 
             if (!token) {
-                // Allow unauthenticated connections only for admin dashboard monitoring
-                // They can join only the admin_dashboard room (further guarded in room join handler)
-                socket.isAuthenticated = false;
-                return next();
+                return next(new Error('Authentication required'));
             }
 
             try {
@@ -67,7 +64,7 @@ const initSocket = (server) => {
                 next();
             } catch (err) {
                 socket.isAuthenticated = false;
-                next(); // Don't disconnect — let through but without auth
+                next(new Error('Invalid token'));
             }
         });
 

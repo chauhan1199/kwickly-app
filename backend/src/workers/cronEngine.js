@@ -17,57 +17,57 @@ const startCronEngine = () => {
 
     // Run every minute
     cron.schedule('* * * * *', async () => {
-        const locked = await acquireLock('cron:broadcast_sweep', 50);
-        if (!locked) return; // Another node is handling this
-        
+        const holderId = await acquireLock('cron:broadcast_sweep', 120);
+        if (!holderId) return; // Another node is handling this
+
         try {
             await sweepBroadcastingJobs();
         } catch (err) {
             logger.error('[Cron Engine] Broadcast sweep error: ' + err.message);
         } finally {
-            await releaseLock('cron:broadcast_sweep');
+            await releaseLock('cron:broadcast_sweep', holderId);
         }
     });
 
     // Run every minute (ghost quotes)
     cron.schedule('* * * * *', async () => {
-        const locked = await acquireLock('cron:job_sweep', 50);
-        if (!locked) return; // Another node is handling this
+        const holderId = await acquireLock('cron:job_sweep', 50);
+        if (!holderId) return; // Another node is handling this
         
         try {
             await sweepGhostQuotes();
         } catch (err) {
             logger.error('[Cron Engine] Job sweep error: ' + err.message);
         } finally {
-            await releaseLock('cron:job_sweep');
+            await releaseLock('cron:job_sweep', holderId);
         }
     });
 
     // Run every 5 minutes (shop orders)
     cron.schedule('*/5 * * * *', async () => {
-        const locked = await acquireLock('cron:order_sweep', 290);
-        if (!locked) return;
+        const holderId = await acquireLock('cron:order_sweep', 290);
+        if (!holderId) return;
         
         try {
             await sweepGhostOrders();
         } catch (err) {
             logger.error('[Cron Engine] Order sweep error: ' + err.message);
         } finally {
-            await releaseLock('cron:order_sweep');
+            await releaseLock('cron:order_sweep', holderId);
         }
     });
 
     // Run every 10 minutes (worker timeouts)
     cron.schedule('*/10 * * * *', async () => {
-        const locked = await acquireLock('cron:worker_sweep', 590);
-        if (!locked) return;
+        const holderId = await acquireLock('cron:worker_sweep', 590);
+        if (!holderId) return;
         
         try {
             await sweepExpiredSubscriptions();
         } catch (err) {
             logger.error('[Cron Engine] Worker sweep error: ' + err.message);
         } finally {
-            await releaseLock('cron:worker_sweep');
+            await releaseLock('cron:worker_sweep', holderId);
         }
     });
 };
@@ -89,6 +89,7 @@ const sweepBroadcastingJobs = async () => {
     const minBalance = settings?.wallet?.minimumBalance || 100;
 
     for (const job of broadcastingJobs) {
+        try {
         const nextRound = (job.broadcast.round || 1) + 1;
 
         if (nextRound > 3) {
@@ -167,6 +168,9 @@ const sweepBroadcastingJobs = async () => {
             eligibleWorkerIds.forEach(workerId => {
                 emitToRoom(`worker_${workerId}`, 'NEW_JOB_ALERT', alertPayload);
             });
+        }
+        } catch (jobErr) {
+            logger.error(`[Cron] Error processing job ${job._id}: ${jobErr.message}`);
         }
     }
 };

@@ -19,15 +19,15 @@ import {
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { launchImageLibrary } from 'react-native-image-picker';
+import LeafletMapPicker from '../../components/LeafletMapPicker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { shopService } from '../../services/shopService';
-import { getImageUrl } from '../../utils/helpers';
+import { getImageUrl, requestCameraPermission } from '../../utils/helpers';
 import {
   Bell, Store, Clock, Truck, ShieldCheck,
   CreditCard, BarChart2, LogOut, ChevronRight,
@@ -149,8 +149,10 @@ export default function ShopSettingsScreen({ navigation }) {
         setEditCategory(s.category || 'General');
         setEditAddress(s.address || '');
         if (s.logoUrl) setEditLogo({ uri: getImageUrl(s.logoUrl) });
-        if (s.location?.coordinates?.length === 2) {
+        if (s.location?.coordinates?.length === 2 && (s.location.coordinates[0] !== 0 || s.location.coordinates[1] !== 0)) {
           setEditLocation({ lng: s.location.coordinates[0], lat: s.location.coordinates[1] });
+        } else {
+          setEditLocation({ lat: 28.6139, lng: 77.2090 });
         }
         setEditHours({
           monFri: s.businessHours?.monFri || '9 AM – 10 PM',
@@ -224,35 +226,93 @@ export default function ShopSettingsScreen({ navigation }) {
     catch { setIsOnline(!val); Alert.alert('Error', 'Failed to update visibility'); }
   };
 
-  const pickLogo = async () => {
-    const r = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
-    if (!r.didCancel && r.assets?.length) setEditLogo(r.assets[0]);
+  const pickLogo = () => {
+    Alert.alert(
+      'Upload Logo',
+      'Choose an option to upload shop logo',
+      [
+        {
+          text: '📷 Take Photo (Camera)',
+          onPress: async () => {
+            try {
+              const hasPerm = await requestCameraPermission();
+              if (!hasPerm) {
+                Alert.alert('Permission Denied', 'Camera permission is required to take photos.');
+                return;
+              }
+              const r = await launchCamera({ mediaType: 'photo', quality: 0.8, includeBase64: true, saveToPhotos: true });
+              if (!r.didCancel && r.assets?.length) setEditLogo(r.assets[0]);
+            } catch (err) {
+              Alert.alert('Error', 'Camera unavailable or failed');
+            }
+          },
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: async () => {
+            try {
+              const r = await launchImageLibrary({ mediaType: 'photo', quality: 0.8, includeBase64: true });
+              if (!r.didCancel && r.assets?.length) setEditLogo(r.assets[0]);
+            } catch (err) {
+              Alert.alert('Error', 'Failed to open gallery');
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
   };
 
   const saveDetails = async () => {
+    if (!editDetails.name || editDetails.name.trim().length < 3) {
+      Alert.alert('Validation Error', 'Shop name must be at least 3 characters');
+      return;
+    }
     try {
       setSaving(true);
-      const fd = new FormData();
-      fd.append('name', editDetails.name);
-      fd.append('category', editCategory);
-      fd.append('description', editDetails.description);
-      fd.append('address', editAddress);
-      fd.append('location', JSON.stringify({ type: 'Point', coordinates: [editLocation.lng, editLocation.lat] }));
-      if (editLogo?.type) {
-        fd.append('logo', { uri: editLogo.uri, type: editLogo.type, name: editLogo.fileName || 'logo.jpg' });
+
+      if (editDetails.ownerName?.trim()) {
+        try {
+          await shopService.updateOwnerName(editDetails.ownerName.trim());
+        } catch (e) {
+          // silently handle owner name update
+        }
       }
-      if (editDetails.ownerName) {
-        await shopService.updateOwnerName(editDetails.ownerName);
+
+      const payload = {
+        name: editDetails.name.trim(),
+        category: editCategory?.trim() || 'General',
+        description: editDetails.description?.trim() || '',
+        address: editAddress?.trim() || '',
+        location: {
+          type: 'Point',
+          coordinates: [
+            (editLocation?.lng && editLocation.lng !== 0) ? editLocation.lng : 77.2090,
+            (editLocation?.lat && editLocation.lat !== 0) ? editLocation.lat : 28.6139,
+          ],
+        },
+      };
+
+      if (editLogo?.base64) {
+        payload.logoBase64 = editLogo.base64.startsWith('data:')
+          ? editLogo.base64
+          : `data:${editLogo.type || 'image/jpeg'};base64,${editLogo.base64}`;
       }
-      
-      const res = await shopService.updateMyShop(fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+
+      const res = await shopService.updateMyShop(payload);
+
       if (res.data?.status === 'success') { 
         setShop(res.data.data); 
         setDetailsOpen(false); 
-        Alert.alert('✓ Saved', 'Shop details updated'); 
+        Alert.alert('✓ Saved', 'Shop details updated successfully'); 
         loadShop();
       }
-    } catch (e) { Alert.alert('Error', e?.response?.data?.message || 'Failed to save details'); }
+    } catch (e) {
+      let errMsg = e?.response?.data?.message || e?.message || 'Failed to save details';
+      if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
+      Alert.alert('Error', String(errMsg));
+    }
     finally { setSaving(false); }
   };
 
@@ -559,7 +619,12 @@ export default function ShopSettingsScreen({ navigation }) {
 
         <Text style={s.label}>GPS Location</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[s.outlineBtn, { flex: 1 }]} onPress={() => { setTempLocation(editLocation); setShowMap(true); }}>
+          <TouchableOpacity style={[s.outlineBtn, { flex: 1 }]} onPress={() => { 
+            const initLat = (editLocation.lat && editLocation.lat !== 0) ? editLocation.lat : 28.6139;
+            const initLng = (editLocation.lng && editLocation.lng !== 0) ? editLocation.lng : 77.2090;
+            setTempLocation({ lat: initLat, lng: initLng }); 
+            setShowMap(true); 
+          }}>
             <Text style={s.outlineBtnText}>📍 Choose on Map</Text>
           </TouchableOpacity>
         </View>
@@ -814,19 +879,12 @@ export default function ShopSettingsScreen({ navigation }) {
               <Text style={{ color: c.primary, fontSize: 16, fontWeight: 'bold' }}>Done</Text>
             </TouchableOpacity>
           </View>
-          <MapView
-            provider={PROVIDER_GOOGLE}
+          <LeafletMapPicker
             style={{ flex: 1 }}
-            initialRegion={{
-              latitude: tempLocation.lat,
-              longitude: tempLocation.lng,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            }}
-            onPress={(e) => setTempLocation({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude })}
-          >
-            <Marker coordinate={{ latitude: tempLocation.lat, longitude: tempLocation.lng }} draggable onDragEnd={(e) => setTempLocation({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude })} />
-          </MapView>
+            latitude={tempLocation.lat}
+            longitude={tempLocation.lng}
+            onLocationSelect={(coords) => setTempLocation(coords)}
+          />
           <View style={{ padding: 20, backgroundColor: c.card }}>
             <Text style={{ color: c.textDim, textAlign: 'center', marginBottom: 12 }}>Tap anywhere on the map or drag the marker to set your shop's location.</Text>
             <TouchableOpacity style={s.primaryBtn} onPress={() => { setEditLocation(tempLocation); setShowMap(false); }}>

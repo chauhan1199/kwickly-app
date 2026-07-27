@@ -13,8 +13,8 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { launchImageLibrary } from 'react-native-image-picker';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import LeafletMapPicker from '../../components/LeafletMapPicker';
 import { Store, MapPin } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
@@ -39,9 +39,37 @@ export default function CreateShopScreen({ navigation }) {
   const [hours, setHours] = useState({ monFri: '9 AM – 10 PM', sat: '9 AM – 10 PM', sun: 'Closed' });
   const [delivery, setDelivery] = useState({ radiusKm: '3', fee: '40', freeAbove: '1000' });
 
-  const pickLogo = async () => {
-    const r = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
-    if (!r.didCancel && r.assets?.length) setForm(p => ({ ...p, logo: r.assets[0] }));
+  const pickLogo = () => {
+    Alert.alert(
+      'Upload Logo',
+      'Choose an option to upload shop logo',
+      [
+        {
+          text: '📷 Take Photo (Camera)',
+          onPress: async () => {
+            try {
+              const r = await launchCamera({ mediaType: 'photo', quality: 0.8 });
+              if (!r.didCancel && r.assets?.length) setForm(p => ({ ...p, logo: r.assets[0] }));
+            } catch (err) {
+              Alert.alert('Error', 'Camera unavailable');
+            }
+          },
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: async () => {
+            try {
+              const r = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
+              if (!r.didCancel && r.assets?.length) setForm(p => ({ ...p, logo: r.assets[0] }));
+            } catch (err) {
+              Alert.alert('Error', 'Failed to open gallery');
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleCreate = async () => {
@@ -52,23 +80,27 @@ export default function CreateShopScreen({ navigation }) {
 
     try {
       setSaving(true);
-      const fd = new FormData();
-      fd.append('name', form.name.trim());
-      fd.append('category', form.category.trim() || 'General');
-      fd.append('address', form.address.trim());
-      fd.append('description', form.description.trim());
-      fd.append('location', JSON.stringify({ type: 'Point', coordinates: [location.lng, location.lat] }));
-      fd.append('businessHours', JSON.stringify(hours));
-      fd.append('delivery', JSON.stringify({
-        radiusKm: Number(delivery.radiusKm) || 3,
-        fee: Number(delivery.fee) || 40,
-        freeAbove: Number(delivery.freeAbove) || 1000,
-      }));
-      if (form.logo?.uri) {
-        fd.append('logo', { uri: form.logo.uri, type: form.logo.type, name: form.logo.fileName || 'logo.jpg' });
+      const payload = {
+        name: form.name.trim(),
+        category: form.category.trim() || 'General',
+        address: form.address.trim(),
+        description: form.description.trim(),
+        location: { type: 'Point', coordinates: [location.lng, location.lat] },
+        businessHours: hours,
+        delivery: {
+          radiusKm: Number(delivery.radiusKm) || 3,
+          fee: Number(delivery.fee) || 40,
+          freeAbove: Number(delivery.freeAbove) || 1000,
+        },
+      };
+
+      if (form.logo?.base64) {
+        payload.logoBase64 = form.logo.base64.startsWith('data:')
+          ? form.logo.base64
+          : `data:${form.logo.type || 'image/jpeg'};base64,${form.logo.base64}`;
       }
 
-      const res = await shopService.createShop(fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await shopService.createShop(payload);
       if (res.data?.status === 'success') {
         Alert.alert('Shop Created', 'Your shop has been created successfully!', [
           { text: 'OK', onPress: () => navigation.replace('ShopApp') },
@@ -186,14 +218,12 @@ export default function CreateShopScreen({ navigation }) {
                   <Text style={{ color: c.primary, fontSize: 16, fontWeight: 'bold' }}>Done</Text>
                 </TouchableOpacity>
               </View>
-              <MapView
-                provider={PROVIDER_GOOGLE}
+              <LeafletMapPicker
                 style={{ flex: 1 }}
-                initialRegion={{ latitude: tempLocation.lat, longitude: tempLocation.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
-                onPress={(e) => setTempLocation({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude })}
-              >
-                <Marker coordinate={{ latitude: tempLocation.lat, longitude: tempLocation.lng }} draggable onDragEnd={(e) => setTempLocation({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude })} />
-              </MapView>
+                latitude={tempLocation.lat}
+                longitude={tempLocation.lng}
+                onLocationSelect={(coords) => setTempLocation(coords)}
+              />
             </SafeAreaView>
           </View>
         )}

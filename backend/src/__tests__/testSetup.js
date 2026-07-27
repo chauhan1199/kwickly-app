@@ -14,7 +14,7 @@ jest.mock('../helpers/redis.helper', () => ({
     delCache: jest.fn(),
     delCacheByPattern: jest.fn(),
     fetchWithCache: jest.fn(),
-    acquireLock: jest.fn().mockResolvedValue(true),
+    acquireLock: jest.fn().mockResolvedValue('mock-holder-id'),
     releaseLock: jest.fn()
 }));
 
@@ -51,7 +51,8 @@ const setup = async () => {
     mongoServer = await MongoMemoryServer.create({
         instance: {
             port: 27018,
-            dbName: 'kwickly_test'
+            dbName: 'kwickly_test',
+            startupTimeoutMS: 60000
         },
         binary: {
             downloadTimeout: 120

@@ -1,3 +1,38 @@
+// jest.mock calls are hoisted to the top by Babel — these MUST come before any require()
+jest.mock('../helpers/redis.helper', () => ({
+    initRedis: jest.fn(),
+    getRedis: jest.fn(),
+    setCache: jest.fn(),
+    getCache: jest.fn(),
+    delCache: jest.fn(),
+    delCacheByPattern: jest.fn(),
+    fetchWithCache: jest.fn(),
+    acquireLock: jest.fn().mockResolvedValue('mock-holder-id'),
+    releaseLock: jest.fn()
+}));
+
+jest.mock('../middleware/rateLimit.middleware', () => {
+    const passThrough = (req, res, next) => next();
+    return {
+        globalLimiter: passThrough,
+        authLimiter: passThrough,
+        otpSendLimiter: passThrough
+    };
+});
+
+jest.mock('../helpers/socket.helper', () => ({
+    initSocket: jest.fn(),
+    getIO: jest.fn(),
+    emitToAll: jest.fn(),
+    emitToRoom: jest.fn(),
+    triggerDashboardUpdate: jest.fn(),
+    emitToUser: jest.fn()
+}));
+
+jest.mock('../services/sms.service', () => ({
+    sendOTP: jest.fn().mockResolvedValue('1234')
+}));
+
 const request = require('supertest');
 const app = require('../app');
 const { setup, teardown, clearCollections, createTestUser, generateToken } = require('./testSetup');
@@ -113,8 +148,14 @@ describe('ShopOrder Routes', () => {
             const res = await request(app)
                 .patch(`/api/v1/shoporders/${order._id}/status`)
                 .set('Authorization', `Bearer ${shopToken}`)
-                .send({ status: 'PACKING' });
+                .send({ status: 'CONFIRMED' });
             expect(res.status).toBe(200);
+
+            const res2 = await request(app)
+                .patch(`/api/v1/shoporders/${order._id}/status`)
+                .set('Authorization', `Bearer ${shopToken}`)
+                .send({ status: 'PACKING' });
+            expect(res2.status).toBe(200);
         });
     });
 });

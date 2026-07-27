@@ -1,3 +1,37 @@
+// Mock Redis before loading app so auth middleware gets the mock
+jest.mock('../helpers/redis.helper', () => ({
+    initRedis: jest.fn(),
+    getRedis: jest.fn(),
+    setCache: jest.fn(),
+    getCache: jest.fn(),
+    delCache: jest.fn(),
+    delCacheByPattern: jest.fn(),
+    fetchWithCache: jest.fn(async (_key, _ttl, fetcher) => fetcher()),
+    acquireLock: jest.fn().mockResolvedValue('mock-holder-id'),
+    releaseLock: jest.fn()
+}));
+
+// Mock rate limiter before loading app
+jest.mock('../middleware/rateLimit.middleware', () => {
+    const passThrough = (req, res, next) => next();
+    return {
+        globalLimiter: passThrough,
+        authLimiter: passThrough,
+        otpSendLimiter: passThrough
+    };
+});
+
+// Mock order model (referenced lazily in deliveryStaff controller)
+jest.mock('../modules/order/order.model', () => ({
+    findOne: jest.fn().mockImplementation((query) => {
+        // Return an active order when the controller checks for active deliveries
+        if (query && query.status && query.status.$in) {
+            return Promise.resolve({ _id: query._id, status: 'CONFIRMED' });
+        }
+        return Promise.resolve(null);
+    })
+}), { virtual: true });
+
 const request = require('supertest');
 const app = require('../app');
 const { setup, teardown, clearCollections, createTestUser, generateToken } = require('./testSetup');
@@ -5,7 +39,7 @@ const Shop = require('../modules/shop/shop.model');
 const DeliveryStaff = require('../modules/deliveryStaff/deliveryStaff.model');
 const mongoose = require('mongoose');
 
-beforeAll(async () => { await setup(); }, 60000);
+beforeAll(async () => { await setup(); await clearCollections(); }, 60000);
 afterAll(async () => { await teardown(); }, 30000);
 afterEach(async () => { await clearCollections(); }, 10000);
 

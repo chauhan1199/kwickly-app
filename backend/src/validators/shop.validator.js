@@ -26,10 +26,16 @@ const createShopSchema = Joi.object({
 
 const updateShopSchema = Joi.object({
     name: Joi.string().min(3).max(100).optional(),
-    description: Joi.string().allow('').max(500).optional(),
+    description: Joi.string().allow('', null).max(500).optional(),
     category: Joi.string().min(2).max(50).optional(),
-    address: Joi.string().min(3).max(200).optional(),
-    location: Joi.string().optional(),
+    address: Joi.string().allow('', null).max(200).optional(),
+    location: Joi.alternatives().try(
+        Joi.string(),
+        Joi.object({
+            type: Joi.string().valid('Point').default('Point'),
+            coordinates: Joi.array().items(Joi.number()).length(2)
+        })
+    ).optional(),
     delivery: Joi.object({
         fee: Joi.number().min(0).optional(),
         freeAbove: Joi.number().min(0).optional(),
@@ -40,7 +46,6 @@ const updateShopSchema = Joi.object({
         sat: Joi.string().max(50).optional(),
         sun: Joi.string().max(50).optional()
     }).optional(),
-    kyc: Joi.object().unknown(true).optional(),
     bannerUrl: Joi.string().allow('', null).optional(),
     bannerBase64: Joi.string().allow('', null).optional(),
     logoUrl: Joi.string().allow('', null).optional(),

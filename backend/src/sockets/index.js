@@ -10,6 +10,7 @@
 const { getIO } = require('../helpers/socket.helper');
 const { getCache } = require('../helpers/redis.helper');
 const logger    = require('../helpers/logger.helper');
+const Job       = require('../modules/job/job.model');
 
 const initSocketHandlers = () => {
     const io = getIO();
@@ -21,9 +22,15 @@ const initSocketHandlers = () => {
         // Removed JOIN_CUSTOMER_ROOM, JOIN_WORKER_ROOM, JOIN_SHOP_ROOM, JOIN_ADMIN
         // as they are automatically handled securely in socket.helper.js on connection based on JWT role.
 
-        socket.on('JOIN_JOB_ROOM', ({ jobId }) => {
-            // Workers and customers can join job rooms to receive bid updates
+        socket.on('JOIN_JOB_ROOM', async ({ jobId }) => {
             if (!socket.isAuthenticated) return socket.emit('ERROR', { message: 'Authentication required' });
+
+            const job = await Job.findById(jobId).select('customerId workerId').lean();
+            if (!job) return socket.emit('ERROR', { message: 'Job not found' });
+            if (socket.userRole !== 'ADMIN' && job.customerId?.toString() !== socket.userId && job.workerId?.toString() !== socket.userId) {
+                return socket.emit('ERROR', { message: 'Access denied' });
+            }
+
             socket.join(`job_${jobId}`);
             logger.info(`[Socket] Socket ${socket.id} joined job room ${jobId}`);
         });
@@ -45,12 +52,13 @@ const initSocketHandlers = () => {
 
         /* ── In-app Chat ─────────────────────────────────────────── */
 
-        socket.on('SEND_MESSAGE', ({ jobId, senderId, senderRole, message, timestamp }) => {
+        socket.on('SEND_MESSAGE', ({ jobId, senderId, message, timestamp }) => {
             if (!socket.isAuthenticated) return;
-            // Validate sender is who they claim to be
             if (String(socket.userId) !== String(senderId)) return;
+            if (typeof message !== 'string') return;
+            const sanitizedMessage = message.replace(/<[^>]*>/g, '').trim().substring(0, 2000);
             io.to(`job_${jobId}`).emit('NEW_MESSAGE', {
-                jobId, senderId, senderRole, message, timestamp
+                jobId, senderId, senderRole: socket.userRole, message: sanitizedMessage, timestamp
             });
         });
     });

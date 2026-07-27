@@ -17,20 +17,25 @@ const startSubscriptionCron = () => {
 
         try {
             // 1. Find workers whose subscription is expiring in exactly 3 days
+            const startOf3Days = new Date(threeDaysFromNow);
+            startOf3Days.setHours(0,0,0,0);
+            const endOf3Days = new Date(threeDaysFromNow);
+            endOf3Days.setHours(23,59,59,999);
+
             const expiringSoonWorkers = await Customer.find({
                 role: 'WORKER',
                 $or: [
                     {
                         'subscription.expiryDate': {
-                            $gte: new Date(threeDaysFromNow.setHours(0,0,0,0)),
-                            $lte: new Date(threeDaysFromNow.setHours(23,59,59,999))
+                            $gte: startOf3Days,
+                            $lte: endOf3Days
                         }
                     },
                     {
                         'subscription.isTrial': true,
                         'subscription.trialEndDate': {
-                            $gte: new Date(threeDaysFromNow.setHours(0,0,0,0)),
-                            $lte: new Date(threeDaysFromNow.setHours(23,59,59,999))
+                            $gte: startOf3Days,
+                            $lte: endOf3Days
                         }
                     }
                 ]

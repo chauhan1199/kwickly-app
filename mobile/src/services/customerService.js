@@ -5,9 +5,7 @@ export const customerService = {
     api.get('/customers/me/profile'),
 
   updateProfilePhoto: async (formData) => {
-    const response = await api.put('/customers/me/profile', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    const response = await api.put('/customers/me/profile', formData);
     return response.data;
   },
 

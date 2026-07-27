@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const NotificationSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'Customer',
         required: false // If null, it's a broadcast
     },
     title: {
@@ -40,7 +40,7 @@ const NotificationSchema = new mongoose.Schema({
     },
     performedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'Customer'
     },
     targetRole: {
         type: String,
@@ -49,11 +49,11 @@ const NotificationSchema = new mongoose.Schema({
     },
     readBy: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'Customer'
     }],
     deletedBy: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'Customer'
     }]
 }, { timestamps: true });
 

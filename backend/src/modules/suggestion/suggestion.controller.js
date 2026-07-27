@@ -30,7 +30,7 @@ exports.approveSuggestion = catchAsync(async (req, res) => {
     const sug = await Suggestion.findById(id);
     if (!sug) return errorResponse(res, 'Suggestion not found', StatusCodes.NOT_FOUND);
 
-    if (sug.status !== 'pending') {
+    if (sug.status !== 'PENDING') {
         return errorResponse(res, `Suggestion already ${sug.status}`, StatusCodes.BAD_REQUEST);
     }
 
@@ -90,7 +90,7 @@ exports.approveSuggestion = catchAsync(async (req, res) => {
         await delCache('categories_list');
     }
 
-    sug.status = 'approved';
+    sug.status = 'APPROVED';
     sug.approveReason = reason;
     await sug.save();
 
@@ -185,11 +185,11 @@ exports.rejectSuggestion = catchAsync(async (req, res) => {
     const sug = await Suggestion.findById(id);
     if (!sug) return errorResponse(res, 'Suggestion not found', StatusCodes.NOT_FOUND);
 
-    if (sug.status !== 'pending') {
+    if (sug.status !== 'PENDING') {
         return errorResponse(res, `Suggestion already ${sug.status}`, StatusCodes.BAD_REQUEST);
     }
 
-    sug.status = 'rejected';
+    sug.status = 'REJECTED';
     sug.rejectReason = reason;
     await sug.save();
 

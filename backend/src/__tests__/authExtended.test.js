@@ -15,7 +15,7 @@ jest.mock('../helpers/redis.helper', () => ({
     delCache: jest.fn().mockResolvedValue(1),
     delCacheByPattern: jest.fn().mockResolvedValue(0),
     fetchWithCache: jest.fn(),
-    acquireLock: jest.fn().mockResolvedValue(true),
+    acquireLock: jest.fn().mockResolvedValue('mock-holder-id'),
     releaseLock: jest.fn()
 }));
 

@@ -10,7 +10,7 @@ const QuoteSchema = new mongoose.Schema({
 
     workerLocation: {
         type:        { type: String, default: 'Point' },
-        coordinates: { type: [Number], default: [0, 0] }  // [lng, lat]
+        coordinates: { type: [Number], default: null }  // [lng, lat]
     },
 
     status: {

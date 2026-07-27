@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
 const ShopOrder  = require('./shoporder.model');
@@ -9,13 +10,14 @@ const Promotion  = require('../promotion/promotion.model');
 const Settlement = require('../settlement/settlement.model');
 const AppSettings = require('../settings/settings.model');
 const catchAsync = require('../../helpers/async.helper');
+const logger = require('../../helpers/logger.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
 const { collectCommission } = require('../adminWallet/adminWallet.controller');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
-const { OTP_MIN, OTP_MAX } = require('../../constants/business');
+const { OTP_MIN, OTP_MAX, OTP_TTL } = require('../../constants/business');
 
 function escapeHtml(str) {
     if (!str) return '';
@@ -50,6 +52,29 @@ exports.placeOrder = catchAsync(async (req, res) => {
 
     try {
         const sessOpts = useTransaction ? { session } : {};
+
+        // P0 FIX: Fetch actual products from DB to use verified prices instead of client-supplied prices
+        const productIds = items.filter(i => i.productId).map(i => i.productId);
+        const dbProducts = await Product.find({ _id: { $in: productIds }, shopId, isActive: true }).lean();
+        const productMap = new Map(dbProducts.map(p => [p._id.toString(), p]));
+
+        // Validate all products exist and have sufficient stock, using DB prices
+        for (const item of items) {
+            if (!item.productId) continue;
+            const dbProduct = productMap.get(item.productId.toString());
+            if (!dbProduct || dbProduct.stock < item.qty) {
+                if (useTransaction && session) await session.abortTransaction();
+                if (session) session.endSession();
+                return errorResponse(
+                    res,
+                    `Product "${item.name}" is out of stock or unavailable. Please update your cart.`,
+                    StatusCodes.CONFLICT
+                );
+            }
+            // Replace client-supplied price with verified database price
+            item.price = dbProduct.price;
+        }
+
         // Atomically decrement stock for each item â€” if any item has insufficient stock, the whole operation fails
         for (const item of items) {
             if (!item.productId) continue;
@@ -71,9 +96,9 @@ exports.placeOrder = catchAsync(async (req, res) => {
             }
         }
 
-        // Calculate totals
+        // Calculate totals using verified database prices
         const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
-        const deliveryFee = subtotal >= shop.delivery.freeAbove ? 0 : shop.delivery.fee;
+        const deliveryFee = subtotal >= shop.deliveryConfig.freeDeliveryAbove ? 0 : shop.deliveryConfig.deliveryCharge;
 
         // Apply promo code discount if provided
         let discount = 0;
@@ -144,7 +169,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
             await delCache(`session:${req.user._id}`);
         }
 
-        const deliveryOtp = Math.floor(OTP_MIN + Math.random() * (OTP_MAX - OTP_MIN)).toString();
+        const deliveryOtp = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
         // Use timestamp + random to avoid collisions from countDocuments() race conditions
         const now = new Date();
         const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
@@ -163,6 +188,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
             deliveryAddress,
             deliveryLocation,
             deliveryOtp,
+            deliveryOtpGeneratedAt: new Date(),
             payment: { amount: total, status: paymentStatus, method: paymentMethod || 'WALLET' },
             promoCode: promoDetails?.code || undefined,
             promoDiscount: discount > 0 ? discount : undefined,
@@ -361,8 +387,8 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
                     <tr>
                         <td>${escapeHtml(item.name)}</td>
                         <td>${item.qty}</td>
-                        <td>â‚¹${item.price.toFixed(2)}</td>
-                        <td style="text-align:right;font-weight:600">â‚¹${(item.price * item.qty).toFixed(2)}</td>
+                        <td>â‚¹${escapeHtml(item.price.toFixed(2))}</td>
+                        <td style="text-align:right;font-weight:600">â‚¹${escapeHtml((item.price * item.qty).toFixed(2))}</td>
                     </tr>`).join('')}
                 </tbody>
             </table>
@@ -391,14 +417,26 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
  * Customer cancels their own order (only if NEW status)
  */
 exports.cancelOrder = catchAsync(async (req, res) => {
-    const order = await ShopOrder.findOne({ _id: req.params.id, customerId: req.user._id });
-    if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
-    if (order.status !== 'NEW') return errorResponse(res, 'Only new orders can be cancelled', StatusCodes.BAD_REQUEST);
+    // Atomic status check: only cancel if order is in NEW or CONFIRMED state
+    const order = await ShopOrder.findOneAndUpdate(
+        { _id: req.params.id, customerId: req.user._id, status: { $in: ['NEW', 'CONFIRMED'] } },
+        { status: 'CANCELLED', $push: { statusHistory: { status: 'CANCELLED', timestamp: new Date(), note: 'Cancelled by customer' } } },
+        { returnDocument: 'after' }
+    );
+    if (!order) {
+        const existing = await ShopOrder.findOne({ _id: req.params.id, customerId: req.user._id });
+        if (!existing) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
+        return errorResponse(res, 'Order cannot be cancelled in its current status', StatusCodes.BAD_REQUEST);
+    }
 
-    // Restore stock
+    // Restore stock (partial restoration is acceptable)
     for (const item of order.items) {
         if (item.productId) {
-            await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } });
+            try {
+                await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } });
+            } catch (stockErr) {
+                logger.error(`[cancelOrder] Failed to restore stock for product ${item.productId}:`, stockErr);
+            }
         }
     }
 
@@ -411,17 +449,13 @@ exports.cancelOrder = catchAsync(async (req, res) => {
             userId: order.customerId,
             type: 'REFUND',
             amount: order.total,
-            balance: refundedCustomer?.wallet?.balance || 0,
+            balance: refundedCustomer?.wallet?.balance ?? 0,
             refId: String(order._id),
             status: 'COMPLETED',
             description: `Refund for cancelled order #${String(order._id).slice(-6)}`
         });
         await delCache(`session:${order.customerId}`);
     }
-
-    order.status = 'CANCELLED';
-    order.statusHistory.push({ status: 'CANCELLED', timestamp: new Date(), note: 'Cancelled by customer' });
-    await order.save();
 
     // Notify shop
     emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', { orderId: order._id, status: 'CANCELLED' });
@@ -465,10 +499,43 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         if (!order) return errorResponse(res, 'Order not found or not authorized', StatusCodes.NOT_FOUND);
     }
 
+    // Status transition validation
+    const validTransitions = {
+        NEW:                ['CONFIRMED', 'CANCELLED'],
+        CONFIRMED:          ['PACKING', 'CANCELLED'],
+        PACKING:            ['OUT_FOR_DELIVERY', 'CANCELLED'],
+        OUT_FOR_DELIVERY:   ['DELIVERED', 'CANCELLED'],
+        DELIVERED:          ['CANCELLED'],
+        CANCELLED:          [],
+    };
+    const allowedNext = validTransitions[order.status];
+    if (!allowedNext) {
+        return errorResponse(res, `Cannot transition from status "${order.status}"`, StatusCodes.BAD_REQUEST);
+    }
+    if (!allowedNext.includes(status)) {
+        return errorResponse(res, `Cannot transition from "${order.status}" to "${status}". Allowed: ${allowedNext.join(', ') || 'none'}`, StatusCodes.BAD_REQUEST);
+    }
+
     order.statusHistory.push({ status, timestamp: new Date(), note: note || `Status changed to ${status}` });
 
     if (status === 'DELIVERED') {
-        if (!otp || String(otp) !== String(order.deliveryOtp)) {
+        if (!otp) {
+            return errorResponse(res, 'Delivery OTP is required', StatusCodes.BAD_REQUEST);
+        }
+
+        // H15: Check OTP expiry (OTP_TTL seconds from generation)
+        const otpAge = (Date.now() - new Date(order.deliveryOtpGeneratedAt || order.createdAt).getTime()) / 1000;
+        if (otpAge > OTP_TTL) {
+            return errorResponse(res, 'Delivery OTP has expired. Please request a new one.', StatusCodes.BAD_REQUEST);
+        }
+
+        // H15: Check attempt limit (max 5 attempts per OTP)
+        if ((order.deliveryOtpAttempts || 0) >= 5) {
+            return errorResponse(res, 'Too many OTP attempts. Please request a new OTP.', StatusCodes.BAD_REQUEST);
+        }
+
+        if (String(otp) !== String(order.deliveryOtp)) {
+            await ShopOrder.findByIdAndUpdate(order._id, { $inc: { deliveryOtpAttempts: 1 } });
             return errorResponse(res, 'Invalid delivery OTP. Please ask the customer for the correct OTP.', StatusCodes.BAD_REQUEST);
         }
 
@@ -496,7 +563,9 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         await Shop.findByIdAndUpdate(shop._id, { $inc: { totalOrders: 1 } });
 
         order.status = 'DELIVERED';
-        order.payment.status = 'PAID';
+        if (order.payment?.method !== 'CASH') {
+            order.payment.status = 'PAID';
+        }
         await order.save();
     } else if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
         let session = null, useTransaction = false;
@@ -527,6 +596,16 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
                     description: `Refund for cancelled order #${String(order._id).slice(-6)}`
                 }], sessOpts);
                 await delCache(`session:${order.customerId}`);
+            }
+
+            // H16: If order was delivered, cancel the associated settlement
+            if (order.status === 'DELIVERED') {
+                const settlement = await Settlement.findOne({ orderId: order._id, status: { $in: ['PENDING', 'PARTIAL'] } });
+                if (settlement) {
+                    settlement.status = 'CANCELLED';
+                    settlement.note = (settlement.note ? settlement.note + ' | ' : '') + 'Cancelled: order was cancelled after delivery';
+                    await settlement.save(sessOpts);
+                }
             }
 
             order.status = status;

@@ -58,6 +58,9 @@ app.use(compression());
 const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
+// ─── Global Rate Limiter ──────────────────────────────────────────────────────
+app.use(globalLimiter);
+
 // ─── Route Handlers ──────────────────────────────────────────────────────────
 app.use('/api/v1/auth',          require('./modules/auth/auth.routes'));
 app.use('/api/v1/admin',         require('./modules/admin/admin.routes'));
@@ -83,7 +86,7 @@ app.use('/api/v1/payments',      require('./modules/payment/payment.routes'));
 app.use('/api/v1/admin/admin-wallet', require('./modules/adminWallet/adminWallet.routes'));
 
 // Health check — no auth, no rate limit
-app.get('/health', globalLimiter, (req, res) => {
+app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', message: 'Kwickly API is running' });
 });
 

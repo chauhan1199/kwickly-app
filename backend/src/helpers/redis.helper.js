@@ -144,9 +144,12 @@ const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
     if (client) {
         const acquired = await client.set(lockKey, '1', 'NX', 'EX', 10);
         if (!acquired) {
-            await new Promise(r => setTimeout(r, 200));
-            data = await getCache(key);
-            if (data !== null) return data;
+            const delays = [200, 500, 1000];
+            for (const delay of delays) {
+                await new Promise(r => setTimeout(r, delay));
+                data = await getCache(key);
+                if (data !== null) return data;
+            }
         }
     }
     
@@ -165,24 +168,29 @@ const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
 const acquireLock = async (lockKey, ttlInSeconds = 50) => {
     const client = getRedis();
     if (!client) return false; // If redis is down, deny lock to avoid chaos
+    const holderId = `${process.pid}:${Date.now()}`;
     try {
-        const acquired = await client.set(`lock:${lockKey}`, '1', 'NX', 'EX', ttlInSeconds);
-        return !!acquired;
+        const acquired = await client.set(`lock:${lockKey}`, holderId, 'NX', 'EX', ttlInSeconds);
+        return acquired ? holderId : false;
     } catch (e) {
         return false;
     }
 };
 
 /**
- * @desc Release a distributed lock
+ * @desc Release a distributed lock (only if owned by this holder)
  */
-const releaseLock = async (lockKey) => {
+const releaseLock = async (lockKey, holderId) => {
     const client = getRedis();
-    if (client) {
-        try {
+    if (!client) return;
+    try {
+        if (holderId) {
+            const luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+            await client.eval(luaScript, 1, `lock:${lockKey}`, holderId);
+        } else {
             await client.del(`lock:${lockKey}`);
-        } catch (e) {}
-    }
+        }
+    } catch (e) {}
 };
 
 module.exports = {

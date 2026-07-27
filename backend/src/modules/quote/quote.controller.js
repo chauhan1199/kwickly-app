@@ -8,6 +8,7 @@ const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { getCache, setCache } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { haversineDistance, calculateETA } = require('../../helpers/geo.helper');
 const { OTP_MIN, OTP_MAX } = require('../../constants/business');
@@ -20,8 +21,8 @@ exports.placeQuote = catchAsync(async (req, res) => {
     const { jobId, amount, description, timeToReach, workerLocation } = req.body;
     const workerId = req.user._id;
 
-    if (!amount || amount <= 0) {
-        return errorResponse(res, 'Quote amount must be a positive number', StatusCodes.BAD_REQUEST);
+    if (!amount || amount < 10) {
+        return errorResponse(res, 'Quote amount must be at least ₹10', StatusCodes.BAD_REQUEST);
     }
 
     const worker = await Customer.findById(workerId).lean();
@@ -31,17 +32,26 @@ exports.placeQuote = catchAsync(async (req, res) => {
         return errorResponse(res, 'KYC must be approved before you can place quotes.', StatusCodes.FORBIDDEN);
     }
 
-    // Guard: Subscription check
+    // Guard: Subscription check (matches getAvailableJobs fallback trial logic)
     const now = new Date();
-    const isSubscriptionValid = worker.subscription?.isTrial ||
-        (worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > now);
+    const isTrialActive = worker.subscription?.isTrial === true &&
+        worker.subscription?.trialEndDate &&
+        new Date(worker.subscription.trialEndDate) > now;
+    const isPaidSubActive = worker.subscription?.expiryDate &&
+        new Date(worker.subscription.expiryDate) > now;
+
+    // Fallback: Use freeTrialDays from registration
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
+    const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+    const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
+
+    const isSubscriptionValid = isTrialActive || isPaidSubActive || isFallbackTrialActive;
     if (!isSubscriptionValid) {
         return errorResponse(res, 'Subscription expired. Please renew to place quotes.', StatusCodes.PAYMENT_REQUIRED);
     }
 
     // Guard: Minimum wallet balance (from cache or DB)
-    const SettingsService = require('../settings/settings.service');
-    const settings = await SettingsService.getAppSettings();
     const minBalance = settings?.wallet?.minimumBalance || 100;
     if ((worker.wallet?.balance || 0) < minBalance) {
         return errorResponse(res, `Minimum wallet balance of â‚¹${minBalance} required to quote.`, StatusCodes.PAYMENT_REQUIRED);
@@ -209,13 +219,31 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
     }
 
-    // P0 FIX: Atomic job update with status guard AND Quote Updates inside a single Transaction
-    const arrivalOtp    = Math.floor(OTP_MIN + Math.random() * (OTP_MAX - OTP_MIN)).toString();
-    const completionOtp = Math.floor(OTP_MIN + Math.random() * (OTP_MAX - OTP_MIN)).toString();
+    // Guard: Verify the worker's subscription is still valid at acceptance time
+    const worker = await Customer.findById(quote.workerId).lean();
+    if (!worker) return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
 
-    // Calculate final pricing model 
+    const now = new Date();
+    const isTrialActive = worker.subscription?.isTrial === true &&
+        worker.subscription?.trialEndDate &&
+        new Date(worker.subscription.trialEndDate) > now;
+    const isPaidSubActive = worker.subscription?.expiryDate &&
+        new Date(worker.subscription.expiryDate) > now;
+
     const SettingsService = require('../settings/settings.service');
     const settings = await SettingsService.getAppSettings();
+    const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+    const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
+
+    if (!isTrialActive && !isPaidSubActive && !isFallbackTrialActive) {
+        return errorResponse(res, 'Worker subscription has expired. Cannot accept this quote.', StatusCodes.PAYMENT_REQUIRED);
+    }
+
+    // P0 FIX: Atomic job update with status guard AND Quote Updates inside a single Transaction
+    const arrivalOtp    = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
+    const completionOtp = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
+
+    // Calculate final pricing model
     const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
     
     const workerPayout = quote.amount;

@@ -1,3 +1,26 @@
+// Mock Redis before loading app so auth middleware gets the mock
+jest.mock('../helpers/redis.helper', () => ({
+    initRedis: jest.fn(),
+    getRedis: jest.fn(),
+    setCache: jest.fn(),
+    getCache: jest.fn(),
+    delCache: jest.fn(),
+    delCacheByPattern: jest.fn(),
+    fetchWithCache: jest.fn(async (_key, _ttl, fetcher) => fetcher()),
+    acquireLock: jest.fn().mockResolvedValue('mock-holder-id'),
+    releaseLock: jest.fn()
+}));
+
+// Mock rate limiter before loading app
+jest.mock('../middleware/rateLimit.middleware', () => {
+    const passThrough = (req, res, next) => next();
+    return {
+        globalLimiter: passThrough,
+        authLimiter: passThrough,
+        otpSendLimiter: passThrough
+    };
+});
+
 const request = require('supertest');
 const app = require('../app');
 const { setup, teardown, clearCollections, createTestUser, generateToken } = require('./testSetup');
@@ -5,7 +28,7 @@ const Shop = require('../modules/shop/shop.model');
 const Product = require('../modules/product/product.model');
 const ShopOrder = require('../modules/shoporder/shoporder.model');
 
-beforeAll(async () => { await setup(); }, 60000);
+beforeAll(async () => { await setup(); await clearCollections(); }, 60000);
 afterAll(async () => { await teardown(); }, 30000);
 afterEach(async () => { await clearCollections(); }, 10000);
 
@@ -90,7 +113,7 @@ describe('ShopOrder Routes — Extended', () => {
             expect(res.status).toBe(404);
         });
 
-        it('should return 400 when cancelling order not in NEW status', async () => {
+        it('should cancel a CONFIRMED order as the owning customer', async () => {
             const order = await ShopOrder.create({
                 shopId,
                 customerId: customer._id,
@@ -108,8 +131,8 @@ describe('ShopOrder Routes — Extended', () => {
                 .post(`/api/v1/shoporders/${order._id}/cancel`)
                 .set('Authorization', `Bearer ${customerToken}`);
 
-            expect(res.status).toBe(400);
-            expect(res.body.message).toMatch(/only new orders/i);
+            expect(res.status).toBe(200);
+            expect(res.body.data.status).toBe('CANCELLED');
         });
 
         it('should return 404 for non-existent order', async () => {

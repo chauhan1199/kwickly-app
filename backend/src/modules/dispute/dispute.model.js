@@ -30,8 +30,8 @@ const DisputeSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['open', 'in_review', 'resolved', 'refunded', 'dismissed'],
-        default: 'open'
+        enum: ['OPEN', 'IN_REVIEW', 'RESOLVED', 'REFUNDED', 'DISMISSED'],
+        default: 'OPEN'
     },
     resolutionNotes: { type: String },
     openedAt: { type: Date, default: Date.now },
@@ -39,6 +39,7 @@ const DisputeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 DisputeSchema.index({ jobId: 1, status: 1 });
+DisputeSchema.index({ shopOrderId: 1 });
 DisputeSchema.index({ customerId: 1 });
 DisputeSchema.index({ workerId: 1 });
 

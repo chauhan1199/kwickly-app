@@ -1,5 +1,6 @@
 const Joi = require('joi');
 const logger = require('../helpers/logger.helper');
+const { errorResponse } = require('../helpers/response.helper');
 
 const updateSettingsSchema = Joi.object({
     feeAmount: Joi.number().min(0),
@@ -31,10 +32,7 @@ const validateUpdateSettings = (req, res, next) => {
     const { error } = updateSettingsSchema.validate(req.body);
     if (error) {
         logger.error('Settings validation failed:', error.details);
-        return res.status(400).json({
-            success: false,
-            message: error.details[0].message
-        });
+        return errorResponse(res, error.details[0].message, require('http-status-codes').StatusCodes.BAD_REQUEST);
     }
     next();
 };

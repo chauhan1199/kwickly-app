@@ -5,6 +5,29 @@
  * Settings, Promotions, Subscriptions, and Disputes.
  */
 
+// Mock rate limiter before loading app
+jest.mock('../middleware/rateLimit.middleware', () => {
+    const passThrough = (req, res, next) => next();
+    return {
+        globalLimiter: passThrough,
+        authLimiter: passThrough,
+        otpSendLimiter: passThrough
+    };
+});
+
+// Must mock redis BEFORE requiring app so settings controller gets the mock fetchWithCache
+jest.mock('../helpers/redis.helper', () => ({
+    initRedis: jest.fn(),
+    getRedis: jest.fn(),
+    setCache: jest.fn(),
+    getCache: jest.fn(),
+    delCache: jest.fn(),
+    delCacheByPattern: jest.fn(),
+    fetchWithCache: jest.fn(async (_key, _ttl, fetcher) => fetcher()),
+    acquireLock: jest.fn().mockResolvedValue('mock-holder-id'),
+    releaseLock: jest.fn()
+}));
+
 const request = require('supertest');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');

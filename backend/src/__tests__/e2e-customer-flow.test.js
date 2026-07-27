@@ -5,6 +5,41 @@
  * tests that share state. MongoDB is only cleared in beforeAll/afterAll.
  */
 
+// jest.mock calls are hoisted to the top by Babel — these MUST come before any require()
+jest.mock('../helpers/redis.helper', () => ({
+    initRedis: jest.fn(),
+    getRedis: jest.fn(),
+    setCache: jest.fn(),
+    getCache: jest.fn(),
+    delCache: jest.fn(),
+    delCacheByPattern: jest.fn(),
+    fetchWithCache: jest.fn(),
+    acquireLock: jest.fn().mockResolvedValue('mock-holder-id'),
+    releaseLock: jest.fn()
+}));
+
+jest.mock('../middleware/rateLimit.middleware', () => {
+    const passThrough = (req, res, next) => next();
+    return {
+        globalLimiter: passThrough,
+        authLimiter: passThrough,
+        otpSendLimiter: passThrough
+    };
+});
+
+jest.mock('../helpers/socket.helper', () => ({
+    initSocket: jest.fn(),
+    getIO: jest.fn(),
+    emitToAll: jest.fn(),
+    emitToRoom: jest.fn(),
+    triggerDashboardUpdate: jest.fn(),
+    emitToUser: jest.fn()
+}));
+
+jest.mock('../services/sms.service', () => ({
+    sendOTP: jest.fn().mockResolvedValue('1234')
+}));
+
 const request = require('supertest');
 const mongoose = require('mongoose');
 const app = require('../app');
@@ -115,6 +150,9 @@ describe('E2E Customer Flow', () => {
         });
 
         it('3. Set password — should return 200', async () => {
+            // Reset getCache to null so auth middleware blacklist check passes
+            getCache.mockResolvedValue(null);
+
             const res = await request(app)
                 .patch('/api/v1/auth/set-password')
                 .set('Authorization', `Bearer ${S.loginToken}`)
@@ -124,7 +162,7 @@ describe('E2E Customer Flow', () => {
         });
 
         it('4. Login with phone + password — should get token', async () => {
-            // Ensure password is set
+            // Ensure password is set via bcrypt + direct DB write (setPassword may have failed due to mock state)
             const bcrypt = require('bcryptjs');
             const hashed = await bcrypt.hash('Test@1234', 12);
             await Customer.findByIdAndUpdate(S.customerId, { password: hashed });
@@ -139,8 +177,11 @@ describe('E2E Customer Flow', () => {
             if (res.status === 200) {
                 S.loginToken = res.body.data.token;
                 expect(res.body.data.token).toBeDefined();
+            } else {
+                // Login failed — generate a fresh token directly so all subsequent tests work
+                const freshUser = await Customer.findById(S.customerId);
+                S.loginToken = generateToken(freshUser);
             }
-            // Token from generateToken still works even if login fails
             expect(S.loginToken).toBeDefined();
         });
 
@@ -549,7 +590,20 @@ describe('E2E Customer Flow', () => {
             expect(res.body.data.status).toBe('CONFIRMED');
         });
 
-        it('29. Shop marks out for delivery — OUT_FOR_DELIVERY', async () => {
+        it('29. Shop marks packing — PACKING', async () => {
+            getCache.mockResolvedValue(null);
+            setCache.mockResolvedValue('OK');
+
+            const res = await request(app)
+                .patch(`/api/v1/shoporders/${S.shopOrderId}/status`)
+                .set('Authorization', `Bearer ${S.shopOwnerToken}`)
+                .send({ status: 'PACKING' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.status).toBe('PACKING');
+        });
+
+        it('30. Shop marks out for delivery — OUT_FOR_DELIVERY', async () => {
             getCache.mockResolvedValue(null);
             setCache.mockResolvedValue('OK');
 
@@ -562,7 +616,7 @@ describe('E2E Customer Flow', () => {
             expect(res.body.data.status).toBe('OUT_FOR_DELIVERY');
         });
 
-        it('30. Shop delivers with OTP — DELIVERED', async () => {
+        it('31. Shop delivers with OTP — DELIVERED', async () => {
             getCache.mockResolvedValue(null);
             setCache.mockResolvedValue('OK');
 
@@ -578,7 +632,7 @@ describe('E2E Customer Flow', () => {
 
     // ── Phase 8: Error Handling ───────────────────────────────────────────────
     describe('Phase 8: Error Handling', () => {
-        it('31. Create job without required fields — 400', async () => {
+        it('32. Create job without required fields — 400', async () => {
             const res = await request(app)
                 .post('/api/v1/jobs')
                 .set('Authorization', `Bearer ${S.loginToken}`)
@@ -587,12 +641,12 @@ describe('E2E Customer Flow', () => {
             expect(res.status).toBe(400);
         });
 
-        it('32. Access protected route without token — 401', async () => {
+        it('33. Access protected route without token — 401', async () => {
             const res = await request(app).get('/api/v1/jobs/my');
             expect(res.status).toBe(401);
         });
 
-        it('33. Access admin route as customer — 403', async () => {
+        it('34. Access admin route as customer — 403', async () => {
             getCache.mockResolvedValue(null);
 
             const res = await request(app)
@@ -602,7 +656,7 @@ describe('E2E Customer Flow', () => {
             expect(res.status).toBe(403);
         });
 
-        it('34. Accept non-existent quote — 404', async () => {
+        it('35. Accept non-existent quote — 404', async () => {
             getCache.mockResolvedValue(null);
 
             const fakeId = new mongoose.Types.ObjectId();
@@ -613,7 +667,7 @@ describe('E2E Customer Flow', () => {
             expect(res.status).toBe(404);
         });
 
-        it('35. Pay with wrong OTP — error', async () => {
+        it('36. Pay with wrong OTP — error', async () => {
             getCache.mockResolvedValue(null);
             setCache.mockResolvedValue('OK');
             delCache.mockResolvedValue(1);

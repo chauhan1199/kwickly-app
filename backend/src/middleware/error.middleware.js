@@ -22,12 +22,11 @@ const errorHandler = (err, req, res, next) => {
     // MongoDB Duplicate Key Error
     if (err.code === 11000) {
         statusCode = StatusCodes.CONFLICT;
-        const field = Object.keys(err.keyValue || {}).join(', ');
-        message = `Duplicate value for: ${field}. Please use a different value.`;
+        message = 'A record with that value already exists. Please use a different value.';
     } else if (err.name === 'MongoServerError') {
         // Other Mongo errors (e.g. replica set transactions)
         statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
-        message = err.message || 'Database Error';
+        message = 'Database error';
     }
 
     // Invalid MongoDB ObjectId

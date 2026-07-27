@@ -1,4 +1,4 @@
-﻿const { StatusCodes } = require('http-status-codes');
+const { StatusCodes } = require('http-status-codes');
 const Settlement = require('./settlement.model');
 const Shop = require('../shop/shop.model');
 const WalletTxn = require('../wallet/wallet.model');
@@ -34,13 +34,30 @@ exports.settle = catchAsync(async (req, res) => {
 
     settlement.shopEarning = shopAmount || settlement.shopEarning;
     settlement.platformCommission = commissionAmount || settlement.platformCommission;
-    settlement.status = 'SETTLED';
-    settlement.settledAt = new Date();
-    settlement.settledBy = req.user._id;
-    settlement.note = note;
-    await settlement.save();
 
-    // Credit shop wallet with the shop's earning (atomic)
+    // H12: Validate that shop earning + commission equals total amount
+    if (Math.abs((settlement.shopEarning + settlement.platformCommission) - settlement.totalAmount) > 0.01) {
+        return errorResponse(res, 'shopEarning + platformCommission must equal totalAmount', StatusCodes.BAD_REQUEST);
+    }
+
+    // H13: Track commission collection status
+    let commissionStatus = 'OK';
+    if (settlement.platformCommission > 0) {
+        try {
+            await collectCommission(
+                settlement.platformCommission,
+                `Commission from ${settlement.type} settlement #${settlement._id.toString().slice(-6)}`,
+                settlement._id,
+                'Settlement',
+                { shopId: settlement.shopId, customerId: settlement.customerId }
+            );
+        } catch (e) {
+            logger.error(`Commission collection failed for settlement #${settlement._id}: ${e.message}`, { settlementId: settlement._id, amount: settlement.platformCommission, error: e });
+            commissionStatus = 'FAILED';
+        }
+    }
+
+    // H11: Credit shop wallet FIRST, then mark SETTLED
     const shop = await Shop.findOneAndUpdate(
         { _id: settlement.shopId },
         { $inc: { 'wallet.balance': settlement.shopEarning } },
@@ -58,24 +75,16 @@ exports.settle = catchAsync(async (req, res) => {
         });
     }
 
-    // Collect platform commission into admin wallet
-    if (settlement.platformCommission > 0) {
-        try {
-            await collectCommission(
-                settlement.platformCommission,
-                `Commission from ${settlement.type} settlement #${settlement._id.toString().slice(-6)}`,
-                settlement._id,
-                'Settlement',
-                { shopId: settlement.shopId, customerId: settlement.customerId }
-            );
-        } catch (e) {
-            logger.error('Failed to credit admin wallet:', e.message);
-        }
-    }
+    // H13: Mark PARTIAL if commission collection failed, otherwise SETTLED
+    settlement.status = commissionStatus === 'FAILED' ? 'PARTIAL' : 'SETTLED';
+    settlement.settledAt = new Date();
+    settlement.settledBy = req.user._id;
+    settlement.note = note;
+    await settlement.save();
 
     logAdminActivity('SETTLE', 'SHOP', settlement.shopId,
         'Settlement Processed',
-        `â‚¹${settlement.shopEarning} settled to shop wallet (commission: â‚¹${settlement.platformCommission})`,
+        `₹${settlement.shopEarning} settled to shop wallet (commission: ₹${settlement.platformCommission})${commissionStatus === 'FAILED' ? ' [PARTIAL — commission collection failed]' : ''}`,
         req.user._id
     );
 
@@ -103,7 +112,24 @@ exports.bulkSettle = catchAsync(async (req, res) => {
     for (const id of settlementIds) {
         const settlement = await Settlement.findById(id);
         if (settlement && settlement.status === 'PENDING') {
-            // Credit shop wallet (atomic)
+            // H13: Track commission status per settlement
+            let commissionStatus = 'OK';
+            if (settlement.platformCommission > 0) {
+                try {
+                    await collectCommission(
+                        settlement.platformCommission,
+                        `Bulk commission from ${settlement.type} settlement #${settlement._id.toString().slice(-6)}`,
+                        settlement._id,
+                        'Settlement',
+                        { shopId: settlement.shopId, customerId: settlement.customerId }
+                    );
+                } catch (e) {
+                    logger.error(`Bulk commission collection failed for settlement #${settlement._id}: ${e.message}`, { settlementId: settlement._id, amount: settlement.platformCommission, error: e });
+                    commissionStatus = 'FAILED';
+                }
+            }
+
+            // H11: Credit shop wallet FIRST
             const shop = await Shop.findOneAndUpdate(
                 { _id: settlement.shopId },
                 { $inc: { 'wallet.balance': settlement.shopEarning } },
@@ -121,25 +147,11 @@ exports.bulkSettle = catchAsync(async (req, res) => {
                 });
             }
 
-            settlement.status = 'SETTLED';
+            // H11: THEN mark status (PARTIAL if commission failed)
+            settlement.status = commissionStatus === 'FAILED' ? 'PARTIAL' : 'SETTLED';
             settlement.settledAt = new Date();
             settlement.settledBy = req.user._id;
             await settlement.save();
-
-            // Collect commission
-            if (settlement.platformCommission > 0) {
-                try {
-                    await collectCommission(
-                        settlement.platformCommission,
-                        `Bulk commission from ${settlement.type} settlement #${settlement._id.toString().slice(-6)}`,
-                        settlement._id,
-                        'Settlement',
-                        { shopId: settlement.shopId, customerId: settlement.customerId }
-                    );
-                } catch (e) {
-                    logger.error('Failed to credit admin wallet:', e.message);
-                }
-            }
 
             results.push(id);
 

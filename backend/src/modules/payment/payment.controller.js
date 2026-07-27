@@ -141,8 +141,13 @@ exports.handleWebhook = catchAsync(async (req, res) => {
 
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-    // Verify webhook signature if secret is set
-    if (webhookSecret && !webhookSecret.includes('placeholder')) {
+    // Skip verification only in test environment
+    if (process.env.NODE_ENV !== 'test') {
+        if (!webhookSecret) {
+            logger.error('[Razorpay Webhook] Webhook secret not configured');
+            return res.status(400).json({ error: 'Webhook secret not configured' });
+        }
+
         const signature = req.headers['x-razorpay-signature'];
         const bodyStr = JSON.stringify(body);
         const expectedSignature = crypto
@@ -175,21 +180,21 @@ exports.handleWebhook = catchAsync(async (req, res) => {
         case 'payment.captured': {
             const paymentEntity = payload?.payment?.entity;
             if (paymentEntity) {
-                await handlePaymentCaptured(paymentEntity);
+                await handlePaymentCaptured(paymentEntity, eventId);
             }
             break;
         }
         case 'payment.failed': {
             const paymentEntity = payload?.payment?.entity;
             if (paymentEntity) {
-                await handlePaymentFailed(paymentEntity);
+                await handlePaymentFailed(paymentEntity, eventId);
             }
             break;
         }
         case 'refund.created': {
             const refundEntity = payload?.refund?.entity;
             if (refundEntity) {
-                await handleRefundCreated(refundEntity);
+                await handleRefundCreated(refundEntity, eventId);
             }
             break;
         }
@@ -201,20 +206,11 @@ exports.handleWebhook = catchAsync(async (req, res) => {
             logger.info(`[Razorpay Webhook] Unhandled event: ${event}`);
     }
 
-    // Mark event as processed for idempotency
-    if (eventId) {
-        const lastPayment = await Payment.findOne({}).sort({ createdAt: -1 });
-        if (lastPayment) {
-            lastPayment.webhookEventId = eventId;
-            await lastPayment.save();
-        }
-    }
-
     // Always return 200 to Razorpay
     return res.status(200).json({ ok: true });
 });
 
-async function handlePaymentCaptured(paymentEntity) {
+async function handlePaymentCaptured(paymentEntity, eventId) {
     const { id, order_id, amount, method } = paymentEntity;
 
     const payment = await Payment.findOne({ razorpayOrderId: order_id });
@@ -222,6 +218,7 @@ async function handlePaymentCaptured(paymentEntity) {
         payment.status = 'CAPTURED';
         payment.razorpayPaymentId = id;
         payment.method = method;
+        if (eventId) payment.webhookEventId = eventId;
         await payment.save();
     }
 
@@ -242,7 +239,7 @@ async function handlePaymentCaptured(paymentEntity) {
     }
 }
 
-async function handlePaymentFailed(paymentEntity) {
+async function handlePaymentFailed(paymentEntity, eventId) {
     const { id, order_id, error_description } = paymentEntity;
 
     const payment = await Payment.findOne({ razorpayOrderId: order_id });
@@ -250,6 +247,7 @@ async function handlePaymentFailed(paymentEntity) {
         payment.status = 'FAILED';
         payment.failureReason = error_description;
         payment.razorpayPaymentId = id;
+        if (eventId) payment.webhookEventId = eventId;
         await payment.save();
     }
 
@@ -270,14 +268,20 @@ async function handlePaymentFailed(paymentEntity) {
     }
 }
 
-async function handleRefundCreated(refundEntity) {
+async function handleRefundCreated(refundEntity, eventId) {
     const { payment_id, amount } = refundEntity;
     const refundAmount = amount / 100; // Razorpay sends paise
 
     const payment = await Payment.findOne({ razorpayPaymentId: payment_id });
     if (payment) {
+        // Validate refund amount does not exceed original payment
+        if (refundAmount > payment.amount) {
+            logger.warn(`[Razorpay Webhook] Refund amount ${refundAmount} exceeds original payment ${payment.amount} — skipping`);
+            return;
+        }
         payment.status = 'REFUNDED';
         payment.refundAmount = refundAmount;
+        if (eventId) payment.webhookEventId = eventId;
         await payment.save();
     }
 

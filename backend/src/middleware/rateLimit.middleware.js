@@ -12,16 +12,21 @@ const getStore = () => {
     return new RedisStore({
         sendCommand: (...args) => {
             const client = getRedis();
-            if (client) return client.call(...args);
-            // Fallback if Redis is down
-            return Promise.reject(new Error('Redis client unavailable'));
+            if (client) {
+                return client.call(...args).catch((err) => {
+                    // H17: On Redis outage, skip rate limiting instead of crashing
+                    return undefined;
+                });
+            }
+            // Fallback if Redis is down — allow the request through
+            return Promise.resolve(undefined);
         },
     });
 };
 
 /**
  * @desc Global limiter — applies to all routes
- * 100 requests per 15 minutes per IP
+ * 1000 requests per 15 minutes per IP
  */
 const globalLimiter = rateLimit({
     store: getStore(),

@@ -1,0 +1,94 @@
+﻿node.exe : FAIL src/__tests__/redisHelper.test.js
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (FAIL src/__tests__/redisHelper.test.js:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Redis Helper Functions
+    initRedis & getRedis
+      √ should initialize Redis and return the client (4 ms)
+      √ getRedis should return existing client without re-initializing (1 ms)
+    setCache(key, value, ttl)
+      √ should call redis.set with JSON stringified value and EX ttl (3 ms)
+      √ should use default TTL of 3600 when not provided
+      √ should not throw when redis errors (1 ms)
+    getCache(key)
+      √ should return parsed JSON object on cache hit (1 ms)
+      √ should return null on cache miss
+      √ should double-parse stringified JSON (nested string)
+      √ should return raw parsed value if not double-stringified (1 ms)
+      √ should return null and not throw on redis error (1 ms)
+    delCache(key)
+      √ should delete a normal key
+      √ should also delete admin_dashboard_stats range variants (1 ms)
+      √ should not delete range variants for non-dashboard keys
+      √ should not throw on redis error (1 ms)
+    delCacheByPattern(pattern)
+      √ should SCAN and delete matching keys (1 ms)
+      √ should handle multiple SCAN iterations (non-zero cursor) (1 ms)
+      √ should not call del if no keys match (1 ms)
+      √ should not throw on redis error (1 ms)
+    fetchWithCache(key, ttl, fetcher)
+      √ should return cached data on cache hit (no fetcher call) (1 ms)
+      √ should call fetcher on cache miss and store result (1 ms)
+      √ should call fetcher exactly once even with concurrent access (lock)
+      √ should release lock after fetch completes (1 ms)
+      √ should retry getCache after lock contention (211 ms)
+    acquireLock(lockKey, ttl)
+      × should return true when lock is successfully acquired (3 ms)
+      √ should return false when lock is already held
+      √ should return false on redis error
+      × should use default TTL of 50 when not specified (2 ms)
+    releaseLock(lockKey)
+      √ should delete the lock key
+      √ should not throw on redis error (1 ms)
+
+  ● Redis Helper Functions › acquireLock(lockKey, ttl) › should return true when lock is successfully acquired
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: "11820:1784983993756"
+
+    [0m [90m 308 |[39m             [36mconst[39m result [33m=[39m [36mawait[39m 
+acquireLock([32m'my:lock'[39m[33m,[39m [35m50[39m)[33m;[39m
+     [90m 309 |[39m
+    [31m[1m>[22m[39m[90m 310 |[39m             expect(result)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                            [31m[1m^[22m[39m
+     [90m 311 |[39m             
+expect(mockRedisInstance[33m.[39m[36mset[39m)[33m.[39mtoHaveBeenCalledWith([32m'lock:my:lock'[39m[33m,[39m 
+[32m'1'[39m[33m,[39m [32m'NX'[39m[33m,[39m [32m'EX'[39m[33m,[39m [35m50[39m)[33m;[39m
+     [90m 312 |[39m         })[33m;[39m
+     [90m 313 |[39m[0m
+
+      at Object.toBe (src/__tests__/redisHelper.test.js:310:28)
+
+  ● Redis Helper Functions › acquireLock(lockKey, ttl) › should use default TTL of 50 when not specified
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: "lock:default:ttl:lock", "1", "NX", "EX", 50
+    Received: "lock:default:ttl:lock", "11820:1784983993774", "NX", "EX", 50
+
+    Number of calls: 1
+
+    [0m [90m 333 |[39m             [36mawait[39m acquireLock([32m'default:ttl:lock'[39m)[33m;[39m
+     [90m 334 |[39m
+    [31m[1m>[22m[39m[90m 335 |[39m             
+expect(mockRedisInstance[33m.[39m[36mset[39m)[33m.[39mtoHaveBeenCalledWith(
+     [90m     |[39m                                           [31m[1m^[22m[39m
+     [90m 336 |[39m                 [32m'lock:default:ttl:lock'[39m[33m,[39m [32m'1'[39m[33m,[39m 
+[32m'NX'[39m[33m,[39m [32m'EX'[39m[33m,[39m [35m50[39m
+     [90m 337 |[39m             )[33m;[39m
+     [90m 338 |[39m         })[33m;[39m[0m
+
+      at Object.toHaveBeenCalledWith (src/__tests__/redisHelper.test.js:335:43)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 27 passed, 29 total
+Snapshots:   0 total
+Time:        0.807 s, estimated 1 s
+Ran all test suites matching redisHelper.test.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after 
+all tests finished?

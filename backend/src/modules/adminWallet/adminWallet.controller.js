@@ -1,4 +1,4 @@
-﻿const { StatusCodes } = require('http-status-codes');
+const { StatusCodes } = require('http-status-codes');
 const { AdminWallet, AdminWalletTxn } = require('./adminWallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -143,21 +143,24 @@ exports.collectCommission = async (amount, description, referenceId, referenceMo
 };
 
 exports.collectPlatformFee = async (amount, description, referenceId, referenceModel, meta = {}) => {
+    const session = meta.session || undefined;
+    const opts = session ? { session } : {};
+
     const wallet = await AdminWallet.findOneAndUpdate(
         {},
         { $inc: { balance: Number(amount) } },
-        { returnDocument: 'after', upsert: true }
+        { returnDocument: 'after', upsert: true, ...opts }
     );
 
-    return AdminWalletTxn.create({
+    return AdminWalletTxn.create([{
         type: 'PLATFORM_FEE_COLLECTED',
         amount: Number(amount),
         balanceAfter: wallet.balance,
         description,
         referenceId,
         referenceModel,
-        meta
-    });
+        meta: { ...meta, session: undefined }
+    }], opts);
 };
 
 exports.debitForPayout = async (amount, description, referenceId, referenceModel, meta = {}) => {

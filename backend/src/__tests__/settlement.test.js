@@ -1,6 +1,42 @@
+// jest.mock calls are hoisted to the top by Babel — these MUST come before any require()
+jest.mock('../helpers/redis.helper', () => ({
+    initRedis: jest.fn(),
+    getRedis: jest.fn(),
+    setCache: jest.fn(),
+    getCache: jest.fn(),
+    delCache: jest.fn(),
+    delCacheByPattern: jest.fn(),
+    fetchWithCache: jest.fn(),
+    acquireLock: jest.fn().mockResolvedValue('mock-holder-id'),
+    releaseLock: jest.fn()
+}));
+
+jest.mock('../middleware/rateLimit.middleware', () => {
+    const passThrough = (req, res, next) => next();
+    return {
+        globalLimiter: passThrough,
+        authLimiter: passThrough,
+        otpSendLimiter: passThrough
+    };
+});
+
+jest.mock('../helpers/socket.helper', () => ({
+    initSocket: jest.fn(),
+    getIO: jest.fn(),
+    emitToAll: jest.fn(),
+    emitToRoom: jest.fn(),
+    triggerDashboardUpdate: jest.fn(),
+    emitToUser: jest.fn()
+}));
+
+jest.mock('../services/sms.service', () => ({
+    sendOTP: jest.fn().mockResolvedValue('1234')
+}));
+
+// IMPORTANT: testSetup MUST be required BEFORE app so jest.mock is applied first
+const { setup, teardown, clearCollections, createTestUser, generateToken } = require('./testSetup');
 const request = require('supertest');
 const app = require('../app');
-const { setup, teardown, clearCollections, createTestUser, generateToken } = require('./testSetup');
 const mongoose = require('mongoose');
 
 beforeAll(async () => { await setup(); }, 60000);
@@ -39,6 +75,21 @@ describe('Settlement Flow — Complete E2E', () => {
 
     // ─── 1. Full Delivery → Settlement Creation ─────────────────────────────────
     describe('1. Settlement Created on Order Delivery', () => {
+        // Helper: walk an order through the full status chain to DELIVERED
+        const deliverOrder = async (orderId, deliveryOtp, shopOwnerToken) => {
+            for (const status of ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY']) {
+                const r = await request(app)
+                    .patch(`/api/v1/shoporders/${orderId}/status`)
+                    .set('Authorization', `Bearer ${shopOwnerToken}`)
+                    .send({ status });
+                if (r.status !== 200) return r; // return first error
+            }
+            return request(app)
+                .patch(`/api/v1/shoporders/${orderId}/status`)
+                .set('Authorization', `Bearer ${shopOwnerToken}`)
+                .send({ status: 'DELIVERED', otp: deliveryOtp });
+        };
+
         it('should create PENDING settlement when order is delivered with correct amounts', async () => {
             const product = await Product.create({
                 shopId: shop._id, name: 'Test Product', price: 100,
@@ -61,11 +112,9 @@ describe('Settlement Flow — Complete E2E', () => {
 
             const order = await ShopOrder.findById(orderId);
 
-            const statusRes = await request(app)
-                .patch(`/api/v1/shoporders/${orderId}/status`)
-                .set('Authorization', `Bearer ${shopOwnerToken}`)
-                .send({ status: 'DELIVERED', otp: order.deliveryOtp });
+            const statusRes = await deliverOrder(orderId, order.deliveryOtp, shopOwnerToken);
             expect(statusRes.status).toBe(200);
+            expect(statusRes.body.data.status).toBe('DELIVERED');
 
 
             const settlements = await Settlement.find({ orderId });
@@ -102,10 +151,7 @@ describe('Settlement Flow — Complete E2E', () => {
 
 
             const order = await ShopOrder.findById(orderRes.body.data._id);
-            await request(app)
-                .patch(`/api/v1/shoporders/${order._id}/status`)
-                .set('Authorization', `Bearer ${shopOwnerToken}`)
-                .send({ status: 'DELIVERED', otp: order.deliveryOtp });
+            await deliverOrder(order._id, order.deliveryOtp, shopOwnerToken);
 
             const updatedShop = await Shop.findById(shop._id);
             expect(updatedShop.wallet.balance).toBe(0);
@@ -130,10 +176,7 @@ describe('Settlement Flow — Complete E2E', () => {
 
 
             const order = await ShopOrder.findById(orderRes.body.data._id);
-            await request(app)
-                .patch(`/api/v1/shoporders/${order._id}/status`)
-                .set('Authorization', `Bearer ${shopOwnerToken}`)
-                .send({ status: 'DELIVERED', otp: order.deliveryOtp });
+            await deliverOrder(order._id, order.deliveryOtp, shopOwnerToken);
 
 
             const adminWallet = await AdminWallet.findOne();
@@ -691,9 +734,15 @@ describe('Settlement Flow — Complete E2E', () => {
             // Verify order total: 600 subtotal, free delivery (>= 500)
             expect(orderRes.body.data.total).toBe(600);
 
-            // Step 2: Shop delivers
-
+            // Step 2: Shop walks through status chain to DELIVERED
             const order = await ShopOrder.findById(orderId);
+            for (const status of ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY']) {
+                const r = await request(app)
+                    .patch(`/api/v1/shoporders/${orderId}/status`)
+                    .set('Authorization', `Bearer ${shopOwnerToken}`)
+                    .send({ status });
+                expect(r.status).toBe(200);
+            }
             const delRes = await request(app)
                 .patch(`/api/v1/shoporders/${orderId}/status`)
                 .set('Authorization', `Bearer ${shopOwnerToken}`)

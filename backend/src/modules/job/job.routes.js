@@ -37,7 +37,7 @@ router.patch('/:id/resolve-dispute', authorize('ADMIN'), jobController.resolveDi
 
 // -- SHARED ROUTES --
 router.get('/:id/receipt', authorize('CUSTOMER', 'WORKER', 'ADMIN'), jobController.getJobReceipt);
-router.get('/:id', jobController.getJobById);
-router.post('/upload-media', upload.single('media'), jobController.uploadMedia);
+router.get('/:id', authorize('CUSTOMER', 'WORKER', 'ADMIN'), jobController.getJobById);
+router.post('/upload-media', authorize('CUSTOMER', 'WORKER', 'ADMIN'), upload.single('media'), jobController.uploadMedia);
 
 module.exports = router;

@@ -6,7 +6,7 @@ const authorize = require('../../middleware/role.middleware');
 
 router.use(authMiddleware);
 
-router.get('/',                                        cartController.getCart);
+router.get('/',          authorize('CUSTOMER'),       cartController.getCart);
 router.post('/',          authorize('CUSTOMER'),       cartController.addToCart);
 router.delete('/clear',   authorize('CUSTOMER'),       cartController.clearCart);
 router.patch('/:itemId',  authorize('CUSTOMER'),       cartController.updateCartItem);

@@ -1,4 +1,4 @@
-﻿const { StatusCodes } = require('http-status-codes');
+const { StatusCodes } = require('http-status-codes');
 const Product    = require('./product.model');
 const Shop       = require('../shop/shop.model');
 const { uploadImage, cleanupImage } = require('../../services/cloudinary.service');
@@ -132,6 +132,18 @@ exports.createProduct = catchAsync(async (req, res) => {
         }
     }
 
+    if (Array.isArray(productData.attributes)) {
+        productData.attributes = productData.attributes
+            .filter(a => a && typeof a === 'object' && String(a.name || '').trim() && String(a.value || '').trim())
+            .map(a => ({ name: String(a.name).trim(), value: String(a.value).trim() }));
+    } else {
+        productData.attributes = [];
+    }
+
+    if (!productData.category || !String(productData.category).trim()) {
+        productData.category = 'General';
+    }
+
     const product = await Product.create({ shopId: targetShopId, ...productData });
 
     // Log admin activity notification
@@ -187,6 +199,16 @@ exports.updateProduct = catchAsync(async (req, res) => {
             logger.warn('Error parsing attributes:', e.message);
             updateData.attributes = [];
         }
+    }
+
+    if (Array.isArray(updateData.attributes)) {
+        updateData.attributes = updateData.attributes
+            .filter(a => a && typeof a === 'object' && String(a.name || '').trim() && String(a.value || '').trim())
+            .map(a => ({ name: String(a.name).trim(), value: String(a.value).trim() }));
+    }
+
+    if (updateData.category !== undefined && !String(updateData.category).trim()) {
+        updateData.category = 'General';
     }
 
     const product = await Product.findOneAndUpdate(

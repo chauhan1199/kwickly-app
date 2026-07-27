@@ -582,7 +582,7 @@ exports.impersonateUser = catchAsync(async (req, res) => {
 
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
-        { id: user._id, role: user.role, isImpersonated: true },
+        { id: user._id, role: user.role, isImpersonated: true, impersonatedBy: req.user._id },
         process.env.JWT_SECRET,
         { expiresIn: '1h' }
     );
@@ -751,7 +751,12 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
     if (parsedLocation) shop.location = parsedLocation;
 
     const parsedDelivery = safeParse(delivery);
-    if (parsedDelivery) shop.delivery = { ...shop.delivery, ...parsedDelivery };
+    if (parsedDelivery) {
+        if (!shop.deliveryConfig) shop.deliveryConfig = {};
+        for (const key in parsedDelivery) {
+            shop.deliveryConfig[key] = parsedDelivery[key];
+        }
+    }
 
     const parsedDeliveryConfig = safeParse(deliveryConfig);
     if (parsedDeliveryConfig) {
@@ -1258,7 +1263,7 @@ exports.adminCreateOrder = catchAsync(async (req, res) => {
         }
 
         const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
-        const deliveryFee = subtotal >= (shop.delivery?.freeAbove || 1000) ? 0 : (shop.delivery?.fee || 40);
+        const deliveryFee = subtotal >= (shop.deliveryConfig?.freeDeliveryAbove || 1000) ? 0 : (shop.deliveryConfig?.deliveryCharge || 40);
         const total = subtotal + deliveryFee;
 
         let paymentStatus = 'PENDING';

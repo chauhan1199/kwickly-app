@@ -20,3 +20,24 @@ export const getImageUrl = (url) => {
   // Relative path without leading / (e.g., "uploads/foo.webp")
   return `${serverUrl}/${url}`;
 };
+
+export const requestCameraPermission = async () => {
+  if (require('react-native').Platform.OS === 'android') {
+    try {
+      const { PermissionsAndroid } = require('react-native');
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        {
+          title: 'Camera Permission Required',
+          message: 'App needs access to your camera to take photos for shop and products.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Cancel',
+        }
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (err) {
+      return false;
+    }
+  }
+  return true;
+};

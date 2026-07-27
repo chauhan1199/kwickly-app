@@ -17,9 +17,9 @@ import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { Bell, Search, Image as ImageIcon, X, RefreshCw, Moon, Sun, Menu, ChevronDown } from 'lucide-react-native';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { shopService } from '../../services/shopService';
-import { getImageUrl } from '../../utils/helpers';
+import { getImageUrl, requestCameraPermission } from '../../utils/helpers';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ShopProductsScreen = ({ navigation }) => {
@@ -145,24 +145,62 @@ const ShopProductsScreen = ({ navigation }) => {
     ]);
   };
 
-  const pickImage = async () => {
-    try {
-      const result = await launchImageLibrary({ 
-        mediaType: 'photo', 
-        quality: 0.5, 
-        maxWidth: 600,
-        maxHeight: 600,
-        selectionLimit: 1,
-        includeBase64: true 
-      });
-      if (!result.didCancel && result.assets?.length > 0) {
-        setFormData({ ...formData, image: result.assets[0] });
-      } else if (result.errorCode) {
-        Alert.alert('Error', 'Failed to pick image: ' + result.errorMessage);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'An error occurred while opening the image picker.');
-    }
+  const pickImage = () => {
+    Alert.alert(
+      'Select Image Source',
+      'Choose how you want to upload product image',
+      [
+        {
+          text: '📷 Take Photo (Camera)',
+          onPress: async () => {
+            try {
+              const hasPerm = await requestCameraPermission();
+              if (!hasPerm) {
+                Alert.alert('Permission Denied', 'Camera permission is required to take photos.');
+                return;
+              }
+              const result = await launchCamera({
+                mediaType: 'photo',
+                quality: 0.5,
+                maxWidth: 600,
+                maxHeight: 600,
+                includeBase64: true,
+                saveToPhotos: true,
+              });
+              if (!result.didCancel && result.assets?.length > 0) {
+                setFormData(prev => ({ ...prev, image: result.assets[0] }));
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to open camera');
+            }
+          },
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: async () => {
+            try {
+              const result = await launchImageLibrary({
+                mediaType: 'photo',
+                quality: 0.5,
+                maxWidth: 600,
+                maxHeight: 600,
+                selectionLimit: 1,
+                includeBase64: true,
+              });
+              if (!result.didCancel && result.assets?.length > 0) {
+                setFormData(prev => ({ ...prev, image: result.assets[0] }));
+              } else if (result.errorCode) {
+                Alert.alert('Error', 'Failed to pick image: ' + result.errorMessage);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to open gallery');
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
   };
 
   const addAttribute = () => {
@@ -187,18 +225,28 @@ const ShopProductsScreen = ({ navigation }) => {
       return;
     }
 
+    const priceNum = Number(formData.price);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      Alert.alert('Validation Error', 'Price must be a valid number greater than 0.');
+      return;
+    }
+
     try {
       setSaving(true);
+      const cleanedAttributes = (formData.attributes || [])
+        .filter(a => a && a.name && String(a.name).trim() && a.value && String(a.value).trim())
+        .map(a => ({ name: String(a.name).trim(), value: String(a.value).trim() }));
+
       const payload = {
-        name: String(formData.name || ''),
-        price: String(formData.price || ''),
-        stock: String(formData.stock || '0'),
-        minQty: String(formData.minQty || '1'),
-        brand: String(formData.brand || ''),
-        unit: String(formData.unit || 'Piece'),
-        category: String(formData.category || 'General'),
-        description: String(formData.description || ''),
-        attributes: formData.attributes || [],
+        name: String(formData.name || '').trim(),
+        price: priceNum,
+        stock: Number(formData.stock || '0') || 0,
+        minQty: Number(formData.minQty || '1') || 1,
+        brand: String(formData.brand || '').trim(),
+        unit: String(formData.unit || 'Piece').trim(),
+        category: String(formData.category || 'General').trim() || 'General',
+        description: String(formData.description || '').trim(),
+        attributes: cleanedAttributes,
       };
       
       if (formData.image?.base64) {
@@ -215,8 +263,12 @@ const ShopProductsScreen = ({ navigation }) => {
       fetchProducts();
     } catch (e) {
       setSaving(false);
-      const errMsg = e?.response?.data?.message || JSON.stringify(e?.response?.data) || e.message;
-      Alert.alert('Error', `Failed to save product: ${errMsg}`);
+      const errDetails = e?.response?.data?.errors;
+      let errMsg = e?.response?.data?.message || e.message;
+      if (Array.isArray(errDetails) && errDetails.length > 0) {
+        errMsg = errDetails.join('\n• ');
+      }
+      Alert.alert('Save Failed', errMsg);
     } finally {
       setSaving(false);
     }

@@ -13,7 +13,7 @@ const ShopOrderSchema = new mongoose.Schema({
     shopId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Shop',     required: true },
     customerId:  { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
 
-    items:       [OrderItemSchema],
+    items:       { type: [OrderItemSchema], validate: [arr => arr.length <= 50, 'Maximum 50 items'] },
 
     subtotal:    { type: Number, required: true },
     deliveryFee: { type: Number, default: 0 },
@@ -23,9 +23,13 @@ const ShopOrderSchema = new mongoose.Schema({
     deliveryAddress: { type: String },
     deliveryLocation: {
         type:        { type: String, default: 'Point' },
-        coordinates: { type: [Number], default: [0, 0] }
+        coordinates: { type: [Number], default: null }
     },
-    deliverySlot: { type: mongoose.Schema.Types.Mixed },
+    deliverySlot: {
+        time:  String,
+        date:  String,
+        notes: String
+    },
 
     status: {
         type:    String,
@@ -34,6 +38,8 @@ const ShopOrderSchema = new mongoose.Schema({
     },
 
     deliveryOtp: { type: String },
+    deliveryOtpGeneratedAt: { type: Date },
+    deliveryOtpAttempts: { type: Number, default: 0 },
     deliveryStaffName: { type: String },
     deliveryStaffPhone: { type: String },
 
