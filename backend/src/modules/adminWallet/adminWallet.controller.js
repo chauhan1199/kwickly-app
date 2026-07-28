@@ -3,14 +3,12 @@ const { AdminWallet, AdminWalletTxn } = require('./adminWallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
-
-const getOrCreateWallet = async () => {
-    let wallet = await AdminWallet.findOne();
-    if (!wallet) {
-        wallet = await AdminWallet.create({ balance: 0 });
-    }
-    return wallet;
-};
+const {
+    getOrCreateWallet,
+    collectCommission,
+    collectPlatformFee,
+    debitForPayout,
+} = require('./adminWallet.service');
 
 exports.getBalance = catchAsync(async (req, res) => {
     const wallet = await getOrCreateWallet();
@@ -124,65 +122,9 @@ exports.updateBankDetails = catchAsync(async (req, res) => {
     }, 'Bank details updated');
 });
 
-exports.collectCommission = async (amount, description, referenceId, referenceModel, meta = {}) => {
-    const wallet = await AdminWallet.findOneAndUpdate(
-        {},
-        { $inc: { balance: Number(amount) } },
-        { returnDocument: 'after', upsert: true }
-    );
-
-    return AdminWalletTxn.create({
-        type: 'COMMISSION_COLLECTED',
-        amount: Number(amount),
-        balanceAfter: wallet.balance,
-        description,
-        referenceId,
-        referenceModel,
-        meta
-    });
-};
-
-exports.collectPlatformFee = async (amount, description, referenceId, referenceModel, meta = {}) => {
-    const session = meta.session || undefined;
-    const opts = session ? { session } : {};
-
-    const wallet = await AdminWallet.findOneAndUpdate(
-        {},
-        { $inc: { balance: Number(amount) } },
-        { returnDocument: 'after', upsert: true, ...opts }
-    );
-
-    return AdminWalletTxn.create([{
-        type: 'PLATFORM_FEE_COLLECTED',
-        amount: Number(amount),
-        balanceAfter: wallet.balance,
-        description,
-        referenceId,
-        referenceModel,
-        meta: { ...meta, session: undefined }
-    }], opts);
-};
-
-exports.debitForPayout = async (amount, description, referenceId, referenceModel, meta = {}) => {
-    const wallet = await AdminWallet.findOneAndUpdate(
-        { balance: { $gte: Number(amount) } },
-        { $inc: { balance: -Number(amount) } },
-        { returnDocument: 'after' }
-    );
-    if (!wallet) {
-        throw new Error('Insufficient admin wallet balance for payout');
-    }
-
-    return AdminWalletTxn.create({
-        type: 'PAYOUT_DEBIT',
-        amount: Number(amount),
-        balanceAfter: wallet.balance,
-        description,
-        referenceId,
-        referenceModel,
-        meta
-    });
-};
+exports.collectCommission = collectCommission;
+exports.collectPlatformFee = collectPlatformFee;
+exports.debitForPayout = debitForPayout;
 
 const { createRazorpayOrder, verifyPaymentSignature, fetchPayment } = require('../../helpers/razorpay.helper');
 

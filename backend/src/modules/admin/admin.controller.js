@@ -1515,7 +1515,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
 
     if (status === 'TRANSFERRED') {
         try {
-            const { debitForPayout } = require('../adminWallet/adminWallet.controller');
+            const { debitForPayout } = require('../adminWallet/adminWallet.service');
             const recipientName = payout.shopId ? 'shop' : 'worker';
             await debitForPayout(
                 payout.amount,

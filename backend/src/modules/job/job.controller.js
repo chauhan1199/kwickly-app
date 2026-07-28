@@ -600,7 +600,7 @@ exports.payJob = catchAsync(async (req, res) => {
         await job.save({ session });
 
         // Collect platform fee inside the transaction so it's atomic with the payment
-        const { collectPlatformFee } = require('../adminWallet/adminWallet.controller');
+        const { collectPlatformFee } = require('../adminWallet/adminWallet.service');
         await collectPlatformFee(
                 adminTotalRevenue,
                 `Platform fee + GST ${promoDiscount > 0 ? `(less â‚¹${promoDiscount} promo discount)` : ''} from job #${job._id.toString().slice(-6)} (${method})`,
