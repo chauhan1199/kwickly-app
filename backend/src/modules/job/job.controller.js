@@ -302,7 +302,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         );
     }
 
-    // â”€â”€ Criteria 8: Worker's own serviceRadius + location check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Criteria 8: Worker's own serviceRadius + location check ──────────────────
     const workerRadiusKm = worker.serviceRadius || (settings?.radius?.maxKm || 15);
     const workerCoords = worker.activeLocation?.coordinates;
 
@@ -316,11 +316,11 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
 
     const workerRadiusRadians = workerRadiusKm / 6371;
 
-    // â”€â”€ Exclude jobs this worker has already quoted on â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Exclude jobs this worker has already quoted on ──────────────────────────
     const Quote = require('../quote/quote.model');
     const quotedJobIds = await Quote.distinct('jobId', { workerId: req.user._id });
 
-    // â”€â”€ Fetch active jobs matching worker's categories within their radius â”€â”€â”€â”€â”€â”€
+    // ─── Fetch active jobs matching worker's categories within their radius ──────
     const query = {
         status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED'] },
         category: { $in: activeCategoryNames },        // Criteria 7: category match
@@ -348,7 +348,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         .limit(MAX_AVAILABLE_JOBS)
         .lean();
 
-    // â”€â”€ Attach distance info to each job (for display in worker's app) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Attach distance info to each job (for display in worker's app) ─────────
     const [wLng, wLat] = workerCoords;
     const jobsWithDistance = jobs.map(job => {
         const [jLng, jLat] = job.location?.coordinates || [0, 0];

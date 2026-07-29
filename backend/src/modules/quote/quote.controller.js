@@ -209,8 +209,10 @@ exports.getWorkerQuotes = catchAsync(async (req, res) => {
 /**
  * PATCH /api/v1/quotes/:id/accept
  * P0 FIX: Atomic acceptance using findOneAndUpdate with status guard to prevent double-acceptance
+ * B8 FIX: Distributed Redis Locks to eliminate concurrent race conditions
  */
 exports.acceptQuote = catchAsync(async (req, res) => {
+    const { acquireLock, releaseLock } = require('../../helpers/redis.helper');
     const quote = await Quote.findById(req.params.id).populate('jobId');
     if (!quote) return errorResponse(res, 'Quote not found', StatusCodes.NOT_FOUND);
 
@@ -219,35 +221,45 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
     }
 
-    // Guard: Verify the worker's subscription is still valid at acceptance time
-    const worker = await Customer.findById(quote.workerId).lean();
-    if (!worker) return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
-
-    const now = new Date();
-    const isTrialActive = worker.subscription?.isTrial === true &&
-        worker.subscription?.trialEndDate &&
-        new Date(worker.subscription.trialEndDate) > now;
-    const isPaidSubActive = worker.subscription?.expiryDate &&
-        new Date(worker.subscription.expiryDate) > now;
-
-    const SettingsService = require('../settings/settings.service');
-    const settings = await SettingsService.getAppSettings();
-    const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
-    const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
-
-    if (!isTrialActive && !isPaidSubActive && !isFallbackTrialActive) {
-        return errorResponse(res, 'Worker subscription has expired. Cannot accept this quote.', StatusCodes.PAYMENT_REQUIRED);
+    // B8 FIX: Acquire distributed lock for this specific job to prevent race conditions
+    // If two requests try to accept quotes for the same job simultaneously, the second one will fail to acquire the lock.
+    const lockKey = `job_allocation_${job._id}`;
+    const lockHolderId = await acquireLock(lockKey, 10);
+    if (!lockHolderId) {
+        return errorResponse(res, 'Job is currently being allocated. Please try again.', StatusCodes.CONFLICT);
     }
 
-    // P0 FIX: Atomic job update with status guard AND Quote Updates inside a single Transaction
-    const arrivalOtp    = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
-    const completionOtp = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
+    try {
+        // Guard: Verify the worker's subscription is still valid at acceptance time
+        const worker = await Customer.findById(quote.workerId).lean();
+        if (!worker) return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
 
-    // Calculate final pricing model
-    const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
-    
-    const workerPayout = quote.amount;
-    const platformFee = feeConfig.type === 'percent'
+        const now = new Date();
+        const isTrialActive = worker.subscription?.isTrial === true &&
+            worker.subscription?.trialEndDate &&
+            new Date(worker.subscription.trialEndDate) > now;
+        const isPaidSubActive = worker.subscription?.expiryDate &&
+            new Date(worker.subscription.expiryDate) > now;
+
+        const SettingsService = require('../settings/settings.service');
+        const settings = await SettingsService.getAppSettings();
+        const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+        const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
+
+        if (!isTrialActive && !isPaidSubActive && !isFallbackTrialActive) {
+            return errorResponse(res, 'Worker subscription has expired. Cannot accept this quote.', StatusCodes.PAYMENT_REQUIRED);
+        }
+
+        // P0 FIX: Atomic job update with status guard AND Quote Updates inside a single Transaction
+        const arrivalOtp    = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
+        const completionOtp = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
+
+        // Calculate final pricing model
+        const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
+        
+        const workerPayout = quote.amount;
+        const platformFee = feeConfig.type === 'percent'
+
         ? Math.round((workerPayout * (feeConfig.amount || 10)) / 100)
         : (feeConfig.amount || 50);
     const gst = Math.round((platformFee * (feeConfig.gstPercentage || 18)) / 100);
@@ -363,7 +375,10 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         targetRole: 'CUSTOMER'
     });
 
-    return successResponse(res, { job: updatedJob, quote }, 'Quote accepted, worker assigned');
+        return successResponse(res, { job: updatedJob, quote }, 'Quote accepted, worker assigned');
+    } finally {
+        await releaseLock(lockKey, lockHolderId);
+    }
 });
 
 

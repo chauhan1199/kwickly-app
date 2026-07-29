@@ -26,7 +26,7 @@ const errorHandler = (err, req, res, next) => {
     } else if (err.name === 'MongoServerError') {
         // Other Mongo errors (e.g. replica set transactions)
         statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
-        message = 'Database error';
+        message = 'Database error: ' + err.message;
     }
 
     // Invalid MongoDB ObjectId

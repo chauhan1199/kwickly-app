@@ -79,7 +79,7 @@ exports.sendOTP = catchAsync(async (req, res) => {
 });
 
 exports.verifyOTP = catchAsync(async (req, res) => {
-    const { phone, code, role } = req.body;
+    const { phone, code, role, fcmToken } = req.body;
     const cached = await getCache(`otp:${phone}`);
 
     if (!cached || String(cached) !== String(code)) {
@@ -87,7 +87,7 @@ exports.verifyOTP = catchAsync(async (req, res) => {
         return errorResponse(res, AUTH.OTP_INVALID, StatusCodes.BAD_REQUEST);
     }
 
-    // OTP is valid â€” clean up
+    // OTP is valid — clean up
     await delCache(`otp:${phone}`);
     await resetOtpAttempts(phone);
 
@@ -123,10 +123,17 @@ exports.verifyOTP = catchAsync(async (req, res) => {
         }
     }
 
+    // Save FCM device token if provided (for push notifications)
+    if (fcmToken && fcmToken !== user.fcmToken) {
+        await Customer.findByIdAndUpdate(user._id, { fcmToken });
+        user.fcmToken = fcmToken;
+    }
+
     const token = generateToken(user);
 
-    // Cache the user session in Redis — strip sensitive fields first
-    const safeUser = { ...user.toObject() };
+    // BUG FIX B2: Store user object directly — getCache already JSON.parses,
+    // so we must NOT double-stringify here.
+    const safeUser = user.toObject();
     delete safeUser.password;
     if (safeUser.wallet) {
         delete safeUser.wallet.bankDetails;
@@ -142,7 +149,7 @@ exports.verifyOTP = catchAsync(async (req, res) => {
 });
 
 exports.login = catchAsync(async (req, res) => {
-    const { email, phone, password, role } = req.body;
+    const { email, phone, password, role, fcmToken } = req.body;
 
     let query = email ? { email } : { phone };
     if (role) query.role = role.toUpperCase();
@@ -163,12 +170,18 @@ exports.login = catchAsync(async (req, res) => {
         return errorResponse(res, AUTH.LOGIN_FAILED, StatusCodes.UNAUTHORIZED);
     }
 
+    // Save FCM device token if provided
+    if (fcmToken && fcmToken !== user.fcmToken) {
+        await Customer.findByIdAndUpdate(user._id, { fcmToken });
+        user.fcmToken = fcmToken;
+    }
+
     const token = generateToken(user);
 
-    // Cache user session
+    // BUG FIX B2: Store object directly — not double-stringified
     const userObj = user.toObject();
     delete userObj.password;
-    await setCache(`session:${user._id}`, JSON.stringify(userObj), 86400);
+    await setCache(`session:${user._id}`, userObj, SESSION_TTL);
 
     return successResponse(res, {
         token,

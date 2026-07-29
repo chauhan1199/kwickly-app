@@ -35,8 +35,8 @@ const CustomerSchema = new mongoose.Schema({
         trialEndDate: { type: Date }   // ← registration date + trialDurationDays
     },
     activeLocation: {
-        type: { type: String, default: 'Point' },
-        coordinates: { type: [Number], default: null }, // [longitude, latitude]
+        type: { type: String, enum: ['Point'] },
+        coordinates: { type: [Number] }, // [longitude, latitude]
         addressDetails: {
             city: { type: String },
             pincode: { type: String },
@@ -52,8 +52,8 @@ const CustomerSchema = new mongoose.Schema({
             area: { type: String },
             pincode: { type: String },
             location: {
-                type: { type: String, default: 'Point' },
-                coordinates: { type: [Number], default: null } // [lng, lat]
+                type: { type: String, enum: ['Point'] },
+                coordinates: { type: [Number] } // [lng, lat]
             }
         }],
         validate: [arr => arr.length <= 10, 'Maximum 10 addresses']

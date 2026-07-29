@@ -1,7 +1,6 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const logger = require('./logger.helper');
-const Customer = require('../modules/customer/customer.model');
 
 let io = null;
 
@@ -20,41 +19,50 @@ const initSocket = (server) => {
                 methods: ['GET', 'POST'],
                 credentials: true
             },
-            // Performance settings for 50k+ concurrent users
-            pingTimeout: 20000,
-            pingInterval: 25000,
-            transports: ['websocket', 'polling']
+            // ─── 100K Scale Settings ───────────────────────────────────────────
+            pingTimeout: 20000,          // Drop connection after 20s of no pong
+            pingInterval: 25000,         // Ping every 25s
+            maxHttpBufferSize: 1e6,      // 1MB max message size (prevents memory DoS)
+            connectTimeout: 10000,       // 10s connection timeout
+            transports: ['websocket', 'polling'],
+            // Compress messages > 1KB (reduces bandwidth at scale)
+            perMessageDeflate: {
+                zlibDeflateOptions: { chunkSize: 1024, memLevel: 7, level: 3 },
+                threshold: 1024
+            },
+            httpCompression: true,
+            // Adapter-level ack timeout for Redis pub/sub reliability
+            ackTimeout: 5000
         });
 
-        // Setup Redis Pub/Sub Adapter for Horizontal Scaling
-        const { createAdapter } = require('@socket.io/redis-adapter');
-        const { getRedis } = require('./redis.helper');
-        
-        const pubClient = getRedis();
-        if (pubClient) {
-            const subClient = pubClient.duplicate();
-            io.adapter(createAdapter(pubClient, subClient));
-            logger.info('Socket.io bound to Redis Pub/Sub adapter for clustering');
-        } else {
-            logger.warn('Redis client not available. Socket.io running in local memory mode (not horizontally scalable).');
+        // ─── Redis Pub/Sub Adapter (Horizontal Scaling) ───────────────────────
+        try {
+            const { createAdapter } = require('@socket.io/redis-adapter');
+            const { getRedis } = require('./redis.helper');
+            const pubClient = getRedis();
+            if (pubClient) {
+                const subClient = pubClient.duplicate();
+                io.adapter(createAdapter(pubClient, subClient));
+                logger.info('Socket.io bound to Redis Pub/Sub adapter for clustering');
+            } else {
+                logger.warn('Redis not available. Socket.io in local memory mode.');
+            }
+        } catch (adapterErr) {
+            logger.warn('Redis adapter setup failed, running in local mode:', adapterErr.message);
         }
 
-        // P0 FIX: JWT Authentication middleware for ALL socket connections
+        // ─── JWT Authentication Middleware ────────────────────────────────────
         io.use(async (socket, next) => {
             const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
-
-            if (!token) {
-                return next(new Error('Authentication required'));
-            }
+            if (!token) return next(new Error('Authentication required'));
 
             try {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-                // P0 FIX: Check if token has been blacklisted (logged out)
+                // Check if token has been blacklisted (logged out)
                 const { getCache } = require('./redis.helper');
                 const isBlacklisted = await getCache(`blacklist:${token}`);
                 if (isBlacklisted) {
-                    socket.isAuthenticated = false;
                     return next(new Error('Token has been invalidated'));
                 }
 
@@ -63,15 +71,18 @@ const initSocket = (server) => {
                 socket.isAuthenticated = true;
                 next();
             } catch (err) {
-                socket.isAuthenticated = false;
                 next(new Error('Invalid token'));
             }
         });
 
+        // ─── Connection Handler ───────────────────────────────────────────────
         io.on('connection', (socket) => {
-            logger.info(`[Socket] Connected: ${socket.id} (${socket.isAuthenticated ? socket.userRole : 'unauthenticated'})`);
+            logger.info(`[Socket] Connected: ${socket.id} (${socket.userRole || 'unauthenticated'})`);
 
             if (socket.isAuthenticated && socket.userId) {
+                // Personal room — all roles (used by notifyUser for targeted delivery)
+                socket.join(`user_${socket.userId}`);
+
                 if (socket.userRole === 'CUSTOMER') {
                     socket.join(`customer_${socket.userId}`);
                 } else if (socket.userRole === 'WORKER') {
@@ -83,12 +94,12 @@ const initSocket = (server) => {
                 }
             }
 
-            socket.on('disconnect', async () => {
+            socket.on('disconnect', () => {
                 logger.info(`[Socket] Disconnected: ${socket.id}`);
             });
         });
 
-        logger.info('✅ Socket.io initialized with JWT authentication middleware');
+        logger.info('✅ Socket.io initialized with JWT middleware and 100K scale settings');
         return io;
     } catch (error) {
         logger.error('Failed to initialize Socket.io:', error);
@@ -101,26 +112,46 @@ const getIO = () => {
     return io;
 };
 
+/**
+ * Emit to ALL connected clients (use sparingly — only for global events)
+ */
 const emitToAll = (event, data) => {
-    if (io) io.emit(event, data);
+    if (!io) return;
+    if (event === 'DASHBOARD_UPDATE') {
+        io.to('admin_dashboard').emit(event, { ...data, timestamp: new Date() });
+    } else {
+        io.emit(event, data);
+    }
 };
 
+/**
+ * Emit to a specific room (customer_X, worker_X, shop_X, admin_dashboard, job_X)
+ */
 const emitToRoom = (room, event, data) => {
     if (io) io.to(room).emit(event, data);
 };
 
-const triggerDashboardUpdate = () => {
-    if (io) {
-        io.to('admin_dashboard').emit('DASHBOARD_UPDATE', { timestamp: new Date() });
-        logger.info('Broadcasted DASHBOARD_UPDATE to admin room');
-    }
+/**
+ * Emit to a user across all their possible role rooms.
+ * Used by notifyUser for real-time bell icon update.
+ * Also targets the personal user_X room for guaranteed delivery.
+ */
+const emitToUser = (userId, event, data) => {
+    if (!io || !userId) return;
+    // user_X room: personal, set on connection regardless of role
+    io.to(`user_${userId}`)
+      .to(`customer_${userId}`)
+      .to(`worker_${userId}`)
+      .to(`shop_${userId}`)
+      .emit(event, data);
 };
 
-const emitToUser = (userId, event, data) => {
+/**
+ * Emit DASHBOARD_UPDATE only to the admin room
+ */
+const triggerDashboardUpdate = (payload = {}) => {
     if (io) {
-        io.to(`customer_${userId}`).emit(event, data);
-        io.to(`worker_${userId}`).emit(event, data);
-        io.to(`shop_${userId}`).emit(event, data);
+        io.to('admin_dashboard').emit('DASHBOARD_UPDATE', { ...payload, timestamp: new Date() });
     }
 };
 

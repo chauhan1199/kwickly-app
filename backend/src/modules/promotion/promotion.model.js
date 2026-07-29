@@ -21,8 +21,8 @@ const PromotionSchema = new mongoose.Schema({
     title: { type: String, required: true },
     description: { type: String },
     type: { type: String, enum: ['FLAT_DISCOUNT', 'PERCENTAGE_DISCOUNT', 'FREE_DELIVERY', 'FIRST_ORDER', 'CASHBACK'], required: true },
-    value: { type: Number, required: true },
-    maxDiscountCap: { type: Number },
+    value: { type: Number, required: true, min: [0, 'Value cannot be negative'] },
+    maxDiscountCap: { type: Number, min: [0, 'Cap cannot be negative'] },
     minOrderAmount: { type: Number, default: 0 },
     maxUsesTotal: { type: Number },
     maxUsesPerUser: { type: Number, default: 1 },
@@ -37,6 +37,23 @@ const PromotionSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 PromotionSchema.index({ isActive: 1, startAt: 1, endAt: 1 });
+
+PromotionSchema.pre('save', async function() {
+    if (this.endAt && this.startAt && this.endAt < this.startAt) {
+        const err = new Error('End date cannot be before start date');
+        err.statusCode = 400;
+        throw err;
+    }
+});
+
+PromotionSchema.pre(['updateOne', 'findOneAndUpdate'], async function() {
+    const update = this.getUpdate();
+    if (update.endAt && update.startAt && new Date(update.endAt) < new Date(update.startAt)) {
+        const err = new Error('End date cannot be before start date');
+        err.statusCode = 400;
+        throw err;
+    }
+});
 
 const UserPromoUsageSchema = new mongoose.Schema({
     promoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Promotion', required: true },

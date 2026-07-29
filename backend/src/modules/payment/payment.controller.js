@@ -87,43 +87,72 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         return errorResponse(res, 'Unable to verify payment with Razorpay. Please try again.', StatusCodes.BAD_REQUEST);
     }
 
-    // Update our payment record
-    const payment = await Payment.findOne({ razorpayOrderId });
-    if (!payment) {
-        return errorResponse(res, 'Payment record not found', StatusCodes.NOT_FOUND);
+    // B7 FIX: Use transactions to prevent partial updates
+    let session = null;
+    let useTransaction = false;
+    if (typeof mongoose !== 'undefined' && mongoose.startSession) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) { session = null; useTransaction = false; }
     }
 
-    payment.razorpayPaymentId = razorpayPaymentId;
-    payment.razorpaySignature = razorpaySignature;
-    payment.method = rpPayment.method || 'upi';
-    payment.status = rpPayment.status === 'captured' ? 'CAPTURED' : 'AUTHORIZED';
-    await payment.save();
-
-    // If linked to an order, update the order
-    if (payment.orderId) {
-        const order = await ShopOrder.findById(payment.orderId);
-        if (order) {
-            order.payment.status = 'PAID';
-            order.payment.razorpayOrderId = razorpayOrderId;
-            order.payment.razorpayPaymentId = razorpayPaymentId;
-            order.payment.method = payment.method?.toUpperCase() || 'UPI';
-            order.statusHistory.push({ status: order.status, timestamp: new Date(), note: 'Payment verified' });
-            await order.save();
-
-            // Notify shop
-            emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', {
-                orderId: order._id,
-                status: order.status,
-                paymentStatus: 'PAID'
-            });
+    try {
+        const sessOpts = useTransaction ? { session } : {};
+        
+        // Update our payment record
+        const payment = await Payment.findOne({ razorpayOrderId }).session(session);
+        if (!payment) {
+            if (useTransaction) { await session.abortTransaction(); session.endSession(); }
+            return errorResponse(res, 'Payment record not found', StatusCodes.NOT_FOUND);
         }
-    }
 
-    return successResponse(res, {
-        paymentId: payment._id,
-        status: payment.status,
-        razorpayPaymentId
-    }, 'Payment verified successfully');
+        payment.razorpayPaymentId = razorpayPaymentId;
+        payment.razorpaySignature = razorpaySignature;
+        payment.method = rpPayment.method || 'upi';
+        payment.status = rpPayment.status === 'captured' ? 'CAPTURED' : 'AUTHORIZED';
+        await payment.save(sessOpts);
+
+        // If linked to an order, update the order
+        if (payment.orderId) {
+            const order = await ShopOrder.findById(payment.orderId).session(session);
+            if (order) {
+                order.payment.status = 'PAID';
+                order.payment.razorpayOrderId = razorpayOrderId;
+                order.payment.razorpayPaymentId = razorpayPaymentId;
+                order.payment.method = payment.method?.toUpperCase() || 'UPI';
+                order.statusHistory.push({ status: order.status, timestamp: new Date(), note: 'Payment verified' });
+                await order.save(sessOpts);
+
+                // Notify shop
+                emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', {
+                    orderId: order._id,
+                    status: order.status,
+                    paymentStatus: 'PAID'
+                });
+            }
+        }
+
+        if (useTransaction) {
+            await session.commitTransaction();
+            session.endSession();
+        }
+
+        return successResponse(res, {
+            paymentId: payment._id,
+            status: payment.status,
+            razorpayPaymentId
+        }, 'Payment verified successfully');
+
+    } catch (err) {
+        if (useTransaction && session) {
+            await session.abortTransaction();
+            session.endSession();
+        }
+        logger.error('Payment verification failed:', err);
+        return errorResponse(res, 'Payment verification failed', StatusCodes.INTERNAL_SERVER_ERROR);
+    }
 });
 
 /**
@@ -322,13 +351,14 @@ exports.refundPayment = catchAsync(async (req, res) => {
     const refundAmount = amount || order.total;
 
     try {
-        const refund = await createRefund(order.payment.razorpayPaymentId, refundAmount, { reason });
+        // B5 FIX: Remove gateway charge cancellation (`createRefund`) to avoid double refunds.
+        // Refunds are exclusively credited to the Kwickly wallet to keep cash in the ecosystem.
+        // const refund = await createRefund(order.payment.razorpayPaymentId, refundAmount, { reason });
 
         // Update payment record
         const payment = await Payment.findOne({ razorpayOrderId: order.payment.razorpayOrderId });
         if (payment) {
-            payment.status = refundAmount >= order.total ? 'REFUNDED' : 'PARTIAL_REFUNDED';
-            payment.refundId = refund.id;
+            payment.status = refundAmount >= order.total ? 'REFUNDED_TO_WALLET' : 'PARTIAL_REFUNDED_TO_WALLET';
             payment.refundAmount = refundAmount;
             await payment.save();
         }
@@ -360,7 +390,7 @@ exports.refundPayment = catchAsync(async (req, res) => {
             refundAmount
         });
 
-        return successResponse(res, { refundId: refund.id, amount: refundAmount }, 'Refund processed');
+        return successResponse(res, { amount: refundAmount, walletCredited: true }, 'Refund processed to wallet');
 
     } catch (error) {
         return errorResponse(res, 'Refund failed: ' + error.message, StatusCodes.INTERNAL_SERVER_ERROR);

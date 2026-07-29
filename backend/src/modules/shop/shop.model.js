@@ -18,8 +18,8 @@ const ShopSchema = new mongoose.Schema({
 
     address: { type: String },
     location: {
-        type:        { type: String, default: 'Point' },
-        coordinates: { type: [Number], default: null }
+        type: { type: String, enum: ['Point'] },
+        coordinates: { type: [Number] }
     },
 
     businessHours: {

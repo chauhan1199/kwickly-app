@@ -12,10 +12,23 @@ exports.getReportData = catchAsync(async (req, res) => {
     const cacheKey = `admin_report_${tab}_${period || 'default'}`;
     const data = await fetchWithCache(cacheKey, 300, async () => {
         let result = {};
+        
+        let dateMatch = {};
+        const now = new Date();
+        if (period === 'week') {
+            const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            dateMatch = { createdAt: { $gte: lastWeek } };
+        } else if (period === 'month') {
+            const lastMonth = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            dateMatch = { createdAt: { $gte: lastMonth } };
+        } else if (period === 'year') {
+            const lastYear = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+            dateMatch = { createdAt: { $gte: lastYear } };
+        }
 
         if (tab === 'revenue') {
         const revenueData = await Job.aggregate([
-            { $match: { 'payment.status': 'PAID' } },
+            { $match: { 'payment.status': 'PAID', ...dateMatch } },
             { $group: { 
                 _id: null, 
                 totalCommission: { $sum: '$payment.platformFee' },
@@ -24,7 +37,7 @@ exports.getReportData = catchAsync(async (req, res) => {
         ]);
 
         const chartAgg = await Job.aggregate([
-            { $match: { 'payment.status': 'PAID' } },
+            { $match: { 'payment.status': 'PAID', ...dateMatch } },
             { $group: {
                 _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
                 revenue: { $sum: '$payment.amount' },
@@ -66,6 +79,7 @@ exports.getReportData = catchAsync(async (req, res) => {
         const avgRating = ratingAgg[0] ? ratingAgg[0].avgOverall.toFixed(1) : '0.0';
 
         const chartAgg = await Job.aggregate([
+            { $match: dateMatch },
             { $group: {
                 _id: { $dateToString: { format: "%Y-%U", date: "$createdAt" } },
                 total: { $sum: 1 },
