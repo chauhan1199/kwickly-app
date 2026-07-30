@@ -9,6 +9,33 @@ const AppSettings = require('../modules/settings/settings.model');
 const Dispute = require('../modules/dispute/dispute.model');
 const Suggestion = require('../modules/suggestion/suggestion.model');
 
+/**
+ * KWICKLY TEST ACCOUNTS
+ * =====================
+ * All test accounts use the same password: '123' suffix
+ * 
+ * CUSTOMERS (password: customer123):
+ * - Phone: 9000000001, Name: Rahul Sharma, Wallet: ₹1000
+ * - Phone: 9000000003, Name: Priya Singh, Wallet: ₹500
+ * - Phone: 9000000004, Name: Arjun Patel, Wallet: ₹2000
+ * - Phone: 9000000005, Name: Sneha Reddy, Wallet: ₹750
+ * 
+ * WORKERS (password: worker123):
+ * - Phone: 9876543 210, Name: Amit Kumar, KYC: APPROVED, Plan: Pro
+ * - Phone: 9876543 211, Name: Rajan Verma, KYC: PENDING, Plan: Free
+ * - Phone: 9876543 212, Name: Vikram Singh, KYC: PENDING, Plan: Free
+ * - Phone: 9876543 213, Name: Suresh Yadav, KYC: APPROVED, Plan: Pro
+ * - Phone: 9876543 214, Name: Mohd. Akram, KYC: APPROVED, Plan: Monthly
+ * 
+ * SHOPS (password: shop123):
+ * - Phone: 9000000002, Name: Kwickly Mart (Grocery)
+ * - Phone: 9000000006, Name: Fresh Groceries Express
+ * - Phone: 9000000007, Name: Electronics Hub
+ * 
+ * ADMIN:
+ * - Email: admin@kwickly.com, Password: admin123
+ */
+
 const Shop = require('../modules/shop/shop.model');
 const Product = require('../modules/product/product.model');
 const ShopOrder = require('../modules/shoporder/shoporder.model');
@@ -350,17 +377,37 @@ const seedData = async () => {
             { 
               name: 'Amit Kumar', phone: '9876543210', role: 'WORKER', isVerified: true, password: workerPwd, 
               city: 'Mumbai', wallet: { balance: 500 }, kyc: { status: 'APPROVED', documents: [{ type: 'PAN', url: 'https://placehold.co/400x250/blue/white?text=PAN+Card'}, { type: 'OTHER', url: 'https://placehold.co/400x250/purple/white?text=Selfie' }] }, plan: 'pro',
-              profileImage: 'https://i.pravatar.cc/150?img=11'
+              profileImage: 'https://i.pravatar.cc/150?img=11',
+              email: 'worker1@kwickly.com',
+              skills: ['plumbing', 'electrical']
             },
             { 
               name: 'Rajan Verma', phone: '9876543211', role: 'WORKER', isVerified: true, password: workerPwd, 
               city: 'Delhi', wallet: { balance: 250 }, kyc: { status: 'PENDING', documents: [{ type: 'AADHAR', url: 'https://placehold.co/600x400/orange/white?text=Aadhar+Front'}, { type: 'AADHAR', url: 'https://placehold.co/600x400/orange/white?text=Aadhar+Back' }] }, plan: 'free',
-              profileImage: 'https://i.pravatar.cc/150?img=12'
+              profileImage: 'https://i.pravatar.cc/150?img=12',
+              email: 'worker2@kwickly.com',
+              skills: ['carpentry', 'painting']
             },
             { 
               name: 'Vikram Singh', phone: '9876543212', role: 'WORKER', isVerified: false, password: workerPwd, 
               city: 'Bangalore', wallet: { balance: 0 }, kyc: { status: 'PENDING', documents: [{ type: 'AADHAR', url: 'https://placehold.co/600x400/purple/white?text=Aadhar+Front' }] }, plan: 'free',
-              profileImage: 'https://i.pravatar.cc/150?img=13'
+              profileImage: 'https://i.pravatar.cc/150?img=13',
+              email: 'worker3@kwickly.com',
+              skills: ['ac_repair']
+            },
+            {
+              name: 'Suresh Yadav', phone: '9876543213', role: 'WORKER', isVerified: true, password: workerPwd,
+              city: 'Noida', wallet: { balance: 1200 }, kyc: { status: 'APPROVED', documents: [{ type: 'PAN', url: 'https://placehold.co/400x250/green/white?text=PAN+Card' }] }, plan: 'pro',
+              profileImage: 'https://i.pravatar.cc/150?img=14',
+              email: 'worker4@kwickly.com',
+              skills: ['cleaning', 'pest_control']
+            },
+            {
+              name: 'Mohd. Akram', phone: '9876543214', role: 'WORKER', isVerified: true, password: workerPwd,
+              city: 'Gurgaon', wallet: { balance: 800 }, kyc: { status: 'APPROVED', documents: [{ type: 'AADHAR', url: 'https://placehold.co/600x400/blue/white?text=Aadhar+Card' }] }, plan: 'monthly',
+              profileImage: 'https://i.pravatar.cc/150?img=15',
+              email: 'worker5@kwickly.com',
+              skills: ['beauty', 'salon']
             }
         ];
         await Customer.deleteMany({ role: 'WORKER' });
@@ -370,11 +417,50 @@ const seedData = async () => {
         // 8. Seed Sample Customers
         const customerPwd = await bcrypt.hash('customer123', 12);
         const customers = [
-            { name: 'Rahul Sharma', phone: '9000000001', role: 'CUSTOMER', isVerified: true, password: customerPwd }
+            { 
+                name: 'Rahul Sharma', 
+                phone: '9000000001', 
+                role: 'CUSTOMER', 
+                isVerified: true, 
+                password: customerPwd,
+                email: 'customer1@kwickly.com',
+                wallet: { balance: 1000 },
+                profileImage: 'https://i.pravatar.cc/150?img=1'
+            },
+            { 
+                name: 'Priya Singh', 
+                phone: '9000000003', 
+                role: 'CUSTOMER', 
+                isVerified: true, 
+                password: customerPwd,
+                email: 'customer2@kwickly.com',
+                wallet: { balance: 500 },
+                profileImage: 'https://i.pravatar.cc/150?img=5'
+            },
+            { 
+                name: 'Arjun Patel', 
+                phone: '9000000004', 
+                role: 'CUSTOMER', 
+                isVerified: true, 
+                password: customerPwd,
+                email: 'customer3@kwickly.com',
+                wallet: { balance: 2000 },
+                profileImage: 'https://i.pravatar.cc/150?img=3'
+            },
+            { 
+                name: 'Sneha Reddy', 
+                phone: '9000000005', 
+                role: 'CUSTOMER', 
+                isVerified: true, 
+                password: customerPwd,
+                email: 'customer4@kwickly.com',
+                wallet: { balance: 750 },
+                profileImage: 'https://i.pravatar.cc/150?img=9'
+            }
         ];
         await Customer.deleteMany({ role: 'CUSTOMER' });
         const createdCustomers = await Customer.create(customers);
-        logger.info('Sample customers created.');
+        logger.info(`Sample customers created: ${customers.length} test accounts.`);
 
         // 9. Seed Sample Jobs
         const jobs = [
@@ -454,7 +540,36 @@ const seedData = async () => {
         
         const shopOwnerPwd = await bcrypt.hash('shop123', 12);
         const shopOwners = [
-            { name: 'Kwickly Mart Owner', phone: '9000000002', role: 'SHOP', isVerified: true, password: shopOwnerPwd }
+            { 
+                name: 'Kwickly Mart Owner', 
+                phone: '9000000002', 
+                role: 'SHOP', 
+                isVerified: true, 
+                password: shopOwnerPwd,
+                email: 'shop1@kwickly.com',
+                wallet: { balance: 5000 },
+                profileImage: 'https://i.pravatar.cc/150?img=8'
+            },
+            { 
+                name: 'Fresh Groceries', 
+                phone: '9000000006', 
+                role: 'SHOP', 
+                isVerified: true, 
+                password: shopOwnerPwd,
+                email: 'shop2@kwickly.com',
+                wallet: { balance: 3000 },
+                profileImage: 'https://i.pravatar.cc/150?img=7'
+            },
+            { 
+                name: 'Electronics Hub', 
+                phone: '9000000007', 
+                role: 'SHOP', 
+                isVerified: true, 
+                password: shopOwnerPwd,
+                email: 'shop3@kwickly.com',
+                wallet: { balance: 10000 },
+                profileImage: 'https://i.pravatar.cc/150?img=4'
+            }
         ];
         await Customer.deleteMany({ role: 'SHOP' });
         const createdShopOwners = await Customer.create(shopOwners);
@@ -470,15 +585,53 @@ const seedData = async () => {
                 kyc: { status: 'APPROVED' },
                 isOnline: true,
                 rating: 4.8,
-                totalOrders: 15
+                totalOrders: 15,
+                category: 'grocery'
+            },
+            {
+                ownerId: createdShopOwners[1]._id,
+                name: 'Fresh Groceries Express',
+                description: 'Fresh vegetables and fruits delivered',
+                logoUrl: 'https://placehold.co/150x150/orange/white?text=Fresh+Groceries',
+                address: 'Sector 18, Noida',
+                location: { type: 'Point', coordinates: [77.3270, 28.5700] },
+                kyc: { status: 'APPROVED' },
+                isOnline: true,
+                rating: 4.6,
+                totalOrders: 8,
+                category: 'grocery'
+            },
+            {
+                ownerId: createdShopOwners[2]._id,
+                name: 'Electronics Hub',
+                description: 'Mobile phones, accessories and electronics',
+                logoUrl: 'https://placehold.co/150x150/blue/white?text=Electronics',
+                address: 'Sector 62, Noida',
+                location: { type: 'Point', coordinates: [77.3650, 28.6100] },
+                kyc: { status: 'APPROVED' },
+                isOnline: false,
+                rating: 4.9,
+                totalOrders: 25,
+                category: 'electronics'
             }
         ];
         const createdShops = await Shop.create(shops);
         
         const products = [
-            { shopId: createdShops[0]._id, name: 'Amul Milk 1L', price: 68, stock: 50, imageUrl: '🥛' },
-            { shopId: createdShops[0]._id, name: 'Fortune Oil 1L', price: 149, stock: 20, imageUrl: '🫙' },
-            { shopId: createdShops[0]._id, name: 'Parle-G 250g', price: 20, stock: 100, imageUrl: '🍪' }
+            { shopId: createdShops[0]._id, name: 'Amul Milk 1L', price: 68, stock: 50, imageUrl: '🥛', category: 'dairy' },
+            { shopId: createdShops[0]._id, name: 'Fortune Oil 1L', price: 149, stock: 20, imageUrl: '🫙', category: 'cooking' },
+            { shopId: createdShops[0]._id, name: 'Parle-G 250g', price: 20, stock: 100, imageUrl: '🍪', category: 'snacks' },
+            { shopId: createdShops[0]._id, name: 'Aashirvaad Atta 5kg', price: 210, stock: 30, imageUrl: '🌾', category: 'staples' },
+            { shopId: createdShops[0]._id, name: 'Tata Salt 1kg', price: 28, stock: 80, imageUrl: '🧂', category: 'staples' },
+            { shopId: createdShops[1]._id, name: 'Potato 1kg', price: 40, stock: 100, imageUrl: '🥔', category: 'vegetables' },
+            { shopId: createdShops[1]._id, name: 'Onion 1kg', price: 60, stock: 80, imageUrl: '🧅', category: 'vegetables' },
+            { shopId: createdShops[1]._id, name: 'Tomato 1kg', price: 50, stock: 60, imageUrl: '🍅', category: 'vegetables' },
+            { shopId: createdShops[1]._id, name: 'Banana 1 Dozen', price: 80, stock: 40, imageUrl: '🍌', category: 'fruits' },
+            { shopId: createdShops[1]._id, name: 'Apple 1kg', price: 180, stock: 25, imageUrl: '🍎', category: 'fruits' },
+            { shopId: createdShops[2]._id, name: 'iPhone 15 Pro', price: 134900, stock: 5, imageUrl: '📱', category: 'mobiles' },
+            { shopId: createdShops[2]._id, name: 'AirPods Pro', price: 24900, stock: 10, imageUrl: '🎧', category: 'accessories' },
+            { shopId: createdShops[2]._id, name: 'MacBook Air M2', price: 114900, stock: 3, imageUrl: '💻', category: 'laptops' },
+            { shopId: createdShops[2]._id, name: 'USB-C Cable', price: 999, stock: 50, imageUrl: '🔌', category: 'accessories' }
         ];
         const createdProducts = await Product.create(products);
 
