@@ -43,7 +43,7 @@ describe('Dispute Routes (Admin)', () => {
             issue: 'Worker did not complete the work properly',
             reason: 'Incomplete work',
             description: 'The faucet is still leaking after the repair',
-            status: 'open'
+            status: 'OPEN'
         });
     });
 
@@ -77,20 +77,20 @@ describe('Dispute Routes (Admin)', () => {
             const res = await request(app)
                 .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ status: 'in_review' });
+                .send({ status: 'IN_REVIEW' });
 
             expect(res.status).toBe(200);
-            expect(res.body.data.status).toBe('in_review');
+            expect(res.body.data.status).toBe('IN_REVIEW');
         });
 
         it('should update status to resolved with resolution notes', async () => {
             const res = await request(app)
                 .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ status: 'resolved', resolutionNotes: 'Issue verified and resolved with full refund' });
+                .send({ status: 'RESOLVED', resolutionNotes: 'Issue verified and resolved with full refund' });
 
             expect(res.status).toBe(200);
-            expect(res.body.data.status).toBe('resolved');
+            expect(res.body.data.status).toBe('RESOLVED');
             expect(res.body.data.resolutionNotes).toBe('Issue verified and resolved with full refund');
             expect(res.body.data.resolvedAt).toBeDefined();
         });
@@ -99,10 +99,10 @@ describe('Dispute Routes (Admin)', () => {
             const res = await request(app)
                 .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ status: 'refunded', resolutionNotes: 'Customer refunded', refundAmount: 500 });
+                .send({ status: 'REFUNDED', resolutionNotes: 'Customer refunded', refundAmount: 500 });
 
             expect(res.status).toBe(200);
-            expect(res.body.data.status).toBe('refunded');
+            expect(res.body.data.status).toBe('REFUNDED');
             expect(res.body.data.resolvedAt).toBeDefined();
 
             // Verify customer wallet was credited
@@ -115,7 +115,7 @@ describe('Dispute Routes (Admin)', () => {
             const res = await request(app)
                 .patch(`/api/v1/admin/disputes/${fakeId}/status`)
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ status: 'resolved' });
+                .send({ status: 'RESOLVED' });
 
             expect(res.status).toBe(404);
         });
@@ -125,13 +125,13 @@ describe('Dispute Routes (Admin)', () => {
             await request(app)
                 .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ status: 'refunded', refundAmount: 500 });
+                .send({ status: 'REFUNDED', refundAmount: 500 });
 
             // Second refund attempt
             const res = await request(app)
                 .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ status: 'refunded', refundAmount: 500 });
+                .send({ status: 'REFUNDED', refundAmount: 500 });
 
             expect(res.status).toBe(409);
         });
@@ -139,7 +139,7 @@ describe('Dispute Routes (Admin)', () => {
         it('should reject unauthenticated request', async () => {
             const res = await request(app)
                 .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
-                .send({ status: 'resolved' });
+                .send({ status: 'RESOLVED' });
 
             expect(res.status).toBe(401);
         });
@@ -148,7 +148,7 @@ describe('Dispute Routes (Admin)', () => {
             const res = await request(app)
                 .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
                 .set('Authorization', `Bearer ${customerToken}`)
-                .send({ status: 'resolved' });
+                .send({ status: 'RESOLVED' });
 
             expect(res.status).toBe(403);
         });
@@ -157,10 +157,10 @@ describe('Dispute Routes (Admin)', () => {
             const res = await request(app)
                 .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ status: 'dismissed', resolution: 'Customer complaint unfounded' });
+                .send({ status: 'DISMISSED', resolution: 'Customer complaint unfounded' });
 
             expect(res.status).toBe(200);
-            expect(res.body.data.status).toBe('dismissed');
+            expect(res.body.data.status).toBe('DISMISSED');
             expect(res.body.data.resolutionNotes).toBe('Customer complaint unfounded');
             expect(res.body.data.resolvedAt).toBeDefined();
         });

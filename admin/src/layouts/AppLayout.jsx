@@ -171,9 +171,13 @@ export default function AppLayout({ onLogout }) {
 
   return (
     <div className="app-layout">
-      <div className={`sidebar-overlay${sidebarOpen ? ' visible' : ''}`} onClick={() => setSidebarOpen(false)} />
+      <div
+        className={`sidebar-overlay${sidebarOpen ? ' visible' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
 
-      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
+      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`} role="navigation" aria-label="Main navigation">
         <button className="sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close menu">✕</button>
 
         <div className="sidebar-logo">
@@ -208,7 +212,7 @@ export default function AppLayout({ onLogout }) {
 
       <div className="main-content">
         <header className="topbar">
-          <button className="hamburger" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button>
+          <button className="hamburger" onClick={() => setSidebarOpen(true)} aria-label="Open navigation menu">☰</button>
           <div className="topbar-title-wrap">
             <div className="topbar-title">{title}</div>
             <div className="topbar-breadcrumb">{platformSettings.appName || 'Kwickly'} / {title}</div>
@@ -216,23 +220,28 @@ export default function AppLayout({ onLogout }) {
           <div className="topbar-spacer" />
           <div className="topbar-actions">
             {/* Theme Toggle */}
-            <button className="topbar-btn" onClick={toggleTheme} title={`Switch to ${isDark ? 'light' : 'dark'} mode`}>
+            <button className="topbar-btn" onClick={toggleTheme} title={`Switch to ${isDark ? 'light' : 'dark'} mode`} aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}>
               {isDark ? '☀️' : '🌙'}
             </button>
 
-            <div className="topbar-live">
+            <div className="topbar-live" role="status" aria-live="polite">
               <span className="live-dot" />
               Live
             </div>
 
             <div className="topbar-notif-wrap">
-              <button className={`topbar-btn${isNotifOpen ? ' active' : ''}`} onClick={() => setNotifOpen(!isNotifOpen)} title="Notifications">
+              <button
+                className={`topbar-btn${isNotifOpen ? ' active' : ''}`}
+                onClick={() => setNotifOpen(!isNotifOpen)}
+                title="Notifications"
+                aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+              >
                 🔔
                 {unreadCount > 0 && <span className="topbar-badge">{unreadCount}</span>}
               </button>
               {isNotifOpen && (
                 <>
-                  <div className="notif-overlay" onClick={() => setNotifOpen(false)} />
+                  <div className="notif-overlay" onClick={() => setNotifOpen(false)} aria-hidden="true" />
                   <div className="notif-dropdown">
                     <div className="notif-header">
                       <h3>Activity Log</h3>
@@ -262,7 +271,7 @@ export default function AppLayout({ onLogout }) {
             </div>
           </div>
         </header>
-        <div className="page-content">
+        <div className="page-content" role="main">
           <Outlet />
         </div>
       </div>

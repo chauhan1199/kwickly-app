@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { Printer, Download } from 'lucide-react'
 
 export default function JobReceipt() {
+  const api = useAbortableRequest();
   const { id } = useParams()
   const [receipt, setReceipt] = useState(null)
   const [loading, setLoading] = useState(true)

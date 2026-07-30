@@ -41,6 +41,24 @@ const updateShopSchema = Joi.object({
         freeAbove: Joi.number().min(0).optional(),
         estimatedMinutes: Joi.number().min(0).optional()
     }).optional(),
+    deliveryConfig: Joi.object({
+        deliveryRadiusKm: Joi.number().min(0).optional(),
+        minOrderAmount: Joi.number().min(0).optional(),
+        freeDeliveryAbove: Joi.number().min(0).optional(),
+        deliveryCharge: Joi.number().min(0).optional(),
+        discountEnabled: Joi.boolean().optional(),
+        discountAbove: Joi.number().min(0).optional(),
+        discountType: Joi.string().valid('flat', 'percent').optional(),
+        discountValue: Joi.number().min(0).optional(),
+        discountPct: Joi.number().min(0).max(100).optional(),
+        maxDiscountCap: Joi.number().min(0).optional(),
+        sameDayDelivery: Joi.boolean().optional(),
+        deliverySlots: Joi.array().items(Joi.object({
+            label: Joi.string().optional(),
+            slotOpen: Joi.string().optional(),
+            slotClose: Joi.string().optional()
+        })).optional()
+    }).optional(),
     businessHours: Joi.object({
         monFri: Joi.string().max(50).optional(),
         sat: Joi.string().max(50).optional(),

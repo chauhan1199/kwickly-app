@@ -27,7 +27,7 @@ const authMiddleware = catchAsync(async (req, res, next) => {
 
     let decoded;
     try {
-        decoded = jwt.verify(token, getJwtSecret());
+        decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
     } catch (error) {
         return errorResponse(res, AUTH.NOT_AUTHENTICATED, StatusCodes.UNAUTHORIZED);
     }

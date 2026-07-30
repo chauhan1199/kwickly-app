@@ -245,7 +245,6 @@ exports.updateKYC = catchAsync(async (req, res) => {
         try {
             const io = getIO();
             if (io) {
-                io.to(`customer_${worker._id}`).emit('NEW_NOTIFICATION', notification);
                 io.to(`worker_${worker._id}`).emit('NEW_NOTIFICATION', notification);
             }
         } catch (_) {}
@@ -651,7 +650,7 @@ exports.updateShopKYC = catchAsync(async (req, res) => {
         try {
             const io = getIO();
             if (io) {
-                io.to(`customer_${shop.ownerId}`).emit('NEW_NOTIFICATION', notification);
+                io.to(`shop_${shop.ownerId}`).emit('NEW_NOTIFICATION', notification);
             }
         } catch (_) {}
     } catch (_) {}

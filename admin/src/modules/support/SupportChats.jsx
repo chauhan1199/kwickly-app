@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api, { getImageUrl } from '../../services/api';
+import useAbortableRequest from '../../hooks/useAbortableRequest';
+import { getImageUrl } from '../../services/api';
 import Toast from '../../components/Toast';
 import { io } from 'socket.io-client';
 import './SupportChats.css';
 
 const SupportChats = () => {
+  const api = useAbortableRequest();
   const token = localStorage.getItem('kwickly_admin_token');
   const user = JSON.parse(localStorage.getItem('kwickly_admin_user') || '{}');
   const [threads, setThreads] = useState([]);

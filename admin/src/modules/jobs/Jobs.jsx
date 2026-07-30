@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -24,6 +24,7 @@ const STATUS_LABEL = {
 }
 
 export default function Jobs() {
+  const api = useAbortableRequest();
   const navigate = useNavigate()
   const [jobs, setJobs] = useState([])
   const [workers, setWorkers] = useState([])

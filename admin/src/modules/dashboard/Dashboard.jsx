@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { io } from 'socket.io-client'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 
 export default function Dashboard() {
+  const api = useAbortableRequest();
   const navigate = useNavigate()
   const [chartMode, setChartMode] = useState('jobs')
   const [range, setRange] = useState('week')

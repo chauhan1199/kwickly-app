@@ -45,7 +45,7 @@ exports.createShop = catchAsync(async (req, res) => {
         description,
         address,
         location: parsedLocation,
-        delivery: delivery || {},
+        deliveryConfig: delivery || {},
         logoUrl
     });
 

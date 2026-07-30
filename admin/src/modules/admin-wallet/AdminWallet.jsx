@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Download, Building2, CreditCard } from 'lucide-react'
 import Badge from '../../components/common/Badge'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 
 const TXN_VARIANT = {
   PLATFORM_FEE_COLLECTED: 'success', COMMISSION_COLLECTED: 'success', SETTLEMENT_CREDIT: 'success',
@@ -27,6 +27,7 @@ const validateBankForm = (form) => {
 }
 
 export default function AdminWallet() {
+  const api = useAbortableRequest()
   const [wallet, setWallet] = useState({ balance: 0, bankDetails: {}, upiId: '' })
   const [txns, setTxns] = useState([])
   const [loading, setLoading] = useState(true)

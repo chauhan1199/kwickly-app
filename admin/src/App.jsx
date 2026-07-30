@@ -1,6 +1,7 @@
 import React, { useState, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout      from './layouts/AppLayout'
+import { ToastContainer } from './components/Toast'
 
 const Login          = lazy(() => import('./modules/auth/Login'))
 const Dashboard      = lazy(() => import('./modules/dashboard/Dashboard'))
@@ -85,6 +86,7 @@ function App() {
           </Route>
         </Routes>
       </Suspense>
+      <ToastContainer />
     </BrowserRouter>
   )
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -568,6 +568,7 @@ function BannerViewModal({ banner, onClose }) {
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function Promotions() {
+  const api = useAbortableRequest()
   const [banners, setBanners] = useState([])
   const [promos,  setPromos]  = useState([])
   const [tab, setTab]         = useState('banners')

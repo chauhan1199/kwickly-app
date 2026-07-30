@@ -21,10 +21,13 @@ const validate = (schema, source = 'body') => (req, res, next) => {
     }
 
     // Replace request object with validated value
-    // Note: In Express 5, req.query is a getter/read-only. Using Object.assign to update properties instead.
     if (source === 'body') {
         req.body = value;
     } else {
+        // Remove old unvalidated keys first, then assign validated keys
+        for (const key of Object.keys(req[source])) {
+            delete req[source][key];
+        }
         Object.assign(req[source], value);
     }
     return next();

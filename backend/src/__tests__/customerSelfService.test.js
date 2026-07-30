@@ -162,7 +162,7 @@ describe('Customer Self-Service', () => {
             await request(app)
                 .post('/api/v1/customers/me/addresses')
                 .set('Authorization', `Bearer ${customerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001', location: { coordinates: [72.8777, 19.0760] } });
 
             const user = await Customer.findById(customerUser._id);
             expect(user.addresses[0].isPrimary).toBe(true);
@@ -172,7 +172,7 @@ describe('Customer Self-Service', () => {
             await request(app)
                 .post('/api/v1/customers/me/addresses')
                 .set('Authorization', `Bearer ${customerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001', location: { coordinates: [72.8777, 19.0760] } });
 
             await request(app)
                 .post('/api/v1/customers/me/addresses')
@@ -188,7 +188,7 @@ describe('Customer Self-Service', () => {
         it('should reject unauthenticated request', async () => {
             const res = await request(app)
                 .post('/api/v1/customers/me/addresses')
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001', location: { coordinates: [72.8777, 19.0760] } });
             expect(res.status).toBe(401);
         });
     });
@@ -201,7 +201,7 @@ describe('Customer Self-Service', () => {
             const res = await request(app)
                 .post('/api/v1/customers/me/addresses')
                 .set('Authorization', `Bearer ${customerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001', location: { coordinates: [72.8777, 19.0760] } });
             addressId = res.body.data.addresses[0]._id;
         });
 
@@ -264,7 +264,7 @@ describe('Customer Self-Service', () => {
             const res = await request(app)
                 .post('/api/v1/customers/me/addresses')
                 .set('Authorization', `Bearer ${customerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001', location: { coordinates: [72.8777, 19.0760] } });
             addressId = res.body.data.addresses[0]._id;
         });
 
@@ -310,7 +310,7 @@ describe('Customer Self-Service', () => {
             const r1 = await request(app)
                 .post('/api/v1/customers/me/addresses')
                 .set('Authorization', `Bearer ${customerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400001', location: { coordinates: [72.8777, 19.0760] } });
             addr1Id = r1.body.data.addresses[0]._id;
 
             const r2 = await request(app)

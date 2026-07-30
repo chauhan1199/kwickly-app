@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import api, { getImageUrl } from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { getImageUrl } from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 
@@ -321,6 +322,7 @@ function ApproveModal({ suggestion, onConfirm, onClose }) {
 }
 
 export default function Categories() {
+  const api = useAbortableRequest()
   const [categories, setCategories] = useState([])
   const [suggestions, setSuggestions] = useState([])
   const [loading, setLoading] = useState(true)

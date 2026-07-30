@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Eye, Download } from 'lucide-react'
 import Badge from '../../components/common/Badge'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import ConfirmModal from '../../components/ConfirmModal'
 
 const ROLE_COLORS = { CUSTOMER: '#00B4D8', WORKER: '#8B5CF6', SHOP: '#10B981' }
@@ -21,6 +21,7 @@ const isCreditTxn = (t) => {
 }
 
 export default function Wallets() {
+  const api = useAbortableRequest()
   const [tab, setTab] = useState('users')
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)

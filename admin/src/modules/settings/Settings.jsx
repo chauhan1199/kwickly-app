@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 
 export default function Settings() {
+  const api = useAbortableRequest();
   const [settings, setSettings] = useState(null)
   const [health, setHealth] = useState(null)
   const [loading, setLoading] = useState(true)

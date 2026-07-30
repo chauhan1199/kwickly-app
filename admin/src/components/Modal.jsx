@@ -13,15 +13,18 @@ const Modal = ({ open, onClose, title, children, width = '520px' }) => {
   if (!open) return null
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} aria-hidden="true">
       <div
         className="modal-box"
         style={{ maxWidth: width }}
         onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
       >
         <div className="modal-header">
-          <h3 className="modal-title">{title}</h3>
-          <button className="modal-close" onClick={onClose}>
+          <h3 id="modal-title" className="modal-title">{title}</h3>
+          <button className="modal-close" onClick={onClose} aria-label="Close dialog">
             <X size={20} />
           </button>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 
@@ -76,6 +76,7 @@ function EditPlanModal({ plan, onSave, onClose }) {
 }
 
 export default function Subscriptions() {
+  const api = useAbortableRequest();
   const [plans, setPlans] = useState([])
   const [workers, setWorkers] = useState([])
   const [loading, setLoading] = useState(true)

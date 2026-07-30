@@ -9,7 +9,7 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { setCache, getCache, delCache, getRedis } = require('../../helpers/redis.helper');
 
 const getJwtSecret = () => process.env.JWT_SECRET; // Read at call time (server.js startup check or test setup)
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 const generateToken = (user) => jwt.sign(
     { id: user._id, role: user.role },
@@ -143,7 +143,7 @@ exports.verifyOTP = catchAsync(async (req, res) => {
 
     return successResponse(res, {
         token,
-        user,
+        user: safeUser,
         isNew: !user.password // Prompt password creation if password is not set
     }, AUTH.OTP_VERIFIED);
 });

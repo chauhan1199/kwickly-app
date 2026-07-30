@@ -57,7 +57,7 @@ describe('Payment Integration (Razorpay)', () => {
             location: { type: 'Point', coordinates: [72.8777, 19.0760] },
             isOnline: true,
             kyc: { status: 'APPROVED' },
-            delivery: { radiusKm: 5, fee: 40, freeAbove: 500 }
+            deliveryConfig: { deliveryRadiusKm: 5, deliveryCharge: 40, freeDeliveryAbove: 500 }
         });
         shopId = shop._id;
 
@@ -359,7 +359,7 @@ describe('Order with Razorpay Payment (E2E)', () => {
             ownerId: shopOwner._id, name: 'E2E Shop', address: '123 Main St',
             location: { type: 'Point', coordinates: [72.8777, 19.0760] },
             isOnline: true, kyc: { status: 'APPROVED' },
-            delivery: { radiusKm: 5, fee: 40, freeAbove: 500 }
+            deliveryConfig: { deliveryRadiusKm: 5, deliveryCharge: 40, freeDeliveryAbove: 500 }
         });
         shopId = shop._id;
 

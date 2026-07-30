@@ -98,8 +98,8 @@ exports.settle = catchAsync(async (req, res) => {
             entityType: 'PAYOUT',
             entityId: settlement._id
         });
-        emitToUser(shop.ownerId, 'NOTIFICATION', notif);
-        emitToAll('NOTIFICATION', { title: 'Settlement Processed', message: `Settlement for shop ${shop.name || ''} processed`, targetRole: 'ADMIN' });
+        emitToUser(shop.ownerId, 'NEW_NOTIFICATION', notif);
+        emitToAll('NEW_NOTIFICATION', { title: 'Settlement Processed', message: `Settlement for shop ${shop.name || ''} processed`, targetRole: 'ADMIN' });
     }
 
     return successResponse(res, settlement, 'Settlement processed');
@@ -165,12 +165,12 @@ exports.bulkSettle = catchAsync(async (req, res) => {
                     entityType: 'PAYOUT',
                     entityId: settlement._id
                 });
-                emitToUser(shop.ownerId, 'NOTIFICATION', notif);
+                emitToUser(shop.ownerId, 'NEW_NOTIFICATION', notif);
             }
         }
     }
 
-    emitToAll('NOTIFICATION', { title: 'Bulk Settlement Completed', message: `${results.length} settlements processed`, targetRole: 'ADMIN' });
+    emitToAll('NEW_NOTIFICATION', { title: 'Bulk Settlement Completed', message: `${results.length} settlements processed`, targetRole: 'ADMIN' });
     return successResponse(res, { settled: results.length, ids: results }, 'Bulk settlement completed');
 });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 
 const CITIES_LIST = ['Mumbai','Delhi','Bangalore','Ahmedabad','Pune','Chennai','Hyderabad','Kolkata','Jaipur','Surat']
 
@@ -130,6 +130,7 @@ function ComposeModal({ onSend, onClose }) {
 // ... ComposeModal ...
 
 export default function Notifications() {
+  const api = useAbortableRequest();
   const [notifs, setNotifs] = useState([])
   const [loading, setLoading] = useState(true)
   const [compose, setCompose] = useState(false)

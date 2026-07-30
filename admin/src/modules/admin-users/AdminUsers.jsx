@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 
 export default function AdminUsers() {
+  const api = useAbortableRequest();
   const [adminInfo, setAdminInfo] = useState(null)
   const [editMode, setEditMode] = useState(false)
   const [form, setForm] = useState({ name: '', email: '' })

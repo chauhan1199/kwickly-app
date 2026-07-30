@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -7,6 +7,7 @@ const statusColor = { pending:'badge-warning', approved:'badge-primary', transfe
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Payouts() {
+  const api = useAbortableRequest();
   const [payouts, setPayouts]   = useState([])
   const [ledger, setLedger]     = useState([])
   const [loading, setLoading]   = useState(true)

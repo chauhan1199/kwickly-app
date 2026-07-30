@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -11,6 +11,7 @@ import { AlertTriangle, Search, RefreshCw, Eye, MessageSquare, CheckCircle, Pack
 const PAGE_SIZE = 15
 
 export default function Disputes() {
+  const api = useAbortableRequest();
   const [disputes, setDisputes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')

@@ -36,7 +36,7 @@ describe('Cart Routes', () => {
             category: 'General',
             kyc: { status: 'APPROVED' },
             isOnline: true,
-            delivery: { radiusKm: 5, fee: 40, freeAbove: 1000 }
+            deliveryConfig: { deliveryRadiusKm: 5, deliveryCharge: 40, freeDeliveryAbove: 1000 }
         });
 
         product = await Product.create({

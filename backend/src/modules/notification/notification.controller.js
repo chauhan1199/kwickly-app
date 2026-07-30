@@ -15,7 +15,7 @@ exports.sendBroadcast = catchAsync(async (req, res) => {
         targetRole: targetRole || 'ALL'
     });
 
-    emitToAll('NOTIFICATION', { title, message, targetRole });
+    emitToAll('NEW_NOTIFICATION', { title, message, targetRole });
 
     return successResponse(res, notification, 'Broadcast sent successfully', StatusCodes.CREATED);
 });

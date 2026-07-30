@@ -411,7 +411,7 @@ const seedData = async () => {
         const suggestions = [
             {
                 workerId: createdWorkers[1]._id, workerName: 'Rajan Verma', workerCity: 'Delhi',
-                type: 'new_subcategory', status: 'pending',
+                type: 'new_subcategory', status: 'PENDING',
                 payload: {
                     parentCategory: 'Gardening Services',
                     parentCategoryId: gardeningCat?._id,

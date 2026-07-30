@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -28,6 +28,7 @@ const emptyForm = {
 }
 
 export default function Workers() {
+  const api = useAbortableRequest()
   const [kycFilter, setKycFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const filterCallback = useCallback((w) => {

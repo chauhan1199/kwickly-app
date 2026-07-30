@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const hpp = require('hpp');
 const sanitizeMiddleware = require('./middleware/sanitize.middleware');
 const compression = require('compression');
 const errorHandler = require('./middleware/error.middleware');
@@ -47,6 +48,9 @@ if (process.env.NODE_ENV === 'development') {
 // Body parser with size limits
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// HTTP Parameter Pollution Protection
+app.use(hpp());
 
 // Custom NoSQL Sanitization to replace incompatible express-mongo-sanitize
 app.use(sanitizeMiddleware);

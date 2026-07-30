@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -12,6 +12,7 @@ import { Search, RefreshCw, Eye, CheckCircle, Package, Store, Banknote, ListChec
 const PAGE_SIZE = 15
 
 export default function Settlements() {
+  const api = useAbortableRequest();
   const [settlements, setSettlements] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')

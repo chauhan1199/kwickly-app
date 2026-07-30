@@ -326,7 +326,7 @@ exports.processSuggestion = catchAsync(async (req, res) => {
         return errorResponse(res, 'Suggestion not found', StatusCodes.NOT_FOUND);
     }
 
-    suggestion.status = status === 'APPROVED' ? 'approved' : 'rejected';
+    suggestion.status = status === 'APPROVED' ? 'APPROVED' : 'REJECTED';
     if (adminFeedback) suggestion.approveReason = adminFeedback;
     await suggestion.save();
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import api, { getImageUrl } from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { getImageUrl } from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -64,6 +65,7 @@ const validateUpi = (val) => {
 }
 
 export default function Shops() {
+  const api = useAbortableRequest()
   const [kycFilter, setKycFilter] = useState('all')
   const filterCallback = useCallback((s) => {
     return kycFilter === 'all' || s.kyc?.status === kycFilter.toUpperCase()

@@ -490,7 +490,7 @@ describe('Worker Earnings & Self-Service', () => {
             await request(app)
                 .post('/api/v1/workers/me/addresses')
                 .set('Authorization', `Bearer ${workerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058', location: { coordinates: [72.8777, 19.0760] } });
 
             await request(app)
                 .post('/api/v1/workers/me/addresses')
@@ -505,7 +505,7 @@ describe('Worker Earnings & Self-Service', () => {
         it('should reject unauthenticated request', async () => {
             const res = await request(app)
                 .post('/api/v1/workers/me/addresses')
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058', location: { coordinates: [72.8777, 19.0760] } });
             expect(res.status).toBe(401);
         });
 
@@ -513,7 +513,7 @@ describe('Worker Earnings & Self-Service', () => {
             const res = await request(app)
                 .post('/api/v1/workers/me/addresses')
                 .set('Authorization', `Bearer ${customerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058', location: { coordinates: [72.8777, 19.0760] } });
             expect(res.status).toBe(403);
         });
     });
@@ -526,7 +526,7 @@ describe('Worker Earnings & Self-Service', () => {
             const res = await request(app)
                 .post('/api/v1/workers/me/addresses')
                 .set('Authorization', `Bearer ${workerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058', location: { coordinates: [72.8777, 19.0760] } });
             addressId = res.body.data[0]._id;
         });
 
@@ -574,7 +574,7 @@ describe('Worker Earnings & Self-Service', () => {
             const res = await request(app)
                 .post('/api/v1/workers/me/addresses')
                 .set('Authorization', `Bearer ${workerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058', location: { coordinates: [72.8777, 19.0760] } });
             addressId = res.body.data[0]._id;
         });
 
@@ -635,7 +635,7 @@ describe('Worker Earnings & Self-Service', () => {
             const r1 = await request(app)
                 .post('/api/v1/workers/me/addresses')
                 .set('Authorization', `Bearer ${workerToken}`)
-                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058' });
+                .send({ label: 'Home', street: '123 Main St', city: 'Mumbai', pincode: '400058', location: { coordinates: [72.8777, 19.0760] } });
             addr1Id = r1.body.data[0]._id;
 
             const r2 = await request(app)

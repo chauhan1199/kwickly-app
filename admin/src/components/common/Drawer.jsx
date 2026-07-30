@@ -22,11 +22,17 @@ export default function Drawer({ open, onClose, title, subtitle, width = 540, ch
 
   return (
     <>
-      <div className="drawer-overlay" onClick={onClose} style={{ zIndex: 9999 }} />
-      <div className="drawer" style={{ width, zIndex: 10000 }}>
+      <div className="drawer-overlay" onClick={onClose} style={{ zIndex: 9999 }} aria-hidden="true" />
+      <div
+        className="drawer"
+        style={{ width, zIndex: 10000 }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="drawer-title"
+      >
         <div className="drawer-header">
           <div>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>{title}</div>
+            <div id="drawer-title" style={{ fontWeight: 800, fontSize: 16 }}>{title}</div>
             {subtitle && <div className="cell-muted">{subtitle}</div>}
           </div>
           <button className="modal-close" onClick={onClose} aria-label="Close">✕</button>

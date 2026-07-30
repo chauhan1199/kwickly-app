@@ -496,7 +496,8 @@ describe('Promotion Infrastructure', () => {
 
     it('23. Validate expired promo → verify rejected', async () => {
         const past = new Date(Date.now() - 5 * 86400000);
-        await createPromotion({ code: 'EXPIREDPROMO', endAt: past });
+        const promo = await createPromotion({ code: 'EXPIREDPROMO' });
+        await Promotion.updateOne({ _id: promo._id }, { $set: { endAt: past } });
 
         const res = await request(app)
             .post('/api/v1/promotions/validate')
@@ -586,7 +587,7 @@ describe('Dispute Infrastructure', () => {
             issue: 'Worker did not complete the work properly',
             reason: 'Incomplete work',
             description: 'The faucet is still leaking after the repair',
-            status: 'open'
+            status: 'OPEN'
         });
     });
 
@@ -598,10 +599,10 @@ describe('Dispute Infrastructure', () => {
             issue: 'Wrong parts used',
             reason: 'Quality issue',
             description: 'The worker used incorrect replacement parts',
-            status: 'open'
+            status: 'OPEN'
         });
 
-        expect(newDispute.status).toBe('open');
+        expect(newDispute.status).toBe('OPEN');
         expect(newDispute.jobId.toString()).toBe(testJob._id.toString());
         expect(newDispute.customerId.toString()).toBe(customerUser._id.toString());
     });
@@ -610,10 +611,10 @@ describe('Dispute Infrastructure', () => {
         const res = await request(app)
             .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ status: 'resolved', resolutionNotes: 'Issue verified and resolved' });
+            .send({ status: 'RESOLVED', resolutionNotes: 'Issue verified and resolved' });
 
         expect(res.status).toBe(200);
-        expect(res.body.data.status).toBe('resolved');
+        expect(res.body.data.status).toBe('RESOLVED');
         expect(res.body.data.resolutionNotes).toBe('Issue verified and resolved');
         expect(res.body.data.resolvedAt).toBeDefined();
     });
@@ -622,10 +623,10 @@ describe('Dispute Infrastructure', () => {
         const res = await request(app)
             .patch(`/api/v1/admin/disputes/${testDispute._id}/status`)
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ status: 'refunded', resolutionNotes: 'Full refund issued', refundAmount: 500 });
+            .send({ status: 'REFUNDED', resolutionNotes: 'Full refund issued', refundAmount: 500 });
 
         expect(res.status).toBe(200);
-        expect(res.body.data.status).toBe('refunded');
+        expect(res.body.data.status).toBe('REFUNDED');
         expect(res.body.data.resolvedAt).toBeDefined();
 
         // Verify customer wallet was credited

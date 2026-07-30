@@ -49,7 +49,7 @@ exports.removeStaff = catchAsync(async (req, res) => {
     const staff = await DeliveryStaff.findOne({ _id: req.params.staffId, shopId: shop._id });
     if (!staff) return errorResponse(res, 'Staff not found', StatusCodes.NOT_FOUND);
     if (staff.activeOrderId) {
-        const Order = require('../order/order.model');
+        const Order = require('../shoporder/shoporder.model');
         const activeOrder = await Order.findOne({ _id: staff.activeOrderId, status: { $in: ['NEW', 'CONFIRMED', 'PACKING'] } });
         if (activeOrder) {
             return errorResponse(res, 'Cannot remove staff with active delivery', StatusCodes.BAD_REQUEST);

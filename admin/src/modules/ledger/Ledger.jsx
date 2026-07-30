@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Search, Download, RefreshCw } from 'lucide-react'
 import Badge from '../../components/common/Badge'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 
 const TYPE_VARIANT = {
   JOB_CREDIT:    'success',
@@ -19,6 +19,7 @@ const TYPE_VARIANT = {
 const CREDIT_TYPES = ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP', 'ADJUSTMENT']
 
 export default function Ledger() {
+  const api = useAbortableRequest();
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState('')

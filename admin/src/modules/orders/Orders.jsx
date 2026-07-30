@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Pagination from '../../components/Pagination'
@@ -18,6 +18,7 @@ const STATUS_LABEL = {
 const STATUS_FLOW = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED']
 
 export default function Orders() {
+  const api = useAbortableRequest();
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')

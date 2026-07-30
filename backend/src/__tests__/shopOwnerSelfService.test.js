@@ -36,15 +36,7 @@ describe('Shop Owner Self-Service', () => {
             category: 'General',
             address: '123 Main St',
             location: { type: 'Point', coordinates: [72.8777, 19.0760] },
-            delivery: { radiusKm: 3, fee: 40, freeAbove: 1000 },
-            deliveryConfig: {
-                deliveryRadiusKm: 3,
-                minOrderAmount: 100,
-                freeDeliveryAbove: 1000,
-                deliveryCharge: 40,
-                sameDayDelivery: true,
-                deliverySlots: []
-            }
+            deliveryConfig: { deliveryRadiusKm: 3, deliveryCharge: 40, freeDeliveryAbove: 1000, minOrderAmount: 100, sameDayDelivery: true, deliverySlots: [] }
         });
     });
 
@@ -113,9 +105,9 @@ describe('Shop Owner Self-Service', () => {
             const res = await request(app)
                 .patch('/api/v1/shops/my')
                 .set('Authorization', `Bearer ${shopToken}`)
-                .send({ delivery: { fee: 50, freeAbove: 500 } });
+                .send({ deliveryConfig: { deliveryCharge: 50, freeDeliveryAbove: 500 } });
             expect(res.status).toBe(200);
-            expect(res.body.data.delivery.fee).toBe(50);
+            expect(res.body.data.deliveryConfig.deliveryCharge).toBe(50);
         });
 
         it('should update business hours', async () => {

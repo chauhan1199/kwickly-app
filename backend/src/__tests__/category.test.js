@@ -365,7 +365,7 @@ describe('Category Management — Complete E2E', () => {
             await Suggestion.create({
                 workerId: (await createTestUser({ role: 'WORKER', email: 'sug1@test.com', phone: '9000000010' }))._id,
                 workerName: 'Test Worker', workerCity: 'Mumbai',
-                type: 'new_category', status: 'pending',
+                type: 'new_category', status: 'PENDING',
                 payload: { name: 'Gardening', icon: '🌿', description: 'Plant care', suggestedSubcategories: ['Lawn Mowing'] }
             });
 
@@ -390,7 +390,7 @@ describe('Category Management — Complete E2E', () => {
             const w = await createTestUser({ role: 'WORKER', email: 'sug2@test.com', phone: '9000000011' });
             const suggestion = await Suggestion.create({
                 workerId: w._id, workerName: 'Test Worker', workerCity: 'Delhi',
-                type: 'new_category', status: 'pending',
+                type: 'new_category', status: 'PENDING',
                 payload: { name: 'Gardening', icon: '🌿', description: 'Plant care', suggestedSubcategories: ['Lawn Mowing', 'Tree Trimming'] }
             });
 
@@ -414,7 +414,7 @@ describe('Category Management — Complete E2E', () => {
             const w = await createTestUser({ role: 'WORKER', email: 'sug3@test.com', phone: '9000000012' });
             const suggestion = await Suggestion.create({
                 workerId: w._id, workerName: 'Test Worker', workerCity: 'Mumbai',
-                type: 'new_subcategory', status: 'pending',
+                type: 'new_subcategory', status: 'PENDING',
                 payload: { parentCategory: 'Plumbing', parentCategoryId: parentCat._id, name: 'Drain Cleaning', description: 'Clean drains' }
             });
 
@@ -434,7 +434,7 @@ describe('Category Management — Complete E2E', () => {
             const w = await createTestUser({ role: 'WORKER', email: 'sug4@test.com', phone: '9000000013' });
             const suggestion = await Suggestion.create({
                 workerId: w._id, workerName: 'Test', workerCity: 'Mumbai',
-                type: 'new_category', status: 'pending',
+                type: 'new_category', status: 'PENDING',
                 payload: { name: 'Spam Category', icon: '🚫', description: 'Spam' }
             });
 
@@ -446,7 +446,7 @@ describe('Category Management — Complete E2E', () => {
             expect(res.status).toBe(200);
 
             const updated = await Suggestion.findById(suggestion._id);
-            expect(updated.status).toBe('rejected');
+            expect(updated.status).toBe('REJECTED');
 
             // Verify no category was created
             const cat = await Category.findOne({ name: 'Spam Category' });
@@ -548,7 +548,7 @@ describe('Category Management — Complete E2E', () => {
             // Worker creates suggestion (via model directly, simulating mobile app)
             const suggestion = await Suggestion.create({
                 workerId: worker._id, workerName: worker.name, workerCity: 'Mumbai',
-                type: 'new_category', status: 'pending',
+                type: 'new_category', status: 'PENDING',
                 payload: {
                     name: 'Event Services',
                     icon: '📸',
@@ -562,7 +562,7 @@ describe('Category Management — Complete E2E', () => {
                 .get('/api/v1/admin/categories/suggestions')
                 .set('Authorization', `Bearer ${adminToken}`);
             expect(listRes.body.data.length).toBe(1);
-            expect(listRes.body.data[0].status).toBe('pending');
+            expect(listRes.body.data[0].status).toBe('PENDING');
 
             // Admin approves
             const approveRes = await request(app)

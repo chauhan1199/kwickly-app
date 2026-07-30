@@ -69,7 +69,7 @@ describe('Settlement Flow — Complete E2E', () => {
         shop = await Shop.create({
             name: 'Test Shop', ownerId: shopOwner._id, category: 'General',
             address: 'Test Address', isOnline: true, kyc: { status: 'APPROVED' },
-            delivery: { radiusKm: 5, fee: 40, freeAbove: 500 }, wallet: { balance: 0 }
+            deliveryConfig: { deliveryRadiusKm: 5, deliveryCharge: 40, freeDeliveryAbove: 500 }, wallet: { balance: 0 }
         });
     });
 

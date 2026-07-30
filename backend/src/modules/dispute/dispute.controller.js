@@ -123,7 +123,7 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
                     message: `Your dispute has been resolved. â‚¹${actualRefundAmount} has been refunded to your wallet.`,
                     type: 'DIRECT', action: 'WALLET_CREDIT', entityType: 'DISPUTE', entityId: dispute._id
                 });
-                emitToUser(customer._id.toString(), 'NOTIFICATION', { message: `â‚¹${actualRefundAmount} refunded for dispute.` });
+                emitToUser(customer._id.toString(), 'NEW_NOTIFICATION', { message: `â‚¹${actualRefundAmount} refunded for dispute.` });
             }
 
             // 2. Handle Provider Deduction
@@ -146,7 +146,7 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
                         message: `A dispute was resolved against you. Your pending settlement of â‚¹${settlement.shopEarning} has been cancelled.`,
                         type: 'DIRECT', action: 'SYSTEM', entityType: 'DISPUTE', entityId: dispute._id
                     });
-                    emitToUser(dispute.workerId.toString(), 'NOTIFICATION', { message: `Pending settlement cancelled due to dispute.` });
+                    emitToUser(dispute.workerId.toString(), 'NEW_NOTIFICATION', { message: `Pending settlement cancelled due to dispute.` });
                 } else {
                     // Either no settlement tracking (direct payment) or it was already SETTLED.
                     // We must claw back the money from their wallet.
@@ -185,7 +185,7 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
                         message: `A dispute was resolved against you. â‚¹${actualRefundAmount} has been deducted from your wallet.`,
                         type: 'DIRECT', action: 'WALLET_DEBIT', entityType: 'DISPUTE', entityId: dispute._id
                     });
-                    emitToUser(dispute.workerId.toString(), 'NOTIFICATION', { message: `â‚¹${actualRefundAmount} deducted for dispute.` });
+                    emitToUser(dispute.workerId.toString(), 'NEW_NOTIFICATION', { message: `â‚¹${actualRefundAmount} deducted for dispute.` });
                 }
             }
         }

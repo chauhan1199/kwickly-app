@@ -54,9 +54,13 @@ const verifyPaymentSignature = (orderId, paymentId, signature) => {
     const crypto = require('crypto');
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keySecret || keySecret.includes('placeholder')) {
-        // In dev mode with placeholder keys, skip verification but log warning
-        logger.warn('[Razorpay] Signature verification skipped — placeholder key in use');
-        return true;
+        if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+            logger.warn('[Razorpay] Signature verification skipped — placeholder key in use (dev/test mode)');
+        } else {
+            logger.error('[Razorpay] Cannot verify payment — production environment with placeholder key!');
+            return false;
+        }
+        return process.env.NODE_ENV !== 'production';
     }
 
     const body = orderId + '|' + paymentId;

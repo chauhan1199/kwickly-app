@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import api, { getImageUrl } from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest';
+import { getImageUrl } from '../../services/api'
 import { Eye, CheckCircle, XCircle, Store, User } from 'lucide-react'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 
 export default function KYC() {
+  const api = useAbortableRequest();
   const [pending, setPending] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)

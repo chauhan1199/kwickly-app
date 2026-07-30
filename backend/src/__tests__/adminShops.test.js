@@ -42,7 +42,7 @@ describe('Admin Shop Management', () => {
             description: 'A test shop',
             address: '123 Test Street',
             location: { type: 'Point', coordinates: [77.5946, 12.9716] },
-            delivery: { radiusKm: 3, fee: 40, freeAbove: 1000 },
+            deliveryConfig: { deliveryRadiusKm: 3, deliveryCharge: 40, freeDeliveryAbove: 1000 },
             businessHours: { monFri: '9 AM - 10 PM', sat: '9 AM - 10 PM', sun: '9 AM - 10 PM' },
             subscription: { status: 'ACTIVE', isTrial: false },
             kyc: { status: 'PENDING', documents: [] },
@@ -314,7 +314,7 @@ describe('Admin Shop Management', () => {
             const res = await request(app)
                 .patch(`/api/v1/admin/shops/${shop._id}`)
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ delivery: { fee: 50, freeAbove: 1500 } });
+                .send({ deliveryConfig: { deliveryCharge: 50, freeDeliveryAbove: 1500 } });
 
             expect(res.status).toBe(200);
         });

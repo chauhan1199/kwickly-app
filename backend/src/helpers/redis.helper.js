@@ -16,16 +16,14 @@ const initRedis = () => {
             maxRetriesPerRequest: 3,
             retryStrategy(times) {
                 connectionAttempts++;
-                // Exponential backoff or max 2 seconds
-                const delay = Math.min(times * 50, 2000);
-                
                 if (times > 5) {
                     if (connectionAttempts === MAX_LOG_ATTEMPTS + 1) {
-                        logger.warn('Redis connection failed after multiple attempts. Real-time features (Socket.io synchronization) will be limited until Redis is available.');
+                        logger.warn('Redis connection failed after multiple attempts. Will keep retrying with longer delays.');
                     }
-                    return null; // Stop retrying indefinitely to prevent log flood
+                    // Keep retrying at longer intervals instead of stopping permanently
+                    return Math.min(times * 5000, 60000);
                 }
-                return delay;
+                return Math.min(times * 50, 2000);
             }
         });
 

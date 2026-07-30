@@ -10,7 +10,7 @@ const CartItemSchema = new mongoose.Schema({
 }, { _id: true });
 
 const CartSchema = new mongoose.Schema({
-    customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true, unique: true },
+    customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
     shopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true },
     items: { type: [CartItemSchema], validate: [arr => arr.length <= 50, 'Maximum 50 items'] },
     subtotal: { type: Number, default: 0 },
@@ -21,5 +21,6 @@ const CartSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 CartSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+CartSchema.index({ customerId: 1, shopId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Cart', CartSchema);

@@ -95,10 +95,13 @@ exports.validatePromoCode = catchAsync(async (req, res) => {
         if (promo.maxDiscountCap) discount = Math.min(discount, promo.maxDiscountCap);
     }
 
-    // Track per-user usage
-    if (userId) {
-        await UserPromoUsage.create({ promoId: promo._id, userId });
-    }
+    // Track per-user usage — moved to actual order placement (shoporder controller)
+    // to prevent consuming usage when user validates but doesn't complete order.
+    // NOTE: The UserPromoUsage record is created by shoporder.controller.js placeOrder.
+    // if (userId) {
+    //     await UserPromoUsage.create({ promoId: promo._id, userId });
+    // }
+    // Instead, only do atomic count check here, leave record creation to order placement.
 
     return successResponse(res, { code: promo.code, discount, type: promo.type, title: promo.title, description: promo.description }, 'Promo code valid');
 });

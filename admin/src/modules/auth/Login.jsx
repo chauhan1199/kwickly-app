@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 
 export default function Login({ onLogin }) {
+  const api = useAbortableRequest();
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')

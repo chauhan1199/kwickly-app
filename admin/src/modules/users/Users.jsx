@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import api from '../../services/api'
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -24,6 +24,7 @@ const emptyForm = {
 }
 
 export default function Users() {
+  const api = useAbortableRequest()
   const [filter, setFilter] = useState('all')
   const filterCallback = useCallback((c) => {
     if (filter === 'all') return true

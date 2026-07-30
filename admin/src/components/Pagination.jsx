@@ -7,7 +7,11 @@ export default function Pagination({ page, totalPages, total, pageSize, onPageCh
   const end = Math.min(page * pageSize, total)
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+    <div
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)' }}
+      role="navigation"
+      aria-label="Pagination"
+    >
       <span style={{ fontSize: 12, color: 'var(--mid)', fontWeight: 600, fontFamily: 'var(--font-body)' }}>
         Showing {start}–{end} of {total}
       </span>
@@ -17,6 +21,7 @@ export default function Pagination({ page, totalPages, total, pageSize, onPageCh
           style={{ height: 32, padding: '0 10px', fontSize: 12, opacity: page <= 1 ? 0.4 : 1, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
           onClick={() => page > 1 && onPageChange(page - 1)}
           disabled={page <= 1}
+          aria-label="Previous page"
         >
           ← Prev
         </button>
@@ -32,6 +37,8 @@ export default function Pagination({ page, totalPages, total, pageSize, onPageCh
               className={p === page ? 'btn-primary' : 'btn-secondary'}
               style={{ height: 32, width: 32, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}
               onClick={() => onPageChange(p)}
+              aria-label={`Page ${p}`}
+              {...(p === page ? { 'aria-current': 'page' } : {})}
             >
               {p}
             </button>
@@ -42,6 +49,7 @@ export default function Pagination({ page, totalPages, total, pageSize, onPageCh
           style={{ height: 32, padding: '0 10px', fontSize: 12, opacity: page >= totalPages ? 0.4 : 1, cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}
           onClick={() => page < totalPages && onPageChange(page + 1)}
           disabled={page >= totalPages}
+          aria-label="Next page"
         >
           Next →
         </button>

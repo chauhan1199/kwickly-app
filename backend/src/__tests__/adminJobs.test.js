@@ -441,7 +441,7 @@ describe('Admin Job Management', () => {
                 category: 'Groceries',
                 address: '789 Shop Street',
                 kyc: { status: 'APPROVED', documents: [{ name: 'kyc.pdf', url: 'http://test.com', public_id: 'd1', docType: 'OTHER' }] },
-                delivery: { radiusKm: 5, fee: 40, freeAbove: 500 },
+                deliveryConfig: { deliveryRadiusKm: 5, deliveryCharge: 40, freeDeliveryAbove: 500 },
                 subscription: { status: 'ACTIVE', isTrial: false }
             });
 

@@ -2,11 +2,18 @@ import React from 'react'
 
 export default function ConfirmModal({ title, message, onConfirm, onClose, danger = true, confirmText = 'Confirm', loading = false }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose} aria-hidden="true">
+      <div
+        className="modal-box"
+        style={{ maxWidth: 420 }}
+        onClick={e => e.stopPropagation()}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-modal-title"
+      >
         <div className="modal-header">
-          <h3 className="modal-title">{title}</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <h3 id="confirm-modal-title" className="modal-title">{title}</h3>
+          <button className="modal-close" onClick={onClose} aria-label="Close dialog">✕</button>
         </div>
         <div className="modal-body">
           <p style={{ fontSize: 14, color: 'var(--mid)', fontFamily: 'var(--font-body)', lineHeight: 1.6, margin: 0 }}>{message}</p>
