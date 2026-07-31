@@ -1,69 +1,61 @@
 import api from './api';
+import { withErrorHandling } from '../utils/apiHandler';
 
 export const jobService = {
   createJob: (jobData) =>
-    api.post('/jobs', jobData),
+    withErrorHandling(() => api.post('/jobs', jobData)),
 
   getMyJobs: (status) =>
-    api.get('/jobs/my', { params: { status } }),
+    withErrorHandling(() => api.get('/jobs/my', { params: { status } })),
 
   getActiveJob: () =>
-    api.get('/customers/jobs/active'),
+    withErrorHandling(() => api.get('/customers/jobs/active')),
 
-  getJobs: (params) =>
-    api.get('/jobs', { params }),
+  getAvailableJobs: (params) =>
+    withErrorHandling(() => api.get('/jobs', { params })),
 
   getJobById: (id) =>
-    api.get(`/jobs/${id}`),
-
-  cancelJob: (id) =>
-    api.patch(`/jobs/${id}/cancel`),
+    withErrorHandling(() => api.get(`/jobs/${id}`)),
 
   completeJob: (id, data) =>
-    api.post(`/jobs/${id}/complete`, data),
+    withErrorHandling(() => api.post(`/jobs/${id}/complete`, data)),
 
   rateJob: (id, data) =>
-    api.post(`/jobs/${id}/rate`, data),
+    withErrorHandling(() => api.post(`/jobs/${id}/rate`, data)),
 
   startJob: (id, data) =>
-    api.post(`/jobs/${id}/start`, data),
+    withErrorHandling(() => api.post(`/jobs/${id}/start`, data)),
 
-  payJob: (id, data) =>
-    api.post(`/jobs/${id}/pay`, data),
+  payForJob: (id, data) =>
+    withErrorHandling(() => api.post(`/jobs/${id}/pay`, data)),
 
   getJobReceipt: (id) =>
-    api.get(`/customers/jobs/${id}/receipt`),
+    withErrorHandling(() => api.get(`/customers/jobs/${id}/receipt`)),
 
-  getAvailableJobs: () =>
-    api.get('/jobs/available'),
+  getAvailableJobsForWorker: () =>
+    withErrorHandling(() => api.get('/jobs/available')),
 
   getWorkerJobs: (status) =>
-    api.get('/jobs/worker', { params: { status } }),
+    withErrorHandling(() => api.get('/jobs/worker', { params: { status } })),
 
   placeQuote: (quoteData) =>
-    api.post('/quotes', quoteData),
+    withErrorHandling(() => api.post('/quotes', quoteData)),
 
   getQuotesForJob: (jobId) =>
-    api.get(`/quotes/job/${jobId}`),
+    withErrorHandling(() => api.get(`/quotes/job/${jobId}`)),
 
-  getWorkerQuotes: (status) =>
-    api.get('/quotes/worker', { params: { status } }),
+  getMyQuotes: (status) =>
+    withErrorHandling(() => api.get('/quotes/worker', { params: { status } })),
 
   uploadMedia: (formData) =>
-    api.post('/jobs/upload-media', formData),
-
-  acceptQuote: (quoteId) =>
-    api.patch(`/quotes/${quoteId}/accept`),
-
-  withdrawQuote: (quoteId) =>
-    api.patch(`/quotes/${quoteId}/withdraw`),
+    withErrorHandling(() => api.post('/jobs/upload-media', formData)),
 
   getCategories: () =>
-    api.get('/categories'),
+    withErrorHandling(() => api.get('/categories')),
 
-  getSubCategories: (categoryId) =>
-    api.get(`/categories/${categoryId}`),
+  getCategoryById: (categoryId) =>
+    withErrorHandling(() => api.get(`/categories/${categoryId}`)),
 
-  uploadImage: (formData) =>
-    api.post('/chat/upload-image', formData),
+  uploadChatImage: (formData) =>
+    withErrorHandling(() => api.post('/chat/upload-image', formData)),
 };

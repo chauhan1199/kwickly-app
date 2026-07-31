@@ -17,18 +17,26 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('[API] Request error:', error);
+    return Promise.reject(error);
+  }
 );
 
 // Response Interceptor: Error Handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.data && response.data.status === 'error') {
+      console.error('[API] Error response:', response.data);
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
-      // Clear token on auth failure and emit event to AuthContext
       AsyncStorage.removeItem('userToken');
       DeviceEventEmitter.emit('UNAUTHORIZED_ACCESS');
     }
+    console.error('[API] Request failed:', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );

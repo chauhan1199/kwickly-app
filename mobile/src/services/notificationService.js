@@ -1,25 +1,21 @@
 import api from './api';
+import { withErrorHandling } from '../utils/apiHandler';
 
-const notificationService = {
-  /** Get all my notifications with unread count */
-  getMyNotifications: () =>
-    api.get('/notifications/my'),
+export const notificationService = {
+  getNotifications: () =>
+    withErrorHandling(() => api.get('/notifications/my')),
 
-  /** Get only the unread count (lightweight, for badge) */
   getUnreadCount: () =>
-    api.get('/notifications/unread-count'),
+    withErrorHandling(() => api.get('/notifications/unread-count')),
 
-  /** Mark a single notification as read */
-  markRead: (id) =>
-    api.patch(`/notifications/${id}/read`),
+  markAsRead: (id) =>
+    withErrorHandling(() => api.post('/notifications/mark-read', { id })),
 
-  /** Mark all notifications as read */
-  markAllRead: () =>
-    api.patch('/notifications/read-all'),
+  markAllAsRead: () =>
+    withErrorHandling(() => api.post('/notifications/mark-all-read')),
 
-  /** Soft-delete a notification for this user */
   deleteNotification: (id) =>
-    api.delete(`/notifications/${id}`),
+    withErrorHandling(() => api.delete(`/notifications/${id}`)),
 };
 
 export default notificationService;

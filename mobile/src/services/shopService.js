@@ -1,93 +1,70 @@
 import api from './api';
+import { withErrorHandling } from '../utils/apiHandler';
 
 export const shopService = {
   getShops: (params) =>
-    api.get('/shops', { params }),
+    withErrorHandling(() => api.get('/shops', { params })),
 
   getShopById: (id) =>
-    api.get(`/shops/${id}`),
+    withErrorHandling(() => api.get(`/shops/${id}`)),
 
-  getMyShop: () =>
-    api.get('/shops/my'),
+  getMyShops: () =>
+    withErrorHandling(() => api.get('/shops/my')),
 
-  createShop: (data, config) =>
-    api.post('/shops', data, config),
+  createShop: (data) =>
+    withErrorHandling(() => api.post('/shops', data)),
 
-  updateMyShop: (data, config) =>
-    api.patch('/shops/my', data, config),
-
-  deleteMyShop: () =>
-    api.delete('/shops/my'),
-
-  updateOwnerName: (name) =>
-    api.patch('/shops/my/owner', { name }),
-
-  updateDeliveryConfig: (shopId, config) =>
-    api.patch(`/shops/${shopId}/delivery-config`, config),
+  deleteShop: () =>
+    withErrorHandling(() => api.delete('/shops/my')),
 
   getProducts: (shopId, search) =>
-    api.get('/products', { params: { shopId, search } }),
+    withErrorHandling(() => api.get('/products', { params: { shopId, search } })),
 
   getShopProducts: () =>
-    api.get('/products/shop'),
+    withErrorHandling(() => api.get('/products/shop')),
 
-  createProduct: (data) =>
-    api.post('/products', data),
-
-  updateProduct: (id, data) =>
-    api.patch(`/products/${id}`, data),
+  addProduct: (data) =>
+    withErrorHandling(() => api.post('/products', data)),
 
   deleteProduct: (id) =>
-    api.delete(`/products/${id}`),
+    withErrorHandling(() => api.delete(`/products/${id}`)),
 
   placeOrder: (orderData) =>
-    api.post('/shoporders', orderData),
+    withErrorHandling(() => api.post('/shoporders', orderData)),
 
   getCustomerOrders: () =>
-    api.get('/shoporders/customer'),
+    withErrorHandling(() => api.get('/shoporders/customer')),
 
   getShopOrders: (status) =>
-    api.get('/shoporders/shop', { params: { status } }),
+    withErrorHandling(() => api.get('/shoporders/shop', { params: { status } })),
 
   getOrderById: (id) =>
-    api.get(`/shoporders/${id}`),
-
-  updateOrderStatus: (id, status, otp) =>
-    api.patch(`/shoporders/${id}/status`, { status, otp }),
+    withErrorHandling(() => api.get(`/shoporders/${id}`)),
 
   getOrderInvoice: (id) =>
-    api.get(`/shoporders/${id}/invoice`),
+    withErrorHandling(() => api.get(`/shoporders/${id}/invoice`)),
 
-  getMyNotifications: () =>
-    api.get('/notifications/my'),
-
-  markNotificationRead: (id) =>
-    api.patch(`/notifications/${id}/read`),
-
-  markAllNotificationsRead: () =>
-    api.patch('/notifications/read-all'),
+  getNotifications: () =>
+    withErrorHandling(() => api.get('/notifications/my')),
 
   getWalletBalance: () =>
-    api.get('/wallet/balance'),
+    withErrorHandling(() => api.get('/wallet/balance')),
 
-  withdraw: (amount, payoutMethod) =>
-    api.post('/wallet/withdraw', { amount, payoutMethod }),
+  withdrawFromWallet: (amount, payoutMethod) =>
+    withErrorHandling(() => api.post('/wallet/withdraw', { amount, payoutMethod })),
 
-  topUp: (amount, paymentDetails) =>
-    api.post('/wallet/topup', { amount, paymentDetails }),
+  topupWallet: (amount, paymentDetails) =>
+    withErrorHandling(() => api.post('/wallet/topup', { amount, paymentDetails })),
 
   addPayoutMethod: (data) =>
-    api.post('/shops/my/payout-methods', data),
+    withErrorHandling(() => api.post('/shops/my/payout-methods', data)),
 
   deletePayoutMethod: (id) =>
-    api.delete(`/shops/my/payout-methods/${id}`),
+    withErrorHandling(() => api.delete(`/shops/my/payout-methods/${id}`)),
 
-  setPrimaryPayoutMethod: (id) =>
-    api.patch(`/shops/my/payout-methods/${id}/primary`),
+  getSettings: () =>
+    withErrorHandling(() => api.get('/settings/public')),
 
-  getPublicSettings: () =>
-    api.get('/settings/public'),
-
-  uploadBase64: (data) =>
-    api.post('/chat/upload-base64', data),
+  uploadChatImage: (data) =>
+    withErrorHandling(() => api.post('/chat/upload-base64', data)),
 };

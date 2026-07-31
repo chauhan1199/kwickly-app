@@ -1,23 +1,33 @@
 import api from './api';
+import { withErrorHandling } from '../utils/apiHandler';
 
 export const walletService = {
-  /** Get wallet balance and recent transactions */
-  getWallet: () =>
-    api.get('/wallet/balance'),
+  getBalance: () =>
+    withErrorHandling(() => api.get('/wallet/balance')),
 
-  /** Request a withdrawal */
-  requestWithdrawal: (amount, payoutMethod) =>
-    api.post('/wallet/withdraw', { amount, payoutMethod }),
+  withdraw: (amount, payoutMethod) =>
+    withErrorHandling(() => api.post('/wallet/withdraw', { amount, payoutMethod })),
 
-  /** Top up wallet */
-  topupWallet: (amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature) =>
-    api.post('/wallet/topup', { amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature }),
+  topup: async (amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature) => {
+    try {
+      const response = await api.post('/wallet/topup', {
+        amount,
+        paymentDetails,
+        planId,
+        razorpayOrderId,
+        razorpayPaymentId,
+        razorpaySignature
+      });
+      return response.data;
+    } catch (error) {
+      console.error('[Wallet] Topup failed:', error);
+      throw error;
+    }
+  },
 
-  /** Create a Razorpay payment order */
-  createPaymentOrder: (data) =>
-    api.post('/payments/create-order', data),
+  createOrder: (data) =>
+    withErrorHandling(() => api.post('/payments/create-order', data)),
 
-  /** Verify a Razorpay payment */
   verifyPayment: (data) =>
-    api.post('/payments/verify', data),
+    withErrorHandling(() => api.post('/payments/verify', data)),
 };

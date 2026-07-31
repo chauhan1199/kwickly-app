@@ -1,15 +1,13 @@
 import api from './api';
+import { withErrorHandling } from '../utils/apiHandler';
 
 export const chatService = {
-  /** Get chat history between current user and partner, or for a specific job */
   getChatHistory: (params) =>
-    api.get('/chat/history', { params }),
+    withErrorHandling(() => api.get('/chat/history', { params })),
 
-  /** Send a new message (fallback if sockets fail) */
   sendMessage: (data) =>
-    api.post('/chat/send', data),
+    withErrorHandling(() => api.post('/chat/send', data)),
 
-  /** Mark messages as read from a partner */
   markRead: (partnerId) =>
-    api.post('/chat/mark-read', { partnerId }),
+    withErrorHandling(() => api.post('/chat/mark-read', { partnerId })),
 };

@@ -1,7 +1,11 @@
 import api from './api';
+import { withErrorHandling } from '../utils/apiHandler';
 
-const settingsService = {
-  getPublicSettings: () => api.get('/settings/public'),
+export const settingsService = {
+  getPublicSettings: () =>
+    withErrorHandling(() => api.get('/settings/public')),
 };
+
+export default settingsService;
 
 export default settingsService;

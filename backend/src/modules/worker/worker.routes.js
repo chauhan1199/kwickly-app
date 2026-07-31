@@ -4,20 +4,31 @@ const workerController = require('./worker.controller');
 const { authMiddleware } = require('../../middleware/auth.middleware');
 const authorize = require('../../middleware/role.middleware');
 const upload = require('../../middleware/upload.middleware');
+const validate = require('../../middleware/validate.middleware');
+const {
+  updateProfileSchema,
+  updateKycSchema,
+  updateBankSchema,
+  updateServicesSchema,
+  updateLocationSchema,
+  toggleOnlineStatusSchema,
+  addAddressSchema,
+  updateAddressSchema,
+} = require('../../validators/worker.validator');
 
 router.use(authMiddleware);
 
 // -- Worker Profile & Settings --
 router.get('/me', authorize('WORKER'), workerController.getProfile);
 router.get('/me/stats', authorize('WORKER'), workerController.getStats);
-router.patch('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateProfile);
-router.put('/me/profile', authorize('WORKER'), upload.single('profileImage'), workerController.updateFullProfile);
-router.patch('/me/kyc', authorize('WORKER'), upload.single('document'), workerController.updateKyc);
+router.patch('/me/profile', authorize('WORKER'), upload.single('profileImage'), validate(updateProfileSchema), workerController.updateProfile);
+router.put('/me/profile', authorize('WORKER'), upload.single('profileImage'), validate(updateProfileSchema), workerController.updateFullProfile);
+router.patch('/me/kyc', authorize('WORKER'), upload.single('document'), validate(updateKycSchema), workerController.updateKyc);
 router.delete('/me/kyc/:docIndex', authorize('WORKER'), workerController.removeKycDocument);
-router.patch('/me/bank', authorize('WORKER'), workerController.updateBank);
-router.patch('/me/services', authorize('WORKER'), workerController.updateServices);
-router.patch('/me/location', authorize('WORKER'), workerController.updateLocation);
-router.patch('/me/online', authorize('WORKER'), workerController.toggleOnlineStatus);
+router.patch('/me/bank', authorize('WORKER'), validate(updateBankSchema), workerController.updateBank);
+router.patch('/me/services', authorize('WORKER'), validate(updateServicesSchema), workerController.updateServices);
+router.patch('/me/location', authorize('WORKER'), validate(updateLocationSchema), workerController.updateLocation);
+router.patch('/me/online', authorize('WORKER'), validate(toggleOnlineStatusSchema), workerController.toggleOnlineStatus);
 
 // -- Worker Earnings --
 router.get('/earnings/summary', authorize('WORKER'), workerController.getEarningsSummary);
@@ -30,8 +41,8 @@ router.post('/category-suggestions', authorize('WORKER'), workerController.submi
 router.get('/category-suggestions', authorize('WORKER'), workerController.getSuggestions);
 
 // -- Worker Addresses --
-router.post('/me/addresses', authorize('WORKER'), workerController.addAddress);
-router.put('/me/addresses/:addressId', authorize('WORKER'), workerController.updateAddress);
+router.post('/me/addresses', authorize('WORKER'), validate(addAddressSchema), workerController.addAddress);
+router.put('/me/addresses/:addressId', authorize('WORKER'), validate(updateAddressSchema), workerController.updateAddress);
 router.delete('/me/addresses/:addressId', authorize('WORKER'), workerController.deleteAddress);
 router.patch('/me/addresses/:addressId/primary', authorize('WORKER'), workerController.setPrimaryAddress);
 

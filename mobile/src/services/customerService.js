@@ -1,50 +1,56 @@
 import api from './api';
+import { withErrorHandling } from '../utils/apiHandler';
 
 export const customerService = {
   getProfile: () =>
-    api.get('/customers/me/profile'),
+    withErrorHandling(() => api.get('/customers/me/profile')),
 
   updateProfilePhoto: async (formData) => {
-    const response = await api.put('/customers/me/profile', formData);
-    return response.data;
+    try {
+      const response = await api.put('/customers/me/profile', formData);
+      return response.data;
+    } catch (error) {
+      console.error('[Customer] Update photo failed:', error);
+      throw error;
+    }
   },
 
   updateProfile: (data) =>
-    api.put('/customers/me/profile', data),
+    withErrorHandling(() => api.put('/customers/me/profile', data)),
 
   deleteAccount: (password) =>
-    api.delete('/customers/me/account', { data: { password } }),
+    withErrorHandling(() => api.delete('/customers/me/account', { data: { password } })),
 
   getTopPros: () =>
-    api.get('/customers/top-pros'),
+    withErrorHandling(() => api.get('/customers/top-pros')),
 
   getActiveJob: () =>
-    api.get('/customers/jobs/active'),
+    withErrorHandling(() => api.get('/customers/jobs/active')),
 
   getJobReceipt: (jobId) =>
-    api.get(`/customers/jobs/${jobId}/receipt`),
+    withErrorHandling(() => api.get(`/customers/jobs/${jobId}/receipt`)),
 
   getWorkerProfile: (workerId) =>
-    api.get(`/customers/workers/${workerId}/profile`),
+    withErrorHandling(() => api.get(`/customers/workers/${workerId}/profile`)),
 
   updateNotificationPreferences: (prefs) =>
-    api.put('/customers/me/notifications', prefs),
+    withErrorHandling(() => api.put('/customers/me/notifications', prefs)),
 
   triggerNotification: (data) =>
-    api.post('/customers/me/notifications/trigger', data),
+    withErrorHandling(() => api.post('/customers/me/notifications/trigger', data)),
 
   openDispute: (data) =>
-    api.post('/customers/disputes', data),
+    withErrorHandling(() => api.post('/customers/disputes', data)),
 
   addAddress: (data) =>
-    api.post('/customers/me/addresses', data),
+    withErrorHandling(() => api.post('/customers/me/addresses', data)),
 
   updateAddress: (id, data) =>
-    api.put(`/customers/me/addresses/${id}`, data),
+    withErrorHandling(() => api.put(`/customers/me/addresses/${id}`, data)),
 
   deleteAddress: (id) =>
-    api.delete(`/customers/me/addresses/${id}`),
+    withErrorHandling(() => api.delete(`/customers/me/addresses/${id}`)),
 
   setPrimaryAddress: (id) =>
-    api.patch(`/customers/me/addresses/${id}/primary`),
+    withErrorHandling(() => api.patch(`/customers/me/addresses/${id}/primary`)),
 };
