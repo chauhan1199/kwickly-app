@@ -116,9 +116,9 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
         notifyUser({
             userId: actualUserId,
             title: `Payout ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}`,
-            message: status.toUpperCase() === 'COMPLETED' 
-                ? `Your payout of â‚¹${payout.amount} has been successfully processed.`
-                : `Your payout request of â‚¹${payout.amount} was rejected. Reason: ${rejectReason || 'Admin review'}. The amount has been refunded to your wallet.`,
+            message: status.toUpperCase() === 'REJECTED' 
+                ? `Your payout request of â‚¹${payout.amount} was rejected. Reason: ${rejectReason || 'Admin review'}. The amount has been refunded to your wallet.`
+                : `Your payout of â‚¹${payout.amount} has been successfully processed.`,
             action: 'WALLET_UPDATE',
             entityType: 'WALLET',
             entityId: actualUserId,

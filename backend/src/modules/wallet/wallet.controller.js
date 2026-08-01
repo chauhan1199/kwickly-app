@@ -301,6 +301,23 @@ exports.getAllTransactions = catchAsync(async (req, res) => {
     return successResponse(res, { txns, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Transactions fetched');
 });
 
+// ─── GET /api/v1/wallet/transactions (own) ───
+// Any authenticated user lists their own wallet transactions.
+exports.getMyTransactions = catchAsync(async (req, res) => {
+    const { type, page = 1, limit = 50 } = req.query;
+    const query = { userId: req.user._id };
+    if (type) query.type = type.toUpperCase();
+
+    const total = await WalletTxn.countDocuments(query);
+    const txns  = await WalletTxn.find(query)
+        .sort('-createdAt')
+        .limit(Math.min(Number(limit), 100))
+        .skip((Number(page) - 1) * Number(limit))
+        .lean();
+
+    return successResponse(res, { txns, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Transactions fetched');
+});
+
 // â”€â”€â”€ POST /api/v1/wallet/credit (Admin adjustment) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.adminAdjust = catchAsync(async (req, res) => {
     const { userId, amount, type, description, debit } = req.body;

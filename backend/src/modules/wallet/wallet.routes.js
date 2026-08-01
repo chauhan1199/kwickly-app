@@ -10,6 +10,7 @@ const { topupSchema, withdrawSchema, adjustSchema } = require('../../validators/
 router.get('/balance',      authMiddleware,                        ctrl.getWallet);
 router.post('/topup',       authMiddleware, validate(topupSchema), ctrl.topupWallet);
 router.post('/withdraw',    authMiddleware, validate(withdrawSchema), ctrl.requestWithdrawal);
+router.get('/my-transactions', authMiddleware,                    ctrl.getMyTransactions);
 
 // Admin
 router.get('/transactions', authMiddleware, authorize('ADMIN'),   ctrl.getAllTransactions);
