@@ -1,7 +1,7 @@
 const { StatusCodes } = require('http-status-codes');
 const Message = require('./message.model');
 const catchAsync = require('../../helpers/async.helper');
-const { successResponse } = require('../../helpers/response.helper');
+const { successResponse, errorResponse } = require('../../helpers/response.helper');
 
 exports.getChatHistory = catchAsync(async (req, res) => {
     const { partnerId, jobId } = req.query;
@@ -58,6 +58,10 @@ exports.getChatHistory = catchAsync(async (req, res) => {
 
 exports.sendMessage = catchAsync(async (req, res) => {
     const { receiverId, jobId, text, mediaUrl } = req.body;
+
+    if ((!text || !String(text).trim()) && !mediaUrl) {
+        return errorResponse(res, 'Message text or media is required', StatusCodes.BAD_REQUEST);
+    }
     
     // If admin is replying, senderId is null.
     const isAdmin = req.user.role === 'ADMIN';

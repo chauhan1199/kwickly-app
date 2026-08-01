@@ -58,7 +58,7 @@ exports.openDispute = catchAsync(async (req, res) => {
         customerId,
         workerId,
         issue: issue || reason,
-        reason,
+        reason: reason || issue,
         description,
         status: 'OPEN'
     });

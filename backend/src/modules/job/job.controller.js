@@ -639,6 +639,10 @@ exports.rateJob = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { score, review } = req.body;
 
+    if (typeof score !== 'number' || !Number.isInteger(score) || score < 1 || score > 5) {
+        return errorResponse(res, 'Rating score must be an integer between 1 and 5', StatusCodes.BAD_REQUEST);
+    }
+
     const job = await Job.findOne({ _id: id, customerId: req.user._id });
     if (!job) return errorResponse(res, 'Job not found or unauthorized', StatusCodes.NOT_FOUND);
     if (!['COMPLETED', 'PAID'].includes(job.status)) {

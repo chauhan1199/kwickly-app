@@ -23,26 +23,26 @@ const updateBankSchema = Joi.object({
   branch: Joi.string().optional(),
 });
 
-// Update services schema
+// Update services schema (matches model + mobile contract: { category, subcategories, isActive })
 const updateServicesSchema = Joi.object({
   services: Joi.array().items(
     Joi.object({
-      categoryId: Joi.string().required(),
-      subcategoryId: Joi.string().required(),
-      minPrice: Joi.number().min(0).required(),
-      maxPrice: Joi.number().min(0).required(),
+      category: Joi.string().required(),
+      categoryName: Joi.string().optional(),
+      subcategories: Joi.array().items(Joi.string()).optional(),
+      isActive: Joi.boolean().optional(),
     })
-  ).required(),
+  ).min(1).max(20).required(),
 });
 
-// Update location schema
+// Update location schema (matches controller contract: coordinates as [lng, lat] array)
 const updateLocationSchema = Joi.object({
-  coordinates: Joi.object({
-    latitude: Joi.number().min(-90).max(90).required(),
-    longitude: Joi.number().min(-180).max(180).required(),
-  }).required(),
-  address: Joi.string().min(5).optional(),
-});
+  coordinates: Joi.array().items(Joi.number()).length(2).optional(),
+  city: Joi.string().optional(),
+  pincode: Joi.string().optional(),
+  area: Joi.string().optional(),
+  radius: Joi.number().min(1).max(100).optional(),
+}).min(1);
 
 // Toggle online status schema
 const toggleOnlineStatusSchema = Joi.object({

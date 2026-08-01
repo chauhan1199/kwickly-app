@@ -47,7 +47,7 @@ const seedData = async () => {
         const adminEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@kwickly.com';
         const existingAdmin = await Customer.findOne({ email: adminEmail });
         
-        if (existingAdmin) {
+        if (existingAdmin && !process.env.FORCE_SEED) {
             logger.info('Database already seeded. Skipping master seed process to prevent data loss.');
             return;
         }
@@ -515,7 +515,8 @@ const seedData = async () => {
             {
                 jobId: createdJobs[0]._id, customerId: createdCustomers[0]._id,
                 issue: 'Work not completed as promised',
-                description: 'The tap is still leaking after repair.', status: 'open'
+                reason: 'Work not completed as promised',
+                description: 'The tap is still leaking after repair.', status: 'OPEN'
             }
         ];
         await Dispute.deleteMany({});

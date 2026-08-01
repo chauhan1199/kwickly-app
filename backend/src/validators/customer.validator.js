@@ -8,35 +8,31 @@ const updateProfileSchema = Joi.object({
   city: Joi.string().optional(),
 });
 
-// Add address schema
+// Address GeoJSON shape used by the app
+const geoPointSchema = Joi.object({
+  type: Joi.string().valid('Point').default('Point'),
+  coordinates: Joi.array().items(Joi.number()).length(2).required(),
+});
+
+// Add address schema (matches controller + mobile app contract: label/street/city/pincode/location)
 const addAddressSchema = Joi.object({
-  type: Joi.string().valid('home', 'work', 'other').required(),
-  street: Joi.string().min(5).required(),
-  locality: Joi.string().min(2).required(),
+  label: Joi.string().min(2).max(50).required(),
+  street: Joi.string().min(3).required(),
   city: Joi.string().min(2).required(),
-  state: Joi.string().min(2).required(),
-  pincode: Joi.string().pattern(/^[1-9][0-9]{5}$/).required(),
-  landmark: Joi.string().optional(),
-  coordinates: Joi.object({
-    latitude: Joi.number().min(-90).max(90).required(),
-    longitude: Joi.number().min(-180).max(180).required(),
-  }).required(),
+  pincode: Joi.string().pattern(/^[0-9]{6}$/).required(),
+  location: geoPointSchema.optional(),
+  isPrimary: Joi.boolean().optional(),
 });
 
 // Update address schema
 const updateAddressSchema = Joi.object({
-  type: Joi.string().valid('home', 'work', 'other').optional(),
-  street: Joi.string().min(5).optional(),
-  locality: Joi.string().min(2).optional(),
+  label: Joi.string().min(2).max(50).optional(),
+  street: Joi.string().min(3).optional(),
   city: Joi.string().min(2).optional(),
-  state: Joi.string().min(2).optional(),
-  pincode: Joi.string().pattern(/^[1-9][0-9]{5}$/).optional(),
-  landmark: Joi.string().optional(),
-  coordinates: Joi.object({
-    latitude: Joi.number().min(-90).max(90),
-    longitude: Joi.number().min(-180).max(180),
-  }).optional(),
-});
+  pincode: Joi.string().pattern(/^[0-9]{6}$/).optional(),
+  location: geoPointSchema.optional(),
+  isPrimary: Joi.boolean().optional(),
+}).min(1);
 
 // Notification preferences schema
 const notificationPreferencesSchema = Joi.object({
