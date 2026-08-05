@@ -1,11 +1,24 @@
 const Joi = require('joi');
 
-// Update customer profile schema
+// Update customer profile schema — wallet (object or JSON string) and
+// profileImageBase64 are read by the controller and used by the mobile app
 const updateProfileSchema = Joi.object({
   name: Joi.string().min(2).max(50).optional(),
   email: Joi.string().email().optional(),
   profileImage: Joi.string().uri().optional(),
   city: Joi.string().optional(),
+  profileImageBase64: Joi.string().min(20).optional(),
+  wallet: Joi.alternatives().try(
+    Joi.string(),
+    Joi.object({
+      bankDetails: Joi.object({
+        accountNumber: Joi.string().min(9).max(18).optional(),
+        ifscCode: Joi.string().pattern(/^[A-Z]{4}0[A-Z0-9]{6}$/).optional(),
+        bankName: Joi.string().min(2).max(100).optional(),
+      }).optional(),
+      upiId: Joi.string().allow('').optional(),
+    }).optional()
+  ).optional(),
 });
 
 // Address GeoJSON shape used by the app
@@ -34,20 +47,17 @@ const updateAddressSchema = Joi.object({
   isPrimary: Joi.boolean().optional(),
 }).min(1);
 
-// Notification preferences schema
+// Notification preferences schema — matches controller + model keys
 const notificationPreferencesSchema = Joi.object({
-  pushEnabled: Joi.boolean().optional(),
-  emailEnabled: Joi.boolean().optional(),
-  smsEnabled: Joi.boolean().optional(),
-  orderUpdates: Joi.boolean().optional(),
   jobUpdates: Joi.boolean().optional(),
-  promotionalUpdates: Joi.boolean().optional(),
+  promotions: Joi.boolean().optional(),
 });
 
 // Dispute schema
 const openDisputeSchema = Joi.object({
   jobId: Joi.string().required(),
-  issue: Joi.string().min(10).max(200).required(),
+  reason: Joi.string().min(2).max(200).optional(),
+  issue: Joi.string().min(10).max(200).optional(),
   description: Joi.string().min(20).max(1000).required(),
   images: Joi.array().items(Joi.string().uri()).optional(),
 });

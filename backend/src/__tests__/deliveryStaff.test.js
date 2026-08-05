@@ -21,8 +21,8 @@ jest.mock('../middleware/rateLimit.middleware', () => {
     };
 });
 
-// Mock order model (referenced lazily in deliveryStaff controller)
-jest.mock('../modules/order/order.model', () => ({
+// Mock shoporder model (referenced lazily in deliveryStaff controller)
+jest.mock('../modules/shoporder/shoporder.model', () => ({
     findOne: jest.fn().mockImplementation((query) => {
         // Return an active order when the controller checks for active deliveries
         if (query && query.status && query.status.$in) {

@@ -511,7 +511,7 @@ describe('Customer Self-Service', () => {
                     issue: 'Leak still present'
                 });
             expect(res.status).toBe(201);
-            expect(res.body.data.status).toBe('open');
+            expect(res.body.data.status).toBe('OPEN');
             expect(res.body.data.reason).toBe('Incomplete work');
         });
 

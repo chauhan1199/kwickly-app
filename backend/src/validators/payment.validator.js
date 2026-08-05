@@ -18,11 +18,11 @@ const verifyPaymentSchema = Joi.object({
   paymentType: Joi.string().valid('wallet_topup', 'order_payment', 'job_payment').optional(),
 });
 
-// Refund payment schema
+// Refund payment schema — matches refundPayment controller contract
 const refundPaymentSchema = Joi.object({
-  paymentId: Joi.string().required(),
-  amount: Joi.number().min(1).required(),
-  reason: Joi.string().min(10).max(500).required(),
+  orderId: Joi.string().required(),
+  amount: Joi.number().min(1).optional(),
+  reason: Joi.string().min(3).max(500).optional(),
   notes: Joi.object().optional(),
 });
 

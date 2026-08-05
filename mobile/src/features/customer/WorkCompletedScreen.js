@@ -68,7 +68,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
 
     setPaying(true);
     try {
-      const res = await jobService.payJob(job?._id, { 
+      const res = await jobService.payForJob(job?._id, { 
         method, 
         completionOtp: otp,
         promoCode 

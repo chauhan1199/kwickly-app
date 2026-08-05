@@ -25,6 +25,10 @@ export const walletService = {
     }
   },
 
+  createPaymentOrder: (data) =>
+    withErrorHandling(() => api.post('/payments/create-order', data)),
+
+  // Alias kept for compatibility
   createOrder: (data) =>
     withErrorHandling(() => api.post('/payments/create-order', data)),
 

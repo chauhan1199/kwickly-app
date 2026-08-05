@@ -70,6 +70,13 @@ exports.updateKyc = catchAsync(async (req, res) => {
         });
         user.kyc.status = 'PENDING';
         await user.save();
+    } else if (req.body.documentUrl) {
+        user.kyc.documents.push({
+            type: validatedDocType,
+            url: req.body.documentUrl
+        });
+        user.kyc.status = 'PENDING';
+        await user.save();
     }
     
     const { delCache } = require('../../helpers/redis.helper');
@@ -285,6 +292,20 @@ exports.submitCategorySuggestion = catchAsync(async (req, res) => {
 
 // -- Address Management --
 
+// Keeps the worker's activeLocation a valid GeoJSON point for the 2dsphere
+// index. Previously, setting activeLocation.addressDetails without ensuring
+// type/coordinates existed made the document fail index extraction on save
+// ("Can't extract geo keys ... unknown GeoJSON type") → 500 for workers adding
+// an address without coordinates.
+const syncActiveLocation = (user, addressDetails, addressLocation) => {
+    const coords = addressLocation?.coordinates;
+    const previous = user.activeLocation?.coordinates;
+    const coordinates = (coords && coords.length === 2)
+        ? coords
+        : (previous && previous.length === 2 ? previous : [0, 0]);
+    user.activeLocation = { type: 'Point', coordinates, addressDetails };
+};
+
 exports.addAddress = catchAsync(async (req, res) => {
     const { label, street, city, area, pincode, isPrimary, location } = req.body;
     const user = await Customer.findById(req.user._id);
@@ -303,11 +324,7 @@ exports.addAddress = catchAsync(async (req, res) => {
     if (newAddress.isPrimary || user.addresses.length === 0) {
         newAddress.isPrimary = true;
         user.addresses.forEach(a => a.isPrimary = false);
-        user.activeLocation.addressDetails = { city, area, pincode };
-        if (newAddress.location) {
-            user.activeLocation.type = 'Point';
-            user.activeLocation.coordinates = newAddress.location.coordinates;
-        }
+        syncActiveLocation(user, { city, area, pincode }, newAddress.location);
     }
 
     user.addresses.push(newAddress);
@@ -336,10 +353,7 @@ exports.updateAddress = catchAsync(async (req, res) => {
     }
 
     if (address.isPrimary) {
-        user.activeLocation.addressDetails = { city: address.city, area: address.area, pincode: address.pincode };
-        if (address.location) {
-            user.activeLocation.coordinates = address.location.coordinates;
-        }
+        syncActiveLocation(user, { city: address.city, area: address.area, pincode: address.pincode }, address.location);
     }
 
     await user.save();
@@ -362,10 +376,7 @@ exports.deleteAddress = catchAsync(async (req, res) => {
     if (address.isPrimary && user.addresses.length > 0) {
         user.addresses[0].isPrimary = true;
         const newPrim = user.addresses[0];
-        user.activeLocation.addressDetails = { city: newPrim.city, area: newPrim.area, pincode: newPrim.pincode };
-        if (newPrim.location) {
-            user.activeLocation.coordinates = newPrim.location.coordinates;
-        }
+        syncActiveLocation(user, { city: newPrim.city, area: newPrim.area, pincode: newPrim.pincode }, newPrim.location);
     }
     
     await user.save();
@@ -385,11 +396,7 @@ exports.setPrimaryAddress = catchAsync(async (req, res) => {
     user.addresses.forEach(a => a.isPrimary = false);
     address.isPrimary = true;
     
-    user.activeLocation.addressDetails = { city: address.city, area: address.area, pincode: address.pincode };
-    if (address.location) {
-        user.activeLocation.type = 'Point';
-        user.activeLocation.coordinates = address.location.coordinates;
-    }
+    syncActiveLocation(user, { city: address.city, area: address.area, pincode: address.pincode }, address.location);
 
     await user.save();
     

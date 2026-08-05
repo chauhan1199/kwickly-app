@@ -176,7 +176,8 @@ describe('Promotion Routes', () => {
 
         it('should reject expired promo code', async () => {
             const past = new Date(Date.now() - 5 * 86400000);
-            await createPromotion({ code: 'EXPIRED', endAt: past });
+            const older = new Date(Date.now() - 10 * 86400000);
+            await createPromotion({ code: 'EXPIRED', startAt: older, endAt: past });
 
             const res = await request(app)
                 .post('/api/v1/promotions/validate')

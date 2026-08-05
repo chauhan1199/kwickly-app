@@ -9,9 +9,9 @@ const addToCartSchema = Joi.object({
   customization: Joi.string().max(500).optional(),
 });
 
-// Update cart item schema
+// Update cart item schema — qty 0 removes the item (mobile decrement-to-zero path)
 const updateCartItemSchema = Joi.object({
-  qty: Joi.number().integer().min(1).max(100).required(),
+  qty: Joi.number().integer().min(0).max(100).required(),
 });
 
 // Remove from cart schema

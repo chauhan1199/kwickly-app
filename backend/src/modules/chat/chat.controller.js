@@ -66,6 +66,23 @@ exports.sendMessage = catchAsync(async (req, res) => {
     // If admin is replying, senderId is null.
     const isAdmin = req.user.role === 'ADMIN';
     const isSendingToSystem = receiverId === 'admin' || receiverId === null;
+
+    // Job chat messages must come from a participant of the job (or admin) —
+    // mirrors the authorization check in getChatHistory to prevent a
+    // non-participant from injecting messages into another job's thread.
+    if (jobId && !isAdmin) {
+        const Job = require('../job/job.model');
+        const job = await Job.findById(jobId).select('customerId workerId').lean();
+        if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+
+        const isParticipant =
+            job.customerId?.toString() === req.user._id.toString() ||
+            job.workerId?.toString() === req.user._id.toString();
+
+        if (!isParticipant) {
+            return errorResponse(res, 'Not authorized to message on this job', StatusCodes.FORBIDDEN);
+        }
+    }
     
     const message = await Message.create({
         senderId: isAdmin ? null : req.user._id,

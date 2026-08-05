@@ -80,11 +80,11 @@ describe('Cart Routes', () => {
             expect(res.status).toBe(401);
         });
 
-        it('should allow any authenticated role to get cart', async () => {
+        it('should reject non-CUSTOMER role (cart is customer-only)', async () => {
             const res = await request(app)
                 .get('/api/v1/cart')
                 .set('Authorization', `Bearer ${adminToken}`);
-            expect(res.status).toBe(200);
+            expect(res.status).toBe(403);
         });
 
         it('should return expired cart as null after TTL', async () => {
@@ -328,14 +328,13 @@ describe('Cart Routes', () => {
             expect(res.body.data.subtotal).toBe(0);
         });
 
-        it('should remove item if qty is negative', async () => {
+        it('should reject negative qty', async () => {
             const res = await request(app)
                 .patch(`/api/v1/cart/${cartItemId}`)
                 .set('Authorization', `Bearer ${customerToken}`)
                 .send({ qty: -1 });
 
-            expect(res.status).toBe(200);
-            expect(res.body.data.items.length).toBe(0);
+            expect(res.status).toBe(400);
         });
 
         it('should return 400 if qty is missing', async () => {
@@ -377,7 +376,7 @@ describe('Cart Routes', () => {
             const res = await request(app)
                 .patch(`/api/v1/cart/${cartItemId}`)
                 .set('Authorization', `Bearer ${customerToken}`)
-                .send({ qty: 200 });
+                .send({ qty: 60 });
 
             expect(res.status).toBe(400);
             expect(res.body.message).toMatch(/stock/i);

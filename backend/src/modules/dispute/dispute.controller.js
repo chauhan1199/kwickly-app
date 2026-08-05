@@ -75,16 +75,23 @@ exports.openDispute = catchAsync(async (req, res) => {
     return successResponse(res, dispute, 'Dispute opened successfully', StatusCodes.CREATED);
 });
 
+const VALID_STATUSES = ['OPEN', 'IN_REVIEW', 'RESOLVED', 'REFUNDED', 'DISMISSED'];
+
 exports.updateDisputeStatus = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { status, resolution, resolutionNotes, refundAmount } = req.body;
-    
+    const { status: rawStatus, resolution, resolutionNotes, refundAmount } = req.body;
+
+    const status = String(rawStatus || '').toUpperCase();
+    if (!VALID_STATUSES.includes(status)) {
+        return errorResponse(res, `Invalid dispute status. Allowed: ${VALID_STATUSES.join(', ')}`, StatusCodes.BAD_REQUEST);
+    }
+
     const finalResolution = resolution || resolutionNotes;
 
     const dispute = await Dispute.findById(id).populate('jobId').populate('shopOrderId');
     if (!dispute) return errorResponse(res, 'Dispute not found', StatusCodes.NOT_FOUND);
 
-    // Idempotency guard â€” prevent double refund
+    // Idempotency guard â”€ prevent double refund
     if (status === 'REFUNDED' && dispute.status === 'REFUNDED') {
         return errorResponse(res, 'This dispute has already been refunded', StatusCodes.CONFLICT);
     }
@@ -152,10 +159,19 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
                     // We must claw back the money from their wallet.
                     let pQuery = { _id: dispute.workerId };
                     let pModel = Customer;
-                    const shop = await Shop.findOne({ ownerId: dispute.workerId });
-                    if (shop) {
-                        pModel = Shop;
-                        pQuery = { _id: shop._id };
+                    if (dispute.shopOrderId) {
+                        // Shop order: dispute.workerId holds the Shop _id (see openDispute)
+                        const shop = await Shop.findById(dispute.workerId).select('_id');
+                        if (shop) {
+                            pModel = Shop;
+                            pQuery = { _id: shop._id };
+                        }
+                    } else {
+                        const shop = await Shop.findOne({ ownerId: dispute.workerId });
+                        if (shop) {
+                            pModel = Shop;
+                            pQuery = { _id: shop._id };
+                        }
                     }
 
                     // Check provider has sufficient balance before debiting

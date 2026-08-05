@@ -33,7 +33,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Cleaning', description: 'Home cleaning services', icon: '🧹' },
-                status: 'pending'
+                status: 'PENDING'
             });
 
             const res = await request(app)
@@ -74,7 +74,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Painting', description: 'Interior and exterior painting', icon: '🎨', suggestedSubcategories: ['Interior', 'Exterior'] },
-                status: 'pending',
+                status: 'PENDING',
                 source: 'worker'
             });
 
@@ -84,7 +84,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 .send({ reason: 'Good idea, adding this category' });
 
             expect(res.status).toBe(200);
-            expect(res.body.data.status).toBe('approved');
+            expect(res.body.data.status).toBe('APPROVED');
 
             const cat = await Category.findOne({ name: 'Painting' });
             expect(cat).toBeTruthy();
@@ -97,7 +97,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Gardening', description: 'Garden services' },
-                status: 'pending'
+                status: 'PENDING'
             });
 
             const res = await request(app)
@@ -123,7 +123,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Already Done', description: 'Test' },
-                status: 'approved',
+                status: 'APPROVED',
                 approveReason: 'Already approved'
             });
 
@@ -141,7 +141,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Auth Test', description: 'Test' },
-                status: 'pending'
+                status: 'PENDING'
             });
 
             const res = await request(app)
@@ -156,7 +156,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Admin Only', description: 'Test' },
-                status: 'pending'
+                status: 'PENDING'
             });
 
             const res = await request(app)
@@ -174,7 +174,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Bad Idea', description: 'Not suitable' },
-                status: 'pending',
+                status: 'PENDING',
                 source: 'worker'
             });
 
@@ -184,7 +184,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 .send({ reason: 'Does not fit our platform scope' });
 
             expect(res.status).toBe(200);
-            expect(res.body.data.status).toBe('rejected');
+            expect(res.body.data.status).toBe('REJECTED');
             expect(res.body.data.rejectReason).toBe('Does not fit our platform scope');
         });
 
@@ -193,7 +193,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'No Reason', description: 'Test' },
-                status: 'pending'
+                status: 'PENDING'
             });
 
             const res = await request(app)
@@ -219,7 +219,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Already Rejected', description: 'Test' },
-                status: 'rejected',
+                status: 'REJECTED',
                 rejectReason: 'Already rejected'
             });
 
@@ -237,7 +237,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Auth Reject', description: 'Test' },
-                status: 'pending'
+                status: 'PENDING'
             });
 
             const res = await request(app)
@@ -252,7 +252,7 @@ describe('Admin Suggestion Endpoints — Extended', () => {
                 workerId: worker._id,
                 type: 'new_category',
                 payload: { name: 'Non Admin', description: 'Test' },
-                status: 'pending'
+                status: 'PENDING'
             });
 
             const res = await request(app)

@@ -14,6 +14,7 @@ const initRedis = () => {
         
         redis = new Redis(redisUrl, {
             maxRetriesPerRequest: 3,
+            enableOfflineQueue: false,
             retryStrategy(times) {
                 connectionAttempts++;
                 if (times > 5) {
@@ -140,14 +141,18 @@ const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
     const lockKey = `lock:${key}`;
     const client = getRedis();
     if (client) {
-        const acquired = await client.set(lockKey, '1', 'NX', 'EX', 10);
-        if (!acquired) {
-            const delays = [200, 500, 1000];
-            for (const delay of delays) {
-                await new Promise(r => setTimeout(r, delay));
-                data = await getCache(key);
-                if (data !== null) return data;
+        try {
+            const acquired = await client.set(lockKey, '1', 'NX', 'EX', 10);
+            if (!acquired) {
+                const delays = [200, 500, 1000];
+                for (const delay of delays) {
+                    await new Promise(r => setTimeout(r, delay));
+                    data = await getCache(key);
+                    if (data !== null) return data;
+                }
             }
+        } catch (e) {
+            // Redis unavailable — skip locking and fetch directly
         }
     }
     
@@ -156,7 +161,9 @@ const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
         await setCache(key, data, ttlInSeconds);
     }
     
-    if (client) await client.del(lockKey);
+    if (client) {
+        try { await client.del(lockKey); } catch (e) {}
+    }
     return data;
 };
 

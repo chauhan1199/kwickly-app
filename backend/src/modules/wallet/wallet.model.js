@@ -16,7 +16,8 @@ const WalletTxnSchema = new mongoose.Schema({
             'REFERRAL_BONUS',    // referral reward
             'ADJUSTMENT',        // admin manual adjustment
             'TOPUP',             // wallet top-up via payment gateway
-            'ORDER_PAYMENT'      // customer paying for an order
+            'ORDER_PAYMENT',     // customer paying for an order
+            'JOB_PAYMENT'        // customer paying for a job
         ],
         required: true
     },
@@ -32,7 +33,8 @@ const WalletTxnSchema = new mongoose.Schema({
 
     refId:      { type: String },    // jobId / orderId / subscriptionId
     description:{ type: String },
-    invoiceUrl: { type: String }
+    invoiceUrl: { type: String },
+    razorpayPaymentId: { type: String }  // dedup key for wallet top-ups
 }, { timestamps: true });
 
 WalletTxnSchema.index({ userId: 1, createdAt: -1 });     // User transaction history
@@ -41,5 +43,11 @@ WalletTxnSchema.index({ type: 1, createdAt: -1 });       // Admin ledger filter
 WalletTxnSchema.index({ status: 1 });                    // Pending/failed lookup
 
 WalletTxnSchema.index({ refId: 1 });
+
+// Prevent the same Razorpay payment from crediting the wallet more than once
+WalletTxnSchema.index(
+    { type: 1, razorpayPaymentId: 1 },
+    { unique: true, partialFilterExpression: { type: 'TOPUP', razorpayPaymentId: { $type: 'string' } } }
+);
 
 module.exports = mongoose.model('WalletTxn', WalletTxnSchema);

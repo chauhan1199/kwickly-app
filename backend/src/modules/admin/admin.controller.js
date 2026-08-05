@@ -1535,8 +1535,9 @@ exports.addShopPayoutMethod = catchAsync(async (req, res) => {
     const { type, detail, details, isPrimary, label } = req.body;
     const shop = await Shop.findById(req.params.id);
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-    if (shop.payoutMethods.length === 0) req.body.isPrimary = true;
-    shop.payoutMethods.push({ type, detail: detail || details, isPrimary, label });
+    let finalIsPrimary = isPrimary;
+    if (shop.payoutMethods.length === 0) finalIsPrimary = true;
+    shop.payoutMethods.push({ type, detail: detail || details, isPrimary: finalIsPrimary, label });
     await shop.save();
     logAdminActivity('UPDATE', 'SHOP', shop._id, 'Payout Method Added', `Added ${type} payout method to "${shop.name}"`, req.user?._id);
     await delCache('admin_badge_counts');

@@ -53,8 +53,8 @@ describe('Worker Routes', () => {
             const res = await request(app)
                 .patch('/api/v1/workers/me/location')
                 .set('Authorization', `Bearer ${workerToken}`)
-                .send({ activeLocation: { type: 'Point', coordinates: [72.8777, 19.0760] } });
-            expect([200, 500]).toContain(res.status);
+                .send({ coordinates: [72.8777, 19.0760] });
+            expect(res.status).toBe(200);
         });
     });
 

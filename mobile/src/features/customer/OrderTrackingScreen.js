@@ -270,7 +270,7 @@ const OrderTrackingScreen = ({ route, navigation }) => {
                     text: 'Yes, Cancel', style: 'destructive',
                     onPress: async () => {
                       try {
-                        await shopService.updateOrderStatus(orderId, 'CANCELLED');
+                        await shopService.cancelOrder(orderId);
                         fetchOrder();
                       } catch (e) {
                         Alert.alert('Error', e?.response?.data?.message || 'Failed to cancel');

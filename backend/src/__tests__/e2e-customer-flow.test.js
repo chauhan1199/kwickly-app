@@ -414,6 +414,8 @@ describe('E2E Customer Flow', () => {
         });
 
         it('19. Customer pays with completionOtp — PAID', async () => {
+            // Fund the customer wallet so the ONLINE payment can be debited
+            await Customer.findByIdAndUpdate(S.customerId, { $set: { 'wallet.balance': 10000 } });
             const job = await Job.findById(S.createdJobId);
             const completionOtp = job.security.completionOtp;
 
@@ -428,6 +430,10 @@ describe('E2E Customer Flow', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.data.status).toBe('PAID');
+
+            // Verify the customer was actually debited for the job amount
+            const customer = await Customer.findById(S.customerId);
+            expect(customer.wallet.balance).toBeLessThan(10000);
         });
 
         it('20. Customer rates job — rating saved', async () => {

@@ -584,6 +584,31 @@ exports.payJob = catchAsync(async (req, res) => {
                     }], { session });
                 }
             } else {
+                // Customer pays from wallet (online). Debit the customer first so we never
+                // credit the worker before the customer has actually paid.
+                const customerPayable = Math.max(0, (job.payment?.amount || 0) - promoDiscount);
+                if (customerPayable > 0) {
+                    const debited = await Customer.findOneAndUpdate(
+                        { _id: req.user._id, 'wallet.balance': { $gte: customerPayable } },
+                        { $inc: { 'wallet.balance': -customerPayable } },
+                        { returnDocument: 'after', session }
+                    );
+                    if (!debited) {
+                        if (useTransaction && session) await session.abortTransaction();
+                        if (session) session.endSession();
+                        return errorResponse(res, 'Insufficient wallet balance. Please top up your wallet to pay online.', StatusCodes.PAYMENT_REQUIRED);
+                    }
+                    await WalletTxn.create([{
+                        userId: req.user._id,
+                        type: 'JOB_PAYMENT',
+                        amount: customerPayable,
+                        balance: debited.wallet?.balance || 0,
+                        refId: job._id.toString(),
+                        status: 'COMPLETED',
+                        description: `Job payment for job #${job._id.toString().slice(-6)}`
+                    }], { session });
+                }
+
                 const creditedWorker = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': workerPayout } }, { returnDocument: 'after', session });
                 await WalletTxn.create([{
                     userId: worker._id, type: 'JOB_CREDIT', amount: workerPayout,

@@ -8,20 +8,23 @@ const updateProfileSchema = Joi.object({
   city: Joi.string().optional(),
 });
 
-// Update KYC schema
+// Update KYC schema — matches the controller contract:
+// documentType + (multipart file | documentBase64 | documentUrl)
 const updateKycSchema = Joi.object({
-  documentType: Joi.string().valid('PAN', 'AADHAR', 'VOTER_ID', 'DRIVING_LICENSE', 'OTHER').required(),
-  documentUrl: Joi.string().uri().required(),
+  documentType: Joi.string().valid('PAN', 'AADHAR', 'VOTER_ID', 'DRIVING_LICENSE', 'LICENSE', 'OTHER').required(),
+  documentBase64: Joi.string().min(10).optional(),
+  documentUrl: Joi.string().uri().optional(),
 });
 
-// Update bank details schema
+// Update bank details schema — matches controller + mobile contract ({ bankDetails, upiId })
 const updateBankSchema = Joi.object({
-  accountNumber: Joi.string().min(9).max(18).required(),
-  ifscCode: Joi.string().pattern(/^[A-Z]{4}0[A-Z0-9]{6}$/).required(),
-  accountHolderName: Joi.string().min(3).max(100).required(),
-  bankName: Joi.string().min(2).max(100).optional(),
-  branch: Joi.string().optional(),
-});
+  bankDetails: Joi.object({
+    accountNumber: Joi.string().min(9).max(18).optional(),
+    ifscCode: Joi.string().pattern(/^[A-Z]{4}0[A-Z0-9]{6}$/).optional(),
+    bankName: Joi.string().min(2).max(100).optional(),
+  }).optional(),
+  upiId: Joi.string().pattern(/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/).optional(),
+}).or('bankDetails', 'upiId');
 
 // Update services schema (matches model + mobile contract: { category, subcategories, isActive })
 const updateServicesSchema = Joi.object({
@@ -50,32 +53,32 @@ const toggleOnlineStatusSchema = Joi.object({
 });
 
 // Add address schema
+// Address schemas — match the model + controller + mobile contract:
+// { label, street, area, city, pincode, isPrimary?, location? } with
+// location.coordinates as [lng, lat]
 const addAddressSchema = Joi.object({
-  type: Joi.string().valid('home', 'work', 'other').required(),
-  street: Joi.string().min(5).required(),
-  locality: Joi.string().min(2).required(),
+  label: Joi.string().min(1).max(50).required(),
+  street: Joi.string().min(2).required(),
   city: Joi.string().min(2).required(),
-  state: Joi.string().min(2).required(),
+  area: Joi.string().optional(),
   pincode: Joi.string().pattern(/^[1-9][0-9]{5}$/).required(),
-  landmark: Joi.string().optional(),
-  coordinates: Joi.object({
-    latitude: Joi.number().min(-90).max(90).required(),
-    longitude: Joi.number().min(-180).max(180).required(),
-  }).required(),
+  isPrimary: Joi.boolean().optional(),
+  location: Joi.object({
+    type: Joi.string().optional(),
+    coordinates: Joi.array().items(Joi.number()).length(2).optional(),
+  }).optional(),
 });
 
-// Update address schema
 const updateAddressSchema = Joi.object({
-  type: Joi.string().valid('home', 'work', 'other').optional(),
-  street: Joi.string().min(5).optional(),
-  locality: Joi.string().min(2).optional(),
+  label: Joi.string().min(1).max(50).optional(),
+  street: Joi.string().min(2).optional(),
   city: Joi.string().min(2).optional(),
-  state: Joi.string().min(2).optional(),
+  area: Joi.string().optional(),
   pincode: Joi.string().pattern(/^[1-9][0-9]{5}$/).optional(),
-  landmark: Joi.string().optional(),
-  coordinates: Joi.object({
-    latitude: Joi.number().min(-90).max(90),
-    longitude: Joi.number().min(-180).max(180),
+  isPrimary: Joi.boolean().optional(),
+  location: Joi.object({
+    type: Joi.string().optional(),
+    coordinates: Joi.array().items(Joi.number()).length(2).optional(),
   }).optional(),
 });
 

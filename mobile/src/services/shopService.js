@@ -11,17 +11,53 @@ export const shopService = {
   getMyShops: () =>
     withErrorHandling(() => api.get('/shops/my')),
 
+  getMyShop: () =>
+    withErrorHandling(() => api.get('/shops/my')),
+
   createShop: (data) =>
     withErrorHandling(() => api.post('/shops', data)),
 
   deleteShop: () =>
     withErrorHandling(() => api.delete('/shops/my')),
 
+  deleteMyShop: () =>
+    withErrorHandling(() => api.delete('/shops/my')),
+
+  updateMyShop: (data) =>
+    withErrorHandling(() => api.patch('/shops/my', data)),
+
+  updateOwnerName: (name) =>
+    withErrorHandling(() => api.patch('/shops/my/owner', { name })),
+
+  setPrimaryPayoutMethod: (id) =>
+    withErrorHandling(() => api.patch(`/shops/my/payout-methods/${id}/primary`)),
+
+  withdraw: (amount, payoutMethod) =>
+    withErrorHandling(() => api.post('/shops/my/withdraw', { amount, payoutMethod })),
+
+  topUp: (amount, paymentDetails) =>
+    withErrorHandling(() => api.post('/wallet/topup', { amount, paymentDetails })),
+
+  updateDeliveryConfig: (shopId, config) =>
+    withErrorHandling(() => api.patch(`/shops/${shopId}/delivery-config`, config)),
+
+  updateOrderStatus: (orderId, status, otp) =>
+    withErrorHandling(() => api.patch(`/shoporders/${orderId}/status`, { status, otp })),
+
+  cancelOrder: (orderId) =>
+    withErrorHandling(() => api.post(`/shoporders/${orderId}/cancel`)),
+
   getProducts: (shopId, search) =>
     withErrorHandling(() => api.get('/products', { params: { shopId, search } })),
 
   getShopProducts: () =>
     withErrorHandling(() => api.get('/products/shop')),
+
+  createProduct: (data) =>
+    withErrorHandling(() => api.post('/products', data)),
+
+  updateProduct: (id, data) =>
+    withErrorHandling(() => api.patch(`/products/${id}`, data)),
 
   addProduct: (data) =>
     withErrorHandling(() => api.post('/products', data)),
@@ -47,6 +83,15 @@ export const shopService = {
   getNotifications: () =>
     withErrorHandling(() => api.get('/notifications/my')),
 
+  getMyNotifications: () =>
+    withErrorHandling(() => api.get('/notifications/my')),
+
+  markNotificationRead: (id) =>
+    withErrorHandling(() => api.patch(`/notifications/${id}/read`)),
+
+  markAllNotificationsRead: () =>
+    withErrorHandling(() => api.patch('/notifications/read-all')),
+
   getWalletBalance: () =>
     withErrorHandling(() => api.get('/wallet/balance')),
 
@@ -63,6 +108,9 @@ export const shopService = {
     withErrorHandling(() => api.delete(`/shops/my/payout-methods/${id}`)),
 
   getSettings: () =>
+    withErrorHandling(() => api.get('/settings/public')),
+
+  getPublicSettings: () =>
     withErrorHandling(() => api.get('/settings/public')),
 
   uploadChatImage: (data) =>

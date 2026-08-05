@@ -105,20 +105,29 @@ exports.topupWallet = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid top-up amount', StatusCodes.BAD_REQUEST);
     }
 
-    if (razorpayOrderId && razorpayPaymentId && razorpaySignature) {
-        const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
-        if (!isValid) {
-            return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
+    // Wallet top-ups must be backed by a verified Razorpay payment — no free credits.
+    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return errorResponse(res, 'Verified Razorpay payment details are required to top up the wallet', StatusCodes.BAD_REQUEST);
+    }
+
+    // Replay protection — the same Razorpay payment must not credit the wallet twice.
+    const replayed = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId });
+    if (replayed) {
+        return errorResponse(res, 'This payment has already been credited to the wallet', StatusCodes.CONFLICT);
+    }
+
+    const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+    if (!isValid) {
+        return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
+    }
+    try {
+        const rpPayment = await fetchPayment(razorpayPaymentId);
+        if (rpPayment.status !== 'captured') {
+            return errorResponse(res, 'Payment not captured in Razorpay', StatusCodes.BAD_REQUEST);
         }
-        try {
-            const rpPayment = await fetchPayment(razorpayPaymentId);
-            if (rpPayment.status !== 'captured') {
-                return errorResponse(res, 'Payment not captured in Razorpay', StatusCodes.BAD_REQUEST);
-            }
-            amount = rpPayment.amount / 100; // Trust the captured amount from Razorpay
-        } catch (error) {
-            return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.INTERNAL_SERVER_ERROR);
-        }
+        amount = rpPayment.amount / 100; // Trust the captured amount from Razorpay
+    } catch (error) {
+        return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.INTERNAL_SERVER_ERROR);
     }
 
     const user = await Customer.findById(req.user._id);
@@ -162,6 +171,7 @@ exports.topupWallet = catchAsync(async (req, res) => {
         amount,
         balance: result.newBalance,
         status: 'COMPLETED',
+        razorpayPaymentId,
         description: planId ? `Plan Top-up: ${planId}` : `Wallet Top-up via ${paymentDetails?.method || 'Online'}`
     });
 

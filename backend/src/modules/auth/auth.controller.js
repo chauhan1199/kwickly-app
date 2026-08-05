@@ -32,10 +32,14 @@ const incrementOtpAttempts = async (phone) => {
     const redis = getRedis();
     if (!redis) return;
     const key = `otp_attempts:${phone}`;
-    const current = await redis.incr(key);
-    if (current === 1) {
-        // Set TTL only on first attempt
-        await redis.expire(key, OTP_BLOCK_TTL);
+    try {
+        const current = await redis.incr(key);
+        if (current === 1) {
+            // Set TTL only on first attempt
+            await redis.expire(key, OTP_BLOCK_TTL);
+        }
+    } catch (e) {
+        // Redis unavailable — skip rate limiting attempts instead of failing the request
     }
 };
 

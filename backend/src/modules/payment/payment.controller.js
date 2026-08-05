@@ -16,6 +16,7 @@ const logger = require('../../helpers/logger.helper');
 const {
     createRazorpayOrder, fetchPayment, capturePayment, createRefund, verifyPaymentSignature
 } = require('../../helpers/razorpay.helper');
+const { supportsTransactions } = require('../../helpers/transaction.helper');
 
 /**
  * POST /api/v1/payments/create-order
@@ -91,7 +92,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
     // B7 FIX: Use transactions to prevent partial updates
     let session = null;
     let useTransaction = false;
-    if (typeof mongoose !== 'undefined' && mongoose.startSession) {
+    if (supportsTransactions()) {
         try {
             session = await mongoose.startSession();
             session.startTransaction();
@@ -132,6 +133,32 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     status: order.status,
                     paymentStatus: 'PAID'
                 });
+            }
+        }
+
+        // Wallet top-up flow (purpose: 'wallet_topup'): credit the user's wallet.
+        // Replay-protected via the unique WalletTxn index on (type TOPUP, razorpayPaymentId).
+        if (payment.metadata?.notes?.purpose === 'wallet_topup' && rpPayment.status === 'captured') {
+            const alreadyCredited = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId }).session(session);
+            if (!alreadyCredited) {
+                const creditAmount = rpPayment.amount / 100;
+                const creditedUser = await Customer.findByIdAndUpdate(
+                    payment.userId,
+                    { $inc: { 'wallet.balance': creditAmount } },
+                    { returnDocument: 'after', session }
+                );
+                if (creditedUser) {
+                    await WalletTxn.create([{
+                        userId: creditedUser._id,
+                        type: 'TOPUP',
+                        amount: creditAmount,
+                        balance: creditedUser.wallet?.balance || 0,
+                        status: 'COMPLETED',
+                        razorpayPaymentId,
+                        description: 'Wallet Top-up via Razorpay'
+                    }], { session });
+                    await delCache(`session:${creditedUser._id}`);
+                }
             }
         }
 

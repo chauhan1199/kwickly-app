@@ -34,12 +34,12 @@ describe('Wallet Routes', () => {
     });
 
     describe('POST /api/v1/wallet/topup', () => {
-        it('should top up wallet', async () => {
+        it('should reject top-up without verified Razorpay payment', async () => {
             const res = await request(app)
                 .post('/api/v1/wallet/topup')
                 .set('Authorization', `Bearer ${customerToken}`)
                 .send({ amount: 500, paymentDetails: { method: 'UPI', txnId: 'test_txn_123' } });
-            expect(res.status).toBe(200);
+            expect(res.status).toBe(400);
         });
 
         it('should reject with invalid amount', async () => {
