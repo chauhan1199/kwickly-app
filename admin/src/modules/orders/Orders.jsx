@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
@@ -8,14 +8,14 @@ import { Search, RefreshCw, Eye, Truck, XCircle, Copy } from 'lucide-react'
 
 const PAGE_SIZE = 15
 const STATUS_VARIANT = {
-  NEW: 'info', PACKING: 'warning', OUT_FOR_DELIVERY: 'primary',
+  NEW: 'info', CONFIRMED: 'primary', PACKING: 'warning', OUT_FOR_DELIVERY: 'primary',
   DELIVERED: 'success', CANCELLED: 'danger', COMPLETED: 'success'
 }
 const STATUS_LABEL = {
-  NEW: 'New', PACKING: 'Packing', OUT_FOR_DELIVERY: 'Out for Delivery',
+  NEW: 'New', CONFIRMED: 'Confirmed', PACKING: 'Packing', OUT_FOR_DELIVERY: 'Out for Delivery',
   DELIVERED: 'Delivered', CANCELLED: 'Cancelled', COMPLETED: 'Completed'
 }
-const STATUS_FLOW = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED']
+const STATUS_FLOW = ['NEW', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED']
 
 export default function Orders() {
   const api = useAbortableRequest();
@@ -27,25 +27,30 @@ export default function Orders() {
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
+  const [total, setTotal] = useState(0)
 
-  useEffect(() => { fetchOrders() }, [])
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true)
     try {
       const res = await api.get('/admin/shoporders/all', { params: { page, limit: PAGE_SIZE } })
       const payload = res.data.data
       setOrders(payload?.orders || payload || [])
+      if (typeof payload?.total === 'number') setTotal(payload.total)
     } catch {
       showToast('Failed to load orders', 'error')
     } finally { setLoading(false) }
-  }
+  }, [page])
+
+  useEffect(() => { fetchOrders() }, [fetchOrders])
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
   const updateStatus = async (orderId, newStatus) => {
     try {
-      const res = await api.patch(`/admin/shoporders/${orderId}/status`, { status: newStatus })
+      const current = orders.find(o => o._id === orderId) || detail
+      const body = { status: newStatus }
+      if (newStatus === 'DELIVERED' && current?.deliveryOtp) body.otp = current.deliveryOtp
+      const res = await api.patch(`/admin/shoporders/${orderId}/status`, body)
       if (res.data.status === 'success') {
         setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o))
         if (detail?._id === orderId) setDetail(prev => ({ ...prev, status: newStatus }))
@@ -70,8 +75,8 @@ export default function Orders() {
     return matchSearch && matchStatus
   })
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1
+  const paged = filtered.slice(0, PAGE_SIZE)
 
   useEffect(() => { setPage(1) }, [search, statusFilter])
 
@@ -128,7 +133,7 @@ export default function Orders() {
           <input placeholder="Search order #, customer, shop..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="filter-tabs">
-          {['all', 'NEW', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map(f => (
+          {['all', 'NEW', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map(f => (
             <button key={f} className={`filter-tab ${statusFilter === f ? 'active' : ''}`} onClick={() => setStatusFilter(f)}>
               {f === 'all' ? 'All' : STATUS_LABEL[f] || f}
             </button>
@@ -214,7 +219,7 @@ export default function Orders() {
                 </tbody>
               </table>
             </div>
-            <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </>
         )}
       </div>

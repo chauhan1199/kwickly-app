@@ -52,7 +52,7 @@ describe('Settings Routes', () => {
             const res = await request(app)
                 .patch('/api/v1/settings')
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ feeAmount: 15, feeType: 'percentage', appName: 'Kwickly Pro' });
+                .send({ feeAmount: 15, feeType: 'percent', appName: 'Kwickly Pro' });
             expect(res.status).toBe(200);
         });
     });

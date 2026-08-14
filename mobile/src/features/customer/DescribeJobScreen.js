@@ -378,9 +378,9 @@ const DescribeJobScreen = ({ route, navigation }) => {
       for (const m of media) {
         try {
           const formData = new FormData();
-          formData.append('image', { uri: m.uri, type: m.type || 'image/jpeg', name: m.fileName || 'photo.jpg' });
-          const uploadRes = await jobService.uploadImage(formData);
-          if (uploadRes.data?.data?.url) {
+          formData.append('media', { uri: m.uri, type: m.type || 'image/jpeg', name: m.fileName || 'photo.jpg' });
+          const uploadRes = await jobService.uploadMedia(formData);
+          if (uploadRes.data?.status === 'success' && uploadRes.data?.data?.url) {
             mediaUrls.push(uploadRes.data.data.url);
           }
         } catch (e) {

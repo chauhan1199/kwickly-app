@@ -21,6 +21,7 @@ const SupportChats = () => {
   const [fullScreenImage, setFullScreenImage] = useState(null);
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
+  const activeThreadRef = useRef(null);
 
   useEffect(() => {
     fetchThreads();
@@ -40,21 +41,19 @@ const SupportChats = () => {
 
     const handleIncomingMessage = (message) => {
       fetchThreads();
-      setActiveThread(prevActive => {
-        if (prevActive && message.senderId && (
-          message.senderId._id === prevActive.user._id ||
-          message.senderId === prevActive.user._id ||
-          message.receiverId === prevActive.user._id ||
-          (message.receiverId && message.receiverId._id === prevActive.user._id)
-        )) {
-          setMessages(prev => {
-            if (prev.find(m => m._id === message._id)) return prev;
-            return [...prev, message];
-          });
-          setTimeout(scrollToBottom, 100);
-        }
-        return prevActive;
-      });
+      const active = activeThreadRef.current;
+      if (active && message.senderId && (
+        message.senderId._id === active.user._id ||
+        message.senderId === active.user._id ||
+        message.receiverId === active.user._id ||
+        (message.receiverId && message.receiverId._id === active.user._id)
+      )) {
+        setMessages(prev => {
+          if (prev.find(m => m._id === message._id)) return prev;
+          return [...prev, message];
+        });
+        setTimeout(scrollToBottom, 100);
+      }
     };
 
     socket.on('SUPPORT_MESSAGE_RECEIVED', handleIncomingMessage);
@@ -76,6 +75,7 @@ const SupportChats = () => {
 
   const loadChat = async (thread) => {
     setActiveThread(thread);
+    activeThreadRef.current = thread;
     setLoadingMessages(true);
     setMessages([]);
     try {

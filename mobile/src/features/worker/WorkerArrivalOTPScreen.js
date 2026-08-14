@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { jobService } from '../../services/jobService';
+import Geolocation from '@react-native-community/geolocation';
 
 const WorkerArrivalOTPScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -46,12 +47,19 @@ const WorkerArrivalOTPScreen = ({ route, navigation }) => {
     
     setLoading(true);
     try {
-      const res = await jobService.startJob(jobId, { arrivalOtp: fullOtp });
+      const currentCoordinates = await new Promise((resolve, reject) => {
+        Geolocation.getCurrentPosition(
+          (position) => resolve([position.coords.longitude, position.coords.latitude]),
+          (error) => reject(new Error(error.message)),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+        );
+      });
+      const res = await jobService.startJob(jobId, { arrivalOtp: fullOtp, currentCoordinates });
       if (res.data.status === 'success') {
         navigation.navigate('WorkerActiveJob', { jobId, job: res.data.data });
       }
     } catch (e) {
-      alert(e.response?.data?.message || 'Invalid OTP. Please try again.');
+      alert(e.response?.data?.message || e.message || 'Invalid OTP. Please try again.');
     } finally {
       setLoading(false);
     }

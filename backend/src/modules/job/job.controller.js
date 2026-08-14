@@ -507,7 +507,7 @@ exports.payJob = catchAsync(async (req, res) => {
 
                 // Track usage atomically with conditional check to prevent race condition
                 const incremented = await Promotion.findOneAndUpdate(
-                    { _id: promo._id, isActive: true, $or: [{ maxUses: { $exists: false } }, { maxUses: null }, { $expr: { $lt: ['$usesCount', '$maxUses'] } }] },
+                    { _id: promo._id, isActive: true, $or: [{ maxUsesTotal: { $exists: false } }, { maxUsesTotal: null }, { $expr: { $lt: ['$usesCount', '$maxUsesTotal'] } }] },
                     { $inc: { usesCount: 1 } },
                     { returnDocument: 'after' }
                 );

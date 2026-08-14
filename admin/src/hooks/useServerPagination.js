@@ -40,9 +40,14 @@ export function useServerPagination(endpoint, pageSize = 15, extraFilter = null)
           setTotal(filtered.length)
           setData(filtered.slice((page - 1) * pageSize, page * pageSize))
         } else {
-          setData(arr)
+          let listData = arr
+          if (extraFilter) {
+            listData = arr.filter(extraFilter)
+          }
+          setData(listData)
+          const nestedTotal = res.data.data && typeof res.data.data === 'object' ? res.data.data.total : undefined
           if (res.data.pagination) setTotal(res.data.pagination.total)
-          else setTotal(res.data.total || arr.length)
+          else setTotal(nestedTotal || res.data.total || arr.length)
         }
       } else {
         setError(res.data.message || 'Failed to fetch data')

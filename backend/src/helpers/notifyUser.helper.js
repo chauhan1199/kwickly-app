@@ -56,7 +56,7 @@ const notifyUser = async ({ userId, title, message, action, entityType, entityId
     // ── 3. FCM Push Notification ──────────────────────────────────────────────
     try {
         const Customer = require('../modules/customer/customer.model');
-        const user = await Customer.findById(userId).select('fcmToken').lean();
+        const user = await Customer.findById(userId).select('+fcmToken').lean();
 
         if (user?.fcmToken) {
             await sendFCMPush(user.fcmToken, title, message, {

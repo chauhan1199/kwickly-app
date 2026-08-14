@@ -43,7 +43,7 @@ const WorkerDashboard = ({ navigation }) => {
       setErrorMsg('');
       
       const [jobsRes, userRes, statsRes] = await Promise.all([
-        jobService.getAvailableJobs().catch(() => null),
+        jobService.getAvailableJobsForWorker().catch(() => null),
         authService.getProfile().catch(() => null),
         workerService.getStats().catch(() => null)
       ]);

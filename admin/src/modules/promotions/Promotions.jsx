@@ -149,7 +149,7 @@ function Textarea({ error, ...props }) {
 }
 
 // ─── Banner Form Modal ─────────────────────────────────────────────────────────
-function BannerFormModal({ open, onClose, editing, onSaved, showToast }) {
+function BannerFormModal({ open, onClose, editing, onSaved, showToast, api }) {
   const [form, setForm] = useState(editing ? { ...emptyBanner, ...editing } : { ...emptyBanner })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -278,7 +278,7 @@ function BannerFormModal({ open, onClose, editing, onSaved, showToast }) {
 }
 
 // ─── Promo Form Modal ──────────────────────────────────────────────────────────
-function PromoFormModal({ open, onClose, editing, onSaved, showToast }) {
+function PromoFormModal({ open, onClose, editing, onSaved, showToast, api }) {
   const [form, setForm] = useState(editing ? { ...emptyPromo, ...editing } : { ...emptyPromo })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -854,11 +854,11 @@ export default function Promotions() {
       {/* Modals */}
       <BannerFormModal
         open={showBannerForm} onClose={() => { setShowBannerForm(false); setEditBanner(null) }}
-        editing={editBanner} onSaved={loadData} showToast={showToast}
+        editing={editBanner} onSaved={loadData} showToast={showToast} api={api}
       />
       <PromoFormModal
         open={showPromoForm} onClose={() => { setShowPromoForm(false); setEditPromo(null) }}
-        editing={editPromo} onSaved={loadData} showToast={showToast}
+        editing={editPromo} onSaved={loadData} showToast={showToast} api={api}
       />
       <BannerViewModal banner={viewBanner} onClose={() => setViewBanner(null)} />
       <PromoViewModal  promo={viewPromo}   onClose={() => setViewPromo(null)} />

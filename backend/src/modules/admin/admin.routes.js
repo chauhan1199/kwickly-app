@@ -14,7 +14,7 @@ const logger = require('../../helpers/logger.helper');
 
 // Middleware to parse stringified JSON from FormData before Joi validation
 const parseShopFormData = (req, res, next) => {
-    const fields = ['location', 'delivery', 'businessHours', 'subscription'];
+    const fields = ['location', 'delivery', 'businessHours', 'subscription', 'deliveryConfig'];
     fields.forEach(field => {
         if (req.body[field] && typeof req.body[field] === 'string') {
             try {

@@ -7,7 +7,6 @@ import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import { useServerPagination } from '../../hooks/useServerPagination'
 import Drawer from '../../components/common/Drawer'
-import WalletAdjuster from '../../components/common/WalletAdjuster'
 import { TextInput, FormRow, validators } from '../../components/FormInput'
 import MapPicker from '../../components/MapPicker'
 import Table from '../../components/common/Table'
@@ -54,15 +53,13 @@ export default function Workers() {
     try {
       const res = await api.post('/wallet/adjust', {
         userId: detail._id,
-        userModel: 'Worker',
-        action,
         amount: Number(walletAmount),
-        description: walletDesc || `Admin ${action}`
+        type: 'ADJUSTMENT',
+        debit: action,
+        description: walletDesc || `Admin ${action ? 'debit' : 'credit'}`
       })
       if (res.data.status === 'success') {
-        Toast.success(`Wallet ${action}ed successfully`)
-        setWalletAmount('')
-        setWalletDesc('')
+        Toast.success(`Wallet ${action ? 'debited' : 'credited'} successfully`)
         setDetail({ ...detail, walletBalance: res.data.data.balance })
         setWorkers(workers.map(w => w._id === detail._id ? { ...w, walletBalance: res.data.data.balance } : w))
       }

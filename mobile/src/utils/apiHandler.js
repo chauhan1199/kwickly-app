@@ -27,7 +27,7 @@ export const handleResponse = (response) => {
     console.warn('[API Warning] Unexpected status:', data.status);
   }
 
-  return data;
+  return response;
 };
 
 /**

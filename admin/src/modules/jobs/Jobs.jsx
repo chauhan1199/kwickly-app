@@ -46,7 +46,7 @@ export default function Jobs() {
   const fetchJobs = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/admin/jobs/all')
+      const res = await api.get('/admin/jobs/all', { params: { limit: 500 } })
       if (res.data.status === 'success') setJobs(res.data.data.jobs || [])
     } catch { showToast('Failed to load jobs', 'error') }
     finally { setLoading(false) }
@@ -54,7 +54,7 @@ export default function Jobs() {
 
   const fetchWorkers = async () => {
     try {
-      const res = await api.get('/admin/workers')
+      const res = await api.get('/admin/workers', { params: { limit: 500 } })
       if (res.data.status === 'success') setWorkers(res.data.data.workers || [])
     } catch { /* silent */ }
   }
@@ -151,7 +151,7 @@ export default function Jobs() {
             {j.workerId && ['ALLOCATED', 'IN_PROGRESS', 'ARRIVING'].includes(j.status) && (
                 <button className="btn-icon" title="Reassign Worker" onClick={() => { setReassignModal(fj); setSelectedWorker(''); }}><Users size={15} /></button>
             )}
-            {['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'].includes(j.status) && (
+            {['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING'].includes(j.status) && (
               <button className="btn-icon danger" title="Cancel Job" onClick={() => setConfirm({ type: 'cancel', id: j._id, name: `Job #${j._id.slice(-6)}` })}><Ban size={15} /></button>
             )}
           </div>
@@ -375,7 +375,7 @@ export default function Jobs() {
                       <FileText size={14} /> View Receipt
                     </button>
                   )}
-                  {['BROADCASTING', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'].includes(fd.status) && (
+                  {['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING'].includes(fd.status) && (
                     <button className="btn-danger" style={{ flex: 1 }} onClick={() => { setConfirm({ type: 'cancel', id: fd._id, name: `Job #${fd.id}` }); setDetail(null) }}>
                       <Ban size={14} /> Cancel Job
                     </button>

@@ -79,6 +79,9 @@ export const AuthProvider = ({ children }) => {
       } else {
         fetchUser(role);
       }
+      // Fire-and-forget: register this device for push (no-op if Firebase SDK absent)
+      const { registerForPushNotifications } = require('../utils/pushNotification');
+      registerForPushNotifications().catch(() => {});
     } catch (e) {
       console.error('SignIn Error:', e);
     }

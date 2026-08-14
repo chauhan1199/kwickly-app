@@ -386,7 +386,7 @@ exports.refundPayment = catchAsync(async (req, res) => {
         // Update payment record
         const payment = await Payment.findOne({ razorpayOrderId: order.payment.razorpayOrderId });
         if (payment) {
-            payment.status = refundAmount >= order.total ? 'REFUNDED_TO_WALLET' : 'PARTIAL_REFUNDED_TO_WALLET';
+            payment.status = refundAmount >= order.total ? 'REFUNDED' : 'PARTIAL_REFUNDED';
             payment.refundAmount = refundAmount;
             await payment.save();
         }

@@ -5,7 +5,26 @@ export const walletService = {
   getBalance: () =>
     withErrorHandling(() => api.get('/wallet/balance')),
 
+  getWallet: () =>
+    withErrorHandling(() => api.get('/wallet/balance')),
+
+  getTransactions: (page = 1, limit = 20) =>
+    withErrorHandling(() => api.get('/wallet/my-transactions', { params: { page, limit } })),
+
+  topupWallet: (amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature) =>
+    withErrorHandling(() => api.post('/wallet/topup', {
+      amount,
+      paymentDetails,
+      planId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature
+    })),
+
   withdraw: (amount, payoutMethod) =>
+    withErrorHandling(() => api.post('/wallet/withdraw', { amount, payoutMethod })),
+
+  requestWithdrawal: (amount, payoutMethod) =>
     withErrorHandling(() => api.post('/wallet/withdraw', { amount, payoutMethod })),
 
   topup: async (amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature) => {
@@ -18,7 +37,7 @@ export const walletService = {
         razorpayPaymentId,
         razorpaySignature
       });
-      return response.data;
+      return response;
     } catch (error) {
       console.error('[Wallet] Topup failed:', error);
       throw error;

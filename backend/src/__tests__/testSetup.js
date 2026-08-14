@@ -52,7 +52,7 @@ const setup = async () => {
         instance: {
             port: 27018,
             dbName: 'kwickly_test',
-            startupTimeoutMS: 60000
+            launchTimeout: 60000
         },
         binary: {
             downloadTimeout: 120

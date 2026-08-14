@@ -79,7 +79,7 @@ const createShopAdminSchema = Joi.object({
     address: Joi.string().min(3).max(200).required().messages({ 'any.required': 'Address is required' }),
     ownerName: Joi.string().min(2).max(100).optional(),
     ownerPhone: Joi.string().min(10).max(15).required().messages({ 'any.required': 'Owner phone is required' }),
-    ownerEmail: Joi.string().email().optional(),
+    ownerEmail: Joi.string().email().optional().allow('', null),
     logoUrl: Joi.string().uri().optional().allow(''),
     location: Joi.object({
         type: Joi.string().valid('Point').default('Point'),

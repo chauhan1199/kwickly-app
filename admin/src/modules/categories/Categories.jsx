@@ -488,10 +488,13 @@ export default function Categories() {
     try {
       const cat = categories.find(c => c._id === catId)
       const sub = cat.subcategories.find(s => s._id === subId)
-      const newSubs = cat.subcategories.map(s => s._id === subId ? { ...s, active: !s.active } : s)
-      await api.patch(`/admin/categories/${catId}`, { subcategories: newSubs })
-      setCategories(prev => prev.map(c => c._id === catId ? { ...c, subcategories: newSubs } : c))
-      showToast(`Subcategory ${!sub.active ? 'activated' : 'deactivated'}`)
+      const newState = !sub.active
+      const res = await api.patch(`/admin/categories/${catId}/subcategories/${subId}`, { active: newState })
+      const updatedSub = res.data?.data?.subcategory
+      setCategories(prev => prev.map(c => c._id === catId
+        ? { ...c, subcategories: c.subcategories.map(s => s._id === subId ? { ...s, active: newState, ...(updatedSub || {}) } : s) }
+        : c))
+      showToast(`Subcategory ${newState ? 'activated' : 'deactivated'}`)
       showSync()
       window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
@@ -560,7 +563,7 @@ export default function Categories() {
     c.subcategories.some(s => s.name.toLowerCase().includes(search.toLowerCase()))
   )
   const filteredSugs = suggestions.filter(s => 
-    (sugFilter === 'all' || s.status === sugFilter) &&
+    (sugFilter === 'all' || (s.status || '').toLowerCase() === sugFilter.toLowerCase()) &&
     (tab === 'customer_suggestions' ? s.source === 'customer' : s.source !== 'customer')
   )
 

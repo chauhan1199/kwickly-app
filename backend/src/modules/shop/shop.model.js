@@ -45,6 +45,7 @@ const ShopSchema = new mongoose.Schema({
 
     kyc: {
         status:    { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+        rejectReason: { type: String },
         documents: {
             type: [{ name: String, url: String, public_id: String, docType: { type: String, default: 'OTHER' } }],
             validate: [arr => arr.length <= 10, 'Maximum 10 documents']

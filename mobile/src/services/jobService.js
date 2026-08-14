@@ -47,6 +47,19 @@ export const jobService = {
   getMyQuotes: (status) =>
     withErrorHandling(() => api.get('/quotes/worker', { params: { status } })),
 
+  getWorkerQuotes: () =>
+    withErrorHandling(() => api.get('/quotes/worker')),
+
+  withdrawQuote: (id) =>
+    withErrorHandling(() => api.patch(`/quotes/${id}/withdraw`)),
+
+  acceptQuote: (id) =>
+    withErrorHandling(() => api.patch(`/quotes/${id}/accept`)),
+
+  cancelJob: (id) =>
+    withErrorHandling(() => api.patch(`/jobs/${id}/cancel`)),
+
+
   uploadMedia: (formData) =>
     withErrorHandling(() => api.post('/jobs/upload-media', formData)),
 

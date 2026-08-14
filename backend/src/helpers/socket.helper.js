@@ -113,14 +113,35 @@ const getIO = () => {
 };
 
 /**
- * Emit to ALL connected clients (use sparingly — only for global events)
+ * Emit to ALL connected clients (use sparingly — only for global events).
+ * When `data.targetRole` is set, emits only to sockets in that role's rooms
+ * (worker_*, shop_*, customer_*) instead of broadcasting to every socket.
  */
 const emitToAll = (event, data) => {
     if (!io) return;
     if (event === 'DASHBOARD_UPDATE') {
         io.to('admin_dashboard').emit(event, { ...data, timestamp: new Date() });
-    } else {
+        return;
+    }
+
+    const targetRole = data && data.targetRole;
+    const rolePrefix = targetRole === 'WORKER' ? 'worker_'
+        : targetRole === 'SHOP' ? 'shop_'
+        : targetRole === 'CUSTOMER' ? 'customer_'
+        : null;
+
+    if (!rolePrefix) {
         io.emit(event, data);
+        return;
+    }
+
+    for (const socket of io.sockets.sockets.values()) {
+        for (const room of socket.rooms.keys()) {
+            if (room.startsWith(rolePrefix)) {
+                socket.emit(event, data);
+                break;
+            }
+        }
     }
 };
 

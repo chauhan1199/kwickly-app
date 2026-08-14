@@ -96,7 +96,8 @@ const updateKYCSchema = Joi.object({
     status: Joi.string().valid('APPROVED', 'REJECTED').required().messages({
         'any.only': 'Status must be either APPROVED or REJECTED',
         'any.required': 'Status is required'
-    })
+    }),
+    reason: Joi.string().allow('', null).max(300).optional()
 });
 
 const toggleStatusSchema = Joi.object({

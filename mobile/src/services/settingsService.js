@@ -7,5 +7,3 @@ export const settingsService = {
 };
 
 export default settingsService;
-
-export default settingsService;

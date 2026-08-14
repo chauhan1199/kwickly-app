@@ -4,12 +4,13 @@ const { errorResponse } = require('../helpers/response.helper');
 
 const updateSettingsSchema = Joi.object({
     feeAmount: Joi.number().min(0),
-    feeType: Joi.string().valid('flat', 'percentage'),
+    feeType: Joi.string().valid('flat', 'percent'),
+    gstPercentage: Joi.number().min(0),
     qrExpiry: Joi.number().min(5),
     cashEnabled: Joi.boolean(),
     walletMinimum: Joi.number().min(0),
     topupPresets: Joi.string().regex(/^(\d+\s*,\s*)*\d+$/).allow(''), // comma separated numbers
-    trialDays: Joi.number().min(0),
+    freeTrialDays: Joi.number().min(0),
     maxRadius: Joi.number().min(1).max(100),
     radiusRound1Wait: Joi.number().min(1),
     radiusRound2Wait: Joi.number().min(1),
@@ -24,6 +25,18 @@ const updateSettingsSchema = Joi.object({
     monthlyPlan: Joi.number().min(0),
     semiPlan: Joi.number().min(0),
     annualPlan: Joi.number().min(0),
+    subscriptionPlans: Joi.array().items(
+        Joi.object({
+            id: Joi.string().required(),
+            label: Joi.string().allow(''),
+            name: Joi.string().allow(''),
+            price: Joi.number().required(),
+            durationDays: Joi.number().required(),
+            features: Joi.array().items(Joi.string()).default([]),
+            isActive: Joi.boolean().default(true),
+            targetRole: Joi.string().valid('WORKER', 'SHOP').default('WORKER')
+        })
+    ),
     termsOfService: Joi.string().allow(''),
     privacyPolicy: Joi.string().allow('')
 }).min(1);

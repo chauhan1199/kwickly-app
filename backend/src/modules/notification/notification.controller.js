@@ -4,6 +4,17 @@ const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
 
+// ─── Push: register device FCM token (handles token rotation) ────────────────
+exports.registerPushToken = catchAsync(async (req, res) => {
+    const { fcmToken } = req.body;
+    if (!fcmToken || typeof fcmToken !== 'string') {
+        return errorResponse(res, 'fcmToken is required', StatusCodes.BAD_REQUEST);
+    }
+    const Customer = require('../customer/customer.model');
+    await Customer.findByIdAndUpdate(req.user._id, { fcmToken });
+    return successResponse(res, null, 'Push token registered successfully');
+});
+
 // ─── Admin: send broadcast ────────────────────────────────────────────────────
 exports.sendBroadcast = catchAsync(async (req, res) => {
     const { title, message, targetRole } = req.body;

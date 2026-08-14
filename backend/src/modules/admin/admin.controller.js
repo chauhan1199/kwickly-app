@@ -38,8 +38,8 @@ exports.getBadgeCounts = catchAsync(async (req, res) => {
     const [kyc, payouts, disputes, suggestions, shopKyc] = await Promise.all([
         Customer.countDocuments({ role: 'WORKER', 'kyc.status': 'PENDING' }),
         Payout.countDocuments({ status: 'PENDING' }),
-        Dispute.countDocuments({ status: 'open' }),
-        Suggestion.countDocuments({ status: 'pending' }),
+        Dispute.countDocuments({ status: 'OPEN' }),
+        Suggestion.countDocuments({ status: 'PENDING' }),
         Shop.countDocuments({ 'kyc.status': 'PENDING' })
     ]);
 
@@ -204,7 +204,7 @@ exports.getPendingKYC = catchAsync(async (req, res) => {
 
 exports.updateKYC = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body;
 
     const worker = await Customer.findById(id);
     if (!worker || worker.role !== 'WORKER') return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
@@ -214,6 +214,7 @@ exports.updateKYC = catchAsync(async (req, res) => {
     }
 
     worker.kyc.status = status;
+    if (status === 'REJECTED') worker.kyc.rejectReason = (reason || '').trim() || null;
     if (status === 'APPROVED') worker.isVerified = true;
     await worker.save();
 
@@ -223,12 +224,12 @@ exports.updateKYC = catchAsync(async (req, res) => {
     await delCache(`session:${worker._id}`);
     triggerDashboardUpdate();
 
-    logAdminActivity('KYC', 'KYC', id, `KYC ${status}`, `KYC for worker "${worker.name}" was ${status.toLowerCase()}`, req.user?._id);
+    logAdminActivity('KYC', 'KYC', id, `KYC ${status}`, `KYC for worker "${worker.name}" was ${status.toLowerCase()}${reason ? ` (${reason})` : ''}`, req.user?._id);
 
     const title = `KYC ${status.toLowerCase()}`;
     const message = status === 'APPROVED'
         ? `Your KYC has been approved. You can now accept jobs.`
-        : `Your KYC has been rejected. Please resubmit your documents.`;
+        : `Your KYC has been rejected.${(reason || '').trim() ? ` Reason: ${reason.trim()}` : ''} Please resubmit your documents.`;
 
     try {
         const notification = await Notification.create({
@@ -260,7 +261,9 @@ exports.extendWorkerSubscription = catchAsync(async (req, res) => {
     if (!days || days <= 0) return errorResponse(res, 'Please provide a valid number of days', StatusCodes.BAD_REQUEST);
 
     const worker = await Customer.findById(id);
-    if (!worker || worker.role !== 'WORKER') return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
+    if (!worker || !['WORKER', 'SHOP'].includes(worker.role)) {
+        return errorResponse(res, 'Worker or Shop not found', StatusCodes.NOT_FOUND);
+    }
 
     const now = new Date();
     const currentExpiry = worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > now
@@ -275,7 +278,7 @@ exports.extendWorkerSubscription = catchAsync(async (req, res) => {
     await delCache(`session:${id}`);
     triggerDashboardUpdate();
 
-    logAdminActivity('EXTEND_SUBSCRIPTION', 'WORKER', id, 'Subscription Extended', `Extended "${worker.name}" subscription by ${days} days. New expiry: ${worker.subscription.expiryDate}`, req.user?._id);
+    logAdminActivity('EXTEND_SUBSCRIPTION', worker.role, id, 'Subscription Extended', `Extended "${worker.name}" subscription by ${days} days. New expiry: ${worker.subscription.expiryDate}`, req.user?._id);
 
     const { notifyUser } = require('../../helpers/notifyUser.helper');
     notifyUser({
@@ -283,9 +286,9 @@ exports.extendWorkerSubscription = catchAsync(async (req, res) => {
         title: 'Subscription Extended',
         message: `Your subscription has been extended by ${days} days by the admin.`,
         action: 'OTHER',
-        entityType: 'WORKER',
+        entityType: worker.role === 'SHOP' ? 'SHOP' : 'WORKER',
         entityId: worker._id,
-        targetRole: 'WORKER'
+        targetRole: worker.role === 'SHOP' ? 'SHOP' : 'WORKER'
     });
 
     return successResponse(res, { worker, expiryDate: worker.subscription.expiryDate }, `Subscription extended by ${days} days`);
@@ -594,7 +597,7 @@ exports.impersonateUser = catchAsync(async (req, res) => {
 // â”€â”€â”€ Shop Management (P1 FIX: Missing admin shop visibility) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getShops = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, search, kycStatus } = req.query;
-    const query = {};
+    const query = { isDeleted: { $ne: true } };
     if (search) query.name = { $regex: escapeRegex(search), $options: 'i' };
     if (kycStatus) query['kyc.status'] = kycStatus.toUpperCase();
 
@@ -611,7 +614,7 @@ exports.getShops = catchAsync(async (req, res) => {
 
 exports.updateShopKYC = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body;
 
     const shop = await Shop.findById(id);
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
@@ -621,6 +624,7 @@ exports.updateShopKYC = catchAsync(async (req, res) => {
     }
 
     shop.kyc.status = status;
+    if (status === 'REJECTED') shop.kyc.rejectReason = (reason || '').trim() || null;
     await shop.save();
 
     await delCache('admin_badge_counts');
@@ -628,12 +632,12 @@ exports.updateShopKYC = catchAsync(async (req, res) => {
     await delCache('admin_shops_list');
     triggerDashboardUpdate();
 
-    logAdminActivity('KYC', 'SHOP', shop._id, `Shop KYC ${status}`, `KYC for shop "${shop.name}" was ${status.toLowerCase()}`, req.user?._id);
+    logAdminActivity('KYC', 'SHOP', shop._id, `Shop KYC ${status}`, `KYC for shop "${shop.name}" was ${status.toLowerCase()}${reason ? ` (${reason})` : ''}`, req.user?._id);
 
     const title = `Shop KYC ${status.toLowerCase()}`;
     const message = status === 'APPROVED'
         ? `Your shop KYC has been approved. Your shop is now visible to customers.`
-        : `Your shop KYC has been rejected. Please resubmit your documents.`;
+        : `Your shop KYC has been rejected.${(reason || '').trim() ? ` Reason: ${reason.trim()}` : ''} Please resubmit your documents.`;
 
     try {
         const notification = await Notification.create({
@@ -704,7 +708,12 @@ exports.createShopAdmin = catchAsync(async (req, res) => {
         delivery: delivery || { radiusKm: 3, fee: 40, freeAbove: 1000 },
         deliveryConfig: deliveryConfig || { deliveryRadiusKm: 3, deliveryCharge: 40, freeDeliveryAbove: 1000, minOrderAmount: 100, discountEnabled: false, discountAbove: 1000, discountType: 'flat', discountValue: 100, discountPct: 10, maxDiscountCap: 200, sameDayDelivery: true, deliverySlots: [] },
         businessHours: businessHours || { monFri: '9 AM - 10 PM', sat: '9 AM - 10 PM', sun: '9 AM - 10 PM' },
-        subscription: subscription || { status: 'TRIAL', isTrial: true },
+        subscription: (() => {
+            if (!subscription) return { status: 'TRIAL', isTrial: true };
+            const sub = { ...subscription };
+            if (sub.plan && !sub.planId) sub.planId = sub.plan;
+            return sub;
+        })(),
         kyc: { status: 'PENDING' }
     };
 
@@ -769,7 +778,11 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
     if (parsedHours) shop.businessHours = { ...shop.businessHours, ...parsedHours };
 
     const parsedSub = safeParse(subscription);
-    if (parsedSub) shop.subscription = { ...shop.subscription, ...parsedSub };
+    if (parsedSub) {
+        shop.subscription = { ...shop.subscription, ...parsedSub };
+        if (parsedSub.plan && !parsedSub.planId) shop.subscription.planId = parsedSub.plan;
+        if (parsedSub.planId) shop.subscription.planId = parsedSub.planId;
+    }
 
     if (req.file) {
         const oldLogo = shop.logoUrl;

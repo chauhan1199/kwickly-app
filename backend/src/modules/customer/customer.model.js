@@ -21,6 +21,7 @@ const CustomerSchema = new mongoose.Schema({
     },
     kyc: {
         status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+        rejectReason: { type: String },
         documents: [{
             type: { type: String, enum: ['AADHAR', 'PAN', 'LICENSE', 'OTHER'] },
             url: { type: String },
@@ -71,6 +72,7 @@ const CustomerSchema = new mongoose.Schema({
     isOnline: { type: Boolean, default: false },
     city: { type: String },
     bio: { type: String },
+    fcmToken: { type: String, select: false },
     rating: {
         average: { type: Number, default: 0 },
         count: { type: Number, default: 0 }

@@ -14,11 +14,10 @@ export default function WalletAdjuster({ targetId, entityType, currentBalance = 
     }
     setWalletLoading(true)
     try {
-      const endpoint = `/wallet/adjust`
-      const res = await api.post(endpoint, {
-        targetId,
-        entityType,
+      const res = await api.post('/wallet/adjust', {
+        userId: targetId,
         amount: Number(walletAmount),
+        type: 'ADJUSTMENT',
         debit,
         description: walletDesc || 'Admin Adjustment'
       })

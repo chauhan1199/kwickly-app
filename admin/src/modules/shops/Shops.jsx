@@ -8,7 +8,6 @@ import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import { useServerPagination } from '../../hooks/useServerPagination'
 import Drawer from '../../components/common/Drawer'
-import WalletAdjuster from '../../components/common/WalletAdjuster'
 import { TextInput, TextArea, FormRow, validators } from '../../components/FormInput'
 import MapPicker from '../../components/MapPicker'
 import Table from '../../components/common/Table'
@@ -74,6 +73,7 @@ export default function Shops() {
   const { data: shops, setData: setShops, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh } = useServerPagination('/admin/shops', PAGE_SIZE, filterCallback)
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
+  const [kycReason, setKycReason] = useState('')
   const [detail, setDetail] = useState(null)
   const [shopProducts, setShopProducts] = useState([])
   const [loadingProducts, setLoadingProducts] = useState(false)
@@ -474,7 +474,9 @@ export default function Shops() {
   const handleKycAction = async (id, status) => {
     const shopName = detail?._id === id ? detail.name : shops.find(s => s._id === id)?.name || 'Unknown Shop'
     try {
-      const res = await api.patch(`/admin/shops/${id}/kyc`, { status })
+      const payload = { status }
+      if (status === 'REJECTED' && kycReason.trim()) payload.reason = kycReason.trim()
+      const res = await api.patch(`/admin/shops/${id}/kyc`, payload)
       if (res.data.status === 'success') {
         setShops(prev => prev.map(s => s._id === id ? res.data.data : s))
         if (detail?._id === id) setDetail(res.data.data)
@@ -1700,9 +1702,20 @@ export default function Shops() {
           message={confirm.status === 'APPROVED' ? `Approve KYC for ${confirm.name}?` : `Reject KYC for ${confirm.name}?`}
           danger={confirm.status === 'REJECTED'}
           confirmText={confirm.status === 'APPROVED' ? 'Approve' : 'Reject'}
-          onConfirm={() => { handleKycAction(confirm.id, confirm.status); setConfirm(null); }}
-          onClose={() => setConfirm(null)}
-        />
+          onConfirm={() => { handleKycAction(confirm.id, confirm.status); setConfirm(null); setKycReason('') }}
+          onClose={() => { setConfirm(null); setKycReason('') }}
+        >
+          {confirm.status === 'REJECTED' && (
+            <textarea
+              className="form-control"
+              rows={2}
+              placeholder="Rejection reason (shown to shop owner)"
+              value={kycReason}
+              onChange={e => setKycReason(e.target.value)}
+              style={{ marginTop: 12, fontSize: 13, resize: 'vertical' }}
+            />
+          )}
+        </ConfirmModal>
       )}
       {confirm?.type === 'delete_product' && (
         <ConfirmModal title="Delete Product" message={`Remove ${confirm.name} from this shop?`} confirmText="Delete Product" onConfirm={() => deleteProduct(confirm.id)} onClose={() => setConfirm(null)} />

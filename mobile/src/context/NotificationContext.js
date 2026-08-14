@@ -33,6 +33,9 @@ export const NotificationProvider = ({ children }) => {
     onEvent: (event, data) => {
       if (event === 'NEW_NOTIFICATION') {
         setUnreadCount(prev => prev + 1);
+        if (data.targetRole && data.targetRole !== 'ALL' && data.targetRole !== userRole) {
+          return;
+        }
         Alert.alert(
           data.title || 'New Notification', 
           data.message || 'You have a new notification.'

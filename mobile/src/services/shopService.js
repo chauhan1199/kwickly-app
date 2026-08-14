@@ -115,4 +115,7 @@ export const shopService = {
 
   uploadChatImage: (data) =>
     withErrorHandling(() => api.post('/chat/upload-base64', data)),
+
+  uploadBase64: (data) =>
+    withErrorHandling(() => api.post('/chat/upload-base64', data)),
 };

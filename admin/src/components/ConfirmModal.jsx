@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function ConfirmModal({ title, message, onConfirm, onClose, danger = true, confirmText = 'Confirm', loading = false }) {
+export default function ConfirmModal({ title, message, onConfirm, onClose, danger = true, confirmText = 'Confirm', loading = false, children }) {
   return (
     <div className="modal-overlay" onClick={onClose} aria-hidden="true">
       <div
@@ -17,6 +17,7 @@ export default function ConfirmModal({ title, message, onConfirm, onClose, dange
         </div>
         <div className="modal-body">
           <p style={{ fontSize: 14, color: 'var(--mid)', fontFamily: 'var(--font-body)', lineHeight: 1.6, margin: 0 }}>{message}</p>
+          {children}
         </div>
         <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button className="btn-secondary" onClick={onClose} disabled={loading}>Cancel</button>

@@ -8,7 +8,7 @@ export const customerService = {
   updateProfilePhoto: async (formData) => {
     try {
       const response = await api.put('/customers/me/profile', formData);
-      return response.data;
+      return response;
     } catch (error) {
       console.error('[Customer] Update photo failed:', error);
       throw error;
