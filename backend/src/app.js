@@ -89,7 +89,11 @@ app.use('/api/v1/promotions',    require('./modules/promotion/promotion.routes')
 app.use('/api/v1/payments',      require('./modules/payment/payment.routes'));
 app.use('/api/v1/admin/admin-wallet', require('./modules/adminWallet/adminWallet.routes'));
 
-// Health check — no auth, no rate limit
+// Root & Health check — no auth, no rate limit
+app.get('/', (req, res) => {
+    res.status(200).json({ status: 'ok', message: 'Kwickly API is live and running', timestamp: new Date() });
+});
+
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', message: 'Kwickly API is running' });
 });
