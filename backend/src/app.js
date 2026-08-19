@@ -18,16 +18,17 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,ht
     .split(',')
     .map(o => o.trim());
 
-// Enable CORS with strict origin whitelist
+// Enable CORS with wildcard and whitelist support
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (mobile apps, Postman)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) return callback(null, true);
+        if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return callback(null, true);
+        if (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) return callback(null, true);
         callback(new Error(`CORS: Origin ${origin} not allowed`));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true
 }));
 
