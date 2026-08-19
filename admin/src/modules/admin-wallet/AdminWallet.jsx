@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Download, Building2, CreditCard } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { extractErrorMessage } from '../../utils/errorUtils'
 
 const TXN_VARIANT = {
   PLATFORM_FEE_COLLECTED: 'success', COMMISSION_COLLECTED: 'success', SETTLEMENT_CREDIT: 'success',
@@ -114,7 +115,7 @@ export default function AdminWallet() {
         });
         rzp.open();
       } catch (e) {
-        showToast(e.response?.data?.message || 'Failed to create order', 'error');
+        showToast(extractErrorMessage(e, 'Failed to create order'), 'error');
       } finally {
         setActionLoading(false);
       }
@@ -127,7 +128,7 @@ export default function AdminWallet() {
       setAmount(''); setDesc(''); setPaymentMethod('CASH')
       fetchWallet(); fetchTxns()
     } catch (e) {
-      showToast(e.response?.data?.message || 'Failed to credit', 'error')
+      showToast(extractErrorMessage(e, 'Failed to credit'), 'error')
     } finally { setActionLoading(false) }
   }
 
@@ -144,7 +145,7 @@ export default function AdminWallet() {
       setAmount(''); setDesc('')
       fetchWallet(); fetchTxns()
     } catch (e) {
-      showToast(e.response?.data?.message || 'Failed to debit', 'error')
+      showToast(extractErrorMessage(e, 'Failed to debit'), 'error')
     } finally { setActionLoading(false) }
   }
 
@@ -167,7 +168,7 @@ export default function AdminWallet() {
       setBankErrors({})
       fetchWallet()
     } catch (e) {
-      showToast(e.response?.data?.message || 'Failed to update bank details', 'error')
+      showToast(extractErrorMessage(e, 'Failed to update bank details'), 'error')
     } finally { setBankSaving(false) }
   }
 

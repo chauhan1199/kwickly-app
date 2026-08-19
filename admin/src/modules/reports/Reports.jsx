@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import './Reports.css'
@@ -28,6 +29,7 @@ export default function Reports() {
       setLoading(false)
 
     } catch (e) {
+      if (isAbortError(e)) return
       setLoading(false)
     }
   }

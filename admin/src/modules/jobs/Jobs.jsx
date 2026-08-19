@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -48,7 +49,10 @@ export default function Jobs() {
     try {
       const res = await api.get('/admin/jobs/all', { params: { limit: 500 } })
       if (res.data.status === 'success') setJobs(res.data.data.jobs || [])
-    } catch { showToast('Failed to load jobs', 'error') }
+    } catch (err) {
+      if (isAbortError(err)) return
+      showToast('Failed to load jobs', 'error')
+    }
     finally { setLoading(false) }
   }
 

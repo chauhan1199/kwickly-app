@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import { getImageUrl } from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
@@ -356,6 +357,7 @@ export default function Categories() {
         setCategories(response.data.data)
       }
     } catch (error) {
+      if (isAbortError(error)) return
       const msg = error.response?.data?.message || 'Failed to load categories'
       showToast(msg, 'error')
     } finally {
@@ -370,6 +372,7 @@ export default function Categories() {
         setSuggestions(response.data.data)
       }
     } catch (error) {
+      if (isAbortError(error)) return
       const msg = error.response?.data?.message || 'Failed to load suggestions'
       showToast(msg, 'error')
     }
@@ -407,7 +410,7 @@ export default function Categories() {
       showSync()
       window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-      const msg = e.response?.data?.message || 'Failed to save category'
+      const msg = extractErrorMessage(e, 'Failed to save category')
       const details = e.response?.data?.errors
       showToast(details ? details.join(', ') : msg, 'error')
     }
@@ -424,7 +427,7 @@ export default function Categories() {
       showSync()
       window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-      const msg = e.response?.data?.message || 'Failed to toggle category'
+      const msg = extractErrorMessage(e, 'Failed to toggle category')
       showToast(msg, 'error')
     } finally {
       setToggling(p => ({ ...p, [`cat_${id}`]: false }))
@@ -447,7 +450,7 @@ export default function Categories() {
           showSync()
           window.dispatchEvent(new Event('admin-action'))
         } catch (e) {
-          const msg = e.response?.data?.message || 'Failed to delete category'
+          const msg = extractErrorMessage(e, 'Failed to delete category')
           showToast(msg, 'error')
         }
       }
@@ -477,7 +480,7 @@ export default function Categories() {
       showSync()
       window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-      const msg = e.response?.data?.message || 'Failed to save subcategory'
+      const msg = extractErrorMessage(e, 'Failed to save subcategory')
       const details = e.response?.data?.errors
       showToast(details ? details.join(', ') : msg, 'error')
     }
@@ -498,7 +501,7 @@ export default function Categories() {
       showSync()
       window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-      const msg = e.response?.data?.message || 'Failed to toggle subcategory'
+      const msg = extractErrorMessage(e, 'Failed to toggle subcategory')
       showToast(msg, 'error')
     } finally {
       setToggling(p => ({ ...p, [`sub_${catId}_${subId}`]: false }))
@@ -521,7 +524,7 @@ export default function Categories() {
           showSync()
           window.dispatchEvent(new Event('admin-action'))
         } catch (e) {
-          const msg = e.response?.data?.message || 'Failed to delete subcategory'
+          const msg = extractErrorMessage(e, 'Failed to delete subcategory')
           showToast(msg, 'error')
         }
       }
@@ -538,7 +541,7 @@ export default function Categories() {
       showSync()
       window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-      const msg = e.response?.data?.message || 'Failed to approve suggestion'
+      const msg = extractErrorMessage(e, 'Failed to approve suggestion')
       showToast(msg, 'error')
     }
   }
@@ -552,7 +555,7 @@ export default function Categories() {
       showSync()
       window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-      const msg = e.response?.data?.message || 'Failed to reject suggestion'
+      const msg = extractErrorMessage(e, 'Failed to reject suggestion')
       showToast(msg, 'error')
     }
   }

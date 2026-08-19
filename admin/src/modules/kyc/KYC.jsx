@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest';
+import { isAbortError } from '../../utils/errorUtils'
 import { getImageUrl } from '../../services/api'
 import { Eye, CheckCircle, XCircle, Store, User } from 'lucide-react'
 import Toast from '../../components/Toast'
@@ -25,6 +26,7 @@ export default function KYC() {
       const response = await api.get('/admin/pending-kyc')
       if (response.data.status === 'success') setPending(response.data.data)
     } catch (error) {
+      if (isAbortError(error)) return
       showToast('Error fetching KYC queue', 'error')
     } finally { setLoading(false) }
   }

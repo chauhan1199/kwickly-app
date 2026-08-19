@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -35,7 +36,10 @@ export default function Settlements() {
       if (res.data.status === 'success') {
         setSettlements(res.data.data || [])
       }
-    } catch { showToast('Failed to load settlements', 'error') }
+    } catch (err) {
+      if (isAbortError(err)) return
+      showToast('Failed to load settlements', 'error')
+    }
     finally { setLoading(false) }
   }
 

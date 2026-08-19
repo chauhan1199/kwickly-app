@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { Printer, Download } from 'lucide-react'
+import { extractErrorMessage } from '../../utils/errorUtils'
 
 export default function JobReceipt() {
   const api = useAbortableRequest();
@@ -23,7 +24,7 @@ export default function JobReceipt() {
         setError(res.data.message || 'Failed to fetch receipt')
       }
     } catch (e) {
-      setError(e.response?.data?.message || 'Error fetching receipt')
+      setError(extractErrorMessage(e, 'Error fetching receipt'))
     } finally {
       setLoading(false)
     }

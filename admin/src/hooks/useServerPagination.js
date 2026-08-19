@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 import Toast from '../components/Toast'
+import { isAbortError } from '../utils/errorUtils'
 
 export function useServerPagination(endpoint, pageSize = 15, extraFilter = null) {
   const [data, setData] = useState([])
@@ -56,6 +57,7 @@ export function useServerPagination(endpoint, pageSize = 15, extraFilter = null)
         else if (Toast?.show) Toast.show(res.data.message || 'Failed to fetch data')
       }
     } catch (e) {
+      if (isAbortError(e)) return
       const errorMsg = e.response?.data?.message || 'Error fetching data'
       setError(errorMsg)
       if (typeof Toast === 'function') Toast(errorMsg)

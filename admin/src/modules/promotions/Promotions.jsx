@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -181,7 +182,7 @@ function BannerFormModal({ open, onClose, editing, onSaved, showToast, api }) {
       window.dispatchEvent(new Event('admin-action'))
       onSaved()
       onClose()
-    } catch (e) { showToast(e.response?.data?.message || 'Save failed', 'error') }
+    } catch (e) { showToast(extractErrorMessage(e, 'Save failed'), 'error') }
     finally { setSaving(false) }
   }
 
@@ -319,7 +320,7 @@ function PromoFormModal({ open, onClose, editing, onSaved, showToast, api }) {
       window.dispatchEvent(new Event('admin-action'))
       onSaved()
       onClose()
-    } catch (e) { showToast(e.response?.data?.message || 'Save failed', 'error') }
+    } catch (e) { showToast(extractErrorMessage(e, 'Save failed'), 'error') }
     finally { setSaving(false) }
   }
 
@@ -598,7 +599,10 @@ export default function Promotions() {
       ])
       setBanners(b.data.data || [])
       setPromos(p.data.data || [])
-    } catch { showToast('Failed to load data', 'error') }
+    } catch (err) {
+      if (isAbortError(err)) return
+      showToast('Failed to load data', 'error')
+    }
     setLoading(false)
   }
 

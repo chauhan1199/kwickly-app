@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 
@@ -37,23 +38,32 @@ export default function Settings() {
         setSettings(response.data.data)
       }
     } catch (e) {
+      if (isAbortError(e)) return
       showToast('Failed to load settings', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  const set = async (key, val) => {
-    const updated = { ...settings, [key]: val }
-    setSettings(updated)
+  // Update local state immediately (no API call)
+  const setLocal = (key, val) => setSettings(prev => ({ ...prev, [key]: val }))
+
+  // Persist to server (called on blur for number inputs, or onChange for dropdowns/toggles)
+  const save = async (key, val) => {
+    const current = val !== undefined ? val : settings[key]
+    setSettings(prev => ({ ...prev, [key]: current }))
     try {
-      await api.patch('/admin/settings', { [key]: val })
+      await api.patch('/admin/settings', { [key]: current })
       setSavedMsg('✓ Settings saved and broadcast to all connected clients via Socket.io')
       setTimeout(() => setSavedMsg(''), 3500)
     } catch (e) {
+      if (isAbortError(e)) return
       showToast('Failed to save setting', 'error')
     }
   }
+
+  // Convenience: immediate save for toggles/selects (old behaviour)
+  const set = (key, val) => save(key, val)
 
   const tabs = [
     { key: 'fees', label: '💰 Fees & Payments' },
@@ -134,11 +144,25 @@ export default function Settings() {
               </div>
               <div className="form-group">
                 <label className="form-label">Fee Amount {settings.feeType === 'flat' ? '(₹)' : '(%)'}</label>
-                <input type="number" className="form-control" value={settings.feeAmount} onChange={e => set('feeAmount', e.target.value)} min="0" />
+                <input
+                  type="number"
+                  className="form-control"
+                  value={settings.feeAmount}
+                  onChange={e => setLocal('feeAmount', e.target.value)}
+                  onBlur={e => save('feeAmount', Number(e.target.value))}
+                  min="0"
+                />
               </div>
               <div className="form-group">
                 <label className="form-label">GST Percentage (%)</label>
-                <input type="number" className="form-control" value={settings.gstPercentage || 18} onChange={e => set('gstPercentage', e.target.value)} min="0" />
+                <input
+                  type="number"
+                  className="form-control"
+                  value={settings.gstPercentage || 18}
+                  onChange={e => setLocal('gstPercentage', e.target.value)}
+                  onBlur={e => save('gstPercentage', Number(e.target.value))}
+                  min="0"
+                />
               </div>
             </div>
 
@@ -159,7 +183,15 @@ export default function Settings() {
                 <div className="settings-hint">Number of days a worker gets for free upon registration</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="number" className="form-control" style={{ width: 100 }} value={settings.freeTrialDays} onChange={e => set('freeTrialDays', e.target.value)} />
+                <input
+                  type="number"
+                  className="form-control"
+                  style={{ width: 100 }}
+                  value={settings.freeTrialDays}
+                  onChange={e => setLocal('freeTrialDays', e.target.value)}
+                  onBlur={e => save('freeTrialDays', Number(e.target.value))}
+                  min="0" max="365"
+                />
                 <span style={{ fontSize: 12, color: 'var(--mid)' }}>days</span>
               </div>
             </div>
@@ -170,7 +202,15 @@ export default function Settings() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 16 }}>₹</span>
-                <input type="number" className="form-control" style={{ width: 100 }} value={settings.walletMinimum} onChange={e => set('walletMinimum', e.target.value)} />
+                <input
+                  type="number"
+                  className="form-control"
+                  style={{ width: 100 }}
+                  value={settings.walletMinimum}
+                  onChange={e => setLocal('walletMinimum', e.target.value)}
+                  onBlur={e => save('walletMinimum', Number(e.target.value))}
+                  min="0"
+                />
               </div>
             </div>
             <div className="settings-row">

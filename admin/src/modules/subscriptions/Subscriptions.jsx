@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 
@@ -151,6 +152,7 @@ export default function Subscriptions() {
 
       setWorkers(allUsers)
     } catch (e) {
+      if (isAbortError(e)) return
       showToast('Failed to load subscription data', 'error')
     } finally {
       setLoading(false)

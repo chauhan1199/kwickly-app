@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -35,7 +36,10 @@ export default function Disputes() {
       if (res.data.status === 'success') {
         setDisputes(res.data.data?.disputes || res.data.data || [])
       }
-    } catch { showToast('Failed to load disputes', 'error') }
+    } catch (err) {
+      if (isAbortError(err)) return
+      showToast('Failed to load disputes', 'error')
+    }
     finally { setLoading(false) }
   }
 

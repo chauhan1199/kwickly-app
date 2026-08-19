@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError } from '../../utils/errorUtils'
 
 const CITIES_LIST = ['Mumbai','Delhi','Bangalore','Ahmedabad','Pune','Chennai','Hyderabad','Kolkata','Jaipur','Surat']
 
@@ -159,6 +160,7 @@ export default function Notifications() {
         setNotifs(data)
       }
     } catch (e) {
+      if (isAbortError(e)) return
       showToast('Failed to load notifications')
     } finally {
       setLoading(false)

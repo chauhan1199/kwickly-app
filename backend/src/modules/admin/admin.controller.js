@@ -51,6 +51,10 @@ exports.getBadgeCounts = catchAsync(async (req, res) => {
 exports.getStats = catchAsync(async (req, res) => {
     const range = req.query.range || 'week';
 
+    const cacheKey = `admin_dashboard_stats_${range}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return successResponse(res, cached, ADMIN.STATS_FETCHED);
+
     const rangeStart = () => {
         const d = new Date();
         if (range === 'today') { d.setHours(0,0,0,0); }
@@ -142,7 +146,6 @@ exports.getStats = catchAsync(async (req, res) => {
         connectedClients, activities, topWorkers, chartData
     };
 
-    const cacheKey = `admin_dashboard_stats_${range}`;
     await setCache(cacheKey, responseData, DASHBOARD_STATS_TTL);
     return successResponse(res, responseData, ADMIN.STATS_FETCHED);
 });

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Eye, Download } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import ConfirmModal from '../../components/ConfirmModal'
 
 const ROLE_COLORS = { CUSTOMER: '#00B4D8', WORKER: '#8B5CF6', SHOP: '#10B981' }
@@ -68,6 +69,7 @@ export default function Wallets() {
       })) : []
       setUsers([...customers, ...workers, ...shops])
     } catch (e) {
+      if (isAbortError(e)) return
       showToast('Failed to load wallet data', 'error')
     } finally { setLoading(false) }
   }
@@ -83,6 +85,7 @@ export default function Wallets() {
         setAllTxns(Array.isArray(raw) ? raw : raw.transactions || raw.txns || raw.data || [])
       }
     } catch (e) {
+      if (isAbortError(e)) return
       showToast('Failed to load transactions', 'error')
     } finally { setAllTxnsLoading(false) }
   }
@@ -140,7 +143,7 @@ export default function Wallets() {
       if (tab === 'transactions') fetchAllTxns()
       window.dispatchEvent(new Event('admin-action'))
     } catch (e) {
-      showToast(e.response?.data?.message || 'Failed to adjust wallet', 'error')
+      showToast(extractErrorMessage(e, 'Failed to adjust wallet'), 'error')
     } finally { setAdjusting(false) }
   }
 

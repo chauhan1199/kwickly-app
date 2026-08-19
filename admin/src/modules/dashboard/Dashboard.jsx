@@ -43,6 +43,8 @@ export default function Dashboard() {
       const res = await api.get(`/admin/stats?range=${range}`)
       if (res.data.status === 'success') setStats(res.data.data)
     } catch (err) {
+      // Ignore aborted requests (caused by range change or component unmount)
+      if (err?.name === 'AbortError' || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
       setToast({ msg: 'Failed to load dashboard data', type: 'error' })
     } finally { setLoading(false) }
   }

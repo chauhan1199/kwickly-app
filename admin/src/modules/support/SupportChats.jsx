@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useAbortableRequest from '../../hooks/useAbortableRequest';
+import { isAbortError } from '../../utils/errorUtils';
 import { getImageUrl } from '../../services/api';
 import Toast from '../../components/Toast';
 import { io } from 'socket.io-client';
@@ -67,6 +68,7 @@ const SupportChats = () => {
       const res = await api.get('/chat/support/threads');
       setThreads(res.data?.data || []);
     } catch (err) {
+      if (isAbortError(err)) return
       Toast.error('Failed to load support threads');
     } finally {
       setLoadingThreads(false);
@@ -90,6 +92,7 @@ const SupportChats = () => {
         t.user._id === thread.user._id ? { ...t, unreadCount: 0 } : t
       ));
     } catch (err) {
+      if (isAbortError(err)) return
       Toast.error('Failed to load chat history');
     } finally {
       setLoadingMessages(false);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 
 export default function AdminUsers() {
@@ -21,7 +22,10 @@ export default function AdminUsers() {
         setAdminInfo(res.data.data)
         setForm({ name: res.data.data.name || '', email: res.data.data.email || '' })
       }
-    } catch (e) { showToast(e.response?.data?.message || 'Failed to load profile', 'error') }
+    } catch (e) {
+      if (isAbortError(e)) return
+      showToast(extractErrorMessage(e, 'Failed to load profile'), 'error')
+    }
     finally { setLoading(false) }
   }
 
@@ -37,7 +41,7 @@ export default function AdminUsers() {
         setEditMode(false)
         showToast('Profile updated successfully')
       }
-    } catch (e) { showToast(e.response?.data?.message || 'Update failed', 'error') }
+    } catch (e) { showToast(extractErrorMessage(e, 'Update failed'), 'error') }
   }
 
   const handleChangePassword = async (e) => {
@@ -55,7 +59,7 @@ export default function AdminUsers() {
         setPasswordForm({ newPassword: '', confirmPassword: '' })
         showToast('Password changed successfully')
       }
-    } catch (e) { showToast(e.response?.data?.message || 'Password change failed', 'error') }
+    } catch (e) { showToast(extractErrorMessage(e, 'Password change failed'), 'error') }
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>Loading admin profile...</div>
