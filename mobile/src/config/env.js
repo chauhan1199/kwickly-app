@@ -9,7 +9,7 @@
 export const IS_PROD = false; // Toggle this to true for Production builds
 
 const DEV_URL = 'http://10.0.2.2:5000'; // Android emulator localhost
-const PROD_URL = 'https://YOUR_PRODUCTION_DOMAIN'; // MUST use HTTPS in production
+const PROD_URL = 'https://kwickly-backend-r6zb.onrender.com'; // Production Render API
 
 // Warn if production URL is not configured
 if (IS_PROD && PROD_URL.includes('YOUR_PRODUCTION')) {
