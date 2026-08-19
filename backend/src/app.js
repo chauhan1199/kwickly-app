@@ -10,6 +10,9 @@ const { globalLimiter } = require('./middleware/rateLimit.middleware');
 
 const app = express();
 
+// Trust proxy for Render / Cloud reverse proxies
+app.set('trust proxy', 1);
+
 // ─── Allowed Origins ─────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:19006,http://localhost:5173,http://localhost:5174')
     .split(',')

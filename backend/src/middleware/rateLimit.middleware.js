@@ -130,6 +130,7 @@ const globalLimiter = rateLimit({
     max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
     message: { status: 'error', message: 'Too many requests. Please try again later.' }
 });
 
@@ -143,6 +144,7 @@ const authLimiter = rateLimit({
     max: (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? 500 : 5,
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
     message: { status: 'error', message: 'Too many authentication attempts. Please wait 15 minutes.' }
 });
 
@@ -156,6 +158,7 @@ const otpSendLimiter = rateLimit({
     max: (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? 300 : 3,
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
     message: { status: 'error', message: 'Too many OTP requests. Please wait 10 minutes.' }
 });
 
