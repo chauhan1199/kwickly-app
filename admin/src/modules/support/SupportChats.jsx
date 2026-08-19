@@ -33,6 +33,7 @@ const SupportChats = () => {
   }, []);
 
   const setupSocket = () => {
+    const token = localStorage.getItem('kwickly_admin_token');
     const socketUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://kwickly-backend-r6zb.onrender.com'
     const socket = io(socketUrl, { auth: { token } });
     

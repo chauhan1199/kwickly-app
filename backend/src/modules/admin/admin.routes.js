@@ -27,7 +27,7 @@ const parseShopFormData = (req, res, next) => {
 const upload = require('../../middleware/upload.middleware');
 
 // ─── Public Routes (no auth required) ────────────────────────────────────────
-router.get('/settings/branding', otpSendLimiter, settingsController.getBranding);
+router.get('/settings/branding', settingsController.getBranding);
 
 // ─── All Other Admin Routes (ADMIN role required) ─────────────────────────────
 router.use(authMiddleware);

@@ -141,7 +141,7 @@ const globalLimiter = rateLimit({
 const authLimiter = rateLimit({
     store: getStore(),
     windowMs: 15 * 60 * 1000,
-    max: (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? 500 : 5,
+    max: (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? 500 : 50,
     standardHeaders: true,
     legacyHeaders: false,
     validate: { xForwardedForHeader: false },
