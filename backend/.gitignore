@@ -6,6 +6,7 @@ logs/
 *.log
 .env
 .env.local
+.env.production
 .DS_Store
 coverage/
 dist/

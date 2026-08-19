@@ -53,17 +53,19 @@ describe('Settlement Flow — Complete E2E', () => {
     const { AdminWallet } = require('../modules/adminWallet/adminWallet.model');
     const WalletTxn = require('../modules/wallet/wallet.model');
 
+    let sSeq = 0;
     beforeEach(async () => {
-        const admin = await createTestUser({ role: 'ADMIN', email: 'settlement-admin@test.com', phone: '9000000001' });
+        sSeq++;
+        const admin = await createTestUser({ role: 'ADMIN', email: `settlement-admin${sSeq}@test.com`, phone: `91${String(sSeq).padStart(8, '0')}` });
         adminToken = generateToken(admin);
 
-        shopOwner = await createTestUser({ role: 'SHOP', email: 'shopowner@test.com', phone: '9000000002', name: 'Shop Owner', isVerified: true });
+        shopOwner = await createTestUser({ role: 'SHOP', email: `shopowner${sSeq}@test.com`, phone: `92${String(sSeq).padStart(8, '0')}`, name: 'Shop Owner', isVerified: true });
         shopOwnerToken = generateToken(shopOwner);
 
-        customer = await createTestUser({ role: 'CUSTOMER', email: 'customer@test.com', phone: '9000000003', name: 'Test Customer', isVerified: true, wallet: { balance: 5000 } });
+        customer = await createTestUser({ role: 'CUSTOMER', email: `customer${sSeq}@test.com`, phone: `93${String(sSeq).padStart(8, '0')}`, name: 'Test Customer', isVerified: true, wallet: { balance: 5000 } });
         customerToken = generateToken(customer);
 
-        worker = await createTestUser({ role: 'WORKER', email: 'worker@test.com', phone: '9000000004', name: 'Test Worker', isVerified: true });
+        worker = await createTestUser({ role: 'WORKER', email: `worker${sSeq}@test.com`, phone: `94${String(sSeq).padStart(8, '0')}`, name: 'Test Worker', isVerified: true });
         workerToken = generateToken(worker);
 
         shop = await Shop.create({

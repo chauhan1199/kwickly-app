@@ -50,7 +50,6 @@ const setup = async () => {
 
     mongoServer = await MongoMemoryServer.create({
         instance: {
-            port: 27018,
             dbName: 'kwickly_test',
             launchTimeout: 60000
         },
@@ -85,9 +84,14 @@ const generateToken = (user) => {
     );
 };
 
+let cachedHashedPassword = null;
+
 const createTestUser = async (overrides = {}) => {
     const Customer = require('../modules/customer/customer.model');
-    const hashedPassword = await bcrypt.hash('password123', 12);
+    if (!cachedHashedPassword) {
+        cachedHashedPassword = await bcrypt.hash('password123', 4);
+    }
+    const hashedPassword = overrides.password ? await bcrypt.hash(overrides.password, 4) : cachedHashedPassword;
     const userData = {
         name: 'Test User',
         phone: '9876543210',

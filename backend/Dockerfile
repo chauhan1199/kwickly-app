@@ -6,14 +6,14 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Copy source code and configuration
 COPY src/ ./src/
 COPY ecosystem.config.js ./
 
-# Create logs directory
-RUN mkdir -p logs
+# Create logs and uploads directories
+RUN mkdir -p logs public/uploads
 
 # Expose port
 EXPOSE 5000

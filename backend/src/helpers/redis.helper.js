@@ -34,9 +34,8 @@ const initRedis = () => {
         });
 
         redis.on('error', (error) => {
-            // Only log the first few errors to avoid flooding console
-            if (connectionAttempts <= MAX_LOG_ATTEMPTS) {
-                logger.error(`Redis connection error: ${error.message}`);
+            if (connectionAttempts === 1) {
+                logger.warn(`Redis unavailable (${error?.code || error?.message || 'ECONNREFUSED'}). Operating with in-memory fallback.`);
             }
         });
 
@@ -45,6 +44,12 @@ const initRedis = () => {
         logger.error('Failed to initialize Redis:', error);
         return null;
     }
+};
+
+const isClientReady = (client) => {
+    if (!client) return false;
+    if (client.status === undefined) return true; // Allows mocked redis in unit tests
+    return client.status === 'ready' || client.status === 'connect';
 };
 
 /**
@@ -62,7 +67,7 @@ const getRedis = () => {
  */
 const setCache = async (key, value, ttlInSeconds = 3600) => {
     const client = getRedis();
-    if (!client) return null;
+    if (!isClientReady(client)) return null;
     try {
         await client.set(key, JSON.stringify(value), 'EX', ttlInSeconds);
     } catch (error) {
@@ -75,7 +80,7 @@ const setCache = async (key, value, ttlInSeconds = 3600) => {
  */
 const getCache = async (key) => {
     const client = getRedis();
-    if (!client) return null;
+    if (!isClientReady(client)) return null;
     try {
         const data = await client.get(key);
         if (!data) return null;
@@ -95,7 +100,7 @@ const getCache = async (key) => {
  */
 const delCache = async (key) => {
     const client = getRedis();
-    if (!client) return null;
+    if (!isClientReady(client)) return null;
     try {
         // Automatically handle range suffixes for dashboard stats invalidation
         if (key === 'admin_dashboard_stats') {
@@ -115,7 +120,7 @@ const delCache = async (key) => {
  */
 const delCacheByPattern = async (pattern) => {
     const client = getRedis();
-    if (!client) return;
+    if (!isClientReady(client)) return;
     try {
         let cursor = '0';
         do {
@@ -140,7 +145,7 @@ const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
     
     const lockKey = `lock:${key}`;
     const client = getRedis();
-    if (client) {
+    if (isClientReady(client)) {
         try {
             const acquired = await client.set(lockKey, '1', 'NX', 'EX', 10);
             if (!acquired) {
@@ -161,7 +166,7 @@ const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
         await setCache(key, data, ttlInSeconds);
     }
     
-    if (client) {
+    if (isClientReady(client)) {
         try { await client.del(lockKey); } catch (e) {}
     }
     return data;
@@ -172,7 +177,7 @@ const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
  */
 const acquireLock = async (lockKey, ttlInSeconds = 50) => {
     const client = getRedis();
-    if (!client) return false; // If redis is down, deny lock to avoid chaos
+    if (!isClientReady(client)) return false; // If redis is down, deny lock to avoid chaos
     const holderId = `${process.pid}:${Date.now()}`;
     try {
         const acquired = await client.set(`lock:${lockKey}`, holderId, 'NX', 'EX', ttlInSeconds);
@@ -187,7 +192,7 @@ const acquireLock = async (lockKey, ttlInSeconds = 50) => {
  */
 const releaseLock = async (lockKey, holderId) => {
     const client = getRedis();
-    if (!client) return;
+    if (!isClientReady(client)) return;
     try {
         if (holderId) {
             const luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";

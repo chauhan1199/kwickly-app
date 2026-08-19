@@ -33,8 +33,10 @@ describe('Admin Shop Management', () => {
         jest.clearAllMocks();
     });
 
+    let shopSeq = 0;
     const createTestShop = async (overrides = {}) => {
-        const owner = await createTestUser({ role: 'SHOP', email: `shopowner${Date.now()}@test.com`, phone: String(Date.now()).slice(-10) });
+        shopSeq++;
+        const owner = await createTestUser({ role: 'SHOP', email: `shopowner${shopSeq}@test.com`, phone: `98${String(shopSeq).padStart(8, '0')}` });
         return Shop.create({
             ownerId: owner._id,
             name: 'Test Shop',

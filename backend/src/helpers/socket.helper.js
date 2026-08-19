@@ -41,9 +41,24 @@ const initSocket = (server) => {
             const { getRedis } = require('./redis.helper');
             const pubClient = getRedis();
             if (pubClient) {
-                const subClient = pubClient.duplicate();
-                io.adapter(createAdapter(pubClient, subClient));
-                logger.info('Socket.io bound to Redis Pub/Sub adapter for clustering');
+                const attachRedisAdapter = () => {
+                    try {
+                        const subClient = pubClient.duplicate();
+                        subClient.on('error', (err) => {
+                            logger.debug(`Redis subClient error: ${err.message}`);
+                        });
+                        io.adapter(createAdapter(pubClient, subClient));
+                        logger.info('Socket.io bound to Redis Pub/Sub adapter for clustering');
+                    } catch (err) {
+                        logger.warn('Failed to bind Redis adapter:', err.message);
+                    }
+                };
+
+                if (pubClient.status === 'ready') {
+                    attachRedisAdapter();
+                } else {
+                    pubClient.once('ready', attachRedisAdapter);
+                }
             } else {
                 logger.warn('Redis not available. Socket.io in local memory mode.');
             }
