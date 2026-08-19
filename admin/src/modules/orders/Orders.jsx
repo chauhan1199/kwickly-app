@@ -36,13 +36,9 @@ export default function Orders() {
       const res = await api.get('/admin/shoporders/all', { params: { page, limit: PAGE_SIZE } })
       const payload = res.data.data
       setOrders(payload?.orders || payload || [])
-<<<<<<< Updated upstream
       if (typeof payload?.total === 'number') setTotal(payload.total)
-    } catch {
-=======
     } catch (err) {
       if (isAbortError(err)) return
->>>>>>> Stashed changes
       showToast('Failed to load orders', 'error')
     } finally { setLoading(false) }
   }, [page])
