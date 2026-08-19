@@ -1,8 +1,13 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.DEV 
-  ? 'http://localhost:5000/api/v1' 
-  : 'https://kwickly-backend-r6zb.onrender.com/api/v1'
+// Production Backend API URL
+let BASE_URL = 'https://kwickly-backend-r6zb.onrender.com/api/v1'
+
+if (import.meta.env.DEV) {
+  BASE_URL = 'http://localhost:5000/api/v1'
+}
+
+console.log('[Kwickly API Base URL]:', BASE_URL)
 
 const api = axios.create({
   baseURL: BASE_URL,

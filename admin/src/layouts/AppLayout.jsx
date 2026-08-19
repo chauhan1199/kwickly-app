@@ -56,8 +56,8 @@ export default function AppLayout({ onLogout }) {
     try { const u = JSON.parse(localStorage.getItem('kwickly_admin_user')); if (u) setUser(u) } catch {}
     fetchBadges()
     fetchSettings()
-    const token = localStorage.getItem('kwickly_admin_token')
-    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', { auth: { token } })
+    const socketUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://kwickly-backend-r6zb.onrender.com'
+    const socket = io(socketUrl, { auth: { token } })
     socket.on('connect', () => {
       socket.emit('JOIN_ADMIN_ROOM')
     })

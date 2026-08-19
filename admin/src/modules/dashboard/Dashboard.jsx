@@ -28,7 +28,8 @@ export default function Dashboard() {
     let socket
     try {
       const token = localStorage.getItem('kwickly_admin_token')
-      socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+      const socketUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://kwickly-backend-r6zb.onrender.com'
+      socket = io(socketUrl, {
         auth: { token },
         transports: ['websocket', 'polling'],
         reconnectionAttempts: 3,

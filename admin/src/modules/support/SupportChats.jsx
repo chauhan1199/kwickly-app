@@ -33,7 +33,7 @@ const SupportChats = () => {
   }, []);
 
   const setupSocket = () => {
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+    const socketUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://kwickly-backend-r6zb.onrender.com'
     const socket = io(socketUrl, { auth: { token } });
     
     socket.on('connect', () => {
