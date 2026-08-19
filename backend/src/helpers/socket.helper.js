@@ -43,14 +43,20 @@ const initSocket = (server) => {
             if (pubClient) {
                 const attachRedisAdapter = () => {
                     try {
-                        const subClient = pubClient.duplicate();
+                        const subClient = pubClient.duplicate({ enableOfflineQueue: true });
                         subClient.on('error', (err) => {
                             logger.debug(`Redis subClient error: ${err.message}`);
                         });
-                        io.adapter(createAdapter(pubClient, subClient));
-                        logger.info('Socket.io bound to Redis Pub/Sub adapter for clustering');
+                        subClient.once('ready', () => {
+                            try {
+                                io.adapter(createAdapter(pubClient, subClient));
+                                logger.info('Socket.io bound to Redis Pub/Sub adapter for clustering');
+                            } catch (err) {
+                                logger.warn('Failed to bind Redis adapter:', err.message);
+                            }
+                        });
                     } catch (err) {
-                        logger.warn('Failed to bind Redis adapter:', err.message);
+                        logger.warn('Failed to duplicate Redis client:', err.message);
                     }
                 };
 
