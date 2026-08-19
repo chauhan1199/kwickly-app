@@ -1,10 +1,8 @@
 import axios from 'axios'
 
-const rawUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000/api/v1' : 'https://kwickly-backend-r6zb.onrender.com/api/v1')
-const BASE_URL = (rawUrl || '')
-  .trim()
-  .replace(/kwickly\s+backend\s+r6zb/gi, 'kwickly-backend-r6zb')
-  .replace(/\s+/g, '-')
+const BASE_URL = import.meta.env.DEV 
+  ? 'http://localhost:5000/api/v1' 
+  : 'https://kwickly-backend-r6zb.onrender.com/api/v1'
 
 const api = axios.create({
   baseURL: BASE_URL,
