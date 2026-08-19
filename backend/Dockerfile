@@ -8,8 +8,9 @@ COPY package*.json ./
 # Install production dependencies only
 RUN npm ci --only=production
 
-# Copy source code
+# Copy source code and configuration
 COPY src/ ./src/
+COPY ecosystem.config.js ./
 
 # Create logs directory
 RUN mkdir -p logs
@@ -21,5 +22,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:5000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"
 
-# Start with PM2 for clustering
-CMD ["npx", "pm2-runtime", "ecosystem.config.js", "--env", "production"]
+# Start server
+CMD ["node", "src/server.js"]
