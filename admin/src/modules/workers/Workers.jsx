@@ -49,33 +49,30 @@ export default function Workers() {
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
   const [workerFormTab, setWorkerFormTab] = useState('basic')
+  const [extending, setExtending] = useState(false)
+  const [customDays, setCustomDays] = useState('')
 
-  const [walletAmount, setWalletAmount] = useState('')
-  const [walletDesc, setWalletDesc] = useState('')
-  const [walletLoading, setWalletLoading] = useState(false)
-
-  const adjustWallet = async (action) => {
-    if (!walletAmount || isNaN(walletAmount) || walletAmount <= 0) {
-      return Toast.error('Enter valid amount')
-    }
-    setWalletLoading(true)
+  const handleExtendSubscription = async (workerId, days) => {
+    const numDays = Number(days)
+    if (!numDays || numDays <= 0) return showToast('Please enter a valid number of days (e.g. 30)', 'error')
+    setExtending(true)
     try {
-      const res = await api.post('/wallet/adjust', {
-        userId: detail._id,
-        amount: Number(walletAmount),
-        type: 'ADJUSTMENT',
-        debit: action,
-        description: walletDesc || `Admin ${action ? 'debit' : 'credit'}`
-      })
+      const res = await api.patch(`/admin/workers/${workerId}/extend-subscription`, { days: numDays })
       if (res.data.status === 'success') {
-        Toast.success(`Wallet ${action ? 'debited' : 'credited'} successfully`)
-        setDetail({ ...detail, walletBalance: res.data.data.balance })
-        setWorkers(workers.map(w => w._id === detail._id ? { ...w, walletBalance: res.data.data.balance } : w))
+        showToast(`Validity extended by ${numDays} days!`)
+        const updatedWorker = res.data.data?.worker || res.data.data
+        const newSub = updatedWorker?.subscription || { expiryDate: res.data.data?.expiryDate, isTrial: false }
+        if (detail && detail._id === workerId) {
+          setDetail(prev => ({ ...prev, subscription: newSub }))
+        }
+        setWorkers(prev => prev.map(w => w._id === workerId ? { ...w, subscription: newSub } : w))
+        setCustomDays('')
+        window.dispatchEvent(new Event('admin-action'))
       }
     } catch (err) {
-      Toast.error(err.response?.data?.message || 'Failed to adjust wallet')
+      showToast(err.response?.data?.message || 'Failed to extend subscription', 'error')
     } finally {
-      setWalletLoading(false)
+      setExtending(false)
     }
   }
 
@@ -637,10 +634,51 @@ export default function Workers() {
 
                 <div className="divider" />
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Subscription & Validity</div>
-                <div className="detail-grid">
+                <div className="detail-grid" style={{ marginBottom: 14 }}>
                   <div className="detail-row"><span>Status</span><strong>{renderValidity(detail)}</strong></div>
-                  <div className="detail-row"><span>Registration Date</span><strong>{new Date(detail.createdAt).toLocaleString()}</strong></div>
-                  <div className="detail-row"><span>Expiry Date</span><strong>{detail.subscription?.expiryDate ? new Date(detail.subscription.expiryDate).toLocaleString() : (detail.subscription?.trialEndDate ? new Date(detail.subscription.trialEndDate).toLocaleString() : 'N/A')}</strong></div>
+                  <div className="detail-row"><span>Registration Date</span><strong>{new Date(detail.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></div>
+                  <div className="detail-row"><span>Expiry Date</span><strong>{detail.subscription?.expiryDate ? new Date(detail.subscription.expiryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : (detail.subscription?.trialEndDate ? new Date(detail.subscription.trialEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'No Active Plan')}</strong></div>
+                </div>
+
+                <div style={{ background: 'var(--input-bg)', borderRadius: 10, padding: 12, border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    ⚡ Extend Validity / Grant Plan
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                    {[15, 30, 90, 365].map(days => (
+                      <button
+                        key={days}
+                        type="button"
+                        className="btn-secondary"
+                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6 }}
+                        onClick={() => handleExtendSubscription(detail._id, days)}
+                        disabled={extending}
+                      >
+                        +{days} Days
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Custom days (e.g. 60)..."
+                      value={customDays}
+                      onChange={e => setCustomDays(e.target.value)}
+                      style={{ fontSize: 12, height: 34 }}
+                      min={1}
+                      disabled={extending}
+                    />
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      style={{ fontSize: 12, height: 34, padding: '0 14px', whiteSpace: 'nowrap' }}
+                      onClick={() => handleExtendSubscription(detail._id, customDays)}
+                      disabled={extending || !customDays}
+                    >
+                      {extending ? 'Extending...' : 'Apply'}
+                    </button>
+                  </div>
                 </div>
 
                 {addr && (

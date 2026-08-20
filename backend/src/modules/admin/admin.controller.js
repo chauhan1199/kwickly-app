@@ -402,6 +402,20 @@ exports.createUser = catchAsync(async (req, res) => {
         }
     }
 
+    if (role === 'WORKER' || role === 'SHOP') {
+        const AppSettings = require('../settings/settings.model');
+        const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+        const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+        const trialEndDate = new Date();
+        trialEndDate.setDate(trialEndDate.getDate() + freeTrialDays);
+        
+        userData.subscription = {
+            isTrial: true,
+            trialEndDate: trialEndDate,
+            expiryDate: trialEndDate
+        };
+    }
+
     const user = await Customer.create(userData);
 
     await delCache('admin_dashboard_stats');
