@@ -12,9 +12,16 @@ import { TextInput, validators } from '../../components/FormInput'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
 import MapPicker from '../../components/MapPicker'
-import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Copy, MapPin, Upload, DollarSign, Briefcase, ShoppingBag } from 'lucide-react'
+import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Copy, MapPin, Upload, DollarSign, Briefcase, ShoppingBag, User, Home, CreditCard, AlertCircle } from 'lucide-react'
 
 const PAGE_SIZE = 15
+
+const CUSTOMER_FORM_TABS = [
+  { key: 'basic', label: 'Basic Info', icon: User },
+  { key: 'address', label: 'Address', icon: Home },
+  { key: 'banking', label: 'Banking', icon: CreditCard },
+  { key: 'location', label: 'Location', icon: MapPin },
+]
 
 const emptyForm = {
   name: '', phone: '', email: '', city: '', bio: '', profileImage: '',
@@ -37,6 +44,7 @@ export default function Users() {
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
   const [showForm, setShowForm] = useState(false)
+  const [customerFormTab, setCustomerFormTab] = useState('basic')
   const [editUser, setEditUser] = useState(null)
   const [formData, setFormData] = useState({ ...emptyForm })
   const [formErrors, setFormErrors] = useState({})
@@ -95,24 +103,91 @@ export default function Users() {
 
   const validateForm = () => {
     const errors = {}
-    errors.name = validators.name(formData.name)
-    errors.phone = validators.phone(formData.phone)
-    errors.email = validators.email(formData.email)
-    if (formData.addressPincode && !/^\d{4,10}$/.test(formData.addressPincode)) {
-      errors.addressPincode = 'Pincode must be 4-10 digits'
+
+    // Name validation
+    if (!formData.name || !formData.name.trim()) {
+      errors.name = 'Full name is required'
+    } else if (formData.name.trim().length < 2) {
+      errors.name = 'Full name must be at least 2 characters'
+    } else if (!/^[a-zA-Z\s.'-]+$/.test(formData.name.trim())) {
+      errors.name = 'Name should only contain letters and spaces'
     }
+
+    // Phone validation
+    const cleanPhone = (formData.phone || '').replace(/\D/g, '')
+    if (!cleanPhone) {
+      errors.phone = 'Phone number is required'
+    } else if (cleanPhone.length !== 10) {
+      errors.phone = 'Phone number must be exactly 10 digits'
+    } else if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      errors.phone = 'Enter a valid Indian mobile number starting with 6-9'
+    }
+
+    // Email validation (optional)
+    if (formData.email && formData.email.trim()) {
+      if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(formData.email.trim())) {
+        errors.email = 'Enter a valid email address (e.g. name@example.com)'
+      }
+    }
+
+    // Pincode validation (optional)
+    if (formData.addressPincode && formData.addressPincode.trim()) {
+      const cleanPin = formData.addressPincode.trim().replace(/\D/g, '')
+      if (cleanPin.length !== 6) {
+        errors.addressPincode = 'Enter a valid 6-digit Indian pincode'
+      }
+    }
+
+    // UPI ID validation (optional)
+    if (formData.upiId && formData.upiId.trim()) {
+      if (!/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(formData.upiId.trim())) {
+        errors.upiId = 'Enter a valid UPI ID (e.g. user@oksbi or 9876543210@paytm)'
+      }
+    }
+
+    // Account Number validation (optional)
+    if (formData.accountNumber && formData.accountNumber.trim()) {
+      const cleanAcc = formData.accountNumber.trim().replace(/\D/g, '')
+      if (cleanAcc.length < 9 || cleanAcc.length > 18) {
+        errors.accountNumber = 'Account number must be 9 to 18 digits'
+      }
+    }
+
+    // IFSC Code validation (optional)
+    if (formData.ifscCode && formData.ifscCode.trim()) {
+      const cleanIfsc = formData.ifscCode.trim().toUpperCase()
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(cleanIfsc)) {
+        errors.ifscCode = 'Enter a valid 11-character IFSC code (e.g. HDFC0001234)'
+      }
+    }
+
+    // Coordinates validation (optional)
     if (formData.latitude && (isNaN(formData.latitude) || formData.latitude < -90 || formData.latitude > 90)) {
       errors.latitude = 'Latitude must be between -90 and 90'
     }
     if (formData.longitude && (isNaN(formData.longitude) || formData.longitude < -180 || formData.longitude > 180)) {
       errors.longitude = 'Longitude must be between -180 and 180'
     }
+
     setFormErrors(errors)
-    return !errors.name && !errors.phone && !errors.email && !errors.addressPincode && !errors.latitude && !errors.longitude
+
+    // Automatically navigate to the tab containing the error
+    if (errors.name || errors.phone || errors.email) {
+      setCustomerFormTab('basic')
+    } else if (errors.addressPincode) {
+      setCustomerFormTab('address')
+    } else if (errors.upiId || errors.accountNumber || errors.ifscCode) {
+      setCustomerFormTab('banking')
+    } else if (errors.latitude || errors.longitude) {
+      setCustomerFormTab('location')
+    }
+
+    return Object.keys(errors).length === 0
   }
 
   const openAdd = () => {
     setEditUser(null)
+    setCustomerFormTab('basic')
     setFormData({ ...emptyForm })
     setFormErrors({})
     setShowForm(true)
@@ -120,6 +195,7 @@ export default function Users() {
 
   const openEdit = (user) => {
     setEditUser(user)
+    setCustomerFormTab('basic')
     const addr = user.addresses?.find(a => a.isPrimary) || user.addresses?.[0] || {}
     setFormData({
       name: user.name || '',
@@ -145,7 +221,18 @@ export default function Users() {
   }
 
   const handleFieldChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    let sanitized = value
+    if (field === 'phone') {
+      sanitized = value.replace(/\D/g, '').slice(0, 10)
+    } else if (field === 'addressPincode') {
+      sanitized = value.replace(/\D/g, '').slice(0, 6)
+    } else if (field === 'accountNumber') {
+      sanitized = value.replace(/\D/g, '').slice(0, 18)
+    } else if (field === 'ifscCode') {
+      sanitized = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)
+    }
+
+    setFormData(prev => ({ ...prev, [field]: sanitized }))
     if (formErrors[field]) setFormErrors(prev => ({ ...prev, [field]: null }))
   }
 
@@ -556,84 +643,267 @@ export default function Users() {
         )
       })()}
 
-      {/* Add/Edit Form Modal */}
-      <Modal open={showForm} onClose={() => setShowForm(false)} title={editUser ? 'Edit Customer' : 'Add New Customer'} width="540px">
-        <form onSubmit={saveUser} noValidate>
-          {/* Profile Image */}
-          <div style={{ marginBottom: 16 }}>
-            <label className="form-label">Profile Image</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {formData.profileImage ? (
-                <img src={formData.profileImage} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} />
-              ) : (
-                <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--input-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--mid)', border: '2px dashed var(--border)' }}>👤</div>
-              )}
-              <div>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
-                <button type="button" className="btn-secondary" style={{ fontSize: 12 }} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                  <Upload size={14} /> {uploading ? 'Uploading...' : 'Upload Image'}
-                </button>
-                {formData.profileImage && (
-                  <button type="button" style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: 12, cursor: 'pointer', marginLeft: 8 }} onClick={() => handleFieldChange('profileImage', '')}>Remove</button>
+      {/* Add/Edit Form Modal (Tabbed) */}
+      <Modal open={showForm} onClose={() => !saving && setShowForm(false)} title={editUser ? 'Edit Customer' : 'Add New Customer'} width="560px">
+        <div style={{ display: 'flex', gap: 4, marginBottom: 18, borderBottom: '1px solid var(--border)', paddingBottom: 0, overflowX: 'auto' }}>
+          {CUSTOMER_FORM_TABS.map(tab => {
+            const Icon = tab.icon
+            const hasTabError = (tab.key === 'basic' && (formErrors.name || formErrors.phone || formErrors.email)) ||
+              (tab.key === 'address' && formErrors.addressPincode) ||
+              (tab.key === 'banking' && (formErrors.upiId || formErrors.accountNumber || formErrors.ifscCode)) ||
+              (tab.key === 'location' && (formErrors.latitude || formErrors.longitude))
+
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setCustomerFormTab(tab.key)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 14px',
+                  border: 'none',
+                  borderBottom: customerFormTab === tab.key ? '2px solid var(--primary)' : '2px solid transparent',
+                  background: 'transparent',
+                  color: customerFormTab === tab.key ? 'var(--primary)' : 'var(--mid)',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s',
+                  position: 'relative'
+                }}
+              >
+                <Icon size={14} />
+                {tab.label}
+                {hasTabError && (
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444', display: 'inline-block' }} />
                 )}
-              </div>
-            </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <form onSubmit={saveUser} noValidate>
+          <div style={{ minHeight: 300 }}>
+            {customerFormTab === 'basic' && (
+              <>
+                {/* Profile Image */}
+                <div style={{ marginBottom: 16 }}>
+                  <label className="input-label">Profile Image (Optional)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {formData.profileImage ? (
+                      <img src={formData.profileImage} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} />
+                    ) : (
+                      <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--input-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--mid)', border: '2px dashed var(--border)' }}>👤</div>
+                    )}
+                    <div>
+                      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                      <button type="button" className="btn-secondary" style={{ fontSize: 12 }} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                        <Upload size={14} /> {uploading ? 'Uploading...' : 'Upload Image'}
+                      </button>
+                      {formData.profileImage && (
+                        <button type="button" style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: 12, cursor: 'pointer', marginLeft: 8 }} onClick={() => handleFieldChange('profileImage', '')}>Remove</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <TextInput
+                  label="Full Name *"
+                  value={formData.name}
+                  onChange={e => handleFieldChange('name', e.target.value)}
+                  placeholder="e.g. Shyam Chauhan"
+                  required
+                  error={formErrors.name}
+                  disabled={saving}
+                  maxLength={100}
+                />
+                <TextInput
+                  label="Phone Number *"
+                  value={formData.phone}
+                  onChange={e => handleFieldChange('phone', e.target.value)}
+                  placeholder="10-digit mobile number (e.g. 9876543210)"
+                  required
+                  error={formErrors.phone}
+                  inputMode="numeric"
+                  maxLength={10}
+                  disabled={saving}
+                  hint="10-digit Indian mobile number starting with 6-9"
+                />
+                <TextInput
+                  label="Email Address"
+                  value={formData.email}
+                  onChange={e => handleFieldChange('email', e.target.value)}
+                  placeholder="e.g. customer@example.com"
+                  type="email"
+                  hint="Optional — for notifications & receipts"
+                  error={formErrors.email}
+                  disabled={saving}
+                  maxLength={100}
+                />
+                <TextInput
+                  label="City"
+                  value={formData.city}
+                  onChange={e => handleFieldChange('city', e.target.value)}
+                  placeholder="e.g. Ahmedabad"
+                  hint="Optional"
+                  disabled={saving}
+                  maxLength={50}
+                />
+
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label className="input-label">Bio (Optional)</label>
+                    <span style={{ fontSize: 11, color: 'var(--mid)' }}>{formData.bio?.length || 0}/500</span>
+                  </div>
+                  <textarea
+                    className="form-control"
+                    rows={2}
+                    value={formData.bio}
+                    onChange={e => handleFieldChange('bio', e.target.value)}
+                    placeholder="Short bio about the customer..."
+                    style={{ resize: 'vertical', minHeight: 52, fontSize: 13 }}
+                    maxLength={500}
+                    disabled={saving}
+                  />
+                </div>
+              </>
+            )}
+
+            {customerFormTab === 'address' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <label className="input-label">Address Label</label>
+                    <select
+                      className="form-control"
+                      value={formData.addressLabel}
+                      onChange={e => handleFieldChange('addressLabel', e.target.value)}
+                      style={{ fontSize: 13 }}
+                      disabled={saving}
+                    >
+                      <option value="Home">Home</option>
+                      <option value="Work">Work</option>
+                      <option value="Office">Office</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <TextInput
+                    label="Pincode"
+                    value={formData.addressPincode}
+                    onChange={e => handleFieldChange('addressPincode', e.target.value)}
+                    placeholder="e.g. 380001"
+                    inputMode="numeric"
+                    maxLength={6}
+                    hint="6-digit Indian pincode"
+                    error={formErrors.addressPincode}
+                    disabled={saving}
+                  />
+                </div>
+                <TextInput
+                  label="Street / Landmark"
+                  value={formData.addressStreet}
+                  onChange={e => handleFieldChange('addressStreet', e.target.value)}
+                  placeholder="e.g. 123, Dwarkesh Heavens, Opp. Bus Stand"
+                  hint="Optional"
+                  disabled={saving}
+                  maxLength={200}
+                />
+                <TextInput
+                  label="Area / Locality"
+                  value={formData.addressArea}
+                  onChange={e => handleFieldChange('addressArea', e.target.value)}
+                  placeholder="e.g. Chandkheda"
+                  hint="Optional"
+                  disabled={saving}
+                  maxLength={100}
+                />
+                <TextInput
+                  label="Address City"
+                  value={formData.addressCity}
+                  onChange={e => handleFieldChange('addressCity', e.target.value)}
+                  placeholder="e.g. Ahmedabad"
+                  hint="Optional"
+                  disabled={saving}
+                  maxLength={50}
+                />
+              </>
+            )}
+
+            {customerFormTab === 'banking' && (
+              <>
+                <div style={{ marginBottom: 16, padding: 10, background: 'rgba(0, 180, 216, 0.08)', borderRadius: 8, fontSize: 12, color: 'var(--primary)', border: '1px solid rgba(0, 180, 216, 0.2)' }}>
+                  💡 Banking & UPI details are optional and used for customer refunds, wallet payouts, or cashbacks.
+                </div>
+                <TextInput
+                  label="UPI ID"
+                  value={formData.upiId}
+                  onChange={e => handleFieldChange('upiId', e.target.value)}
+                  placeholder="e.g. user@oksbi or 9876543210@paytm"
+                  hint="Optional"
+                  error={formErrors.upiId}
+                  disabled={saving}
+                  maxLength={100}
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <TextInput
+                    label="Bank Name"
+                    value={formData.bankName}
+                    onChange={e => handleFieldChange('bankName', e.target.value)}
+                    placeholder="e.g. HDFC Bank"
+                    hint="Optional"
+                    disabled={saving}
+                    maxLength={100}
+                  />
+                  <TextInput
+                    label="Account Number"
+                    value={formData.accountNumber}
+                    onChange={e => handleFieldChange('accountNumber', e.target.value)}
+                    placeholder="e.g. 50100234567"
+                    hint="9-18 digits"
+                    inputMode="numeric"
+                    maxLength={18}
+                    error={formErrors.accountNumber}
+                    disabled={saving}
+                  />
+                </div>
+                <TextInput
+                  label="IFSC Code"
+                  value={formData.ifscCode}
+                  onChange={e => handleFieldChange('ifscCode', e.target.value)}
+                  placeholder="e.g. HDFC0001234"
+                  hint="11 alphanumeric characters"
+                  maxLength={11}
+                  error={formErrors.ifscCode}
+                  disabled={saving}
+                />
+              </>
+            )}
+
+            {customerFormTab === 'location' && (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+                  <MapPin size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                  GPS Delivery Coordinates <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(Optional)</span>
+                </div>
+                <MapPicker
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  onChange={({ latitude, longitude }) => {
+                    handleFieldChange('latitude', latitude)
+                    handleFieldChange('longitude', longitude)
+                  }}
+                />
+              </>
+            )}
           </div>
 
-          <TextInput label="Full Name *" value={formData.name} onChange={e => handleFieldChange('name', e.target.value)} placeholder="e.g. John Doe" required error={formErrors.name} />
-          <TextInput label="Phone Number *" value={formData.phone} onChange={e => handleFieldChange('phone', e.target.value.replace(/[^0-9]/g, ''))} placeholder="e.g. 9876543210" required error={formErrors.phone} inputMode="numeric" maxLength={15} />
-          <TextInput label="Email" value={formData.email} onChange={e => handleFieldChange('email', e.target.value)} placeholder="e.g. john@example.com" type="email" hint="Optional" error={formErrors.email} />
-          <TextInput label="City" value={formData.city} onChange={e => handleFieldChange('city', e.target.value)} placeholder="e.g. Mumbai" hint="Optional" />
-
-          <div style={{ marginBottom: 12 }}>
-            <label className="form-label">Bio</label>
-            <textarea className="form-control" rows={2} value={formData.bio} onChange={e => handleFieldChange('bio', e.target.value)} placeholder="Short bio about the customer" style={{ resize: 'vertical', minHeight: 48, fontSize: 13 }} />
-          </div>
-
-          <div className="divider" style={{ margin: '16px 0' }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Address</div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div style={{ marginBottom: 12 }}>
-              <label className="form-label">Label</label>
-              <select className="form-control" value={formData.addressLabel} onChange={e => handleFieldChange('addressLabel', e.target.value)} style={{ fontSize: 13 }}>
-                <option value="Home">Home</option>
-                <option value="Office">Office</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <TextInput label="Pincode" value={formData.addressPincode} onChange={e => handleFieldChange('addressPincode', e.target.value.replace(/[^0-9]/g, ''))} placeholder="e.g. 400001" inputMode="numeric" maxLength={10} hint="Optional" error={formErrors.addressPincode} />
-          </div>
-          <TextInput label="Street / Landmark" value={formData.addressStreet} onChange={e => handleFieldChange('addressStreet', e.target.value)} placeholder="e.g. 123 Main St, near Park" hint="Optional" />
-          <TextInput label="Area / Locality" value={formData.addressArea} onChange={e => handleFieldChange('addressArea', e.target.value)} placeholder="e.g. Andheri West" hint="Optional" />
-          <TextInput label="Address City" value={formData.addressCity} onChange={e => handleFieldChange('addressCity', e.target.value)} placeholder="e.g. Mumbai" hint="Optional" />
-
-          <div className="divider" style={{ margin: '16px 0' }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Banking & Payout</div>
-          
-          <TextInput label="UPI ID" value={formData.upiId} onChange={e => handleFieldChange('upiId', e.target.value)} placeholder="e.g. user@okhdfcbank" hint="Optional" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <TextInput label="Bank Name" value={formData.bankName} onChange={e => handleFieldChange('bankName', e.target.value)} placeholder="e.g. HDFC Bank" hint="Optional" />
-            <TextInput label="Account Number" value={formData.accountNumber} onChange={e => handleFieldChange('accountNumber', e.target.value)} placeholder="e.g. 50100234567" hint="Optional" />
-          </div>
-          <TextInput label="IFSC Code" value={formData.ifscCode} onChange={e => handleFieldChange('ifscCode', e.target.value)} placeholder="e.g. HDFC0001234" hint="Optional" />
-
-          <div className="divider" style={{ margin: '16px 0' }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-            <MapPin size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-            Map Location <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(Optional)</span>
-          </div>
-          <MapPicker
-            latitude={formData.latitude}
-            longitude={formData.longitude}
-            onChange={({ latitude, longitude }) => {
-              handleFieldChange('latitude', latitude)
-              handleFieldChange('longitude', longitude)
-            }}
-          />
-
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+            <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)} disabled={saving}>
+              Cancel
+            </button>
             <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={saving || uploading}>
               {saving ? 'Saving...' : editUser ? 'Update Customer' : 'Create Customer'}
             </button>

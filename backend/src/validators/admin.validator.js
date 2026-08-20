@@ -1,17 +1,19 @@
 const Joi = require('joi');
 
 const addressSchema = Joi.object({
-    label: Joi.string().max(50).optional(),
-    street: Joi.string().max(200).optional(),
-    area: Joi.string().max(200).optional(),
-    city: Joi.string().max(100).optional(),
-    pincode: Joi.string().pattern(/^\d{4,10}$/).optional()
-}).optional();
+    label: Joi.string().max(50).allow('', null).optional(),
+    street: Joi.string().max(200).allow('', null).optional(),
+    area: Joi.string().max(200).allow('', null).optional(),
+    city: Joi.string().max(100).allow('', null).optional(),
+    pincode: Joi.string().pattern(/^\d{6}$/).allow('', null).optional().messages({
+        'string.pattern.base': 'Pincode must be a valid 6-digit Indian pincode'
+    })
+}).allow(null).optional();
 
 const locationSchema = Joi.object({
     latitude: Joi.number().min(-90).max(90).optional(),
     longitude: Joi.number().min(-180).max(180).optional()
-}).optional();
+}).allow(null).optional();
 
 const serviceSchema = Joi.object({
     category: Joi.string().optional(),
@@ -20,31 +22,32 @@ const serviceSchema = Joi.object({
 }).optional();
 
 const bankDetailsSchema = Joi.object({
-    accountNumber: Joi.string().max(20).allow('', null).optional(),
+    accountNumber: Joi.string().max(25).allow('', null).optional(),
     ifscCode: Joi.string().max(15).allow('', null).optional(),
     bankName: Joi.string().max(100).allow('', null).optional()
-}).optional();
+}).allow(null).optional();
 
 const createUserSchema = Joi.object({
-    name: Joi.string().min(2).max(100).pattern(/^[a-zA-Z\s]+$/).required().messages({
+    name: Joi.string().min(2).max(100).pattern(/^[a-zA-Z\s.'-]+$/).required().messages({
         'string.min': 'Name must be at least 2 characters',
         'string.pattern.base': 'Name should only contain letters and spaces',
-        'string.empty': 'Name is required',
-        'any.required': 'Name is required'
+        'string.empty': 'Full name is required',
+        'any.required': 'Full name is required'
     }),
-    phone: Joi.string().pattern(/^\d{10,15}$/).required().messages({
-        'string.pattern.base': 'Phone must be 10-15 digits',
-        'any.required': 'Phone number is required'
+    phone: Joi.string().pattern(/^[6-9]\d{9}$/).required().messages({
+        'string.pattern.base': 'Enter a valid 10-digit Indian phone number starting with 6-9',
+        'any.required': 'Phone number is required',
+        'string.empty': 'Phone number is required'
     }),
     email: Joi.string().email().allow('', null).optional().messages({
         'string.email': 'Enter a valid email address'
     }),
     role: Joi.string().valid('CUSTOMER', 'WORKER', 'ADMIN', 'SHOP').required(),
-    password: Joi.string().min(6).optional().messages({
+    password: Joi.string().min(6).allow('', null).optional().messages({
         'string.min': 'Password must be at least 6 characters'
     }),
-    city: Joi.string().max(100).optional(),
-    bio: Joi.string().max(500).optional().messages({
+    city: Joi.string().max(100).allow('', null).optional(),
+    bio: Joi.string().max(500).allow('', null).optional().messages({
         'string.max': 'Bio must be under 500 characters'
     }),
     profileImage: Joi.string().allow('', null).optional(),
@@ -63,18 +66,18 @@ const createUserSchema = Joi.object({
 });
 
 const updateUserSchema = Joi.object({
-    name: Joi.string().min(2).max(100).pattern(/^[a-zA-Z\s]+$/).optional().messages({
+    name: Joi.string().min(2).max(100).pattern(/^[a-zA-Z\s.'-]+$/).optional().messages({
         'string.min': 'Name must be at least 2 characters',
         'string.pattern.base': 'Name should only contain letters and spaces'
     }),
-    phone: Joi.string().pattern(/^\d{10,15}$/).optional().messages({
-        'string.pattern.base': 'Phone must be 10-15 digits'
+    phone: Joi.string().pattern(/^[6-9]\d{9}$/).optional().messages({
+        'string.pattern.base': 'Enter a valid 10-digit Indian phone number starting with 6-9'
     }),
     email: Joi.string().email().allow('', null).optional().messages({
         'string.email': 'Enter a valid email address'
     }),
-    city: Joi.string().max(100).optional(),
-    bio: Joi.string().max(500).optional().messages({
+    city: Joi.string().max(100).allow('', null).optional(),
+    bio: Joi.string().max(500).allow('', null).optional().messages({
         'string.max': 'Bio must be under 500 characters'
     }),
     profileImage: Joi.string().allow('', null).optional(),
@@ -89,7 +92,7 @@ const updateUserSchema = Joi.object({
     wallet: Joi.object({
         bankDetails: bankDetailsSchema,
         upiId: Joi.string().max(50).allow('', null).optional()
-    }).optional()
+    }).allow(null).optional()
 });
 
 const updateKYCSchema = Joi.object({
