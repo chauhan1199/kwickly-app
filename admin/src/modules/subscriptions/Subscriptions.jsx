@@ -3,6 +3,7 @@ import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { isAbortError } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
+import Modal from '../../components/Modal'
 
 const planColor = { trial: 'badge-purple', monthly: 'badge-primary', annual: 'badge-success', expired: 'badge-danger' }
 
@@ -22,57 +23,51 @@ function EditPlanModal({ plan, onSave, onClose }) {
   const removeFeat = (i) => setForm(p => ({ ...p, features: p.features.filter((_, j) => j !== i) }))
   
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 480 }}>
-        <div className="modal-header">
-          <div style={{ fontWeight: 800, fontSize: 16 }}>{plan.icon} Edit {plan.name} Plan</div>
-          <button className="drawer-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          {isNew && (
-            <div className="form-group" style={{ marginBottom: 16 }}>
-              <label className="form-label">Plan Name</label>
-              <input className="form-control" type="text" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Shop Premium" />
-            </div>
-          )}
-          <div className="grid-2">
-            <div className="form-group">
-              <label className="form-label">Price (₹)</label>
-              <input className="form-control" type="number" value={form.price} onChange={e => set('price', +e.target.value)} disabled={plan.id === 'trial'} />
-              {plan.id === 'trial' && <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Trial plan is always free</div>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Duration ({plan.durationUnit})</label>
-              <input className="form-control" type="number" value={form.durationDays} onChange={e => set('durationDays', +e.target.value)} />
-            </div>
+    <Modal open={true} onClose={onClose} title={`${plan.icon || '💳'} ${isNew ? 'Create New' : 'Edit ' + plan.name} Plan`} width="480px">
+      <div>
+        {isNew && (
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label className="form-label">Plan Name</label>
+            <input className="form-control" type="text" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Shop Premium" />
+          </div>
+        )}
+        <div className="grid-2">
+          <div className="form-group">
+            <label className="form-label">Price (₹)</label>
+            <input className="form-control" type="number" value={form.price} onChange={e => set('price', +e.target.value)} disabled={plan.id === 'trial'} />
+            {plan.id === 'trial' && <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Trial plan is always free</div>}
           </div>
           <div className="form-group">
-            <label className="form-label">Features</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-              {form.features.map((f, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-dark)', borderRadius: 8, padding: '8px 12px' }}>
-                  <span style={{ color: 'var(--success)', fontWeight: 700 }}>✓</span>
-                  <span style={{ flex: 1, fontSize: 13 }}>{f}</span>
-                  <button onClick={() => removeFeat(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 14 }}>✕</button>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input className="form-control" placeholder="Add feature..." value={newFeat} onChange={e => setNewFeat(e.target.value)} onKeyDown={e => e.key === 'Enter' && addFeat()} style={{ flex: 1 }} />
-              <button className="btn btn-outline btn-sm" onClick={addFeat}>+ Add</button>
-            </div>
+            <label className="form-label">Duration ({plan.durationUnit || 'days'})</label>
+            <input className="form-control" type="number" value={form.durationDays} onChange={e => set('durationDays', +e.target.value)} />
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => {
+        <div className="form-group">
+          <label className="form-label">Features</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+            {form.features.map((f, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--input-bg)', borderRadius: 8, padding: '8px 12px', border: '1px solid var(--border)' }}>
+                <span style={{ color: 'var(--success)', fontWeight: 700 }}>✓</span>
+                <span style={{ flex: 1, fontSize: 13 }}>{f}</span>
+                <button onClick={() => removeFeat(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 14 }}>✕</button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input className="form-control" placeholder="Add feature..." value={newFeat} onChange={e => setNewFeat(e.target.value)} onKeyDown={e => e.key === 'Enter' && addFeat()} style={{ flex: 1 }} />
+            <button type="button" className="btn-secondary" onClick={addFeat}>+ Add</button>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+          <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={() => {
             const finalFeatures = [...form.features];
             if (newFeat.trim()) finalFeatures.push(newFeat.trim());
             onSave({ ...plan, ...form, features: finalFeatures });
           }}>💾 Save Plan</button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 

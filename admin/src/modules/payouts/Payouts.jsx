@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
+import Drawer from '../../components/common/Drawer'
+import Modal from '../../components/Modal'
+import Toast from '../../components/Toast'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const statusColor = { pending:'badge-warning', approved:'badge-primary', transferred:'badge-success', rejected:'badge-danger' }
 
@@ -197,7 +200,7 @@ export default function Payouts() {
 
   return (
     <div>
-      {toast&&<div style={{position:'fixed',bottom:24,right:24,zIndex:999,background:'#0F172A',color:'white',padding:'12px 20px',borderRadius:12,fontWeight:600,fontSize:14,animation:'slideUp 0.3s ease',boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>✓ {toast}</div>}
+      {toast && <Toast message={toast} type="success" onClose={() => setToast('')} />}
 
       <div className="page-header">
         <div>
@@ -249,92 +252,88 @@ export default function Payouts() {
       )}
 
       {/* Payout Detail Drawer */}
-      {selectedFresh&&(
-        <>
-          <div className="drawer-overlay" onClick={()=>setSelected(null)}/>
-          <div className="drawer">
-            <div className="drawer-header">
-              <div style={{fontWeight:800,fontSize:16}}>Payout Request</div>
-              <button className="drawer-close" onClick={()=>setSelected(null)}>✕</button>
+      <Drawer
+        open={Boolean(selectedFresh)}
+        onClose={() => setSelected(null)}
+        title="Payout Request"
+        subtitle={selectedFresh ? `${selectedFresh.wid} · ${selectedFresh.worker}` : ''}
+        width="440px"
+      >
+        {selectedFresh && (
+          <div>
+            <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:20}}>
+              <div className="avatar avatar-lg" style={{background:selectedFresh.role==='SHOP'?'linear-gradient(135deg,var(--success),var(--teal))':'linear-gradient(135deg,var(--primary),var(--purple))'}}>{selectedFresh.worker.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
+              <div>
+                <div style={{fontWeight:800,fontSize:18}}>{selectedFresh.worker}</div>
+                <div style={{color:'var(--mid)',fontFamily:'var(--font-body)',fontSize:13}}>{selectedFresh.wid} · {selectedFresh.role==='SHOP'?'Shop Owner':selectedFresh.category} · {selectedFresh.city}</div>
+                <div style={{marginTop:6}}><span className={`badge ${statusColor[selectedFresh.status]}`}>{selectedFresh.status}</span></div>
+              </div>
             </div>
-            <div className="drawer-body">
-              <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:20}}>
-                <div className="avatar avatar-lg" style={{background:selectedFresh.role==='SHOP'?'linear-gradient(135deg,var(--success),var(--teal))':'linear-gradient(135deg,var(--primary),var(--purple))'}}>{selectedFresh.worker.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
-                <div>
-                  <div style={{fontWeight:800,fontSize:18}}>{selectedFresh.worker}</div>
-                  <div style={{color:'var(--mid)',fontFamily:'var(--font-body)',fontSize:13}}>{selectedFresh.wid} · {selectedFresh.role==='SHOP'?'Shop Owner':selectedFresh.category} · {selectedFresh.city}</div>
-                  <div style={{marginTop:6}}><span className={`badge ${statusColor[selectedFresh.status]}`}>{selectedFresh.status}</span></div>
-                </div>
-              </div>
-              <div className="grid-3" style={{marginBottom:16}}>
-                {[{label:'Wallet Balance',value:`₹${selectedFresh.balance}`},{label:'Requested',value:`₹${selectedFresh.requested}`},{label:'After Payout',value:`₹${selectedFresh.balance-selectedFresh.requested}`}].map((s,i)=>(
-                  <div key={i} className="card" style={{padding:14,textAlign:'center'}}>
-                    <div style={{fontWeight:800,fontSize:16}}>{s.value}</div>
-                    <div style={{fontSize:11,color:'var(--mid)',fontFamily:'var(--font-body)'}}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="divider"/>
-              <div style={{fontSize:12,fontWeight:700,color:'var(--mid)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:10}}>Payment Details</div>
-              {[{l:'Method',v:selectedFresh.upi?'UPI':'Bank Transfer'},{l:'Account',v:selectedFresh.upi||selectedFresh.bank},{l:'Requested On',v:selectedFresh.requestedAt},{l:'Txn ID',v:selectedFresh.txnId||'—'}].map((r,i)=>(
-                <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--bg)'}}>
-                  <span style={{fontSize:12,color:'var(--mid)'}}>{r.l}</span>
-                  <span style={{fontWeight:600,fontSize:13,fontFamily:'monospace'}}>{r.v}</span>
+            <div className="grid-3" style={{marginBottom:16}}>
+              {[{label:'Wallet Balance',value:`₹${selectedFresh.balance}`},{label:'Requested',value:`₹${selectedFresh.requested}`},{label:'After Payout',value:`₹${selectedFresh.balance-selectedFresh.requested}`}].map((s,i)=>(
+                <div key={i} className="card" style={{padding:14,textAlign:'center'}}>
+                  <div style={{fontWeight:800,fontSize:16}}>{s.value}</div>
+                  <div style={{fontSize:11,color:'var(--mid)',fontFamily:'var(--font-body)'}}>{s.label}</div>
                 </div>
               ))}
-              <div className="divider"/>
-              {selectedFresh.status==='pending'&&(
-                <div style={{display:'flex',gap:10}}>
-                  <button className="btn btn-success" style={{flex:1}} onClick={()=>setConfirmModal({type:'approve',payout:selectedFresh})}>✓ Approve</button>
-                  <button className="btn btn-danger"  style={{flex:1}} onClick={()=>setConfirmModal({type:'reject',payout:selectedFresh})}>✕ Reject</button>
-                </div>
-              )}
-              {selectedFresh.status==='approved'&&(
-                <button className="btn btn-primary" style={{width:'100%'}} onClick={()=>setConfirmModal({type:'transfer',payout:selectedFresh})}>💸 Mark as Transferred</button>
-              )}
             </div>
+            <div className="divider"/>
+            <div style={{fontSize:12,fontWeight:700,color:'var(--mid)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:10}}>Payment Details</div>
+            {[{l:'Method',v:selectedFresh.upi?'UPI':'Bank Transfer'},{l:'Account',v:selectedFresh.upi||selectedFresh.bank},{l:'Requested On',v:selectedFresh.requestedAt},{l:'Txn ID',v:selectedFresh.txnId||'—'}].map((r,i)=>(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--bg)'}}>
+                <span style={{fontSize:12,color:'var(--mid)'}}>{r.l}</span>
+                <span style={{fontWeight:600,fontSize:13,fontFamily:'monospace'}}>{r.v}</span>
+              </div>
+            ))}
+            <div className="divider"/>
+            {selectedFresh.status==='pending'&&(
+              <div style={{display:'flex',gap:10}}>
+                <button className="btn btn-success" style={{flex:1}} onClick={()=>setConfirmModal({type:'approve',payout:selectedFresh})}>✓ Approve</button>
+                <button className="btn btn-danger"  style={{flex:1}} onClick={()=>setConfirmModal({type:'reject',payout:selectedFresh})}>✕ Reject</button>
+              </div>
+            )}
+            {selectedFresh.status==='approved'&&(
+              <button className="btn btn-primary" style={{width:'100%'}} onClick={()=>setConfirmModal({type:'transfer',payout:selectedFresh})}>💸 Mark as Transferred</button>
+            )}
           </div>
-        </>
-      )}
+        )}
+      </Drawer>
 
       {/* Confirm modals */}
-      {confirmModal&&(
-        <div className="modal-overlay">
-          <div className="modal" style={{maxWidth:420}}>
-            <div className="modal-header">
-              <div style={{fontWeight:800,fontSize:16}}>
-                {confirmModal.type==='approve'?'Approve Payout':confirmModal.type==='transfer'?'Mark as Transferred':'Reject Payout'}
-              </div>
-              <button className="drawer-close" onClick={()=>{setConfirmModal(null);setRejectReason('')}}>✕</button>
-            </div>
-            <div className="modal-body">
-              {confirmModal.type==='approve'&&<p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6}}>Approve ₹{confirmModal.payout.requested.toLocaleString()} payout to <strong>{confirmModal.payout.worker}</strong> via {confirmModal.payout.upi||confirmModal.payout.bank}?</p>}
-              {confirmModal.type==='transfer'&&<p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6}}>Confirm that ₹{confirmModal.payout.requested.toLocaleString()} has been physically transferred to <strong>{confirmModal.payout.worker}</strong>? A transaction ID will be generated.</p>}
-              {confirmModal.type==='reject'&&(
-                <>
-                  <p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6,marginBottom:12}}>Reject payout request from <strong>{confirmModal.payout.worker}</strong>?</p>
-                  <div className="form-group">
-                    <label className="form-label">Reason</label>
-                    <select className="form-control" value={rejectReason} onChange={e=>setRejectReason(e.target.value)}>
-                      <option value="">Select reason...</option>
-                      <option>Insufficient wallet balance</option>
-                      <option>UPI / bank details mismatch</option>
-                      <option>KYC verification pending</option>
-                      <option>Suspicious activity detected</option>
-                      <option>Minimum withdrawal amount not met</option>
-                    </select>
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={()=>{setConfirmModal(null);setRejectReason('')}}>Cancel</button>
-              {confirmModal.type==='approve'&&<button className="btn btn-success" onClick={()=>approve(confirmModal.payout.id)}>✓ Approve</button>}
-              {confirmModal.type==='transfer'&&<button className="btn btn-primary" onClick={()=>transfer(confirmModal.payout.id)}>💸 Confirm Transfer</button>}
-              {confirmModal.type==='reject'&&<button className="btn btn-danger" disabled={!rejectReason} onClick={()=>reject(confirmModal.payout.id,rejectReason)}>✕ Reject</button>}
+      {confirmModal && (
+        <Modal
+          open={true}
+          onClose={() => { setConfirmModal(null); setRejectReason('') }}
+          title={confirmModal.type==='approve'?'Approve Payout':confirmModal.type==='transfer'?'Mark as Transferred':'Reject Payout'}
+          width="420px"
+        >
+          <div>
+            {confirmModal.type==='approve'&&<p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6}}>Approve ₹{confirmModal.payout.requested.toLocaleString()} payout to <strong>{confirmModal.payout.worker}</strong> via {confirmModal.payout.upi||confirmModal.payout.bank}?</p>}
+            {confirmModal.type==='transfer'&&<p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6}}>Confirm that ₹{confirmModal.payout.requested.toLocaleString()} has been physically transferred to <strong>{confirmModal.payout.worker}</strong>? A transaction ID will be generated.</p>}
+            {confirmModal.type==='reject'&&(
+              <>
+                <p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6,marginBottom:12}}>Reject payout request from <strong>{confirmModal.payout.worker}</strong>?</p>
+                <div className="form-group">
+                  <label className="form-label">Reason *</label>
+                  <select className="form-control" value={rejectReason} onChange={e=>setRejectReason(e.target.value)}>
+                    <option value="">Select reason...</option>
+                    <option>Insufficient wallet balance</option>
+                    <option>UPI / bank details mismatch</option>
+                    <option>KYC verification pending</option>
+                    <option>Suspicious activity detected</option>
+                    <option>Minimum withdrawal amount not met</option>
+                  </select>
+                </div>
+              </>
+            )}
+            <div style={{display:'flex',gap:10,marginTop:20,paddingTop:14,borderTop:'1px solid var(--border)'}}>
+              <button type="button" className="btn-secondary" style={{flex:1}} onClick={()=>{setConfirmModal(null);setRejectReason('')}}>Cancel</button>
+              {confirmModal.type==='approve'&&<button type="button" className="btn-primary" style={{flex:1}} onClick={()=>approve(confirmModal.payout.id)}>✓ Approve</button>}
+              {confirmModal.type==='transfer'&&<button type="button" className="btn-primary" style={{flex:1}} onClick={()=>transfer(confirmModal.payout.id)}>💸 Confirm Transfer</button>}
+              {confirmModal.type==='reject'&&<button type="button" className="btn-danger" style={{flex:1}} disabled={!rejectReason} onClick={()=>reject(confirmModal.payout.id,rejectReason)}>✕ Reject</button>}
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

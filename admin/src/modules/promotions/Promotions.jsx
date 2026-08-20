@@ -186,26 +186,9 @@ function BannerFormModal({ open, onClose, editing, onSaved, showToast, api }) {
     finally { setSaving(false) }
   }
 
-  if (!open) return null
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-      onClick={onClose}>
-      <div style={{ background: 'var(--sidebar-bg, #0d0d1a)', border: '1px solid var(--border)', borderRadius: 16, width: '100%', maxWidth: 620, maxHeight: '90vh', overflow: 'auto', padding: 28 }}
-        onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#6366f122', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Image size={20} color="#6366f1" />
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>{editing ? 'Edit Banner' : 'Add Banner'}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Banners display to customers on the mobile app</div>
-          </div>
-          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
-            <XCircle size={20} />
-          </button>
-        </div>
-
+    <Modal open={open} onClose={onClose} title={editing ? 'Edit Banner' : 'Add Banner'} width="620px">
+      <div>
         {/* Banner Preview */}
         {form.imageUrl && /^https?:\/\/.+/.test(form.imageUrl) && (
           <div style={{ marginBottom: 20, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative', height: 120 }}>
@@ -255,7 +238,7 @@ function BannerFormModal({ open, onClose, editing, onSaved, showToast, api }) {
             <Input type="date" value={form.endAt} onChange={e => set('endAt', e.target.value)} error={errors.endAt} />
           </FormField>
           <div style={{ gridColumn: '1/-1', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => set('isActive', !form.isActive)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button type="button" onClick={() => set('isActive', !form.isActive)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
               {form.isActive
                 ? <ToggleRight size={28} color="#22c55e" />
                 : <ToggleLeft size={28} color="var(--text-muted)" />}
@@ -266,15 +249,15 @@ function BannerFormModal({ open, onClose, editing, onSaved, showToast, api }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} className="btn btn-secondary" style={{ padding: '9px 20px' }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ padding: '9px 24px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end', paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <button type="button" onClick={onClose} className="btn-secondary" style={{ padding: '9px 20px' }}>Cancel</button>
+          <button type="button" onClick={handleSave} disabled={saving} className="btn-primary" style={{ padding: '9px 24px', display: 'flex', alignItems: 'center', gap: 8 }}>
             {saving ? <span className="spinner-sm" /> : <CheckCircle size={15} />}
             {editing ? 'Update Banner' : 'Create Banner'}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -324,29 +307,12 @@ function PromoFormModal({ open, onClose, editing, onSaved, showToast, api }) {
     finally { setSaving(false) }
   }
 
-  if (!open) return null
   const promoType = PROMO_TYPES.find(p => p.value === form.type)
   const isPercent = form.type === 'PERCENTAGE_DISCOUNT'
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-      onClick={onClose}>
-      <div style={{ background: 'var(--sidebar-bg, #0d0d1a)', border: '1px solid var(--border)', borderRadius: 16, width: '100%', maxWidth: 640, maxHeight: '92vh', overflow: 'auto', padding: 28 }}
-        onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#f59e0b22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Tag size={20} color="#f59e0b" />
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>{editing ? 'Edit Promo Code' : 'Create Promo Code'}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Customers use this code during checkout on the mobile app</div>
-          </div>
-          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <XCircle size={20} />
-          </button>
-        </div>
-
+    <Modal open={open} onClose={onClose} title={editing ? 'Edit Promo Code' : 'Create Promo Code'} width="640px">
+      <div>
         {/* Code preview pill */}
         {form.code && (
           <div style={{ marginBottom: 20, background: '#f59e0b11', border: '1px dashed #f59e0b55', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -368,34 +334,18 @@ function PromoFormModal({ open, onClose, editing, onSaved, showToast, api }) {
             <Input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Summer Sale 50% Off" error={errors.title} />
           </FormField>
           <div style={{ gridColumn: '1/-1' }}>
-            <FormField label="Description">
-              <Textarea value={form.description} onChange={e => set('description', e.target.value)} placeholder="Describe the offer for customers..." rows={2} />
+            <FormField label="Description (optional)">
+              <Input value={form.description} onChange={e => set('description', e.target.value)} placeholder="e.g. Get 50% off up to ₹200 on all salon services" />
             </FormField>
           </div>
-
-          {/* Discount Type selector */}
-          <div style={{ gridColumn: '1/-1' }}>
-            <FormField label="Discount Type" required>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {PROMO_TYPES.map(pt => (
-                  <button key={pt.value} onClick={() => set('type', pt.value)} style={{
-                    padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                    border: `1.5px solid ${form.type === pt.value ? '#f59e0b' : 'var(--border)'}`,
-                    background: form.type === pt.value ? '#f59e0b22' : 'transparent',
-                    color: form.type === pt.value ? '#f59e0b' : 'var(--text-muted)',
-                    transition: 'all 0.15s', textAlign: 'left'
-                  }}>
-                    <div style={{ fontSize: 16, marginBottom: 2 }}>{pt.icon}</div>
-                    <div>{pt.label.split('(')[0].trim()}</div>
-                  </button>
-                ))}
-              </div>
-            </FormField>
-          </div>
-
-          <FormField label={isPercent ? 'Discount (%)' : 'Discount Value (₹)'} required error={errors.value}>
+          <FormField label="Discount Type" required>
+            <Select value={form.type} onChange={e => set('type', e.target.value)}>
+              {PROMO_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </Select>
+          </FormField>
+          <FormField label={isPercent ? 'Discount (%)' : 'Discount Amount (₹)'} required error={errors.value}>
             <div style={{ position: 'relative' }}>
-              <Input type="number" value={form.value} onChange={e => set('value', e.target.value)} placeholder={isPercent ? '10' : '50'} min={0} max={isPercent ? 100 : undefined} error={errors.value} style={{ paddingLeft: 36 }} />
+              <Input type="number" value={form.value} onChange={e => set('value', e.target.value)} placeholder={isPercent ? '50' : '100'} min={1} max={isPercent ? 100 : undefined} error={errors.value} style={{ paddingLeft: 36 }} />
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: 600 }}>{isPercent ? '%' : '₹'}</span>
             </div>
           </FormField>
@@ -426,7 +376,7 @@ function PromoFormModal({ open, onClose, editing, onSaved, showToast, api }) {
             <Input type="date" value={form.endAt} onChange={e => set('endAt', e.target.value)} error={errors.endAt} />
           </FormField>
           <div style={{ gridColumn: '1/-1', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => set('isActive', !form.isActive)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button type="button" onClick={() => set('isActive', !form.isActive)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
               {form.isActive
                 ? <ToggleRight size={28} color="#22c55e" />
                 : <ToggleLeft size={28} color="var(--text-muted)" />}
@@ -437,15 +387,15 @@ function PromoFormModal({ open, onClose, editing, onSaved, showToast, api }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} className="btn btn-secondary" style={{ padding: '9px 20px' }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ padding: '9px 24px', display: 'flex', alignItems: 'center', gap: 8, background: '#f59e0b', borderColor: '#f59e0b' }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end', paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <button type="button" onClick={onClose} className="btn-secondary" style={{ padding: '9px 20px' }}>Cancel</button>
+          <button type="button" onClick={handleSave} disabled={saving} className="btn-primary" style={{ padding: '9px 24px', display: 'flex', alignItems: 'center', gap: 8, background: '#f59e0b', borderColor: '#f59e0b' }}>
             {saving ? <span className="spinner-sm" /> : <CheckCircle size={15} />}
             {editing ? 'Update Promo' : 'Create Promo'}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -457,10 +407,8 @@ function PromoViewModal({ promo, onClose }) {
   const promoType = PROMO_TYPES.find(p => p.value === promo.type)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-      onClick={onClose}>
-      <div style={{ background: 'var(--sidebar-bg, #0d0d1a)', border: '1px solid var(--border)', borderRadius: 16, width: '100%', maxWidth: 500, padding: 28 }}
-        onClick={e => e.stopPropagation()}>
+    <Modal open={true} onClose={onClose} title={`Promo Code: ${promo.code}`} width="500px">
+      <div>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
           <div style={{ width: 44, height: 44, borderRadius: 10, background: '#f59e0b22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <span style={{ fontSize: 20 }}>{promoType?.icon || '🎁'}</span>
@@ -473,12 +421,11 @@ function PromoViewModal({ promo, onClose }) {
             <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: isExpired ? '#ef444422' : promo.isActive ? '#22c55e22' : '#94a3b822', color: isExpired ? '#ef4444' : promo.isActive ? '#22c55e' : '#94a3b8' }}>
               {isExpired ? 'Expired' : promo.isActive ? 'Active' : 'Inactive'}
             </span>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><XCircle size={18} /></button>
           </div>
         </div>
 
         {/* Usage bar */}
-        <div style={{ background: 'var(--card)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+        <div style={{ background: 'var(--card)', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Usage</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{promo.usesCount || 0} / {promo.maxUsesTotal || '∞'}</span>
@@ -501,20 +448,20 @@ function PromoViewModal({ promo, onClose }) {
             { label: 'Start', value: promo.startAt ? new Date(promo.startAt).toLocaleDateString('en-IN') : 'Immediately' },
             { label: 'Expires', value: promo.endAt ? new Date(promo.endAt).toLocaleDateString('en-IN') : 'Never' },
           ].map(({ label, value }) => (
-            <div key={label} style={{ background: 'var(--card)', borderRadius: 8, padding: '10px 14px' }}>
+            <div key={label} style={{ background: 'var(--card)', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{value}</div>
             </div>
           ))}
         </div>
         {promo.description && (
-          <div style={{ background: 'var(--card)', borderRadius: 8, padding: '10px 14px', marginTop: 10 }}>
+          <div style={{ background: 'var(--card)', borderRadius: 8, padding: '10px 14px', marginTop: 10, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Description (shown to customer)</div>
             <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>{promo.description}</div>
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -524,15 +471,8 @@ function BannerViewModal({ banner, onClose }) {
   const isActive = banner.isActive && (!banner.endAt || new Date(banner.endAt) > new Date()) && (!banner.startAt || new Date(banner.startAt) <= new Date())
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-      onClick={onClose}>
-      <div style={{ background: 'var(--sidebar-bg, #0d0d1a)', border: '1px solid var(--border)', borderRadius: 16, width: '100%', maxWidth: 480, padding: 24 }}
-        onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>Banner Details</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><XCircle size={18} /></button>
-        </div>
-
+    <Modal open={true} onClose={onClose} title="Banner Details" width="480px">
+      <div>
         {/* Image preview */}
         <div style={{ borderRadius: 10, overflow: 'hidden', height: 140, background: '#111', marginBottom: 16, position: 'relative' }}>
           <img src={banner.imageUrl} alt={banner.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display='none'} />
@@ -556,14 +496,14 @@ function BannerViewModal({ banner, onClose }) {
             { label: 'Start', value: banner.startAt ? new Date(banner.startAt).toLocaleDateString('en-IN') : 'Immediately' },
             { label: 'Expires', value: banner.endAt ? new Date(banner.endAt).toLocaleDateString('en-IN') : 'Never' },
           ].map(({ label, value }) => (
-            <div key={label} style={{ background: 'var(--card)', borderRadius: 8, padding: '10px 14px' }}>
+            <div key={label} style={{ background: 'var(--card)', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{value}</div>
             </div>
           ))}
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 

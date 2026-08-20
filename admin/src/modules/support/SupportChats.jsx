@@ -20,9 +20,12 @@ const SupportChats = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [sending, setSending] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState(null);
+  const [toast, setToast] = useState(null);
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
   const activeThreadRef = useRef(null);
+
+  const showToast = (msg, type = 'error') => setToast({ msg, type });
 
   useEffect(() => {
     fetchThreads();
@@ -70,7 +73,7 @@ const SupportChats = () => {
       setThreads(res.data?.data || []);
     } catch (err) {
       if (isAbortError(err)) return
-      Toast.error('Failed to load support threads');
+      showToast('Failed to load support threads');
     } finally {
       setLoadingThreads(false);
     }
@@ -94,7 +97,7 @@ const SupportChats = () => {
       ));
     } catch (err) {
       if (isAbortError(err)) return
-      Toast.error('Failed to load chat history');
+      showToast('Failed to load chat history');
     } finally {
       setLoadingMessages(false);
     }
@@ -152,7 +155,7 @@ const SupportChats = () => {
       setTimeout(scrollToBottom, 100);
       fetchThreads();
     } catch (err) {
-      Toast.error('Failed to send: ' + (err?.response?.data?.message || err.message));
+      showToast('Failed to send: ' + (err?.response?.data?.message || err.message));
     } finally {
       setSending(false);
     }
@@ -165,6 +168,7 @@ const SupportChats = () => {
 
   return (
     <div className="support-chats-container">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <div className="threads-sidebar">
         <div className="threads-header">
           <h2>Support Inbox</h2>

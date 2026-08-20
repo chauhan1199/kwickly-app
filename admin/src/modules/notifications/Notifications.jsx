@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { isAbortError } from '../../utils/errorUtils'
+import Toast from '../../components/Toast'
+import Modal from '../../components/Modal'
 
 const CITIES_LIST = ['Mumbai','Delhi','Bangalore','Ahmedabad','Pune','Chennai','Hyderabad','Kolkata','Jaipur','Surat']
 
@@ -22,109 +24,105 @@ function ComposeModal({ onSend, onClose }) {
   const estimatedReach = form.target==='customers' ? (form.city==='all'?'~24,000':' ~3,200') : (form.city==='all'?'~480':' ~60')
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth:560 }}>
-        <div className="modal-header">
-          <div style={{ fontWeight:800, fontSize:16 }}>📣 Compose Notification</div>
-          <button className="drawer-close" onClick={onClose}>✕</button>
+    <Modal open={true} onClose={onClose} title="📣 Compose Push Notification" width="560px">
+      <div style={{ maxHeight:'75vh', overflowY:'auto' }}>
+        {/* Templates */}
+        <div className="form-group">
+          <label className="form-label">Quick Templates</label>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {TEMPLATES.map((t,i)=>(
+              <button key={i} type="button" className="filter-chip" style={{ fontSize:11 }} onClick={()=>applyTemplate(t)}>{t.label}</button>
+            ))}
+          </div>
         </div>
-        <div className="modal-body" style={{ maxHeight:'75vh', overflowY:'auto' }}>
-          {/* Templates */}
-          <div className="form-group">
-            <label className="form-label">Quick Templates</label>
-            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-              {TEMPLATES.map((t,i)=>(
-                <button key={i} className="filter-chip" style={{ fontSize:11 }} onClick={()=>applyTemplate(t)}>{t.label}</button>
-              ))}
-            </div>
-          </div>
 
-          <div className="form-group">
-            <label className="form-label">Title *</label>
-            <input className="form-control" placeholder="e.g. Summer AC Offer!" value={form.title} onChange={e=>set('title',e.target.value)} maxLength={65} />
-            <div style={{ fontSize:10,color:'var(--light)',textAlign:'right',marginTop:2 }}>{form.title.length}/65</div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Message Body *</label>
-            <textarea className="form-control" placeholder="e.g. Book AC service starting ₹299..." value={form.body} onChange={e=>set('body',e.target.value)} rows={3} maxLength={200} />
-            <div style={{ fontSize:10,color:'var(--light)',textAlign:'right',marginTop:2 }}>{form.body.length}/200</div>
-          </div>
+        <div className="form-group">
+          <label className="form-label">Title *</label>
+          <input className="form-control" placeholder="e.g. Summer AC Offer!" value={form.title} onChange={e=>set('title',e.target.value)} maxLength={65} />
+          <div style={{ fontSize:10,color:'var(--light)',textAlign:'right',marginTop:2 }}>{form.title.length}/65</div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Message Body *</label>
+          <textarea className="form-control" placeholder="e.g. Book AC service starting ₹299..." value={form.body} onChange={e=>set('body',e.target.value)} rows={3} maxLength={200} />
+          <div style={{ fontSize:10,color:'var(--light)',textAlign:'right',marginTop:2 }}>{form.body.length}/200</div>
+        </div>
 
-          <div className="grid-2">
-            <div className="form-group">
-              <label className="form-label">Send To</label>
-              <select className="form-control" value={form.target} onChange={e=>set('target',e.target.value)}>
-                <option value="customers">All Customers</option>
-                <option value="workers">All Workers</option>
-                <option value="both">Everyone</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">City</label>
-              <select className="form-control" value={form.city} onChange={e=>set('city',e.target.value)}>
-                <option value="all">All Cities</option>
-                {['Mumbai','Delhi','Bangalore','Ahmedabad','Pune','Chennai','Hyderabad'].map(c=><option key={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
+        <div className="grid-2">
           <div className="form-group">
-            <label className="form-label">Filter by Category (optional)</label>
-            <select className="form-control" value={form.category} onChange={e=>set('category',e.target.value)}>
-              {CATEGORIES.map(c=><option key={c} value={c}>{c==='all'?'All Categories':c}</option>)}
+            <label className="form-label">Send To</label>
+            <select className="form-control" value={form.target} onChange={e=>set('target',e.target.value)}>
+              <option value="customers">All Customers</option>
+              <option value="workers">All Workers</option>
+              <option value="shops">All Shop Owners</option>
+              <option value="both">Everyone</option>
             </select>
           </div>
-
-          {/* Estimated reach */}
-          <div style={{ background:'var(--primary-light)', border:'1px solid var(--primary-mid)', borderRadius:10, padding:'10px 14px', marginBottom:16, display:'flex', alignItems:'center', gap:10 }}>
-            <span style={{ fontSize:20 }}>📡</span>
-            <div>
-              <div style={{ fontWeight:700, fontSize:13 }}>Estimated Reach: <span style={{ color:'var(--primary)' }}>{estimatedReach} devices</span></div>
-              <div style={{ fontSize:11, color:'var(--mid)', fontFamily:'var(--font-body)' }}>Based on target audience selection</div>
-            </div>
+          <div className="form-group">
+            <label className="form-label">City</label>
+            <select className="form-control" value={form.city} onChange={e=>set('city',e.target.value)}>
+              <option value="all">All Cities</option>
+              {['Mumbai','Delhi','Bangalore','Ahmedabad','Pune','Chennai','Hyderabad'].map(c=><option key={c}>{c}</option>)}
+            </select>
           </div>
-
-          {/* Schedule */}
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-            <button className={`toggle ${form.schedule?'on':''}`} onClick={()=>set('schedule',!form.schedule)} />
-            <span style={{ fontSize:13, fontWeight:600 }}>Schedule for later</span>
-          </div>
-          {form.schedule&&(
-            <div className="grid-2">
-              <div className="form-group">
-                <label className="form-label">Date</label>
-                <input className="form-control" type="date" value={form.scheduleDate} onChange={e=>set('scheduleDate',e.target.value)} min={new Date().toISOString().split('T')[0]} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Time</label>
-                <input className="form-control" type="time" value={form.scheduleTime} onChange={e=>set('scheduleTime',e.target.value)} />
-              </div>
-            </div>
-          )}
-
-          {/* Phone preview */}
-          {(form.title||form.body)&&(
-            <div style={{ background:'#1E293B', borderRadius:16, padding:16, marginTop:4 }}>
-              <div style={{ fontSize:10, color:'#64748B', marginBottom:8, textTransform:'uppercase', letterSpacing:1 }}>📱 Device Preview</div>
-              <div style={{ background:'white', borderRadius:12, padding:12, boxShadow:'0 4px 16px rgba(0,0,0,0.3)' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                  <div style={{ width:24,height:24,background:'linear-gradient(135deg,var(--primary),var(--purple))',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12 }}>🏠</div>
-                  <span style={{ fontSize:11, fontWeight:700 }}>Kwickly</span>
-                  <span style={{ fontSize:10, color:'var(--light)', marginLeft:'auto' }}>now</span>
-                </div>
-                <div style={{ fontSize:13, fontWeight:700, marginBottom:2 }}>{form.title||'Notification Title'}</div>
-                <div style={{ fontSize:11, color:'var(--mid)', fontFamily:'var(--font-body)', lineHeight:1.4 }}>{form.body||'Notification body...'}</div>
-              </div>
-            </div>
-          )}
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={!form.title||!form.body} onClick={()=>onSend(form)}>
+        <div className="form-group">
+          <label className="form-label">Filter by Category (optional)</label>
+          <select className="form-control" value={form.category} onChange={e=>set('category',e.target.value)}>
+            {CATEGORIES.map(c=><option key={c} value={c}>{c==='all'?'All Categories':c}</option>)}
+          </select>
+        </div>
+
+        {/* Estimated reach */}
+        <div style={{ background:'var(--primary-light)', border:'1px solid var(--primary-mid)', borderRadius:10, padding:'10px 14px', marginBottom:16, display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontSize:20 }}>📡</span>
+          <div>
+            <div style={{ fontWeight:700, fontSize:13 }}>Estimated Reach: <span style={{ color:'var(--primary)' }}>{estimatedReach} devices</span></div>
+            <div style={{ fontSize:11, color:'var(--mid)', fontFamily:'var(--font-body)' }}>Based on target audience selection</div>
+          </div>
+        </div>
+
+        {/* Schedule */}
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+          <button type="button" className={`toggle ${form.schedule?'on':''}`} onClick={()=>set('schedule',!form.schedule)} />
+          <span style={{ fontSize:13, fontWeight:600 }}>Schedule for later</span>
+        </div>
+        {form.schedule&&(
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Date</label>
+              <input className="form-control" type="date" value={form.scheduleDate} onChange={e=>set('scheduleDate',e.target.value)} min={new Date().toISOString().split('T')[0]} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Time</label>
+              <input className="form-control" type="time" value={form.scheduleTime} onChange={e=>set('scheduleTime',e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {/* Phone preview */}
+        {(form.title||form.body)&&(
+          <div style={{ background:'#1E293B', borderRadius:16, padding:16, marginTop:4 }}>
+            <div style={{ fontSize:10, color:'#64748B', marginBottom:8, textTransform:'uppercase', letterSpacing:1 }}>📱 Device Preview</div>
+            <div style={{ background:'white', borderRadius:12, padding:12, boxShadow:'0 4px 16px rgba(0,0,0,0.3)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                <div style={{ width:24,height:24,background:'linear-gradient(135deg,var(--primary),var(--purple))',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12 }}>🏠</div>
+                <span style={{ fontSize:11, fontWeight:700, color:'#0F172A' }}>Kwickly</span>
+                <span style={{ fontSize:10, color:'var(--light)', marginLeft:'auto' }}>now</span>
+              </div>
+              <div style={{ fontSize:13, fontWeight:700, marginBottom:2, color:'#0F172A' }}>{form.title||'Notification Title'}</div>
+              <div style={{ fontSize:11, color:'var(--mid)', fontFamily:'var(--font-body)', lineHeight:1.4 }}>{form.body||'Notification body...'}</div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display:'flex', gap:10, marginTop:20, paddingTop:14, borderTop:'1px solid var(--border)' }}>
+          <button type="button" className="btn-secondary" style={{ flex:1 }} onClick={onClose}>Cancel</button>
+          <button type="button" className="btn-primary" style={{ flex:1 }} disabled={!form.title||!form.body} onClick={()=>onSend(form)}>
             {form.schedule?'⏰ Schedule':'📣 Send Now'}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -188,7 +186,7 @@ export default function Notifications() {
 
   return (
     <div>
-      {toast&&<div style={{ position:'fixed',bottom:24,right:24,zIndex:999,background:'#0F172A',color:'white',padding:'12px 20px',borderRadius:12,fontWeight:600,fontSize:14,animation:'slideUp 0.3s ease',boxShadow:'0 8px 32px rgba(0,0,0,0.3)' }}>✓ {toast}</div>}
+      {toast && <Toast message={toast} type="success" onClose={() => setToast('')} />}
 
       <div className="page-header">
         <div>

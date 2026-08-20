@@ -5,6 +5,7 @@ import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
+import Drawer from '../../components/common/Drawer'
 import { Search, RefreshCw, Eye, Truck, XCircle, Copy } from 'lucide-react'
 
 const PAGE_SIZE = 15
@@ -227,72 +228,68 @@ export default function Orders() {
       </div>
 
       {/* Detail Drawer */}
-      {detail && (
-        <>
-          <div className="drawer-overlay" onClick={() => setDetail(null)} />
-          <div className="drawer" style={{ width: 520 }}>
-            <div className="drawer-header">
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>Order Details</div>
-                <div className="cell-muted">{detail._id}</div>
-              </div>
-              <button className="modal-close" onClick={() => setDetail(null)}>✕</button>
+      <Drawer
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        title="Order Details"
+        subtitle={detail ? (detail.orderNumber || detail._id) : ''}
+        width="520px"
+      >
+        {detail && (
+          <div>
+            {/* Status Banner */}
+            <div style={{ background: 'var(--input-bg)', borderRadius: 12, padding: 16, marginBottom: 20, textAlign: 'center', border: '1px solid var(--border)' }}>
+              <span className={`badge badge-${STATUS_VARIANT[detail.status] || 'gray'}`} style={{ fontSize: 13, padding: '6px 16px' }}>
+                {STATUS_LABEL[detail.status] || detail.status}
+              </span>
             </div>
-            <div className="drawer-body">
-              {/* Status Banner */}
-              <div style={{ background: 'var(--bg-dark)', borderRadius: 12, padding: 16, marginBottom: 20, textAlign: 'center' }}>
-                <span className={`badge badge-${STATUS_VARIANT[detail.status] || 'gray'}`} style={{ fontSize: 13, padding: '6px 16px' }}>
-                  {STATUS_LABEL[detail.status] || detail.status}
-                </span>
-              </div>
 
-              {/* Info Grid */}
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Details</div>
-              <div className="detail-grid">
-                <div className="detail-row"><span>Order #</span><strong>{detail.orderNumber || detail._id?.slice(-6)}</strong></div>
-                <div className="detail-row"><span>Customer</span><strong>{detail.customerId?.name || '—'} · {detail.customerId?.phone || '—'}</strong></div>
-                <div className="detail-row"><span>Shop</span><strong>{detail.shopId?.name || '—'}</strong></div>
-                <div className="detail-row"><span>Payment</span><strong>{detail.paymentMethod || '—'}</strong></div>
-                <div className="detail-row"><span>Delivery Address</span><strong>{detail.deliveryAddress || '—'}</strong></div>
-                <div className="detail-row"><span>Date</span><strong>{new Date(detail.createdAt).toLocaleString('en-IN')}</strong></div>
-              </div>
+            {/* Info Grid */}
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Details</div>
+            <div className="detail-grid">
+              <div className="detail-row"><span>Order #</span><strong>{detail.orderNumber || detail._id?.slice(-6)}</strong></div>
+              <div className="detail-row"><span>Customer</span><strong>{detail.customerId?.name || '—'} · {detail.customerId?.phone || '—'}</strong></div>
+              <div className="detail-row"><span>Shop</span><strong>{detail.shopId?.name || '—'}</strong></div>
+              <div className="detail-row"><span>Payment</span><strong>{detail.paymentMethod || '—'}</strong></div>
+              <div className="detail-row"><span>Delivery Address</span><strong>{detail.deliveryAddress || '—'}</strong></div>
+              <div className="detail-row"><span>Date</span><strong>{new Date(detail.createdAt).toLocaleString('en-IN')}</strong></div>
+            </div>
 
-              {/* Items */}
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Items</div>
-              <div style={{ background: 'var(--bg-dark)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                {(detail.items || []).map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < detail.items.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 13 }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--mid)' }}>Qty: {item.qty} × ₹{item.price}</div>
-                    </div>
-                    <div style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{(item.price * item.qty).toLocaleString('en-IN')}</div>
+            {/* Items */}
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Items</div>
+            <div style={{ background: 'var(--input-bg)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
+              {(detail.items || []).map((item, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < detail.items.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{item.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--mid)' }}>Qty: {item.qty} × ₹{item.price}</div>
                   </div>
-                ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 14px', background: 'var(--white)', fontWeight: 800 }}>
-                  <span>Total</span>
-                  <span style={{ color: 'var(--primary)' }}>₹{(detail.total || 0).toLocaleString('en-IN')}</span>
+                  <div style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{(item.price * item.qty).toLocaleString('en-IN')}</div>
                 </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 14px', background: 'var(--bg-card)', fontWeight: 800, borderTop: '1px solid var(--border)' }}>
+                <span>Total</span>
+                <span style={{ color: 'var(--primary)' }}>₹{(detail.total || 0).toLocaleString('en-IN')}</span>
               </div>
+            </div>
 
-              {/* Admin Actions */}
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Admin Actions</div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {getNextStatus(detail.status) && (
-                  <button className="btn-primary" style={{ flex: 1 }} onClick={() => { setConfirm({ type: 'advance', id: detail._id, name: `Order #${detail._id?.slice(-6)}`, next: getNextStatus(detail.status) }); setDetail(null); }}>
-                    Mark as {STATUS_LABEL[getNextStatus(detail.status)]}
-                  </button>
-                )}
-                {detail.status !== 'DELIVERED' && detail.status !== 'CANCELLED' && (
-                  <button className="btn-danger" style={{ flex: 1 }} onClick={() => { setConfirm({ type: 'cancel', id: detail._id, name: `Order #${detail._id?.slice(-6)}` }); setDetail(null); }}>
-                    Cancel Order
-                  </button>
-                )}
-              </div>
+            {/* Admin Actions */}
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Admin Actions</div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {getNextStatus(detail.status) && (
+                <button className="btn-primary" style={{ flex: 1 }} onClick={() => { setConfirm({ type: 'advance', id: detail._id, name: `Order #${detail._id?.slice(-6)}`, next: getNextStatus(detail.status) }); setDetail(null); }}>
+                  Mark as {STATUS_LABEL[getNextStatus(detail.status)]}
+                </button>
+              )}
+              {detail.status !== 'DELIVERED' && detail.status !== 'CANCELLED' && (
+                <button className="btn-danger" style={{ flex: 1 }} onClick={() => { setConfirm({ type: 'cancel', id: detail._id, name: `Order #${detail._id?.slice(-6)}` }); setDetail(null); }}>
+                  Cancel Order
+                </button>
+              )}
             </div>
           </div>
-        </>
-      )}
+        )}
+      </Drawer>
 
       {/* Confirm Modals */}
       {confirm?.type === 'advance' && (

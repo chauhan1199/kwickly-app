@@ -193,9 +193,31 @@ exports.createJob = catchAsync(async (req, res) => {
 
 // â”€â”€â”€ GET /api/v1/jobs (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getJobs = catchAsync(async (req, res) => {
-    const { status, limit = 20, page = 1 } = req.query;
+    const { status, search, limit = 20, page = 1 } = req.query;
     const query = {};
     if (status && status !== 'all') query.status = status.toUpperCase();
+
+    if (search && search.trim()) {
+        const regex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const matchingUsers = await Customer.find({
+            $or: [{ name: regex }, { phone: regex }]
+        }).select('_id');
+        const userIds = matchingUsers.map(u => u._id);
+
+        const searchOr = [
+            { category: regex },
+            { description: regex },
+            { 'address.city': regex },
+            { 'address.area': regex },
+            { customerId: { $in: userIds } },
+            { workerId: { $in: userIds } }
+        ];
+
+        if (mongoose.Types.ObjectId.isValid(search.trim())) {
+            searchOr.push({ _id: search.trim() });
+        }
+        query.$or = searchOr;
+    }
 
     const total = await Job.countDocuments(query);
     const jobs = await Job.find(query)
@@ -206,7 +228,7 @@ exports.getJobs = catchAsync(async (req, res) => {
         .skip((Number(page) - 1) * Number(limit))
         .lean();
 
-    return successResponse(res, { jobs, totalPages: Math.ceil(total / limit), currentPage: Number(page), totalJobs: total }, 'Jobs fetched');
+    return successResponse(res, { jobs, totalPages: Math.ceil(total / Number(limit)) || 1, currentPage: Number(page), totalJobs: total }, 'Jobs fetched');
 });
 
 // â”€â”€â”€ GET /api/v1/jobs/my (Customer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

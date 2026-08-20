@@ -4,6 +4,8 @@ import Badge from '../../components/common/Badge'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import ConfirmModal from '../../components/ConfirmModal'
+import Toast from '../../components/Toast'
+import Drawer from '../../components/common/Drawer'
 
 const ROLE_COLORS = { CUSTOMER: '#00B4D8', WORKER: '#8B5CF6', SHOP: '#10B981' }
 
@@ -171,14 +173,7 @@ export default function Wallets() {
 
   return (
     <div className="page">
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 999,
-          background: toast.type === 'error' ? '#EF4444' : '#0F172A',
-          color: 'white', padding: '12px 20px', borderRadius: 12,
-          fontWeight: 600, fontSize: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
-        }}>{toast.type === 'error' ? '✕' : '✓'} {toast.msg}</div>
-      )}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="page-header">
         <div>
@@ -364,108 +359,102 @@ export default function Wallets() {
       )}
 
       {/* Detail Drawer */}
-      {selected && (
-        <>
-          <div className="drawer-overlay" onClick={() => setSelected(null)} />
-          <div className="drawer" style={{ maxWidth: 440 }}>
-            <div className="drawer-header">
+      <Drawer
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        title="Wallet Management"
+        subtitle={selected ? (selected._role === 'SHOP' ? selected._displayName || selected.name : selected.name) : ''}
+        width="440px"
+      >
+        {selected && (
+          <div>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 16 }}>
+              <div className="avatar avatar-lg" style={{ background: `linear-gradient(135deg, ${ROLE_COLORS[selected._role]}, ${ROLE_COLORS[selected._role]}88)` }}>
+                {(selected._role === 'SHOP' ? selected._displayName : selected.name || '?')[0]?.toUpperCase()}
+              </div>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>Wallet Management</div>
-                <div style={{ fontSize: 12, color: 'var(--mid)' }}>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>
                   {selected._role === 'SHOP' ? selected._displayName || selected.name : selected.name}
                 </div>
+                <div style={{ color: 'var(--mid)', fontSize: 13 }}>
+                  {selected._role === 'SHOP' ? selected._phone : selected.phone}
+                </div>
+                <div style={{ marginTop: 4 }}><Badge label={selected._role} variant={selected._role === 'WORKER' ? 'purple' : selected._role === 'SHOP' ? 'success' : 'info'} /></div>
               </div>
-              <button className="drawer-close" onClick={() => setSelected(null)}>✕</button>
             </div>
-            <div className="drawer-body" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 80px)' }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 16 }}>
-                <div className="avatar avatar-lg" style={{ background: `linear-gradient(135deg, ${ROLE_COLORS[selected._role]}, ${ROLE_COLORS[selected._role]}88)` }}>
-                  {(selected._role === 'SHOP' ? selected._displayName : selected.name || '?')[0]?.toUpperCase()}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 18 }}>
-                    {selected._role === 'SHOP' ? selected._displayName || selected.name : selected.name}
-                  </div>
-                  <div style={{ color: 'var(--mid)', fontSize: 13 }}>
-                    {selected._role === 'SHOP' ? selected._phone : selected.phone}
-                  </div>
-                  <div style={{ marginTop: 4 }}><Badge label={selected._role} variant={selected._role === 'WORKER' ? 'purple' : selected._role === 'SHOP' ? 'success' : 'info'} /></div>
-                </div>
+
+            <div className="divider" />
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Balance & Banking</div>
+            <div className="detail-grid">
+              <div className="detail-row">
+                <span>Wallet Balance</span>
+                <strong style={{ color: '#059669', fontSize: 18 }}>₹{(selected.wallet?.balance || 0).toLocaleString('en-IN')}</strong>
               </div>
+              {selected.wallet?.bankDetails?.accountNumber && (
+                <>
+                  <div className="detail-row"><span>Account No</span><strong>{selected.wallet.bankDetails.accountNumber}</strong></div>
+                  <div className="detail-row"><span>IFSC</span><strong>{selected.wallet.bankDetails.ifscCode}</strong></div>
+                  <div className="detail-row"><span>Bank</span><strong>{selected.wallet.bankDetails.bankName}</strong></div>
+                </>
+              )}
+              {selected.wallet?.upiId && <div className="detail-row"><span>UPI ID</span><strong>{selected.wallet.upiId}</strong></div>}
+            </div>
 
-              <div className="divider" />
+            <div className="divider" />
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Balance & Banking</div>
-              <div className="detail-grid">
-                <div className="detail-row">
-                  <span>Wallet Balance</span>
-                  <strong style={{ color: '#059669', fontSize: 18 }}>₹{(selected.wallet?.balance || 0).toLocaleString('en-IN')}</strong>
-                </div>
-                {selected.wallet?.bankDetails?.accountNumber && (
-                  <>
-                    <div className="detail-row"><span>Account No</span><strong>{selected.wallet.bankDetails.accountNumber}</strong></div>
-                    <div className="detail-row"><span>IFSC</span><strong>{selected.wallet.bankDetails.ifscCode}</strong></div>
-                    <div className="detail-row"><span>Bank</span><strong>{selected.wallet.bankDetails.bankName}</strong></div>
-                  </>
-                )}
-                {selected.wallet?.upiId && <div className="detail-row"><span>UPI ID</span><strong>{selected.wallet.upiId}</strong></div>}
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Wallet size={14} /> Admin Wallet Adjust
+            </div>
+            <div style={{ padding: 14, background: 'var(--input-bg)', borderRadius: 10, border: '1px solid var(--border)', marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <input className="form-control" type="number" min="1" placeholder="Amount (₹)" value={amount} onChange={e => setAmount(e.target.value)} style={{ fontSize: 13 }} />
+                <input className="form-control" placeholder="Description (optional)" value={desc} onChange={e => setDesc(e.target.value)} style={{ fontSize: 13 }} />
               </div>
-
-              <div className="divider" />
-
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Wallet size={14} /> Admin Wallet Adjust
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-success" style={{ flex: 1 }} disabled={adjusting || !amount || Number(amount) <= 0} onClick={() => setConfirmWallet({ debit: false })}>
+                  {adjusting ? '...' : <><ArrowDownCircle size={14} /> Credit ₹</>}
+                </button>
+                <button className="btn btn-danger" style={{ flex: 1 }} disabled={adjusting || !amount || Number(amount) <= 0} onClick={() => setConfirmWallet({ debit: true })}>
+                  {adjusting ? '...' : <><ArrowUpCircle size={14} /> Debit ₹</>}
+                </button>
               </div>
-              <div style={{ padding: 14, background: 'var(--input-bg)', borderRadius: 10, border: '1px solid var(--border)', marginBottom: 16 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                  <input className="form-control" type="number" min="1" placeholder="Amount (₹)" value={amount} onChange={e => setAmount(e.target.value)} style={{ fontSize: 13 }} />
-                  <input className="form-control" placeholder="Description (optional)" value={desc} onChange={e => setDesc(e.target.value)} style={{ fontSize: 13 }} />
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-success" style={{ flex: 1 }} disabled={adjusting || !amount || Number(amount) <= 0} onClick={() => setConfirmWallet({ debit: false })}>
-                    {adjusting ? '...' : <><ArrowDownCircle size={14} /> Credit ₹</>}
-                  </button>
-                  <button className="btn btn-danger" style={{ flex: 1 }} disabled={adjusting || !amount || Number(amount) <= 0} onClick={() => setConfirmWallet({ debit: true })}>
-                    {adjusting ? '...' : <><ArrowUpCircle size={14} /> Debit ₹</>}
-                  </button>
-                </div>
-              </div>
+            </div>
 
-              <div className="divider" />
+            <div className="divider" />
 
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Recent Transactions</div>
-              {txnLoading ? (
-                <div style={{ padding: 20, textAlign: 'center', color: 'var(--mid)', fontSize: 13 }}>Loading transactions...</div>
-              ) : txns.length === 0 ? (
-                <div style={{ padding: 20, textAlign: 'center', color: 'var(--mid)', fontSize: 13 }}>No transactions yet</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                  {txns.map(t => {
-                    const credit = isCreditTxn(t)
-                    return (
-                      <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{t.description || t.type?.replace(/_/g, ' ')}</div>
-                          <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 2 }}>
-                            <Badge label={(t.type || '').replace(/_/g, ' ')} variant={TYPE_VARIANT[t.type] || 'neutral'} style={{ fontSize: 10 }} />
-                            <span style={{ marginLeft: 6 }}>{new Date(t.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 800, color: credit ? '#059669' : '#dc2626' }}>
-                            {credit ? '+' : '-'}₹{t.amount?.toLocaleString('en-IN')}
-                          </div>
-                          <div style={{ fontSize: 10, color: 'var(--mid)' }}>Bal: ₹{(t.balance || 0).toLocaleString('en-IN')}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Recent Transactions</div>
+            {txnLoading ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--mid)', fontSize: 13 }}>Loading transactions...</div>
+            ) : txns.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--mid)', fontSize: 13 }}>No transactions yet</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                {txns.map(t => {
+                  const credit = isCreditTxn(t)
+                  return (
+                    <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{t.description || t.type?.replace(/_/g, ' ')}</div>
+                        <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 2 }}>
+                          <Badge label={(t.type || '').replace(/_/g, ' ')} variant={TYPE_VARIANT[t.type] || 'neutral'} style={{ fontSize: 10 }} />
+                          <span style={{ marginLeft: 6 }}>{new Date(t.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: 800, color: credit ? '#059669' : '#dc2626' }}>
+                          {credit ? '+' : '-'}₹{t.amount?.toLocaleString('en-IN')}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--mid)' }}>Bal: ₹{(t.balance || 0).toLocaleString('en-IN')}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        </>
-      )}
+        )}
+      </Drawer>
       {confirmWallet && (
         <ConfirmModal
           title={confirmWallet.debit ? 'Debit Wallet' : 'Credit Wallet'}

@@ -3,6 +3,8 @@ import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Download, Bu
 import Badge from '../../components/common/Badge'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { extractErrorMessage } from '../../utils/errorUtils'
+import Toast from '../../components/Toast'
+import Modal from '../../components/Modal'
 
 const TXN_VARIANT = {
   PLATFORM_FEE_COLLECTED: 'success', COMMISSION_COLLECTED: 'success', SETTLEMENT_CREDIT: 'success',
@@ -213,14 +215,7 @@ export default function AdminWallet() {
 
   return (
     <div className="page">
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 999,
-          background: toast.type === 'error' ? '#EF4444' : '#0F172A',
-          color: 'white', padding: '12px 20px', borderRadius: 12,
-          fontWeight: 600, fontSize: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
-        }}>{toast.type === 'error' ? '✕' : '✓'} {toast.msg}</div>
-      )}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="page-header">
         <div>
@@ -370,7 +365,7 @@ export default function AdminWallet() {
                 )
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>No transactions found</td></tr>
+                <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>No transactions found</td></tr>
               )}
             </tbody>
           </table>
@@ -378,51 +373,43 @@ export default function AdminWallet() {
       </div>
 
       {/* Bank Details Modal */}
-      {showBankForm && (
-        <div className="modal-overlay" onClick={() => !bankSaving && setShowBankForm(false)}>
-          <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <div style={{ fontWeight: 800, fontSize: 16 }}>Bank & UPI Details</div>
-              <button className="drawer-close" onClick={() => !bankSaving && setShowBankForm(false)}>✕</button>
+      <Modal open={showBankForm} onClose={() => !bankSaving && setShowBankForm(false)} title="Bank & UPI Details" width="460px">
+        <div>
+          <div className="form-group">
+            <label className="form-label">Account Holder Name *</label>
+            <input className="form-control" value={bankForm.accountHolder} onChange={e => { setBankForm(p => ({ ...p, accountHolder: e.target.value })); setBankErrors(p => ({ ...p, accountHolder: '' })) }} placeholder="e.g. Kwickly Solutions Pvt Ltd" style={bankErrors.accountHolder ? { borderColor: '#EF4444' } : {}} />
+            {bankErrors.accountHolder && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.accountHolder}</div>}
+          </div>
+          <div className="form-group">
+            <label className="form-label">Account Number *</label>
+            <input className="form-control" value={bankForm.accountNumber} onChange={e => { const val = e.target.value.replace(/\D/g, ''); setBankForm(p => ({ ...p, accountNumber: val })); setBankErrors(p => ({ ...p, accountNumber: '' })) }} placeholder="e.g. 1234567890" maxLength={18} style={bankErrors.accountNumber ? { borderColor: '#EF4444' } : {}} />
+            {bankErrors.accountNumber && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.accountNumber}</div>}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="form-group">
+              <label className="form-label">IFSC Code *</label>
+              <input className="form-control" value={bankForm.ifscCode} onChange={e => { const val = e.target.value.toUpperCase(); setBankForm(p => ({ ...p, ifscCode: val })); setBankErrors(p => ({ ...p, ifscCode: '' })) }} placeholder="e.g. SBIN0001234" maxLength={11} style={bankErrors.ifscCode ? { borderColor: '#EF4444' } : {}} />
+              {bankErrors.ifscCode && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.ifscCode}</div>}
             </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label className="form-label">Account Holder Name *</label>
-                <input className="form-control" value={bankForm.accountHolder} onChange={e => { setBankForm(p => ({ ...p, accountHolder: e.target.value })); setBankErrors(p => ({ ...p, accountHolder: '' })) }} placeholder="e.g. Kwickly Solutions Pvt Ltd" style={bankErrors.accountHolder ? { borderColor: '#EF4444' } : {}} />
-                {bankErrors.accountHolder && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.accountHolder}</div>}
-              </div>
-              <div className="form-group">
-                <label className="form-label">Account Number *</label>
-                <input className="form-control" value={bankForm.accountNumber} onChange={e => { setBankForm(p => ({ ...p, accountNumber: e.target.value })); setBankErrors(p => ({ ...p, accountNumber: '' })) }} placeholder="e.g. 1234567890" style={bankErrors.accountNumber ? { borderColor: '#EF4444' } : {}} />
-                {bankErrors.accountNumber && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.accountNumber}</div>}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div className="form-group">
-                  <label className="form-label">IFSC Code *</label>
-                  <input className="form-control" value={bankForm.ifscCode} onChange={e => { setBankForm(p => ({ ...p, ifscCode: e.target.value })); setBankErrors(p => ({ ...p, ifscCode: '' })) }} placeholder="e.g. SBIN0001234" style={bankErrors.ifscCode ? { borderColor: '#EF4444' } : {}} />
-                  {bankErrors.ifscCode && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.ifscCode}</div>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Bank Name *</label>
-                  <input className="form-control" value={bankForm.bankName} onChange={e => { setBankForm(p => ({ ...p, bankName: e.target.value })); setBankErrors(p => ({ ...p, bankName: '' })) }} placeholder="e.g. SBI" style={bankErrors.bankName ? { borderColor: '#EF4444' } : {}} />
-                  {bankErrors.bankName && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.bankName}</div>}
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">UPI ID</label>
-                <input className="form-control" value={bankForm.upiId} onChange={e => { setBankForm(p => ({ ...p, upiId: e.target.value })); setBankErrors(p => ({ ...p, upiId: '' })) }} placeholder="e.g. kwickly@upi" style={bankErrors.upiId ? { borderColor: '#EF4444' } : {}} />
-                {bankErrors.upiId && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.upiId}</div>}
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setShowBankForm(false)} disabled={bankSaving}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSaveBank} disabled={bankSaving}>
-                {bankSaving ? 'Saving...' : 'Save Details'}
-              </button>
+            <div className="form-group">
+              <label className="form-label">Bank Name *</label>
+              <input className="form-control" value={bankForm.bankName} onChange={e => { setBankForm(p => ({ ...p, bankName: e.target.value })); setBankErrors(p => ({ ...p, bankName: '' })) }} placeholder="e.g. State Bank of India" style={bankErrors.bankName ? { borderColor: '#EF4444' } : {}} />
+              {bankErrors.bankName && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.bankName}</div>}
             </div>
           </div>
+          <div className="form-group">
+            <label className="form-label">UPI ID (Optional)</label>
+            <input className="form-control" value={bankForm.upiId} onChange={e => { setBankForm(p => ({ ...p, upiId: e.target.value })); setBankErrors(p => ({ ...p, upiId: '' })) }} placeholder="e.g. kwickly@upi" style={bankErrors.upiId ? { borderColor: '#EF4444' } : {}} />
+            {bankErrors.upiId && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{bankErrors.upiId}</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+            <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowBankForm(false)} disabled={bankSaving}>Cancel</button>
+            <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={handleSaveBank} disabled={bankSaving}>
+              {bankSaving ? 'Saving...' : 'Save Details'}
+            </button>
+          </div>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }
