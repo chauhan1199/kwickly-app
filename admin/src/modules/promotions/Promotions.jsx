@@ -175,8 +175,8 @@ function BannerFormModal({ open, onClose, editing, onSaved, showToast, api }) {
       const payload = { ...form, priority: Number(form.priority) }
       if (!payload.startAt) delete payload.startAt
       if (!payload.endAt)   delete payload.endAt
-      if (editing) await api.patch(`/admin/promotions/banners/${editing._id}`, payload)
-      else         await api.post('/admin/promotions/banners', payload)
+      if (editing) await api.patch(`/promotions/banners/${editing._id}`, payload)
+      else         await api.post('/promotions/banners', payload)
       showToast(`Banner ${editing ? 'updated' : 'created'} successfully`)
       try { await api.post('/admin/notifications/broadcast', { title: editing ? 'Banner Updated' : 'Banner Created', message: `Admin ${editing ? 'updated' : 'created'} banner "${form.title}" (${form.position})`, targetRole: 'ADMIN' }) } catch {}
       window.dispatchEvent(new Event('admin-action'))
@@ -296,8 +296,8 @@ function PromoFormModal({ open, onClose, editing, onSaved, showToast, api }) {
       }
       if (f.startAt) payload.startAt = f.startAt
       if (f.endAt)   payload.endAt   = f.endAt
-      if (editing) await api.patch(`/admin/promotions/promotions/${editing._id}`, payload)
-      else         await api.post('/admin/promotions/promotions', payload)
+      if (editing) await api.patch(`/promotions/promotions/${editing._id}`, payload)
+      else         await api.post('/promotions/promotions', payload)
       showToast(`Promo code ${editing ? 'updated' : 'created'} successfully`)
       try { await api.post('/admin/notifications/broadcast', { title: editing ? 'Promo Updated' : 'Promo Code Created', message: `Admin ${editing ? 'updated' : 'created'} promo "${f.code}" — ${f.title} (${f.type})`, targetRole: 'ADMIN' }) } catch {}
       window.dispatchEvent(new Event('admin-action'))
@@ -534,11 +534,13 @@ export default function Promotions() {
     setLoading(true)
     try {
       const [b, p] = await Promise.all([
-        api.get('/admin/promotions/banners/all').catch(() => ({ data: { data: [] } })),
-        api.get('/admin/promotions/promotions').catch(() => ({ data: { data: [] } })),
+        api.get('/promotions/banners/all').catch(() => api.get('/admin/promotions/banners/all')).catch(() => ({ data: { data: [] } })),
+        api.get('/promotions/promotions').catch(() => api.get('/admin/promotions/promotions')).catch(() => ({ data: { data: [] } })),
       ])
-      setBanners(b.data.data || [])
-      setPromos(p.data.data || [])
+      const bannerList = b.data?.data?.banners || b.data?.data || []
+      const promoList = p.data?.data?.promotions || p.data?.data || []
+      setBanners(Array.isArray(bannerList) ? bannerList : [])
+      setPromos(Array.isArray(promoList) ? promoList : [])
     } catch (err) {
       if (isAbortError(err)) return
       showToast('Failed to load data', 'error')
@@ -552,7 +554,7 @@ export default function Promotions() {
       onConfirm: async () => {
         setConfirm(null)
         try {
-          const url = type === 'banner' ? `/admin/promotions/banners/${id}` : `/admin/promotions/promotions/${id}`
+          const url = type === 'banner' ? `/promotions/banners/${id}` : `/promotions/promotions/${id}`
           await api.delete(url)
           showToast(`${type === 'banner' ? 'Banner' : 'Promo'} deleted`)
           try { await api.post('/admin/notifications/broadcast', { title: type === 'banner' ? 'Banner Deleted' : 'Promo Code Deleted', message: `Admin deleted ${type} "${name}"`, targetRole: 'ADMIN' }) } catch {}
@@ -565,7 +567,7 @@ export default function Promotions() {
 
   const handleTogglePromo = async (promo) => {
     try {
-      await api.patch(`/admin/promotions/promotions/${promo._id}`, { isActive: !promo.isActive })
+      await api.patch(`/promotions/promotions/${promo._id}`, { isActive: !promo.isActive })
       const action = promo.isActive ? 'disabled' : 'enabled'
       showToast(`Promo ${action}`)
       try { await api.post('/admin/notifications/broadcast', { title: `Promo Code ${action.charAt(0).toUpperCase() + action.slice(1)}`, message: `Admin ${action} promo code "${promo.code}"`, targetRole: 'ADMIN' }) } catch {}
@@ -576,7 +578,7 @@ export default function Promotions() {
 
   const handleToggleBanner = async (banner) => {
     try {
-      await api.patch(`/admin/promotions/banners/${banner._id}`, { isActive: !banner.isActive })
+      await api.patch(`/promotions/banners/${banner._id}`, { isActive: !banner.isActive })
       const action = banner.isActive ? 'hidden' : 'activated'
       showToast(`Banner ${action}`)
       try { await api.post('/admin/notifications/broadcast', { title: `Banner ${action.charAt(0).toUpperCase() + action.slice(1)}`, message: `Admin ${action} banner "${banner.title}"`, targetRole: 'ADMIN' }) } catch {}
