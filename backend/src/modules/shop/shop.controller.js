@@ -38,6 +38,12 @@ exports.createShop = catchAsync(async (req, res) => {
         }
     }
 
+    const AppSettings = require('../settings/settings.model');
+    const appSettings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+    const freeTrialDays = appSettings?.subscription?.freeTrialDays || 14;
+    const defaultTrialEndDate = new Date();
+    defaultTrialEndDate.setDate(defaultTrialEndDate.getDate() + freeTrialDays);
+
     const shop = await Shop.create({
         ownerId: req.user._id,
         name,
@@ -46,7 +52,14 @@ exports.createShop = catchAsync(async (req, res) => {
         address,
         location: parsedLocation,
         deliveryConfig: delivery || {},
-        logoUrl
+        logoUrl,
+        subscription: {
+            status: 'TRIAL',
+            isTrial: true,
+            planId: 'shop_trial',
+            trialEndDate: defaultTrialEndDate,
+            expiryDate: defaultTrialEndDate
+        }
     });
 
     await delCacheByPattern(`*${SHOP_CACHE_PREFIX}*`);

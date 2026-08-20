@@ -78,12 +78,29 @@ ShopSchema.index({ isDeleted: 1 });
 ShopSchema.statics.getOrCreateForOwner = async function (ownerId, name) {
     let shop = await this.findOne({ ownerId });
     if (!shop) {
+        let freeTrialDays = 14;
+        try {
+            const AppSettings = require('../settings/settings.model');
+            const appSettings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+            if (appSettings?.subscription?.freeTrialDays) freeTrialDays = appSettings.subscription.freeTrialDays;
+        } catch (_) {}
+
+        const defaultTrialEndDate = new Date();
+        defaultTrialEndDate.setDate(defaultTrialEndDate.getDate() + freeTrialDays);
+
         shop = await this.create({
             ownerId,
             name: name ? `${name}'s Shop` : 'My Shop',
             category: 'General',
             kyc: { status: 'PENDING' },
-            isOnline: true
+            isOnline: true,
+            subscription: {
+                status: 'TRIAL',
+                isTrial: true,
+                planId: 'shop_trial',
+                trialEndDate: defaultTrialEndDate,
+                expiryDate: defaultTrialEndDate
+            }
         });
     }
     return shop;

@@ -97,6 +97,7 @@ router.delete('/shops/:id/payout-methods/:methodId', adminController.deleteShopP
 router.patch('/shops/:id/payout-methods/:methodId/primary', adminController.setShopPrimaryPayout);
 router.patch('/shops/:id/kyc-doc/:docIndex', upload.single('document'), adminController.editShopKycDoc);
 router.patch('/shops/:id/owner',                   adminController.updateShopOwner);
+router.patch('/shops/:id/extend-subscription',     adminController.extendWorkerSubscription);
 
 // Jobs (specific routes — BEFORE param routes to avoid catch-all conflicts)
 router.get('/jobs/export',             adminController.exportJobs);

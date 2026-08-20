@@ -263,38 +263,62 @@ exports.extendWorkerSubscription = catchAsync(async (req, res) => {
 
     if (!days || days <= 0) return errorResponse(res, 'Please provide a valid number of days', StatusCodes.BAD_REQUEST);
 
-    const worker = await Customer.findById(id);
-    if (!worker || !['WORKER', 'SHOP'].includes(worker.role)) {
+    let target = await Customer.findById(id);
+    let isShop = false;
+    if (!target) {
+        target = await Shop.findById(id);
+        if (target) isShop = true;
+    }
+
+    if (!target) {
         return errorResponse(res, 'Worker or Shop not found', StatusCodes.NOT_FOUND);
     }
 
     const now = new Date();
-    const currentExpiry = worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > now
-        ? new Date(worker.subscription.expiryDate)
-        : now;
+    target.subscription = target.subscription || {};
+    const currentExpiry = target.subscription?.expiryDate && new Date(target.subscription.expiryDate) > now
+        ? new Date(target.subscription.expiryDate)
+        : (target.subscription?.trialEndDate && new Date(target.subscription.trialEndDate) > now
+            ? new Date(target.subscription.trialEndDate)
+            : now);
 
-    worker.subscription.expiryDate = new Date(currentExpiry.getTime() + days * 24 * 60 * 60 * 1000);
-    worker.subscription.isTrial = false;
-    worker.subscription.planId = worker.subscription.planId || 'ADMIN_EXTEND';
-    await worker.save();
+    target.subscription.expiryDate = new Date(currentExpiry.getTime() + days * 24 * 60 * 60 * 1000);
+    target.subscription.isTrial = false;
+    target.subscription.status = 'ACTIVE';
+    target.subscription.planId = target.subscription.planId || 'ADMIN_EXTEND';
+    target.markModified('subscription');
+    await target.save();
 
-    await delCache(`session:${id}`);
+    if (isShop) {
+        const { delCacheByPattern } = require('../../helpers/redis.helper');
+        await delCacheByPattern('*shops_list*');
+        if (target.ownerId) {
+            await Customer.findByIdAndUpdate(target.ownerId, {
+                'subscription.expiryDate': target.subscription.expiryDate,
+                'subscription.isTrial': false
+            });
+        }
+    } else {
+        await delCache(`session:${id}`);
+    }
+
     triggerDashboardUpdate();
 
-    logAdminActivity('EXTEND_SUBSCRIPTION', worker.role, id, 'Subscription Extended', `Extended "${worker.name}" subscription by ${days} days. New expiry: ${worker.subscription.expiryDate}`, req.user?._id);
+    const role = isShop ? 'SHOP' : target.role;
+    logAdminActivity('EXTEND_SUBSCRIPTION', role, id, 'Subscription Extended', `Extended "${target.name}" subscription by ${days} days. New expiry: ${target.subscription.expiryDate}`, req.user?._id);
 
     const { notifyUser } = require('../../helpers/notifyUser.helper');
     notifyUser({
-        userId: worker._id,
+        userId: isShop ? target.ownerId : target._id,
         title: 'Subscription Extended',
         message: `Your subscription has been extended by ${days} days by the admin.`,
         action: 'OTHER',
-        entityType: worker.role === 'SHOP' ? 'SHOP' : 'WORKER',
-        entityId: worker._id,
-        targetRole: worker.role === 'SHOP' ? 'SHOP' : 'WORKER'
+        entityType: isShop ? 'SHOP' : 'WORKER',
+        entityId: target._id,
+        targetRole: isShop ? 'SHOP' : 'WORKER'
     });
 
-    return successResponse(res, { worker, expiryDate: worker.subscription.expiryDate }, `Subscription extended by ${days} days`);
+    return successResponse(res, { target, expiryDate: target.subscription.expiryDate }, `Subscription extended by ${days} days`);
 });
 
 exports.addKycDocument = catchAsync(async (req, res) => {
@@ -718,6 +742,12 @@ exports.createShopAdmin = catchAsync(async (req, res) => {
     const existingShop = await Shop.findOne({ ownerId: owner._id });
     if (existingShop) return errorResponse(res, 'This owner already has a registered shop', StatusCodes.CONFLICT);
 
+    const AppSettings = require('../settings/settings.model');
+    const appSettings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+    const freeTrialDays = appSettings?.subscription?.freeTrialDays || 14;
+    const defaultTrialEndDate = new Date();
+    defaultTrialEndDate.setDate(defaultTrialEndDate.getDate() + freeTrialDays);
+
     const shopData = {
         ownerId: owner._id,
         name, category, description, address,
@@ -726,9 +756,21 @@ exports.createShopAdmin = catchAsync(async (req, res) => {
         deliveryConfig: deliveryConfig || { deliveryRadiusKm: 3, deliveryCharge: 40, freeDeliveryAbove: 1000, minOrderAmount: 100, discountEnabled: false, discountAbove: 1000, discountType: 'flat', discountValue: 100, discountPct: 10, maxDiscountCap: 200, sameDayDelivery: true, deliverySlots: [] },
         businessHours: businessHours || { monFri: '9 AM - 10 PM', sat: '9 AM - 10 PM', sun: '9 AM - 10 PM' },
         subscription: (() => {
-            if (!subscription) return { status: 'TRIAL', isTrial: true };
+            if (!subscription) {
+                return {
+                    status: 'TRIAL',
+                    isTrial: true,
+                    planId: 'shop_trial',
+                    trialEndDate: defaultTrialEndDate,
+                    expiryDate: defaultTrialEndDate
+                };
+            }
             const sub = { ...subscription };
             if (sub.plan && !sub.planId) sub.planId = sub.plan;
+            if (!sub.expiryDate && !sub.trialEndDate) {
+                sub.trialEndDate = defaultTrialEndDate;
+                sub.expiryDate = defaultTrialEndDate;
+            }
             return sub;
         })(),
         kyc: { status: 'PENDING' }

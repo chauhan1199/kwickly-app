@@ -246,7 +246,12 @@ export default function Subscriptions() {
       if (workersRes.data?.status === 'success') {
         const workersArr = workersRes.data.data.workers || workersRes.data.data
         const workersData = (Array.isArray(workersArr) ? workersArr : []).map(w => {
-          const expiry = w.subscription?.expiryDate || w.subscription?.trialEndDate
+          let expiry = w.subscription?.expiryDate || w.subscription?.trialEndDate
+          if (!expiry && w.createdAt) {
+            const created = new Date(w.createdAt)
+            expiry = new Date(created.getTime() + 14 * 24 * 60 * 60 * 1000)
+          }
+
           const daysLeft = expiry ? Math.ceil((new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0
           const isExpired = !expiry || new Date(expiry) < new Date()
           const isTrial = w.subscription?.isTrial !== false
@@ -257,7 +262,7 @@ export default function Subscriptions() {
             name: w.name,
             phone: w.phone,
             role: 'WORKER',
-            plan: isTrial ? 'Trial' : (w.subscription?.planId || 'Standard'),
+            plan: isTrial ? 'Free Trial' : (w.subscription?.planId || 'Standard'),
             isTrial,
             startDate: w.createdAt ? new Date(w.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
             endDate: expiry ? new Date(expiry).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Expired',
@@ -271,7 +276,12 @@ export default function Subscriptions() {
       if (shopsRes.data?.status === 'success') {
         const shopsArr = shopsRes.data.data.shops || shopsRes.data.data
         const shopsData = (Array.isArray(shopsArr) ? shopsArr : []).map(s => {
-          const expiry = s.subscription?.expiryDate || s.subscription?.trialEndDate
+          let expiry = s.subscription?.expiryDate || s.subscription?.trialEndDate
+          if (!expiry && s.createdAt) {
+            const created = new Date(s.createdAt)
+            expiry = new Date(created.getTime() + 14 * 24 * 60 * 60 * 1000)
+          }
+
           const daysLeft = expiry ? Math.ceil((new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0
           const isExpired = !expiry || new Date(expiry) < new Date()
           const isTrial = s.subscription?.isTrial !== false
@@ -282,7 +292,7 @@ export default function Subscriptions() {
             name: s.name || s.ownerName || 'Shop',
             phone: s.phone || s.ownerPhone,
             role: 'SHOP',
-            plan: isTrial ? 'Trial' : (s.subscription?.planId || 'Standard'),
+            plan: isTrial ? 'Free Trial' : (s.subscription?.planId || 'Standard'),
             isTrial,
             startDate: s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
             endDate: expiry ? new Date(expiry).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Expired',
@@ -380,7 +390,8 @@ export default function Subscriptions() {
 
   const extendSubscription = async (targetId, days = 30) => {
     try {
-      await api.patch(`/admin/workers/${targetId}/extend-subscription`, { days })
+      const endpoint = activeRole === 'SHOP' ? `/admin/shops/${targetId}/extend-subscription` : `/admin/workers/${targetId}/extend-subscription`
+      await api.patch(endpoint, { days })
       showToast(`Subscription extended by ${days} days!`)
       fetchData()
     } catch {
