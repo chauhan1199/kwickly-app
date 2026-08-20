@@ -9,11 +9,11 @@ import { X } from 'lucide-react'
  * @param {ReactNode} children
  * @param {string}    [width]  — max-width css value
  */
-const Modal = ({ open, onClose, title, children, width = '520px' }) => {
+const Modal = ({ open, onClose, title, children, width = '520px', closeOnBackdrop = false }) => {
   if (!open) return null
 
   return (
-    <div className="modal-overlay" onClick={onClose} aria-hidden="true">
+    <div className="modal-overlay" onClick={closeOnBackdrop ? onClose : undefined} aria-hidden="true">
       <div
         className="modal-box"
         style={{ maxWidth: width }}

@@ -2,7 +2,7 @@ import React from 'react'
 
 export default function ConfirmModal({ title, message, onConfirm, onClose, danger = true, confirmText = 'Confirm', loading = false, children }) {
   return (
-    <div className="modal-overlay" onClick={onClose} aria-hidden="true">
+    <div className="modal-overlay" aria-hidden="true">
       <div
         className="modal-box"
         style={{ maxWidth: 420 }}
