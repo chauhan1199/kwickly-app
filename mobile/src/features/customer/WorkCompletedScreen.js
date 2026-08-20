@@ -22,9 +22,12 @@ const WorkCompletedScreen = ({ route, navigation }) => {
   const { worker, job } = route.params || {};
   const workerName = worker?.name || job?.workerId?.name || 'Worker';
 
-  const jobAmount = job?.payment?.amount || job?.price || 499;
-  const platformFee = Math.round(jobAmount * 0.1);
-  const workerEarning = jobAmount - platformFee;
+  const workerPayout = job?.payment?.workerPayout || job?.quote?.amount || job?.price || 499;
+  const platformFee = job?.payment?.platformFee !== undefined ? job?.payment?.platformFee : 50;
+  const gst = job?.payment?.gst !== undefined ? job?.payment?.gst : Math.round(platformFee * 0.18);
+  const totalAmount = job?.payment?.amount || (workerPayout + platformFee + gst);
+  const workerEarning = workerPayout;
+  const jobAmount = totalAmount;
 
   const [otp, setOtp] = useState('');
   const [paying, setPaying] = useState(false);
@@ -133,13 +136,19 @@ const WorkCompletedScreen = ({ route, navigation }) => {
         {/* Invoice */}
         <View style={styles.card}>
           <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceText}>Service charge</Text>
-            <Text style={styles.invoiceTextBold}>₹{jobAmount}</Text>
+            <Text style={styles.invoiceText}>Worker Service Charge</Text>
+            <Text style={styles.invoiceTextBold}>₹{workerPayout}</Text>
           </View>
           <View style={styles.invoiceRow}>
-            <Text style={styles.invoiceMuted}>Platform fee (10% approx)</Text>
+            <Text style={styles.invoiceMuted}>Platform Fee</Text>
             <Text style={styles.invoiceMuted}>₹{platformFee}</Text>
           </View>
+          {gst > 0 && (
+            <View style={styles.invoiceRow}>
+              <Text style={styles.invoiceMuted}>GST (18%)</Text>
+              <Text style={styles.invoiceMuted}>₹{gst}</Text>
+            </View>
+          )}
           
           <View style={styles.separator} />
           
@@ -153,13 +162,13 @@ const WorkCompletedScreen = ({ route, navigation }) => {
           <View style={styles.invoiceRow}>
             <Text style={styles.totalText}>Total</Text>
             <View style={{alignItems: 'flex-end'}}>
-              {promoCode && <Text style={{textDecorationLine: 'line-through', color: theme.colors.textDim, fontSize: 12}}>₹{jobAmount}</Text>}
-              <Text style={styles.totalPrice}>₹{jobAmount - promoDiscount}</Text>
+              {promoCode && <Text style={{textDecorationLine: 'line-through', color: theme.colors.textDim, fontSize: 12}}>₹{totalAmount}</Text>}
+              <Text style={styles.totalPrice}>₹{Math.max(0, totalAmount - promoDiscount)}</Text>
             </View>
           </View>
           
           <Text style={styles.autoSplitText}>
-            Auto-split: Worker gets ₹{workerEarning} · Platform subsidizes promo
+            Auto-split: Worker receives ₹{workerEarning} direct to wallet
           </Text>
         </View>
 

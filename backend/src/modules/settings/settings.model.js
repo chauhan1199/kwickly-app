@@ -7,8 +7,11 @@ const AppSettingsSchema = new mongoose.Schema({
         unique: true
     },
     fees: {
-        type: { type: String, enum: ['flat', 'percent'], default: 'flat' },
+        type: { type: String, enum: ['flat', 'percent', 'percentage', 'tiered'], default: 'tiered' },
         amount: { type: Number, default: 50 },
+        minFee: { type: Number, default: 50 },
+        threshold: { type: Number, default: 500 },
+        percentage: { type: Number, default: 12 },
         gstPercentage: { type: Number, default: 18 }
     },
     wallet: {

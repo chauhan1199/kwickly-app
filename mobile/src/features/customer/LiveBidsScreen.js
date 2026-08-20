@@ -309,7 +309,12 @@ const LiveBidsScreen = ({ route, navigation }) => {
                   <Text style={styles.workerMuted}>📍 {bid.distanceKm ? bid.distanceKm + ' km' : 'Nearby'} · ⏱ {bid.timeToReach} min away</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.workerPrice}>₹{bid.amount}</Text>
+                  <Text style={styles.workerPrice}>₹{bid.customerPayable || bid.amount}</Text>
+                  {bid.customerPayable && bid.customerPayable !== bid.amount && (
+                    <Text style={{ fontSize: 10, color: theme.colors.textDim, marginBottom: 4 }}>
+                      incl. ₹{bid.platformFee} fee + GST
+                    </Text>
+                  )}
                   <TouchableOpacity 
                     style={styles.acceptBtn}
                     onPress={() => handleAccept(bid)}

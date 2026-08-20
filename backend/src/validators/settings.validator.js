@@ -4,7 +4,10 @@ const { errorResponse } = require('../helpers/response.helper');
 
 const updateSettingsSchema = Joi.object({
     feeAmount: Joi.number().min(0),
-    feeType: Joi.string().valid('flat', 'percent', 'percentage'),
+    feeType: Joi.string().valid('flat', 'percent', 'percentage', 'tiered'),
+    feeMinAmount: Joi.number().min(0),
+    feeThreshold: Joi.number().min(0),
+    feePercentage: Joi.number().min(0).max(100),
     gstPercentage: Joi.number().min(0).max(100),
     qrExpiry: Joi.number().min(5),
     cashEnabled: Joi.boolean(),

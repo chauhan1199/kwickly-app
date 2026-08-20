@@ -1,4 +1,4 @@
-﻿const { StatusCodes } = require('http-status-codes');
+const { StatusCodes } = require('http-status-codes');
 const AppSettings = require('./settings.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -11,8 +11,11 @@ const CACHE_KEY = 'app_settings';
 
 // Helper to flatten nested settings for frontend
 const flattenSettings = (s) => ({
-    feeAmount: s.fees?.amount || 0,
-    feeType: s.fees?.type || 'flat',
+    feeAmount: s.fees?.amount || 50,
+    feeType: s.fees?.type || 'tiered',
+    feeMinAmount: s.fees?.minFee !== undefined ? s.fees.minFee : (s.fees?.amount || 50),
+    feeThreshold: s.fees?.threshold !== undefined ? s.fees.threshold : 500,
+    feePercentage: s.fees?.percentage !== undefined ? s.fees.percentage : 12,
     gstPercentage: s.fees?.gstPercentage || 18,
     walletMinimum: s.wallet?.minimumBalance || 100,
     topupPresets: (s.wallet?.topupPresets || [50, 100, 200, 500]).join(','),
@@ -39,6 +42,9 @@ const mapFlatToNested = (body) => {
     const mapping = {
         feeAmount: 'fees.amount',
         feeType: 'fees.type',
+        feeMinAmount: 'fees.minFee',
+        feeThreshold: 'fees.threshold',
+        feePercentage: 'fees.percentage',
         gstPercentage: 'fees.gstPercentage',
         walletMinimum: 'wallet.minimumBalance',
         topupPresets: 'wallet.topupPresets',
@@ -57,7 +63,7 @@ const mapFlatToNested = (body) => {
     };
 
     const numericFields = [
-        'feeAmount', 'gstPercentage', 'walletMinimum',
+        'feeAmount', 'feeMinAmount', 'feeThreshold', 'feePercentage', 'gstPercentage', 'walletMinimum',
         'monthlyPlan', 'semiPlan', 'annualPlan', 'maxRadius', 'freeTrialDays'
     ];
     const booleanFields = ['maintenanceMode'];

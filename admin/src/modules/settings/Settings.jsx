@@ -133,41 +133,181 @@ export default function Settings() {
         {/* FEES */}
         {activeTab === 'fees' && (
           <div>
-            <div className="settings-section-title">Platform Commission</div>
-            <div className="grid-3" style={{ marginBottom: 20 }}>
+            <div className="settings-section-title">Platform Commission & Booking Fees</div>
+            <div style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 18 }}>
+              Configure how platform commissions are calculated for service quotes. Quotes from workers are their exact payout, and the platform fee + GST is added on top for the customer.
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
               <div className="form-group">
-                <label className="form-label">Fee Type</label>
-                <select className="form-control" value={settings.feeType} onChange={e => set('feeType', e.target.value)}>
+                <label className="form-label">Calculation Mode</label>
+                <select className="form-control" value={settings.feeType || 'tiered'} onChange={e => set('feeType', e.target.value)}>
+                  <option value="tiered">⚡ Dynamic Tiered (Min Flat &gt; % Above)</option>
                   <option value="flat">Flat Amount (₹)</option>
-                  <option value="percent">Percentage (%)</option>
+                  <option value="percent">Fixed Percentage (%)</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label className="form-label">Fee Amount {settings.feeType === 'flat' ? '(₹)' : '(%)'}</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={settings.feeAmount}
-                  onChange={e => setLocal('feeAmount', e.target.value)}
-                  onBlur={e => save('feeAmount', Number(e.target.value))}
-                  min="0"
-                />
-              </div>
+
+              {(settings.feeType === 'tiered' || !settings.feeType) && (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">Threshold Amount (₹)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={settings.feeThreshold !== undefined ? settings.feeThreshold : 500}
+                      onChange={e => setLocal('feeThreshold', e.target.value)}
+                      onBlur={e => save('feeThreshold', Number(e.target.value))}
+                      placeholder="500"
+                      min="1"
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Quote cutoff for min fee (e.g. ₹500)</div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Min Fee Under Threshold (₹)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={settings.feeMinAmount !== undefined ? settings.feeMinAmount : 50}
+                      onChange={e => setLocal('feeMinAmount', e.target.value)}
+                      onBlur={e => save('feeMinAmount', Number(e.target.value))}
+                      placeholder="50"
+                      min="0"
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Fixed fee if quote &le; threshold</div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Percentage Above Threshold (%)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={settings.feePercentage !== undefined ? settings.feePercentage : 12}
+                      onChange={e => setLocal('feePercentage', e.target.value)}
+                      onBlur={e => save('feePercentage', Number(e.target.value))}
+                      placeholder="12"
+                      min="0"
+                      max="100"
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Fee % if quote &gt; threshold</div>
+                  </div>
+                </>
+              )}
+
+              {settings.feeType === 'flat' && (
+                <div className="form-group">
+                  <label className="form-label">Flat Fee Amount (₹)</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={settings.feeAmount !== undefined ? settings.feeAmount : 50}
+                    onChange={e => setLocal('feeAmount', e.target.value)}
+                    onBlur={e => save('feeAmount', Number(e.target.value))}
+                    placeholder="50"
+                    min="0"
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Fixed flat fee per job</div>
+                </div>
+              )}
+
+              {settings.feeType === 'percent' && (
+                <div className="form-group">
+                  <label className="form-label">Percentage Fee (%)</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={settings.feePercentage !== undefined ? settings.feePercentage : (settings.feeAmount || 12)}
+                    onChange={e => setLocal('feePercentage', e.target.value)}
+                    onBlur={e => save('feePercentage', Number(e.target.value))}
+                    placeholder="12"
+                    min="0"
+                    max="100"
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Percentage on total quote</div>
+                </div>
+              )}
+
               <div className="form-group">
                 <label className="form-label">GST Percentage (%)</label>
                 <input
                   type="number"
                   className="form-control"
-                  value={settings.gstPercentage || 18}
+                  value={settings.gstPercentage !== undefined ? settings.gstPercentage : 18}
                   onChange={e => setLocal('gstPercentage', e.target.value)}
                   onBlur={e => save('gstPercentage', Number(e.target.value))}
+                  placeholder="18"
                   min="0"
+                  max="100"
                 />
+                <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 4 }}>Applied on platform fee</div>
               </div>
             </div>
 
-            <div className="alert alert-info">
-              ℹ️ When a worker quotes ₹500, the platform adds ₹{settings.feeAmount} {settings.feeType === 'percent' ? `(${settings.feeAmount}%)` : ''} as commission + {settings.gstPercentage || 18}% GST on top. The customer will pay the total amount.
+            {/* Live Pricing Breakdown Preview */}
+            <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginTop: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                💡 Live Pricing Preview & Examples
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+                {(() => {
+                  const threshold = settings.feeThreshold !== undefined ? Number(settings.feeThreshold) : 500;
+                  const minFee = settings.feeMinAmount !== undefined ? Number(settings.feeMinAmount) : 50;
+                  const pct = settings.feePercentage !== undefined ? Number(settings.feePercentage) : 12;
+                  const gstPct = settings.gstPercentage !== undefined ? Number(settings.gstPercentage) : 18;
+                  const mode = settings.feeType || 'tiered';
+
+                  const calc = (amount) => {
+                    let fee = 0;
+                    if (mode === 'tiered') {
+                      fee = amount <= threshold ? minFee : Math.max(minFee, Math.round((amount * pct) / 100));
+                    } else if (mode === 'percent') {
+                      fee = Math.round((amount * pct) / 100);
+                    } else {
+                      fee = minFee || settings.feeAmount || 50;
+                    }
+                    const gst = Math.round((fee * gstPct) / 100);
+                    return { worker: amount, fee, gst, total: amount + fee + gst };
+                  };
+
+                  const ex1 = calc(300);
+                  const ex2 = calc(1000);
+
+                  return (
+                    <>
+                      <div style={{ background: 'var(--bg)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#10B981', marginBottom: 6 }}>Example A: Small Job (₹300 Quote)</div>
+                        <div style={{ fontSize: 12, color: 'var(--mid)', display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span>Worker Payout:</span><strong>₹{ex1.worker}</strong>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--mid)', display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span>Platform Fee:</span><strong>₹{ex1.fee} {mode === 'tiered' ? '(Min Fee)' : ''}</strong>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--mid)', display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span>GST ({gstPct}%):</span><strong>₹{ex1.gst}</strong>
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4 }}>
+                          <span>Customer Pays:</span><strong>₹{ex1.total}</strong>
+                        </div>
+                      </div>
+
+                      <div style={{ background: 'var(--bg)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#8B5CF6', marginBottom: 6 }}>Example B: Large Job (₹1,000 Quote)</div>
+                        <div style={{ fontSize: 12, color: 'var(--mid)', display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span>Worker Payout:</span><strong>₹{ex2.worker}</strong>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--mid)', display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span>Platform Fee:</span><strong>₹{ex2.fee} {mode === 'tiered' ? `(${pct}%)` : ''}</strong>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--mid)', display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span>GST ({gstPct}%):</span><strong>₹{ex2.gst}</strong>
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4 }}>
+                          <span>Customer Pays:</span><strong>₹{ex2.total}</strong>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
 
           </div>

@@ -154,7 +154,8 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
     // Fetch Global Settings for fee calculation
     const SettingsService = require('../settings/settings.service');
     const settings = await SettingsService.getAppSettings();
-    const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
+    const { calculatePlatformFee } = require('../../helpers/feeCalculator.helper');
+    const feeConfig = settings?.fees || { type: 'tiered', minFee: 50, threshold: 500, percentage: 12, gstPercentage: 18 };
 
     const jobLat = job.location?.coordinates?.[1];
     const jobLon = job.location?.coordinates?.[0];
@@ -168,22 +169,16 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
             distanceKm = +haversineDistance([jobLon, jobLat], [wLon, wLat]).toFixed(2);
         }
 
-        // --- NEW PRICING MODEL ---
-        // Worker quote is their exact payout. Platform fee and GST added on top.
-        const workerPayout = quote.amount;
-        const platformFee = feeConfig.type === 'percent'
-            ? Math.round((workerPayout * (feeConfig.amount || 10)) / 100)
-            : (feeConfig.amount || 50);
-        
-        const gst = Math.round((platformFee * (feeConfig.gstPercentage || 18)) / 100);
-        const customerPayable = workerPayout + platformFee + gst;
+        // --- UNIFIED PRICING MODEL ---
+        // Worker quote is their exact payout. Platform fee and GST added on top dynamically.
+        const feeBreakdown = calculatePlatformFee(quote.amount, feeConfig);
 
         return { 
             ...quote, 
             distanceKm, 
-            platformFee, 
-            gst, 
-            customerPayable 
+            platformFee: feeBreakdown.platformFee, 
+            gst: feeBreakdown.gst, 
+            customerPayable: feeBreakdown.customerPayable 
         };
     });
 
@@ -255,15 +250,14 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         const completionOtp = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
 
         // Calculate final pricing model
-        const feeConfig = settings?.fees || { type: 'flat', amount: 50, gstPercentage: 18 };
+        const { calculatePlatformFee } = require('../../helpers/feeCalculator.helper');
+        const feeConfig = settings?.fees || { type: 'tiered', minFee: 50, threshold: 500, percentage: 12, gstPercentage: 18 };
         
-        const workerPayout = quote.amount;
-        const platformFee = feeConfig.type === 'percent'
-
-        ? Math.round((workerPayout * (feeConfig.amount || 10)) / 100)
-        : (feeConfig.amount || 50);
-    const gst = Math.round((platformFee * (feeConfig.gstPercentage || 18)) / 100);
-    const customerPayable = workerPayout + platformFee + gst;
+        const feeBreakdown = calculatePlatformFee(quote.amount, feeConfig);
+        const workerPayout = feeBreakdown.workerPayout;
+        const platformFee = feeBreakdown.platformFee;
+        const gst = feeBreakdown.gst;
+        const customerPayable = feeBreakdown.customerPayable;
 
     let session = null;
     let useTransaction = false;
