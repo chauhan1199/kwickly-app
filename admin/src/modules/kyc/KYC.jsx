@@ -5,6 +5,7 @@ import { getImageUrl } from '../../services/api'
 import { Eye, CheckCircle, XCircle, Store, User } from 'lucide-react'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
+import Modal from '../../components/Modal'
 
 export default function KYC() {
   const api = useAbortableRequest();
@@ -36,14 +37,20 @@ export default function KYC() {
   const handleUpdateStatus = async (id, status, kycType) => {
     try {
       const endpoint = kycType === 'SHOP' ? `/admin/shops/${id}/kyc` : `/admin/workers/${id}/kyc`
-      const response = await api.patch(endpoint, { status })
+      const payload = { status }
+      if (status === 'REJECTED' && rejectReason.trim()) {
+        payload.reason = rejectReason.trim()
+      }
+      const response = await api.patch(endpoint, payload)
       if (response.data.status === 'success') {
         setPending(prev => prev.filter(item => item._id !== id))
-        showToast(`KYC ${status === 'APPROVED' ? 'Approved' : 'Rejected'}`)
+        showToast(`KYC ${status === 'APPROVED' ? 'Approved' : 'Rejected'} successfully`)
         window.dispatchEvent(new Event('admin-action'))
+      } else {
+        showToast(response.data.message || 'Failed to update KYC', 'error')
       }
     } catch (error) {
-      showToast('Failed to update KYC', 'error')
+      showToast(error.response?.data?.message || 'Failed to update KYC', 'error')
     }
     setRejectModal(false)
     setSelected(null)
@@ -178,36 +185,29 @@ export default function KYC() {
       )}
 
       {/* Reject Modal */}
-      {rejectModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <div style={{ fontWeight: 800, fontSize: 16 }}>Reject KYC Application</div>
-              <button className="drawer-close" onClick={() => { setRejectModal(false); setRejectReason(''); }}>✕</button>
-            </div>
-            <div className="modal-body">
-              <p style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 16 }}>
-                Please provide a reason for rejection.
-              </p>
-              <div className="form-group">
-                <label className="form-label">Rejection Reason</label>
-                <select className="form-control" value={rejectReason} onChange={e => setRejectReason(e.target.value)}>
-                  <option value="">Select a reason...</option>
-                  <option>Document image is blurry or unreadable</option>
-                  <option>Document does not match provided details</option>
-                  <option>Expired document submitted</option>
-                  <option>Suspected fraudulent documents</option>
-                  <option>Other</option>
-                </select>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => { setRejectModal(false); setRejectReason(''); }}>Cancel</button>
-              <button className="btn btn-danger" onClick={() => handleUpdateStatus(selected._id, 'REJECTED', selected.kycType)} disabled={!rejectReason}>✕ Confirm Rejection</button>
-            </div>
-          </div>
+      <Modal open={rejectModal} onClose={() => { setRejectModal(false); setRejectReason(''); }} title="Reject KYC Application" width="460px">
+        <p style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 16 }}>
+          Please specify a reason for rejecting this KYC application. The user will be notified to correct and re-upload their documents.
+        </p>
+        <div className="form-group" style={{ marginBottom: 16 }}>
+          <label className="form-label">Rejection Reason *</label>
+          <select className="form-control" value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ fontSize: 13 }}>
+            <option value="">Select a reason...</option>
+            <option value="Document image is blurry or unreadable">Document image is blurry or unreadable</option>
+            <option value="Document does not match provided profile details">Document does not match provided profile details</option>
+            <option value="Expired or invalid document submitted">Expired or invalid document submitted</option>
+            <option value="Incomplete or cropped document">Incomplete or cropped document</option>
+            <option value="Suspected fraudulent documents">Suspected fraudulent documents</option>
+            <option value="Other verification discrepancy">Other verification discrepancy</option>
+          </select>
         </div>
-      )}
+        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+          <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => { setRejectModal(false); setRejectReason(''); }}>Cancel</button>
+          <button type="button" className="btn-danger" style={{ flex: 1 }} onClick={() => handleUpdateStatus(selected._id, 'REJECTED', selected.kycType)} disabled={!rejectReason}>
+            ✕ Confirm Rejection
+          </button>
+        </div>
+      </Modal>
 
       {/* Confirm Approval Modal */}
       {confirmApproval && (

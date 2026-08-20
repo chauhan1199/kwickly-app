@@ -11,11 +11,19 @@ import { TextInput, FormRow, validators } from '../../components/FormInput'
 import MapPicker from '../../components/MapPicker'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
-import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Copy, MapPin, Upload, X, DollarSign, FileText } from 'lucide-react'
+import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Copy, MapPin, Upload, X, DollarSign, FileText, User, Home, CreditCard, Briefcase, AlertCircle } from 'lucide-react'
+import WalletAdjuster from '../../components/common/WalletAdjuster'
 
 const PAGE_SIZE = 15
 const KYC_VARIANT = { APPROVED: 'success', PENDING: 'warning', REJECTED: 'danger' }
 const DOC_TYPES = ['AADHAR', 'PAN', 'LICENSE', 'OTHER']
+
+const WORKER_FORM_TABS = [
+  { key: 'basic', label: 'Basic Info', icon: User },
+  { key: 'services', label: 'Services & Skills', icon: Briefcase },
+  { key: 'address', label: 'Address & GPS', icon: Home },
+  { key: 'banking', label: 'Banking & Payout', icon: CreditCard },
+]
 
 const emptyForm = {
   name: '', phone: '', email: '', city: '', bio: '', profileImage: '',
@@ -40,6 +48,7 @@ export default function Workers() {
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
+  const [workerFormTab, setWorkerFormTab] = useState('basic')
 
   const [walletAmount, setWalletAmount] = useState('')
   const [walletDesc, setWalletDesc] = useState('')
@@ -157,36 +166,113 @@ export default function Workers() {
 
   const validateForm = () => {
     const errors = {}
-    errors.name = validators.name(formData.name)
-    errors.phone = validators.phone(formData.phone)
-    errors.email = validators.email(formData.email)
-    if (formData.addressPincode && !/^\d{4,10}$/.test(formData.addressPincode)) {
-      errors.addressPincode = 'Pincode must be 4-10 digits'
+
+    // Name validation
+    if (!formData.name || !formData.name.trim()) {
+      errors.name = 'Full name is required'
+    } else if (formData.name.trim().length < 2) {
+      errors.name = 'Full name must be at least 2 characters'
+    } else if (!/^[a-zA-Z\s.'-]+$/.test(formData.name.trim())) {
+      errors.name = 'Name should only contain letters and spaces'
     }
+
+    // Phone validation
+    const cleanPhone = (formData.phone || '').replace(/\D/g, '')
+    if (!cleanPhone) {
+      errors.phone = 'Phone number is required'
+    } else if (cleanPhone.length !== 10) {
+      errors.phone = 'Phone number must be exactly 10 digits'
+    } else if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      errors.phone = 'Enter a valid Indian mobile number starting with 6-9'
+    }
+
+    // Email validation (optional)
+    if (formData.email && formData.email.trim()) {
+      if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(formData.email.trim())) {
+        errors.email = 'Enter a valid email address (e.g. name@example.com)'
+      }
+    }
+
+    // Service Radius validation
     if (formData.serviceRadius && (isNaN(formData.serviceRadius) || Number(formData.serviceRadius) < 1 || Number(formData.serviceRadius) > 100)) {
       errors.serviceRadius = 'Service radius must be between 1 and 100 km'
     }
-    if (formData.bankAccountNumber && !/^\d{8,20}$/.test(formData.bankAccountNumber)) {
-      errors.bankAccountNumber = 'Account number must be 8-20 digits'
+
+    // Address Pincode validation (optional)
+    if (formData.addressPincode && formData.addressPincode.trim()) {
+      const cleanPin = formData.addressPincode.trim().replace(/\D/g, '')
+      if (cleanPin.length !== 6) {
+        errors.addressPincode = 'Enter a valid 6-digit Indian pincode'
+      }
     }
-    if (formData.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(formData.bankIfsc)) {
-      errors.bankIfsc = 'Enter a valid IFSC code (e.g. SBIN0001234)'
+
+    // Coordinates validation (optional)
+    if (formData.latitude && (isNaN(formData.latitude) || formData.latitude < -90 || formData.latitude > 90)) {
+      errors.latitude = 'Latitude must be between -90 and 90'
     }
+    if (formData.longitude && (isNaN(formData.longitude) || formData.longitude < -180 || formData.longitude > 180)) {
+      errors.longitude = 'Longitude must be between -180 and 180'
+    }
+
+    // Banking validations (optional)
+    if (formData.bankAccountNumber && formData.bankAccountNumber.trim()) {
+      const cleanAcc = formData.bankAccountNumber.trim().replace(/\D/g, '')
+      if (cleanAcc.length < 8 || cleanAcc.length > 20) {
+        errors.bankAccountNumber = 'Account number must be 8-20 digits'
+      }
+    }
+    if (formData.bankIfsc && formData.bankIfsc.trim()) {
+      const cleanIfsc = formData.bankIfsc.trim().toUpperCase()
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(cleanIfsc)) {
+        errors.bankIfsc = 'Enter a valid 11-character IFSC code (e.g. SBIN0001234)'
+      }
+    }
+    if (formData.upiId && formData.upiId.trim()) {
+      if (!/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(formData.upiId.trim())) {
+        errors.upiId = 'Enter a valid UPI ID (e.g. user@oksbi or 9876543210@paytm)'
+      }
+    }
+
+    // Services validation
     const filledServices = formData.services.filter(s => s.categoryId)
     const invalidService = filledServices.find(s => !s.subcategories?.length)
     if (invalidService) {
-      errors.services = 'Select at least one subcategory for each service'
+      errors.services = 'Select at least one subcategory for each chosen service'
     }
     const dupCats = filledServices.filter((s, i, arr) => arr.findIndex(x => x.categoryId === s.categoryId) !== i)
     if (dupCats.length > 0) {
-      errors.services = 'Duplicate categories found — remove duplicates'
+      errors.services = 'Duplicate categories found — please remove duplicates'
     }
+
     setFormErrors(errors)
-    return Object.values(errors).every(v => !v)
+
+    // Auto-switch to tab containing error
+    if (errors.name || errors.phone || errors.email || errors.serviceRadius) {
+      setWorkerFormTab('basic')
+    } else if (errors.services) {
+      setWorkerFormTab('services')
+    } else if (errors.addressPincode || errors.latitude || errors.longitude) {
+      setWorkerFormTab('address')
+    } else if (errors.bankAccountNumber || errors.bankIfsc || errors.upiId) {
+      setWorkerFormTab('banking')
+    }
+
+    return Object.keys(errors).length === 0
   }
 
   const handleFieldChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    let sanitized = value
+    if (field === 'phone') {
+      sanitized = value.replace(/\D/g, '').slice(0, 10)
+    } else if (field === 'addressPincode') {
+      sanitized = value.replace(/\D/g, '').slice(0, 6)
+    } else if (field === 'bankAccountNumber') {
+      sanitized = value.replace(/\D/g, '').slice(0, 20)
+    } else if (field === 'bankIfsc') {
+      sanitized = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)
+    }
+
+    setFormData(prev => ({ ...prev, [field]: sanitized }))
     if (formErrors[field]) setFormErrors(prev => ({ ...prev, [field]: null }))
   }
 
@@ -209,6 +295,7 @@ export default function Workers() {
 
   const openAdd = () => {
     setEditWorker(null)
+    setWorkerFormTab('basic')
     setFormData({ ...emptyForm })
     setFormErrors({})
     setShowForm(true)
@@ -216,6 +303,7 @@ export default function Workers() {
 
   const openEdit = (w) => {
     setEditWorker(w)
+    setWorkerFormTab('basic')
     const addr = w.addresses?.find(a => a.isPrimary) || w.addresses?.[0] || {}
     const workerServices = (w.services || []).map(s => ({
       categoryId: s.category?._id || s.category || '',
@@ -333,17 +421,21 @@ export default function Workers() {
 
   const toggleStatus = async (id) => {
     try {
-      const res = await api.patch(`/admin/users/${id}/toggle-status`)
+      const res = await api.patch(`/admin/users/${id}/toggle-status`, {})
       if (res.data.status === 'success') {
         const updated = res.data.data
-        setWorkers(prev => prev.map(w => w._id === id ? updated : w))
-        if (detail?._id === id) setDetail(updated)
+        setWorkers(prev => prev.map(w => w._id === id ? { ...w, isVerified: updated.isVerified } : w))
+        if (detail?._id === id) setDetail(prev => ({ ...prev, isVerified: updated.isVerified }))
         const actionText = updated.isVerified ? 'activated' : 'deactivated'
-        showToast(`Worker ${actionText}`)
+        showToast(`Worker ${actionText} successfully`)
         
         window.dispatchEvent(new Event('admin-action'))
+      } else {
+        showToast(res.data.message || 'Failed to update status', 'error')
       }
-    } catch { showToast('Failed to update status', 'error') }
+    } catch (err) { 
+      showToast(err.response?.data?.message || 'Failed to update status', 'error') 
+    }
     setConfirm(null)
   }
 
@@ -598,20 +690,8 @@ export default function Workers() {
                         {detail.wallet?.upiId && <div className="detail-row"><span>UPI</span><strong>{detail.wallet.upiId}</strong></div>}
                         {!hasBank && <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--mid)', fontStyle: 'italic' }}>No bank details added</div>}
                       </div>
-                      <div style={{ marginTop: 12, padding: 12, background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mid)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}><DollarSign size={12} /> Admin Wallet Adjust</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: 8 }}>
-                          <input className="form-control" type="number" min="1" placeholder="Amount (₹)" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} style={{ fontSize: 13 }} />
-                          <input className="form-control" placeholder="Description" value={walletDesc} onChange={e => setWalletDesc(e.target.value)} style={{ fontSize: 13 }} />
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button className="btn-primary" style={{ flex: 1, fontSize: 12 }} disabled={walletLoading || !walletAmount} onClick={() => adjustWallet(false)}>
-                            {walletLoading ? '...' : 'Credit ₹'}
-                          </button>
-                          <button className="btn-danger" style={{ flex: 1, fontSize: 12 }} disabled={walletLoading || !walletAmount} onClick={() => adjustWallet(true)}>
-                            {walletLoading ? '...' : 'Debit ₹'}
-                          </button>
-                        </div>
+                      <div style={{ marginTop: 14 }}>
+                        <WalletAdjuster targetId={detail._id} entityType="WORKER" currentBalance={detail.wallet?.balance} onSuccess={refresh} />
                       </div>
                     </>
                   )
@@ -677,138 +757,392 @@ export default function Workers() {
         )
       })()}
 
-      {/* Add/Edit Modal */}
-      <Modal open={showForm} onClose={() => setShowForm(false)} title={editWorker ? 'Edit Worker' : 'Add New Worker'} width="540px">
-        <form onSubmit={saveWorker} noValidate style={{ maxHeight: '75vh', overflowY: 'auto' }}>
-          {/* Profile Image */}
-          <div style={{ marginBottom: 16 }}>
-            <label className="form-label">Profile Image</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {formData.profileImage ? (
-                <img src={formData.profileImage} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} />
-              ) : (
-                <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--input-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--mid)', border: '2px dashed var(--border)' }}>👤</div>
-              )}
-              <div>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
-                <button type="button" className="btn-secondary" style={{ fontSize: 12 }} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                  <Upload size={14} /> {uploading ? 'Uploading...' : 'Upload Image'}
-                </button>
-                {formData.profileImage && (
-                  <button type="button" style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: 12, cursor: 'pointer', marginLeft: 8 }} onClick={() => handleFieldChange('profileImage', '')}>Remove</button>
+      {/* Add/Edit Modal (Tabbed) */}
+      <Modal open={showForm} onClose={() => !saving && setShowForm(false)} title={editWorker ? 'Edit Worker' : 'Add New Worker'} width="580px">
+        <div style={{ display: 'flex', gap: 4, marginBottom: 18, borderBottom: '1px solid var(--border)', paddingBottom: 0, overflowX: 'auto' }}>
+          {WORKER_FORM_TABS.map(tab => {
+            const Icon = tab.icon
+            const hasTabError = (tab.key === 'basic' && (formErrors.name || formErrors.phone || formErrors.email || formErrors.serviceRadius)) ||
+              (tab.key === 'services' && formErrors.services) ||
+              (tab.key === 'address' && (formErrors.addressPincode || formErrors.latitude || formErrors.longitude)) ||
+              (tab.key === 'banking' && (formErrors.bankAccountNumber || formErrors.bankIfsc || formErrors.upiId))
+
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setWorkerFormTab(tab.key)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 14px',
+                  border: 'none',
+                  borderBottom: workerFormTab === tab.key ? '2px solid var(--primary)' : '2px solid transparent',
+                  background: 'transparent',
+                  color: workerFormTab === tab.key ? 'var(--primary)' : 'var(--mid)',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s',
+                  position: 'relative'
+                }}
+              >
+                <Icon size={14} />
+                {tab.label}
+                {hasTabError && (
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444', display: 'inline-block' }} />
                 )}
-              </div>
-            </div>
-          </div>
+              </button>
+            )
+          })}
+        </div>
 
-          <TextInput label="Full Name *" value={formData.name} onChange={e => handleFieldChange('name', e.target.value)} placeholder="e.g. John Doe" required error={formErrors.name} />
-          <TextInput label="Phone Number *" value={formData.phone} onChange={e => handleFieldChange('phone', e.target.value.replace(/[^0-9]/g, ''))} placeholder="e.g. 9876543210" required error={formErrors.phone} inputMode="numeric" maxLength={15} />
-          <FormRow>
-            <TextInput label="Email" value={formData.email} onChange={e => handleFieldChange('email', e.target.value)} placeholder="e.g. john@example.com" type="email" hint="Optional" error={formErrors.email} />
-            <TextInput label="City" value={formData.city} onChange={e => handleFieldChange('city', e.target.value)} placeholder="e.g. Mumbai" hint="Optional" />
-          </FormRow>
-
-          <div style={{ marginBottom: 12 }}>
-            <label className="form-label">Bio</label>
-            <textarea className="form-control" rows={2} value={formData.bio} onChange={e => handleFieldChange('bio', e.target.value)} placeholder="Short bio about the worker" style={{ resize: 'vertical', minHeight: 48, fontSize: 13 }} />
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <TextInput label="Service Radius (km)" value={formData.serviceRadius} onChange={e => handleFieldChange('serviceRadius', e.target.value)} placeholder="10" inputMode="numeric" hint="How far the worker can travel" error={formErrors.serviceRadius} />
-          </div>
-
-          <div className="divider" style={{ margin: '16px 0' }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Address</div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div style={{ marginBottom: 12 }}>
-              <label className="form-label">Label</label>
-              <select className="form-control" value={formData.addressLabel} onChange={e => handleFieldChange('addressLabel', e.target.value)} style={{ fontSize: 13 }}>
-                <option value="Home">Home</option>
-                <option value="Office">Office</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <TextInput label="Pincode" value={formData.addressPincode} onChange={e => handleFieldChange('addressPincode', e.target.value.replace(/[^0-9]/g, ''))} placeholder="e.g. 400001" inputMode="numeric" maxLength={10} hint="Optional" error={formErrors.addressPincode} />
-          </div>
-          <TextInput label="Street / Landmark" value={formData.addressStreet} onChange={e => handleFieldChange('addressStreet', e.target.value)} placeholder="e.g. 123 Main St" hint="Optional" />
-          <TextInput label="Area / Locality" value={formData.addressArea} onChange={e => handleFieldChange('addressArea', e.target.value)} placeholder="e.g. Andheri West" hint="Optional" />
-          <TextInput label="Address City" value={formData.addressCity} onChange={e => handleFieldChange('addressCity', e.target.value)} placeholder="e.g. Mumbai" hint="Optional" />
-
-          <div className="divider" style={{ margin: '16px 0' }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-            <MapPin size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-            Map Location <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(Optional)</span>
-          </div>
-          <MapPicker
-            latitude={formData.latitude}
-            longitude={formData.longitude}
-            onChange={({ latitude, longitude }) => {
-              handleFieldChange('latitude', latitude)
-              handleFieldChange('longitude', longitude)
-            }}
-          />
-
-          <div className="divider" style={{ margin: '16px 0' }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            Services
-            <button type="button" className="btn-secondary" style={{ fontSize: 11, padding: '4px 10px', textTransform: 'none', letterSpacing: 0 }} onClick={addService}><Plus size={12} /> Add Service</button>
-          </div>
-          {formData.services.length === 0 && (
-            <div style={{ fontSize: 12, color: 'var(--mid)', marginBottom: 12 }}>No services added. Click "Add Service" to assign categories.</div>
-          )}
-          {formErrors.services && (
-            <div style={{ fontSize: 12, color: '#EF4444', marginTop: -8, marginBottom: 10, fontWeight: 600 }}>⚠ {formErrors.services}</div>
-          )}
-          {formData.services.map((svc, idx) => (
-            <div key={idx} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 10, background: 'var(--input-bg)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)' }}>Service {idx + 1}</span>
-                <button type="button" style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 2 }} onClick={() => removeService(idx)}><X size={14} /></button>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Category *</label>
-                <select className="form-control" value={svc.categoryId} onChange={e => updateServiceCategory(idx, e.target.value)} style={{ fontSize: 13 }}>
-                  <option value="">Select category</option>
-                  {categories.filter(c => c.active !== false).map(c => (
-                    <option key={c._id} value={c._id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              {svc.categoryId && (
-                <div style={{ marginTop: 8 }}>
-                  <label className="form-label">Subcategories</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {getCategorySubs(svc.categoryId).map(sub => (
-                      <button key={sub.name} type="button" className={`filter-chip ${svc.subcategories.includes(sub.name) ? 'active' : ''}`} style={{ fontSize: 11 }} onClick={() => toggleSubcategory(idx, sub.name)}>
-                        {sub.name}
+        <form onSubmit={saveWorker} noValidate>
+          <div style={{ minHeight: 320 }}>
+            {workerFormTab === 'basic' && (
+              <>
+                {/* Profile Image */}
+                <div style={{ marginBottom: 16 }}>
+                  <label className="input-label">Profile Image (Optional)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {formData.profileImage ? (
+                      <img src={formData.profileImage} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} />
+                    ) : (
+                      <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--input-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--mid)', border: '2px dashed var(--border)' }}>👤</div>
+                    )}
+                    <div>
+                      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                      <button type="button" className="btn-secondary" style={{ fontSize: 12 }} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                        <Upload size={14} /> {uploading ? 'Uploading...' : 'Upload Image'}
                       </button>
-                    ))}
+                      {formData.profileImage && (
+                        <button type="button" style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: 12, cursor: 'pointer', marginLeft: 8 }} onClick={() => handleFieldChange('profileImage', '')}>Remove</button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
 
-          <div className="divider" style={{ margin: '16px 0' }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Banking Details <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(Optional)</span></div>
-          <TextInput label="Bank Account Number" value={formData.bankAccountNumber} onChange={e => handleFieldChange('bankAccountNumber', e.target.value.replace(/[^0-9]/g, ''))} placeholder="e.g. 1234567890" inputMode="numeric" hint="8-20 digits" error={formErrors.bankAccountNumber} maxLength={20} />
-          <FormRow>
-            <TextInput label="IFSC Code" value={formData.bankIfsc} onChange={e => handleFieldChange('bankIfsc', e.target.value.toUpperCase())} placeholder="e.g. SBIN0001234" hint="4 letters + 6 digits" error={formErrors.bankIfsc} maxLength={11} />
-            <TextInput label="Bank Name" value={formData.bankName} onChange={e => handleFieldChange('bankName', e.target.value)} placeholder="e.g. SBI" hint="Optional" />
-          </FormRow>
-          <TextInput label="UPI ID" value={formData.upiId} onChange={e => handleFieldChange('upiId', e.target.value)} placeholder="e.g. user@upi" hint="Optional" />
+                <TextInput
+                  label="Full Name *"
+                  value={formData.name}
+                  onChange={e => handleFieldChange('name', e.target.value)}
+                  placeholder="e.g. Ramesh Patel"
+                  required
+                  error={formErrors.name}
+                  disabled={saving}
+                  maxLength={100}
+                />
+                <TextInput
+                  label="Phone Number *"
+                  value={formData.phone}
+                  onChange={e => handleFieldChange('phone', e.target.value)}
+                  placeholder="10-digit mobile number (e.g. 9876543210)"
+                  required
+                  error={formErrors.phone}
+                  inputMode="numeric"
+                  maxLength={10}
+                  disabled={saving}
+                  hint="Must start with 6, 7, 8, or 9"
+                />
+                <FormRow>
+                  <TextInput
+                    label="Email Address"
+                    value={formData.email}
+                    onChange={e => handleFieldChange('email', e.target.value)}
+                    placeholder="e.g. worker@example.com"
+                    type="email"
+                    hint="Optional"
+                    error={formErrors.email}
+                    disabled={saving}
+                    maxLength={100}
+                  />
+                  <TextInput
+                    label="City"
+                    value={formData.city}
+                    onChange={e => handleFieldChange('city', e.target.value)}
+                    placeholder="e.g. Ahmedabad"
+                    hint="Optional"
+                    disabled={saving}
+                    maxLength={50}
+                  />
+                </FormRow>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button>
-            <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={saving || uploading}>{saving ? 'Saving...' : editWorker ? 'Update Worker' : 'Create Worker'}</button>
+                <TextInput
+                  label="Service Radius (km)"
+                  value={formData.serviceRadius}
+                  onChange={e => handleFieldChange('serviceRadius', e.target.value)}
+                  placeholder="10"
+                  inputMode="numeric"
+                  hint="Maximum distance worker travels for jobs (1-100 km)"
+                  error={formErrors.serviceRadius}
+                  disabled={saving}
+                  maxLength={3}
+                />
+
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label className="input-label">Bio (Optional)</label>
+                    <span style={{ fontSize: 11, color: 'var(--mid)' }}>{formData.bio?.length || 0}/500</span>
+                  </div>
+                  <textarea
+                    className="form-control"
+                    rows={2}
+                    value={formData.bio}
+                    onChange={e => handleFieldChange('bio', e.target.value)}
+                    placeholder="Short bio about worker's skills & background..."
+                    style={{ resize: 'vertical', minHeight: 52, fontSize: 13 }}
+                    maxLength={500}
+                    disabled={saving}
+                  />
+                </div>
+              </>
+            )}
+
+            {workerFormTab === 'services' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>Assigned Services & Skills</div>
+                    <div style={{ fontSize: 11, color: 'var(--mid)' }}>Add categories and choose subcategories the worker can fulfill</div>
+                  </div>
+                  <button type="button" className="btn-secondary" style={{ fontSize: 12 }} onClick={addService} disabled={saving}>
+                    <Plus size={14} /> Add Service
+                  </button>
+                </div>
+
+                {formErrors.services && (
+                  <div style={{ fontSize: 12, color: '#EF4444', marginBottom: 12, fontWeight: 600, padding: '8px 12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: 6 }}>
+                    ⚠ {formErrors.services}
+                  </div>
+                )}
+
+                {formData.services.length === 0 ? (
+                  <div style={{ padding: 28, textAlign: 'center', background: 'var(--input-bg)', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                    <Briefcase size={28} style={{ color: 'var(--mid)', margin: '0 auto 8px', display: 'block' }} />
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>No services added yet</div>
+                    <div style={{ fontSize: 12, color: 'var(--mid)', marginTop: 4 }}>Click "Add Service" above to assign service categories to this worker</div>
+                  </div>
+                ) : (
+                  formData.services.map((svc, idx) => (
+                    <div key={idx} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 12, background: 'var(--input-bg)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>Service #{idx + 1}</span>
+                        <button type="button" style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 2 }} onClick={() => removeService(idx)} disabled={saving}>
+                          <X size={16} />
+                        </button>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 10 }}>
+                        <label className="input-label">Category *</label>
+                        <select
+                          className="form-control"
+                          value={svc.categoryId}
+                          onChange={e => updateServiceCategory(idx, e.target.value)}
+                          style={{ fontSize: 13 }}
+                          disabled={saving}
+                        >
+                          <option value="">Select category</option>
+                          {categories.filter(c => c.active !== false).map(c => (
+                            <option key={c._id} value={c._id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {svc.categoryId && (
+                        <div>
+                          <label className="input-label" style={{ marginBottom: 6 }}>Subcategories / Skills</label>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {getCategorySubs(svc.categoryId).map(sub => {
+                              const isSelected = svc.subcategories.includes(sub.name)
+                              return (
+                                <button
+                                  key={sub.name}
+                                  type="button"
+                                  className={`filter-chip ${isSelected ? 'active' : ''}`}
+                                  style={{ fontSize: 11, padding: '4px 10px', borderRadius: 16 }}
+                                  onClick={() => toggleSubcategory(idx, sub.name)}
+                                  disabled={saving}
+                                >
+                                  {sub.name} {isSelected && '✓'}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </>
+            )}
+
+            {workerFormTab === 'address' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <label className="input-label">Address Label</label>
+                    <select
+                      className="form-control"
+                      value={formData.addressLabel}
+                      onChange={e => handleFieldChange('addressLabel', e.target.value)}
+                      style={{ fontSize: 13 }}
+                      disabled={saving}
+                    >
+                      <option value="Home">Home</option>
+                      <option value="Office">Office</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <TextInput
+                    label="Pincode"
+                    value={formData.addressPincode}
+                    onChange={e => handleFieldChange('addressPincode', e.target.value)}
+                    placeholder="e.g. 380001"
+                    inputMode="numeric"
+                    maxLength={6}
+                    hint="6-digit Indian pincode"
+                    error={formErrors.addressPincode}
+                    disabled={saving}
+                  />
+                </div>
+                <TextInput
+                  label="Street / Landmark"
+                  value={formData.addressStreet}
+                  onChange={e => handleFieldChange('addressStreet', e.target.value)}
+                  placeholder="e.g. 123 Main St, Near Railway Station"
+                  hint="Optional"
+                  disabled={saving}
+                  maxLength={200}
+                />
+                <TextInput
+                  label="Area / Locality"
+                  value={formData.addressArea}
+                  onChange={e => handleFieldChange('addressArea', e.target.value)}
+                  placeholder="e.g. Andheri West"
+                  hint="Optional"
+                  disabled={saving}
+                  maxLength={100}
+                />
+                <TextInput
+                  label="Address City"
+                  value={formData.addressCity}
+                  onChange={e => handleFieldChange('addressCity', e.target.value)}
+                  placeholder="e.g. Mumbai"
+                  hint="Optional"
+                  disabled={saving}
+                  maxLength={50}
+                />
+
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '16px 0 10px' }}>
+                  <MapPin size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                  Base Location Coordinates <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(Optional)</span>
+                </div>
+                <MapPicker
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  onChange={({ latitude, longitude }) => {
+                    handleFieldChange('latitude', latitude)
+                    handleFieldChange('longitude', longitude)
+                  }}
+                />
+              </>
+            )}
+
+            {workerFormTab === 'banking' && (
+              <>
+                <div style={{ marginBottom: 16, padding: 10, background: 'rgba(0, 180, 216, 0.08)', borderRadius: 8, fontSize: 12, color: 'var(--primary)', border: '1px solid rgba(0, 180, 216, 0.2)' }}>
+                  💡 Payout details are used for automated earnings settlements and instant wallet withdrawals.
+                </div>
+                <TextInput
+                  label="Bank Account Number"
+                  value={formData.bankAccountNumber}
+                  onChange={e => handleFieldChange('bankAccountNumber', e.target.value)}
+                  placeholder="e.g. 123456789012"
+                  inputMode="numeric"
+                  hint="8-20 numeric digits"
+                  error={formErrors.bankAccountNumber}
+                  maxLength={20}
+                  disabled={saving}
+                />
+                <FormRow>
+                  <TextInput
+                    label="IFSC Code"
+                    value={formData.bankIfsc}
+                    onChange={e => handleFieldChange('bankIfsc', e.target.value)}
+                    placeholder="e.g. SBIN0001234"
+                    hint="11 alphanumeric uppercase"
+                    error={formErrors.bankIfsc}
+                    maxLength={11}
+                    disabled={saving}
+                  />
+                  <TextInput
+                    label="Bank Name"
+                    value={formData.bankName}
+                    onChange={e => handleFieldChange('bankName', e.target.value)}
+                    placeholder="e.g. State Bank of India"
+                    hint="Optional"
+                    disabled={saving}
+                    maxLength={100}
+                  />
+                </FormRow>
+                <TextInput
+                  label="UPI ID"
+                  value={formData.upiId}
+                  onChange={e => handleFieldChange('upiId', e.target.value)}
+                  placeholder="e.g. worker@oksbi or 9876543210@paytm"
+                  hint="Optional"
+                  error={formErrors.upiId}
+                  disabled={saving}
+                  maxLength={100}
+                />
+              </>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+            <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)} disabled={saving}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={saving || uploading}>
+              {saving ? 'Saving...' : editWorker ? 'Update Worker' : 'Create Worker'}
+            </button>
           </div>
         </form>
       </Modal>
 
-      {confirm?.type === 'toggle' && <ConfirmModal title={workers.find(w => w._id === confirm.id)?.isVerified ? 'Deactivate Worker' : 'Activate Worker'} message={workers.find(w => w._id === confirm.id)?.isVerified ? `Deactivate ${confirm.name}?` : `Activate ${confirm.name}?`} danger={workers.find(w => w._id === confirm.id)?.isVerified} onConfirm={() => toggleStatus(confirm.id)} onClose={() => setConfirm(null)} />}
-      {confirm?.type === 'delete' && <ConfirmModal title="Delete Worker" message={`Permanently delete ${confirm.name}?`} confirmText="Delete" onConfirm={() => deleteWorker(confirm.id)} onClose={() => setConfirm(null)} />}
-      {confirm?.type === 'remove_kyc_doc' && <ConfirmModal title="Remove Document" message={`Remove KYC ${confirm.name}?`} confirmText="Remove" onConfirm={() => removeKycDocument(confirm.docIndex)} onClose={() => setConfirm(null)} />}
+      {/* Confirm Modals */}
+      {confirm?.type === 'toggle' && (() => {
+        const target = workers.find(w => w._id === confirm.id) || (detail?._id === confirm.id ? detail : null)
+        const isActive = target?.isVerified ?? true
+        return (
+          <ConfirmModal
+            title={isActive ? 'Deactivate Worker' : 'Activate Worker'}
+            message={isActive ? `Deactivate ${confirm.name}? They will not receive new jobs.` : `Activate ${confirm.name}? They will be able to receive jobs.`}
+            danger={isActive}
+            confirmText={isActive ? 'Deactivate' : 'Activate'}
+            onConfirm={() => toggleStatus(confirm.id)}
+            onClose={() => setConfirm(null)}
+          />
+        )
+      })()}
+      {confirm?.type === 'delete' && (
+        <ConfirmModal
+          title="Delete Worker"
+          message={`Permanently delete ${confirm.name}? This action cannot be undone.`}
+          confirmText="Delete Permanently"
+          onConfirm={() => deleteWorker(confirm.id)}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type === 'remove_kyc_doc' && (
+        <ConfirmModal
+          title="Remove Document"
+          message={`Remove KYC ${confirm.name}?`}
+          confirmText="Remove"
+          onConfirm={() => removeKycDocument(confirm.docIndex)}
+          onClose={() => setConfirm(null)}
+        />
+      )}
     </div>
   )
 }
