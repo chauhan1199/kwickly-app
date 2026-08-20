@@ -246,8 +246,8 @@ exports.getMySubscriptions = catchAsync(async (req, res) => {
  * Returns available subscription plans from platform settings
  */
 exports.getPlans = catchAsync(async (req, res) => {
-    const AppSettings = require('../settings/settings.model');
-    const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
     const plans = settings?.subscriptionPlans || [];
     return successResponse(res, plans, 'Subscription plans fetched');
 });

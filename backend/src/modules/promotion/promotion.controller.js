@@ -1,30 +1,38 @@
-﻿const { StatusCodes } = require('http-status-codes');
+const { StatusCodes } = require('http-status-codes');
 const { Banner, Promotion, UserPromoUsage } = require('./promotion.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
+const { getCache, setCache, delCacheByPattern } = require('../../helpers/redis.helper');
 
-// â”€â”€â”€ Public: mobile app fetches only active, in-range banners â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Public: mobile app fetches only active, in-range banners ────────────────
 exports.getBanners = catchAsync(async (req, res) => {
     const { position } = req.query;
+    const cacheKey = `banners_public_${position || 'all'}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return successResponse(res, cached, 'Banners fetched from cache');
+
     const filter = { isActive: true };
     if (position) filter.position = position;
     filter.$or = [{ startAt: null }, { startAt: { $lte: new Date() } }];
     filter.$and = [{ $or: [{ endAt: null }, { endAt: { $gte: new Date() } }] }];
     const banners = await Banner.find(filter).sort({ priority: -1, createdAt: -1 });
+
+    await setCache(cacheKey, banners, 600); // 10 mins TTL
     return successResponse(res, banners, 'Banners fetched');
 });
 
-// â”€â”€â”€ Admin: all banners (including inactive) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Admin: all banners (including inactive) ──────────────────────────────────
 exports.getAllBanners = catchAsync(async (req, res) => {
     const banners = await Banner.find({}).sort({ priority: -1 });
     return successResponse(res, banners, 'All banners');
 });
 
-// â”€â”€â”€ Admin: create banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Admin: create banner ──────────────────────────────────────────────────────
 exports.createBanner = catchAsync(async (req, res) => {
     const banner = await Banner.create({ ...req.body, createdBy: req.user._id });
+    await delCacheByPattern('*banners_public*');
     logAdminActivity(
         'CREATE', 'BANNER', banner._id,
         'Banner Created',
@@ -35,10 +43,11 @@ exports.createBanner = catchAsync(async (req, res) => {
     return successResponse(res, banner, 'Banner created', StatusCodes.CREATED);
 });
 
-// â”€â”€â”€ Admin: update banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Admin: update banner ──────────────────────────────────────────────────────
 exports.updateBanner = catchAsync(async (req, res) => {
     const banner = await Banner.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!banner) return errorResponse(res, 'Banner not found', StatusCodes.NOT_FOUND);
+    await delCacheByPattern('*banners_public*');
     logAdminActivity(
         'UPDATE', 'BANNER', banner._id,
         'Banner Updated',
@@ -49,10 +58,11 @@ exports.updateBanner = catchAsync(async (req, res) => {
     return successResponse(res, banner, 'Banner updated');
 });
 
-// â”€â”€â”€ Admin: delete banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Admin: delete banner ──────────────────────────────────────────────────────
 exports.deleteBanner = catchAsync(async (req, res) => {
     const banner = await Banner.findByIdAndDelete(req.params.id);
     if (!banner) return errorResponse(res, 'Banner not found', StatusCodes.NOT_FOUND);
+    await delCacheByPattern('*banners_public*');
     logAdminActivity(
         'DELETE', 'BANNER', banner._id,
         'Banner Deleted',
