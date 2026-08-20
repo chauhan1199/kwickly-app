@@ -138,7 +138,7 @@ export default function AppLayout({ onLogout }) {
 
   const navSections = [
     { label: 'Overview', items: [{ path: '/', label: 'Dashboard', icon: '📊', exact: true }] },
-    { label: 'Management', items: [
+    { label: 'Operations', items: [
       { path: '/users', label: 'Customers', icon: '👤' },
       { path: '/workers', label: 'Workers', icon: '🔧', badge: badges.workers },
       { path: '/shops', label: 'Shops', icon: '🏪' },
@@ -147,24 +147,24 @@ export default function AppLayout({ onLogout }) {
       { path: '/kyc', label: 'KYC Queue', icon: '🪪', badge: (badges.kyc || 0) + (badges.shopKyc || 0) },
       { path: '/categories', label: 'Categories', icon: '📂', badge: badges.categories },
     ]},
-    { label: 'Platform', items: [
-      { path: '/promotions', label: 'Promotions', icon: '🎯' },
+    { label: 'Engagement & Support', items: [
+      { path: '/promotions', label: 'Promotions & Banners', icon: '🎯' },
+      { path: '/disputes', label: 'Disputes & Refunds', icon: '⚖️', badge: badges.disputes },
       { path: '/support-chats', label: 'Support Chats', icon: '💬' },
-      { path: '/settlements', label: 'Settlements', icon: '🏦' },
-      { path: '/disputes', label: 'Disputes', icon: '⚖️', badge: badges.disputes },
     ]},
-    { label: 'Finance', items: [
-      { path: '/admin-wallet', label: 'Admin Wallet', icon: '🏦' },
+    { label: 'Finance & Treasury', items: [
+      { path: '/admin-wallet', label: 'Admin Platform Wallet', icon: '🏦' },
       { path: '/wallets', label: 'User Wallets', icon: '💰' },
-      { path: '/payouts', label: 'Payouts', icon: '💸', badge: badges.payouts },
-      { path: '/ledger', label: 'Ledger', icon: '📖' },
-      { path: '/subscriptions', label: 'Subscriptions', icon: '🎯' },
+      { path: '/payouts', label: 'Worker Payouts', icon: '💸', badge: badges.payouts },
+      { path: '/settlements', label: 'Shop Settlements', icon: '🧾' },
+      { path: '/subscriptions', label: 'Subscription Plans', icon: '💳' },
+      { path: '/ledger', label: 'Platform Ledger', icon: '📖' },
     ]},
-    { label: 'System', items: [
-      { path: '/notifications', label: 'Notifications', icon: '📣' },
-      { path: '/reports', label: 'Reports', icon: '📈' },
-      { path: '/admin-users', label: 'Admin Profile', icon: '🔐' },
-      { path: '/settings', label: 'Settings', icon: '⚙️' },
+    { label: 'System & Reports', items: [
+      { path: '/settings', label: 'Platform Settings & Fees', icon: '⚙️' },
+      { path: '/reports', label: 'Reports & Analytics', icon: '📈' },
+      { path: '/notifications', label: 'Push Broadcasts', icon: '📣' },
+      { path: '/admin-users', label: 'Admin Profile & Security', icon: '🔐' },
     ]},
   ]
 
