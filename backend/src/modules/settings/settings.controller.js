@@ -9,6 +9,59 @@ const Notification = require('../notification/notification.model');
 
 const CACHE_KEY = 'app_settings';
 
+const DEFAULT_SUBSCRIPTION_PLANS = [
+    {
+        id: 'worker_trial',
+        label: 'Free Trial',
+        name: 'Free Trial',
+        price: 0,
+        durationDays: 14,
+        features: ['14 Days Free Platform Access', 'Receive Service Requests', 'Standard Support'],
+        isActive: true,
+        targetRole: 'WORKER'
+    },
+    {
+        id: 'worker_monthly',
+        label: 'Worker Monthly',
+        name: 'Worker Monthly',
+        price: 499,
+        durationDays: 30,
+        features: ['Unlimited Job Broadcasts', 'Direct Customer Calling', 'Standard 10% Commission Cap', 'In-App Wallet Payouts'],
+        isActive: true,
+        targetRole: 'WORKER'
+    },
+    {
+        id: 'worker_annual',
+        label: 'Worker Annual',
+        name: 'Worker Annual',
+        price: 4499,
+        durationDays: 365,
+        features: ['Priority Lead Dispatch', 'Verified Pro Badge', 'Zero Commission on First 10 Jobs', 'Instant Daily Settlements'],
+        isActive: true,
+        targetRole: 'WORKER'
+    },
+    {
+        id: 'shop_monthly',
+        label: 'Shop Starter Monthly',
+        name: 'Shop Starter Monthly',
+        price: 299,
+        durationDays: 30,
+        features: ['List up to 100 Products', 'Order Management & Invoicing', 'Local Discovery Search'],
+        isActive: true,
+        targetRole: 'SHOP'
+    },
+    {
+        id: 'shop_annual',
+        label: 'Shop Pro Annual',
+        name: 'Shop Pro Annual',
+        price: 2499,
+        durationDays: 365,
+        features: ['Unlimited Product Catalog', 'Featured Store Placement', 'Promo Banner Boosts', 'Fast Bank Settlements'],
+        isActive: true,
+        targetRole: 'SHOP'
+    }
+];
+
 // Helper to flatten nested settings for frontend
 const flattenSettings = (s) => ({
     feeAmount: s.fees?.amount || 50,
@@ -27,10 +80,10 @@ const flattenSettings = (s) => ({
     iconUrl: s.branding?.iconUrl || '',
     // Subscriptions (Flat keys for standard plans)
     freeTrialDays: s.subscription?.freeTrialDays || 14,
-    monthlyPlan: s.subscriptionPlans?.find(p => p.id === 'monthly')?.price || 499,
+    monthlyPlan: s.subscriptionPlans?.find(p => p.id === 'worker_monthly' || p.id === 'monthly')?.price || 499,
     semiPlan: s.subscriptionPlans?.find(p => p.id === 'semi')?.price || 2499,
-    annualPlan: s.subscriptionPlans?.find(p => p.id === 'annual')?.price || 4499,
-    subscriptionPlans: s.subscriptionPlans || [],
+    annualPlan: s.subscriptionPlans?.find(p => p.id === 'worker_annual' || p.id === 'annual')?.price || 4499,
+    subscriptionPlans: (s.subscriptionPlans && s.subscriptionPlans.length > 0) ? s.subscriptionPlans : DEFAULT_SUBSCRIPTION_PLANS,
     termsOfService: s.legal?.termsOfService || '',
     privacyPolicy: s.legal?.privacyPolicy || '',
     ...s.toObject() // Keep original nested for fallback
@@ -97,7 +150,10 @@ exports.getSettings = catchAsync(async (req, res) => {
     const flat = await fetchWithCache(CACHE_KEY, 86400, async () => {
         let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
         if (!settings) {
-            settings = await AppSettings.create({ isSingleton: 'CONFIG' });
+            settings = await AppSettings.create({ isSingleton: 'CONFIG', subscriptionPlans: DEFAULT_SUBSCRIPTION_PLANS });
+        } else if (!settings.subscriptionPlans || settings.subscriptionPlans.length === 0) {
+            settings.subscriptionPlans = DEFAULT_SUBSCRIPTION_PLANS;
+            await settings.save();
         }
         return flattenSettings(settings);
     });
@@ -111,11 +167,14 @@ exports.getPublicSettings = catchAsync(async (req, res) => {
 
     let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
     if (!settings) {
-        settings = await AppSettings.create({ isSingleton: 'CONFIG' });
+        settings = await AppSettings.create({ isSingleton: 'CONFIG', subscriptionPlans: DEFAULT_SUBSCRIPTION_PLANS });
+    } else if (!settings.subscriptionPlans || settings.subscriptionPlans.length === 0) {
+        settings.subscriptionPlans = DEFAULT_SUBSCRIPTION_PLANS;
+        await settings.save();
     }
 
     const publicSettings = {
-        subscriptionPlans: settings.subscriptionPlans || [],
+        subscriptionPlans: (settings.subscriptionPlans && settings.subscriptionPlans.length > 0) ? settings.subscriptionPlans : DEFAULT_SUBSCRIPTION_PLANS,
         maintenanceMode: settings.maintenance?.mode || false,
         maintenanceMsg: settings.maintenance?.message || '',
         appName: settings.branding?.appName || 'Kwickly',
