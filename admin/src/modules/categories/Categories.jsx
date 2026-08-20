@@ -4,6 +4,7 @@ import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import { getImageUrl } from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
+import Modal from '../../components/Modal'
 
 function CategoryModal({ cat, onSave, onClose }) {
   const [form, setForm] = useState(cat
@@ -47,70 +48,65 @@ function CategoryModal({ cat, onSave, onClose }) {
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 520 }}>
-        <div className="modal-header">
-          <div style={{ fontWeight: 800, fontSize: 16 }}>{cat ? 'Edit Category' : 'Add New Category'}</div>
-          <button className="drawer-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          {/* ── Image Upload ── */}
-          <div className="form-group">
-            <label className="form-label">Cover Image <span style={{ color: 'var(--mid)', fontWeight: 400 }}>(shown on mobile app)</span></label>
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: '2px dashed var(--border)',
-                borderRadius: 12,
-                height: 140,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                overflow: 'hidden',
-                background: 'var(--input-bg)',
-                position: 'relative',
-                transition: 'border-color 0.2s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-            >
-              {imagePreview ? (
-                <>
-                  <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 11, padding: '4px 10px', borderRadius: 8, fontWeight: 600 }}>Click to change</div>
-                </>
-              ) : (
-                <div style={{ textAlign: 'center', color: 'var(--mid)' }}>
-                  <div style={{ fontSize: 32, marginBottom: 6 }}>🖼️</div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>Click to upload image</div>
-                  <div style={{ fontSize: 11, marginTop: 2 }}>JPG, PNG up to 5MB</div>
-                </div>
-              )}
-            </div>
-            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
+    <Modal open={true} onClose={!saving ? onClose : undefined} title={cat ? 'Edit Category' : 'Add New Category'} width="520px">
+      <div>
+        {/* ── Image Upload ── */}
+        <div className="form-group">
+          <label className="form-label">Cover Image <span style={{ color: 'var(--mid)', fontWeight: 400 }}>(shown on mobile app)</span></label>
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              border: '2px dashed var(--border)',
+              borderRadius: 12,
+              height: 140,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              overflow: 'hidden',
+              background: 'var(--input-bg)',
+              position: 'relative',
+              transition: 'border-color 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+          >
+            {imagePreview ? (
+              <>
+                <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 11, padding: '4px 10px', borderRadius: 8, fontWeight: 600 }}>Click to change</div>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', color: 'var(--mid)' }}>
+                <div style={{ fontSize: 32, marginBottom: 6 }}>🖼️</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Click to upload image</div>
+                <div style={{ fontSize: 11, marginTop: 2 }}>JPG, PNG up to 5MB</div>
+              </div>
+            )}
           </div>
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
+        </div>
 
-          <div className="form-group" style={{ marginTop: 20 }}>
-            <label className="form-label">Category Name *</label>
-            <input
-              className={`form-control ${errors.name ? 'input-error' : ''}`}
-              placeholder="e.g. Beauty & Salon"
-              value={form.name}
-              onChange={e => set('name', e.target.value)}
-              autoFocus
-            />
-            {errors.name && <div className="field-error">{errors.name}</div>}
-          </div>
+        <div className="form-group" style={{ marginTop: 20 }}>
+          <label className="form-label">Category Name *</label>
+          <input
+            className={`form-control ${errors.name ? 'input-error' : ''}`}
+            placeholder="e.g. Beauty & Salon"
+            value={form.name}
+            onChange={e => set('name', e.target.value)}
+            autoFocus
+          />
+          {errors.name && <div className="field-error">{errors.name}</div>}
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.name.trim()}>
-            {saving ? '⏳ Saving...' : cat ? '💾 Save Changes' : '+ Add Category'}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={handleSave} disabled={saving || !form.name.trim()}>
+            {saving ? 'Saving...' : cat ? 'Save Changes' : '+ Add Category'}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -157,74 +153,63 @@ function SubcategoryModal({ catName, sub, onSave, onClose }) {
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 520 }}>
-        <div className="modal-header">
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>{sub ? 'Edit Subcategory' : 'Add Subcategory'}</div>
-            <div style={{ fontSize: 12, color: 'var(--mid)', fontFamily: 'var(--font-body)' }}>under {catName}</div>
-          </div>
-          <button className="drawer-close" onClick={onClose}>✕</button>
-        </div>
-          <div className="modal-body">
-            {/* ── Image Upload ── */}
-            <div className="form-group">
-              <label className="form-label">Subcategory Image <span style={{ color: 'var(--mid)', fontWeight: 400 }}>(shown on mobile app)</span></label>
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  border: '2px dashed var(--border)',
-                  borderRadius: 12,
-                  height: 140,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  overflow: 'hidden',
-                  background: 'var(--input-bg)',
-                  position: 'relative',
-                  transition: 'border-color 0.2s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-              >
-                {imagePreview ? (
-                  <>
-                    <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 11, padding: '4px 10px', borderRadius: 8, fontWeight: 600 }}>Click to change</div>
-                  </>
-                ) : (
-                  <div style={{ textAlign: 'center', color: 'var(--mid)' }}>
-                    <div style={{ fontSize: 32, marginBottom: 6 }}>🖼️</div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>Click to upload image</div>
-                    <div style={{ fontSize: 11, marginTop: 2 }}>JPG, PNG up to 5MB</div>
-                  </div>
-                )}
+    <Modal open={true} onClose={!saving ? onClose : undefined} title={sub ? `Edit Subcategory (${catName})` : `Add Subcategory to "${catName}"`} width="480px">
+      <div>
+        <div className="form-group">
+          <label className="form-label">Subcategory Icon/Image <span style={{ color: 'var(--mid)', fontWeight: 400 }}>(optional)</span></label>
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              border: '2px dashed var(--border)',
+              borderRadius: 12,
+              height: 100,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              overflow: 'hidden',
+              background: 'var(--input-bg)',
+              position: 'relative',
+              transition: 'border-color 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+          >
+            {imagePreview ? (
+              <>
+                <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>Change</div>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', color: 'var(--mid)' }}>
+                <div style={{ fontSize: 24, marginBottom: 4 }}>🎨</div>
+                <div style={{ fontSize: 12, fontWeight: 600 }}>Click to upload subcategory image</div>
               </div>
-              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
-            </div>
-
-            <div className="form-group" style={{ marginTop: 20 }}>
-            <label className="form-label">Subcategory Name *</label>
-            <input
-              className={`form-control ${errors.name ? 'input-error' : ''}`}
-              placeholder="e.g. Pipe Leak Repair"
-              value={form.name}
-              onChange={e => set('name', e.target.value)}
-              autoFocus
-            />
-            {errors.name && <div className="field-error">{errors.name}</div>}
+            )}
           </div>
-
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.name.trim()}>
-            {saving ? '⏳ Saving...' : sub ? '💾 Save Changes' : '+ Add Subcategory'}
+
+        <div className="form-group" style={{ marginTop: 16 }}>
+          <label className="form-label">Subcategory Name *</label>
+          <input
+            className={`form-control ${errors.name ? 'input-error' : ''}`}
+            placeholder="e.g. Haircut, AC Repair, Facial"
+            value={form.name}
+            onChange={e => set('name', e.target.value)}
+            autoFocus
+          />
+          {errors.name && <div className="field-error">{errors.name}</div>}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={handleSave} disabled={saving || !form.name.trim()}>
+            {saving ? 'Saving...' : sub ? 'Save Changes' : '+ Add Subcategory'}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -244,41 +229,35 @@ function RejectModal({ suggestion, onConfirm, onClose }) {
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 440 }}>
-        <div className="modal-header">
-          <div style={{ fontWeight: 800, fontSize: 16 }}>Reject Suggestion</div>
-          <button className="drawer-close" onClick={onClose}>✕</button>
+    <Modal open={true} onClose={!saving ? onClose : undefined} title="Reject Suggestion" width="460px">
+      <div>
+        <p style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 16 }}>
+          Rejection reason will be sent to <strong>{typeof suggestion.workerId === 'object' ? suggestion.workerId?.name : (suggestion.workerName || 'Worker')}</strong> via notification.
+        </p>
+        <div className="form-group" style={{ marginBottom: 12 }}>
+          <label className="form-label">Reason *</label>
+          <select className="form-control" value={reason} onChange={e => setReason(e.target.value)} style={{ fontSize: 13 }}>
+            <option value="">Select reason...</option>
+            <option value="Category already exists under a different name">Category already exists under a different name</option>
+            <option value="Requires special licensing or certification">Requires special licensing or certification</option>
+            <option value="Out of scope for current platform">Out of scope for current platform</option>
+            <option value="Insufficient demand in target cities">Insufficient demand in target cities</option>
+            <option value="Will be considered in a future update">Will be considered in a future update</option>
+            <option value="Other">Other (see notes below)</option>
+          </select>
         </div>
-        <div className="modal-body">
-          <p style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 16, fontFamily: 'var(--font-body)' }}>
-            Rejection reason will be sent to <strong>{typeof suggestion.workerId === 'object' ? suggestion.workerId?.name : (suggestion.workerName || 'Worker')}</strong> via push notification.
-          </p>
-          <div className="form-group">
-            <label className="form-label">Reason *</label>
-            <select className="form-control" value={reason} onChange={e => setReason(e.target.value)}>
-              <option value="">Select reason...</option>
-              <option>Category already exists under a different name</option>
-              <option>Requires special licensing or certification</option>
-              <option>Out of scope for current platform</option>
-              <option>Insufficient demand in target cities</option>
-              <option>Will be considered in a future update</option>
-              <option>Other (see notes)</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Additional Notes</label>
-            <textarea className="form-control" placeholder="Optional detailed explanation..." rows={3} value={notes} onChange={e => setNotes(e.target.value)} />
-          </div>
+        <div className="form-group">
+          <label className="form-label">Additional Notes</label>
+          <textarea className="form-control" placeholder="Optional detailed explanation..." rows={3} value={notes} onChange={e => setNotes(e.target.value)} style={{ fontSize: 13 }} />
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn btn-danger" onClick={handleConfirm} disabled={!reason || saving}>
-            {saving ? '⏳ Rejecting...' : '✕ Confirm Rejection'}
+        <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="button" className="btn-danger" style={{ flex: 1 }} onClick={handleConfirm} disabled={!reason || saving}>
+            {saving ? 'Rejecting...' : '✕ Confirm Rejection'}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -296,29 +275,23 @@ function ApproveModal({ suggestion, onConfirm, onClose }) {
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 440 }}>
-        <div className="modal-header">
-          <div style={{ fontWeight: 800, fontSize: 16 }}>Approve Suggestion</div>
-          <button className="drawer-close" onClick={onClose}>✕</button>
+    <Modal open={true} onClose={!saving ? onClose : undefined} title="Approve Suggestion" width="460px">
+      <div>
+        <p style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 16 }}>
+          Approval message will be sent to <strong>{typeof suggestion.workerId === 'object' ? suggestion.workerId?.name : (suggestion.workerName || 'Worker')}</strong> via notification.
+        </p>
+        <div className="form-group">
+          <label className="form-label">Approval Message / Reason *</label>
+          <textarea className="form-control" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Great idea! We've added this to the platform." rows={3} autoFocus style={{ fontSize: 13 }} />
         </div>
-        <div className="modal-body">
-          <p style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 16, fontFamily: 'var(--font-body)' }}>
-            Approval message will be sent to <strong>{typeof suggestion.workerId === 'object' ? suggestion.workerId?.name : (suggestion.workerName || 'Worker')}</strong> via push notification.
-          </p>
-          <div className="form-group">
-            <label className="form-label">Approval Message / Reason *</label>
-            <textarea className="form-control" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Great idea! We've added this to the platform." rows={3} autoFocus />
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn btn-success" onClick={handleConfirm} disabled={!reason.trim() || saving}>
-            {saving ? '⏳ Approving...' : '✓ Confirm Approval'}
+        <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={handleConfirm} disabled={!reason.trim() || saving}>
+            {saving ? 'Approving...' : '✓ Confirm Approval'}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 

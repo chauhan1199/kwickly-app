@@ -188,15 +188,22 @@ export default function Shops() {
     { header: 'Status', render: (s) => <Badge label={s.isOnline ? 'Online' : 'Offline'} variant={s.isOnline ? 'success' : 'neutral'} /> },
     { header: 'Actions', render: (s) => (
       <div className="action-btns" onClick={(e) => e.stopPropagation()}>
-        <button className="btn-icon" title="View" onClick={() => openDetail(s)}><Eye size={15} /></button>
-        <button className="btn-icon" title="Edit" onClick={() => openEditShop(s)}><Edit3 size={15} /></button>
+        <button className="btn-icon" title="View Details" onClick={() => openDetail(s)}><Eye size={15} /></button>
+        <button className="btn-icon" title="Edit Shop" onClick={() => openEditShop(s)}><Edit3 size={15} /></button>
+        <button
+          className={`btn-icon ${s.isOnline ? 'danger' : 'success'}`}
+          title={s.isOnline ? 'Deactivate Shop' : 'Activate Shop'}
+          onClick={() => setConfirm({ type: 'toggle_shop', id: s._id, name: s.name, isOnline: s.isOnline })}
+        >
+          {s.isOnline ? <Ban size={15} /> : <CheckCircle size={15} />}
+        </button>
         {s.kyc?.status === 'PENDING' && (
           <>
             <button className="btn-icon success" title="Approve KYC" onClick={() => setConfirm({ type: 'kyc_shop', id: s._id, status: 'APPROVED', name: s.name })}><CheckCircle size={15} /></button>
             <button className="btn-icon danger" title="Reject KYC" onClick={() => setConfirm({ type: 'kyc_shop', id: s._id, status: 'REJECTED', name: s.name })}><Ban size={15} /></button>
           </>
         )}
-        <button className="btn-icon danger" title="Delete" onClick={() => setConfirm({ type: 'delete_shop', id: s._id, name: s.name })}><Trash2 size={15} /></button>
+        <button className="btn-icon danger" title="Delete Shop" onClick={() => setConfirm({ type: 'delete_shop', id: s._id, name: s.name })}><Trash2 size={15} /></button>
       </div>
     )}
   ];
@@ -455,18 +462,19 @@ export default function Shops() {
 
   const handleToggle = async (id) => {
     try {
-      const res = await api.patch(`/admin/shops/${id}/toggle`)
+      const res = await api.patch(`/admin/shops/${id}/toggle`, {})
       if (res.data.status === 'success') {
-        setShops(prev => prev.map(s => s._id === id ? res.data.data : s))
-        if (detail?._id === id) setDetail(res.data.data)
-        const shopName = res.data.data?.name || 'Shop'
-        const actionText = res.data.data?.isOnline ? 'activated' : 'blocked'
-        showToast(`Shop ${actionText}`)
-        
+        const updated = res.data.data
+        setShops(prev => prev.map(s => s._id === id ? { ...s, isOnline: updated.isOnline } : s))
+        if (detail?._id === id) setDetail(prev => ({ ...prev, isOnline: updated.isOnline }))
+        const actionText = updated.isOnline ? 'activated' : 'deactivated'
+        showToast(`Shop ${actionText} successfully`)
         window.dispatchEvent(new Event('admin-action'))
+      } else {
+        showToast(res.data.message || 'Failed to toggle shop status', 'error')
       }
-    } catch {
-      showToast('Failed to toggle shop', 'error')
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to toggle shop status', 'error')
     }
     setConfirm(null)
   }
@@ -1275,6 +1283,31 @@ export default function Shops() {
                   ))}
                 </div>
               )}
+              {/* Shop Actions */}
+              <div className="divider" />
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Shop Actions</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  className={detail.isOnline ? 'btn-danger' : 'btn-primary'}
+                  style={{ flex: 1 }}
+                  onClick={() => setConfirm({ type: 'toggle_shop', id: detail._id, name: detail.name, isOnline: detail.isOnline })}
+                >
+                  {detail.isOnline ? 'Deactivate Shop' : 'Activate Shop'}
+                </button>
+                <button
+                  className="btn-secondary"
+                  style={{ flex: 1 }}
+                  onClick={() => { openEditShop(detail); setDetail(null); }}
+                >
+                  <Edit3 size={14} /> Edit Shop
+                </button>
+                <button
+                  className="btn-danger"
+                  onClick={() => setConfirm({ type: 'delete_shop', id: detail._id, name: detail.name })}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           </div>
         </>
@@ -1893,6 +1926,67 @@ export default function Shops() {
             )}
           </div>
         </div>
+      )}
+      {/* Confirm Modals */}
+      {confirm?.type === 'toggle_shop' && (() => {
+        const target = shops.find(s => s._id === confirm.id) || (detail?._id === confirm.id ? detail : null)
+        const isOnline = target?.isOnline ?? confirm.isOnline ?? true
+        return (
+          <ConfirmModal
+            title={isOnline ? 'Deactivate Shop' : 'Activate Shop'}
+            message={isOnline ? `Deactivate "${confirm.name}"? The shop will not accept new orders.` : `Activate "${confirm.name}"? The shop will become live.`}
+            danger={isOnline}
+            confirmText={isOnline ? 'Deactivate' : 'Activate'}
+            onConfirm={() => handleToggle(confirm.id)}
+            onClose={() => setConfirm(null)}
+          />
+        )
+      })()}
+      {confirm?.type === 'delete_shop' && (
+        <ConfirmModal
+          title="Delete Shop"
+          message={`Permanently delete "${confirm.name}"? All products and records will be deleted.`}
+          confirmText="Delete Permanently"
+          onConfirm={() => deleteShop(confirm.id)}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type === 'kyc_shop' && (
+        <ConfirmModal
+          title={confirm.status === 'APPROVED' ? 'Approve Shop KYC' : 'Reject Shop KYC'}
+          message={`${confirm.status === 'APPROVED' ? 'Approve' : 'Reject'} KYC application for "${confirm.name}"?`}
+          danger={confirm.status === 'REJECTED'}
+          confirmText={confirm.status === 'APPROVED' ? 'Approve' : 'Reject'}
+          onConfirm={() => handleKycAction(confirm.id, confirm.status)}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type === 'delete_product' && (
+        <ConfirmModal
+          title="Delete Product"
+          message={`Delete product "${confirm.name}"?`}
+          confirmText="Delete"
+          onConfirm={() => deleteProduct(confirm.id)}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type === 'delete_payout' && (
+        <ConfirmModal
+          title="Delete Payout Method"
+          message={`Delete payout method "${confirm.name}"?`}
+          confirmText="Delete"
+          onConfirm={() => handleDeletePayout(confirm.methodId)}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type === 'delete_kyc_doc' && (
+        <ConfirmModal
+          title="Delete KYC Document"
+          message={`Delete document "${confirm.name}"?`}
+          confirmText="Delete"
+          onConfirm={() => handleDeleteKycDoc(confirm.docIndex)}
+          onClose={() => setConfirm(null)}
+        />
       )}
     </div>
   )
