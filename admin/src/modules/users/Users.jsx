@@ -307,17 +307,21 @@ export default function Users() {
 
   const toggleStatus = async (id) => {
     try {
-      const res = await api.patch(`/admin/users/${id}/toggle-status`)
+      const res = await api.patch(`/admin/users/${id}/toggle-status`, {})
       if (res.data.status === 'success') {
         const updated = res.data.data
-        setCustomers(prev => prev.map(c => c._id === id ? updated : c))
-        if (detail?._id === id) setDetail(updated)
+        setCustomers(prev => prev.map(c => c._id === id ? { ...c, isVerified: updated.isVerified } : c))
+        if (detail?._id === id) setDetail(prev => ({ ...prev, isVerified: updated.isVerified }))
         const actionText = updated.isVerified ? 'activated' : 'deactivated'
-        showToast(`Customer ${actionText}`)
+        showToast(`Customer ${actionText} successfully`)
 
         window.dispatchEvent(new Event('admin-action'))
+      } else {
+        showToast(res.data.message || 'Failed to update status', 'error')
       }
-    } catch { showToast('Failed to update status', 'error') }
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to update status', 'error')
+    }
     setConfirm(null)
   }
 
@@ -899,13 +903,20 @@ export default function Users() {
       </Modal>
 
       {/* Confirm Modals */}
-      {confirm?.type === 'toggle' && (
-        <ConfirmModal title={customers.find(c => c._id === confirm.id)?.isVerified ? 'Deactivate Customer' : 'Activate Customer'}
-          message={customers.find(c => c._id === confirm.id)?.isVerified ? `Deactivate ${confirm.name}? They will not be able to use the platform.` : `Activate ${confirm.name}? They will regain access to the platform.`}
-          danger={customers.find(c => c._id === confirm.id)?.isVerified}
-          confirmText={customers.find(c => c._id === confirm.id)?.isVerified ? 'Deactivate' : 'Activate'}
-          onConfirm={() => toggleStatus(confirm.id)} onClose={() => setConfirm(null)} />
-      )}
+      {confirm?.type === 'toggle' && (() => {
+        const target = customers.find(c => c._id === confirm.id) || (detail?._id === confirm.id ? detail : null)
+        const isActive = target?.isVerified ?? true
+        return (
+          <ConfirmModal
+            title={isActive ? 'Deactivate Customer' : 'Activate Customer'}
+            message={isActive ? `Deactivate ${confirm.name}? They will not be able to use the platform.` : `Activate ${confirm.name}? They will regain access to the platform.`}
+            danger={isActive}
+            confirmText={isActive ? 'Deactivate' : 'Activate'}
+            onConfirm={() => toggleStatus(confirm.id)}
+            onClose={() => setConfirm(null)}
+          />
+        )
+      })()}
       {confirm?.type === 'delete' && (
         <ConfirmModal title="Delete Customer" message={`Permanently delete ${confirm.name}? This action cannot be undone.`}
           confirmText="Delete Permanently" onConfirm={() => deleteCustomer(confirm.id)} onClose={() => setConfirm(null)} />

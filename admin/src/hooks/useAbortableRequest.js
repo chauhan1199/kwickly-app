@@ -33,11 +33,11 @@ export default function useAbortableRequest() {
   }, [abortAll])
 
   return {
-    get: (url, options) => request('get', url, null, options),
-    post: (url, data, options) => request('post', url, data, options),
-    put: (url, data, options) => request('put', url, data, options),
-    patch: (url, data, options) => request('patch', url, data, options),
-    delete: (url, options) => request('delete', url, null, options),
+    get: (url, options = {}) => request('get', url, null, options),
+    post: (url, data = {}, options = {}) => request('post', url, data, options),
+    put: (url, data = {}, options = {}) => request('put', url, data, options),
+    patch: (url, data = {}, options = {}) => request('patch', url, data, options),
+    delete: (url, options = {}) => request('delete', url, null, options),
     abortAll,
   }
 }
