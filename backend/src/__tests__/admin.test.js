@@ -86,7 +86,7 @@ describe('Admin Routes', () => {
             const res = await request(app)
                 .post('/api/v1/admin/users')
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ name: 'New User', phone: '1234567895', role: 'CUSTOMER' });
+                .send({ name: 'New User', phone: '9876543295', role: 'CUSTOMER' });
             expect(res.status).toBe(201);
         });
     });
