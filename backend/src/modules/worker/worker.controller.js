@@ -14,6 +14,11 @@ const { supportsTransactions } = require('../../helpers/transaction.helper');
 
 exports.getStats = catchAsync(async (req, res) => {
     const workerId = req.user._id;
+    const cacheKey = `worker_stats_${workerId}`;
+    const { getCache, setCache } = require('../../helpers/redis.helper');
+    const cached = await getCache(cacheKey);
+    if (cached) return successResponse(res, cached, 'Worker stats fetched from cache');
+
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -36,12 +41,9 @@ exports.getStats = catchAsync(async (req, res) => {
         })
     ]);
 
-    return successResponse(res, {
-        todayJobs,
-        completed,
-        inProgress,
-        cancelled
-    }, 'Worker stats fetched');
+    const stats = { todayJobs, completed, inProgress, cancelled };
+    await setCache(cacheKey, stats, 60); // 60s TTL
+    return successResponse(res, stats, 'Worker stats fetched');
 });
 
 exports.updateKyc = catchAsync(async (req, res) => {
