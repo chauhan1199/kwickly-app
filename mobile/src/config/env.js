@@ -6,7 +6,7 @@
  * 2. Update PROD_URL to your production server URL (must use HTTPS)
  */
 
-export const IS_PROD = false; // Toggle this to true for Production builds
+export const IS_PROD = true; // Set to true for live testing and production build
 
 const DEV_URL = 'http://10.0.2.2:5000'; // Android emulator localhost
 const PROD_URL = 'https://kwickly-backend-r6zb.onrender.com'; // Production Render API

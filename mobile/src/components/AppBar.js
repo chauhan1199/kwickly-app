@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  Image,
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -13,16 +12,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, Moon, Sun, Package, User, ChevronLeft } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useNotifications } from '../context/NotificationContext';
+import { KwicklyIcon } from './ui/KwicklyBrand';
 
 /**
  * Universal AppBar for Kwickly customer screens.
- *
- * Props:
- *  showBack        – show back arrow instead of logo (default false)
- *  onBackPress     – override back handler
- *  title           – override title text shown next to logo or after back arrow
- *  subtitle        – small grey subtitle below title
- *  hideRightIcons  – hide all right-side icons (default false)
  */
 const AppBar = ({
   showBack = false,
@@ -48,11 +41,11 @@ const AppBar = ({
 
   const insets = useSafeAreaInsets();
   const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 24;
+  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
   
-  const iconBg = isDarkMode && !transparent ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const iconBg = isDarkMode && !transparent ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const badgeLabel = unreadCount > 99 ? '99+' : unreadCount > 0 ? String(unreadCount) : null;
-  const textColor = transparent ? '#fff' : theme.colors.text;
+  const textColor = transparent ? '#FFF' : theme.colors.text;
 
   return (
     <View
@@ -60,8 +53,8 @@ const AppBar = ({
         styles.container,
         {
           backgroundColor: transparent ? 'transparent' : theme.colors.background,
-          paddingTop: safeTop + 10,
-          borderBottomColor: transparent ? 'transparent' : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'),
+          paddingTop: safeTop + 8,
+          borderBottomColor: transparent ? 'transparent' : (isDarkMode ? '#1E293B' : '#EDF2F7'),
         },
       ]}
     >
@@ -82,19 +75,21 @@ const AppBar = ({
             <ChevronLeft size={22} color={textColor} />
           </TouchableOpacity>
         ) : showLogo ? (
-          <Image
-            source={require('../assets/logo.jpeg')}
-            style={styles.logo}
-            resizeMode="cover"
-          />
+          <View style={[styles.logoBadge, { backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF', borderColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
+            <KwicklyIcon size={26} />
+          </View>
         ) : null}
 
         <View style={styles.brandBlock}>
           <Text style={[styles.brandName, { color: textColor }]} numberOfLines={1}>
-            {title || 'Kwickly'}
+            {title || (
+              <Text>
+                Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+              </Text>
+            )}
           </Text>
           {subtitle ? (
-            <Text style={[styles.subtitle, transparent && {color: 'rgba(255,255,255,0.8)'}]} numberOfLines={1}>
+            <Text style={[styles.subtitle, { color: transparent ? 'rgba(255,255,255,0.8)' : theme.colors.textDim }]} numberOfLines={1}>
               {subtitle}
             </Text>
           ) : null}
@@ -111,7 +106,7 @@ const AppBar = ({
               onPress={() => navigation.navigate('CustomerShopOrders')}
               activeOpacity={0.7}
             >
-              <Package size={20} color={textColor} />
+              <Package size={18} color={textColor} />
             </TouchableOpacity>
           )}
 
@@ -122,9 +117,9 @@ const AppBar = ({
             activeOpacity={0.7}
           >
             {isDarkMode ? (
-              <Sun size={20} color={textColor} />
+              <Sun size={18} color="#F59E0B" />
             ) : (
-              <Moon size={20} color={textColor} />
+              <Moon size={18} color="#6C47FF" />
             )}
           </TouchableOpacity>
 
@@ -134,7 +129,7 @@ const AppBar = ({
             onPress={() => navigation.navigate('Profile')}
             activeOpacity={0.7}
           >
-            <User size={20} color={textColor} />
+            <User size={18} color={textColor} />
           </TouchableOpacity>
 
           {/* Bell — with real unread count badge */}
@@ -143,7 +138,7 @@ const AppBar = ({
             onPress={() => navigation.navigate('Notifications')}
             activeOpacity={0.7}
           >
-            <Bell size={20} color={textColor} />
+            <Bell size={18} color={textColor} />
             {badgeLabel ? (
               <View style={[styles.badge, { borderColor: theme.colors.background }]}>
                 <Text style={styles.badgeText}>{badgeLabel}</Text>
@@ -161,7 +156,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingBottom: 10,
     borderBottomWidth: 1,
   },
@@ -171,23 +166,31 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 10,
   },
-  logo: {
+  logoBadge: {
     width: 38,
     height: 38,
-    borderRadius: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   brandBlock: {
     justifyContent: 'center',
   },
   brandName: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 19,
+    fontWeight: '900',
     letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: 11.5,
     marginTop: 1,
+    fontWeight: '500',
   },
   right: {
     flexDirection: 'row',
@@ -197,7 +200,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -209,13 +212,13 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     borderWidth: 1.5,
-    backgroundColor: '#ef4444',
+    backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 2,
   },
   badgeText: {
-    color: '#fff',
+    color: '#FFF',
     fontSize: 8,
     fontWeight: '800',
     lineHeight: 10,

@@ -1,0 +1,88 @@
+import React from 'react';
+import { View, Text, StyleSheet, Image } from 'react-native';
+
+/**
+ * Official Kwickly Logo Icon from assets/logo.png
+ */
+export const KwicklyIcon = ({ size = 36, style }) => {
+  return (
+    <Image
+      source={require('../../assets/logo.png')}
+      style={[{ width: size, height: size }, style]}
+      resizeMode="contain"
+    />
+  );
+};
+
+/**
+ * Standard Kwickly Brand Logo with Wordmark
+ */
+const KwicklyBrand = ({
+  size = 40,
+  fontSize = 24,
+  layout = 'horizontal',
+  isDarkMode = false,
+  showTagline = false,
+  taglineColor = null
+}) => {
+  const isVert = layout === 'vertical';
+
+  return (
+    <View style={[styles.container, isVert ? styles.vertical : styles.horizontal]}>
+      <View style={styles.iconWrapper}>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={{ width: size, height: size }}
+          resizeMode="contain"
+        />
+      </View>
+      <View style={[styles.textBlock, isVert && styles.textBlockCenter]}>
+        <Text style={[styles.wordmark, { fontSize, color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+          Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+        </Text>
+        {showTagline && (
+          <Text style={[styles.tagline, { color: taglineColor || (isDarkMode ? '#94A3B8' : '#64748B') }]}>
+            Any Service. Anytime. Near You.
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+  },
+  horizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  vertical: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6,
+  },
+  iconWrapper: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  textBlock: {
+    justifyContent: 'center',
+  },
+  textBlockCenter: {
+    alignItems: 'center',
+  },
+  wordmark: {
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+});
+
+export default KwicklyBrand;

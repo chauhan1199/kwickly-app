@@ -8,10 +8,11 @@ const common = {
     xxl: 40,
   },
   radius: {
-    sm: 4,
-    md: 8,
-    lg: 12,
-    xl: 16,
+    sm: 6,
+    md: 10,
+    lg: 14,
+    xl: 18,
+    xxl: 24,
     full: 999,
   },
   typography: {
@@ -31,54 +32,63 @@ const common = {
       semiBold: '600',
       bold: '700',
       extraBold: '800',
+      black: '900',
     }
-  }
-};
-
-export const DarkTheme = {
-  ...common,
-  colors: {
-    primary: '#6C47FF',
-    primaryDark: '#5535d4',
-    secondary: '#8B6FFF',
-    success: '#10b981',
-    warning: '#f59e0b',
-    danger: '#ef4444',
-    background: '#0C0F1A',
-    card: '#151B2B',
-    surface: '#151B2B',
-    surface2: '#1C2237',
-    border: '#1C2237',
-    text: '#e8eef7',
-    textMuted: '#8a99ad',
-    textDim: '#5b6776',
-    white: '#ffffff',
-    black: '#000000',
-    navy: '#0a1530',
   }
 };
 
 export const LightTheme = {
   ...common,
+  mode: 'light',
   colors: {
     primary: '#6C47FF',
     primaryDark: '#5535d4',
+    primaryLight: '#EDE9FE',
     secondary: '#8B6FFF',
-    success: '#10b981',
-    warning: '#f59e0b',
-    danger: '#ef4444',
-    background: '#f6f8fb',
-    card: '#ffffff',
-    surface: '#ffffff',
-    surface2: '#f1f4f8',
-    border: '#e5eaf0',
-    text: '#0b1422',
-    textMuted: '#5b6776',
-    textDim: '#8a99ad',
-    white: '#ffffff',
+    accent: '#06B6D4',
+    success: '#10B981',
+    warning: '#F59E0B',
+    danger: '#EF4444',
+    background: '#F8F9FD',
+    card: '#FFFFFF',
+    surface: '#FFFFFF',
+    surface2: '#F1F4F9',
+    border: '#E2E8F0',
+    borderLight: '#EDF2F7',
+    text: '#0F172A',
+    textMuted: '#64748B',
+    textDim: '#94A3B8',
+    white: '#FFFFFF',
     black: '#000000',
-    navy: '#0f1b3d',
+    navy: '#0F172A',
   }
 };
 
-export default DarkTheme;
+export const DarkTheme = {
+  ...common,
+  mode: 'dark',
+  colors: {
+    primary: '#7C3AED',
+    primaryDark: '#6D28D9',
+    primaryLight: 'rgba(124, 58, 237, 0.15)',
+    secondary: '#A78BFA',
+    accent: '#22D3EE',
+    success: '#10B981',
+    warning: '#F59E0B',
+    danger: '#EF4444',
+    background: '#0B0F19',
+    card: '#131B2E',
+    surface: '#131B2E',
+    surface2: '#1E293B',
+    border: '#1E293B',
+    borderLight: '#334155',
+    text: '#F8FAFC',
+    textMuted: '#94A3B8',
+    textDim: '#64748B',
+    white: '#FFFFFF',
+    black: '#000000',
+    navy: '#0B0F19',
+  }
+};
+
+export default LightTheme;

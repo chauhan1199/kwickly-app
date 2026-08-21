@@ -19,8 +19,7 @@ const generateToken = (user) => jwt.sign(
 
 const smsService = require('../../services/sms.service');
 
-// â”€â”€â”€ OTP Rate Limiting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const OTP_MAX_ATTEMPTS = (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? 500 : 5;
+const OTP_MAX_ATTEMPTS = 50;
 
 const checkOtpAttempts = async (phone) => {
     const key = `otp_attempts:${phone}`;

@@ -3,25 +3,26 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
   ScrollView,
   TextInput,
-  Image
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { Phone, Lock, ChevronLeft, ArrowRight, Eye, EyeOff } from 'lucide-react-native';
 import { authService } from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
 import CustomAlert from '../../components/ui/CustomAlert';
 import LinearGradient from 'react-native-linear-gradient';
+import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const LoginScreen = ({ navigation, route }) => {
   const { role: initialRole = 'CUSTOMER', prefillPhone = '' } = route.params || {};
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const [role, setRole] = useState(initialRole);
   const { signIn } = useAuth();
   const [loginMode, setLoginMode] = useState('OTP'); // 'OTP' or 'PASSWORD'
@@ -44,7 +45,7 @@ const LoginScreen = ({ navigation, route }) => {
     }
     
     if (loginMode === 'PASSWORD' && (!password || password.length < 6)) {
-      showAlert('Error', 'Please enter a valid password (min 6 characters)');
+      showAlert('Error', 'Please enter your password (min 6 characters)');
       return;
     }
 
@@ -66,34 +67,39 @@ const LoginScreen = ({ navigation, route }) => {
     }
   };
 
-  const styles = createStyles(theme, isDarkMode);
+  const headerTopPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 8;
+  const styles = createStyles(theme, isDarkMode, headerTopPad);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.colors.background}
+        translucent={false}
+      />
       
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <ChevronLeft size={22} color={isDarkMode ? '#fff' : '#111'} />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+            <ChevronLeft size={22} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Sign In</Text>
           <View style={styles.headerRight}>
-            <Image source={require('../../assets/images/logo.jpeg')} style={styles.headerLogo} />
+            <KwicklyIcon size={28} />
           </View>
         </View>
       </View>
 
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.body}>
             
             <View style={styles.titleContainer}>
               <Text style={styles.title}>Welcome Back!</Text>
-              <Text style={styles.subtitle}>Select your profile type to continue</Text>
+              <Text style={styles.subtitle}>Select your profile type to sign in</Text>
             </View>
 
             {/* Role Switcher */}
@@ -108,6 +114,7 @@ const LoginScreen = ({ navigation, route }) => {
                       styles.roleTab, 
                       isActive ? styles.roleTabActive : styles.roleTabInactive
                     ]}
+                    activeOpacity={0.7}
                   >
                     <Text style={[
                       styles.roleText, 
@@ -128,6 +135,7 @@ const LoginScreen = ({ navigation, route }) => {
                   styles.modeTab, 
                   loginMode === 'OTP' ? styles.modeTabActive : styles.modeTabInactive
                 ]}
+                activeOpacity={0.7}
               >
                 <Text style={[styles.modeText, loginMode === 'OTP' ? styles.modeTextActive : styles.modeTextInactive]}>OTP Login</Text>
               </TouchableOpacity>
@@ -138,6 +146,7 @@ const LoginScreen = ({ navigation, route }) => {
                   styles.modeTab, 
                   loginMode === 'PASSWORD' ? styles.modeTabActive : styles.modeTabInactive
                 ]}
+                activeOpacity={0.7}
               >
                 <Text style={[styles.modeText, loginMode === 'PASSWORD' ? styles.modeTextActive : styles.modeTextInactive]}>Password</Text>
               </TouchableOpacity>
@@ -148,12 +157,12 @@ const LoginScreen = ({ navigation, route }) => {
               <Text style={styles.inputLabel}>Mobile Number</Text>
               <View style={[styles.inputWrapper, focusedInput === 'phone' && styles.inputFocused]}>
                 <View style={styles.inputIcon}>
-                  <Phone size={20} color={focusedInput === 'phone' ? '#6C47FF' : theme.colors.textDim} />
+                  <Phone size={18} color={focusedInput === 'phone' ? '#6C47FF' : theme.colors.textDim} />
                 </View>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="10-digit number"
-                  placeholderTextColor={isDarkMode ? '#666' : '#999'}
+                  placeholder="Enter 10-digit number"
+                  placeholderTextColor={theme.colors.textDim}
                   keyboardType="phone-pad"
                   maxLength={10}
                   value={phone}
@@ -168,12 +177,12 @@ const LoginScreen = ({ navigation, route }) => {
                   <Text style={styles.inputLabel}>Password</Text>
                   <View style={[styles.inputWrapper, focusedInput === 'password' && styles.inputFocused]}>
                     <View style={styles.inputIcon}>
-                      <Lock size={20} color={focusedInput === 'password' ? '#6C47FF' : theme.colors.textDim} />
+                      <Lock size={18} color={focusedInput === 'password' ? '#6C47FF' : theme.colors.textDim} />
                     </View>
                     <TextInput
                       style={styles.textInput}
                       placeholder="Enter your password"
-                      placeholderTextColor={isDarkMode ? '#666' : '#999'}
+                      placeholderTextColor={theme.colors.textDim}
                       secureTextEntry={!showPassword}
                       value={password}
                       onChangeText={setPassword}
@@ -181,7 +190,7 @@ const LoginScreen = ({ navigation, route }) => {
                       onBlur={() => setFocusedInput(null)}
                     />
                     <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                      {showPassword ? <EyeOff size={20} color={theme.colors.textDim} /> : <Eye size={20} color={theme.colors.textDim} />}
+                      {showPassword ? <EyeOff size={18} color={theme.colors.textDim} /> : <Eye size={18} color={theme.colors.textDim} />}
                     </TouchableOpacity>
                   </View>
 
@@ -194,25 +203,24 @@ const LoginScreen = ({ navigation, route }) => {
                 </>
               )}
 
-
               <TouchableOpacity 
-                style={[styles.btnShadow, { marginTop: 32 }]} 
+                style={[styles.btnShadow, { marginTop: 24 }]} 
                 onPress={handleAction} 
-                activeOpacity={0.8} 
+                activeOpacity={0.88} 
                 disabled={loading}
               >
                 <LinearGradient
-                  colors={['#8B5CF6', '#6C47FF']}
+                  colors={['#7C3AED', '#6C47FF']}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                   style={styles.btnGradient}
                 >
                   <Text style={styles.btnText}>{loading ? 'Please wait...' : 'Sign In'}</Text>
-                  {!loading && <ArrowRight size={20} color="#fff" style={{ marginLeft: 8 }} />}
+                  {!loading && <ArrowRight size={18} color="#fff" style={{ marginLeft: 8 }} />}
                 </LinearGradient>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.footerLink} onPress={() => navigation.navigate('RoleSelection')}>
-                <Text style={styles.footerText}>New to Kwickly? <Text style={styles.footerLinkText}>Sign Up</Text></Text>
+                <Text style={styles.footerText}>New to Kwickly? <Text style={styles.footerLinkText}>Create Account</Text></Text>
               </TouchableOpacity>
               
             </View>
@@ -227,108 +235,99 @@ const LoginScreen = ({ navigation, route }) => {
         type={alertConfig.type}
         onConfirm={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (theme, isDarkMode) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 16 : 16,
-    paddingBottom: 4,
-    backgroundColor: theme.colors.background,
+    paddingHorizontal: 16,
+    paddingTop: headerTopPad,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? '#1E293B' : '#EDF2F7',
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 4,
   },
   backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: isDarkMode ? '#1a1a1a' : '#f9fafb',
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? '#333' : '#f3f4f6',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#131B2E' : '#F1F4F9',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
     color: theme.colors.text,
   },
   headerRight: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: '#000',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
-    overflow: 'hidden',
-  },
-  headerLogo: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
   },
   scrollContent: {
     flexGrow: 1,
   },
   body: {
-    padding: 24,
+    padding: 20,
     flex: 1,
   },
   titleContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
     color: theme.colors.text,
-    marginBottom: 8,
+    marginBottom: 4,
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: theme.colors.textDim,
     fontWeight: '500',
   },
   roleSwitcher: {
     flexDirection: 'row',
-    backgroundColor: isDarkMode ? '#1a1a1a' : '#f9fafb',
-    borderRadius: 16,
+    backgroundColor: isDarkMode ? '#131B2E' : '#F1F4F9',
+    borderRadius: 14,
     padding: 4,
-    marginBottom: 24,
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? '#333333' : '#e5e7eb',
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
   },
   roleTab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: 10,
   },
   roleTabActive: {
-    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#f8f7ff',
-    borderWidth: 1.5,
-    borderColor: '#6C47FF',
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   roleTabInactive: {
     backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
   },
   roleText: {
     fontSize: 13,
@@ -336,38 +335,36 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   roleTextActive: {
     color: '#6C47FF',
+    fontWeight: '800',
   },
   roleTextInactive: {
     color: theme.colors.textDim,
   },
   modeSwitcher: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 24,
+    gap: 8,
+    marginBottom: 20,
   },
   modeTab: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: 12,
   },
   modeTabActive: {
     backgroundColor: '#6C47FF',
-    borderWidth: 1.5,
-    borderColor: '#6C47FF',
   },
   modeTabInactive: {
-    backgroundColor: isDarkMode ? '#1a1a1a' : '#f9fafb',
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? '#333333' : '#e5e7eb',
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
   },
   modeText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
   },
   modeTextActive: {
-    color: '#ffffff',
+    color: '#FFFFFF',
   },
   modeTextInactive: {
     color: theme.colors.textDim,
@@ -376,84 +373,80 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
     color: theme.colors.text,
-    marginBottom: 10,
-    marginLeft: 4,
+    marginBottom: 6,
+    marginLeft: 2,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: isDarkMode ? '#1a1a1a' : '#f9fafb',
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: isDarkMode ? '#333333' : '#d1d5db',
-    borderRadius: 18,
-    height: 56,
-    marginBottom: 16,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    borderRadius: 14,
+    height: 52,
+    marginBottom: 14,
   },
   inputFocused: {
     borderColor: '#6C47FF',
-    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.05)' : '#ffffff',
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.06)' : '#FFFFFF',
   },
   inputIcon: {
-    paddingLeft: 16,
-    paddingRight: 12,
+    paddingLeft: 14,
+    paddingRight: 10,
   },
   textInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: theme.colors.text,
     fontWeight: '600',
     height: '100%',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   eyeBtn: {
-    padding: 16,
+    padding: 14,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   forgotText: {
     color: '#6C47FF',
     fontWeight: '700',
-    fontSize: 14,
-  },
-  bottomSpacer: {
-    flex: 1,
-    minHeight: 24,
+    fontSize: 13,
   },
   btnShadow: {
     width: '100%',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
-    borderRadius: 20,
-    marginBottom: 20,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+    borderRadius: 16,
+    marginBottom: 16,
   },
   btnGradient: {
     flexDirection: 'row',
-    borderRadius: 20,
-    paddingVertical: 18,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 17,
-    letterSpacing: 0.5,
+    fontSize: 16,
+    letterSpacing: 0.3,
   },
   footerLink: {
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
     marginBottom: 10,
   },
   footerText: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: theme.colors.textDim,
     fontWeight: '500',
   },

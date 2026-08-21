@@ -11,17 +11,21 @@ const CustomAlert = ({ visible, title, message, onConfirm, confirmText = 'OK', t
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
-        <View style={[styles.modalContent, { backgroundColor: theme.colors.background }]}>
+        <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF' }]}>
           <View style={styles.logoContainer}>
-            <Image source={require('../../assets/images/logo.jpeg')} style={styles.logoImage} />
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           
           <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
           <Text style={[styles.message, { color: theme.colors.textDim }]}>{message}</Text>
           
-          <TouchableOpacity style={styles.btnShadow} onPress={onConfirm} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.btnShadow} onPress={onConfirm} activeOpacity={0.85}>
             <LinearGradient
-              colors={['#8B5CF6', '#6C47FF']}
+              colors={['#7C3AED', '#6C47FF']}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.btnGradient}
             >
@@ -37,7 +41,7 @@ const CustomAlert = ({ visible, title, message, onConfirm, confirmText = 'OK', t
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -49,60 +53,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 20,
     elevation: 10,
   },
   logoContainer: {
     width: 64,
     height: 64,
-    borderRadius: 16,
-    marginBottom: 20,
-    backgroundColor: '#000',
-    overflow: 'hidden',
-    shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    borderRadius: 20,
+    marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   logoImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+    width: 56,
+    height: 56,
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 10,
+    fontWeight: '900',
+    marginBottom: 8,
     textAlign: 'center',
   },
   message: {
-    fontSize: 15,
+    fontSize: 14.5,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 26,
     lineHeight: 22,
   },
   btnShadow: {
     width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     elevation: 6,
     borderRadius: 16,
   },
   btnGradient: {
     borderRadius: 16,
-    paddingVertical: 16,
+    paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 16,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
 });
 

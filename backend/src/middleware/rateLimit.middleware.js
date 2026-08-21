@@ -149,13 +149,13 @@ const authLimiter = rateLimit({
 });
 
 /**
- * @desc OTP send limiter — very strict
- * 3 OTP sends per 10 minutes per IP
+ * @desc OTP send limiter
+ * 200 OTP sends per 10 minutes per IP
  */
 const otpSendLimiter = rateLimit({
     store: getStore(),
     windowMs: 10 * 60 * 1000,
-    max: (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? 300 : 3,
+    max: 200,
     standardHeaders: true,
     legacyHeaders: false,
     validate: { xForwardedForHeader: false },

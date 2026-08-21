@@ -1,25 +1,30 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
+import AppSplashScreen from '../../features/auth/AppSplashScreen';
+import WelcomeScreen from '../../features/auth/WelcomeScreen';
 import RoleSelection from '../../features/auth/RoleSelection';
 import LoginScreen from '../../features/auth/LoginScreen';
 import OTPVerifyScreen from '../../features/auth/OTPVerifyScreen';
 import SetPasswordScreen from '../../features/auth/SetPasswordScreen';
 import ForgotPasswordScreen from '../../features/auth/ForgotPasswordScreen';
-import SplashScreen from '../../features/auth/SplashScreen';
-import Theme from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 
 const Stack = createStackNavigator();
 
 const AuthStack = () => {
+  const { theme } = useTheme();
+
   return (
     <Stack.Navigator
-      initialRouteName="Splash"
+      initialRouteName="AppSplash"
       screenOptions={{
         headerShown: false,
-        cardStyle: { backgroundColor: Theme.colors.background },
+        cardStyle: { backgroundColor: theme.colors.background },
       }}
     >
-      <Stack.Screen name="Splash" component={SplashScreen} />
+      <Stack.Screen name="AppSplash" component={AppSplashScreen} />
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="Splash" component={WelcomeScreen} />
       <Stack.Screen name="RoleSelection" component={RoleSelection} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="OTPVerify" component={OTPVerifyScreen} />
