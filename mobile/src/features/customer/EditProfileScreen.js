@@ -57,8 +57,7 @@ const EditProfileScreen = ({ navigation }) => {
               setImageUri(result.assets[0].uri);
               setImageFile({ base64: result.assets[0].base64, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
             } catch (e) {
-              Alert.alert('Emulator Fallback', 'Camera failed. Using default avatar.');
-              setImageUri(DEFAULT_AVATAR);
+              Alert.alert('Camera Error', 'Could not open camera. Please check camera permissions.');
             }
           }
         },
@@ -72,8 +71,7 @@ const EditProfileScreen = ({ navigation }) => {
               setImageUri(result.assets[0].uri);
               setImageFile({ base64: result.assets[0].base64, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
             } catch (e) {
-              Alert.alert('Emulator Fallback', 'Gallery failed. Using default avatar.');
-              setImageUri(DEFAULT_AVATAR);
+              Alert.alert('Gallery Error', 'Could not open gallery. Please check storage permissions.');
             }
           }
         },
@@ -92,6 +90,7 @@ const EditProfileScreen = ({ navigation }) => {
       }
       await customerService.updateProfile(payload);
       await fetchUser();
+      Alert.alert('Success', 'Profile updated successfully!');
       navigation.goBack();
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to update profile');
@@ -99,13 +98,6 @@ const EditProfileScreen = ({ navigation }) => {
       setIsLoading(false);
     }
   };
-
-  const getInitials = (n) => {
-    if (!n) return 'C';
-    return n.split(' ').map(p => p[0]).join('').toUpperCase().substring(0, 2);
-  };
-
-  const styles = createStyles(theme, isDarkMode);
 
   return (
     <SafeAreaView style={styles.container}>
