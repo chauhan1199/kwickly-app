@@ -5,9 +5,46 @@ const Shop = require('../shop/shop.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 
+const calculateCart = (cart, shop) => {
+    if (!cart || !cart.items || cart.items.length === 0) {
+        cart.subtotal = 0;
+        cart.deliveryCharge = 0;
+        cart.discount = 0;
+        cart.totalAmount = 0;
+        return cart;
+    }
+
+    cart.subtotal = cart.items.reduce((sum, i) => sum + (i.price * i.qty), 0);
+
+    const cfg = shop?.deliveryConfig || shop?.delivery || {};
+    const freeAbove = Number(cfg.freeDeliveryAbove ?? cfg.freeAbove ?? 1000);
+    const charge = Number(cfg.deliveryCharge ?? cfg.fee ?? 40);
+
+    cart.deliveryCharge = cart.subtotal >= freeAbove ? 0 : charge;
+
+    // Auto shop discount if enabled
+    let autoDiscount = 0;
+    if (cfg.discountEnabled && cart.subtotal >= (cfg.discountAbove || 500)) {
+        if (cfg.discountType === 'percent') {
+            const pct = Number(cfg.discountPct || 10);
+            const cap = Number(cfg.maxDiscountCap || 200);
+            autoDiscount = Math.min(Math.round((cart.subtotal * pct) / 100), cap);
+        } else {
+            autoDiscount = Number(cfg.discountValue || 50);
+        }
+    }
+
+    if (!cart.discount || cart.discount < autoDiscount) {
+        cart.discount = autoDiscount;
+    }
+
+    cart.totalAmount = Math.max(0, cart.subtotal + cart.deliveryCharge - (cart.discount || 0));
+    return cart;
+};
+
 exports.getCart = catchAsync(async (req, res) => {
-    const cart = await Cart.findOne({ customerId: req.user._id })
-        .populate('shopId', 'name logoUrl')
+    let cart = await Cart.findOne({ customerId: req.user._id })
+        .populate('shopId', 'name logoUrl deliveryConfig delivery address location rating')
         .populate('items.productId', 'name price imageUrl stock isActive');
 
     if (!cart) return successResponse(res, null, 'Cart is empty');
@@ -15,6 +52,9 @@ exports.getCart = catchAsync(async (req, res) => {
         await Cart.deleteOne({ _id: cart._id });
         return successResponse(res, null, 'Cart has expired');
     }
+
+    calculateCart(cart, cart.shopId);
+    await cart.save();
 
     return successResponse(res, cart, 'Cart fetched');
 });
@@ -46,7 +86,7 @@ exports.addToCart = catchAsync(async (req, res) => {
     }
 
     if (!cart) {
-        cart = await Cart.create({
+        cart = new Cart({
             customerId,
             shopId,
             items: [{ productId, name: product.name, price: product.price, qty, imageUrl: product.imageUrl, stockAtAdd: product.stock }],
@@ -64,11 +104,14 @@ exports.addToCart = catchAsync(async (req, res) => {
         cart.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     }
 
-    cart.subtotal = cart.items.reduce((sum, i) => sum + (i.price * i.qty), 0);
-    cart.totalAmount = cart.subtotal + cart.deliveryCharge - cart.discount;
+    calculateCart(cart, shop);
     await cart.save();
 
-    return successResponse(res, cart, 'Item added to cart', StatusCodes.CREATED);
+    const populatedCart = await Cart.findById(cart._id)
+        .populate('shopId', 'name logoUrl deliveryConfig delivery address location rating')
+        .populate('items.productId', 'name price imageUrl stock isActive');
+
+    return successResponse(res, populatedCart, 'Item added to cart', StatusCodes.CREATED);
 });
 
 exports.updateCartItem = catchAsync(async (req, res) => {
@@ -94,12 +137,21 @@ exports.updateCartItem = catchAsync(async (req, res) => {
         item.qty = qty;
     }
 
-    cart.subtotal = cart.items.reduce((sum, i) => sum + (i.price * i.qty), 0);
-    cart.totalAmount = cart.subtotal + cart.deliveryCharge - cart.discount;
+    if (cart.items.length === 0) {
+        await Cart.deleteOne({ _id: cart._id });
+        return successResponse(res, null, 'Cart cleared');
+    }
+
+    const shop = await Shop.findById(cart.shopId);
+    calculateCart(cart, shop);
     cart.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await cart.save();
 
-    return successResponse(res, cart, 'Cart updated');
+    const populatedCart = await Cart.findById(cart._id)
+        .populate('shopId', 'name logoUrl deliveryConfig delivery address location rating')
+        .populate('items.productId', 'name price imageUrl stock isActive');
+
+    return successResponse(res, populatedCart, 'Cart updated');
 });
 
 exports.removeCartItem = catchAsync(async (req, res) => {
@@ -112,14 +164,19 @@ exports.removeCartItem = catchAsync(async (req, res) => {
         return successResponse(res, null, 'Cart cleared');
     }
 
-    cart.subtotal = cart.items.reduce((sum, i) => sum + (i.price * i.qty), 0);
-    cart.totalAmount = cart.subtotal + cart.deliveryCharge - cart.discount;
+    const shop = await Shop.findById(cart.shopId);
+    calculateCart(cart, shop);
     await cart.save();
 
-    return successResponse(res, cart, 'Item removed');
+    const populatedCart = await Cart.findById(cart._id)
+        .populate('shopId', 'name logoUrl deliveryConfig delivery address location rating')
+        .populate('items.productId', 'name price imageUrl stock isActive');
+
+    return successResponse(res, populatedCart, 'Item removed');
 });
 
 exports.clearCart = catchAsync(async (req, res) => {
     await Cart.deleteOne({ customerId: req.user._id });
     return successResponse(res, null, 'Cart cleared');
 });
+

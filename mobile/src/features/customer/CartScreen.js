@@ -22,6 +22,7 @@ const CartScreen = ({ route, navigation }) => {
   const { user, fetchUser } = useAuth();
   const {
     cart, loading, itemCount, subtotal, deliveryCharge, promoDiscount, promoCode, total,
+    shopConfig, freeDeliveryAbove, minOrderAmount,
     fetchCart, updateItem, removeItem, clearCart, validatePromo, removePromo
   } = useCart();
   const styles = createStyles(theme, isDarkMode);
@@ -87,6 +88,13 @@ const CartScreen = ({ route, navigation }) => {
 
     if (total < 1) {
       return Alert.alert('Minimum Order', 'Your order must be at least ₹1.');
+    }
+
+    if (minOrderAmount > 0 && subtotal < minOrderAmount) {
+      return Alert.alert(
+        'Minimum Order Required',
+        `The minimum order amount for this shop is ₹${minOrderAmount}. Please add items worth ₹${minOrderAmount - subtotal} more to checkout.`
+      );
     }
 
     const defaultAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
@@ -329,6 +337,40 @@ const CartScreen = ({ route, navigation }) => {
             }
             ListFooterComponent={
               <View>
+                {/* Free Delivery Progress Banner */}
+                {freeDeliveryAbove > 0 && (
+                  subtotal < freeDeliveryAbove ? (
+                    <View style={styles.deliveryProgressCard}>
+                      <View style={styles.deliveryProgressHeader}>
+                        <Truck size={16} color={theme.colors.primary} />
+                        <Text style={styles.deliveryProgressText}>
+                          Add <Text style={{ fontWeight: '800', color: theme.colors.primary }}>₹{freeDeliveryAbove - subtotal}</Text> more for <Text style={{ fontWeight: '800', color: '#059669' }}>FREE Delivery</Text>
+                        </Text>
+                      </View>
+                      <View style={styles.progressBarTrack}>
+                        <View style={[styles.progressBarFill, { width: `${Math.min(100, Math.round((subtotal / freeDeliveryAbove) * 100))}%` }]} />
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.freeDeliveryUnlockedCard}>
+                      <Check size={16} color="#059669" />
+                      <Text style={styles.freeDeliveryUnlockedText}>
+                        🎉 Congratulations! You unlocked <Text style={{ fontWeight: '800' }}>FREE Delivery</Text>
+                      </Text>
+                    </View>
+                  )
+                )}
+
+                {/* Min Order Notice */}
+                {minOrderAmount > 0 && subtotal < minOrderAmount && (
+                  <View style={styles.minOrderNoticeCard}>
+                    <Text style={styles.minOrderNoticeEmoji}>ℹ️</Text>
+                    <Text style={styles.minOrderNoticeText}>
+                      Min order for this shop is <Text style={{ fontWeight: '800' }}>₹{minOrderAmount}</Text>. Add ₹{minOrderAmount - subtotal} more to checkout.
+                    </Text>
+                  </View>
+                )}
+
                 {/* Delivery Slot */}
                 {slots.length > 0 && (
                   <TouchableOpacity style={styles.slotCard} onPress={() => setShowSlotModal(true)}>
@@ -386,7 +428,7 @@ const CartScreen = ({ route, navigation }) => {
                   {[
                     ['Items Total', `₹${subtotal}`],
                     ['Delivery Fee', deliveryCharge === 0 ? 'FREE' : `₹${deliveryCharge}`],
-                    promoDiscount > 0 ? ['Promo Discount', `-₹${promoDiscount}`] : null,
+                    promoDiscount > 0 ? ['Promo / Shop Discount', `-₹${promoDiscount}`] : null,
                   ].filter(Boolean).map(([k, v]) => (
                     <View key={k} style={styles.billRow}>
                       <Text style={styles.billKey}>{k}</Text>
@@ -590,6 +632,16 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   list:           { padding: 16, paddingBottom: 20 },
   shopBadge:      { backgroundColor: theme.colors.primary + '15', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.primary + '30' },
   shopBadgeText:  { fontSize: 13, fontWeight: '700', color: theme.colors.primary },
+  deliveryProgressCard: { backgroundColor: theme.colors.surface, borderRadius: 14, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border },
+  deliveryProgressHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  deliveryProgressText: { fontSize: 13, color: theme.colors.text, fontWeight: '600', flex: 1 },
+  progressBarTrack: { height: 6, backgroundColor: theme.colors.border, borderRadius: 3, overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: theme.colors.primary, borderRadius: 3 },
+  freeDeliveryUnlockedCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#05966915', borderWidth: 1, borderColor: '#05966930', borderRadius: 14, padding: 12, marginBottom: 12 },
+  freeDeliveryUnlockedText: { fontSize: 13, color: '#059669', fontWeight: '700', flex: 1 },
+  minOrderNoticeCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#f59e0b15', borderWidth: 1, borderColor: '#f59e0b40', borderRadius: 14, padding: 12, marginBottom: 12 },
+  minOrderNoticeEmoji: { fontSize: 16 },
+  minOrderNoticeText: { fontSize: 13, color: isDarkMode ? '#fbbf24' : '#b45309', fontWeight: '700', flex: 1 },
   itemCard:       { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: 16, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: theme.colors.border },
   itemEmoji:      { width: 48, height: 48, borderRadius: 12, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' },
   itemInfo:       { flex: 1, marginLeft: 12 },

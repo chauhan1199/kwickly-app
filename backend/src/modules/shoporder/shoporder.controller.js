@@ -98,7 +98,22 @@ exports.placeOrder = catchAsync(async (req, res) => {
 
         // Calculate totals using verified database prices
         const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
-        const deliveryFee = subtotal >= shop.deliveryConfig.freeDeliveryAbove ? 0 : shop.deliveryConfig.deliveryCharge;
+        const cfg = shop.deliveryConfig || shop.delivery || {};
+        const freeAbove = Number(cfg.freeDeliveryAbove ?? cfg.freeAbove ?? 1000);
+        const charge = Number(cfg.deliveryCharge ?? cfg.fee ?? 40);
+        const deliveryFee = subtotal >= freeAbove ? 0 : charge;
+
+        // Minimum order amount validation
+        const minOrder = Number(cfg.minOrderAmount ?? cfg.minOrder ?? 0);
+        if (minOrder > 0 && subtotal < minOrder) {
+            if (useTransaction && session) await session.abortTransaction();
+            if (session) session.endSession();
+            return errorResponse(
+                res,
+                `Minimum order amount for ${shop.name} is ₹${minOrder}. Please add items worth ₹${minOrder - subtotal} more.`,
+                StatusCodes.BAD_REQUEST
+            );
+        }
 
         // Apply promo code discount if provided
         let discount = 0;
@@ -123,7 +138,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
             if (subtotal < promo.minOrderAmount) {
                 if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
-                return errorResponse(res, `Minimum order â‚¹${promo.minOrderAmount} required for this promo`, StatusCodes.BAD_REQUEST);
+                return errorResponse(res, `Minimum order ₹${promo.minOrderAmount} required for this promo`, StatusCodes.BAD_REQUEST);
             }
 
             if (promo.type === 'FLAT_DISCOUNT') {
@@ -137,9 +152,22 @@ exports.placeOrder = catchAsync(async (req, res) => {
             // Increment promo usage
             await Promotion.findByIdAndUpdate(promo._id, { $inc: { usesCount: 1 } });
             promoDetails = { code: promo.code, discount, type: promo.type, title: promo.title };
+        } else if (cfg.discountEnabled && subtotal >= (cfg.discountAbove || 500)) {
+            // Auto shop discount
+            if (cfg.discountType === 'percent') {
+                const pct = Number(cfg.discountPct || 10);
+                const cap = Number(cfg.maxDiscountCap || 200);
+                discount = Math.min(Math.round((subtotal * pct) / 100), cap);
+            } else {
+                discount = Number(cfg.discountValue || 50);
+            }
+            discount = Math.min(discount, subtotal);
+            if (discount > 0) {
+                promoDetails = { code: 'SHOP_OFFER', discount, type: cfg.discountType === 'percent' ? 'PERCENTAGE_DISCOUNT' : 'FLAT_DISCOUNT', title: `${cfg.discountPct || 10}% Shop Discount` };
+            }
         }
 
-        const total = subtotal + deliveryFee - discount;
+        const total = Math.max(0, subtotal + deliveryFee - discount);
 
         // Handle wallet payment atomically
         let paymentStatus = 'PENDING';
@@ -576,7 +604,7 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         if (shop.ownerId) {
             await WalletTxn.create({
                 userId: shop.ownerId,
-                type: 'EARNING',
+                type: 'ORDER_CREDIT',
                 amount: shopPayout,
                 balance: updatedShop?.wallet?.balance || shopPayout,
                 refId: String(order._id),

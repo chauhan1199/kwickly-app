@@ -110,12 +110,20 @@ export const CartProvider = ({ children }) => {
 
   const itemCount = cart?.items?.length || 0;
   const subtotal = cart?.subtotal || 0;
-  const deliveryCharge = cart?.deliveryCharge || 0;
-  const total = subtotal + deliveryCharge - promoDiscount;
+  const shopCfg = (typeof cart?.shopId === 'object' ? (cart.shopId?.deliveryConfig || cart.shopId?.delivery) : {}) || {};
+  const freeAbove = Number(shopCfg.freeDeliveryAbove ?? shopCfg.freeAbove ?? 1000);
+  const baseCharge = Number(shopCfg.deliveryCharge ?? shopCfg.fee ?? 40);
+  const computedDeliveryCharge = (subtotal >= freeAbove) ? 0 : baseCharge;
+  const deliveryCharge = (itemCount > 0) ? (cart?.deliveryCharge !== undefined && cart?.deliveryCharge !== null ? cart.deliveryCharge : computedDeliveryCharge) : 0;
+
+  const shopDiscount = cart?.discount || 0;
+  const effectiveDiscount = promoDiscount > 0 ? promoDiscount : shopDiscount;
+  const total = Math.max(0, subtotal + deliveryCharge - effectiveDiscount);
 
   return (
     <CartContext.Provider value={{
-      cart, loading, itemCount, subtotal, deliveryCharge, promoDiscount, promoCode, total,
+      cart, loading, itemCount, subtotal, deliveryCharge, promoDiscount: effectiveDiscount, promoCode, total,
+      shopConfig: shopCfg, freeDeliveryAbove: freeAbove, minOrderAmount: Number(shopCfg.minOrderAmount ?? shopCfg.minOrder ?? 0),
       fetchCart, addToCart, updateItem, removeItem, clearCart, validatePromo, removePromo
     }}>
       {children}
