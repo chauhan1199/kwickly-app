@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, StatusBar, ActivityIndicator, Alert
+  TouchableOpacity, StatusBar, ActivityIndicator, Alert, Image
 } from 'react-native';
+
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import { shopService } from '../../services/shopService';
 import useSocket from '../../hooks/useSocket';
+import { getImageUrl } from '../../utils/helpers';
 import {
   Check, Clock, Package, Truck, MapPin, Phone,
   Copy, FileText, MessageCircle, ChevronRight, XCircle
 } from 'lucide-react-native';
+
 
 const STATUS_STEPS = [
   { key: 'NEW',            label: 'Order Placed',     icon: Package,    description: 'Your order has been received' },
@@ -191,7 +194,17 @@ const OrderTrackingScreen = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>Order Items</Text>
           {order.items?.map((item, idx) => (
             <View key={idx} style={styles.itemRow}>
-              <Text style={styles.itemEmoji}>{item.imageUrl || '📦'}</Text>
+              <View style={styles.itemEmoji}>
+                {item.imageUrl && getImageUrl(item.imageUrl) ? (
+                  <Image 
+                    source={{ uri: getImageUrl(item.imageUrl) }} 
+                    style={{ width: 28, height: 28, borderRadius: 6 }} 
+                    resizeMode="contain" 
+                  />
+                ) : (
+                  <Text style={{ fontSize: 18 }}>📦</Text>
+                )}
+              </View>
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
                 <Text style={styles.itemQty}>Qty: {item.qty}</Text>
@@ -207,11 +220,11 @@ const OrderTrackingScreen = ({ route, navigation }) => {
           {[
             ['Items Total', `₹${order.subtotal}`],
             ['Delivery Fee', order.deliveryFee === 0 ? 'FREE' : `₹${order.deliveryFee}`],
-            order.promoDiscount > 0 ? ['Promo Discount', `-₹${order.promoDiscount}`] : null,
+            (order.discount > 0 || order.promoDiscount > 0) ? ['Discount Applied', `-₹${order.discount || order.promoDiscount}`] : null,
           ].filter(Boolean).map(([k, v]) => (
             <View key={k} style={styles.billRow}>
               <Text style={styles.billKey}>{k}</Text>
-              <Text style={[styles.billVal, v === 'FREE' && { color: '#059669' }]}>{v}</Text>
+              <Text style={[styles.billVal, (v === 'FREE' || String(v).startsWith('-')) && { color: '#059669' }]}>{v}</Text>
             </View>
           ))}
           <View style={[styles.billRow, styles.billTotalRow]}>

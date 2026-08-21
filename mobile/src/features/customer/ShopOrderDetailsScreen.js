@@ -273,12 +273,19 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
             </View>
             <View style={styles.invoiceRow}>
               <Text style={styles.invoiceText}>Delivery Fee</Text>
-              <Text style={styles.invoiceText}>₹{deliveryFee}</Text>
+              <Text style={styles.invoiceText}>{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}</Text>
             </View>
+            {(order.discount > 0 || order.promoDiscount > 0) && (
+              <View style={styles.invoiceRow}>
+                <Text style={[styles.invoiceText, { color: '#10b981' }]}>Discount Applied</Text>
+                <Text style={[styles.invoiceText, { color: '#10b981' }]}>-₹{order.discount || order.promoDiscount}</Text>
+              </View>
+            )}
             <View style={styles.invoiceRow}>
               <Text style={styles.invoiceMuted}>Taxes & Charges</Text>
               <Text style={styles.invoiceMuted}>₹{taxes}</Text>
             </View>
+
             
             <View style={styles.separator} />
             

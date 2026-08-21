@@ -41,8 +41,9 @@ export const shopService = {
   updateDeliveryConfig: (shopId, config) =>
     withErrorHandling(() => api.patch(`/shops/${shopId}/delivery-config`, config)),
 
-  updateOrderStatus: (orderId, status, otp) =>
-    withErrorHandling(() => api.patch(`/shoporders/${orderId}/status`, { status, otp })),
+  updateOrderStatus: (orderId, status, otp, note) =>
+    withErrorHandling(() => api.patch(`/shoporders/${orderId}/status`, { status, otp, note })),
+
 
   cancelOrder: (orderId) =>
     withErrorHandling(() => api.post(`/shoporders/${orderId}/cancel`)),

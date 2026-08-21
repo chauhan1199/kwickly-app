@@ -38,10 +38,10 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
 
   useEffect(() => { fetchOrder(); }, [fetchOrder]);
 
-  const updateStatus = async (status, otp) => {
+  const updateStatus = async (status, otp, note) => {
     try {
       setUpdating(true);
-      await shopService.updateOrderStatus(orderId, status, otp);
+      await shopService.updateOrderStatus(orderId, status, otp, note);
       fetchOrder();
     } catch (e) {
       Alert.alert('Error', e?.response?.data?.message || 'Failed to update status');
@@ -52,13 +52,28 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleCancelOrder = () => {
+    Alert.alert(
+      'Cancel Order',
+      'Are you sure you want to cancel this order? Reserved stock will automatically be returned to your inventory.',
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        {
+          text: 'Yes, Cancel Order',
+          style: 'destructive',
+          onPress: () => updateStatus('CANCELLED', null, 'Cancelled by shop')
+        }
+      ]
+    );
+  };
+
   const getNextAction = () => {
     if (!order) return null;
     switch (order.status) {
       case 'NEW':
-        return { label: 'Accept Order', status: 'CONFIRMED', color: '#10b981', icon: Check };
+        return { label: 'Accept Order', status: 'CONFIRMED', color: '#10b981', icon: Check, allowCancel: true };
       case 'CONFIRMED':
-        return { label: 'Start Packing', status: 'PACKING', color: '#6366f1', icon: Package };
+        return { label: 'Start Packing', status: 'PACKING', color: '#6366f1', icon: Package, allowCancel: true };
       case 'PACKING':
         return { label: 'Mark Out for Delivery', status: 'OUT_FOR_DELIVERY', color: '#f59e0b', icon: Truck };
       case 'OUT_FOR_DELIVERY':
@@ -67,6 +82,7 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
         return null;
     }
   };
+
 
   const handleNextAction = () => {
     const action = getNextAction();
@@ -176,8 +192,22 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
               <Text style={styles.itemPrice}>₹{item.price * item.qty}</Text>
             </View>
           ))}
+          <View style={[styles.infoRow, { marginTop: 10, borderBottomWidth: 0 }]}>
+            <Text style={styles.infoLabel}>Items Subtotal</Text>
+            <Text style={styles.infoValue}>₹{order.subtotal || order.total}</Text>
+          </View>
+          <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+            <Text style={styles.infoLabel}>Delivery Fee</Text>
+            <Text style={styles.infoValue}>{order.deliveryFee === 0 ? 'FREE' : `₹${order.deliveryFee || 0}`}</Text>
+          </View>
+          {(order.discount > 0 || order.promoDiscount > 0) && (
+            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+              <Text style={[styles.infoLabel, { color: '#10b981' }]}>Discount</Text>
+              <Text style={[styles.infoValue, { color: '#10b981' }]}>-₹{order.discount || order.promoDiscount}</Text>
+            </View>
+          )}
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalLabel}>Total Customer Paid</Text>
             <Text style={styles.totalValue}>₹{order.total}</Text>
           </View>
         </View>
@@ -217,8 +247,17 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
       {/* Action Button */}
       {nextAction && order.status !== 'CANCELLED' && (
         <View style={styles.actionBar}>
+          {nextAction.allowCancel && (
+            <TouchableOpacity
+              style={[styles.cancelOrderBtn, updating && { opacity: 0.6 }]}
+              disabled={updating}
+              onPress={handleCancelOrder}
+            >
+              <Text style={styles.cancelOrderBtnText}>Reject / Cancel</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: nextAction.color }, updating && { opacity: 0.6 }]}
+            style={[styles.actionBtn, { backgroundColor: nextAction.color, flex: nextAction.allowCancel ? 2 : 1 }, updating && { opacity: 0.6 }]}
             disabled={updating}
             onPress={handleNextAction}
           >
@@ -233,6 +272,7 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       )}
+
 
       {/* OTP Modal */}
       {showOtpModal && (
@@ -303,8 +343,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   historyContent:{ flex: 1 },
   historyStatus:{ fontSize: 13, fontWeight: '700', color: theme.colors.text },
   historyTime:  { fontSize: 11, color: theme.colors.textDim, marginTop: 2 },
-  actionBar:    { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  actionBar:    { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border, flexDirection: 'row', gap: 12 },
+  cancelOrderBtn:{ flex: 1, paddingVertical: 16, borderRadius: 14, borderWidth: 1, borderColor: '#ef4444', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ef4444' + '10' },
+  cancelOrderBtnText:{ fontSize: 14, fontWeight: '700', color: '#ef4444' },
   actionBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16, borderRadius: 14 },
+
   actionBtnText:{ fontSize: 16, fontWeight: '800', color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalBackdrop: StyleSheet.absoluteFill,
