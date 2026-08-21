@@ -2,15 +2,17 @@ import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 
 /**
- * Official Kwickly Logo Icon from assets/logo.png
+ * Official Kwickly Logo Icon with sleek dark background for maximum contrast
  */
 export const KwicklyIcon = ({ size = 36, style }) => {
   return (
-    <Image
-      source={require('../../assets/logo.png')}
-      style={[{ width: size, height: size }, style]}
-      resizeMode="contain"
-    />
+    <View style={[styles.iconBox, { width: size, height: size, borderRadius: Math.round(size * 0.28) }, style]}>
+      <Image
+        source={require('../../assets/logo.png')}
+        style={{ width: size * 0.78, height: size * 0.78 }}
+        resizeMode="contain"
+      />
+    </View>
   );
 };
 
@@ -29,20 +31,14 @@ const KwicklyBrand = ({
 
   return (
     <View style={[styles.container, isVert ? styles.vertical : styles.horizontal]}>
-      <View style={styles.iconWrapper}>
-        <Image
-          source={require('../../assets/logo.png')}
-          style={{ width: size, height: size }}
-          resizeMode="contain"
-        />
-      </View>
+      <KwicklyIcon size={size} />
       <View style={[styles.textBlock, isVert && styles.textBlockCenter]}>
         <Text style={[styles.wordmark, { fontSize, color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
           Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
         </Text>
         {showTagline && (
           <Text style={[styles.tagline, { color: taglineColor || (isDarkMode ? '#94A3B8' : '#64748B') }]}>
-            Any Service. Anytime. Near You.
+            Every Local Services & Products Anytime Near You
           </Text>
         )}
       </View>
@@ -54,6 +50,13 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
   },
+  iconBox: {
+    backgroundColor: '#0B0F19',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
   horizontal: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -63,10 +66,6 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     gap: 6,
-  },
-  iconWrapper: {
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   textBlock: {
     justifyContent: 'center',

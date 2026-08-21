@@ -17,8 +17,9 @@ router.post('/forgot-password', otpSendLimiter, validate(forgotPasswordSchema), 
 router.post('/reset-password',  authLimiter, validate(resetPasswordSchema), authController.resetPassword);
 
 // Authenticated routes
-router.post('/logout',     authMiddleware, authController.logout);
+router.post('/logout',       authMiddleware, authController.logout);
+router.post('/set-password',  authMiddleware, validate(setPasswordSchema), authController.setPassword);
 router.patch('/set-password', authMiddleware, validate(setPasswordSchema), authController.setPassword);
-router.get('/me',          authMiddleware, authController.getMe);
+router.get('/me',            authMiddleware, authController.getMe);
 
 module.exports = router;

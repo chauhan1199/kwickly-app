@@ -317,16 +317,16 @@ const RoleSelection = ({ navigation, route }) => {
                   onPress={() => setOtpMethod('SMS')}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.otpIconBox, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
-                    <MessageSquare size={18} color="#6C47FF" />
+                  <View style={styles.otpCardTop}>
+                    <View style={[styles.otpIconBox, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
+                      <MessageSquare size={18} color="#6C47FF" />
+                    </View>
+                    <View style={[styles.roleCheck, otpMethod === 'SMS' && styles.roleCheckActive]}>
+                      {otpMethod === 'SMS' && <CheckCircle2 size={14} color="#FFF" />}
+                    </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.otpCardTitle}>SMS</Text>
-                    <Text style={styles.otpCardDesc}>Standard text message</Text>
-                  </View>
-                  <View style={[styles.roleCheck, otpMethod === 'SMS' && styles.roleCheckActive]}>
-                    {otpMethod === 'SMS' && <CheckCircle2 size={15} color="#FFF" />}
-                  </View>
+                  <Text style={styles.otpCardTitle} numberOfLines={1}>SMS</Text>
+                  <Text style={styles.otpCardDesc} numberOfLines={1}>Standard text</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -334,16 +334,16 @@ const RoleSelection = ({ navigation, route }) => {
                   onPress={() => setOtpMethod('WHATSAPP')}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.otpIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                    <Smartphone size={18} color="#10B981" />
+                  <View style={styles.otpCardTop}>
+                    <View style={[styles.otpIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+                      <Smartphone size={18} color="#10B981" />
+                    </View>
+                    <View style={[styles.roleCheck, otpMethod === 'WHATSAPP' && styles.roleCheckActive]}>
+                      {otpMethod === 'WHATSAPP' && <CheckCircle2 size={14} color="#FFF" />}
+                    </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.otpCardTitle}>WhatsApp</Text>
-                    <Text style={styles.otpCardDesc}>Instant WhatsApp message</Text>
-                  </View>
-                  <View style={[styles.roleCheck, otpMethod === 'WHATSAPP' && styles.roleCheckActive]}>
-                    {otpMethod === 'WHATSAPP' && <CheckCircle2 size={15} color="#FFF" />}
-                  </View>
+                  <Text style={styles.otpCardTitle} numberOfLines={1}>WhatsApp</Text>
+                  <Text style={styles.otpCardDesc} numberOfLines={1}>Instant message</Text>
                 </TouchableOpacity>
               </View>
 
@@ -665,13 +665,16 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     borderRadius: 16,
     padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   otpCardActive: {
     borderColor: '#6C47FF',
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.12)' : '#F5F3FF',
+  },
+  otpCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   otpIconBox: {
     width: 32,
@@ -684,9 +687,10 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: theme.colors.text,
+    marginBottom: 2,
   },
   otpCardDesc: {
-    fontSize: 10.5,
+    fontSize: 11,
     color: theme.colors.textDim,
     fontWeight: '500',
   },
