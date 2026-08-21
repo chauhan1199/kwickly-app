@@ -197,7 +197,7 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
 });
 
 exports.addAddress = catchAsync(async (req, res) => {
-    const { label, street, city, pincode, location, isPrimary } = req.body;
+    const { label, street, area, city, pincode, location, isPrimary } = req.body;
     if (!label || !street || !city) {
         return errorResponse(res, 'label, street, and city are required', StatusCodes.BAD_REQUEST);
     }
@@ -211,7 +211,7 @@ exports.addAddress = catchAsync(async (req, res) => {
         user.addresses.forEach(a => a.isPrimary = false);
     }
     
-    user.addresses.push({ label, street, city, pincode, location, isPrimary: isPrimary || user.addresses.length === 0 });
+    user.addresses.push({ label, street, area, city, pincode, location, isPrimary: isPrimary || user.addresses.length === 0 });
     await user.save();
     
     await notifyUser({ userId: req.user._id, entityType: 'OTHER', action: 'SYSTEM', title: 'Address Added', message: `New address '${label || 'Home'}' has been saved successfully.` });
@@ -221,7 +221,7 @@ exports.addAddress = catchAsync(async (req, res) => {
 
 exports.updateAddress = catchAsync(async (req, res) => {
     const { addressId } = req.params;
-    const { label, street, city, pincode, location, isPrimary } = req.body;
+    const { label, street, area, city, pincode, location, isPrimary } = req.body;
     
     const user = await Customer.findById(req.user._id);
     const address = user.addresses.id(addressId);
@@ -239,6 +239,9 @@ exports.updateAddress = catchAsync(async (req, res) => {
     if (street !== undefined) {
         if (!street) return errorResponse(res, 'street must be a non-empty string', StatusCodes.BAD_REQUEST);
         address.street = street;
+    }
+    if (area !== undefined) {
+        address.area = area;
     }
     if (city !== undefined) {
         if (!city) return errorResponse(res, 'city must be a non-empty string', StatusCodes.BAD_REQUEST);
