@@ -98,8 +98,8 @@ const RoleSelection = ({ navigation, route }) => {
       const response = await api.post('/auth/check-status', { phone: phoneNumber, role: selectedRole });
       const status = response.data.data;
 
-      if (status.hasPassword) {
-        navigation.navigate('Login', { prefillPhone: phoneNumber, role: selectedRole });
+      if (status.hasMpin || status.hasPassword) {
+        navigation.navigate('Login', { prefillPhone: phoneNumber, role: selectedRole, defaultMode: 'MPIN' });
       } else {
         await api.post('/auth/send-otp', { phone: phoneNumber, role: selectedRole });
         navigation.navigate('OTPVerify', {

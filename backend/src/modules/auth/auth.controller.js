@@ -46,7 +46,7 @@ const resetOtpAttempts = async (phone) => {
     await delCache(`otp_attempts:${phone}`);
 };
 
-// â”€â”€â”€ Controllers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Controllers ─────────────────────────────────────────────────────────────
 
 exports.checkStatus = catchAsync(async (req, res) => {
     const { phone, role } = req.body;
@@ -54,7 +54,8 @@ exports.checkStatus = catchAsync(async (req, res) => {
 
     return successResponse(res, {
         exists: !!user,
-        hasPassword: !!(user && user.password)
+        hasPassword: !!(user && user.password),
+        hasMpin: !!(user && user.password)
     }, COMMON.SUCCESS);
 });
 
@@ -147,12 +148,13 @@ exports.verifyOTP = catchAsync(async (req, res) => {
     return successResponse(res, {
         token,
         user: safeUser,
-        isNew: !user.password // Prompt password creation if password is not set
+        isNew: !user.password // Prompt MPIN creation if MPIN is not set
     }, AUTH.OTP_VERIFIED);
 });
 
 exports.login = catchAsync(async (req, res) => {
-    const { email, phone, password, role, fcmToken } = req.body;
+    const { email, phone, password, mpin, role, fcmToken } = req.body;
+    const secret = password || mpin;
 
     let query = email ? { email } : { phone };
     if (role) query.role = role.toUpperCase();
@@ -160,17 +162,21 @@ exports.login = catchAsync(async (req, res) => {
     const user = await Customer.findOne(query).select('+password');
 
     if (!user) {
-        const roleLabel = role ? role.toLowerCase() : 'admin';
-        return errorResponse(res, `Account not found for the selected role (${roleLabel}). Please check your credentials.`, StatusCodes.UNAUTHORIZED);
+        const roleLabel = role ? role.toLowerCase() : 'account';
+        return errorResponse(res, `No ${roleLabel} account found for this mobile number. Please check your number or register.`, StatusCodes.UNAUTHORIZED);
     }
 
     if (!user.password) {
-        return errorResponse(res, AUTH.LOGIN_FAILED, StatusCodes.UNAUTHORIZED);
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            success: false,
+            mpinNotSet: true,
+            message: 'MPIN is not set for this account. Please sign in with OTP.'
+        });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(secret, user.password);
     if (!isMatch) {
-        return errorResponse(res, AUTH.LOGIN_FAILED, StatusCodes.UNAUTHORIZED);
+        return errorResponse(res, 'Invalid 4-digit MPIN. Please try again or sign in with OTP.', StatusCodes.UNAUTHORIZED);
     }
 
     // Save FCM device token if provided
@@ -181,7 +187,7 @@ exports.login = catchAsync(async (req, res) => {
 
     const token = generateToken(user);
 
-    // BUG FIX B2: Store object directly — not double-stringified
+    // Store object directly — not double-stringified
     const userObj = user.toObject();
     delete userObj.password;
     await setCache(`session:${user._id}`, userObj, SESSION_TTL);
@@ -203,7 +209,7 @@ exports.logout = catchAsync(async (req, res) => {
                 await setCache(`blacklist:${token}`, '1', ttl);
             }
         } catch (e) {
-            // Token may already be invalid â€” that's fine
+            // Token may already be invalid — that's fine
         }
         // Clear user session cache
         if (req.user) {
@@ -214,15 +220,19 @@ exports.logout = catchAsync(async (req, res) => {
 });
 
 exports.setPassword = catchAsync(async (req, res) => {
-    const { password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const { password, mpin } = req.body;
+    const secret = password || mpin;
+    if (!secret) {
+        return errorResponse(res, 'MPIN or password is required', StatusCodes.BAD_REQUEST);
+    }
+    const hashedPassword = await bcrypt.hash(secret, 12);
 
     await Customer.findByIdAndUpdate(req.user._id, { password: hashedPassword });
 
     // Invalidate session cache so new data is reflected
     await delCache(`session:${req.user._id}`);
 
-    return successResponse(res, null, AUTH.PASSWORD_SET);
+    return successResponse(res, null, 'MPIN set successfully');
 });
 
 exports.getMe = catchAsync(async (req, res) => {
@@ -249,11 +259,12 @@ exports.forgotPassword = catchAsync(async (req, res) => {
     const otp = await smsService.sendOTP(phone);
     await setCache(`reset_otp:${phone}`, otp, 300);
 
-    return successResponse(res, null, 'Password reset OTP sent');
+    return successResponse(res, null, 'Reset OTP sent successfully');
 });
 
 exports.resetPassword = catchAsync(async (req, res) => {
-    const { phone, code, newPassword, role } = req.body;
+    const { phone, code, newPassword, newMpin, role } = req.body;
+    const secret = newPassword || newMpin;
 
     const cached = await getCache(`reset_otp:${phone}`);
     if (!cached || String(cached) !== String(code)) {
@@ -263,7 +274,7 @@ exports.resetPassword = catchAsync(async (req, res) => {
     await delCache(`reset_otp:${phone}`);
     await resetOtpAttempts(`reset_${phone}`);
 
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    const hashedPassword = await bcrypt.hash(secret, 12);
     const user = await Customer.findOneAndUpdate(
         { phone, role: role || 'CUSTOMER' },
         { password: hashedPassword },
@@ -275,5 +286,5 @@ exports.resetPassword = catchAsync(async (req, res) => {
     }
 
     await delCache(`session:${user._id}`);
-    return successResponse(res, null, 'Password reset successfully');
+    return successResponse(res, null, 'MPIN reset successfully');
 });

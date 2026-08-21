@@ -175,7 +175,7 @@ const AppSplashScreen = ({ navigation }) => {
             style={[
               styles.logoBadge,
               {
-                backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+                backgroundColor: '#0F172A',
                 shadowColor: '#6C47FF',
                 opacity: logoOpacity,
                 transform: [{ scale: logoScale }],
@@ -276,7 +276,8 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
     borderWidth: 1.5,
-    borderColor: 'rgba(108, 71, 255, 0.2)',
+    borderColor: '#1E293B',
+    backgroundColor: '#0F172A',
   },
   splashLogoImg: {
     width: 64,

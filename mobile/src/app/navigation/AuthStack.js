@@ -5,6 +5,7 @@ import WelcomeScreen from '../../features/auth/WelcomeScreen';
 import RoleSelection from '../../features/auth/RoleSelection';
 import LoginScreen from '../../features/auth/LoginScreen';
 import OTPVerifyScreen from '../../features/auth/OTPVerifyScreen';
+import SetMpinScreen from '../../features/auth/SetMpinScreen';
 import SetPasswordScreen from '../../features/auth/SetPasswordScreen';
 import ForgotPasswordScreen from '../../features/auth/ForgotPasswordScreen';
 import { useTheme } from '../../context/ThemeContext';
@@ -28,8 +29,10 @@ const AuthStack = () => {
       <Stack.Screen name="RoleSelection" component={RoleSelection} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="OTPVerify" component={OTPVerifyScreen} />
-      <Stack.Screen name="SetPassword" component={SetPasswordScreen} />
+      <Stack.Screen name="SetMpin" component={SetMpinScreen} />
+      <Stack.Screen name="SetPassword" component={SetMpinScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetMpin" component={ForgotPasswordScreen} />
     </Stack.Navigator>
   );
 };

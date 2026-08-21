@@ -85,7 +85,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
       const { token, isNew, user } = response.data.data;
       
       if (isNew) {
-        navigation.navigate('SetPassword', { phone, role, token, user, name: fullName });
+        navigation.navigate('SetMpin', { phone, role, token, user, name: fullName || user?.name || 'User' });
       } else {
         await signIn(token, user?.role || role);
       }

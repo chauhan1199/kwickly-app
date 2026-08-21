@@ -9,10 +9,21 @@ import {
   StatusBar,
   ScrollView,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
-import { Phone, Lock, ChevronLeft, ArrowRight, Eye, EyeOff } from 'lucide-react-native';
+import { 
+  Phone, 
+  Lock, 
+  ChevronLeft, 
+  ArrowRight, 
+  Eye, 
+  EyeOff, 
+  ShieldCheck,
+  KeyRound,
+  MessageSquare
+} from 'lucide-react-native';
 import { authService } from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
 import CustomAlert from '../../components/ui/CustomAlert';
@@ -20,48 +31,94 @@ import LinearGradient from 'react-native-linear-gradient';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const LoginScreen = ({ navigation, route }) => {
-  const { role: initialRole = 'CUSTOMER', prefillPhone = '' } = route.params || {};
+  const { role: initialRole = 'CUSTOMER', prefillPhone = '', defaultMode = 'MPIN' } = route.params || {};
   const { theme, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
   const [role, setRole] = useState(initialRole);
   const { signIn } = useAuth();
-  const [loginMode, setLoginMode] = useState('OTP'); // 'OTP' or 'PASSWORD'
+
+  const [loginMode, setLoginMode] = useState(defaultMode); // 'MPIN' or 'OTP'
   const [phone, setPhone] = useState(prefillPhone);
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [mpin, setMpin] = useState('');
+  const [showMpin, setShowMpin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
   
-  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error' });
+  const [alertConfig, setAlertConfig] = useState({ 
+    visible: false, 
+    title: '', 
+    message: '', 
+    type: 'error',
+    onConfirm: null 
+  });
 
-  const showAlert = (title, message, type = 'error') => {
-    setAlertConfig({ visible: true, title, message, type });
+  const showAlert = (title, message, type = 'error', onConfirm = null) => {
+    setAlertConfig({ visible: true, title, message, type, onConfirm });
   };
 
-  const handleAction = async () => {
-    if (!phone || phone.length < 10) {
-      showAlert('Error', 'Please enter a valid 10-digit mobile number');
+  const handleMpinLogin = async () => {
+    if (!phone || phone.length !== 10) {
+      showAlert('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number.');
       return;
     }
     
-    if (loginMode === 'PASSWORD' && (!password || password.length < 6)) {
-      showAlert('Error', 'Please enter your password (min 6 characters)');
+    if (!mpin || mpin.length !== 4) {
+      showAlert('Invalid MPIN', 'Please enter your 4-digit Security MPIN.');
       return;
     }
 
     setLoading(true);
     try {
-      if (loginMode === 'OTP') {
-        await authService.sendOtp(phone, role);
-        navigation.navigate('OTPVerify', { phone, role });
-      } else {
-        const response = await authService.login(phone, password, role);
-        const { token, user } = response.data.data;
-        await signIn(token, user.role);
-      }
+      const response = await authService.login(phone, mpin, role);
+      const { token, user } = response.data.data;
+      await signIn(token, user.role);
     } catch (error) {
-      const errorMsg = error.response?.data?.errors?.join(', ') || error.response?.data?.message || error.message || 'Something went wrong';
-      showAlert('Error', errorMsg);
+      const errorData = error.response?.data;
+      const isMpinNotSet = errorData?.mpinNotSet || 
+                           errorData?.message?.toLowerCase()?.includes('mpin is not set') ||
+                           errorData?.message?.toLowerCase()?.includes('password is not set');
+
+      if (isMpinNotSet) {
+        // Automatically switch to OTP mode and send OTP to allow setting MPIN
+        showAlert(
+          'MPIN Not Set',
+          'An MPIN is not configured for this account yet. We will send an OTP so you can verify and create your 4-digit MPIN.',
+          'info',
+          async () => {
+            setLoading(true);
+            try {
+              await authService.sendOtp(phone, role);
+              navigation.navigate('OTPVerify', { phone, role });
+            } catch (otpErr) {
+              const otpErrMsg = otpErr.response?.data?.message || 'Failed to send OTP. Please try again.';
+              showAlert('OTP Error', otpErrMsg);
+            } finally {
+              setLoading(false);
+            }
+          }
+        );
+      } else {
+        const errorMsg = errorData?.errors?.join(', ') || errorData?.message || error.message || 'Invalid MPIN or credentials. Please try again.';
+        showAlert('Sign In Failed', errorMsg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpLogin = async () => {
+    if (!phone || phone.length !== 10) {
+      showAlert('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authService.sendOtp(phone, role);
+      navigation.navigate('OTPVerify', { phone, role });
+    } catch (error) {
+      const errorMsg = error.response?.data?.errors?.join(', ') || error.response?.data?.message || 'Failed to send verification OTP. Please try again.';
+      showAlert('OTP Error', errorMsg);
     } finally {
       setLoading(false);
     }
@@ -99,17 +156,21 @@ const LoginScreen = ({ navigation, route }) => {
             
             <View style={styles.titleContainer}>
               <Text style={styles.title}>Welcome Back!</Text>
-              <Text style={styles.subtitle}>Select your profile type to sign in</Text>
+              <Text style={styles.subtitle}>Select your profile type and sign in</Text>
             </View>
 
             {/* Role Switcher */}
             <View style={styles.roleSwitcher}>
-              {['CUSTOMER', 'WORKER', 'SHOP'].map(r => {
-                const isActive = role === r;
+              {[
+                { key: 'CUSTOMER', label: 'Customer' },
+                { key: 'WORKER', label: 'Worker / Pro' },
+                { key: 'SHOP', label: 'Shop Owner' }
+              ].map(r => {
+                const isActive = role === r.key;
                 return (
                   <TouchableOpacity 
-                    key={r}
-                    onPress={() => setRole(r)}
+                    key={r.key}
+                    onPress={() => setRole(r.key)}
                     style={[
                       styles.roleTab, 
                       isActive ? styles.roleTabActive : styles.roleTabInactive
@@ -120,7 +181,7 @@ const LoginScreen = ({ navigation, route }) => {
                       styles.roleText, 
                       isActive ? styles.roleTextActive : styles.roleTextInactive
                     ]}>
-                      {r === 'CUSTOMER' ? 'Customer' : r === 'WORKER' ? 'Worker' : 'Shop'}
+                      {r.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -130,6 +191,20 @@ const LoginScreen = ({ navigation, route }) => {
             {/* Login Mode Switcher */}
             <View style={styles.modeSwitcher}>
               <TouchableOpacity 
+                onPress={() => setLoginMode('MPIN')}
+                style={[
+                  styles.modeTab, 
+                  loginMode === 'MPIN' ? styles.modeTabActive : styles.modeTabInactive
+                ]}
+                activeOpacity={0.7}
+              >
+                <KeyRound size={15} color={loginMode === 'MPIN' ? '#6C47FF' : theme.colors.textDim} style={{ marginRight: 6 }} />
+                <Text style={[styles.modeText, loginMode === 'MPIN' ? styles.modeTextActive : styles.modeTextInactive]}>
+                  MPIN Login
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
                 onPress={() => setLoginMode('OTP')}
                 style={[
                   styles.modeTab, 
@@ -137,18 +212,10 @@ const LoginScreen = ({ navigation, route }) => {
                 ]}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.modeText, loginMode === 'OTP' ? styles.modeTextActive : styles.modeTextInactive]}>OTP Login</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                onPress={() => setLoginMode('PASSWORD')}
-                style={[
-                  styles.modeTab, 
-                  loginMode === 'PASSWORD' ? styles.modeTabActive : styles.modeTabInactive
-                ]}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.modeText, loginMode === 'PASSWORD' ? styles.modeTextActive : styles.modeTextInactive]}>Password</Text>
+                <MessageSquare size={15} color={loginMode === 'OTP' ? '#6C47FF' : theme.colors.textDim} style={{ marginRight: 6 }} />
+                <Text style={[styles.modeText, loginMode === 'OTP' ? styles.modeTextActive : styles.modeTextInactive]}>
+                  OTP Login
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -159,6 +226,7 @@ const LoginScreen = ({ navigation, route }) => {
                 <View style={styles.inputIcon}>
                   <Phone size={18} color={focusedInput === 'phone' ? '#6C47FF' : theme.colors.textDim} />
                 </View>
+                <Text style={styles.prefixText}>+91</Text>
                 <TextInput
                   style={styles.textInput}
                   placeholder="Enter 10-digit number"
@@ -172,40 +240,55 @@ const LoginScreen = ({ navigation, route }) => {
                 />
               </View>
 
-              {loginMode === 'PASSWORD' && (
+              {loginMode === 'MPIN' && (
                 <>
-                  <Text style={styles.inputLabel}>Password</Text>
-                  <View style={[styles.inputWrapper, focusedInput === 'password' && styles.inputFocused]}>
+                  <View style={styles.labelRow}>
+                    <Text style={styles.inputLabel}>4-Digit Security MPIN</Text>
+                    <TouchableOpacity 
+                      onPress={() => navigation.navigate('ForgotPassword', { role, prefillPhone: phone })}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.forgotText}>Forgot MPIN?</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[styles.inputWrapper, focusedInput === 'mpin' && styles.inputFocused]}>
                     <View style={styles.inputIcon}>
-                      <Lock size={18} color={focusedInput === 'password' ? '#6C47FF' : theme.colors.textDim} />
+                      <Lock size={18} color={focusedInput === 'mpin' ? '#6C47FF' : theme.colors.textDim} />
                     </View>
                     <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter your password"
+                      style={[styles.textInput, { letterSpacing: showMpin ? 1 : 4, fontWeight: '700' }]}
+                      placeholder="Enter 4-digit MPIN"
                       placeholderTextColor={theme.colors.textDim}
-                      secureTextEntry={!showPassword}
-                      value={password}
-                      onChangeText={setPassword}
-                      onFocus={() => setFocusedInput('password')}
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      secureTextEntry={!showMpin}
+                      value={mpin}
+                      onChangeText={(text) => setMpin(text.replace(/[^0-9]/g, '').slice(0, 4))}
+                      onFocus={() => setFocusedInput('mpin')}
                       onBlur={() => setFocusedInput(null)}
                     />
-                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                      {showPassword ? <EyeOff size={18} color={theme.colors.textDim} /> : <Eye size={18} color={theme.colors.textDim} />}
+                    <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.eyeBtn}>
+                      {showMpin ? <EyeOff size={18} color={theme.colors.textDim} /> : <Eye size={18} color={theme.colors.textDim} />}
                     </TouchableOpacity>
                   </View>
 
                   <TouchableOpacity 
-                    style={styles.forgotPassword}
-                    onPress={() => navigation.navigate('ForgotPassword', { role, prefillPhone: phone })}
+                    style={styles.otpSwitchLink}
+                    onPress={() => setLoginMode('OTP')}
+                    activeOpacity={0.7}
                   >
-                    <Text style={styles.forgotText}>Forgot Password?</Text>
+                    <Text style={styles.otpSwitchText}>
+                      Don't have an MPIN? <Text style={{ color: '#6C47FF', fontWeight: '800' }}>Login with OTP</Text>
+                    </Text>
                   </TouchableOpacity>
                 </>
               )}
 
+              {/* Action Button */}
               <TouchableOpacity 
-                style={[styles.btnShadow, { marginTop: 24 }]} 
-                onPress={handleAction} 
+                style={[styles.btnShadow, { marginTop: loginMode === 'MPIN' ? 14 : 24 }]} 
+                onPress={loginMode === 'MPIN' ? handleMpinLogin : handleOtpLogin} 
                 activeOpacity={0.88} 
                 disabled={loading}
               >
@@ -214,26 +297,46 @@ const LoginScreen = ({ navigation, route }) => {
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                   style={styles.btnGradient}
                 >
-                  <Text style={styles.btnText}>{loading ? 'Please wait...' : 'Sign In'}</Text>
-                  {!loading && <ArrowRight size={18} color="#fff" style={{ marginLeft: 8 }} />}
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.btnText}>
+                        {loginMode === 'MPIN' ? 'Sign In with MPIN' : 'Send Verification OTP'}
+                      </Text>
+                      <ArrowRight size={18} color="#fff" style={{ marginLeft: 8 }} />
+                    </>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.footerLink} onPress={() => navigation.navigate('RoleSelection')}>
-                <Text style={styles.footerText}>New to Kwickly? <Text style={styles.footerLinkText}>Create Account</Text></Text>
+              <TouchableOpacity 
+                style={styles.registerLink}
+                onPress={() => navigation.navigate('RoleSelection')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.registerPrompt, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                  New to Kwickly?{' '}
+                  <Text style={styles.registerHighlight}>Create Account</Text>
+                </Text>
               </TouchableOpacity>
-              
+
             </View>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      
+
       <CustomAlert 
         visible={alertConfig.visible}
         title={alertConfig.title}
         message={alertConfig.message}
         type={alertConfig.type}
-        onConfirm={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+        onConfirm={() => {
+          const cb = alertConfig.onConfirm;
+          setAlertConfig(prev => ({ ...prev, visible: false, onConfirm: null }));
+          if (cb) cb();
+        }}
       />
     </View>
   );
@@ -275,11 +378,11 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+    backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    borderColor: '#1E293B',
   },
   scrollContent: {
     flexGrow: 1,
@@ -292,14 +395,14 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '900',
     color: theme.colors.text,
     marginBottom: 4,
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: theme.colors.textDim,
     fontWeight: '500',
   },
@@ -308,7 +411,7 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     backgroundColor: isDarkMode ? '#131B2E' : '#F1F4F9',
     borderRadius: 14,
     padding: 4,
-    marginBottom: 18,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
   },
@@ -316,25 +419,26 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 10,
   },
   roleTabActive: {
-    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    backgroundColor: '#6C47FF',
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   roleTabInactive: {
     backgroundColor: 'transparent',
   },
   roleText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
   roleTextActive: {
-    color: '#6C47FF',
+    color: '#FFFFFF',
     fontWeight: '800',
   },
   roleTextInactive: {
@@ -342,29 +446,36 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
   },
   modeSwitcher: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 20,
+    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 22,
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
   },
   modeTab: {
     flex: 1,
-    paddingVertical: 12,
+    flexDirection: 'row',
+    paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 12,
+    justifyContent: 'center',
+    borderRadius: 9,
   },
   modeTabActive: {
-    backgroundColor: '#6C47FF',
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#6C47FF',
   },
   modeTabInactive: {
-    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
-    borderWidth: 1,
-    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    backgroundColor: 'transparent',
   },
   modeText: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '700',
   },
   modeTextActive: {
-    color: '#FFFFFF',
+    color: '#6C47FF',
+    fontWeight: '800',
   },
   modeTextInactive: {
     color: theme.colors.textDim,
@@ -372,12 +483,24 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
   form: {
     flex: 1,
   },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 6,
+  },
   inputLabel: {
     fontSize: 13.5,
     fontWeight: '700',
     color: theme.colors.text,
     marginBottom: 6,
     marginLeft: 2,
+  },
+  forgotText: {
+    fontSize: 12,
+    color: '#6C47FF',
+    fontWeight: '700',
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -387,15 +510,21 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     borderRadius: 14,
     height: 52,
-    marginBottom: 14,
+    paddingHorizontal: 14,
+    marginBottom: 8,
   },
   inputFocused: {
     borderColor: '#6C47FF',
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.06)' : '#FFFFFF',
   },
   inputIcon: {
-    paddingLeft: 14,
-    paddingRight: 10,
+    marginRight: 8,
+  },
+  prefixText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginRight: 6,
   },
   textInput: {
     flex: 1,
@@ -403,19 +532,19 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     color: theme.colors.text,
     fontWeight: '600',
     height: '100%',
-    letterSpacing: 0.3,
   },
   eyeBtn: {
-    padding: 14,
+    padding: 6,
   },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 12,
+  otpSwitchLink: {
+    alignSelf: 'center',
+    paddingVertical: 6,
+    marginTop: 2,
   },
-  forgotText: {
-    color: '#6C47FF',
-    fontWeight: '700',
-    fontSize: 13,
+  otpSwitchText: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    fontWeight: '500',
   },
   btnShadow: {
     width: '100%',
@@ -428,9 +557,9 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     marginBottom: 16,
   },
   btnGradient: {
-    flexDirection: 'row',
     borderRadius: 16,
-    paddingVertical: 16,
+    paddingVertical: 15,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -440,20 +569,18 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     fontSize: 16,
     letterSpacing: 0.3,
   },
-  footerLink: {
-    alignItems: 'center',
-    paddingVertical: 8,
-    marginBottom: 10,
+  registerLink: {
+    alignSelf: 'center',
+    paddingVertical: 6,
   },
-  footerText: {
-    fontSize: 13.5,
-    color: theme.colors.textDim,
-    fontWeight: '500',
+  registerPrompt: {
+    fontSize: 13,
+    fontWeight: '600',
   },
-  footerLinkText: {
+  registerHighlight: {
     color: '#6C47FF',
     fontWeight: '800',
-  }
+  },
 });
 
 export default LoginScreen;

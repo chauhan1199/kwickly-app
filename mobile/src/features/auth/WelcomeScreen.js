@@ -90,17 +90,6 @@ const WelcomeScreen = ({ navigation }) => {
   const ctaAnim = useRef(new Animated.Value(0)).current;
   const ctaSlide = useRef(new Animated.Value(15)).current;
 
-  const leftX = [
-    useRef(new Animated.Value(-50)).current,
-    useRef(new Animated.Value(-60)).current,
-    useRef(new Animated.Value(-50)).current,
-  ];
-  const rightX = [
-    useRef(new Animated.Value(-50)).current,
-    useRef(new Animated.Value(-60)).current,
-    useRef(new Animated.Value(-50)).current,
-  ];
-
   useEffect(() => {
     const easing = Easing.out(Easing.back(1.4));
 
@@ -129,16 +118,10 @@ const WelcomeScreen = ({ navigation }) => {
       ]),
       ...cardAnims.map((anim, idx) =>
         Animated.sequence([
-          Animated.delay(350 + idx * 50),
+          Animated.delay(300 + idx * 40),
           Animated.parallel([
             Animated.timing(anim, { toValue: 1, duration: 250, useNativeDriver: true }),
             Animated.spring(cardScales[idx], { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }),
-            Animated.spring(idx < 3 ? leftX[idx] : rightX[idx - 3], {
-              toValue: 0,
-              friction: 6,
-              tension: 40,
-              useNativeDriver: true,
-            }),
           ]),
         ])
       ),
@@ -274,7 +257,7 @@ const WelcomeScreen = ({ navigation }) => {
                 styles.chipPos,
                 {
                   top: chipY[i],
-                  left: leftX[i],
+                  left: 4,
                   opacity: cardAnims[i],
                   transform: [{ scale: cardScales[i] }],
                 },
@@ -297,7 +280,7 @@ const WelcomeScreen = ({ navigation }) => {
                 styles.chipPos,
                 {
                   top: chipY[i],
-                  right: rightX[i],
+                  right: 4,
                   opacity: cardAnims[i + 3],
                   transform: [{ scale: cardScales[i + 3] }],
                 },

@@ -9,13 +9,14 @@ import {
   StatusBar,
   ScrollView,
   TextInput,
-  Modal
+  Modal,
+  ActivityIndicator
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
-import { Phone, Lock, ChevronLeft, Eye, EyeOff, CheckCircle2 } from 'lucide-react-native';
+import { Phone, Lock, ChevronLeft, Eye, EyeOff, CheckCircle2, ShieldCheck } from 'lucide-react-native';
 import api from '../../services/api';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
@@ -27,9 +28,9 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
   const [step, setStep] = useState('PHONE'); // 'PHONE' -> 'RESET'
   const [phone, setPhone] = useState(prefillPhone);
   const [code, setCode] = useState(['', '', '', '']);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [newMpin, setNewMpin] = useState('');
+  const [confirmMpin, setConfirmMpin] = useState('');
+  const [showMpin, setShowMpin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -42,52 +43,52 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
   };
 
   const handleSendOtp = async () => {
-    if (!phone || phone.length < 10) {
+    if (!phone || phone.length !== 10) {
       showAlert('Validation Error', 'Please enter a valid 10-digit mobile number.');
       return;
     }
 
     setLoading(true);
     try {
-      await api.post('/auth/send-otp', { phone, role });
+      await api.post('/auth/forgot-mpin', { phone, role });
       setStep('RESET');
     } catch (error) {
-      const errDetails = error.response?.data?.message || 'Failed to send OTP';
+      const errDetails = error.response?.data?.message || 'Failed to send OTP. Please check your mobile number.';
       showAlert('Error', errDetails);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResetPassword = async () => {
+  const handleResetMpin = async () => {
     const otpCode = code.join('');
     if (otpCode.length < 4) {
       showAlert('Incomplete Code', 'Please enter the 4-digit verification code.');
       return;
     }
 
-    if (newPassword.length < 8) {
-      showAlert('Weak Password', 'New password must be at least 8 characters long.');
+    if (!newMpin || newMpin.length !== 4 || !/^\d{4}$/.test(newMpin)) {
+      showAlert('Invalid MPIN', 'New MPIN must be exactly 4 numeric digits.');
       return;
     }
 
-    if (newPassword !== confirmPassword) {
-      showAlert('Mismatch', 'Passwords do not match.');
+    if (newMpin !== confirmMpin) {
+      showAlert('Mismatch', 'MPIN and Confirm MPIN do not match.');
       return;
     }
 
     setLoading(true);
     try {
-      await api.post('/auth/reset-password', { 
+      await api.post('/auth/reset-mpin', { 
         phone, 
         code: otpCode, 
-        newPassword, 
+        newMpin, 
         role 
       });
       setShowSuccessModal(true);
     } catch (error) {
-      const errDetails = error.response?.data?.message || 'Failed to reset password';
-      showAlert('Error', errDetails);
+      const errDetails = error.response?.data?.message || 'Failed to reset MPIN. Please verify your OTP code.';
+      showAlert('Reset Failed', errDetails);
     } finally {
       setLoading(false);
     }
@@ -106,10 +107,14 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
       
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => step === 'RESET' ? setStep('PHONE') : navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <TouchableOpacity 
+            onPress={() => step === 'RESET' ? setStep('PHONE') : navigation.goBack()} 
+            style={styles.backBtn} 
+            activeOpacity={0.7}
+          >
             <ChevronLeft size={22} color={theme.colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Reset Password</Text>
+          <Text style={styles.headerTitle}>Reset MPIN</Text>
           <View style={styles.headerRight}>
             <KwicklyIcon size={28} />
           </View>
@@ -125,8 +130,8 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
             {step === 'PHONE' ? (
               <>
                 <View style={styles.titleContainer}>
-                  <Text style={styles.title}>Forgot Password?</Text>
-                  <Text style={styles.subtitle}>Enter your registered mobile number to receive a verification code.</Text>
+                  <Text style={styles.title}>Forgot MPIN?</Text>
+                  <Text style={styles.subtitle}>Enter your registered mobile number to receive a 4-digit verification code.</Text>
                 </View>
 
                 <Text style={styles.inputLabel}>Mobile Number</Text>
@@ -134,6 +139,7 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
                   <View style={styles.inputIcon}>
                     <Phone size={18} color={focusedInput === 'phone' ? '#6C47FF' : theme.colors.textDim} />
                   </View>
+                  <Text style={styles.prefixText}>+91</Text>
                   <TextInput
                     style={styles.textInput}
                     placeholder="Enter 10-digit number"
@@ -149,24 +155,33 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
 
                 <View style={styles.bottomSpacer} />
 
-                <TouchableOpacity style={styles.btnShadow} onPress={handleSendOtp} disabled={loading} activeOpacity={0.88}>
+                <TouchableOpacity 
+                  style={styles.btnShadow} 
+                  onPress={handleSendOtp} 
+                  disabled={loading} 
+                  activeOpacity={0.88}
+                >
                   <LinearGradient
                     colors={['#7C3AED', '#6C47FF']}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                     style={styles.btnGradient}
                   >
-                    <Text style={styles.btnText}>{loading ? 'Sending Code...' : 'Send Reset Code →'}</Text>
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.btnText}>Send Verification Code →</Text>
+                    )}
                   </LinearGradient>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <View style={styles.titleContainer}>
-                  <Text style={styles.title}>Enter Code & New Password</Text>
-                  <Text style={styles.subtitle}>We sent a verification code to +91 {phone}</Text>
+                  <Text style={styles.title}>Enter OTP & New MPIN</Text>
+                  <Text style={styles.subtitle}>We sent a 4-digit verification code to +91 {phone}</Text>
                 </View>
 
-                <Text style={styles.inputLabel}>4-Digit Code</Text>
+                <Text style={styles.inputLabel}>4-Digit Verification Code</Text>
                 <View style={styles.otpContainer}>
                   {code.map((digit, index) => (
                     <TextInput
@@ -188,52 +203,65 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
                   ))}
                 </View>
 
-                <Text style={styles.inputLabel}>New Password</Text>
-                <View style={[styles.inputWrapper, focusedInput === 'newPassword' && styles.inputFocused]}>
+                <Text style={styles.inputLabel}>New 4-Digit MPIN</Text>
+                <View style={[styles.inputWrapper, focusedInput === 'newMpin' && styles.inputFocused]}>
                   <View style={styles.inputIcon}>
-                    <Lock size={18} color={focusedInput === 'newPassword' ? '#6C47FF' : theme.colors.textDim} />
+                    <Lock size={18} color={focusedInput === 'newMpin' ? '#6C47FF' : theme.colors.textDim} />
                   </View>
                   <TextInput
-                    style={styles.textInput}
-                    placeholder="Minimum 8 characters"
+                    style={[styles.textInput, { letterSpacing: showMpin ? 1 : 4, fontWeight: '700' }]}
+                    placeholder="Enter 4-digit PIN"
                     placeholderTextColor={theme.colors.textDim}
-                    secureTextEntry={!showPassword}
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                    onFocus={() => setFocusedInput('newPassword')}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    secureTextEntry={!showMpin}
+                    value={newMpin}
+                    onChangeText={(text) => setNewMpin(text.replace(/[^0-9]/g, '').slice(0, 4))}
+                    onFocus={() => setFocusedInput('newMpin')}
                     onBlur={() => setFocusedInput(null)}
                   />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                    {showPassword ? <EyeOff size={18} color={theme.colors.textDim} /> : <Eye size={18} color={theme.colors.textDim} />}
+                  <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.eyeBtn}>
+                    {showMpin ? <EyeOff size={18} color={theme.colors.textDim} /> : <Eye size={18} color={theme.colors.textDim} />}
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.inputLabel}>Confirm New Password</Text>
-                <View style={[styles.inputWrapper, focusedInput === 'confirmPassword' && styles.inputFocused]}>
+                <Text style={[styles.inputLabel, { marginTop: 8 }]}>Confirm New 4-Digit MPIN</Text>
+                <View style={[styles.inputWrapper, focusedInput === 'confirmMpin' && styles.inputFocused]}>
                   <View style={styles.inputIcon}>
-                    <Lock size={18} color={focusedInput === 'confirmPassword' ? '#6C47FF' : theme.colors.textDim} />
+                    <Lock size={18} color={focusedInput === 'confirmMpin' ? '#6C47FF' : theme.colors.textDim} />
                   </View>
                   <TextInput
-                    style={styles.textInput}
-                    placeholder="Re-enter new password"
+                    style={[styles.textInput, { letterSpacing: showMpin ? 1 : 4, fontWeight: '700' }]}
+                    placeholder="Re-enter 4-digit PIN"
                     placeholderTextColor={theme.colors.textDim}
-                    secureTextEntry={!showPassword}
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    onFocus={() => setFocusedInput('confirmPassword')}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    secureTextEntry={!showMpin}
+                    value={confirmMpin}
+                    onChangeText={(text) => setConfirmMpin(text.replace(/[^0-9]/g, '').slice(0, 4))}
+                    onFocus={() => setFocusedInput('confirmMpin')}
                     onBlur={() => setFocusedInput(null)}
                   />
                 </View>
 
                 <View style={styles.bottomSpacer} />
 
-                <TouchableOpacity style={styles.btnShadow} onPress={handleResetPassword} disabled={loading} activeOpacity={0.88}>
+                <TouchableOpacity 
+                  style={styles.btnShadow} 
+                  onPress={handleResetMpin} 
+                  disabled={loading} 
+                  activeOpacity={0.88}
+                >
                   <LinearGradient
                     colors={['#7C3AED', '#6C47FF']}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                     style={styles.btnGradient}
                   >
-                    <Text style={styles.btnText}>{loading ? 'Updating Password...' : 'Reset Password →'}</Text>
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.btnText}>Reset MPIN & Sign In →</Text>
+                    )}
                   </LinearGradient>
                 </TouchableOpacity>
               </>
@@ -257,14 +285,14 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
             <View style={styles.modalIconBox}>
               <CheckCircle2 size={44} color="#10B981" />
             </View>
-            <Text style={styles.modalTitle}>Password Reset!</Text>
-            <Text style={styles.modalDesc}>Your password has been successfully updated.</Text>
+            <Text style={styles.modalTitle}>MPIN Reset Successfully!</Text>
+            <Text style={styles.modalDesc}>Your 4-digit MPIN has been updated. You can now sign in with your new MPIN.</Text>
             
             <TouchableOpacity 
               style={[styles.btnShadow, { width: '100%', marginBottom: 0 }]} 
               onPress={() => {
                 setShowSuccessModal(false);
-                navigation.navigate('Login', { prefillPhone: phone, role });
+                navigation.navigate('Login', { prefillPhone: phone, role, defaultMode: 'MPIN' });
               }}
             >
               <LinearGradient
@@ -318,11 +346,11 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+    backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    borderColor: '#1E293B',
   },
   scrollContent: {
     flexGrow: 1,
@@ -342,9 +370,10 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     letterSpacing: -0.4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: theme.colors.textDim,
     fontWeight: '500',
+    lineHeight: 19,
   },
   inputLabel: {
     fontSize: 13.5,
@@ -361,15 +390,21 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     borderRadius: 14,
     height: 52,
-    marginBottom: 16,
+    marginBottom: 14,
+    paddingHorizontal: 14,
   },
   inputFocused: {
     borderColor: '#6C47FF',
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.06)' : '#FFFFFF',
   },
   inputIcon: {
-    paddingLeft: 14,
-    paddingRight: 10,
+    marginRight: 8,
+  },
+  prefixText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginRight: 6,
   },
   textInput: {
     flex: 1,
@@ -379,7 +414,7 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     height: '100%',
   },
   eyeBtn: {
-    padding: 14,
+    padding: 6,
   },
   otpContainer: {
     flexDirection: 'row',
@@ -461,10 +496,11 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     marginBottom: 8,
   },
   modalDesc: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: theme.colors.textDim,
     textAlign: 'center',
     marginBottom: 24,
+    lineHeight: 19,
   }
 });
 
