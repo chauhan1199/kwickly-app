@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ScrollView,
   View,
@@ -9,7 +9,6 @@ import {
   StatusBar,
   Dimensions,
   Image,
-  TextInput,
   Animated,
 } from 'react-native';
 
@@ -18,94 +17,38 @@ import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 import { shopService } from '../../services/shopService';
 
-import { ServiceCard } from '../../components/ui/ServiceCard';
+import { ServiceCard, getServiceImage, getServiceRating } from '../../components/ui/ServiceCard';
 import LinearGradient from 'react-native-linear-gradient';
-import { Search, ChevronRight, Star, Zap, MapPin, Bell, Sun, Moon, User, Package, Store } from 'lucide-react-native';
-import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
+import { ChevronRight, Star, Zap, MapPin, Bell, Package, Store, Clock, RotateCcw, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchBar } from '../../components/ui/SearchBar';
+import GlassCard from '../../components/ui/GlassCard';
+import { getImageUrl } from '../../utils/helpers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ── Purple accent (exact match reference design) ──
+// ── Purple accent ──
 const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#EEE8FF';
 const BG = '#fff';
 
-// ── Local bundled service images (category-name matched) ──
-// Key = lowercase trimmed category name keywords → local require
-const SERVICE_IMAGES = {
-  cleaning:        require('../../assets/services/cleaning.jpeg'),
-  housekeeping:    require('../../assets/services/cleaning.jpeg'),
-  ac:              require('../../assets/services/ac_repair.jpeg'),
-  hvac:            require('../../assets/services/ac_repair.jpeg'),
-  plumb:           require('../../assets/services/plumbing.jpeg'),
-  car:             require('../../assets/services/car_wash.jpeg'),
-  wash:            require('../../assets/services/car_wash.jpeg'),
-  paint:           require('../../assets/services/painting.jpeg'),
-  salon:           require('../../assets/services/salon.jpeg'),
-  beauty:          require('../../assets/services/salon.jpeg'),
-  yoga:            require('../../assets/services/yoga_fitness.jpeg'),
-  fitness:         require('../../assets/services/yoga_fitness.jpeg'),
-  gym:             require('../../assets/services/yoga_fitness.jpeg'),
-  baby:            require('../../assets/services/babysitter.jpeg'),
-  child:           require('../../assets/services/babysitter.jpeg'),
-  nanny:           require('../../assets/services/babysitter.jpeg'),
-  tutor:           require('../../assets/services/home_tutor.jpeg'),
-  education:       require('../../assets/services/home_tutor.jpeg'),
-  electric:        require('../../assets/services/electrician.jpeg'),
-  carpenter:       require('../../assets/services/carpenter.jpeg'),
-  furniture:       require('../../assets/services/carpenter.jpeg'),
-  pest:            require('../../assets/services/pest_control.jpeg'),
-  sofa:            require('../../assets/services/sofa_cleaning.jpeg'),
-  laundry:         require('../../assets/services/laundry.jpeg'),
-  cctv:            require('../../assets/services/cctv.jpeg'),
-  security:        require('../../assets/services/security.jpeg'),
-  packer:          require('../../assets/services/packers_movers.jpeg'),
-  mover:           require('../../assets/services/packers_movers.jpeg'),
-  ro:              require('../../assets/services/ro_service.jpeg'),
-  water:           require('../../assets/services/ro_service.jpeg'),
-  laptop:          require('../../assets/services/laptop_repair.jpeg'),
-  computer:        require('../../assets/services/computer_repair.jpeg'),
-  mobile:          require('../../assets/services/laptop_repair.jpeg'),
-  repair:          require('../../assets/services/appliance_repair.jpeg'),
-  appliance:       require('../../assets/services/appliance_repair.jpeg'),
-  massage:         require('../../assets/services/massage_spa.jpeg'),
-  spa:             require('../../assets/services/massage_spa.jpeg'),
-  cook:            require('../../assets/services/home_cook.jpeg'),
-  chef:            require('../../assets/services/home_cook.jpeg'),
-  astro:           require('../../assets/services/astrology.jpeg'),
-  garden:          require('../../assets/services/gardening.jpeg'),
-  interior:        require('../../assets/services/interior_design.jpeg'),
-  waterproof:      require('../../assets/services/waterproofing.jpeg'),
-  elder:           require('../../assets/services/elder_care.jpeg'),
-  driver:          require('../../assets/services/driver.jpeg'),
-  photo:           require('../../assets/services/photography.jpeg'),
-  pet:             require('../../assets/services/pet_care.jpeg'),
-  dj:              require('../../assets/services/dj_event.jpeg'),
-  event:           require('../../assets/services/dj_event.jpeg'),
+const haversine = (coords1, coords2) => {
+  if (!coords1 || !coords2 || coords1.length !== 2 || coords2.length !== 2) return null;
+  const [lng1, lat1] = coords1;
+  const [lng2, lat2] = coords2;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371 * c; // in km
 };
-
-// Find the best matching local image for a category name
-const getServiceImage = (categoryName) => {
-  if (!categoryName) return null;
-  const lower = categoryName.toLowerCase();
-  for (const [key, img] of Object.entries(SERVICE_IMAGES)) {
-    if (lower.includes(key)) return img;
-  }
-  return null;
-};
-
-// Rating display helper — uses actual category data if available
-const getServiceRating = (category) => {
-  // Return null if no real rating data available
-  return null;
-};
-
-import { getImageUrl } from '../../utils/helpers';
 
 const HomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const { userToken, user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [activeJobs, setActiveJobs] = useState([]);
@@ -118,21 +61,13 @@ const HomeScreen = ({ navigation }) => {
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const slideAnim = React.useRef(new Animated.Value(20)).current;
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    fetchData();
-  }, [fetchData, fadeAnim, slideAnim]);
+  // Primary user address & coordinates
+  const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
+  const userCoords = primaryAddress?.location?.coordinates || [72.574115, 23.1222453];
+
+  const displayLocation = primaryAddress 
+    ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || 'Ahmedabad'}`
+    : (user?.city || 'Ahmedabad');
 
   const fetchData = useCallback(async () => {
     try {
@@ -157,44 +92,82 @@ const HomeScreen = ({ navigation }) => {
         })));
       }
 
-      // Fetch Shops
+      // Fetch Shops with location query
       try {
-        const shopsRes = await shopService.getShops({ limit: 5 });
-        if (shopsRes.data?.status === 'success') {
-          setShops(shopsRes.data.data?.shops || shopsRes.data.data || []);
+        const params = { limit: 10 };
+        if (userCoords && userCoords.length === 2) {
+          params.lng = userCoords[0];
+          params.lat = userCoords[1];
         }
+
+        const shopsRes = await shopService.getShops(params);
+        const payload = shopsRes.data?.data;
+        const fetchedShops = Array.isArray(payload) ? payload : (payload?.shops || []);
+
+        const mapped = fetchedShops.map((s) => {
+          let distanceKm = s.distanceKm;
+          let distanceFormatted = s.distanceFormatted;
+          let deliveryEstimate = s.deliveryEstimate || '25-35 min';
+
+          if (userCoords && s.location?.coordinates && s.location.coordinates.length === 2) {
+            const raw = haversine(userCoords, s.location.coordinates);
+            if (raw !== null) {
+              distanceKm = Math.round(raw * 10) / 10;
+              distanceFormatted = distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`;
+              deliveryEstimate = distanceKm <= 1.5 ? '15-25 min' : distanceKm <= 3 ? '25-35 min' : '35-45 min';
+            }
+          }
+
+          return {
+            ...s,
+            id: s._id,
+            distanceKm: distanceKm !== null && distanceKm !== undefined ? distanceKm : 999,
+            dist: distanceFormatted || '1.2 km',
+            delivery: deliveryEstimate,
+            rating: typeof s.rating === 'number' ? s.rating : 4.5,
+            totalOrders: s.totalOrders || 0,
+            category: s.category || 'General',
+            logoUrl: s.logoUrl || null
+          };
+        });
+
+        // Sort from near to high
+        mapped.sort((a, b) => a.distanceKm - b.distanceKm);
+        setShops(mapped);
       } catch (e) {
         // Silently handle shop fetch errors
       }
 
       if (userToken) {
         // Jobs
-        const jobsRes = await jobService.getMyJobs();
-        if (jobsRes.data?.status === 'success') {
-          const active = jobsRes.data.data.filter(j =>
-            ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'].includes(j.status)
-          ).map(j => ({
-            id: j._id,
-            title: `${j.category}${j.subcategory ? ' — ' + j.subcategory : ''}`,
-            category: j.category,
-            subcategory: j.subcategory,
-            worker: j.workerId?.name || null,
-            status: j.status,
-            fromPrice: j.payment?.amount || '300',
-            preferredDate: j.preferredDate ? new Date(j.preferredDate).toLocaleDateString('en-IN') : null,
-            timeSlot: j.timeSlot || 'urgent',
-            progress:
-              j.status === 'BROADCASTING' ? 20 :
-              j.status === 'QUOTES_RECEIVED' ? 45 :
-              j.status === 'ALLOCATED' ? 60 :
-              j.status === 'IN_PROGRESS' ? 80 : 50,
-            isIP: ['IN_PROGRESS', 'ARRIVING', 'ALLOCATED'].includes(j.status),
-            isCompleted: j.status === 'COMPLETED',
-            hasQuotes: j.status === 'QUOTES_RECEIVED',
-            rawJob: j,
-          }));
-          setActiveJobs(active);
-        }
+        try {
+          const jobsRes = await jobService.getMyJobs();
+          if (jobsRes.data?.status === 'success') {
+            const active = jobsRes.data.data.filter(j =>
+              ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'].includes(j.status)
+            ).map(j => ({
+              id: j._id,
+              title: `${j.category}${j.subcategory ? ' — ' + j.subcategory : ''}`,
+              category: j.category,
+              subcategory: j.subcategory,
+              worker: j.workerId?.name || null,
+              status: j.status,
+              fromPrice: j.payment?.amount || '300',
+              preferredDate: j.preferredDate ? new Date(j.preferredDate).toLocaleDateString('en-IN') : null,
+              timeSlot: j.timeSlot || 'urgent',
+              progress:
+                j.status === 'BROADCASTING' ? 20 :
+                j.status === 'QUOTES_RECEIVED' ? 45 :
+                j.status === 'ALLOCATED' ? 60 :
+                j.status === 'IN_PROGRESS' ? 80 : 50,
+              isIP: ['IN_PROGRESS', 'ARRIVING', 'ALLOCATED'].includes(j.status),
+              isCompleted: j.status === 'COMPLETED',
+              hasQuotes: j.status === 'QUOTES_RECEIVED',
+              rawJob: j,
+            }));
+            setActiveJobs(active);
+          }
+        } catch (_) {}
 
         // Shop orders
         try {
@@ -210,17 +183,47 @@ const HomeScreen = ({ navigation }) => {
     } finally {
       setRefreshing(false);
     }
-  }, [userToken]);
+  }, [userToken, userCoords]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    fetchData();
+  }, [fetchData, fadeAnim, slideAnim]);
+
+  // Search Results filtering for both Services & Shops
+  const isSearching = searchQuery.trim().length > 0;
+  const q = searchQuery.toLowerCase().trim();
+
+  const matchedServices = useMemo(() => {
+    if (!isSearching) return categories;
+    return categories.filter(c =>
+      (c.label || c.name || '').toLowerCase().includes(q) ||
+      c.subs?.some(s => s.name?.toLowerCase().includes(q))
+    );
+  }, [categories, isSearching, q]);
+
+  const matchedShops = useMemo(() => {
+    if (!isSearching) return shops;
+    return shops.filter(s =>
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.category || '').toLowerCase().includes(q) ||
+      (s.description || '').toLowerCase().includes(q) ||
+      (s.address || '').toLowerCase().includes(q)
+    );
+  }, [shops, isSearching, q]);
 
   const firstName = user?.name?.split(' ')[0] || 'there';
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-
-  const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
-  const displayLocation = primaryAddress 
-    ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || ''}`
-    : (user?.city || 'Select Location');
-
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -288,6 +291,7 @@ const HomeScreen = ({ navigation }) => {
           <SearchBar 
             value={searchQuery}
             onChangeText={setSearchQuery}
+            placeholder="Search for a service or shop (e.g. Cook, Plumber, Bakery)..."
             theme={theme}
             onFilterPress={() => navigation.navigate('Book')}
             style={{ marginHorizontal: 20, marginTop: -26 }}
@@ -299,195 +303,352 @@ const HomeScreen = ({ navigation }) => {
         ═══════════════════════════════════════ */}
         <View style={[styles.body, { backgroundColor: theme.colors.background }]}>
 
-          {/* ── TOP SERVICES ── */}
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Top Services</Text>
-            <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Book')}>
-              <Text style={styles.viewAllText}>View All</Text>
-              <ChevronRight size={14} color={PURPLE} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Horizontal service slider */}
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
-            contentContainerStyle={styles.serviceSlider}
-          >
-            {categories
-              .filter(c => !searchQuery || c.label.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((cat, index, arr) => (
-              <ServiceCard 
-                key={cat.id || index} 
-                cat={cat} 
-                index={index} 
-                theme={theme} 
-                isLast={index === arr.length - 1}
-                onPress={(c) => navigation.navigate('SubCategories', c)} 
-              />
-            ))}
-          </ScrollView>
-
-          {/* ── BROWSE SHOPS ── */}
-          <View style={[styles.sectionHeader, { marginTop: 12 }]}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Browse Shops</Text>
-            <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Shop')}>
-              <Text style={styles.viewAllText}>View All</Text>
-              <ChevronRight size={14} color={PURPLE} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
-            contentContainerStyle={styles.serviceSlider}
-          >
-            {shops.length > 0 ? shops.map((shop, index, arr) => (
-              <TouchableOpacity
-                key={shop._id}
-                style={[
-                  styles.serviceCard, 
-                  { 
-                    backgroundColor: theme.colors.card, 
-                    borderColor: theme.colors.border,
-                    marginRight: index === arr.length - 1 ? 0 : 12
-                  }
-                ]}
-                onPress={() => navigation.navigate('ShopDetail', { shopId: shop._id })}
-                activeOpacity={0.88}
-              >
-                <View style={[styles.serviceCardImgBox, { backgroundColor: theme.colors.card }]}>
-                  {shop.logoUrl ? (
-                    <Image 
-                      source={{ uri: getImageUrl(shop.logoUrl) }} 
-                      style={styles.serviceCardImg} 
-                      resizeMode="contain" 
-                    />
-                  ) : (
-                    <View style={[styles.serviceCardImgFallback, { backgroundColor: PURPLE_LIGHT }]}>
-                      <Store color={PURPLE} size={32} />
-                    </View>
-                  )}
+          {/* ═══════════════════════════════════════
+              LIVE SEARCH RESULTS VIEW (WHEN SEARCHING)
+          ═══════════════════════════════════════ */}
+          {isSearching ? (
+            <View style={styles.searchResultsContainer}>
+              {/* Header with Clear Button */}
+              <View style={styles.searchHeaderRow}>
+                <View>
+                  <Text style={[styles.searchResultTitle, { color: theme.colors.text }]}>Search Results</Text>
+                  <Text style={styles.searchResultSub}>
+                    Matching "{searchQuery}" • {matchedServices.length} services, {matchedShops.length} shops
+                  </Text>
                 </View>
-                <View style={styles.serviceCardFooter}>
-                  <Text style={[styles.serviceCardName, { color: theme.colors.text }]} numberOfLines={1}>{shop.name}</Text>
-                  <View style={styles.serviceCardRatingRow}>
-                    <Star size={12} color="#F5A623" fill="#F5A623" />
-                    <Text style={styles.serviceCardRating}> {shop.rating || '4.5'} ({shop.totalOrders || 0})</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )) : (
-              <Text style={{ color: theme.colors.text, padding: 20 }}>No shops found near you.</Text>
-            )}
-          </ScrollView>
-
-          {/* ── PROMO BANNER ── */}
-          <LinearGradient
-            colors={[PURPLE, '#9575FF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.promoBanner}
-          >
-            <View style={styles.promoDiscCircle}>
-              <Text style={styles.promoDiscText}>%</Text>
-            </View>
-            <View style={{ flex: 1, paddingLeft: 12 }}>
-              <Text style={styles.promoLine1}>
-                Get <Text style={{ fontWeight: '900', color: '#FFE082' }}>20% OFF</Text> on your first service!
-              </Text>
-              <Text style={styles.promoLine2}>Use code:  <Text style={styles.promoCode}>WELCOME20</Text></Text>
-            </View>
-            <TouchableOpacity style={styles.promoBookBtn} onPress={() => navigation.navigate('Book')}>
-              <Text style={styles.promoBookBtnText}>Book Now</Text>
-            </TouchableOpacity>
-          </LinearGradient>
-
-          {/* ── WHY CHOOSE US ── */}
-          <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Why Choose Us?</Text>
-          </View>
-          <View style={styles.trustRow}>
-            {TRUST_ITEMS.map((item, i) => (
-              <View key={i} style={styles.trustItem}>
-                <View style={[styles.trustIconCircle, { borderColor: theme.colors.border }]}>
-                  <Text style={styles.trustIcon}>{item.icon}</Text>
-                </View>
-                <Text style={[styles.trustLabel, { color: theme.colors.text }]}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* ── ACTIVE JOBS ── */}
-          {activeJobs.length > 0 && (
-            <>
-              <View style={[styles.sectionHeader, { marginTop: 20 }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Jobs</Text>
-                  <View style={styles.countBadge}>
-                    <Text style={styles.countBadgeText}>{activeJobs.length}</Text>
-                  </View>
-                </View>
-              </View>
-              {activeJobs.map(job => (
-                <ActiveJobCard key={job.id} job={job} navigation={navigation} theme={theme} />
-              ))}
-            </>
-          )}
-
-          {/* ── ACTIVE SHOP ORDERS ── */}
-          {activeShopOrders.length > 0 && (
-            <>
-              <View style={[styles.sectionHeader, { marginTop: 20 }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Shop Orders</Text>
-                  <View style={styles.countBadge}>
-                    <Text style={styles.countBadgeText}>{activeShopOrders.length}</Text>
-                  </View>
-                </View>
-              </View>
-              {activeShopOrders.map(order => (
-                <TouchableOpacity
-                  key={order._id}
-                  style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: PURPLE }]}
-                  activeOpacity={0.8}
-                  onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order._id })}
+                <TouchableOpacity 
+                  style={styles.clearSearchBtn}
+                  onPress={() => setSearchQuery('')}
+                  activeOpacity={0.7}
                 >
-                  <View style={styles.jobCardTop}>
-                    <View style={[styles.jobIconBox, { backgroundColor: PURPLE + '18' }]}>
-                      <Text style={{ fontSize: 22 }}>📦</Text>
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>Order from {order.shopId?.name || 'Shop'}</Text>
-                      <Text style={styles.jobSub}>Status: {order.status}</Text>
-                    </View>
-                    <View style={[styles.statusPill, { backgroundColor: PURPLE + '18' }]}>
-                      <Text style={[styles.statusPillText, { color: PURPLE }]}>TRACK</Text>
-                    </View>
-                  </View>
+                  <X size={14} color="#6C47FF" />
+                  <Text style={styles.clearSearchText}>Clear</Text>
                 </TouchableOpacity>
-              ))}
-            </>
-          )}
+              </View>
 
-          {/* ── NEW REQUEST (when no active jobs) ── */}
-          {activeJobs.length === 0 && (
-            <TouchableOpacity
-              style={styles.bookNowBlock}
-              onPress={() => navigation.navigate('Book')}
-              activeOpacity={0.85}
-            >
+              {/* Matched Services */}
+              {matchedServices.length > 0 && (
+                <View style={{ marginBottom: 20 }}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                      Services ({matchedServices.length})
+                    </Text>
+                    <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Book')}>
+                      <Text style={styles.viewAllText}>All Services</Text>
+                      <ChevronRight size={14} color={PURPLE} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.serviceGrid}>
+                    {matchedServices.map((cat, index) => (
+                      <ServiceCard 
+                        key={cat.id || index} 
+                        cat={cat} 
+                        index={index} 
+                        theme={theme} 
+                        style={{ width: (SCREEN_WIDTH - 32 - 16) / 2, marginBottom: 12 }}
+                        onPress={(c) => navigation.navigate('SubCategories', c)} 
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Matched Shops */}
+              {matchedShops.length > 0 && (
+                <View style={{ marginBottom: 20 }}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                      Nearby Shops ({matchedShops.length})
+                    </Text>
+                    <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Shop')}>
+                      <Text style={styles.viewAllText}>All Shops</Text>
+                      <ChevronRight size={14} color={PURPLE} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {matchedShops.map((shop) => (
+                    <GlassCard
+                      key={shop.id || shop._id} 
+                      style={[styles.shopSearchCard, { borderColor: theme.colors.border }]}
+                      isDarkMode={isDarkMode}
+                      onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id || shop._id })}
+                    >
+                      <View style={styles.shopSearchRow}>
+                        <View style={[styles.shopSearchIconBox, { backgroundColor: '#6C47FF1A' }]}>
+                          {shop.logoUrl ? (
+                            <Image 
+                              source={{ uri: getImageUrl(shop.logoUrl) }} 
+                              style={{ width: '100%', height: '100%' }} 
+                              resizeMode="cover" 
+                            />
+                          ) : (
+                            <Store size={26} color="#6C47FF" />
+                          )}
+                        </View>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={[styles.shopSearchName, { color: theme.colors.text }]} numberOfLines={1}>{shop.name}</Text>
+                          <Text style={styles.shopSearchCategory} numberOfLines={1}>{shop.category}</Text>
+                          <View style={styles.statsRow}>
+                            <View style={styles.ratingBadge}>
+                              <Star size={11} color="#F59E0B" fill="#F59E0B" />
+                              <Text style={styles.ratingText}>{shop.rating}</Text>
+                            </View>
+                            <View style={styles.distBadge}>
+                              <MapPin size={11} color="#6C47FF" />
+                              <Text style={styles.distText}>{shop.dist}</Text>
+                            </View>
+                            <View style={styles.timeBadge}>
+                              <Clock size={11} color="#10B981" />
+                              <Text style={styles.timeText}>{shop.delivery}</Text>
+                            </View>
+                          </View>
+                        </View>
+                        <View style={styles.shopActionBtn}>
+                          <Text style={styles.shopActionText}>Visit</Text>
+                        </View>
+                      </View>
+                    </GlassCard>
+                  ))}
+                </View>
+              )}
+
+              {/* No matches at all */}
+              {matchedServices.length === 0 && matchedShops.length === 0 && (
+                <View style={styles.emptyContainer}>
+                  <Store size={48} color={theme.colors.textDim} />
+                  <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>No results found</Text>
+                  <Text style={[styles.emptySubtitle, { color: theme.colors.textDim }]}>
+                    No services or shops found matching "{searchQuery}".
+                  </Text>
+                  <View style={styles.popularTagsRow}>
+                    <Text style={[styles.popularTagsLabel, { color: theme.colors.textDim }]}>Try searching:</Text>
+                    {['Cook', 'Plumbing', 'Bakery', 'Pharmacy', 'Grocery'].map((tag, idx) => (
+                      <TouchableOpacity 
+                        key={idx}
+                        style={styles.popularTagPill}
+                        onPress={() => setSearchQuery(tag)}
+                      >
+                        <Text style={styles.popularTagText}>{tag}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.resetBtn}
+                    onPress={() => setSearchQuery('')}
+                    activeOpacity={0.8}
+                  >
+                    <RotateCcw size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.resetBtnText}>Clear Search</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ) : (
+            /* ═══════════════════════════════════════
+               DEFAULT HOME DASHBOARD (NO SEARCH)
+            ═══════════════════════════════════════ */
+            <>
+              {/* ── TOP SERVICES ── */}
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Top Services</Text>
+                <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Book')}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                  <ChevronRight size={14} color={PURPLE} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Horizontal service slider */}
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.serviceSlider}
+              >
+                {categories.map((cat, index, arr) => (
+                  <ServiceCard 
+                    key={cat.id || index} 
+                    cat={cat} 
+                    index={index} 
+                    theme={theme} 
+                    isLast={index === arr.length - 1}
+                    onPress={(c) => navigation.navigate('SubCategories', c)} 
+                  />
+                ))}
+              </ScrollView>
+
+              {/* ── BROWSE NEARBY SHOPS (NEAR TO HIGH) ── */}
+              <View style={[styles.sectionHeader, { marginTop: 12 }]}>
+                <View>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Nearby Shops</Text>
+                  <Text style={{ fontSize: 11.5, color: theme.colors.textDim, marginTop: 2 }}>From nearest to farthest</Text>
+                </View>
+                <TouchableOpacity style={styles.viewAllRow} onPress={() => navigation.navigate('Shop')}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                  <ChevronRight size={14} color={PURPLE} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.serviceSlider}
+              >
+                {shops.length > 0 ? shops.map((shop, index, arr) => (
+                  <TouchableOpacity
+                    key={shop.id || shop._id}
+                    style={[
+                      styles.serviceCard, 
+                      { 
+                        backgroundColor: theme.colors.card, 
+                        borderColor: theme.colors.border,
+                        marginRight: index === arr.length - 1 ? 0 : 12,
+                        width: Math.floor((SCREEN_WIDTH - 32 - 16) / 2.3)
+                      }
+                    ]}
+                    onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id || shop._id })}
+                    activeOpacity={0.88}
+                  >
+                    <View style={[styles.serviceCardImgBox, { backgroundColor: theme.colors.card }]}>
+                      {shop.logoUrl ? (
+                        <Image 
+                          source={{ uri: getImageUrl(shop.logoUrl) }} 
+                          style={styles.serviceCardImg} 
+                          resizeMode="cover" 
+                        />
+                      ) : (
+                        <View style={[styles.serviceCardImgFallback, { backgroundColor: PURPLE_LIGHT }]}>
+                          <Store color={PURPLE} size={32} />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.serviceCardFooter}>
+                      <Text style={[styles.serviceCardName, { color: theme.colors.text }]} numberOfLines={1}>{shop.name}</Text>
+                      <Text style={{ fontSize: 11, color: PURPLE, fontWeight: '700', marginBottom: 4 }} numberOfLines={1}>{shop.category}</Text>
+                      <View style={styles.serviceCardRatingRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                          <Star size={11} color="#F5A623" fill="#F5A623" />
+                          <Text style={styles.serviceCardRating}>{shop.rating}</Text>
+                        </View>
+                        <Text style={{ fontSize: 10, color: theme.colors.textDim }}> • </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                          <MapPin size={10} color={PURPLE} />
+                          <Text style={{ fontSize: 10.5, fontWeight: '700', color: PURPLE }}>{shop.dist}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                )) : (
+                  <Text style={{ color: theme.colors.textDim, padding: 20 }}>No approved shops found near you.</Text>
+                )}
+              </ScrollView>
+
+              {/* ── PROMO BANNER ── */}
               <LinearGradient
                 colors={[PURPLE, '#9575FF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.bookNowInner}
+                style={styles.promoBanner}
               >
-                <Zap size={18} color="#fff" />
-                <Text style={styles.bookNowText}>Book a New Service</Text>
-                <ChevronRight size={18} color="#fff" />
+                <View style={styles.promoDiscCircle}>
+                  <Text style={styles.promoDiscText}>%</Text>
+                </View>
+                <View style={{ flex: 1, paddingLeft: 12 }}>
+                  <Text style={styles.promoLine1}>
+                    Get <Text style={{ fontWeight: '900', color: '#FFE082' }}>20% OFF</Text> on your first service!
+                  </Text>
+                  <Text style={styles.promoLine2}>Use code:  <Text style={styles.promoCode}>WELCOME20</Text></Text>
+                </View>
+                <TouchableOpacity style={styles.promoBookBtn} onPress={() => navigation.navigate('Book')}>
+                  <Text style={styles.promoBookBtnText}>Book Now</Text>
+                </TouchableOpacity>
               </LinearGradient>
-            </TouchableOpacity>
+
+              {/* ── WHY CHOOSE US ── */}
+              <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Why Choose Us?</Text>
+              </View>
+              <View style={styles.trustRow}>
+                {TRUST_ITEMS.map((item, i) => (
+                  <View key={i} style={styles.trustItem}>
+                    <View style={[styles.trustIconCircle, { borderColor: theme.colors.border }]}>
+                      <Text style={styles.trustIcon}>{item.icon}</Text>
+                    </View>
+                    <Text style={[styles.trustLabel, { color: theme.colors.text }]}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* ── ACTIVE JOBS ── */}
+              {activeJobs.length > 0 && (
+                <>
+                  <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Jobs</Text>
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countBadgeText}>{activeJobs.length}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  {activeJobs.map(job => (
+                    <ActiveJobCard key={job.id} job={job} navigation={navigation} theme={theme} />
+                  ))}
+                </>
+              )}
+
+              {/* ── ACTIVE SHOP ORDERS ── */}
+              {activeShopOrders.length > 0 && (
+                <>
+                  <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Shop Orders</Text>
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countBadgeText}>{activeShopOrders.length}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  {activeShopOrders.map(order => (
+                    <TouchableOpacity
+                      key={order._id}
+                      style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: PURPLE }]}
+                      activeOpacity={0.8}
+                      onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order._id })}
+                    >
+                      <View style={styles.jobCardTop}>
+                        <View style={[styles.jobIconBox, { backgroundColor: PURPLE + '18' }]}>
+                          <Text style={{ fontSize: 22 }}>📦</Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>Order from {order.shopId?.name || 'Shop'}</Text>
+                          <Text style={styles.jobSub}>Status: {order.status}</Text>
+                        </View>
+                        <View style={[styles.statusPill, { backgroundColor: PURPLE + '18' }]}>
+                          <Text style={[styles.statusPillText, { color: PURPLE }]}>TRACK</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+
+              {/* ── NEW REQUEST (when no active jobs) ── */}
+              {activeJobs.length === 0 && (
+                <TouchableOpacity
+                  style={styles.bookNowBlock}
+                  onPress={() => navigation.navigate('Book')}
+                  activeOpacity={0.85}
+                >
+                  <LinearGradient
+                    colors={[PURPLE, '#9575FF']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.bookNowInner}
+                  >
+                    <Zap size={18} color="#fff" />
+                    <Text style={styles.bookNowText}>Book a New Service</Text>
+                    <ChevronRight size={18} color="#fff" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+            </>
           )}
 
           <View style={{ height: 36 }} />
@@ -549,9 +710,6 @@ const ActiveJobCard = ({ job, navigation, theme }) => {
   );
 };
 
-// ── Fallback categories removed as requested (dynamic only) ─────────
-
-
 // ── Trust items ─────────────────────────────────────────
 const TRUST_ITEMS = [
   { icon: '✔', label: 'Verified\nProfessionals' },
@@ -559,8 +717,6 @@ const TRUST_ITEMS = [
   { icon: '🔒', label: 'Secure\nPayments' },
   { icon: '🎧', label: '24/7 Customer\nSupport' },
 ];
-
-// ── Styles ──────────────────────────────────────────────
 
 // Calculate width for 3 items: Screen Width - padding (16*2) - gap between 3 items (min 12*2) = Total available space, divide by 3
 const CARD_W = Math.floor((SCREEN_WIDTH - 32 - 24) / 3);
@@ -659,32 +815,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     paddingRight: 12,
   },
-  searchBar: {
-    backgroundColor: '#fff',
-    borderRadius: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  searchPlaceholder: {
-    flex: 1,
-    color: '#9ca3af',
-    fontSize: 14,
-  },
-  filterBtn: {
-    backgroundColor: PURPLE,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 
   // ── Body ──
   body: {
@@ -714,7 +844,195 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  // ── Service Cards (3-col, white bg, image top, text bottom) ──
+  // ── Search Results Styles ──
+  searchResultsContainer: {
+    paddingTop: 6,
+  },
+  searchHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  searchResultTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  searchResultSub: {
+    fontSize: 12,
+    color: '#6C47FF',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  clearSearchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F5F3FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+  },
+  clearSearchText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  serviceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  shopSearchCard: {
+    borderRadius: 18,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  shopSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  shopSearchIconBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  shopSearchName: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  shopSearchCategory: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#6C47FF',
+    marginBottom: 4,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ratingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  ratingText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  distBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F5F3FF',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  distText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  timeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  shopActionBtn: {
+    backgroundColor: '#6C47FF',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  shopActionText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 8,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    paddingHorizontal: 30,
+    lineHeight: 18,
+  },
+  popularTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingHorizontal: 20,
+  },
+  popularTagsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  popularTagPill: {
+    backgroundColor: '#F1F4F9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  popularTagText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6C47FF',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 14,
+    marginTop: 14,
+  },
+  resetBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+
+  // ── Service Cards ──
   serviceSlider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -771,153 +1089,112 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // ── Shop Grid ──
-  shopGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  shopItem: {
-    alignItems: 'center',
-    width: '18%',
-  },
-  shopIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  shopLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#1a1a2e',
-    textAlign: 'center',
-  },
-
   // ── Promo Banner ──
   promoBanner: {
-    borderRadius: 16,
-    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 20,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
   },
   promoDiscCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   promoDiscText: {
     color: '#fff',
+    fontSize: 22,
     fontWeight: '900',
-    fontSize: 18,
   },
   promoLine1: {
     color: '#fff',
     fontSize: 13,
     fontWeight: '600',
-    marginBottom: 3,
+    lineHeight: 18,
   },
   promoLine2: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: 12,
+    marginTop: 2,
   },
   promoCode: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    color: '#fff',
+    color: '#FFE082',
     fontWeight: '800',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-    overflow: 'hidden',
   },
   promoBookBtn: {
     backgroundColor: '#fff',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginLeft: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    marginLeft: 8,
   },
   promoBookBtnText: {
     color: PURPLE,
     fontWeight: '800',
-    fontSize: 13,
+    fontSize: 12,
   },
 
-  // ── Why Choose Us ──
+  // ── Trust items ──
   trustRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   trustItem: {
     alignItems: 'center',
-    flex: 1,
+    width: '23%',
   },
   trustIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 1.5,
-    borderColor: PURPLE + '40',
-    backgroundColor: '#fff',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#e8e8e8',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 6,
+    backgroundColor: '#FAFAFA',
   },
   trustIcon: {
-    fontSize: 20,
+    fontSize: 18,
   },
   trustLabel: {
-    fontSize: 10,
-    color: '#555',
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 13,
-  },
-
-  // ── Count badge ──
-  countBadge: {
-    backgroundColor: PURPLE,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  countBadgeText: {
-    color: '#fff',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
+    color: '#444',
+    textAlign: 'center',
+    lineHeight: 14,
   },
 
   // ── Active Job Card ──
   jobCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     marginBottom: 12,
     borderLeftWidth: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 6,
+    shadowRadius: 8,
     elevation: 2,
   },
   jobCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
   },
   jobIconBox: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -925,16 +1202,15 @@ const styles = StyleSheet.create({
   jobTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1a1a2e',
-    marginBottom: 2,
   },
   jobSub: {
     fontSize: 12,
     color: '#888',
+    marginTop: 2,
   },
   statusPill: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 8,
   },
   statusPillText: {
@@ -942,15 +1218,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   progressTrack: {
-    height: 5,
-    backgroundColor: '#F0EEFF',
-    borderRadius: 3,
-    marginBottom: 10,
+    height: 4,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 2,
+    marginVertical: 10,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 2,
   },
   jobCardBottom: {
     flexDirection: 'row',
@@ -959,31 +1235,51 @@ const styles = StyleSheet.create({
   },
   workerName: {
     fontSize: 12,
-    color: '#888',
+    fontWeight: '600',
   },
   jobPrice: {
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: '700',
+    color: PURPLE,
+  },
+  countBadge: {
+    backgroundColor: PURPLE + '18',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  countBadgeText: {
+    color: PURPLE,
+    fontSize: 12,
     fontWeight: '800',
-    color: '#1a1a2e',
   },
 
-  // ── Book Now block ──
+  // ── Book Now CTA ──
   bookNowBlock: {
-    marginTop: 8,
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: 'hidden',
+    marginTop: 8,
+    marginBottom: 12,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
   },
   bookNowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     paddingVertical: 16,
+    paddingHorizontal: 20,
   },
   bookNowText: {
     color: '#fff',
-    fontWeight: '800',
     fontSize: 16,
+    fontWeight: '800',
+    flex: 1,
+    marginLeft: 10,
   },
 });
 

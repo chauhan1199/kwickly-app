@@ -139,46 +139,114 @@ exports.updateMyShop = catchAsync(async (req, res) => {
 
 /**
  * GET /api/v1/shops
- * List all shops â€” Admin sees all with filters, customers see active shops
+ * List all shops — Admin sees all with filters, customers see only APPROVED KYC shops sorted by distance
  */
 exports.getAllShops = catchAsync(async (req, res) => {
-    const { kycStatus, search, page = 1, limit = 20, isOnline } = req.query;
+    const { kycStatus, search, category, page = 1, limit = 50, isOnline, lat, lng } = req.query;
     const isAdmin = req.user?.role === 'ADMIN';
 
-    const cacheKey = `${SHOP_CACHE_PREFIX}_${isAdmin ? 'admin' : 'customer'}_${kycStatus || 'all'}_${search || ''}_${page}_${limit}`;
+    const cacheKey = `${SHOP_CACHE_PREFIX}_${isAdmin ? 'admin' : 'customer'}_${kycStatus || 'all'}_${category || 'all'}_${search || ''}_${lat || ''}_${lng || ''}_${page}_${limit}`;
     const cachedData = await getCache(cacheKey);
     if (cachedData) return successResponse(res, cachedData, 'Shops fetched from cache');
 
-    const query = {};
+    const query = { isDeleted: { $ne: true } };
 
     if (isAdmin) {
         // Admin can filter by KYC status
         if (kycStatus) query['kyc.status'] = kycStatus.toUpperCase();
+        if (isOnline !== undefined) query.isOnline = isOnline === 'true';
     } else {
-        // Customers see all shops that aren't explicitly rejected
-        query['kyc.status'] = { $in: ['APPROVED', 'PENDING'] };
+        // Customers MUST ONLY see shops with APPROVED KYC and active online status
+        query['kyc.status'] = 'APPROVED';
+        query.isOnline = true;
     }
 
-    if (search) {
-        // Escape regex special characters to prevent ReDoS
-        const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        query.name = { $regex: escaped, $options: 'i' };
+    if (category && category !== 'All' && category !== 'all') {
+        const catEscaped = category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        query.$or = [
+            { category: { $regex: new RegExp(catEscaped, 'i') } },
+            { description: { $regex: new RegExp(catEscaped, 'i') } }
+        ];
     }
-    if (isOnline !== undefined) query.isOnline = isOnline === 'true';
+
+    if (search && search.trim()) {
+        const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = { $regex: escaped, $options: 'i' };
+        const searchCondition = [
+            { name: searchRegex },
+            { category: searchRegex },
+            { description: searchRegex },
+            { address: searchRegex }
+        ];
+
+        if (query.$or) {
+            query.$and = [
+                { $or: query.$or },
+                { $or: searchCondition }
+            ];
+            delete query.$or;
+        } else {
+            query.$or = searchCondition;
+        }
+    }
 
     const total = await Shop.countDocuments(query);
-    const shops = await Shop.find(query)
+    let shops = await Shop.find(query)
         .populate('ownerId', 'name phone email')
-        .sort('-createdAt')
-        .limit(limit * 1)
-        .skip((page - 1) * limit);
+        .lean();
 
-    // Admins get paginated result, customers get flat array for easy mobile consumption
+    // Distance calculation & Sorting from near to high
+    const userLat = parseFloat(lat);
+    const userLng = parseFloat(lng);
+    const hasUserLocation = !isNaN(userLat) && !isNaN(userLng);
+
+    const { haversineDistance } = require('../../helpers/geo.helper');
+
+    shops = shops.map(shop => {
+        let distanceKm = null;
+        let distanceFormatted = '1.5 km';
+        let deliveryEstimate = '25-35 min';
+
+        if (hasUserLocation && shop.location?.coordinates && shop.location.coordinates.length === 2) {
+            const [shopLng, shopLat] = shop.location.coordinates;
+            if (typeof shopLng === 'number' && typeof shopLat === 'number') {
+                const rawDist = haversineDistance([userLng, userLat], [shopLng, shopLat]);
+                distanceKm = Math.round(rawDist * 10) / 10; // Round to 1 decimal place
+
+                if (distanceKm < 1) {
+                    distanceFormatted = `${Math.round(distanceKm * 1000)} m`;
+                    deliveryEstimate = '15-25 min';
+                } else {
+                    distanceFormatted = `${distanceKm.toFixed(1)} km`;
+                    deliveryEstimate = distanceKm <= 3 ? '20-35 min' : distanceKm <= 6 ? '35-45 min' : '45-60 min';
+                }
+            }
+        }
+
+        return {
+            ...shop,
+            distanceKm: distanceKm !== null ? distanceKm : 999,
+            distanceFormatted,
+            deliveryEstimate
+        };
+    });
+
+    if (hasUserLocation) {
+        // Sort from near to high (nearest first)
+        shops.sort((a, b) => a.distanceKm - b.distanceKm);
+    } else {
+        // Sort by rating & total orders
+        shops.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    }
+
+    // Apply pagination
+    const paginatedShops = shops.slice((page - 1) * limit, page * limit);
+
     const result = isAdmin
-        ? { shops, total, page, totalPages: Math.ceil(total / limit) }
-        : shops;
+        ? { shops: paginatedShops, total, page, totalPages: Math.ceil(total / limit) }
+        : paginatedShops;
 
-    await setCache(cacheKey, result, 300);
+    await setCache(cacheKey, result, 120);
 
     return successResponse(res, result, 'Shops fetched');
 });
