@@ -57,7 +57,7 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
     return (
       <TouchableOpacity 
         style={styles.orderCard} 
-        onPress={() => navigation.navigate('ShopOrderDetails', { orderId: item._id })}
+        onPress={() => navigation.navigate('OrderTracking', { orderId: item._id })}
       >
         <View style={styles.orderHeader}>
           <View style={styles.shopBox}>

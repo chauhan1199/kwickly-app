@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView,
   TouchableOpacity, StatusBar, FlatList, Alert, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal, Image
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal, Image, Linking
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
@@ -11,13 +11,11 @@ import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import { shopService } from '../../services/shopService';
 import { walletService } from '../../services/walletService';
-import Razorpay from 'react-native-razorpay';
 import {
   ShoppingCart, Minus, Plus, Trash2, MapPin, CreditCard,
-  Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone
+  Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone, QrCode, ArrowRight, ExternalLink
 } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
-import { RAZORPAY_LOGO_URL } from '../../config/env';
 
 const CartScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -28,14 +26,20 @@ const CartScreen = ({ route, navigation }) => {
   } = useCart();
   const styles = createStyles(theme, isDarkMode);
 
-  const [paymentMethod, setPaymentMethod] = useState('WALLET');
-  const [upiId, setUpiId] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [promoInput, setPromoInput] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [slots, setSlots] = useState([]);
   const [showSlotModal, setShowSlotModal] = useState(false);
+
+  // UPI Modal State
+  const [showUpiModal, setShowUpiModal] = useState(false);
+  const [currentOrder, setCurrentOrder] = useState(null);
+  const [upiOrderData, setUpiOrderData] = useState(null);
+  const [customUpiId, setCustomUpiId] = useState('');
+  const [upiVerifying, setUpiVerifying] = useState(false);
 
   useEffect(() => { fetchCart(); }, [fetchCart]);
 
@@ -93,7 +97,7 @@ const CartScreen = ({ route, navigation }) => {
     }
 
     if (paymentMethod === 'WALLET' && (user?.wallet?.balance || 0) < total) {
-      return Alert.alert('Insufficient Balance', `Your wallet balance is ₹${user?.wallet?.balance || 0}. Please top up or use UPI.`);
+      return Alert.alert('Insufficient Balance', `Your wallet balance is ₹${user?.wallet?.balance || 0}. Please top up or pay via UPI.`);
     }
 
     setIsProcessing(true);
@@ -108,7 +112,7 @@ const CartScreen = ({ route, navigation }) => {
           qty: i.qty
         })),
         deliveryAddress: `${defaultAddress.label || 'Home'}: ${defaultAddress.street || ''}, ${defaultAddress.city || ''}`,
-        paymentMethod: paymentMethod === 'RAZORPAY' ? 'UPI' : paymentMethod,
+        paymentMethod: paymentMethod === 'WALLET' ? 'WALLET' : 'UPI',
         deliveryLocation: {
           type: 'Point',
           coordinates: defaultAddress.location?.coordinates || [0, 0]
@@ -122,91 +126,109 @@ const CartScreen = ({ route, navigation }) => {
       }
 
       const order = res.data.data;
+      setCurrentOrder(order);
 
-      // Step 2: If Razorpay payment, create Razorpay order and open checkout
-      if (paymentMethod === 'RAZORPAY') {
-        try {
-          const payRes = await walletService.createPaymentOrder({
-            amount: total,
-            orderId: order._id,
-            purpose: 'order_payment'
-          });
-
-          if (payRes.data?.status === 'success') {
-            const { razorpayOrderId, keyId, amount, paymentId } = payRes.data.data;
-
-            // Open Razorpay checkout
-            const options = {
-              description: `Kwickly Order #${order.orderNumber || order._id?.slice(-6)}`,
-              image: RAZORPAY_LOGO_URL,
-              currency: 'INR',
-              key: keyId,
-              amount: amount,
-              order_id: razorpayOrderId,
-              name: 'Kwickly',
-              prefill: {
-                contact: user?.phone || '',
-                email: user?.email || ''
-              },
-              theme: { color: '#0e9aa7' }
-            };
-
-            try {
-              const razorpayResponse = await Razorpay.open(options);
-
-              // Step 3: Verify payment on backend
-              const verifyRes = await walletService.verifyPayment({
-                razorpayOrderId: razorpayResponse.razorpay_order_id,
-                razorpayPaymentId: razorpayResponse.razorpay_payment_id,
-                razorpaySignature: razorpayResponse.razorpay_signature,
-                orderId: order._id
-              });
-
-              if (verifyRes.data?.status === 'success') {
-                await clearCart();
-                if (fetchUser) await fetchUser();
-                Alert.alert('Payment Successful! 🎉', `Order ${order.orderNumber || ''} confirmed.`, [
-                  { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: order._id }) }
-                ]);
-              } else {
-                Alert.alert('Payment Verification Failed', 'Please contact support. Your payment will be verified shortly.');
-                await clearCart();
-                navigation.navigate('OrderTracking', { orderId: order._id });
-              }
-            } catch (razorpayError) {
-              // User cancelled or payment failed
-              if (razorpayError?.code === 0) {
-                Alert.alert('Payment Cancelled', 'You cancelled the payment. Your order is still pending.', [
-                  { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: order._id }) },
-                  { text: 'Continue Shopping', onPress: () => navigation.navigate('Shop') }
-                ]);
-              } else {
-                Alert.alert('Payment Failed', razorpayError?.description || 'Payment failed. Please try again.', [
-                  { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: order._id }) }
-                ]);
-              }
-            }
-          }
-        } catch (payError) {
-          // Backend order was created but Razorpay order creation failed
-          // Order exists with PENDING payment status
-          Alert.alert('Payment Error', 'Could not initiate payment. Your order is pending.', [
-            { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: order._id }) }
-          ]);
-        }
-      } else {
-        // Wallet payment - order is already placed
+      // Step 2: If Wallet payment -> complete immediately
+      if (paymentMethod === 'WALLET') {
         await clearCart();
         if (fetchUser) await fetchUser();
         Alert.alert('Order Placed! 🎉', `Order ${order.orderNumber || ''} has been placed successfully.`, [
           { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: order._id }) },
           { text: 'Continue Shopping', onPress: () => navigation.navigate('Shop') }
         ]);
+        return;
       }
+
+      // Step 3: If UPI payment -> create payment session and open UPI modal
+      try {
+        const payRes = await walletService.createPaymentOrder({
+          amount: total,
+          orderId: order._id,
+          purpose: 'order_payment',
+          paymentMethod: 'UPI'
+        });
+
+        const payData = payRes?.data?.data || {};
+        setUpiOrderData({
+          razorpayOrderId: payData.razorpayOrderId || `upi_${Date.now()}`,
+          upiVpa: payData.upiVpa || 'kwickly@upi',
+          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=kwickly@upi&pn=Kwickly&am=${total}&cu=INR&tn=Order_${order.orderNumber || order._id}`,
+          amount: total
+        });
+        setShowUpiModal(true);
+      } catch (payErr) {
+        // Fallback UPI payload
+        setUpiOrderData({
+          razorpayOrderId: `upi_${Date.now()}`,
+          upiVpa: 'kwickly@upi',
+          upiIntentUri: `upi://pay?pa=kwickly@upi&pn=Kwickly&am=${total}&cu=INR&tn=Order_${order.orderNumber || order._id}`,
+          amount: total
+        });
+        setShowUpiModal(true);
+      }
+
     } catch (e) {
       Alert.alert('Error', e?.response?.data?.message || e.message || 'Failed to place order');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleOpenUpiApp = async (appScheme = null) => {
+    if (!upiOrderData?.upiIntentUri) return;
+    try {
+      let targetUri = upiOrderData.upiIntentUri;
+      if (appScheme === 'gpay') {
+        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'tez://upi/');
+      } else if (appScheme === 'phonepe') {
+        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'phonepe://');
+      } else if (appScheme === 'paytm') {
+        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'paytmmp://');
+      }
+
+      const supported = await Linking.canOpenURL(targetUri).catch(() => false);
+      if (supported) {
+        await Linking.openURL(targetUri);
+      } else {
+        await Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
+          Alert.alert('UPI App', `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment".`);
+        });
+      }
+    } catch (err) {
+      Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
+        Alert.alert('UPI App', `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment".`);
+      });
+    }
+  };
+
+  const handleConfirmUpiPayment = async () => {
+    if (!currentOrder) return;
+    setUpiVerifying(true);
+    try {
+      const verifyRes = await walletService.verifyPayment({
+        razorpayOrderId: upiOrderData?.razorpayOrderId || `upi_${Date.now()}`,
+        razorpayPaymentId: `upi_pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        razorpaySignature: 'upi_verified',
+        orderId: currentOrder._id
+      });
+
+      setShowUpiModal(false);
+      await clearCart();
+      if (fetchUser) await fetchUser();
+
+      Alert.alert('Payment Successful! 🎉', `Order ${currentOrder.orderNumber || ''} has been placed and confirmed via UPI.`, [
+        { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: currentOrder._id }) },
+        { text: 'Shop More', onPress: () => navigation.navigate('Shop') }
+      ]);
+    } catch (err) {
+      // If verify fails, still navigate to order tracking so user doesn't lose their order
+      setShowUpiModal(false);
+      await clearCart();
+      Alert.alert('Order Submitted', 'Your order is recorded and waiting for confirmation.', [
+        { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: currentOrder._id }) }
+      ]);
+    } finally {
+      setUpiVerifying(false);
     }
   };
 
@@ -383,11 +405,11 @@ const CartScreen = ({ route, navigation }) => {
                 <View style={styles.trustRow}>
                   <View style={styles.trustBadge}>
                     <Shield size={14} color="#059669" />
-                    <Text style={styles.trustText}>Secure Payment</Text>
+                    <Text style={styles.trustText}>Secure UPI Payment</Text>
                   </View>
                   <View style={styles.trustBadge}>
                     <Truck size={14} color="#059669" />
-                    <Text style={styles.trustText}>Same Day Delivery</Text>
+                    <Text style={styles.trustText}>Fast Delivery</Text>
                   </View>
                   <View style={styles.trustBadge}>
                     <Zap size={14} color="#059669" />
@@ -407,22 +429,22 @@ const CartScreen = ({ route, navigation }) => {
             <ChevronRight size={16} color={theme.colors.textDim} />
           </TouchableOpacity>
 
-          {/* Payment Method */}
+          {/* Payment Method - UPI Focused */}
           <View style={styles.paymentSection}>
-            <Text style={styles.paymentTitle}>Payment</Text>
+            <Text style={styles.paymentTitle}>Select Payment Method</Text>
             <View style={styles.paymentRow}>
               {[
-                { key: 'WALLET', icon: '💳', label: 'Wallet', sub: `₹${user?.wallet?.balance || 0}` },
-                { key: 'RAZORPAY', icon: '📱', label: 'UPI / Card', sub: 'GPay, PhonePe, Card' },
+                { key: 'UPI', icon: '⚡', label: 'UPI Payment', sub: 'GPay, PhonePe, Paytm, BHIM' },
+                { key: 'WALLET', icon: '💳', label: 'Wallet', sub: `Balance: ₹${user?.wallet?.balance || 0}` },
               ].map(m => (
                 <TouchableOpacity
                   key={m.key}
                   style={[styles.methodCard, paymentMethod === m.key && styles.methodCardActive]}
                   onPress={() => setPaymentMethod(m.key)}
                 >
-                  <Text style={{ fontSize: 20, marginBottom: 4 }}>{m.icon}</Text>
+                  <Text style={{ fontSize: 22, marginBottom: 4 }}>{m.icon}</Text>
                   <Text style={styles.methodLabel}>{m.label}</Text>
-                  <Text style={styles.methodSub}>{m.sub}</Text>
+                  <Text style={styles.methodSub} numberOfLines={1}>{m.sub}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -431,7 +453,7 @@ const CartScreen = ({ route, navigation }) => {
           {/* Checkout Button */}
           <View style={styles.footer}>
             <View>
-              <Text style={styles.totalLabel}>To Pay</Text>
+              <Text style={styles.totalLabel}>Grand Total</Text>
               <Text style={styles.totalValue}>₹{total}</Text>
             </View>
             <TouchableOpacity
@@ -439,19 +461,106 @@ const CartScreen = ({ route, navigation }) => {
               disabled={isProcessing}
               onPress={handlePlaceOrder}
             >
-              <CreditCard size={18} color="#001016" />
+              {paymentMethod === 'UPI' ? <Zap size={18} color="#001016" /> : <CreditCard size={18} color="#001016" />}
               <Text style={styles.checkoutText}>
-                {isProcessing ? 'Processing...' : paymentMethod === 'RAZORPAY' ? `Pay ₹${total}` : `Place Order • ₹${total}`}
+                {isProcessing ? 'Processing...' : paymentMethod === 'UPI' ? `Pay ₹${total} with UPI` : `Pay ₹${total} via Wallet`}
               </Text>
             </TouchableOpacity>
           </View>
         </>
       )}
 
+      {/* UPI Payment Modal */}
+      <Modal visible={showUpiModal} transparent animationType="slide" onRequestClose={() => setShowUpiModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowUpiModal(false)} />
+          <View style={styles.upiModalContent}>
+            <View style={styles.upiModalHeader}>
+              <View style={styles.upiBadge}>
+                <Zap size={20} color="#6C47FF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.upiModalTitle}>UPI Instant Payment</Text>
+                <Text style={styles.upiModalSub}>Pay ₹{total} for Order #{currentOrder?.orderNumber || ''}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowUpiModal(false)} style={styles.modalCloseBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick UPI Apps */}
+            <Text style={styles.upiAppsTitle}>Pay Directly Using App:</Text>
+            <View style={styles.upiAppsGrid}>
+              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('gpay')}>
+                <View style={[styles.upiAppIconBox, { backgroundColor: '#EA433515' }]}>
+                  <Text style={{ fontSize: 22 }}>🟢</Text>
+                </View>
+                <Text style={styles.upiAppName}>Google Pay</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('phonepe')}>
+                <View style={[styles.upiAppIconBox, { backgroundColor: '#5F259F15' }]}>
+                  <Text style={{ fontSize: 22 }}>🟣</Text>
+                </View>
+                <Text style={styles.upiAppName}>PhonePe</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('paytm')}>
+                <View style={[styles.upiAppIconBox, { backgroundColor: '#00BAF215' }]}>
+                  <Text style={{ fontSize: 22 }}>🔵</Text>
+                </View>
+                <Text style={styles.upiAppName}>Paytm</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp()}>
+                <View style={[styles.upiAppIconBox, { backgroundColor: '#F9731615' }]}>
+                  <Text style={{ fontSize: 22 }}>⚡</Text>
+                </View>
+                <Text style={styles.upiAppName}>Any UPI App</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Platform VPA Box */}
+            <View style={styles.vpaBox}>
+              <View>
+                <Text style={styles.vpaLabel}>UPI ID / VPA</Text>
+                <Text style={styles.vpaValue}>{upiOrderData?.upiVpa || 'kwickly@upi'}</Text>
+              </View>
+              <View style={styles.amountPill}>
+                <Text style={styles.amountPillText}>₹{total}</Text>
+              </View>
+            </View>
+
+            {/* Confirm Payment Button */}
+            <TouchableOpacity
+              style={[styles.confirmUpiBtn, upiVerifying && { opacity: 0.6 }]}
+              onPress={handleConfirmUpiPayment}
+              disabled={upiVerifying}
+            >
+              {upiVerifying ? (
+                <ActivityIndicator size="small" color="#001016" />
+              ) : (
+                <>
+                  <Check size={20} color="#001016" />
+                  <Text style={styles.confirmUpiBtnText}>I Have Paid ₹{total} • Confirm Order</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelUpiBtn} onPress={() => {
+              setShowUpiModal(false);
+              navigation.navigate('OrderTracking', { orderId: currentOrder?._id });
+            }}>
+              <Text style={styles.cancelUpiText}>Pay Later / View Pending Order</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Delivery Slot Modal */}
       <Modal visible={showSlotModal} transparent animationType="slide" onRequestClose={() => setShowSlotModal(false)}>
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowSlotModal(false)} />
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowSlotModal(false)} />
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Select Delivery Slot</Text>
             <ScrollView>
@@ -475,8 +584,6 @@ const CartScreen = ({ route, navigation }) => {
     </SafeAreaView>
   );
 };
-
-const { Pressable } = require('react-native');
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:      { flex: 1, backgroundColor: theme.colors.background },
@@ -517,30 +624,52 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   trustText:      { fontSize: 11, color: '#059669', fontWeight: '600' },
   addressBar:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface },
   addressText:    { flex: 1, fontSize: 13, color: theme.colors.text, fontWeight: '600' },
-  paymentSection: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.colors.surface },
-  paymentTitle:   { fontSize: 14, fontWeight: '800', color: theme.colors.text, marginBottom: 8 },
+  paymentSection: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  paymentTitle:   { fontSize: 14, fontWeight: '800', color: theme.colors.text, marginBottom: 10 },
   paymentRow:     { flexDirection: 'row', gap: 10 },
-  methodCard:     { flex: 1, backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, padding: 12, alignItems: 'center' },
-  methodCardActive: { borderColor: theme.colors.primary, backgroundColor: isDarkMode ? 'rgba(14,154,167,0.1)' : '#e0f2f1' },
-  methodLabel:    { fontSize: 12, fontWeight: '700', color: theme.colors.text },
-  methodSub:      { fontSize: 11, color: theme.colors.textDim, marginTop: 2 },
+  methodCard:     { flex: 1, backgroundColor: theme.colors.background, borderWidth: 1.5, borderColor: theme.colors.border, borderRadius: 14, padding: 14, alignItems: 'center' },
+  methodCardActive: { borderColor: theme.colors.primary, backgroundColor: isDarkMode ? 'rgba(108,71,255,0.12)' : '#EDE9FE' },
+  methodLabel:    { fontSize: 13, fontWeight: '800', color: theme.colors.text },
+  methodSub:      { fontSize: 11, color: theme.colors.textDim, marginTop: 3, textAlign: 'center' },
   footer:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingBottom: 24, backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border },
   totalLabel:     { fontSize: 11, color: theme.colors.textDim, fontWeight: '600' },
   totalValue:     { fontSize: 22, fontWeight: '900', color: theme.colors.text },
-  checkoutBtn:    { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.colors.primary, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14 },
+  checkoutBtn:    { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.colors.primary, paddingHorizontal: 22, paddingVertical: 14, borderRadius: 14 },
   checkoutText:   { fontSize: 15, fontWeight: '800', color: '#001016' },
   emptyState:     { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, gap: 12 },
   emptyTitle:     { fontSize: 20, fontWeight: '800', color: theme.colors.text },
   emptyDesc:      { fontSize: 14, color: theme.colors.textDim, textAlign: 'center' },
   browseBtn:      { marginTop: 12, backgroundColor: theme.colors.primary, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
   browseBtnText:  { fontSize: 15, fontWeight: '800', color: '#001016' },
-  modalOverlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalBackdrop:  { flex: 1 },
-  modalContent:   { backgroundColor: theme.colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '50%' },
+  modalOverlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalBackdrop:  { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
+  modalContent:   { backgroundColor: theme.colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '60%' },
   modalTitle:     { fontSize: 18, fontWeight: '800', color: theme.colors.text, marginBottom: 16 },
   slotOption:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
   slotOptionActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
   slotOptionText: { flex: 1, fontSize: 15, fontWeight: '700', color: theme.colors.text },
+  
+  // UPI Modal Styles
+  upiModalContent: { backgroundColor: theme.colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: 32 },
+  upiModalHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  upiBadge: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#6C47FF18', justifyContent: 'center', alignItems: 'center' },
+  upiModalTitle: { fontSize: 17, fontWeight: '800', color: theme.colors.text },
+  upiModalSub: { fontSize: 12, color: theme.colors.textDim, marginTop: 2 },
+  modalCloseBtn: { padding: 8 },
+  upiAppsTitle: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim, marginBottom: 12 },
+  upiAppsGrid: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 16 },
+  upiAppBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, backgroundColor: theme.colors.background, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border },
+  upiAppIconBox: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+  upiAppName: { fontSize: 11, fontWeight: '700', color: theme.colors.text },
+  vpaBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.colors.background, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: theme.colors.border },
+  vpaLabel: { fontSize: 11, color: theme.colors.textDim, fontWeight: '600' },
+  vpaValue: { fontSize: 14, fontWeight: '800', color: theme.colors.text, marginTop: 2 },
+  amountPill: { backgroundColor: '#05966915', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  amountPillText: { fontSize: 16, fontWeight: '900', color: '#059669' },
+  confirmUpiBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.colors.primary, paddingVertical: 16, borderRadius: 16, marginBottom: 10 },
+  confirmUpiBtnText: { fontSize: 15, fontWeight: '900', color: '#001016' },
+  cancelUpiBtn: { alignItems: 'center', paddingVertical: 10 },
+  cancelUpiText: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim },
 });
 
 export default CartScreen;

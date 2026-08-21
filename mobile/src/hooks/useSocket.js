@@ -7,15 +7,16 @@ import { SOCKET_URL } from '../config/env';
 /**
  * useSocket — establishes a socket.io connection and returns helper methods.
  *
- * @param {object} options
- * @param {string}   options.role       — 'CUSTOMER' | 'WORKER' | 'SHOP'
- * @param {string}   options.userId     — current user's _id
- * @param {string}   [options.shopId]   — for SHOP role only
- * @param {function} options.onEvent    — callback(event, data)
+ * @param {object} [options={}]
+ * @param {string}   [options.role]       — 'CUSTOMER' | 'WORKER' | 'SHOP'
+ * @param {string}   [options.userId]     — current user's _id
+ * @param {string}   [options.shopId]     — for SHOP role only
+ * @param {function} [options.onEvent]    — callback(event, data)
  *
  * @returns {{ joinJobRoom, leaveJobRoom, emit, connected }}
  */
-const useSocket = ({ role, userId, shopId, onEvent }) => {
+const useSocket = (options = {}) => {
+  const { role, userId, shopId, onEvent } = options || {};
   const socketRef = useRef(null);
   const onEventRef = useRef(onEvent);
   const appState = useRef(AppState.currentState);

@@ -542,12 +542,12 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         // Calculate commission and shop earning
         const cfg = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
         const commissionPercent = cfg?.fees?.percentage ?? 10;
-        // P0 FIX: Commission strictly applied ONLY to the subtotal (product value) minus discount. Delivery fee is untouched.
+        // Commission strictly applied ONLY to the subtotal (product value) minus discount. Delivery fee is untouched.
         const commissionableAmount = Math.max(0, order.subtotal - (order.discount || 0));
         const commission = Math.round(commissionableAmount * commissionPercent / 100);
         const shopPayout = order.total - commission;
 
-        // Create a PENDING settlement (admin reviews and settles later)
+        // Create Settlement record
         await Settlement.create({
             type: 'PRODUCT_ORDER',
             orderId: order._id,
@@ -556,11 +556,35 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
             totalAmount: order.total,
             platformCommission: commission,
             shopEarning: shopPayout,
-            status: 'PENDING'
+            status: 'SETTLED'
         });
 
-        // Increment shop total orders count (wallet credited on settlement)
-        await Shop.findByIdAndUpdate(shop._id, { $inc: { totalOrders: 1 } });
+        // Credit shop wallet balance and increment total orders count
+        const updatedShop = await Shop.findByIdAndUpdate(
+            shop._id,
+            {
+                $inc: {
+                    'wallet.balance': shopPayout,
+                    'wallet.totalEarned': shopPayout,
+                    totalOrders: 1
+                }
+            },
+            { returnDocument: 'after' }
+        );
+
+        // Record wallet transaction for shop owner
+        if (shop.ownerId) {
+            await WalletTxn.create({
+                userId: shop.ownerId,
+                type: 'EARNING',
+                amount: shopPayout,
+                balance: updatedShop?.wallet?.balance || shopPayout,
+                refId: String(order._id),
+                status: 'COMPLETED',
+                description: `Earnings for Order #${order.orderNumber || String(order._id).slice(-6).toUpperCase()} (Platform Commission: ₹${commission})`
+            });
+            await delCache(`session:${shop.ownerId}`);
+        }
 
         order.status = 'DELIVERED';
         if (order.payment?.method !== 'CASH') {

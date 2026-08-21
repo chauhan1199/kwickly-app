@@ -14,3 +14,7 @@ yarn-error.log*
 # Redis dump files
 dump.rdb
 *.rdb
+
+# Android APK files
+*.apk
+*.aab

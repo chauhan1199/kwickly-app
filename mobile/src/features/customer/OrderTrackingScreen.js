@@ -38,9 +38,6 @@ const OrderTrackingScreen = ({ route, navigation }) => {
   const { orderId } = route.params || {};
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showOtpInput, setShowOtpInput] = useState(false);
-  const socket = useSocket();
-
   const fetchOrder = useCallback(async () => {
     try {
       const res = await shopService.getOrderById(orderId);
@@ -48,25 +45,25 @@ const OrderTrackingScreen = ({ route, navigation }) => {
         setOrder(res.data.data);
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to load order details');
+      // Ignore network hiccup
     } finally {
       setLoading(false);
     }
   }, [orderId]);
 
+  useSocket({
+    role: user?.role || 'CUSTOMER',
+    userId: user?._id || user?.id,
+    onEvent: (event, data) => {
+      if (event === 'ORDER_STATUS' && (data?.orderId === orderId || !data?.orderId)) {
+        fetchOrder();
+      }
+    }
+  });
+
   useEffect(() => {
     fetchOrder();
-    if (socket) {
-      socket.on('ORDER_STATUS', (data) => {
-        if (data.orderId === orderId) {
-          fetchOrder();
-        }
-      });
-    }
-    return () => {
-      if (socket) socket.off('ORDER_STATUS');
-    };
-  }, [fetchOrder, orderId, socket]);
+  }, [fetchOrder]);
 
   const copyOtp = () => {
     if (order?.deliveryOtp) {
@@ -155,16 +152,16 @@ const OrderTrackingScreen = ({ route, navigation }) => {
         )}
 
         {/* Delivery OTP */}
-        {order.status === 'OUT_FOR_DELIVERY' && order.deliveryOtp && (
+        {order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && order.deliveryOtp && (
           <View style={styles.otpCard}>
             <View style={styles.otpHeader}>
-              <Text style={styles.otpTitle}>Delivery OTP</Text>
-              <Text style={styles.otpSub}>Share this with the delivery person</Text>
+              <Text style={styles.otpTitle}>Delivery Handover OTP</Text>
+              <Text style={styles.otpSub}>Share this 4-digit code with the delivery partner upon arrival</Text>
             </View>
             <View style={styles.otpDisplay}>
               <Text style={styles.otpCode}>{order.deliveryOtp}</Text>
               <TouchableOpacity style={styles.otpCopyBtn} onPress={copyOtp}>
-                <Copy size={18} color="#fff" />
+                <Copy size={18} color="#001016" />
                 <Text style={styles.otpCopyText}>Copy</Text>
               </TouchableOpacity>
             </View>

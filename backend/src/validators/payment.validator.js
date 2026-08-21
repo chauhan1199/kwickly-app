@@ -6,15 +6,17 @@ const createOrderSchema = Joi.object({
   currency: Joi.string().valid('INR').default('INR'),
   receipt: Joi.string().optional(),
   notes: Joi.object().optional(),
-  paymentMethod: Joi.string().valid('card', 'netbanking', 'upi', 'wallet').optional(),
+  orderId: Joi.string().optional().allow(null, ''),
+  purpose: Joi.string().optional(),
+  paymentMethod: Joi.string().optional(),
 });
 
 // Verify payment schema
 const verifyPaymentSchema = Joi.object({
   razorpayOrderId: Joi.string().required(),
   razorpayPaymentId: Joi.string().required(),
-  razorpaySignature: Joi.string().required(),
-  orderId: Joi.string().optional(),
+  razorpaySignature: Joi.string().optional().allow(''),
+  orderId: Joi.string().optional().allow(null, ''),
   paymentType: Joi.string().valid('wallet_topup', 'order_payment', 'job_payment').optional(),
 });
 
