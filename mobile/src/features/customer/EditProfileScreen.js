@@ -92,13 +92,20 @@ const EditProfileScreen = ({ navigation }) => {
       }
       await customerService.updateProfile(payload);
       await fetchUser();
-      navigation.navigate('Profile');
-    } catch (error) {
-      Alert.alert('Error', JSON.stringify(error?.response?.data || error.message));
+      navigation.goBack();
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to update profile');
     } finally {
       setIsLoading(false);
     }
   };
+
+  const getInitials = (n) => {
+    if (!n) return 'C';
+    return n.split(' ').map(p => p[0]).join('').toUpperCase().substring(0, 2);
+  };
+
+  const styles = createStyles(theme, isDarkMode);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -116,11 +123,13 @@ const EditProfileScreen = ({ navigation }) => {
         <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
 
         <AppBar 
-          title="Edit Profile"
+          title="Edit Profile" 
           showBack={true}
           transparent={true} 
           showLogo={false}
-          onBackPress={() => navigation.navigate('Profile')}
+          showProfile={false}
+          showCart={false}
+          onBackPress={() => navigation.goBack()}
         />
       </LinearGradient>
 

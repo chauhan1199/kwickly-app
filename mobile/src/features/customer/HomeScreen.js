@@ -245,7 +245,7 @@ const HomeScreen = ({ navigation }) => {
 
           {/* Top row: location + bell/cart */}
           <View style={styles.heroTopRow}>
-            <TouchableOpacity style={styles.locationRow} activeOpacity={0.8} onPress={() => navigation.navigate('Profile')}>
+            <TouchableOpacity style={styles.locationRow} activeOpacity={0.8} onPress={() => navigation.navigate('SavedAddresses')}>
               <MapPin size={14} color="rgba(255,255,255,0.85)" />
               <Text style={styles.locationText} numberOfLines={1}>{displayLocation}</Text>
               <Text style={styles.locationCaret}>  ⌄</Text>

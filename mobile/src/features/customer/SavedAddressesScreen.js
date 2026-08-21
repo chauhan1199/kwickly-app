@@ -6,13 +6,14 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
-  StatusBar,
-  Alert,
-  Modal,
-  TextInput,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform
+  StatusBar, 
+  Alert, 
+  Modal, 
+  TextInput, 
+  ActivityIndicator, 
+  KeyboardAvoidingView, 
+  Platform,
+  PermissionsAndroid
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import LinearGradient from 'react-native-linear-gradient';
@@ -35,7 +36,7 @@ const SavedAddressesScreen = ({ route, navigation }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [editAddressId, setEditAddressId] = useState(null);
   
-  const [newLabel, setNewLabel] = useState('');
+  const [newLabel, setNewLabel] = useState('Home');
   const [newStreet, setNewStreet] = useState('');
   const [newCity, setNewCity] = useState('');
   const [newPincode, setNewPincode] = useState('');
@@ -69,11 +70,11 @@ const SavedAddressesScreen = ({ route, navigation }) => {
   const handleEdit = (id) => {
     const addr = addresses.find(a => a._id === id);
     if (addr) {
-      setNewLabel(addr.label || '');
+      setNewLabel(addr.label || 'Home');
       setNewStreet(addr.street || '');
       setNewCity(addr.city || '');
       setNewPincode(addr.pincode || '');
-      setNewLocation(addr.location || null);
+      setNewLocation(addr.location || { coordinates: [72.8777, 19.0760] });
       setEditAddressId(id);
       setShowAddModal(true);
     }
@@ -81,67 +82,114 @@ const SavedAddressesScreen = ({ route, navigation }) => {
 
   const handleAdd = () => {
     setEditAddressId(null);
-    setNewLabel(''); setNewStreet(''); setNewCity(''); setNewPincode(''); setNewLocation({ coordinates: [72.8777, 19.0760] });
+    setNewLabel('Home');
+    setNewStreet('');
+    setNewCity('');
+    setNewPincode('');
+    setNewLocation({ coordinates: [72.8777, 19.0760] });
     setShowAddModal(true);
   };
 
-  const fetchGPS = () => {
-    setIsFetchingGPS(true);
-    Geolocation.getCurrentPosition(
-      async pos => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        setNewLocation({ coordinates: [lon, lat] });
-        
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`, {
-            headers: { 'User-Agent': 'KwicklyMobileApp/1.0' }
-          });
-          const data = await res.json();
-          if (data && data.address) {
-            const street = data.address.road || data.address.suburb || data.display_name.split(',')[0];
-            const city = data.address.city || data.address.town || data.address.state_district || '';
-            const pincode = data.address.postcode || '';
-            setNewStreet(street);
-            setNewCity(city);
-            setNewPincode(pincode);
-            if (!newLabel) setNewLabel('Current Location');
-          }
-        } catch (e) {
-          Alert.alert('Location', 'Could not fetch address');
+  const requestLocationPermission = async () => {
+    if (Platform.OS === 'ios') return true;
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Location Permission',
+          message: 'Kwickly needs access to your GPS to pinpoint your delivery and service address.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Cancel',
         }
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  const reverseGeocode = async (lat, lon) => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`, {
+        headers: { 'User-Agent': 'KwicklyMobile/1.0 (support@kwickly.in)' }
+      });
+      const data = await res.json();
+      if (data && data.address) {
+        const road = data.address.road || data.address.suburb || data.address.neighbourhood || data.display_name.split(',')[0] || '';
+        const city = data.address.city || data.address.town || data.address.village || data.address.county || data.address.state_district || 'Mumbai';
+        const pincode = data.address.postcode ? data.address.postcode.replace(/\D/g, '').slice(0, 6) : '';
         
-        setIsFetchingGPS(false);
-        Alert.alert('GPS Fetched', 'Location coordinates and address populated!');
-      },
-      async err => {
-        // Fallback for emulator if GPS fails
-        setIsFetchingGPS(false);
-        Alert.alert('Emulator Fallback', 'Using mock location (Mumbai) because GPS failed.');
-        const lat = 19.0760; const lon = 72.8777;
-        setNewLocation({ coordinates: [lon, lat] });
-        setNewStreet('Bandra West');
-        setNewCity('Mumbai');
-        setNewPincode('400050');
-        setNewLabel('Mock Location');
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+        if (road) setNewStreet(road);
+        if (city) setNewCity(city);
+        if (pincode && pincode.length === 6) setNewPincode(pincode);
+      }
+    } catch (e) {
+      console.log('[GPS] Reverse geocode error:', e.message);
+    }
+  };
+
+  const fetchGPS = async () => {
+    setIsFetchingGPS(true);
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission && Platform.OS === 'android') {
+      setIsFetchingGPS(false);
+      Alert.alert('Permission Required', 'Location permission is needed to automatically fetch your GPS position. You can also type your address manually below.');
+      return;
+    }
+
+    const onLocationSuccess = async (pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      setNewLocation({ coordinates: [lon, lat] });
+      await reverseGeocode(lat, lon);
+      setIsFetchingGPS(false);
+      Alert.alert('Location Detected', 'Your GPS location coordinates and area have been updated.');
+    };
+
+    const onLocationError = () => {
+      // Try low-accuracy wifi/cellular fallback
+      Geolocation.getCurrentPosition(
+        onLocationSuccess,
+        () => {
+          setIsFetchingGPS(false);
+          Alert.alert('GPS Notice', 'Could not detect exact GPS coordinates. Please ensure Location is enabled in phone settings, or enter your address details manually.');
+        },
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+      );
+    };
+
+    Geolocation.getCurrentPosition(
+      onLocationSuccess,
+      onLocationError,
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
     );
   };
 
   const saveAddress = async () => {
-    if (!newLabel || !newStreet || !newCity || !newPincode) return Alert.alert('Error', 'Please fill all mandatory address fields (Label, Street, City, Pincode)');
-    if (!newLocation || !newLocation.coordinates) return Alert.alert('Error', 'Please wait for location to load or use GPS');
+    const label = (newLabel || 'Home').trim();
+    const street = (newStreet || '').trim();
+    const city = (newCity || '').trim();
+    const pincode = (newPincode || '').replace(/\D/g, '').trim();
+
+    if (!label) return Alert.alert('Missing Field', 'Please provide an address label (e.g. Home, Office)');
+    if (!street || street.length < 3) return Alert.alert('Missing Field', 'Please enter your street / building address (min 3 characters)');
+    if (!city || city.length < 2) return Alert.alert('Missing Field', 'Please enter your city');
+    if (!pincode || pincode.length !== 6) return Alert.alert('Invalid Pincode', 'Please enter a valid 6-digit postal pincode');
+    
+    const coords = (newLocation && Array.isArray(newLocation.coordinates) && newLocation.coordinates.length === 2)
+      ? [Number(newLocation.coordinates[0]), Number(newLocation.coordinates[1])]
+      : [72.8777, 19.0760];
+
     setIsSaving(true);
     try {
       const payload = {
-        label: newLabel,
-        street: newStreet,
-        city: newCity,
-        pincode: newPincode,
+        label,
+        street,
+        city,
+        pincode,
         location: {
           type: 'Point',
-          coordinates: newLocation.coordinates
+          coordinates: coords
         },
         isPrimary: addresses.length === 0
       };
@@ -156,8 +204,9 @@ const SavedAddressesScreen = ({ route, navigation }) => {
       refreshUnread();
       setShowAddModal(false);
       setEditAddressId(null);
+      Alert.alert('Success', editAddressId ? 'Address updated successfully!' : 'Address saved successfully!');
     } catch (e) {
-      Alert.alert('Error', e?.response?.data?.message || e.message || 'Failed to save address');
+      Alert.alert('Save Failed', e?.response?.data?.message || e.message || 'Failed to save address');
     } finally {
       setIsSaving(false);
     }
@@ -186,7 +235,9 @@ const SavedAddressesScreen = ({ route, navigation }) => {
           showBack={true}
           transparent={true} 
           showLogo={false} 
-          onBackPress={fromBooking ? () => navigation.goBack() : () => navigation.navigate('Profile')}
+          showProfile={false}
+          showCart={false}
+          onBackPress={() => navigation.goBack()}
         />
       </LinearGradient>
 

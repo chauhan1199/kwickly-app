@@ -25,7 +25,11 @@ const AppBar = ({
   hideRightIcons = false,
   transparent = false,
   showLogo = true,
-  hideCart = false,
+  showCart = false,
+  showProfile = false,
+  showThemeToggle = true,
+  showNotifications = true,
+  customRight = null,
 }) => {
   const navigation = useNavigation();
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -43,7 +47,7 @@ const AppBar = ({
   const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
   
-  const iconBg = isDarkMode && !transparent ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+  const iconBg = isDarkMode && !transparent ? 'rgba(255,255,255,0.08)' : (transparent ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.05)');
   const badgeLabel = unreadCount > 99 ? '99+' : unreadCount > 0 ? String(unreadCount) : null;
   const textColor = transparent ? '#FFF' : theme.colors.text;
 
@@ -75,9 +79,7 @@ const AppBar = ({
             <ChevronLeft size={22} color={textColor} />
           </TouchableOpacity>
         ) : showLogo ? (
-          <View style={[styles.logoBadge, { backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF', borderColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
-            <KwicklyIcon size={26} />
-          </View>
+          <KwicklyIcon size={32} />
         ) : null}
 
         <View style={styles.brandBlock}>
@@ -89,7 +91,7 @@ const AppBar = ({
             )}
           </Text>
           {subtitle ? (
-            <Text style={[styles.subtitle, { color: transparent ? 'rgba(255,255,255,0.8)' : theme.colors.textDim }]} numberOfLines={1}>
+            <Text style={[styles.subtitle, { color: transparent ? 'rgba(255,255,255,0.85)' : theme.colors.textDim }]} numberOfLines={1}>
               {subtitle}
             </Text>
           ) : null}
@@ -99,52 +101,64 @@ const AppBar = ({
       {/* ── RIGHT ── */}
       {!hideRightIcons && (
         <View style={styles.right}>
-          {/* Shop Orders */}
-          {!hideCart && (
-            <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: iconBg }]}
-              onPress={() => navigation.navigate('CustomerShopOrders')}
-              activeOpacity={0.7}
-            >
-              <Package size={18} color={textColor} />
-            </TouchableOpacity>
+          {customRight ? (
+            customRight
+          ) : (
+            <>
+              {/* Shop Orders */}
+              {showCart && (
+                <TouchableOpacity
+                  style={[styles.iconBtn, { backgroundColor: iconBg }]}
+                  onPress={() => navigation.navigate('CustomerShopOrders')}
+                  activeOpacity={0.7}
+                >
+                  <Package size={18} color={textColor} />
+                </TouchableOpacity>
+              )}
+
+              {/* Dark / Light Toggle */}
+              {showThemeToggle && (
+                <TouchableOpacity
+                  style={[styles.iconBtn, { backgroundColor: iconBg }]}
+                  onPress={toggleTheme}
+                  activeOpacity={0.7}
+                >
+                  {isDarkMode ? (
+                    <Sun size={18} color="#F59E0B" />
+                  ) : (
+                    <Moon size={18} color={transparent ? '#FFF' : '#6C47FF'} />
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {/* Profile */}
+              {showProfile && (
+                <TouchableOpacity
+                  style={[styles.iconBtn, { backgroundColor: iconBg }]}
+                  onPress={() => navigation.navigate('Profile')}
+                  activeOpacity={0.7}
+                >
+                  <User size={18} color={textColor} />
+                </TouchableOpacity>
+              )}
+
+              {/* Bell — with real unread count badge */}
+              {showNotifications && (
+                <TouchableOpacity
+                  style={[styles.iconBtn, { backgroundColor: iconBg }]}
+                  onPress={() => navigation.navigate('Notifications')}
+                  activeOpacity={0.7}
+                >
+                  <Bell size={18} color={textColor} />
+                  {badgeLabel ? (
+                    <View style={[styles.badge, { borderColor: theme.colors.background }]}>
+                      <Text style={styles.badgeText}>{badgeLabel}</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              )}
+            </>
           )}
-
-          {/* Dark / Light Toggle */}
-          <TouchableOpacity
-            style={[styles.iconBtn, { backgroundColor: iconBg }]}
-            onPress={toggleTheme}
-            activeOpacity={0.7}
-          >
-            {isDarkMode ? (
-              <Sun size={18} color="#F59E0B" />
-            ) : (
-              <Moon size={18} color="#6C47FF" />
-            )}
-          </TouchableOpacity>
-
-          {/* Profile */}
-          <TouchableOpacity
-            style={[styles.iconBtn, { backgroundColor: iconBg }]}
-            onPress={() => navigation.navigate('Profile')}
-            activeOpacity={0.7}
-          >
-            <User size={18} color={textColor} />
-          </TouchableOpacity>
-
-          {/* Bell — with real unread count badge */}
-          <TouchableOpacity
-            style={[styles.iconBtn, { backgroundColor: iconBg }]}
-            onPress={() => navigation.navigate('Notifications')}
-            activeOpacity={0.7}
-          >
-            <Bell size={18} color={textColor} />
-            {badgeLabel ? (
-              <View style={[styles.badge, { borderColor: theme.colors.background }]}>
-                <Text style={styles.badgeText}>{badgeLabel}</Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
         </View>
       )}
     </View>

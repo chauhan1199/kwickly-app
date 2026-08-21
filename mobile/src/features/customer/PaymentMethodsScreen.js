@@ -200,7 +200,9 @@ const PaymentMethodsScreen = ({ navigation }) => {
           showBack={true}
           transparent={true} 
           showLogo={false} 
-          onBackPress={() => navigation.navigate('Profile')}
+          showProfile={false}
+          showCart={false}
+          onBackPress={() => navigation.goBack()}
         />
       </LinearGradient>
 
