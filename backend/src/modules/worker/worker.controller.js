@@ -186,11 +186,29 @@ exports.updateBank = catchAsync(async (req, res) => {
 
 exports.updateServices = catchAsync(async (req, res) => {
     const { services } = req.body;
+    const Category = require('../category/category.model');
+
+    const normalizedServices = await Promise.all((services || []).map(async s => {
+        const catId = s.category?._id || s.category;
+        let catName = s.categoryName;
+        if (!catName && catId) {
+            const catDoc = await Category.findById(catId).select('name');
+            catName = catDoc?.name || '';
+        }
+        return {
+            category: catId,
+            categoryName: catName || '',
+            subcategories: s.subcategories || [],
+            isActive: s.isActive !== false
+        };
+    }));
+
     const user = await Customer.findByIdAndUpdate(
         req.user._id,
-        { $set: { services } },
+        { $set: { services: normalizedServices } },
         { returnDocument: 'after' }
-    );
+    ).select('-password');
+    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
@@ -199,19 +217,16 @@ exports.updateServices = catchAsync(async (req, res) => {
 });
 
 exports.updateLocation = catchAsync(async (req, res) => {
-    if (!req.isVerifiedWorker) {
-        return errorResponse(res, 'You must be verified by an admin to update your broadcast location.', StatusCodes.FORBIDDEN);
-    }
     const { city, pincode, area, radius, coordinates } = req.body;
-    if (radius !== undefined && (radius < 1 || radius > 100)) {
+    if (radius !== undefined && (Number(radius) < 1 || Number(radius) > 100)) {
         return errorResponse(res, 'Service radius must be between 1 and 100 km', StatusCodes.BAD_REQUEST);
     }
     const updateData = {};
-    if (radius !== undefined) updateData.serviceRadius = radius;
+    if (radius !== undefined) updateData.serviceRadius = Number(radius);
     if (city || pincode || area) {
         updateData['activeLocation.addressDetails'] = { city, pincode, area };
     }
-    if (coordinates) {
+    if (coordinates && Array.isArray(coordinates) && coordinates.length === 2) {
         updateData['activeLocation.type'] = 'Point';
         updateData['activeLocation.coordinates'] = coordinates;
     }
@@ -220,7 +235,8 @@ exports.updateLocation = catchAsync(async (req, res) => {
         req.user._id,
         { $set: updateData },
         { returnDocument: 'after' }
-    );
+    ).select('-password');
+    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);

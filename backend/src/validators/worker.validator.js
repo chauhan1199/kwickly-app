@@ -26,16 +26,16 @@ const updateBankSchema = Joi.object({
   upiId: Joi.string().pattern(/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/).optional(),
 }).or('bankDetails', 'upiId');
 
-// Update services schema (matches model + mobile contract: { category, subcategories, isActive })
+// Update services schema (matches model + mobile contract: { category, categoryName, subcategories, isActive })
 const updateServicesSchema = Joi.object({
   services: Joi.array().items(
     Joi.object({
       category: Joi.string().required(),
-      categoryName: Joi.string().optional(),
+      categoryName: Joi.string().allow('', null).optional(),
       subcategories: Joi.array().items(Joi.string()).optional(),
       isActive: Joi.boolean().optional(),
     })
-  ).min(1).max(20).required(),
+  ).min(0).max(20).required(),
 });
 
 // Update location schema (matches controller contract: coordinates as [lng, lat] array)
