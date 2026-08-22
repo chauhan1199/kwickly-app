@@ -87,7 +87,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
       if (isNew) {
         navigation.navigate('SetMpin', { phone, role, token, user, name: fullName || user?.name || 'User' });
       } else {
-        await signIn(token, user?.role || role);
+        await signIn(token, user?.role || role, user);
       }
     } catch (error) {
       const errDetails = error.response?.data?.errors?.join(', ') || error.response?.data?.message || 'Invalid verification code';

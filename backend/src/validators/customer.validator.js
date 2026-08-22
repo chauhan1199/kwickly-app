@@ -12,13 +12,13 @@ const updateProfileSchema = Joi.object({
     Joi.string(),
     Joi.object({
       bankDetails: Joi.object({
-        accountNumber: Joi.string().min(9).max(18).optional(),
-        ifscCode: Joi.string().pattern(/^[A-Z]{4}0[A-Z0-9]{6}$/).optional(),
-        bankName: Joi.string().min(2).max(100).optional(),
-      }).optional(),
-      upiId: Joi.string().allow('').optional(),
-    }).optional()
-  ).optional(),
+        accountNumber: Joi.string().allow('', null).optional(),
+        ifscCode: Joi.string().pattern(/^[A-Z]{4}0[A-Z0-9]{6}$/).allow('', null).optional(),
+        bankName: Joi.string().allow('', null).optional(),
+      }).optional().allow(null),
+      upiId: Joi.string().allow('', null).optional(),
+    }).optional().allow(null)
+  ).optional().allow(null),
 });
 
 // Address GeoJSON shape used by the app

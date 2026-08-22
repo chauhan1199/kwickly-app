@@ -9,20 +9,20 @@ import {
   StatusBar, 
   Dimensions, 
   Platform, 
-  Image,
-  ActivityIndicator,
-  RefreshControl
+  Image, 
+  ActivityIndicator, 
+  RefreshControl 
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { shopService } from '../../services/shopService';
 import api from '../../services/api';
 import BannerCarousel from '../../components/ui/BannerCarousel';
-import GlassCard from '../../components/ui/GlassCard';
 import AppBar from '../../components/AppBar';
 import LinearGradient from 'react-native-linear-gradient';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { MapPin, Star, Store, Clock, RotateCcw } from 'lucide-react-native';
+import { MapPin, Star, Store, Clock, RotateCcw, ChevronRight, Sparkles } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
 
 const haversine = (coords1, coords2) => {
@@ -56,9 +56,34 @@ const ShopScreen = ({ navigation }) => {
   const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
   const userCoords = primaryAddress?.location?.coordinates || [72.574115, 23.1222453]; // Default to Ahmedabad
 
-  const fetchShops = useCallback(async () => {
+  // Instant local cache restore
+  useEffect(() => {
+    AsyncStorage.multiGet(['kwickly_cache_shops', 'kwickly_cache_banners'])
+      .then(([[, sJson], [, bJson]]) => {
+        if (sJson) {
+          try {
+            const parsed = JSON.parse(sJson);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setShops(parsed);
+              setLoading(false);
+            }
+          } catch (_) {}
+        }
+        if (bJson) {
+          try {
+            const parsedB = JSON.parse(bJson);
+            if (Array.isArray(parsedB)) setBanners(parsedB);
+          } catch (_) {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchShops = useCallback(async (isManualRefresh = false) => {
     try {
-      setLoading(true);
+      if (!isManualRefresh && shops.length === 0) {
+        setLoading(true);
+      }
       setDebugError(null);
 
       const params = {};
@@ -67,60 +92,75 @@ const ShopScreen = ({ navigation }) => {
         params.lat = userCoords[1];
       }
 
-      const res = await shopService.getShops(params);
-      const payload = res.data?.data;
-      const fetchedShops = Array.isArray(payload) ? payload : (payload?.shops || []);
-      
-      const mappedShops = fetchedShops.map((s) => {
-        let distanceKm = s.distanceKm;
-        let distanceFormatted = s.distanceFormatted;
-        let deliveryEstimate = s.deliveryEstimate || '25-35 min';
+      // Parallel fetch for shops and banners
+      const [shopsResult, bannersResult] = await Promise.allSettled([
+        shopService.getShops(params),
+        api.get('/promotions/banners')
+      ]);
 
-        if (userCoords && s.location?.coordinates && s.location.coordinates.length === 2) {
-          const rawDist = haversine(userCoords, s.location.coordinates);
-          if (rawDist !== null) {
-            distanceKm = Math.round(rawDist * 10) / 10;
-            distanceFormatted = distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`;
-            deliveryEstimate = distanceKm <= 1.5 ? '15-25 min' : distanceKm <= 3 ? '25-35 min' : '35-45 min';
+      if (shopsResult.status === 'fulfilled') {
+        const payload = shopsResult.value.data?.data;
+        const fetchedShops = Array.isArray(payload) ? payload : (payload?.shops || []);
+        
+        const mappedShops = fetchedShops.map((s) => {
+          let distanceKm = s.distanceKm;
+          let distanceFormatted = s.distanceFormatted;
+          let deliveryEstimate = s.deliveryEstimate || '20-35 min';
+
+          if (userCoords && s.location?.coordinates && s.location.coordinates.length === 2) {
+            const rawDist = haversine(userCoords, s.location.coordinates);
+            if (rawDist !== null) {
+              distanceKm = Math.round(rawDist * 10) / 10;
+              distanceFormatted = distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`;
+              deliveryEstimate = distanceKm <= 1.5 ? '15-25 min' : distanceKm <= 3 ? '20-30 min' : '30-45 min';
+            }
           }
+
+          return {
+            id: s._id,
+            name: s.name,
+            category: s.category || 'General',
+            description: s.description || '',
+            rating: typeof s.rating === 'number' ? s.rating : 4.5,
+            totalOrders: s.totalOrders || 0,
+            distanceKm: distanceKm !== null && distanceKm !== undefined ? distanceKm : 999,
+            dist: distanceFormatted || '1.2 km',
+            delivery: deliveryEstimate,
+            minFree: s.deliveryConfig?.freeDeliveryAbove || 500,
+            isOnline: s.isOnline !== false,
+            address: s.address || '',
+            logoUrl: s.logoUrl || null
+          };
+        });
+
+        // Sort from nearest to farthest
+        mappedShops.sort((a, b) => a.distanceKm - b.distanceKm);
+        setShops(mappedShops);
+        AsyncStorage.setItem('kwickly_cache_shops', JSON.stringify(mappedShops)).catch(() => {});
+      } else {
+        if (shops.length === 0) {
+          setDebugError(shopsResult.reason?.response?.data?.message || shopsResult.reason?.message || 'Failed to fetch shops');
         }
+      }
 
-        return {
-          id: s._id,
-          name: s.name,
-          category: s.category || 'General',
-          description: s.description || '',
-          rating: typeof s.rating === 'number' ? s.rating : 4.5,
-          totalOrders: s.totalOrders || 0,
-          distanceKm: distanceKm !== null && distanceKm !== undefined ? distanceKm : 999,
-          dist: distanceFormatted || '1.2 km',
-          delivery: deliveryEstimate,
-          minFree: s.deliveryConfig?.freeDeliveryAbove || 500,
-          isOnline: s.isOnline !== false,
-          address: s.address || '',
-          logoUrl: s.logoUrl || null
-        };
-      });
-
-      // Sort from near to high (nearest first)
-      mappedShops.sort((a, b) => a.distanceKm - b.distanceKm);
-      setShops(mappedShops);
-
-      // Fetch Banners for Shop Page
-      try {
-        const bannerRes = await api.get('/promotions/banners');
-        if (bannerRes.data?.status === 'success') {
-          setBanners(bannerRes.data.data.filter(b => b.position === 'SHOP_PAGE'));
+      if (bannersResult.status === 'fulfilled') {
+        const bList = bannersResult.value.data?.data;
+        if (Array.isArray(bList)) {
+          const shopBanners = bList.filter(b => b.position === 'SHOP_PAGE');
+          setBanners(shopBanners);
+          AsyncStorage.setItem('kwickly_cache_banners', JSON.stringify(shopBanners)).catch(() => {});
         }
-      } catch (_) {}
+      }
 
     } catch (error) {
-      setDebugError(error.response?.data?.message || error.message);
+      if (shops.length === 0) {
+        setDebugError(error.response?.data?.message || error.message);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userCoords]);
+  }, [userCoords, shops.length]);
 
   useEffect(() => {
     fetchShops();
@@ -128,7 +168,7 @@ const ShopScreen = ({ navigation }) => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchShops();
+    fetchShops(true);
   };
 
   // Filter shops by Category Chip & Search Query
@@ -183,11 +223,10 @@ const ShopScreen = ({ navigation }) => {
         colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, position: 'relative', overflow: 'hidden' }}
+        style={styles.headerGradient}
       >
-        {/* Dynamic background shapes */}
-        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+        <View style={styles.headerBlob1} />
+        <View style={styles.headerBlob2} />
 
         <AppBar 
           title="Nearby Shops" 
@@ -203,7 +242,7 @@ const ShopScreen = ({ navigation }) => {
       </LinearGradient>
 
       {/* Search - overlapping header */}
-      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10 }}>
+      <View style={styles.searchOverlapBox}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -215,7 +254,7 @@ const ShopScreen = ({ navigation }) => {
 
       <ScrollView 
         showsVerticalScrollIndicator={false} 
-        contentContainerStyle={{ paddingBottom: 40, paddingTop: 30 }}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C47FF" />}
       >
         {/* Dynamic Banners */}
@@ -224,17 +263,17 @@ const ShopScreen = ({ navigation }) => {
             banners={banners} 
             itemWidth={Dimensions.get('window').width - 28} 
             itemHeight={140}
-            style={{ marginBottom: 16 }}
+            style={{ marginBottom: 14 }}
             autoPlayInterval={4000}
           />
         )}
 
-        {/* Chips */}
+        {/* Category Chips */}
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false} 
           style={styles.chipsScroll} 
-          contentContainerStyle={{ paddingHorizontal: 14 }}
+          contentContainerStyle={{ paddingHorizontal: 16 }}
         >
           {chips.map((chip, index) => {
             const isActive = filter === chip;
@@ -243,7 +282,7 @@ const ShopScreen = ({ navigation }) => {
                 key={index} 
                 style={[styles.chipItem, isActive && styles.chipItemActive]}
                 onPress={() => setFilter(chip)}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
               >
                 <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{chip}</Text>
               </TouchableOpacity>
@@ -253,19 +292,31 @@ const ShopScreen = ({ navigation }) => {
 
         {/* Section Header with Count */}
         <View style={styles.listHeader}>
-          <Text style={[styles.listTitle, { color: theme.colors.text }]}>
-            {filter === 'All' ? 'All Nearby Shops' : `${filter} Shops`}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.listTitle, { color: isDarkMode ? '#F8FAFC' : '#1E293B' }]}>
+              {filter === 'All' ? 'All Nearby Shops' : `${filter} Shops`}
+            </Text>
+            <Sparkles size={16} color="#6C47FF" style={{ marginLeft: 6 }} />
+          </View>
           <View style={styles.countBadge}>
             <Text style={styles.countText}>{filteredShops.length} Found</Text>
           </View>
         </View>
 
+        {/* Shops Content */}
         <View style={styles.content}>
-          {loading && !refreshing ? (
+          {loading && shops.length === 0 ? (
             <ActivityIndicator size="large" color="#6C47FF" style={{ marginTop: 40 }} />
-          ) : debugError ? (
-            <Text style={{ textAlign: 'center', marginTop: 40, color: '#EF4444' }}>Error: {debugError}</Text>
+          ) : debugError && shops.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Store size={48} color={theme.colors.textDim} />
+              <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>Unable to load shops</Text>
+              <Text style={[styles.emptySubtitle, { color: theme.colors.textDim }]}>{debugError}</Text>
+              <TouchableOpacity style={styles.resetBtn} onPress={() => fetchShops(true)} activeOpacity={0.8}>
+                <RotateCcw size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.resetBtnText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
           ) : filteredShops.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Store size={48} color={theme.colors.textDim} />
@@ -286,14 +337,15 @@ const ShopScreen = ({ navigation }) => {
             </View>
           ) : (
             filteredShops.map((shop) => (
-              <GlassCard
+              <TouchableOpacity
                 key={shop.id} 
-                style={[styles.shopCard, !shop.isOnline && { opacity: 0.6 }]}
-                isDarkMode={isDarkMode}
+                style={[styles.shopCard, !shop.isOnline && { opacity: 0.65 }]}
+                activeOpacity={0.88}
                 onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id })}
               >
-                <View style={styles.shopRow}>
-                  <View style={[styles.shopIconBox, { backgroundColor: '#6C47FF1A' }]}>
+                <View style={styles.shopCardMain}>
+                  {/* Left: Shop Image with Rating Tag */}
+                  <View style={styles.shopImageContainer}>
                     {shop.logoUrl ? (
                       <Image 
                         source={{ uri: getImageUrl(shop.logoUrl) }} 
@@ -301,35 +353,60 @@ const ShopScreen = ({ navigation }) => {
                         resizeMode="cover" 
                       />
                     ) : (
-                      <Store size={28} color="#6C47FF" />
-                    )}
-                  </View>
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Text style={styles.shopName} numberOfLines={1}>{shop.name}</Text>
-                    <Text style={styles.shopCategory} numberOfLines={1}>{shop.category}</Text>
-                    <View style={styles.statsRow}>
-                      <View style={styles.ratingBadge}>
-                        <Star size={11} color="#F59E0B" fill="#F59E0B" />
-                        <Text style={styles.ratingText}>{shop.rating}</Text>
+                      <View style={styles.shopFallbackBox}>
+                        <Store size={32} color="#6C47FF" />
                       </View>
+                    )}
+                    <View style={styles.floatingRating}>
+                      <Star size={10} color="#F59E0B" fill="#F59E0B" />
+                      <Text style={styles.floatingRatingText}>{shop.rating}</Text>
+                    </View>
+                  </View>
+
+                  {/* Right: Info Section */}
+                  <View style={styles.shopInfoBox}>
+                    {/* Title */}
+                    <Text style={[styles.shopName, { color: isDarkMode ? '#F8FAFC' : '#1E293B' }]} numberOfLines={2}>
+                      {shop.name}
+                    </Text>
+
+                    {/* Category & Distance */}
+                    <View style={styles.categoryDistRow}>
+                      <Text style={styles.shopCategoryText} numberOfLines={1}>{shop.category}</Text>
+                      <Text style={styles.dotSeparator}>•</Text>
                       <View style={styles.distBadge}>
-                        <MapPin size={11} color="#6C47FF" />
+                        <MapPin size={11} color="#6C47FF" style={{ marginRight: 2 }} />
                         <Text style={styles.distText}>{shop.dist}</Text>
                       </View>
-                      <View style={styles.timeBadge}>
-                        <Clock size={11} color="#10B981" />
-                        <Text style={styles.timeText}>{shop.delivery}</Text>
-                      </View>
                     </View>
-                    <Text style={styles.shopSub}>Free delivery over ₹{shop.minFree}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
-                    <View style={styles.shopActionBtn}>
-                      <Text style={styles.shopActionText}>Visit</Text>
+
+                    {/* Badges Row */}
+                    <View style={styles.deliveryBadgeRow}>
+                      <View style={styles.deliveryTimePill}>
+                        <Clock size={11} color="#059669" style={{ marginRight: 3 }} />
+                        <Text style={styles.deliveryTimeText}>{shop.delivery}</Text>
+                      </View>
+
+                      {shop.minFree ? (
+                        <View style={styles.freeDeliveryPill}>
+                          <Text style={styles.freeDeliveryText}>Free over ₹{shop.minFree}</Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
                 </View>
-              </GlassCard>
+
+                {/* Card Footer Bar */}
+                <View style={styles.shopCardFooter}>
+                  <Text style={styles.shopAddressText} numberOfLines={1}>
+                    {shop.address || 'Verified Merchant'}
+                  </Text>
+                  <View style={styles.visitStoreBtn}>
+                    <Text style={styles.visitStoreText}>Visit Store</Text>
+                    <ChevronRight size={14} color="#6C47FF" />
+                  </View>
+                </View>
+              </TouchableOpacity>
             ))
           )}
 
@@ -343,28 +420,71 @@ const ShopScreen = ({ navigation }) => {
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
+  },
+  headerGradient: {
+    paddingBottom: 40,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  headerBlob1: {
+    position: 'absolute',
+    top: -50,
+    right: -30,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  headerBlob2: {
+    position: 'absolute',
+    bottom: -60,
+    left: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  searchOverlapBox: {
+    paddingHorizontal: 16,
+    marginTop: -24,
+    zIndex: 10,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+    paddingTop: 16,
   },
   chipsScroll: {
-    marginVertical: 10,
+    marginVertical: 12,
   },
   chipItem: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: isDarkMode ? '#131B2E' : '#F1F4F9',
+    borderRadius: 22,
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     marginRight: 8,
-    borderWidth: 1,
-    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   chipItemActive: {
     backgroundColor: '#6C47FF',
     borderColor: '#6C47FF',
+    shadowColor: '#6C47FF',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
   chipText: {
     fontSize: 13,
     fontWeight: '700',
-    color: theme.colors.textDim,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
   },
   chipTextActive: {
     color: '#FFFFFF',
@@ -374,12 +494,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 6,
+    marginTop: 8,
+    marginBottom: 10,
   },
   listTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
     letterSpacing: -0.3,
   },
   countBadge: {
@@ -391,113 +511,174 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderColor: 'rgba(108, 71, 255, 0.3)',
   },
   countText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 11.5,
+    fontWeight: '800',
     color: '#6C47FF',
   },
   content: {
-    paddingHorizontal: 14,
-    marginTop: 6,
+    paddingHorizontal: 16,
   },
   shopCard: {
-    borderRadius: 18,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: isDarkMode ? '#1E293B' : '#EDF2F7',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#EEF2F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  shopRow: {
+  shopCardMain: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
-  shopIconBox: {
-    width: 60,
-    height: 60,
+  shopImageContainer: {
+    width: 82,
+    height: 82,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
     overflow: 'hidden',
+    position: 'relative',
+    marginRight: 14,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
   },
   shopLogoImg: {
     width: '100%',
     height: '100%',
   },
-  shopName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: theme.colors.text,
-    marginBottom: 2,
-  },
-  shopCategory: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6C47FF',
-    marginBottom: 4,
-  },
-  statsRow: {
-    flexDirection: 'row',
+  shopFallbackBox: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
+    backgroundColor: '#6C47FF14',
   },
-  ratingBadge: {
+  floatingRating: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  ratingText: {
-    fontSize: 11,
+  floatingRatingText: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: '#92400E',
+  },
+  shopInfoBox: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  shopName: {
+    fontSize: 15.5,
     fontWeight: '800',
-    color: '#B45309',
+    letterSpacing: -0.2,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  categoryDistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  shopCategoryText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  dotSeparator: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginHorizontal: 6,
   },
   distBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 6,
   },
   distText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  deliveryBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  deliveryTimePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  deliveryTimeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  freeDeliveryPill: {
+    backgroundColor: '#F5F3FF',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  freeDeliveryText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#6C47FF',
   },
-  timeBadge: {
+  shopCardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 6,
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? '#334155' : '#F1F5F9',
   },
-  timeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  shopSub: {
+  shopAddressText: {
+    flex: 1,
     fontSize: 11.5,
-    color: theme.colors.textDim,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
     fontWeight: '500',
+    marginRight: 10,
   },
-  shopActionBtn: {
-    backgroundColor: '#6C47FF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
+  visitStoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(108, 71, 255, 0.2)',
   },
-  shopActionText: {
-    color: '#FFFFFF',
+  visitStoreText: {
+    fontSize: 11.5,
     fontWeight: '800',
-    fontSize: 13,
+    color: '#6C47FF',
+    marginRight: 2,
   },
   emptyContainer: {
     alignItems: 'center',

@@ -71,7 +71,7 @@ const LoginScreen = ({ navigation, route }) => {
     try {
       const response = await authService.login(phone, mpin, role);
       const { token, user } = response.data.data;
-      await signIn(token, user.role);
+      await signIn(token, user.role, user);
     } catch (error) {
       const errorData = error.response?.data;
       const isMpinNotSet = errorData?.mpinNotSet || 

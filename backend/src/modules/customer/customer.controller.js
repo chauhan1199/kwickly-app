@@ -54,11 +54,15 @@ exports.updateProfile = catchAsync(async (req, res) => {
         }
         
         if (walletData.bankDetails !== undefined) {
-            updateData['wallet.bankDetails'] = walletData.bankDetails;
+            if (walletData.bankDetails === null || walletData.bankDetails === '' || !walletData.bankDetails?.accountNumber) {
+                updateData['wallet.bankDetails'] = { accountNumber: '', ifscCode: '', bankName: '' };
+            } else {
+                updateData['wallet.bankDetails'] = walletData.bankDetails;
+            }
         }
         
         if (walletData.upiId !== undefined) {
-            updateData['wallet.upiId'] = walletData.upiId === null ? '' : walletData.upiId;
+            updateData['wallet.upiId'] = walletData.upiId === null ? '' : walletData.upiId.trim();
         }
     }
 

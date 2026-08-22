@@ -211,9 +211,12 @@ export const PaymentMethodsScreen = ({ navigation }) => {
             try {
               setLoading(true);
               const updatedWallet = {
-                upiId: id === 'upi' ? '' : user?.wallet?.upiId,
-                bankDetails: id === 'bank' ? null : user?.wallet?.bankDetails
+                upiId: id === 'upi' ? '' : (user?.wallet?.upiId || ''),
+                bankDetails: id === 'bank' ? { accountNumber: '', ifscCode: '', bankName: '' } : (user?.wallet?.bankDetails || null)
               };
+
+              // Optimistic update
+              setMethods(prev => prev.filter(m => m.id !== id));
 
               await customerService.updateProfile({ wallet: updatedWallet });
               await fetchUser();
@@ -225,8 +228,11 @@ export const PaymentMethodsScreen = ({ navigation }) => {
                 })
                 .then(() => refreshUnread())
                 .catch(() => {});
+
+              Alert.alert('Removed', `${id === 'upi' ? 'UPI ID' : 'Bank Account'} has been removed.`);
             } catch (e) {
-              Alert.alert('Error', 'Failed to remove payment method');
+              await fetchUser();
+              Alert.alert('Error', e.response?.data?.message || 'Failed to remove payment method');
             } finally {
               setLoading(false);
             }

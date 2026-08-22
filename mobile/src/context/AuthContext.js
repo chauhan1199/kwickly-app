@@ -15,7 +15,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await authService.getProfile();
       const userData = res.data.data;
-      setUser(userData);
+      if (userData) {
+        setUser(userData);
+        await AsyncStorage.setItem('userData', JSON.stringify(userData)).catch(() => {});
+      }
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
     }
@@ -25,6 +28,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('userRole');
+      await AsyncStorage.removeItem('userData');
       setUserToken(null);
       setUserRole(null);
       setUser(null);
@@ -36,19 +40,23 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const loadStorageData = async () => {
       try {
-        const token = await AsyncStorage.getItem('userToken');
-        const role = await AsyncStorage.getItem('userRole');
-        setUserToken(token);
-        setUserRole(role);
+        const [token, role, cachedUserStr] = await Promise.all([
+          AsyncStorage.getItem('userToken'),
+          AsyncStorage.getItem('userRole'),
+          AsyncStorage.getItem('userData'),
+        ]);
+
+        if (token) setUserToken(token);
+        if (role) setUserRole(role);
+        if (cachedUserStr) {
+          try {
+            setUser(JSON.parse(cachedUserStr));
+          } catch (_) {}
+        }
         
         if (token) {
-          try {
-            const res = await authService.getProfile();
-            const userData = res.data.data;
-            setUser(userData);
-          } catch (e) {
-            console.error('Error fetching initial profile', e);
-          }
+          // Revalidate profile in background
+          fetchUser(role);
         }
       } catch (e) {
         console.error('Auth Storage Load Error:', e);
@@ -66,7 +74,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [fetchUser]);
 
   const signIn = async (token, role, userData = null) => {
     try {
@@ -76,6 +84,7 @@ export const AuthProvider = ({ children }) => {
       setUserRole(role);
       if (userData) {
         setUser(userData);
+        await AsyncStorage.setItem('userData', JSON.stringify(userData)).catch(() => {});
       } else {
         fetchUser(role);
       }

@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 import { shopService } from '../../services/shopService';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ServiceCard, getServiceImage, getServiceRating } from '../../components/ui/ServiceCard';
 import LinearGradient from 'react-native-linear-gradient';
 import { ChevronRight, Star, Zap, MapPin, Bell, Package, Store, Clock, RotateCcw, X } from 'lucide-react-native';
@@ -69,14 +70,47 @@ const HomeScreen = ({ navigation }) => {
     ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || 'Ahmedabad'}`
     : (user?.city || 'Ahmedabad');
 
+  // Load cached categories and shops immediately on launch
+  useEffect(() => {
+    AsyncStorage.multiGet(['kwickly_cache_categories', 'kwickly_cache_shops'])
+      .then(([[, catJson], [, shopJson]]) => {
+        if (catJson) {
+          try {
+            const parsed = JSON.parse(catJson);
+            if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+          } catch (_) {}
+        }
+        if (shopJson) {
+          try {
+            const parsedS = JSON.parse(shopJson);
+            if (Array.isArray(parsedS) && parsedS.length > 0) setShops(parsedS);
+          } catch (_) {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       setRefreshing(true);
 
-      // Fetch categories from backend
-      const catRes = await jobService.getCategories();
-      if (catRes.data?.status === 'success') {
-        setCategories(catRes.data.data.map(c => ({
+      const params = { limit: 10 };
+      if (userCoords && userCoords.length === 2) {
+        params.lng = userCoords[0];
+        params.lat = userCoords[1];
+      }
+
+      // Parallelize all requests
+      const [catRes, shopsRes, jobsRes, oRes] = await Promise.allSettled([
+        jobService.getCategories(),
+        shopService.getShops(params),
+        userToken ? jobService.getMyJobs() : Promise.resolve(null),
+        userToken ? shopService.getCustomerOrders() : Promise.resolve(null)
+      ]);
+
+      // Categories
+      if (catRes.status === 'fulfilled' && catRes.value?.data?.status === 'success') {
+        const mappedCats = catRes.value.data.data.map(c => ({
           id: c._id,
           icon: c.icon,
           label: c.name,
@@ -89,32 +123,27 @@ const HomeScreen = ({ navigation }) => {
             imageUrl: s.imageUrl || null
           })) || [],
           localImage: getServiceImage(c.name),
-        })));
+        }));
+        setCategories(mappedCats);
+        AsyncStorage.setItem('kwickly_cache_categories', JSON.stringify(mappedCats)).catch(() => {});
       }
 
-      // Fetch Shops with location query
-      try {
-        const params = { limit: 10 };
-        if (userCoords && userCoords.length === 2) {
-          params.lng = userCoords[0];
-          params.lat = userCoords[1];
-        }
-
-        const shopsRes = await shopService.getShops(params);
-        const payload = shopsRes.data?.data;
+      // Shops
+      if (shopsRes.status === 'fulfilled') {
+        const payload = shopsRes.value.data?.data;
         const fetchedShops = Array.isArray(payload) ? payload : (payload?.shops || []);
 
         const mapped = fetchedShops.map((s) => {
           let distanceKm = s.distanceKm;
           let distanceFormatted = s.distanceFormatted;
-          let deliveryEstimate = s.deliveryEstimate || '25-35 min';
+          let deliveryEstimate = s.deliveryEstimate || '20-35 min';
 
           if (userCoords && s.location?.coordinates && s.location.coordinates.length === 2) {
             const raw = haversine(userCoords, s.location.coordinates);
             if (raw !== null) {
               distanceKm = Math.round(raw * 10) / 10;
               distanceFormatted = distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`;
-              deliveryEstimate = distanceKm <= 1.5 ? '15-25 min' : distanceKm <= 3 ? '25-35 min' : '35-45 min';
+              deliveryEstimate = distanceKm <= 1.5 ? '15-25 min' : distanceKm <= 3 ? '20-30 min' : '30-45 min';
             }
           }
 
@@ -131,55 +160,45 @@ const HomeScreen = ({ navigation }) => {
           };
         });
 
-        // Sort from near to high
         mapped.sort((a, b) => a.distanceKm - b.distanceKm);
         setShops(mapped);
-      } catch (e) {
-        // Silently handle shop fetch errors
+        AsyncStorage.setItem('kwickly_cache_shops', JSON.stringify(mapped)).catch(() => {});
       }
 
-      if (userToken) {
-        // Jobs
-        try {
-          const jobsRes = await jobService.getMyJobs();
-          if (jobsRes.data?.status === 'success') {
-            const active = jobsRes.data.data.filter(j =>
-              ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'].includes(j.status)
-            ).map(j => ({
-              id: j._id,
-              title: `${j.category}${j.subcategory ? ' — ' + j.subcategory : ''}`,
-              category: j.category,
-              subcategory: j.subcategory,
-              worker: j.workerId?.name || null,
-              status: j.status,
-              fromPrice: j.payment?.amount || '300',
-              preferredDate: j.preferredDate ? new Date(j.preferredDate).toLocaleDateString('en-IN') : null,
-              timeSlot: j.timeSlot || 'urgent',
-              progress:
-                j.status === 'BROADCASTING' ? 20 :
-                j.status === 'QUOTES_RECEIVED' ? 45 :
-                j.status === 'ALLOCATED' ? 60 :
-                j.status === 'IN_PROGRESS' ? 80 : 50,
-              isIP: ['IN_PROGRESS', 'ARRIVING', 'ALLOCATED'].includes(j.status),
-              isCompleted: j.status === 'COMPLETED',
-              hasQuotes: j.status === 'QUOTES_RECEIVED',
-              rawJob: j,
-            }));
-            setActiveJobs(active);
-          }
-        } catch (_) {}
+      // Active Jobs
+      if (jobsRes.status === 'fulfilled' && jobsRes.value?.data?.status === 'success') {
+        const active = jobsRes.value.data.data.filter(j =>
+          ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'].includes(j.status)
+        ).map(j => ({
+          id: j._id,
+          title: `${j.category}${j.subcategory ? ' — ' + j.subcategory : ''}`,
+          category: j.category,
+          subcategory: j.subcategory,
+          worker: j.workerId?.name || null,
+          status: j.status,
+          fromPrice: j.payment?.amount || '300',
+          preferredDate: j.preferredDate ? new Date(j.preferredDate).toLocaleDateString('en-IN') : null,
+          timeSlot: j.timeSlot || 'urgent',
+          progress:
+            j.status === 'BROADCASTING' ? 20 :
+            j.status === 'QUOTES_RECEIVED' ? 45 :
+            j.status === 'ALLOCATED' ? 60 :
+            j.status === 'IN_PROGRESS' ? 80 : 50,
+          isIP: ['IN_PROGRESS', 'ARRIVING', 'ALLOCATED'].includes(j.status),
+          isCompleted: j.status === 'COMPLETED',
+          hasQuotes: j.status === 'QUOTES_RECEIVED',
+          rawJob: j,
+        }));
+        setActiveJobs(active);
+      }
 
-        // Shop orders
-        try {
-          const oRes = await shopService.getCustomerOrders();
-          if (oRes.data?.status === 'success') {
-            const list = oRes.data.data.orders || oRes.data.data;
-            setActiveShopOrders(list.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)));
-          }
-        } catch (_) {}
+      // Active Shop Orders
+      if (oRes.status === 'fulfilled' && oRes.value?.data?.status === 'success') {
+        const list = oRes.value.data.data.orders || oRes.value.data.data;
+        setActiveShopOrders(list.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)));
       }
     } catch (e) {
-      // Error handled by UI state
+      // Error handled silently
     } finally {
       setRefreshing(false);
     }
