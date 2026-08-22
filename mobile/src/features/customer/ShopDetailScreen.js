@@ -231,8 +231,9 @@ const ShopDetailScreen = ({ route, navigation }) => {
           value={searchQuery}
           onChangeText={setSearchQuery}
           theme={theme}
-          placeholder={`Search in ${shop?.name || 'Shop'}`}
+          placeholder="Search products in this shop..."
         />
+
       </View>
       <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
         {shop && (

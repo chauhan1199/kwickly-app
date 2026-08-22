@@ -179,6 +179,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     gap: 10,
+    marginRight: 8,
   },
   logoBadge: {
     width: 38,
@@ -192,12 +193,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
+    flexShrink: 0,
   },
   brandBlock: {
+    flex: 1,
     justifyContent: 'center',
   },
   brandName: {
-    fontSize: 19,
+    fontSize: 17.5,
     fontWeight: '900',
     letterSpacing: -0.3,
   },
@@ -210,7 +213,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 0,
   },
+
   iconBtn: {
     width: 36,
     height: 36,

@@ -18,6 +18,26 @@ const {
 } = require('../../helpers/razorpay.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 
+const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
+
+/**
+ * GET /api/v1/payments/admin-upi
+ * Fetches admin-configured UPI ID and Bank Details for public/authenticated payments
+ */
+exports.getAdminUpiConfig = catchAsync(async (req, res) => {
+    const adminWallet = await AdminWallet.findOne().lean();
+    return successResponse(res, {
+        upiId: adminWallet?.upiId || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi',
+        payeeName: adminWallet?.bankDetails?.accountHolder || 'Kwickly PVT LTD',
+        bankDetails: adminWallet?.bankDetails || {
+            accountHolder: 'Kwickly PVT LTD',
+            accountNumber: '1234567890',
+            ifscCode: 'SBIN0001234',
+            bankName: 'SBI'
+        }
+    }, 'Admin UPI configuration fetched');
+});
+
 /**
  * POST /api/v1/payments/create-order
  * Creates a Razorpay or Direct UPI order for a given amount
@@ -49,8 +69,10 @@ exports.createOrder = catchAsync(async (req, res) => {
         isUpiDirect = true;
     }
 
-    const platformVpa = process.env.PLATFORM_UPI_ID || 'kwickly@upi';
-    const upiIntentUri = `upi://pay?pa=${encodeURIComponent(platformVpa)}&pn=Kwickly%20Services&am=${amount}&cu=INR&tn=Order_${orderId || 'Payment'}&tr=${rpOrderId}`;
+    const adminWallet = await AdminWallet.findOne().lean();
+    const platformVpa = adminWallet?.upiId || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi';
+    const payeeName = adminWallet?.bankDetails?.accountHolder || 'Kwickly PVT LTD';
+    const upiIntentUri = `upi://pay?pa=${encodeURIComponent(platformVpa)}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=Kwickly_${purpose || 'Payment'}_${orderId || Date.now()}&tr=${rpOrderId}`;
 
     // Store the payment order in our DB
     const payment = await Payment.create({
@@ -63,7 +85,9 @@ exports.createOrder = catchAsync(async (req, res) => {
             receipt,
             notes,
             isUpiDirect,
-            upiIntentUri
+            upiIntentUri,
+            payeeName,
+            platformVpa
         }
     });
 
@@ -74,10 +98,13 @@ exports.createOrder = catchAsync(async (req, res) => {
         paymentId: payment._id,
         keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_kwickly',
         upiVpa: platformVpa,
+        payeeName,
+        bankDetails: adminWallet?.bankDetails || null,
         upiIntentUri,
         isUpiDirect
     }, 'Payment order created successfully', StatusCodes.CREATED);
 });
+
 
 /**
  * POST /api/v1/payments/verify
@@ -163,12 +190,12 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         }
 
         // Wallet top-up flow (purpose: 'wallet_topup')
-        if (payment.metadata?.notes?.purpose === 'wallet_topup') {
+        if (payment.metadata?.notes?.purpose === 'wallet_topup' || req.body.purpose === 'wallet_topup') {
             const alreadyCredited = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId: payment.razorpayPaymentId }).session(session);
             if (!alreadyCredited) {
-                const creditAmount = payment.amount;
+                const creditAmount = payment.amount || req.body.amount;
                 const creditedUser = await Customer.findByIdAndUpdate(
-                    payment.userId,
+                    payment.userId || req.user._id,
                     { $inc: { 'wallet.balance': creditAmount } },
                     { returnDocument: 'after', session }
                 );
@@ -178,14 +205,35 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                         type: 'TOPUP',
                         amount: creditAmount,
                         balance: creditedUser.wallet?.balance || 0,
+                        balanceAfter: creditedUser.wallet?.balance || 0,
                         status: 'COMPLETED',
                         razorpayPaymentId: payment.razorpayPaymentId,
-                        description: 'Wallet Top-up via UPI'
+                        description: 'Wallet Top-up via Admin UPI'
                     }], { session });
+
+                    // Also credit Admin Wallet for platform tracking
+                    const adminW = await AdminWallet.findOneAndUpdate(
+                        {},
+                        { $inc: { balance: creditAmount } },
+                        { returnDocument: 'after', upsert: true, session }
+                    );
+                    if (adminW) {
+                        await AdminWalletTxn.create([{
+                            type: 'TOPUP',
+                            amount: creditAmount,
+                            balanceAfter: adminW.balance,
+                            description: `User ${creditedUser.name || creditedUser.phone || 'Customer'} wallet top-up via UPI`,
+                            referenceId: payment._id,
+                            referenceModel: 'Payment',
+                            meta: { userId: creditedUser._id, purpose: 'wallet_topup' }
+                        }], { session });
+                        emitToAll('DASHBOARD_UPDATE', { type: 'ADMIN_WALLET_CREDIT', id: payment._id });
+                    }
                     await delCache(`session:${creditedUser._id}`);
                 }
             }
         }
+
 
         if (useTransaction) await session.commitTransaction();
         if (session) session.endSession();

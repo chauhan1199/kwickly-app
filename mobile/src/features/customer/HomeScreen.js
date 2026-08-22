@@ -291,11 +291,12 @@ const HomeScreen = ({ navigation }) => {
           <SearchBar 
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search for a service or shop (e.g. Cook, Plumber, Bakery)..."
+            placeholder="Search services, shops, products..."
             theme={theme}
             onFilterPress={() => navigation.navigate('Book')}
-            style={{ marginHorizontal: 20, marginTop: -26 }}
+            style={{ marginHorizontal: 16, marginTop: -26 }}
           />
+
         </Animated.View>
 
         {/* ═══════════════════════════════════════

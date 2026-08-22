@@ -97,46 +97,51 @@ const SubCategoriesScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={resolvedHeroImage ? '#46279E' : heroGradient[0]} translucent={false} />
-
       {/* ── Hero Header ── */}
-      {resolvedHeroImage ? (
-        // ── Real admin photo hero ──
-        <View style={styles.hero}>
-          <Image source={{ uri: resolvedHeroImage }} style={styles.heroImage} resizeMode="cover" />
-          <LinearGradient
-            colors={['rgba(108,71,255,0.2)', 'rgba(108,71,255,0.7)', '#2A1A5E']}
-            style={styles.heroImageOverlay}
-          />
-          <View style={styles.heroDecor1} />
+      <LinearGradient
+        colors={['#5E35B1', '#7E57C2', '#4A148C']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <View style={styles.heroDecor1} />
+        <View style={styles.heroDecor2} />
+
+        {/* Top bar with back button */}
+        <View style={styles.heroTopBar}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
             <ChevronLeft size={22} color="#fff" />
           </TouchableOpacity>
-          <View style={styles.heroContent}>
-            <View style={styles.heroIconCircle}>
-              <Text style={styles.heroIcon}>{icon}</Text>
-            </View>
-            <Text style={styles.heroTitle}>{name}</Text>
-            <Text style={styles.heroSubtitle}>{localSubs.length} service{localSubs.length !== 1 ? 's' : ''} available</Text>
+          <View style={styles.heroCategoryPill}>
+            <Text style={styles.heroCategoryPillText}>SERVICE CATEGORY</Text>
           </View>
         </View>
-      ) : (
-        // ── Fallback gradient hero ──
-        <LinearGradient colors={heroGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <View style={styles.heroDecor1} />
-          <View style={styles.heroDecor2} />
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <ChevronLeft size={22} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.heroContent}>
-            <View style={styles.heroIconCircle}>
+
+        {/* Content row: Left details, Right framed image */}
+        <View style={styles.heroContentRow}>
+          <View style={styles.heroTextCol}>
+            <View style={styles.heroIconBadge}>
               <Text style={styles.heroIcon}>{icon}</Text>
             </View>
-            <Text style={styles.heroTitle}>{name}</Text>
-            <Text style={styles.heroSubtitle}>{localSubs.length} service{localSubs.length !== 1 ? 's' : ''} available</Text>
+            <Text style={styles.heroTitle} numberOfLines={2}>{name}</Text>
+            <View style={styles.servicesBadge}>
+              <Clock size={12} color="#E0E7FF" style={{ marginRight: 4 }} />
+              <Text style={styles.heroSubtitle}>{localSubs.length} service{localSubs.length !== 1 ? 's' : ''} available</Text>
+            </View>
           </View>
-        </LinearGradient>
-      )}
+
+          {resolvedHeroImage ? (
+            <View style={styles.heroImageCardWrapper}>
+              <Image source={{ uri: resolvedHeroImage }} style={styles.heroFramedImage} resizeMode="cover" />
+            </View>
+          ) : (
+            <View style={styles.heroIconCardWrapper}>
+              <Text style={{ fontSize: 40 }}>{icon}</Text>
+            </View>
+          )}
+        </View>
+      </LinearGradient>
+
 
       {/* Search - overlapping header */}
       <View style={{ paddingHorizontal: 16, marginTop: -26, zIndex: 10 }}>
@@ -144,8 +149,9 @@ const SubCategoriesScreen = ({ route, navigation }) => {
           value={searchQuery}
           onChangeText={setSearchQuery}
           theme={theme}
-          onFilterPress={() => {}}
+          placeholder="Search services..."
         />
+
       </View>
 
       {/* ── Subcategory List ── */}
@@ -288,22 +294,13 @@ const createStyles = (theme, isDarkMode) =>
 
     // ── Hero ──
     hero: {
-      paddingTop: 14,
-      paddingBottom: 28,
+      paddingTop: 16,
+      paddingBottom: 40,
       paddingHorizontal: 16,
+      borderBottomLeftRadius: 30,
+      borderBottomRightRadius: 30,
       position: 'relative',
       overflow: 'hidden',
-      minHeight: 190,
-    },
-    heroImage: {
-      position: 'absolute',
-      top: 0, left: 0, right: 0, bottom: 0,
-      width: '100%',
-      height: '100%',
-    },
-    heroImageOverlay: {
-      position: 'absolute',
-      top: 0, left: 0, right: 0, bottom: 0,
     },
     heroDecor1: {
       position: 'absolute',
@@ -312,53 +309,116 @@ const createStyles = (theme, isDarkMode) =>
       width: 160,
       height: 160,
       borderRadius: 80,
-      backgroundColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: 'rgba(255,255,255,0.08)',
     },
     heroDecor2: {
       position: 'absolute',
       bottom: -30,
-      right: 30,
-      width: 90,
-      height: 90,
-      borderRadius: 45,
-      backgroundColor: 'rgba(255,255,255,0.07)',
+      left: -20,
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: 'rgba(255,255,255,0.05)',
+    },
+    heroTopBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
     },
     backBtn: {
       width: 38,
       height: 38,
       borderRadius: 12,
-      backgroundColor: 'rgba(255,255,255,0.18)',
+      backgroundColor: 'rgba(255,255,255,0.2)',
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 16,
     },
-    heroContent: {
-      alignItems: 'flex-start',
+    heroCategoryPill: {
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.15)',
     },
-    heroIconCircle: {
-      width: 60,
-      height: 60,
-      borderRadius: 18,
-      backgroundColor: 'rgba(255,255,255,0.22)',
+    heroCategoryPillText: {
+      color: '#E0E7FF',
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 1,
+    },
+    heroContentRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    heroTextCol: {
+      flex: 1,
+      paddingRight: 6,
+    },
+    heroIconBadge: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.2)',
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 12,
+      marginBottom: 8,
     },
     heroIcon: {
-      fontSize: 30,
+      fontSize: 20,
     },
     heroTitle: {
-      fontSize: 26,
-      fontWeight: '800',
+      fontSize: 22,
+      fontWeight: '900',
       color: '#fff',
-      letterSpacing: -0.5,
-      marginBottom: 4,
+      letterSpacing: -0.3,
+      lineHeight: 28,
+      marginBottom: 6,
+    },
+    servicesBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      alignSelf: 'flex-start',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 10,
     },
     heroSubtitle: {
-      fontSize: 13,
-      color: 'rgba(255,255,255,0.75)',
-      fontWeight: '500',
+      fontSize: 12,
+      color: '#E0E7FF',
+      fontWeight: '600',
     },
+    heroImageCardWrapper: {
+      width: 100,
+      height: 100,
+      borderRadius: 20,
+      overflow: 'hidden',
+      borderWidth: 2,
+      borderColor: 'rgba(255,255,255,0.3)',
+      backgroundColor: 'rgba(255,255,255,0.1)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      elevation: 5,
+    },
+    heroFramedImage: {
+      width: '100%',
+      height: '100%',
+    },
+    heroIconCardWrapper: {
+      width: 90,
+      height: 90,
+      borderRadius: 20,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: 'rgba(255,255,255,0.25)',
+    },
+
 
     // ── List ──
     listContent: {

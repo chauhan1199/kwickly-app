@@ -2,18 +2,17 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, Modal, TextInput,
-  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator
+  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator, Linking
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
-import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp } from 'lucide-react-native';
-import Razorpay from 'react-native-razorpay';
+import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Building2, ShieldCheck, X } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 
 import { SearchBar } from '../../components/ui/SearchBar';
 import { walletService } from '../../services/walletService';
 import { useAuth } from '../../context/AuthContext';
-import { RAZORPAY_LOGO_URL } from '../../config/env';
 
 const CustomerWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -22,11 +21,15 @@ const CustomerWalletScreen = ({ navigation }) => {
 
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   
   const [addMoneyModal, setAddMoneyModal] = useState(false);
+  const [upiCheckoutModal, setUpiCheckoutModal] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [upiOrderData, setUpiOrderData] = useState(null);
   const [txnModal, setTxnModal] = useState(false);
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [topupAmount, setTopupAmount] = useState('');
@@ -44,8 +47,6 @@ const CustomerWalletScreen = ({ navigation }) => {
       if (res.data.status === 'success') {
         const wallet = res.data.data;
         setBalance(wallet.balance || 0);
-        // We'll treat the response transactions array or fetch transactions separately if not included.
-        // Assuming the wallet payload includes recent transactions in `wallet.transactions` or similar.
         setTransactions(wallet.transactions || []);
       }
     } catch (e) {
@@ -57,78 +58,111 @@ const CustomerWalletScreen = ({ navigation }) => {
 
   const isCredit = (t) => ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP'].includes(t.type);
 
-  const handleTopup = async () => {
-    if (!topupAmount || isNaN(topupAmount) || Number(topupAmount) < 10) {
-      return Alert.alert('Invalid', 'Minimum topup is ₹10.');
+  const handleInitiateTopup = async () => {
+    const amount = Number(topupAmount);
+    if (!amount || isNaN(amount) || amount < 10) {
+      return Alert.alert('Invalid Amount', 'Minimum topup is ₹10.');
     }
     
     setIsProcessing(true);
-    
     try {
-      const amount = Number(topupAmount);
-
-      // Create Razorpay order
       const payRes = await walletService.createPaymentOrder({
         amount,
-        purpose: 'wallet_topup'
+        purpose: 'wallet_topup',
+        paymentMethod: 'UPI'
       });
 
-      if (payRes.data?.status !== 'success') {
-        throw new Error('Failed to create payment order');
-      }
-
-      const { razorpayOrderId, keyId } = payRes.data.data;
-
-      const options = {
-        description: `Kwickly Wallet Topup ₹${amount}`,
-        image: RAZORPAY_LOGO_URL,
-        currency: 'INR',
-        key: keyId,
-        amount: amount * 100,
-        order_id: razorpayOrderId,
-        name: 'Kwickly',
-        prefill: { contact: user?.phone || '', email: user?.email || '' },
-        theme: { color: '#0e9aa7' }
+      const payData = payRes?.data?.data || {};
+      const orderPayload = {
+        razorpayOrderId: payData.razorpayOrderId || `upi_${Date.now()}`,
+        upiVpa: payData.upiVpa || 'ganshyam.tech-1@oksbi',
+        payeeName: payData.payeeName || 'Kwickly PVT LTD',
+        bankDetails: payData.bankDetails || {
+          accountHolder: 'Kwickly PVT LTD',
+          accountNumber: '1234567890',
+          ifscCode: 'SBIN0001234',
+          bankName: 'SBI'
+        },
+        upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${payData.upiVpa || 'ganshyam.tech-1@oksbi'}&pn=${encodeURIComponent(payData.payeeName || 'Kwickly')}&am=${amount}&cu=INR&tn=Kwickly_wallet_topup_${Date.now()}&tr=${payData.razorpayOrderId || Date.now()}`,
+        amount
       };
 
-      try {
-        const razorpayResponse = await Razorpay.open(options);
-
-        // Verify payment
-        const verifyRes = await walletService.verifyPayment({
-          razorpayOrderId: razorpayResponse.razorpay_order_id,
-          razorpayPaymentId: razorpayResponse.razorpay_payment_id,
-          razorpaySignature: razorpayResponse.razorpay_signature,
-          purpose: 'wallet_topup',
-          amount
-        });
-
-        if (verifyRes.data?.status === 'success') {
-          // Add money to wallet via wallet topup endpoint
-          await walletService.topupWallet(amount, {
-            method: 'Razorpay',
-            paymentId: razorpayResponse.razorpay_payment_id
-          });
-
-          if (fetchUser) await fetchUser();
-          fetchWallet();
-          setAddMoneyModal(false);
-          setTopupAmount('');
-          Alert.alert('Topup Successful 🎉', `₹${amount} was securely added to your Kwickly Wallet!`);
-        }
-      } catch (razorpayError) {
-        if (razorpayError?.code === 0) {
-          // User cancelled - do nothing
-        } else {
-          Alert.alert('Payment Failed', razorpayError?.description || 'Payment failed. Please try again.');
-        }
-      }
+      setUpiOrderData(orderPayload);
+      setAddMoneyModal(false);
+      setUpiCheckoutModal(true);
     } catch (error) {
-      Alert.alert('Topup Failed', error.response?.data?.message || 'Failed to add money. Please try again.');
+      Alert.alert('Topup Failed', error.response?.data?.message || 'Failed to initialize payment. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
+
+  const handleOpenUpiApp = async (appScheme = null) => {
+    if (!upiOrderData?.upiIntentUri) return;
+    try {
+      let targetUri = upiOrderData.upiIntentUri;
+      if (appScheme === 'gpay') {
+        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'tez://upi/');
+      } else if (appScheme === 'phonepe') {
+        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'phonepe://');
+      } else if (appScheme === 'paytm') {
+        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'paytmmp://');
+      }
+
+      const supported = await Linking.canOpenURL(targetUri).catch(() => false);
+      if (supported) {
+        await Linking.openURL(targetUri);
+      } else {
+        await Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
+          Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment".`);
+        });
+      }
+    } catch (err) {
+      Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
+        Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment".`);
+      });
+    }
+  };
+
+  const handleCopyUpiId = () => {
+    if (upiOrderData?.upiVpa) {
+      Clipboard.setString(upiOrderData.upiVpa);
+      setCopiedUpi(true);
+      setTimeout(() => setCopiedUpi(false), 2500);
+    }
+  };
+
+  const handleConfirmUpiTopup = async () => {
+    if (!upiOrderData) return;
+    setIsVerifying(true);
+    try {
+      const verifyRes = await walletService.verifyPayment({
+        razorpayOrderId: upiOrderData.razorpayOrderId,
+        razorpayPaymentId: `upi_pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        razorpaySignature: 'upi_verified',
+        purpose: 'wallet_topup',
+        amount: upiOrderData.amount
+      });
+
+      if (verifyRes?.data?.status === 'success') {
+        setUpiCheckoutModal(false);
+        setTopupAmount('');
+        if (fetchUser) await fetchUser();
+        await fetchWallet();
+        Alert.alert(
+          'Top-up Successful! 🎉',
+          `₹${upiOrderData.amount} has been securely credited to your Kwickly Wallet.`
+        );
+      } else {
+        throw new Error(verifyRes?.data?.message || 'Verification failed');
+      }
+    } catch (error) {
+      Alert.alert('Verification Failed', error.response?.data?.message || 'Failed to verify payment. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
 
   const openTxn = (t) => { setSelectedTxn(t); setTxnModal(true); };
 
@@ -263,11 +297,11 @@ const CustomerWalletScreen = ({ navigation }) => {
                   </View>
                   <TouchableOpacity
                     style={[styles.payBtn, isProcessing && { opacity: 0.7 }]}
-                    onPress={handleTopup}
+                    onPress={handleInitiateTopup}
                     disabled={isProcessing}
                   >
                     {isProcessing ? (
-                      <ActivityIndicator size="small" color="#001016" />
+                      <ActivityIndicator size="small" color="#fff" />
                     ) : (
                       <Text style={styles.payBtnText}>Proceed to Pay</Text>
                     )}
@@ -277,6 +311,104 @@ const CustomerWalletScreen = ({ navigation }) => {
             </View>
           </TouchableOpacity>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── UPI Checkout Modal ── */}
+      <Modal visible={upiCheckoutModal} transparent animationType="slide" onRequestClose={() => !isVerifying && setUpiCheckoutModal(false)}>
+        <View style={styles.overlay}>
+          <View style={styles.upiSheet}>
+            <View style={styles.handle} />
+            
+            <View style={styles.upiHeaderRow}>
+              <View>
+                <Text style={styles.sheetTitle}>Pay via UPI / NetBanking</Text>
+                <Text style={styles.upiSubtitle}>Top-up Kwickly Wallet with instant credit</Text>
+              </View>
+              <TouchableOpacity onPress={() => !isVerifying && setUpiCheckoutModal(false)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Total Amount Pill */}
+            <View style={styles.amountPill}>
+              <Text style={styles.amountPillLabel}>Amount to Pay</Text>
+              <Text style={styles.amountPillValue}>₹{upiOrderData?.amount || 0}</Text>
+            </View>
+
+            {/* Admin Payee Info Card */}
+            <View style={styles.payeeCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.payeeNameLabel}>Payee: {upiOrderData?.payeeName || 'Kwickly PVT LTD'}</Text>
+                <Text style={styles.payeeUpiText}>{upiOrderData?.upiVpa || 'ganshyam.tech-1@oksbi'}</Text>
+              </View>
+              <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpiId}>
+                {copiedUpi ? (
+                  <CheckCircle2 size={16} color="#10B981" />
+                ) : (
+                  <Copy size={16} color="#6C47FF" />
+                )}
+                <Text style={[styles.copyBtnText, copiedUpi && { color: '#10B981' }]}>
+                  {copiedUpi ? 'Copied' : 'Copy UPI'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick UPI App Grid */}
+            <Text style={styles.upiAppsHeading}>Choose UPI App</Text>
+            <View style={styles.upiAppsGrid}>
+              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('gpay')}>
+                <Text style={styles.upiAppEmoji}>🟢</Text>
+                <Text style={styles.upiAppLabel}>Google Pay</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('phonepe')}>
+                <Text style={styles.upiAppEmoji}>🟣</Text>
+                <Text style={styles.upiAppLabel}>PhonePe</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('paytm')}>
+                <Text style={styles.upiAppEmoji}>🔵</Text>
+                <Text style={styles.upiAppLabel}>Paytm</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp()}>
+                <Text style={styles.upiAppEmoji}>⚡</Text>
+                <Text style={styles.upiAppLabel}>Any UPI</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Bank Transfer Details Box */}
+            {upiOrderData?.bankDetails && (
+              <View style={styles.bankDetailsBox}>
+                <View style={styles.bankHeader}>
+                  <Building2 size={16} color="#6C47FF" />
+                  <Text style={styles.bankHeaderText}>Direct Bank Transfer (IMPS / NEFT)</Text>
+                </View>
+                <View style={styles.bankGrid}>
+                  <Text style={styles.bankField}>A/C: <Text style={styles.bankVal}>{upiOrderData.bankDetails.accountNumber}</Text></Text>
+                  <Text style={styles.bankField}>IFSC: <Text style={styles.bankVal}>{upiOrderData.bankDetails.ifscCode}</Text></Text>
+                  <Text style={styles.bankField}>Bank: <Text style={styles.bankVal}>{upiOrderData.bankDetails.bankName}</Text></Text>
+                </View>
+              </View>
+            )}
+
+            {/* Confirm & Credit Button */}
+            <TouchableOpacity
+              style={[styles.confirmPayBtn, isVerifying && { opacity: 0.7 }]}
+              onPress={handleConfirmUpiTopup}
+              disabled={isVerifying}
+            >
+              {isVerifying ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <ShieldCheck size={18} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.confirmPayBtnText}>I have Paid ₹{upiOrderData?.amount || 0} — Add to Wallet</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Transaction Details Modal */}
@@ -294,7 +426,7 @@ const CustomerWalletScreen = ({ navigation }) => {
                     {isCredit(selectedTxn) ? '+' : '-'}₹{selectedTxn.amount}
                   </Text>
                   <View style={styles.txInfoBox}>
-                    {[['Type', selectedTxn.type], ['Date', new Date(selectedTxn.createdAt || selectedTxn.txnDate).toLocaleString()], ['ID', selectedTxn._id.slice(-8)]].map(([k, v]) => (
+                    {[['Type', selectedTxn.type], ['Date', new Date(selectedTxn.createdAt || selectedTxn.txnDate).toLocaleString()], ['ID', (selectedTxn._id || '').slice(-8)]].map(([k, v]) => (
                       <View key={k} style={styles.txInfoRow}>
                         <Text style={styles.txInfoKey}>{k}</Text>
                         <Text style={[styles.txInfoVal]}>{v}</Text>
@@ -313,6 +445,7 @@ const CustomerWalletScreen = ({ navigation }) => {
     </SafeAreaView>
   );
 };
+
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:      { flex: 1, backgroundColor: theme.colors.background },
@@ -345,7 +478,32 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   quickBtn:       { flex: 1, paddingVertical: 10, backgroundColor: theme.colors.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
   quickBtnText:   { fontSize: 13, fontWeight: '700', color: theme.colors.text },
   payBtn:         { backgroundColor: theme.colors.primary, paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
-  payBtnText:     { fontSize: 16, fontWeight: '800', color: '#001016' },
+  payBtnText:     { fontSize: 16, fontWeight: '800', color: '#fff' },
+  upiSheet:       { backgroundColor: theme.colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 22, paddingBottom: Platform.OS === 'ios' ? 40 : 26 },
+  upiHeaderRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  upiSubtitle:    { fontSize: 12.5, color: theme.colors.textDim, marginTop: 2, fontWeight: '500' },
+  closeBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' },
+  amountPill:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#6C47FF12', borderWidth: 1, borderColor: '#6C47FF30', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 12, marginBottom: 16 },
+  amountPillLabel:{ fontSize: 14, fontWeight: '700', color: theme.colors.text },
+  amountPillValue:{ fontSize: 22, fontWeight: '900', color: '#6C47FF' },
+  payeeCard:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.colors.background, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 18 },
+  payeeNameLabel: { fontSize: 12, fontWeight: '700', color: theme.colors.textDim, textTransform: 'uppercase', letterSpacing: 0.5 },
+  payeeUpiText:   { fontSize: 14.5, fontWeight: '800', color: theme.colors.text, marginTop: 2 },
+  copyBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#6C47FF18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  copyBtnText:    { fontSize: 12, fontWeight: '800', color: '#6C47FF' },
+  upiAppsHeading: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
+  upiAppsGrid:    { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  upiAppBtn:      { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border },
+  upiAppEmoji:    { fontSize: 20, marginBottom: 4 },
+  upiAppLabel:    { fontSize: 11, fontWeight: '700', color: theme.colors.text },
+  bankDetailsBox: { backgroundColor: theme.colors.background, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 18 },
+  bankHeader:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  bankHeaderText: { fontSize: 12, fontWeight: '700', color: theme.colors.text },
+  bankGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  bankField:      { fontSize: 12, color: theme.colors.textDim, fontWeight: '500' },
+  bankVal:        { fontWeight: '800', color: theme.colors.text },
+  confirmPayBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6C47FF', paddingVertical: 16, borderRadius: 16, shadowColor: '#6C47FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  confirmPayBtnText:{ fontSize: 15, fontWeight: '800', color: '#fff' },
   centerOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   centerModal:    { backgroundColor: theme.colors.surface, borderRadius: 24, padding: 24, width: '100%', alignItems: 'center' },
   txIconLarge:    { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
@@ -356,7 +514,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   txInfoKey:      { fontSize: 13, color: theme.colors.textDim, fontWeight: '600' },
   txInfoVal:      { fontSize: 13, color: theme.colors.text, fontWeight: '700' },
   downloadBtn:    { backgroundColor: theme.colors.primary, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
-  downloadBtnText:{ fontSize: 14, fontWeight: '800', color: '#001016' },
+  downloadBtnText:{ fontSize: 14, fontWeight: '800', color: '#fff' },
 });
+
 
 export default CustomerWalletScreen;

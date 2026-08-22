@@ -53,4 +53,8 @@ export const walletService = {
 
   verifyPayment: (data) =>
     withErrorHandling(() => api.post('/payments/verify', data)),
+
+  getAdminUpiConfig: () =>
+    withErrorHandling(() => api.get('/payments/admin-upi')),
 };
+

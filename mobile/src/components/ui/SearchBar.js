@@ -14,9 +14,9 @@ export const SearchBar = ({
 }) => {
   return (
     <View style={[styles.searchBar, { backgroundColor: theme?.colors?.card || '#fff', borderColor: theme?.colors?.border || '#E2E8F0', borderWidth: 1 }, style]}>
-      <Search size={20} color={theme?.colors?.textMuted || '#9ca3af'} style={{ marginRight: 8 }} />
+      <Search size={18} color={theme?.colors?.textMuted || '#9ca3af'} style={{ marginRight: 8, flexShrink: 0 }} />
       <TextInput
-        style={[styles.searchPlaceholder, { color: theme?.colors?.text || '#1E293B', flex: 1, paddingVertical: 6, paddingHorizontal: 0 }]}
+        style={[styles.searchPlaceholder, { color: theme?.colors?.text || '#1E293B', flex: 1, paddingVertical: 8, paddingRight: 6 }]}
         placeholder={placeholder}
         placeholderTextColor={theme?.colors?.textMuted || '#9ca3af'}
         value={value}
@@ -34,7 +34,7 @@ export const SearchBar = ({
         </TouchableOpacity>
       ) : onFilterPress ? (
         <TouchableOpacity style={[styles.filterBtn, { backgroundColor: theme?.colors?.primary || PURPLE }]} onPress={onFilterPress}>
-          <SlidersHorizontal size={16} color="#fff" />
+          <SlidersHorizontal size={15} color="#fff" />
         </TouchableOpacity>
       ) : null}
     </View>
@@ -47,8 +47,8 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
@@ -58,7 +58,8 @@ const styles = StyleSheet.create({
   searchPlaceholder: {
     flex: 1,
     color: '#9ca3af',
-    fontSize: 14,
+    fontSize: 13.5,
+    fontWeight: '400',
   },
   filterBtn: {
     width: 32,
@@ -66,6 +67,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
+    marginLeft: 4,
   },
   clearBtn: {
     width: 28,
@@ -74,5 +77,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
 });
+
