@@ -57,8 +57,9 @@ const SubCategoriesScreen = ({ route, navigation }) => {
     subs = []
   } = route.params || {};
 
+  const [categoryImageUrl, setCategoryImageUrl] = useState(imageUrl);
   const heroGradient = ['#6C47FF', '#8B6FFF'];
-  const resolvedHeroImage = getImageUrl(imageUrl);
+  const resolvedHeroImage = getImageUrl(categoryImageUrl || imageUrl);
 
   const [localSubs, setLocalSubs] = useState(subs || []);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,8 +69,9 @@ const SubCategoriesScreen = ({ route, navigation }) => {
       const res = await jobService.getCategories();
       if (res.data?.status === 'success') {
         const cat = res.data.data.find(c => (id && c._id === id) || c.name === name);
-        if (cat && cat.subcategories) {
-          setLocalSubs(cat.subcategories);
+        if (cat) {
+          if (cat.subcategories) setLocalSubs(cat.subcategories);
+          if (cat.imageUrl) setCategoryImageUrl(cat.imageUrl);
         }
       }
     } catch (e) {

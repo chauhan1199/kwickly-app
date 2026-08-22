@@ -23,3 +23,19 @@ jest.mock('react-native-maps', () => {
     Marker: Marker,
   };
 });
+
+jest.mock('@react-native-clipboard/clipboard', () => ({
+  setString: jest.fn(),
+  getString: jest.fn(() => Promise.resolve('')),
+  hasString: jest.fn(() => Promise.resolve(true)),
+}));
+
+jest.mock('@react-native-community/netinfo', () => ({
+  addEventListener: jest.fn(),
+  fetch: jest.fn(() => Promise.resolve({ isConnected: true })),
+}));
+
+jest.mock('react-native-razorpay', () => ({
+  open: jest.fn(() => Promise.resolve({})),
+}));
+

@@ -207,7 +207,7 @@ const ShopScreen = ({ navigation }) => {
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Search shops, bakery, pharmacy, groceries..."
+          placeholder="Search shops & stores..."
           theme={theme}
           onFilterPress={() => {}}
         />
