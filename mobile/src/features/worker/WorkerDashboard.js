@@ -51,6 +51,7 @@ const WorkerDashboard = ({ navigation }) => {
   const [errorMsg, setErrorMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState(undefined); // Undefined means no search bar on Home
   const [allCategories, setAllCategories] = useState([]);
+  const [workerServices, setWorkerServices] = useState(user?.services || []);
 
   const styles = createStyles(theme, isDarkMode);
 
@@ -73,8 +74,11 @@ const WorkerDashboard = ({ navigation }) => {
         setErrorMsg(jobsRes.value.response?.data?.message || 'Subscription required to view incoming jobs.');
       }
 
-      if (userRes.status === 'fulfilled' && userRes.value?.data?.data?.wallet) {
-        setWalletBalance(userRes.value.data.data.wallet.balance || 0);
+      if (userRes.status === 'fulfilled' && userRes.value?.data?.data) {
+        const uProfile = userRes.value.data.data;
+        if (uProfile.wallet) setWalletBalance(uProfile.wallet.balance || 0);
+        if (uProfile.services) setWorkerServices(uProfile.services);
+        if (uProfile.isOnline !== undefined) setIsOnline(uProfile.isOnline);
       }
 
       if (statsRes.status === 'fulfilled' && statsRes.value?.data?.status === 'success') {
@@ -95,7 +99,7 @@ const WorkerDashboard = ({ navigation }) => {
   const handleToggleOnline = useCallback(async (value) => {
     setIsOnline(value);
     try {
-      await workerService.setOnlineStatus(value);
+      const res = await workerService.setOnlineStatus(value);
       if (fetchUser) fetchUser('WORKER');
       if (value) {
         fetchData();
@@ -105,7 +109,8 @@ const WorkerDashboard = ({ navigation }) => {
       }
     } catch (e) {
       setIsOnline(!value);
-      Alert.alert('Error', 'Could not update online status');
+      const errMsg = e.response?.data?.message || e.message || 'Could not update online status';
+      Alert.alert('Duty Status Alert', errMsg);
     }
   }, [fetchData, fetchUser]);
 
@@ -171,9 +176,9 @@ const WorkerDashboard = ({ navigation }) => {
     }
   }, [socket, isOnline, fetchData, navigation]);
 
-  // Derive active categories with populated titles
+  // Derive active categories with populated titles from workerServices state
   const activeCategories = useMemo(() => {
-    const rawServices = user?.services?.length > 0 ? user.services : [];
+    const rawServices = workerServices?.length > 0 ? workerServices : (user?.services || []);
     return rawServices.map(s => {
       const catId = s.category?._id || s.category;
       const fullCat = allCategories.find(c => c._id === catId);
@@ -184,7 +189,7 @@ const WorkerDashboard = ({ navigation }) => {
         subCount: s.subcategories?.length || 0,
       };
     });
-  }, [user?.services, allCategories]);
+  }, [workerServices, user?.services, allCategories]);
 
   // Subscription calculation
   const expiryDate = user?.subscription?.expiryDate;

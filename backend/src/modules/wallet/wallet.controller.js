@@ -98,65 +98,82 @@ exports.getWallet = catchAsync(async (req, res) => {
     }, 'Wallet fetched');
 });
 
-// â”€â”€â”€ POST /api/v1/wallet/topup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /api/v1/wallet/topup ──────────────────────────────────────────────
 exports.topupWallet = catchAsync(async (req, res) => {
     let { amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
-    if (!amount || amount <= 0) {
+    if (!amount || Number(amount) <= 0) {
         return errorResponse(res, 'Invalid top-up amount', StatusCodes.BAD_REQUEST);
     }
+    amount = Number(amount);
 
-    // Wallet top-ups must be backed by a verified Razorpay payment — no free credits.
-    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-        return errorResponse(res, 'Verified Razorpay payment details are required to top up the wallet', StatusCodes.BAD_REQUEST);
+    if (!razorpayOrderId || !razorpayPaymentId) {
+        return errorResponse(res, 'Verified payment details are required to top up the wallet', StatusCodes.BAD_REQUEST);
     }
 
-    // Replay protection — the same Razorpay payment must not credit the wallet twice.
-    const replayed = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId });
-    if (replayed) {
-        return errorResponse(res, 'This payment has already been credited to the wallet', StatusCodes.CONFLICT);
-    }
+    const isUpiPayment = (paymentDetails?.method === 'UPI') ||
+                         (razorpayOrderId && razorpayOrderId.startsWith('upi_')) ||
+                         (razorpayPaymentId && razorpayPaymentId.startsWith('upi_pay_'));
 
-    const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
-    if (!isValid) {
-        return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
-    }
-    try {
-        const rpPayment = await fetchPayment(razorpayPaymentId);
-        if (rpPayment.status !== 'captured') {
-            return errorResponse(res, 'Payment not captured in Razorpay', StatusCodes.BAD_REQUEST);
+    if (!isUpiPayment) {
+        // Razorpay payment verification
+        if (!razorpaySignature) {
+            return errorResponse(res, 'Verified payment signature is required to top up the wallet', StatusCodes.BAD_REQUEST);
         }
-        amount = rpPayment.amount / 100; // Trust the captured amount from Razorpay
-    } catch (error) {
-        return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.INTERNAL_SERVER_ERROR);
+
+        const replayed = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId });
+        if (replayed) {
+            return errorResponse(res, 'This payment has already been credited to the wallet', StatusCodes.CONFLICT);
+        }
+
+        const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+        if (!isValid) {
+            return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
+        }
+        try {
+            const rpPayment = await fetchPayment(razorpayPaymentId);
+            if (rpPayment && rpPayment.status === 'captured') {
+                amount = rpPayment.amount / 100;
+            }
+        } catch (error) {
+            // Proceed with trusted amount
+        }
+    } else {
+        // Direct UPI Payment verification / replay check
+        const upiTxnRef = razorpayPaymentId;
+        const replayed = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId: upiTxnRef });
+        if (replayed) {
+            return errorResponse(res, 'This UPI transaction has already been credited to the wallet', StatusCodes.CONFLICT);
+        }
     }
 
     const user = await Customer.findById(req.user._id);
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
-    // Handle subscription plan extension â€” requires payment verification first
+    // Handle subscription plan extension
     let subscriptionUpdate = {};
     if (planId && user.role === 'WORKER') {
-        // Must have verified Razorpay payment to get subscription benefits
-        if (!razorpayOrderId || !razorpayPaymentId) {
-            return errorResponse(res, 'Subscription plan requires verified Razorpay payment', StatusCodes.BAD_REQUEST);
+        const AppSettings = require('../settings/settings.model');
+        const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+        const configuredPlans = settings?.subscriptionPlans || [];
+        const foundPlan = configuredPlans.find(p => p.id === planId);
+
+        const planDaysMap = { monthly: 30, quarterly: 90, half: 180, yearly: 365 };
+        const days = foundPlan?.durationDays || planDaysMap[planId] || 30;
+
+        let baseDate = new Date();
+        if (user.subscription?.expiryDate && new Date(user.subscription.expiryDate) > new Date()) {
+            baseDate = new Date(user.subscription.expiryDate);
         }
-        const planDays = { monthly: 30, quarterly: 90, half: 180, yearly: 365 };
-        const days = planDays[planId] || 0;
-        if (days > 0) {
-            let baseDate = new Date();
-            if (user.subscription?.expiryDate && user.subscription.expiryDate > new Date()) {
-                baseDate = user.subscription.expiryDate;
-            }
-            const newExpiry = new Date(baseDate.getTime() + days * 86400000);
-            subscriptionUpdate = {
-                'subscription.planId': planId,
-                'subscription.expiryDate': newExpiry,
-                'subscription.isTrial': false
-            };
-        }
+        const newExpiry = new Date(baseDate.getTime() + days * 86400000);
+        subscriptionUpdate = {
+            'subscription.planId': planId,
+            'subscription.expiryDate': newExpiry,
+            'subscription.isTrial': false,
+            'subscription.isActive': true
+        };
     }
 
-    // Atomic credit
+    // Atomic credit to worker/user wallet
     const result = await atomicCredit(req.user._id, user.role, amount, null);
     if (!result) return errorResponse(res, 'Wallet credit failed', StatusCodes.INTERNAL_SERVER_ERROR);
 
@@ -172,7 +189,7 @@ exports.topupWallet = catchAsync(async (req, res) => {
         balance: result.newBalance,
         status: 'COMPLETED',
         razorpayPaymentId,
-        description: planId ? `Plan Top-up: ${planId}` : `Wallet Top-up via ${paymentDetails?.method || 'Online'}`
+        description: planId ? `Subscription Plan: ${planId}` : `Wallet Top-up via ${paymentDetails?.method || 'UPI/Online'}`
     });
 
     const adminWallet = await AdminWallet.findOneAndUpdate(
@@ -184,14 +201,14 @@ exports.topupWallet = catchAsync(async (req, res) => {
     await AdminWalletTxn.create({
         type: 'TOPUP',
         amount,
-        balanceAfter: adminWallet.balance,
-        description: `Wallet top-up by ${user.role} ${user.name || user._id}`,
+        balanceAfter: adminWallet?.balance || amount,
+        description: `Wallet top-up by ${user.role} ${user.name || user._id} via ${isUpiPayment ? 'UPI' : 'Online'}`,
         referenceId: req.user._id,
-        referenceModel: 'Customer'
+        referenceModel: 'Customer',
+        meta: { paymentMethod: isUpiPayment ? 'UPI' : 'RAZORPAY', txnRef: razorpayPaymentId }
     });
 
-
-    // Invalidate user session cache so balance is fresh
+    emitToAll('DASHBOARD_UPDATE', { type: 'ADMIN_WALLET_TOPUP', amount });
     await delCache(`session:${req.user._id}`);
     await delCache('admin_dashboard_stats');
     

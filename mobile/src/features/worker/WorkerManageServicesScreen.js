@@ -16,6 +16,7 @@ import {
   Dimensions
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import { workerService } from '../../services/workerService';
 import { jobService } from '../../services/jobService';
@@ -45,6 +46,7 @@ const RADIUS_PRESETS = [5, 10, 15, 25, 50];
 
 const WorkerManageServicesScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const { fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
   const [loading, setLoading] = useState(true);
@@ -146,6 +148,7 @@ const WorkerManageServicesScreen = ({ navigation }) => {
       const res = await workerService.updateServices(payload);
       if (res?.data?.status === 'success' || res?.data?.data) {
         fetchData();
+        if (fetchUser) fetchUser('WORKER');
         return true;
       }
       throw new Error(res?.data?.message || 'Failed to save services');

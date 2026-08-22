@@ -15,8 +15,10 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
-  Dimensions
+  Dimensions,
+  Linking
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -32,7 +34,11 @@ import {
   X, 
   ChevronRight,
   CreditCard,
-  Crown
+  Crown,
+  Copy,
+  Check,
+  QrCode,
+  ExternalLink
 } from 'lucide-react-native';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import WorkerBalanceCard from '../../components/WorkerBalanceCard';
@@ -42,6 +48,7 @@ import RazorpayCheckout from 'react-native-razorpay';
 import { walletService } from '../../services/walletService';
 import { workerService } from '../../services/workerService';
 import settingsService from '../../services/settingsService';
+import api from '../../services/api';
 import { RAZORPAY_LOGO_URL } from '../../config/env';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -49,7 +56,7 @@ const TOP_UP_PRESETS = [100, 500, 1000, 2000];
 
 const WorkerEarningsScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { user } = useAuth();
+  const { user, fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
   const [wallet, setWallet] = useState({ balance: 0 });
@@ -59,11 +66,16 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [profile, setProfile] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [adminUpiConfig, setAdminUpiConfig] = useState({
+    upiId: 'ganshyam.tech-1@oksbi',
+    payeeName: 'Kwickly PVT LTD'
+  });
 
   // Modals state
   const [planModalVisible, setPlanModalVisible] = useState(false);
   const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
   const [topUpModalVisible, setTopUpModalVisible] = useState(false);
+  const [upiPaymentModalVisible, setUpiPaymentModalVisible] = useState(false);
   const [transactionModalVisible, setTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -73,6 +85,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [topUpAmount, setTopUpAmount] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
+  const [upiUtrNumber, setUpiUtrNumber] = useState('');
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [pendingPaymentContext, setPendingPaymentContext] = useState({ amount: 100, type: 'WALLET', planId: null });
 
   // Trial / Plan Calculation
   let daysLeft = 0;
@@ -95,13 +110,18 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const fetchWalletAndProfile = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [walletRes, profileRes, settingsRes, chartRes] = await Promise.allSettled([
+      const [walletRes, profileRes, settingsRes, chartRes, upiRes] = await Promise.allSettled([
         walletService.getWallet(),
         workerService.getProfile(),
         settingsService.getPublicSettings(),
-        workerService.getEarningsChart('week')
+        workerService.getEarningsChart('week'),
+        api.get('/payments/admin-upi')
       ]);
       
+      if (upiRes.status === 'fulfilled' && upiRes.value?.data?.status === 'success') {
+        setAdminUpiConfig(upiRes.value.data.data);
+      }
+
       if (settingsRes.status === 'fulfilled' && settingsRes.value?.data?.status === 'success') {
         const plansData = settingsRes.value.data.data.subscriptionPlans || [];
         const formatted = plansData
@@ -179,6 +199,73 @@ const WorkerEarningsScreen = ({ navigation }) => {
     fetchWalletAndProfile();
   }, [fetchWalletAndProfile]);
 
+  // Open Direct UPI app (GPay / PhonePe / Paytm / BHIM)
+  const handleOpenUpiApp = async (amount, purposeTitle) => {
+    const upiId = adminUpiConfig.upiId || 'ganshyam.tech-1@oksbi';
+    const payee = adminUpiConfig.payeeName || 'Kwickly PVT LTD';
+    const note = `Kwickly_${purposeTitle || 'Payment'}_${Date.now()}`;
+    const upiUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payee)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
+
+    try {
+      const supported = await Linking.canOpenURL(upiUrl);
+      if (supported) {
+        await Linking.openURL(upiUrl);
+      } else {
+        Alert.alert('UPI Apps', `Please copy UPI ID: ${upiId} and pay ₹${amount} in Google Pay, PhonePe or Paytm, then enter your 12-digit UTR below.`);
+      }
+    } catch (e) {
+      Alert.alert('Payment Link', `Please copy UPI ID: ${upiId} and transfer ₹${amount} using your UPI app.`);
+    }
+  };
+
+  const handleCopyUpiId = () => {
+    const upiId = adminUpiConfig.upiId || 'ganshyam.tech-1@oksbi';
+    Clipboard.setString(upiId);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2500);
+  };
+
+  // Submit UPI UTR / Reference ID for instant verification & credit
+  const handleVerifyUpiPayment = async () => {
+    if (!upiUtrNumber || upiUtrNumber.trim().length < 6) {
+      Alert.alert('Invalid UTR / Ref Number', 'Please enter a valid 12-digit UPI transaction reference / UTR number.');
+      return;
+    }
+
+    try {
+      setSubmittingAction(true);
+      const { amount, type, planId } = pendingPaymentContext;
+
+      const res = await walletService.topupWallet(
+        amount,
+        { method: 'UPI', txnId: upiUtrNumber.trim() },
+        planId,
+        `upi_ord_${Date.now()}`,
+        `upi_pay_${upiUtrNumber.trim()}`
+      );
+
+      if (res.data?.status === 'success' || res.data?.data) {
+        setUpiPaymentModalVisible(false);
+        setUpiUtrNumber('');
+        Alert.alert(
+          'Payment Success 🎉',
+          type === 'PLAN'
+            ? 'Your subscription plan has been activated successfully!'
+            : `₹${amount} has been successfully added to your wallet balance.`
+        );
+        fetchWalletAndProfile();
+        if (fetchUser) fetchUser('WORKER');
+      } else {
+        throw new Error(res.data?.message || 'Payment submission failed');
+      }
+    } catch (error) {
+      Alert.alert('Verification Error', error.response?.data?.message || error.message || 'Could not verify payment.');
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  // Online Razorpay Payment flow
   const processRazorpayPayment = async (amount, context, extraData) => {
     try {
       setSubmittingAction(true);
@@ -239,7 +326,13 @@ const WorkerEarningsScreen = ({ navigation }) => {
       if (e.code === 0 || e.code === 2) {
         // User cancelled payment
       } else {
-        Alert.alert("Payment Issue", e.reason || e.description || e.response?.data?.message || e.message || "Payment could not be completed.");
+        // Switch to UPI payment modal fallback
+        setPendingPaymentContext({
+          amount: Number(amount),
+          type: context,
+          planId: extraData?.planId || null
+        });
+        setUpiPaymentModalVisible(true);
       }
     } finally {
       setSubmittingAction(false);
@@ -254,7 +347,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
     const plan = dynamicPlans.find(p => p.id === selectedPlan);
     const amt = plan ? (plan.rawPrice || parseFloat(plan.price.replace('₹',''))) : 0;
     setPlanModalVisible(false);
-    processRazorpayPayment(amt, 'PLAN', { planId: selectedPlan });
+    setPendingPaymentContext({ amount: amt, type: 'PLAN', planId: selectedPlan });
+    setUpiPaymentModalVisible(true);
   };
 
   const handleTopUpProceed = () => {
@@ -264,7 +358,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
       return;
     }
     setTopUpModalVisible(false);
-    processRazorpayPayment(amt, 'WALLET', {});
+    setPendingPaymentContext({ amount: amt, type: 'WALLET', planId: null });
+    setUpiPaymentModalVisible(true);
   };
 
   const handleSubmitWithdrawal = async () => {
@@ -499,7 +594,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* ═══════════════════════════════════════
-          MODAL 1: PLAN SELECTION / TOP UP MODAL
+          MODAL 1: PLAN SELECTION MODAL
       ═══════════════════════════════════════ */}
       <Modal visible={planModalVisible} transparent animationType="slide" onRequestClose={() => setPlanModalVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -557,7 +652,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 {submittingAction ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.modalPrimaryBtnText}>Proceed to Pay Securely →</Text>
+                  <Text style={styles.modalPrimaryBtnText}>Proceed to Pay via UPI / Cards →</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>
@@ -566,7 +661,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       </Modal>
 
       {/* ═══════════════════════════════════════
-          MODAL 2: WALLET TOP UP MODAL
+          MODAL 2: WALLET TOP UP AMOUNT MODAL
       ═══════════════════════════════════════ */}
       <Modal visible={topUpModalVisible} transparent animationType="slide" onRequestClose={() => setTopUpModalVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -626,7 +721,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 {submittingAction ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.modalPrimaryBtnText}>Proceed to Add Money →</Text>
+                  <Text style={styles.modalPrimaryBtnText}>Proceed to Pay via UPI →</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>
@@ -635,7 +730,99 @@ const WorkerEarningsScreen = ({ navigation }) => {
       </Modal>
 
       {/* ═══════════════════════════════════════
-          MODAL 3: WITHDRAWAL MODAL
+          MODAL 3: UPI PAYMENT CHECKOUT SHEET (GPay/PhonePe/Paytm/BHIM & UTR)
+      ═══════════════════════════════════════ */}
+      <Modal visible={upiPaymentModalVisible} transparent animationType="slide" onRequestClose={() => setUpiPaymentModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHandle} />
+
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>UPI Payment Checkout</Text>
+                <Text style={styles.modalSub}>Pay ₹{pendingPaymentContext.amount} to Admin UPI Account</Text>
+              </View>
+              <TouchableOpacity onPress={() => setUpiPaymentModalVisible(false)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Admin UPI ID Box */}
+              <View style={styles.adminUpiBox}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.adminUpiLabel}>Admin UPI ID (Payee: {adminUpiConfig.payeeName || 'Kwickly'})</Text>
+                  <Text style={styles.adminUpiVal}>{adminUpiConfig.upiId || 'ganshyam.tech-1@oksbi'}</Text>
+                </View>
+                <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpiId} activeOpacity={0.8}>
+                  {copiedUpi ? (
+                    <Check size={16} color="#10B981" />
+                  ) : (
+                    <Copy size={16} color="#6C47FF" />
+                  )}
+                  <Text style={[styles.copyBtnText, copiedUpi && { color: '#10B981' }]}>
+                    {copiedUpi ? 'Copied' : 'Copy'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Option 1: Direct 1-Tap Open in UPI App */}
+              <TouchableOpacity 
+                style={styles.openUpiBtn} 
+                onPress={() => handleOpenUpiApp(pendingPaymentContext.amount, pendingPaymentContext.type)}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={['#10B981', '#059669']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.openUpiGradient}
+                >
+                  <Smartphone size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.openUpiBtnText}>Pay ₹{pendingPaymentContext.amount} via UPI App</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <Text style={styles.orDividerText}>— OR ENTER 12-DIGIT UTR / TXN ID AFTER TRANSFER —</Text>
+
+              {/* UTR Input */}
+              <View style={styles.utrInputBox}>
+                <Text style={styles.inputSectionLabel}>12-Digit UPI Transaction / UTR Ref Number</Text>
+                <TextInput
+                  style={styles.utrInput}
+                  placeholder="e.g. 423819204812"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                  value={upiUtrNumber}
+                  onChangeText={setUpiUtrNumber}
+                />
+              </View>
+
+              {/* Verify & Credit Button */}
+              <TouchableOpacity 
+                style={[styles.modalPrimaryBtn, (!upiUtrNumber || submittingAction) && { opacity: 0.7 }]} 
+                onPress={handleVerifyUpiPayment}
+                disabled={submittingAction || !upiUtrNumber}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={['#6C47FF', '#8B6FFF']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.modalPrimaryGradient}
+                >
+                  {submittingAction ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.modalPrimaryBtnText}>Verify & Credit ₹{pendingPaymentContext.amount} →</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════
+          MODAL 4: WITHDRAWAL MODAL
       ═══════════════════════════════════════ */}
       <Modal visible={withdrawModalVisible} transparent animationType="slide" onRequestClose={() => setWithdrawModalVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -732,7 +919,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       </Modal>
 
       {/* ═══════════════════════════════════════
-          MODAL 4: TRANSACTION DETAILS MODAL
+          MODAL 5: TRANSACTION DETAILS MODAL
       ═══════════════════════════════════════ */}
       <Modal visible={transactionModalVisible} transparent animationType="fade" onRequestClose={() => setTransactionModalVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -1284,6 +1471,93 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: '#6C47FF',
     fontSize: 13,
     fontWeight: '800',
+  },
+
+  // UPI Payment Sheet Specific Styles
+  adminUpiBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#0F172A' : '#FAF8FF',
+    borderWidth: 1.5,
+    borderColor: '#6C47FF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+  },
+  adminUpiLabel: {
+    fontSize: 11,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  adminUpiVal: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#6C47FF',
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(108, 71, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 4,
+  },
+  copyBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#6C47FF',
+  },
+  openUpiBtn: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 14,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  openUpiGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+  },
+  openUpiBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  orDividerText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: isDarkMode ? '#64748B' : '#94A3B8',
+    textAlign: 'center',
+    marginVertical: 10,
+    letterSpacing: 0.5,
+  },
+  utrInputBox: {
+    marginBottom: 12,
+  },
+  inputSectionLabel: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    marginBottom: 6,
+  },
+  utrInput: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
   },
 
   // Transaction Detail View

@@ -249,27 +249,56 @@ exports.updateLocation = catchAsync(async (req, res) => {
 });
 
 exports.toggleOnlineStatus = catchAsync(async (req, res) => {
-    if (!req.isVerifiedWorker) {
-        return errorResponse(res, 'You must be verified by an admin to go online and receive jobs.', StatusCodes.FORBIDDEN);
-    }
     const { isOnline } = req.body;
     if (typeof isOnline !== 'boolean') {
         return errorResponse(res, 'isOnline (boolean) is required', StatusCodes.BAD_REQUEST);
     }
 
+    const user = await Customer.findById(req.user._id);
+    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
+
     if (isOnline) {
-        const currentUser = await Customer.findById(req.user._id).select('activeLocation');
-        const loc = currentUser?.activeLocation?.coordinates;
-        if (!loc || (loc[0] === 0 && loc[1] === 0)) {
-            return errorResponse(res, 'You must set your location before going online', StatusCodes.BAD_REQUEST);
+        // 1. Check free trial / subscription validity
+        const SettingsService = require('../settings/settings.service');
+        const settings = await SettingsService.getAppSettings();
+        const trialDays = settings?.subscription?.freeTrialDays || 14;
+        const minBalance = settings?.wallet?.minimumBalance || 100;
+
+        const registrationDate = user.createdAt || new Date();
+        const trialEndDate = new Date(registrationDate.getTime() + trialDays * 86400000);
+        const isTrialActive = trialEndDate > new Date();
+        const isSubscriptionActive = user.subscription?.expiryDate && new Date(user.subscription.expiryDate) > new Date();
+
+        if (!isTrialActive && !isSubscriptionActive) {
+            return errorResponse(res, 'Your free trial has expired. Please activate a subscription plan to go online and receive jobs.', StatusCodes.PAYMENT_REQUIRED);
+        }
+
+        // 2. Check minimum frozen balance (₹100) after free trial
+        if (!isTrialActive && isSubscriptionActive) {
+            const currentBalance = user.wallet?.balance || 0;
+            if (currentBalance < minBalance) {
+                return errorResponse(res, `A minimum wallet balance of ₹${minBalance} is required to go online. Please top up your wallet.`, StatusCodes.BAD_REQUEST);
+            }
+        }
+
+        // 3. Ensure activeLocation is populated (if missing, auto-fallback to user's primary address or default)
+        if (!user.activeLocation?.coordinates || (user.activeLocation.coordinates[0] === 0 && user.activeLocation.coordinates[1] === 0)) {
+            const primaryAddr = user.addresses?.find(a => a.isPrimary) || user.addresses?.[0];
+            const coords = primaryAddr?.location?.coordinates || [72.574115, 23.1222453];
+            user.activeLocation = {
+                type: 'Point',
+                coordinates: coords,
+                addressDetails: {
+                    city: user.city || primaryAddr?.city || 'Ahmedabad',
+                    area: primaryAddr?.area || '',
+                    pincode: primaryAddr?.pincode || ''
+                }
+            };
         }
     }
 
-    const user = await Customer.findByIdAndUpdate(
-        req.user._id,
-        { $set: { isOnline } },
-        { returnDocument: 'after' }
-    );
+    user.isOnline = isOnline;
+    await user.save();
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
