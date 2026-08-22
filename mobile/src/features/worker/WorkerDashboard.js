@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { 
   ScrollView, 
@@ -12,7 +12,8 @@ import {
   Switch,
   Alert,
   Image,
-  DeviceEventEmitter
+  DeviceEventEmitter,
+  ActivityIndicator
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -23,7 +24,20 @@ import { authService } from '../../services/authService';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import WorkerBalanceCard from '../../components/WorkerBalanceCard';
 import { getImageUrl } from '../../utils/helpers';
-import { Briefcase, CheckCircle, Clock, XCircle, ChevronRight, Settings } from 'lucide-react-native';
+import { 
+  Briefcase, 
+  CheckCircle, 
+  Clock, 
+  XCircle, 
+  ChevronRight, 
+  Settings, 
+  Radio, 
+  Sparkles, 
+  ArrowRight,
+  Layers,
+  MapPin,
+  Calendar
+} from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
 const WorkerDashboard = ({ navigation }) => {
@@ -35,39 +49,44 @@ const WorkerDashboard = ({ navigation }) => {
   const [walletBalance, setWalletBalance] = useState(0);
   const [stats, setStats] = useState({ todayJobs: 0, completed: 0, inProgress: 0, cancelled: 0 });
   const [errorMsg, setErrorMsg] = useState('');
-  const [searchQuery, setSearchQuery] = useState(undefined); // undefined means no search bar on Home
+  const [searchQuery, setSearchQuery] = useState(undefined); // Undefined means no search bar on Home
+  const [allCategories, setAllCategories] = useState([]);
+
+  const styles = createStyles(theme, isDarkMode);
 
   const fetchData = useCallback(async () => {
     try {
       setRefreshing(true);
       setErrorMsg('');
       
-      const [jobsRes, userRes, statsRes] = await Promise.all([
-        jobService.getAvailableJobsForWorker().catch(() => null),
-        authService.getProfile().catch(() => null),
-        workerService.getStats().catch(() => null)
+      const [jobsRes, userRes, statsRes, catRes] = await Promise.allSettled([
+        jobService.getAvailableJobsForWorker(),
+        authService.getProfile(),
+        workerService.getStats(),
+        jobService.getCategories()
       ]);
 
-      if (jobsRes?.data?.status === 'success') {
-        setAvailableJobs(jobsRes.data.data);
-      } else {
-         if (jobsRes?.response?.status === 403 || jobsRes?.response?.status === 402) {
-           setAvailableJobs([]);
-           setErrorMsg(jobsRes.response?.data?.message || 'Action restricted.');
-         }
+      if (jobsRes.status === 'fulfilled' && jobsRes.value?.data?.status === 'success') {
+        setAvailableJobs(jobsRes.value.data.data || []);
+      } else if (jobsRes.status === 'fulfilled' && (jobsRes.value?.response?.status === 403 || jobsRes.value?.response?.status === 402)) {
+        setAvailableJobs([]);
+        setErrorMsg(jobsRes.value.response?.data?.message || 'Subscription required to view incoming jobs.');
       }
 
-      if (userRes?.data?.data?.wallet) {
-         setWalletBalance(userRes.data.data.wallet.balance || 0);
+      if (userRes.status === 'fulfilled' && userRes.value?.data?.data?.wallet) {
+        setWalletBalance(userRes.value.data.data.wallet.balance || 0);
       }
 
-      if (statsRes?.data?.status === 'success') {
-         setStats(statsRes.data.data);
+      if (statsRes.status === 'fulfilled' && statsRes.value?.data?.status === 'success') {
+        setStats(statsRes.value.data.data || { todayJobs: 0, completed: 0, inProgress: 0, cancelled: 0 });
+      }
+
+      if (catRes.status === 'fulfilled' && catRes.value?.data?.status === 'success') {
+        setAllCategories(catRes.value.data.data || []);
       }
 
     } catch (e) {
-      Alert.alert('Error', 'Failed to load data.');
-      setErrorMsg('Failed to load data.');
+      setErrorMsg('Failed to load dashboard data.');
     } finally {
       setRefreshing(false);
     }
@@ -103,12 +122,10 @@ const WorkerDashboard = ({ navigation }) => {
   });
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       fetchData();
     }, [fetchData])
   );
-
-
 
   useEffect(() => {
     if (socket) {
@@ -134,10 +151,13 @@ const WorkerDashboard = ({ navigation }) => {
         Alert.alert(
           '🎉 Quote Accepted!',
           `You've been hired for Job #${data.jobId.slice(-4)}!\nAmount: ₹${data.amount}\nArrival OTP: ${data.arrivalOtp}`,
-          [{ text: 'View Job', onPress: () => {
-             fetchData();
-             navigation.navigate('WorkerActiveJob', { jobId: data.jobId });
-          }}]
+          [{ 
+            text: 'View Job', 
+            onPress: () => {
+              fetchData();
+              navigation.navigate('WorkerActiveJob', { jobId: data.jobId });
+            }
+          }]
         );
       };
 
@@ -151,10 +171,26 @@ const WorkerDashboard = ({ navigation }) => {
     }
   }, [socket, isOnline, fetchData, navigation]);
 
-  const styles = createStyles(theme, isDarkMode);
+  // Derive active categories with populated titles
+  const activeCategories = useMemo(() => {
+    const rawServices = user?.services?.length > 0 ? user.services : [];
+    return rawServices.map(s => {
+      const catId = s.category?._id || s.category;
+      const fullCat = allCategories.find(c => c._id === catId);
+      return {
+        ...s,
+        resolvedName: s.categoryName || fullCat?.name || s.category?.name || 'Service Category',
+        resolvedImage: fullCat?.imageUrl || s.category?.imageUrl || null,
+        subCount: s.subcategories?.length || 0,
+      };
+    });
+  }, [user?.services, allCategories]);
 
-  // Derive active categories
-  const activeCategories = user?.services?.length > 0 ? user.services : [];
+  // Subscription calculation
+  const expiryDate = user?.subscription?.expiryDate;
+  const diffTime = expiryDate ? new Date(expiryDate).getTime() - new Date().getTime() : 0;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const isPremium = diffDays > 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -163,206 +199,262 @@ const WorkerDashboard = ({ navigation }) => {
       <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       
       <WorkerBalanceCard 
-         balance={walletBalance} 
-         onTopUp={() => navigation.navigate('Earnings')} 
-         onWithdraw={() => navigation.navigate('Earnings')} 
+        balance={walletBalance} 
+        onTopUp={() => navigation.navigate('Earnings')} 
+        onWithdraw={() => navigation.navigate('Earnings')} 
       />
 
       <ScrollView 
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={theme.colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={['#6C47FF']} tintColor="#6C47FF" />}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Duty Status & Dark Mode Toggle */}
-        <View style={styles.dutyStatusRow}>
-          <View>
-            <Text style={styles.sectionTitle}>Duty Status</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-              <View style={[styles.statusDot, { backgroundColor: isOnline ? '#10b981' : theme.colors.textDim }]} />
-              <Text style={[styles.statusText, { color: isOnline ? '#10b981' : theme.colors.textDim }]}>
-                {isOnline ? 'You are Online' : 'You are Offline'}
+        {/* ═══════════════════════════════════════
+            DUTY STATUS ROW
+        ═══════════════════════════════════════ */}
+        <View style={styles.dutyCard}>
+          <View style={styles.dutyLeft}>
+            <View style={[styles.dutyStatusPill, isOnline ? styles.dutyPillOnline : styles.dutyPillOffline]}>
+              <View style={[styles.dutyPulseDot, { backgroundColor: isOnline ? '#10B981' : '#94A3B8' }]} />
+              <Text style={[styles.dutyPillText, { color: isOnline ? '#059669' : '#64748B' }]}>
+                {isOnline ? 'Online' : 'Offline'}
               </Text>
             </View>
+            <Text style={styles.dutySubText}>
+              {isOnline ? 'Ready & receiving customer job alerts' : 'Turn on duty to start receiving jobs'}
+            </Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginRight: 8, fontWeight: '500' }}>Dark Mode</Text>
+
+          <View style={styles.dutyRight}>
             <Switch
-              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-              thumbColor={'#ffffff'}
-              onValueChange={toggleTheme}
-              value={isDarkMode}
+              trackColor={{ false: isDarkMode ? '#334155' : '#E2E8F0', true: '#6C47FF' }}
+              thumbColor={'#FFFFFF'}
+              onValueChange={handleToggleOnline}
+              value={isOnline}
             />
           </View>
         </View>
 
-        {/* 4-Item Stats Grid */}
+        {/* ═══════════════════════════════════════
+            4-ITEM STATS GRID (FIXED TYPOGRAPHY)
+        ═══════════════════════════════════════ */}
         <View style={styles.statsGrid}>
-           <View style={styles.statCard}>
-              <View style={[styles.statIconWrapper, { backgroundColor: '#6C47FF15' }]}>
-                <Briefcase size={20} color="#6C47FF" />
-              </View>
-              <Text style={styles.statValue}>{stats.todayJobs}</Text>
-              <Text style={styles.statLabel}>Today's Jobs</Text>
-           </View>
-           
-           <View style={styles.statCard}>
-              <View style={[styles.statIconWrapper, { backgroundColor: '#10b98115' }]}>
-                <CheckCircle size={20} color="#10b981" />
-              </View>
-              <Text style={styles.statValue}>{stats.completed}</Text>
-              <Text style={styles.statLabel}>Completed</Text>
-           </View>
-           
-           <View style={styles.statCard}>
-              <View style={[styles.statIconWrapper, { backgroundColor: '#f59e0b15' }]}>
-                <Clock size={20} color="#f59e0b" />
-              </View>
-              <Text style={styles.statValue}>{stats.inProgress}</Text>
-              <Text style={styles.statLabel}>In Progress</Text>
-           </View>
-           
-           <View style={styles.statCard}>
-              <View style={[styles.statIconWrapper, { backgroundColor: '#ef444415' }]}>
-                <XCircle size={20} color="#ef4444" />
-              </View>
-              <Text style={styles.statValue}>{stats.cancelled}</Text>
-              <Text style={styles.statLabel}>Cancelled</Text>
-           </View>
+          {/* Today's Jobs */}
+          <View style={[styles.statCard, { borderColor: isDarkMode ? '#334155' : '#EEF2F6' }]}>
+            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
+              <Briefcase size={18} color="#6C47FF" />
+            </View>
+            <Text style={styles.statValue}>{stats.todayJobs || 0}</Text>
+            <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Today</Text>
+          </View>
+          
+          {/* Completed */}
+          <View style={[styles.statCard, { borderColor: isDarkMode ? '#334155' : '#EEF2F6' }]}>
+            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+              <CheckCircle size={18} color="#10B981" />
+            </View>
+            <Text style={[styles.statValue, { color: '#10B981' }]}>{stats.completed || 0}</Text>
+            <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Completed</Text>
+          </View>
+          
+          {/* In Progress */}
+          <View style={[styles.statCard, { borderColor: isDarkMode ? '#334155' : '#EEF2F6' }]}>
+            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
+              <Clock size={18} color="#F59E0B" />
+            </View>
+            <Text style={[styles.statValue, { color: '#F59E0B' }]}>{stats.inProgress || 0}</Text>
+            <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>In Progress</Text>
+          </View>
+          
+          {/* Cancelled */}
+          <View style={[styles.statCard, { borderColor: isDarkMode ? '#334155' : '#EEF2F6' }]}>
+            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
+              <XCircle size={18} color="#EF4444" />
+            </View>
+            <Text style={[styles.statValue, { color: '#EF4444' }]}>{stats.cancelled || 0}</Text>
+            <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Cancelled</Text>
+          </View>
         </View>
 
-        {/* Premium Banner */}
-        {(() => {
-          const expiryDate = user?.subscription?.expiryDate;
-          const diffTime = expiryDate ? new Date(expiryDate).getTime() - new Date().getTime() : 0;
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          const isPremium = diffDays > 0;
+        {/* ═══════════════════════════════════════
+            PREMIUM PLAN STATUS BANNER
+        ═══════════════════════════════════════ */}
+        <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Earnings')}>
+          <LinearGradient
+            colors={isPremium ? ['#6C47FF', '#8B6FFF'] : ['#1E293B', '#334155']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.premiumBanner}
+          >
+            <View style={{ flex: 1 }}>
+              <View style={styles.premiumHeaderTag}>
+                <Sparkles size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.premiumHeaderTagText}>
+                  {isPremium ? 'PRO Plan Active' : 'Boost Your Earnings'}
+                </Text>
+              </View>
+              <Text style={styles.premiumTitle}>
+                {isPremium ? `${diffDays} Days Remaining` : 'Get Unlimited High-Paying Jobs'}
+              </Text>
+              <Text style={styles.premiumSub}>
+                {isPremium ? 'You have priority access to instant job alerts.' : 'Upgrade now to get priority job leads.'}
+              </Text>
+            </View>
 
-          if (isPremium) {
-            return (
-              <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Earnings')}>
-                <LinearGradient
-                  colors={['#6C47FF', '#8B6FFF']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.premiumBanner}
+            <View style={styles.premiumActionCircle}>
+              <ArrowRight size={18} color="#FFFFFF" />
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* ═══════════════════════════════════════
+            ACTIVE CATEGORIES LIST
+        ═══════════════════════════════════════ */}
+        <View style={styles.sectionHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Layers size={18} color="#6C47FF" style={{ marginRight: 6 }} />
+            <Text style={styles.sectionTitle}>Active Categories</Text>
+          </View>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center' }} 
+            onPress={() => navigation.navigate('Services')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.linkText}>Manage</Text>
+            <ChevronRight size={16} color="#6C47FF" />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.categoriesSlider}
+        >
+          {activeCategories.length > 0 ? (
+            activeCategories.map((cat, i) => {
+              const imageUri = cat.resolvedImage ? getImageUrl(cat.resolvedImage) : null;
+              
+              return (
+                <TouchableOpacity 
+                  key={i} 
+                  style={styles.categoryCard}
+                  onPress={() => navigation.navigate('Services')}
+                  activeOpacity={0.8}
                 >
-                   <View style={{ flex: 1 }}>
-                      <Text style={styles.premiumTitle}>Premium Active 🌟</Text>
-                      <Text style={styles.premiumSub}>You are getting priority job alerts.</Text>
-                      <View style={[styles.premiumBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                         <Text style={styles.premiumBtnText}>{diffDays} Days Remaining</Text>
-                      </View>
-                   </View>
-                   <Text style={{ fontSize: 60, alignSelf: 'flex-end', marginLeft: 10 }}>🎉</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            );
-          }
-
-          return (
-            <LinearGradient
-              colors={['#6C47FF', '#8B6FFF']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.premiumBanner}
-            >
-               <View style={{ flex: 1 }}>
-                  <Text style={styles.premiumTitle}>Boost Your Earnings</Text>
-                  <Text style={styles.premiumSub}>Go Premium and get more job opportunities</Text>
-                  <TouchableOpacity style={styles.premiumBtn} onPress={() => navigation.navigate('Earnings')}>
-                     <Text style={styles.premiumBtnText}>Upgrade Now</Text>
-                  </TouchableOpacity>
-               </View>
-               <Text style={{ fontSize: 60, alignSelf: 'flex-end', marginLeft: 10 }}>🚀</Text>
-            </LinearGradient>
-          );
-        })()}
-
-        {/* Active Categories */}
-        <View style={styles.sectionHeader}>
-           <Text style={styles.sectionTitle}>Active Categories</Text>
-           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => navigation.navigate('Services')}>
-              <Text style={styles.linkText}>Manage</Text>
-              <ChevronRight size={16} color="#6C47FF" />
-           </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, paddingHorizontal: 20 }}>
-           {activeCategories.length > 0 ? (
-             activeCategories.map((cat, i) => {
-                const categoryObj = cat.category || {};
-                const name = categoryObj.name || cat.categoryName || 'Category';
-                const imageUri = categoryObj.imageUrl ? getImageUrl(categoryObj.imageUrl) : null;
-                
-                return (
-                 <View key={i} style={styles.categoryCard}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                       {imageUri ? (
-                          <Image source={{ uri: imageUri }} style={{ width: 36, height: 36, marginRight: 12, borderRadius: 8 }} />
-                       ) : (
-                          <Text style={{ fontSize: 24, marginRight: 12 }}>🔧</Text>
-                       )}
-                       <View>
-                          <Text style={styles.catName}>{name}</Text>
-                          <Text style={styles.catSub}>{cat.subcategories?.length || 0} Subcategories</Text>
-                       </View>
+                  <View style={styles.categoryCardTop}>
+                    <View style={styles.catThumbnailBox}>
+                      {imageUri ? (
+                        <Image source={{ uri: imageUri }} style={styles.catThumbnail} resizeMode="cover" />
+                      ) : (
+                        <Sparkles size={20} color="#6C47FF" />
+                      )}
                     </View>
-                 </View>
-                );
-             })
-           ) : (
-             <View style={styles.categoryCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                   <Settings size={24} color={theme.colors.primary} style={{ marginRight: 12 }} />
-                   <View>
-                      <Text style={styles.catName}>No Categories</Text>
-                      <Text style={styles.catSub}>Tap manage to add</Text>
-                   </View>
-                </View>
-             </View>
-           )}
-           <View style={{ width: 40 }} />
+                    <View style={styles.catBadge}>
+                      <Text style={styles.catBadgeText}>{cat.subCount} Subcategories</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.catName} numberOfLines={2}>{cat.resolvedName}</Text>
+                  
+                  <View style={styles.catFooter}>
+                    <View style={[styles.catStatusDot, { backgroundColor: cat.isActive !== false ? '#10B981' : '#94A3B8' }]} />
+                    <Text style={styles.catStatusText}>{cat.isActive !== false ? 'Active' : 'Disabled'}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          ) : (
+            <TouchableOpacity 
+              style={[styles.categoryCard, styles.emptyCategoryCard]}
+              onPress={() => navigation.navigate('Services')}
+              activeOpacity={0.8}
+            >
+              <View style={styles.emptyCatIconBox}>
+                <Settings size={22} color="#6C47FF" />
+              </View>
+              <Text style={styles.emptyCatTitle}>Add Your Services</Text>
+              <Text style={styles.emptyCatSub}>Tap to configure skills & radius</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
-        {/* Recent Jobs */}
-        <View style={[styles.sectionHeader, { marginTop: 30 }]}>
-           <Text style={styles.sectionTitle}>Recent Jobs</Text>
-           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => navigation.navigate('Quotes')}>
-              <Text style={styles.linkText}>View All</Text>
-              <ChevronRight size={16} color="#6C47FF" />
-           </TouchableOpacity>
+        {/* ═══════════════════════════════════════
+            RECENT INCOMING JOBS
+        ═══════════════════════════════════════ */}
+        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Radio size={18} color="#6C47FF" style={{ marginRight: 6 }} />
+            <Text style={styles.sectionTitle}>Incoming Jobs</Text>
+          </View>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center' }} 
+            onPress={() => navigation.navigate('Quotes')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.linkText}>View Quotes</Text>
+            <ChevronRight size={16} color="#6C47FF" />
+          </TouchableOpacity>
         </View>
 
         {isOnline && availableJobs.length > 0 ? (
           availableJobs.map(job => (
-            <View key={job._id} style={styles.jobCard}>
-              <View style={styles.jobHeaderRow}>
-                 <View style={styles.newBadge}>
-                    <Text style={styles.newBadgeText}>NEW</Text>
-                 </View>
-                 <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.jobTitle} numberOfLines={1}>{job.category}</Text>
-                    <Text style={styles.jobLocation} numberOfLines={1}>
-                       📍 {job.addressDetails?.city || 'Local Area'}
-                    </Text>
-                 </View>
+            <TouchableOpacity 
+              key={job._id} 
+              style={styles.jobCard}
+              onPress={() => navigation.navigate('WorkerJobDetails', { job })}
+              activeOpacity={0.88}
+            >
+              <View style={styles.jobCardTop}>
+                <View style={styles.jobBadgeRow}>
+                  <View style={styles.newBadge}>
+                    <Text style={styles.newBadgeText}>NEW JOB</Text>
+                  </View>
+                  <Text style={styles.jobTimeText}>Today • {job.timeSlot || 'Flexible'}</Text>
+                </View>
+                
+                <Text style={styles.jobTitle} numberOfLines={1}>{job.category}</Text>
+                <Text style={styles.jobDesc} numberOfLines={2}>
+                  {job.description || 'Customer has requested service at their location.'}
+                </Text>
               </View>
-              <View style={styles.jobFooter}>
-                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <Text style={styles.jobTime}>⏱️ Today, {job.timeSlot}</Text>
-                    <Text style={styles.jobTime}>💰 ₹{job.description?.match(/\d+/) ? job.description.match(/\d+/)[0] : 'Offer'}</Text>
-                 </View>
-                 <TouchableOpacity style={styles.acceptBtn} onPress={() => navigation.navigate('WorkerJobDetails', { job })}>
-                    <Text style={styles.acceptBtnText}>Accept</Text>
-                 </TouchableOpacity>
+
+              <View style={styles.jobCardFooter}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <MapPin size={14} color="#6C47FF" style={{ marginRight: 4 }} />
+                  <Text style={styles.jobLocationText} numberOfLines={1}>
+                    {job.addressDetails?.city || job.location?.addressDetails?.city || 'Local Area'}
+                  </Text>
+                </View>
+
+                <View style={styles.jobAcceptPill}>
+                  <Text style={styles.jobAcceptText}>View & Quote →</Text>
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         ) : (
-          <View style={styles.emptyState}>
-            <Text style={{ fontSize: 40, marginBottom: 10 }}>{errorMsg ? '⚠️' : '📡'}</Text>
-            <Text style={styles.emptyStateText}>
-              {errorMsg || (!isOnline ? 'Go online to receive jobs.' : 'Waiting for new jobs near you...')}
+          <View style={styles.listeningRadarCard}>
+            <View style={styles.radarIconWrapper}>
+              <Radio size={32} color="#6C47FF" />
+            </View>
+            <Text style={styles.radarTitle}>
+              {errorMsg ? 'Action Required' : (!isOnline ? 'You Are Currently Offline' : 'Listening for Nearby Jobs...')}
             </Text>
+            <Text style={styles.radarSub}>
+              {errorMsg || (!isOnline 
+                ? 'Turn on duty status at the top to start receiving real-time job alerts from nearby customers.' 
+                : 'Customer job requests within your service broadcast radius will appear here instantly.')}
+            </Text>
+
+            {!isOnline ? (
+              <TouchableOpacity style={styles.radarActionBtn} onPress={() => handleToggleOnline(true)} activeOpacity={0.8}>
+                <Text style={styles.radarActionBtnText}>Go Online</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.radarActionBtn} onPress={() => navigation.navigate('Services')} activeOpacity={0.8}>
+                <Text style={styles.radarActionBtnText}>Adjust Service Radius</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -375,208 +467,392 @@ const WorkerDashboard = ({ navigation }) => {
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   scrollContent: {
-    paddingTop: 30,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
   },
-  dutyStatusRow: {
+
+  // Duty Status Card
+  dutyCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: theme.colors.card,
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     padding: 16,
-    borderRadius: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderRadius: 20,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#EEF2F6',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: theme.colors.text,
+  dutyLeft: {
+    flex: 1,
+    paddingRight: 12,
   },
-  statusDot: {
+  dutyStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  dutyPillOnline: {
+    backgroundColor: '#ECFDF5',
+  },
+  dutyPillOffline: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+  },
+  dutyPulseDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     marginRight: 6,
   },
-  statusText: {
-    fontSize: 13,
-    fontWeight: '600',
+  dutyPillText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
+  dutySubText: {
+    fontSize: 12,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+  },
+  dutyRight: {
+    paddingLeft: 8,
+  },
+
+  // 4-Item Stats Grid
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 16,
+    gap: 8,
   },
   statCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    padding: 12,
+    flex: 1,
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
     alignItems: 'center',
-    width: '23%',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderWidth: 1.2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   statIconWrapper: {
     width: 36,
     height: 36,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  statValue: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    textAlign: 'center',
+  },
+
+  // Premium Banner
+  premiumBanner: {
+    borderRadius: 22,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 22,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  premiumHeaderTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  premiumHeaderTagText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  premiumTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  premiumSub: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  premiumActionCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+
+  // Section Headers
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16.5,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+  },
+  linkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+
+  // Categories Horizontal Slider
+  categoriesSlider: {
+    gap: 12,
+    paddingRight: 16,
+  },
+  categoryCard: {
+    width: 170,
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     borderRadius: 18,
+    padding: 14,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#EEF2F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  categoryCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  catThumbnailBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  catThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  catBadge: {
+    backgroundColor: 'rgba(108, 71, 255, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  catBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#6C47FF',
+  },
+  catName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    marginBottom: 8,
+    minHeight: 36,
+  },
+  catFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  catStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  catStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+  },
+
+  emptyCategoryCard: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderStyle: 'dashed',
+  },
+  emptyCatIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(108, 71, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
   },
-  statValue: {
-    fontSize: 18,
+  emptyCatTitle: {
+    fontSize: 13,
     fontWeight: '800',
-    color: theme.colors.text,
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: theme.colors.textDim,
+    color: '#6C47FF',
     textAlign: 'center',
   },
-  premiumBanner: {
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 30,
-    shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  premiumTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  premiumSub: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13,
-    marginBottom: 16,
-    lineHeight: 18,
-  },
-  premiumBtn: {
-    backgroundColor: '#3D2C7D',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  premiumBtnText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  linkText: {
-    color: '#6C47FF',
-    fontSize: 13,
-    fontWeight: '600',
-    marginRight: 2,
-  },
-  categoryCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    padding: 16,
-    marginRight: 12,
-    minWidth: 160,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  catName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 2,
-  },
-  catSub: {
+  emptyCatSub: {
     fontSize: 11,
-    color: theme.colors.textDim,
-    fontWeight: '500',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    textAlign: 'center',
+    marginTop: 2,
   },
+
+  // Job Cards
   jobCard: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     borderRadius: 20,
     padding: 16,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#EEF2F6',
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  jobHeaderRow: {
+  jobCardTop: {
+    marginBottom: 12,
+  },
+  jobBadgeRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   newBadge: {
-    backgroundColor: '#10b98115',
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   newBadgeText: {
-    color: '#10b981',
     fontSize: 10,
     fontWeight: '800',
+    color: '#059669',
+  },
+  jobTimeText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
   },
   jobTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
-    color: theme.colors.text,
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
     marginBottom: 4,
   },
-  jobLocation: {
-    fontSize: 12,
-    color: theme.colors.textDim,
+  jobDesc: {
+    fontSize: 12.5,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    lineHeight: 18,
   },
-  jobFooter: {
+  jobCardFooter: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? '#334155' : '#F1F5F9',
   },
-  jobTime: {
+  jobLocationText: {
     fontSize: 12,
-    color: theme.colors.textMuted,
-    fontWeight: '500',
+    fontWeight: '600',
+    color: isDarkMode ? '#CBD5E1' : '#475569',
+    flex: 1,
   },
-  acceptBtn: {
+  jobAcceptPill: {
     backgroundColor: '#6C47FF',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
-  acceptBtnText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
+  jobAcceptText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-  emptyState: {
-    padding: 30,
+
+  // Empty State / Radar Card
+  listeningRadarCard: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 22,
+    padding: 24,
     alignItems: 'center',
-    backgroundColor: theme.colors.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#EEF2F6',
   },
-  emptyStateText: {
-    color: theme.colors.textDim,
+  radarIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(108, 71, 255, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  radarTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    marginBottom: 6,
     textAlign: 'center',
-    lineHeight: 22,
-    fontWeight: '500',
+  },
+  radarSub: {
+    fontSize: 12.5,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  radarActionBtn: {
+    backgroundColor: 'rgba(108, 71, 255, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(108, 71, 255, 0.25)',
+  },
+  radarActionBtnText: {
+    color: '#6C47FF',
+    fontSize: 13,
+    fontWeight: '800',
   }
 });
 
