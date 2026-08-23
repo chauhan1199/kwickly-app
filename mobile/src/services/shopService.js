@@ -119,4 +119,10 @@ export const shopService = {
 
   uploadBase64: (data) =>
     withErrorHandling(() => api.post('/chat/upload-base64', data)),
+
+  uploadKycDocument: (data) =>
+    withErrorHandling(() => api.post('/shops/my/kyc/documents', data)),
+
+  removeKycDocument: (index) =>
+    withErrorHandling(() => api.delete(`/shops/my/kyc/documents/${index}`)),
 };

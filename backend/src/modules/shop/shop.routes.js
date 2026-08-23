@@ -12,6 +12,8 @@ router.post('/',                                    authMiddleware, validate(cre
 router.get('/my',                                   authMiddleware, authorize('SHOP'), ctrl.getMyShop);
 router.patch('/my',                                 authMiddleware, authorize('SHOP'), upload.single('logo'), validate(updateShopSchema), ctrl.updateMyShop);
 router.patch('/my/owner',                           authMiddleware, authorize('SHOP'), validate(updateOwnerSchema), ctrl.updateOwnerName);
+router.post('/my/kyc/documents',                    authMiddleware, authorize('SHOP'), upload.single('document'), ctrl.uploadKycDocument);
+router.delete('/my/kyc/documents/:docIndex',        authMiddleware, authorize('SHOP'), ctrl.removeKycDocument);
 router.post('/my/payout-methods',                   authMiddleware, authorize('SHOP'), validate(addPayoutMethodSchema), ctrl.addPayoutMethod);
 router.post('/my/withdraw',                         authMiddleware, authorize('SHOP'), validate(withdrawSchema), ctrl.requestWithdrawal);
 router.patch('/my/payout-methods/:methodId/primary',authMiddleware, authorize('SHOP'), ctrl.setPrimaryPayout);

@@ -721,3 +721,148 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
 
     return successResponse(res, { txn, payout, newBalance: updatedShop.wallet.balance }, 'Withdrawal requested successfully', StatusCodes.CREATED);
 });
+
+/**
+ * POST /api/v1/shops/my/kyc/documents
+ */
+exports.uploadKycDocument = catchAsync(async (req, res) => {
+    const { documentType, documentName, documentBase64, documentUrl } = req.body;
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    let docUrl = null;
+    let publicId = null;
+
+    if (req.file) {
+        const { url, public_id } = await uploadImage(req.file.buffer, 'kwickly/shop_kyc');
+        docUrl = url;
+        publicId = public_id;
+    } else if (documentBase64) {
+        const base64Data = documentBase64.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(base64Data, 'base64');
+        const { url, public_id } = await uploadImage(buffer, 'kwickly/shop_kyc');
+        docUrl = url;
+        publicId = public_id;
+    } else if (documentUrl) {
+        docUrl = documentUrl;
+    }
+
+    if (!docUrl) {
+        return errorResponse(res, 'No document file provided', StatusCodes.BAD_REQUEST);
+    }
+
+    const docType = documentType || 'OTHER';
+    const friendlyName = documentName || `${docType} Document`;
+
+    if (!shop.kyc) shop.kyc = { status: 'PENDING', documents: [] };
+    if (!shop.kyc.documents) shop.kyc.documents = [];
+
+    shop.kyc.documents.push({
+        name: friendlyName,
+        docType: docType,
+        url: docUrl,
+        public_id: publicId,
+        uploadedAt: new Date()
+    });
+
+    shop.kyc.status = 'PENDING';
+    shop.kyc.rejectReason = null;
+    shop.markModified('kyc');
+    await shop.save();
+
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
+    await delCache('admin_shops_list');
+    await delCache('admin_badge_counts');
+
+    const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
+    triggerDashboardUpdate();
+
+    notifyUser({
+        userId: req.user._id,
+        title: 'KYC Document Uploaded',
+        message: `Your "${friendlyName}" document has been submitted for admin verification.`,
+        action: 'KYC_UPLOAD',
+        entityType: 'SHOP',
+        entityId: shop._id,
+        targetRole: 'SHOP_OWNER'
+    });
+
+    return successResponse(res, shop.kyc, 'KYC document uploaded successfully', StatusCodes.CREATED);
+});
+
+/**
+ * DELETE /api/v1/shops/my/kyc/documents/:docIndex
+ */
+exports.removeKycDocument = catchAsync(async (req, res) => {
+    const { docIndex } = req.params;
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    if (!shop.kyc?.documents || !shop.kyc.documents[docIndex]) {
+        return errorResponse(res, 'Document not found', StatusCodes.NOT_FOUND);
+    }
+
+    const doc = shop.kyc.documents[docIndex];
+    if (doc.url) cleanupImage(doc.url);
+
+    shop.kyc.documents.splice(Number(docIndex), 1);
+    shop.markModified('kyc');
+    await shop.save();
+
+    return successResponse(res, shop.kyc, 'Document removed successfully');
+});
+
+/**
+ * PATCH /api/v1/shops/:id/kyc
+ * Admin review shop KYC
+ */
+exports.reviewShopKyc = catchAsync(async (req, res) => {
+    const { status, rejectReason } = req.body;
+    if (!['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
+        return errorResponse(res, 'Invalid KYC status', StatusCodes.BAD_REQUEST);
+    }
+
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    shop.kyc.status = status;
+    shop.kyc.rejectReason = status === 'REJECTED' ? (rejectReason || 'Document details did not match') : null;
+    shop.markModified('kyc');
+    await shop.save();
+
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${shop.ownerId}`);
+    await delCache('admin_shops_list');
+
+    const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
+    triggerDashboardUpdate();
+
+    notifyUser({
+        userId: shop.ownerId,
+        title: status === 'APPROVED' ? 'Shop KYC Approved ✅' : 'Shop KYC Rejected ✕',
+        message: status === 'APPROVED'
+            ? 'Your shop verification is complete. You can now accept online orders!'
+            : `Your KYC verification was rejected: ${shop.kyc.rejectReason}. Please re-upload valid documents.`,
+        action: 'KYC_REVIEW',
+        entityType: 'SHOP',
+        entityId: shop._id,
+        targetRole: 'SHOP_OWNER'
+    });
+
+    return successResponse(res, shop, 'Shop KYC status updated');
+});
+
+/**
+ * PATCH /api/v1/shops/:id/toggle
+ * Admin toggle shop active / verified status
+ */
+exports.toggleShop = catchAsync(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    shop.isOnline = !shop.isOnline;
+    await shop.save();
+
+    return successResponse(res, shop, `Shop is now ${shop.isOnline ? 'Online' : 'Offline'}`);
+});
