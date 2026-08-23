@@ -97,6 +97,24 @@ const WorkerDashboard = ({ navigation }) => {
   }, []);
 
   const handleToggleOnline = useCallback(async (value) => {
+    if (value) {
+      // Client-side instant check for KYC
+      const kycStatus = user?.kyc?.status || 'PENDING';
+      if (kycStatus !== 'APPROVED') {
+        Alert.alert(
+          'KYC Verification Required',
+          kycStatus === 'REJECTED'
+            ? `Your KYC was rejected (${user?.kyc?.rejectReason || 'Invalid documents'}). Please re-upload in Profile > KYC.`
+            : 'Your KYC documents are under admin review. You can go online once approved.',
+          [
+            { text: 'Later', style: 'cancel' },
+            { text: 'Open KYC', onPress: () => navigation.navigate('Profile') }
+          ]
+        );
+        return;
+      }
+    }
+
     setIsOnline(value);
     try {
       const res = await workerService.setOnlineStatus(value);
@@ -110,9 +128,32 @@ const WorkerDashboard = ({ navigation }) => {
     } catch (e) {
       setIsOnline(!value);
       const errMsg = e.response?.data?.message || e.message || 'Could not update online status';
-      Alert.alert('Duty Status Alert', errMsg);
+      
+      if (errMsg.includes('Subscription Expired') || errMsg.includes('subscription') || errMsg.includes('trial')) {
+        Alert.alert('Subscription Required', errMsg, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'View Plans', onPress: () => navigation.navigate('Earnings') }
+        ]);
+      } else if (errMsg.includes('Minimum Wallet') || errMsg.includes('balance')) {
+        Alert.alert('Low Wallet Balance', errMsg, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Add Money', onPress: () => navigation.navigate('Earnings') }
+        ]);
+      } else if (errMsg.includes('services') || errMsg.includes('subcategories')) {
+        Alert.alert('Services Incomplete', errMsg, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Setup Services', onPress: () => navigation.navigate('Services') }
+        ]);
+      } else if (errMsg.includes('Bank') || errMsg.includes('UPI')) {
+        Alert.alert('Payout Setup Required', errMsg, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Add Bank / UPI', onPress: () => navigation.navigate('Profile') }
+        ]);
+      } else {
+        Alert.alert('Duty Status Alert', errMsg);
+      }
     }
-  }, [fetchData, fetchUser]);
+  }, [fetchData, fetchUser, user, navigation]);
 
   useEffect(() => {
     const listener = DeviceEventEmitter.addListener('toggleDutyStatus', () => {
@@ -138,43 +179,21 @@ const WorkerDashboard = ({ navigation }) => {
         if (!isOnline) return;
         setAvailableJobs(prev => {
           if (prev.find(j => j._id === jobAlert.jobId)) return prev;
-          return [{
-            _id: jobAlert.jobId,
-            category: jobAlert.category,
-            description: jobAlert.description,
-            location: jobAlert.location,
-            addressDetails: jobAlert.location?.addressDetails,
-            preferredDate: jobAlert.preferredDate,
-            timeSlot: jobAlert.timeSlot,
-            customerId: jobAlert.customerId,
-            createdAt: new Date()
-          }, ...prev];
+          return [jobAlert, ...prev];
         });
       };
 
-      const handleQuoteAccepted = (data) => {
-        Alert.alert(
-          '🎉 Quote Accepted!',
-          `You've been hired for Job #${data.jobId.slice(-4)}!\nAmount: ₹${data.amount}\nArrival OTP: ${data.arrivalOtp}`,
-          [{ 
-            text: 'View Job', 
-            onPress: () => {
-              fetchData();
-              navigation.navigate('WorkerActiveJob', { jobId: data.jobId });
-            }
-          }]
-        );
-      };
-
-      socket.on('NEW_JOB_ALERT', handleNewJob);
-      socket.on('QUOTE_ACCEPTED', handleQuoteAccepted);
+      socket.on('NEW_JOB_BROADCAST', handleNewJob);
+      socket.on('JOB_ACCEPTED', (data) => {
+        setAvailableJobs(prev => prev.filter(j => j._id !== data.jobId));
+      });
 
       return () => {
-        socket.off('NEW_JOB_ALERT', handleNewJob);
-        socket.off('QUOTE_ACCEPTED', handleQuoteAccepted);
+        socket.off('NEW_JOB_BROADCAST', handleNewJob);
+        socket.off('JOB_ACCEPTED');
       };
     }
-  }, [socket, isOnline, fetchData, navigation]);
+  }, [socket, isOnline]);
 
   // Derive active categories with populated titles from workerServices state
   const activeCategories = useMemo(() => {
@@ -191,11 +210,21 @@ const WorkerDashboard = ({ navigation }) => {
     });
   }, [workerServices, user?.services, allCategories]);
 
-  // Subscription calculation
+  // Subscription calculation (30 days admin free trial)
+  const registrationDate = user?.createdAt ? new Date(user.createdAt) : new Date();
+  const trialDays = 30;
+  const trialEndDate = new Date(registrationDate.getTime() + trialDays * 86400000);
+  const trialDiffTime = trialEndDate.getTime() - new Date().getTime();
+  const trialDaysLeft = Math.ceil(trialDiffTime / (1000 * 60 * 60 * 24));
+  const isTrialActive = trialDaysLeft > 0;
+
   const expiryDate = user?.subscription?.expiryDate;
-  const diffTime = expiryDate ? new Date(expiryDate).getTime() - new Date().getTime() : 0;
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const isPremium = diffDays > 0;
+  const paidDiffTime = expiryDate ? new Date(expiryDate).getTime() - new Date().getTime() : 0;
+  const paidDaysLeft = Math.ceil(paidDiffTime / (1000 * 60 * 60 * 24));
+  const isPaidActive = paidDaysLeft > 0;
+
+  const isSubscriptionValid = isTrialActive || isPaidActive;
+  const activeDaysRemaining = isPaidActive ? paidDaysLeft : (isTrialActive ? trialDaysLeft : 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -286,7 +315,13 @@ const WorkerDashboard = ({ navigation }) => {
         ═══════════════════════════════════════ */}
         <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Earnings')}>
           <LinearGradient
-            colors={isPremium ? ['#6C47FF', '#8B6FFF'] : ['#1E293B', '#334155']}
+            colors={
+              isPaidActive 
+                ? ['#6C47FF', '#8B6FFF'] 
+                : isTrialActive 
+                ? ['#0D9488', '#14B8A6'] 
+                : ['#EF4444', '#DC2626']
+            }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.premiumBanner}
@@ -295,14 +330,22 @@ const WorkerDashboard = ({ navigation }) => {
               <View style={styles.premiumHeaderTag}>
                 <Sparkles size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
                 <Text style={styles.premiumHeaderTagText}>
-                  {isPremium ? 'PRO Plan Active' : 'Boost Your Earnings'}
+                  {isPaidActive ? 'PRO Plan Active' : isTrialActive ? 'Free Trial Active' : 'Subscription Expired ⚠️'}
                 </Text>
               </View>
               <Text style={styles.premiumTitle}>
-                {isPremium ? `${diffDays} Days Remaining` : 'Get Unlimited High-Paying Jobs'}
+                {isPaidActive 
+                  ? `${paidDaysLeft} Days Remaining` 
+                  : isTrialActive 
+                  ? `${trialDaysLeft} Days Remaining in Free Trial` 
+                  : 'View-Only Mode (Plan Required)'}
               </Text>
               <Text style={styles.premiumSub}>
-                {isPremium ? 'You have priority access to instant job alerts.' : 'Upgrade now to get priority job leads.'}
+                {isPaidActive 
+                  ? 'Priority access to instant customer job requests.' 
+                  : isTrialActive 
+                  ? 'Free trial active from registration. ₹100 freeze balance required after trial.' 
+                  : 'Subscription expired. Tap to activate plan & go online to accept jobs.'}
               </Text>
             </View>
 

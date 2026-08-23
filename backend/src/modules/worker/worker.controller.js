@@ -275,11 +275,32 @@ exports.toggleOnlineStatus = catchAsync(async (req, res) => {
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
     if (isOnline) {
-        // 1. Check free trial / subscription validity
+        // 1. Mandatory KYC Approval Guard
+        const kycStatus = user.kyc?.status || 'PENDING';
+        if (kycStatus !== 'APPROVED') {
+            if (kycStatus === 'REJECTED') {
+                return errorResponse(res, `KYC Verification Rejected (${user.kyc?.rejectReason || 'Invalid or unclear documents'}). Please re-upload your document in Profile > KYC to go online.`, StatusCodes.FORBIDDEN);
+            }
+            return errorResponse(res, 'KYC Approval Required: Your documents are currently under admin review. You can go online once your KYC is approved.', StatusCodes.FORBIDDEN);
+        }
+
+        // 2. Mandatory Profile Details Guard (Services & Payout destination)
+        const hasActiveServices = user.services && user.services.length > 0 && 
+            user.services.some(s => s.isActive !== false && s.subcategories && s.subcategories.length > 0);
+        if (!hasActiveServices) {
+            return errorResponse(res, 'Please configure your services and select subcategories in Profile > My Services before going online.', StatusCodes.BAD_REQUEST);
+        }
+
+        const hasPayoutConfigured = (user.wallet?.bankDetails?.accountNumber) || (user.wallet?.upiId && user.wallet.upiId.trim());
+        if (!hasPayoutConfigured) {
+            return errorResponse(res, 'Please configure your Bank Account or UPI ID in Profile > Bank Account & UPI before going online.', StatusCodes.BAD_REQUEST);
+        }
+
+        // 3. Admin-Managed Platform Settings (Trial duration & Minimum frozen wallet balance)
         const SettingsService = require('../settings/settings.service');
         const settings = await SettingsService.getAppSettings();
-        const trialDays = settings?.subscription?.freeTrialDays || 14;
-        const minBalance = settings?.wallet?.minimumBalance || 100;
+        const trialDays = Number(settings?.subscription?.freeTrialDays || 30);
+        const minBalance = Number(settings?.wallet?.minimumBalance !== undefined ? settings.wallet.minimumBalance : 100);
 
         const registrationDate = user.createdAt || new Date();
         const trialEndDate = new Date(registrationDate.getTime() + trialDays * 86400000);
@@ -287,21 +308,21 @@ exports.toggleOnlineStatus = catchAsync(async (req, res) => {
         const isSubscriptionActive = user.subscription?.expiryDate && new Date(user.subscription.expiryDate) > new Date();
 
         if (!isTrialActive && !isSubscriptionActive) {
-            return errorResponse(res, 'Your free trial has expired. Please activate a subscription plan to go online and receive jobs.', StatusCodes.PAYMENT_REQUIRED);
+            return errorResponse(res, 'Subscription Expired: You are currently in view-only mode. Please activate a subscription plan to go online and receive jobs.', StatusCodes.PAYMENT_REQUIRED);
         }
 
-        // 2. Check minimum frozen balance (₹100) after free trial
-        if (!isTrialActive && isSubscriptionActive) {
-            const currentBalance = user.wallet?.balance || 0;
+        // Minimum freeze balance (₹100) after free trial
+        if (!isTrialActive) {
+            const currentBalance = Number(user.wallet?.balance || 0);
             if (currentBalance < minBalance) {
-                return errorResponse(res, `A minimum wallet balance of ₹${minBalance} is required to go online. Please top up your wallet.`, StatusCodes.BAD_REQUEST);
+                return errorResponse(res, `Minimum Wallet Balance: A minimum balance of ₹${minBalance} is required to go online. Please top up your wallet.`, StatusCodes.BAD_REQUEST);
             }
         }
 
-        // 3. Ensure activeLocation is populated (if missing, auto-fallback to user's primary address or default)
+        // 4. Ensure active working location is present
         if (!user.activeLocation?.coordinates || (user.activeLocation.coordinates[0] === 0 && user.activeLocation.coordinates[1] === 0)) {
             const primaryAddr = user.addresses?.find(a => a.isPrimary) || user.addresses?.[0];
-            const coords = primaryAddr?.location?.coordinates || [72.574115, 23.1222453];
+            const coords = primaryAddr?.location?.coordinates || [72.5714, 23.0225];
             user.activeLocation = {
                 type: 'Point',
                 coordinates: coords,

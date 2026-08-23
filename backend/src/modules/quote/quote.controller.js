@@ -43,18 +43,18 @@ exports.placeQuote = catchAsync(async (req, res) => {
     // Fallback: Use freeTrialDays from registration
     const SettingsService = require('../settings/settings.service');
     const settings = await SettingsService.getAppSettings();
-    const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+    const freeTrialDays = Number(settings?.subscription?.freeTrialDays || 30);
     const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
 
     const isSubscriptionValid = isTrialActive || isPaidSubActive || isFallbackTrialActive;
     if (!isSubscriptionValid) {
-        return errorResponse(res, 'Subscription expired. Please renew to place quotes.', StatusCodes.PAYMENT_REQUIRED);
+        return errorResponse(res, 'Subscription expired. Please renew your subscription to place quotes.', StatusCodes.PAYMENT_REQUIRED);
     }
 
-    // Guard: Minimum wallet balance (from cache or DB)
-    const minBalance = settings?.wallet?.minimumBalance || 100;
+    // Guard: Minimum wallet balance (from admin settings)
+    const minBalance = Number(settings?.wallet?.minimumBalance !== undefined ? settings.wallet.minimumBalance : 100);
     if ((worker.wallet?.balance || 0) < minBalance) {
-        return errorResponse(res, `Minimum wallet balance of â‚¹${minBalance} required to quote.`, StatusCodes.PAYMENT_REQUIRED);
+        return errorResponse(res, `Minimum wallet balance of ₹${minBalance} required to quote.`, StatusCodes.PAYMENT_REQUIRED);
     }
 
     const job = await Job.findById(jobId);
