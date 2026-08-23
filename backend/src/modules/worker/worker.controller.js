@@ -47,42 +47,51 @@ exports.getStats = catchAsync(async (req, res) => {
 });
 
 exports.updateKyc = catchAsync(async (req, res) => {
-    const { documentType } = req.body;
-    const validDocTypes = ['AADHAR', 'PAN', 'LICENSE', 'OTHER'];
+    const { documentType, documentName } = req.body;
+    const validDocTypes = ['AADHAR', 'PAN', 'LICENSE', 'VOTER_ID', 'DRIVING_LICENSE', 'PASSPORT', 'OTHER'];
     const validatedDocType = validDocTypes.includes(documentType) ? documentType : 'OTHER';
     const user = await Customer.findById(req.user._id);
 
+    let docUrl = null;
+    let publicId = null;
+
     if (req.file) {
         const { url, public_id } = await uploadImage(req.file.buffer, 'kwickly/kyc');
-        user.kyc.documents.push({
-            type: validatedDocType,
-            url,
-            public_id
-        });
-        user.kyc.status = 'PENDING';
-        await user.save();
+        docUrl = url;
+        publicId = public_id;
     } else if (req.body.documentBase64) {
         const base64Data = req.body.documentBase64.replace(/^data:image\/\w+;base64,/, "");
         const buffer = Buffer.from(base64Data, 'base64');
         const { url, public_id } = await uploadImage(buffer, 'kwickly/kyc');
-        user.kyc.documents.push({
-            type: validatedDocType,
-            url,
-            public_id
-        });
-        user.kyc.status = 'PENDING';
-        await user.save();
+        docUrl = url;
+        publicId = public_id;
     } else if (req.body.documentUrl) {
-        user.kyc.documents.push({
-            type: validatedDocType,
-            url: req.body.documentUrl
-        });
-        user.kyc.status = 'PENDING';
-        await user.save();
+        docUrl = req.body.documentUrl;
     }
+
+    if (!docUrl) {
+        return errorResponse(res, 'No document provided', StatusCodes.BAD_REQUEST);
+    }
+
+    const docFriendlyName = documentName || `${validatedDocType} Document`;
+    user.kyc.documents.push({
+        type: validatedDocType,
+        name: docFriendlyName,
+        docType: validatedDocType,
+        url: docUrl,
+        public_id: publicId,
+        uploadedAt: new Date()
+    });
+    user.kyc.status = 'PENDING';
+    user.kyc.rejectReason = null;
+    await user.save();
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+    await delCache('admin_workers_list');
+    await delCache('admin_badge_counts');
+    triggerDashboardUpdate();
+
     return successResponse(res, user.kyc, 'KYC document uploaded successfully');
 });
 

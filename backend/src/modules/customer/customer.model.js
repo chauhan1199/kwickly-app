@@ -23,7 +23,9 @@ const CustomerSchema = new mongoose.Schema({
         status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
         rejectReason: { type: String },
         documents: [{
-            type: { type: String, enum: ['AADHAR', 'PAN', 'LICENSE', 'OTHER'] },
+            type: { type: String, enum: ['AADHAR', 'PAN', 'LICENSE', 'VOTER_ID', 'DRIVING_LICENSE', 'PASSPORT', 'OTHER'] },
+            name: { type: String },
+            docType: { type: String },
             url: { type: String },
             public_id: { type: String },
             uploadedAt: { type: Date, default: Date.now }

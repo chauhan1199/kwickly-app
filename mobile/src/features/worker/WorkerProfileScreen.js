@@ -46,13 +46,18 @@ import {
   CheckCircle2,
   Plus,
   Compass,
-  Check
+  Check,
+  Eye,
+  FileText,
+  AlertCircle,
+  Clock
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { getImageUrl } from '../../utils/helpers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ADDR_LABELS = ['Home', 'Work', 'Office', 'Shop', 'Other'];
+const DOC_TYPES = ['AADHAR', 'PAN', 'LICENSE', 'VOTER_ID', 'PASSPORT'];
 
 const WorkerProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -76,8 +81,9 @@ const WorkerProfileScreen = ({ navigation }) => {
   const [upiId, setUpiId] = useState('');
 
   // KYC state
-  const [docUrl, setDocUrl] = useState('');
+  const [docUrl, setDocUrl] = useState(null);
   const [kycType, setKycType] = useState('AADHAR');
+  const [previewImageModal, setPreviewImageModal] = useState(null);
 
   // Address states
   const [addressList, setAddressList] = useState([]);
@@ -478,7 +484,7 @@ const WorkerProfileScreen = ({ navigation }) => {
   };
 
   // ═══════════════════════════════════════════
-  // 4. KYC UPLOAD
+  // 4. KYC DOCUMENT UPLOAD & MANAGEMENT
   // ═══════════════════════════════════════════
   const pickKycImage = () => {
     Alert.alert(
@@ -488,7 +494,7 @@ const WorkerProfileScreen = ({ navigation }) => {
         {
           text: '📷 Take Photo (Camera)',
           onPress: async () => {
-            const options = { mediaType: 'photo', quality: 0.8, includeBase64: true };
+            const options = { mediaType: 'photo', quality: 0.8, includeBase64: true, maxWidth: 1200, maxHeight: 1200 };
             const response = await launchCamera(options);
             if (!response.didCancel && !response.errorCode && response.assets?.length > 0) {
               setDocUrl(response.assets[0]);
@@ -498,7 +504,7 @@ const WorkerProfileScreen = ({ navigation }) => {
         {
           text: '🖼️ Choose from Gallery',
           onPress: async () => {
-            const options = { mediaType: 'photo', quality: 0.8, includeBase64: true };
+            const options = { mediaType: 'photo', quality: 0.8, includeBase64: true, maxWidth: 1200, maxHeight: 1200 };
             const response = await launchImageLibrary(options);
             if (!response.didCancel && !response.errorCode && response.assets?.length > 0) {
               setDocUrl(response.assets[0]);
@@ -519,18 +525,46 @@ const WorkerProfileScreen = ({ navigation }) => {
     try {
       const payload = {
         documentType: kycType,
+        documentName: `${kycType} Card / ID`,
         documentBase64: `data:${docUrl.type || 'image/jpeg'};base64,${docUrl.base64}`
       };
       await workerService.updateKyc(payload);
-      Alert.alert('Success 🎉', 'KYC document uploaded for admin verification!');
-      setActiveModal(null);
-      setDocUrl('');
+      Alert.alert('Success 🎉', `${kycType} document uploaded for admin verification!`);
+      setDocUrl(null);
       fetchProfile();
+      if (fetchUser) fetchUser('WORKER');
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to upload KYC document.');
+      Alert.alert('Upload Error', error.response?.data?.message || 'Failed to upload KYC document.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleRemoveKyc = (index, docName) => {
+    Alert.alert(
+      'Delete Document',
+      `Are you sure you want to remove ${docName || 'this document'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setSaving(true);
+            try {
+              await workerService.removeKycDocument(index);
+              fetchProfile();
+              if (fetchUser) fetchUser('WORKER');
+              Alert.alert('Removed', 'Document removed.');
+            } catch (e) {
+              Alert.alert('Error', e.response?.data?.message || 'Failed to remove document.');
+            } finally {
+              setSaving(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const renderMenuItem = (icon, title, subtitle, onPress, showArrow = true, danger = false) => (
@@ -556,6 +590,8 @@ const WorkerProfileScreen = ({ navigation }) => {
 
   const kycStatus = profile?.kyc?.status || 'PENDING';
   const isKycApproved = kycStatus === 'APPROVED';
+  const isKycRejected = kycStatus === 'REJECTED';
+  const kycDocuments = profile?.kyc?.documents || [];
   const hasBank = !!profile?.wallet?.bankDetails?.accountNumber || !!profile?.wallet?.upiId;
 
   return (
@@ -600,9 +636,27 @@ const WorkerProfileScreen = ({ navigation }) => {
                   {profile?.subscription?.expiryDate ? 'PRO Active' : 'Free Trial'}
                 </Text>
               </View>
-              <View style={[styles.badgePill, { backgroundColor: isKycApproved ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)' }]}>
-                <Text style={[styles.badgePillText, { color: isKycApproved ? '#A7F3D0' : '#FDE68A' }]}>
-                  {isKycApproved ? 'KYC Verified ✓' : 'KYC Pending'}
+              <View style={[
+                styles.badgePill, 
+                { 
+                  backgroundColor: isKycApproved 
+                    ? 'rgba(16, 185, 129, 0.25)' 
+                    : isKycRejected 
+                    ? 'rgba(239, 68, 68, 0.25)' 
+                    : 'rgba(245, 158, 11, 0.25)' 
+                }
+              ]}>
+                <Text style={[
+                  styles.badgePillText, 
+                  { 
+                    color: isKycApproved 
+                      ? '#A7F3D0' 
+                      : isKycRejected 
+                      ? '#FECACA' 
+                      : '#FDE68A' 
+                  }
+                ]}>
+                  {isKycApproved ? 'KYC Verified ✓' : isKycRejected ? 'KYC Rejected ✕' : 'KYC Pending ⏳'}
                 </Text>
               </View>
             </View>
@@ -641,9 +695,11 @@ const WorkerProfileScreen = ({ navigation }) => {
             )}
             <View style={styles.divider} />
             {renderMenuItem(
-              <ShieldCheck size={20} color={isKycApproved ? '#10B981' : '#F59E0B'} />,
+              <ShieldCheck size={20} color={isKycApproved ? '#10B981' : isKycRejected ? '#EF4444' : '#F59E0B'} />,
               'KYC Verification',
-              isKycApproved ? 'Identity verified & approved by admin' : 'Upload ID proof to verify your account',
+              isKycApproved 
+                ? 'Identity verified & approved ✓' 
+                : `${kycDocuments.length} document(s) submitted · ${kycStatus}`,
               () => setActiveModal('kyc')
             )}
             <View style={styles.divider} />
@@ -1022,66 +1078,209 @@ const WorkerProfileScreen = ({ navigation }) => {
       </Modal>
 
       {/* ═══════════════════════════════════════════
-          MODAL 4: KYC VERIFICATION UPLOAD
+          MODAL 4: KYC VERIFICATION & DOCUMENTS LIST
       ═══════════════════════════════════════════ */}
       <Modal visible={activeModal === 'kyc'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { maxHeight: '92%' }]}>
             <View style={styles.modalHandle} />
             
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>KYC Verification</Text>
-                <Text style={styles.modalSub}>Upload official ID proof for admin verification</Text>
+                <Text style={styles.modalSub}>Manage ID proofs & check verification status</Text>
               </View>
               <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeBtn}>
                 <X size={20} color={theme.colors.textDim} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Select ID Document Type</Text>
-            <View style={styles.labelChipsRow}>
-              {['AADHAR', 'PAN', 'LICENSE', 'VOTER_ID'].map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[styles.labelChip, kycType === type && styles.labelChipActive]}
-                  onPress={() => setKycType(type)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.labelChipText, kycType === type && styles.labelChipTextActive]}>
-                    {type}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* KYC Status Banner */}
+              <View style={[
+                styles.kycStatusCard,
+                isKycApproved && styles.kycStatusApproved,
+                isKycRejected && styles.kycStatusRejected,
+                (!isKycApproved && !isKycRejected) && styles.kycStatusPending
+              ]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  {isKycApproved ? (
+                    <CheckCircle2 size={18} color="#10B981" style={{ marginRight: 6 }} />
+                  ) : isKycRejected ? (
+                    <AlertCircle size={18} color="#EF4444" style={{ marginRight: 6 }} />
+                  ) : (
+                    <Clock size={18} color="#F59E0B" style={{ marginRight: 6 }} />
+                  )}
+                  <Text style={[
+                    styles.kycStatusTitle,
+                    isKycApproved && { color: '#065F46' },
+                    isKycRejected && { color: '#991B1B' },
+                    (!isKycApproved && !isKycRejected) && { color: '#92400E' }
+                  ]}>
+                    {isKycApproved 
+                      ? 'Identity Verified & Approved' 
+                      : isKycRejected 
+                      ? 'Verification Rejected' 
+                      : 'Verification Pending Review'}
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                </View>
+                <Text style={[
+                  styles.kycStatusMsg,
+                  isKycApproved && { color: '#047857' },
+                  isKycRejected && { color: '#B91C1C' },
+                  (!isKycApproved && !isKycRejected) && { color: '#B45309' }
+                ]}>
+                  {isKycApproved 
+                    ? 'Your official ID proofs have been verified by the admin. Your account is active.' 
+                    : isKycRejected 
+                    ? `Reason: ${profile?.kyc?.rejectReason || 'Document details were unclear'}. Please re-upload your document.` 
+                    : 'Your submitted documents are in queue for verification by our admin team.'}
+                </Text>
+              </View>
 
-            <TouchableOpacity style={styles.uploadDocBox} onPress={pickKycImage} activeOpacity={0.85}>
-              <UploadCloud size={32} color="#6C47FF" />
-              <Text style={styles.uploadDocTitle}>
-                {docUrl ? 'Document Selected ✓' : 'Tap to Upload Document Image'}
+              {/* Submitted Documents Section */}
+              <Text style={styles.sectionSubTitle}>
+                Submitted Documents ({kycDocuments.length})
               </Text>
-              <Text style={styles.uploadDocSub}>Supports JPG, PNG (Camera or Gallery)</Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.modalPrimaryBtn, (!docUrl || saving) && { opacity: 0.7 }]} 
-              onPress={handleUploadKyc}
-              disabled={!docUrl || saving}
-              activeOpacity={0.88}
-            >
-              <LinearGradient
-                colors={['#6C47FF', '#8B6FFF']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={styles.modalPrimaryGradient}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#fff" size="small" />
+              {kycDocuments.length > 0 ? (
+                <View style={{ marginBottom: 16 }}>
+                  {kycDocuments.map((doc, idx) => (
+                    <View key={idx} style={styles.docItemCard}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <TouchableOpacity 
+                          onPress={() => doc.url && setPreviewImageModal(getImageUrl(doc.url))}
+                          activeOpacity={0.8}
+                          style={styles.docThumbBox}
+                        >
+                          {doc.url ? (
+                            <Image source={{ uri: getImageUrl(doc.url) }} style={styles.docThumb} />
+                          ) : (
+                            <FileText size={20} color="#6C47FF" />
+                          )}
+                        </TouchableOpacity>
+
+                        <View style={{ marginLeft: 12, flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <View style={styles.docTypeBadge}>
+                              <Text style={styles.docTypeBadgeText}>{doc.type || doc.docType || 'ID'}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.docItemName} numberOfLines={1}>
+                            {doc.name || `${doc.type || 'ID'} Document`}
+                          </Text>
+                          <Text style={styles.docItemDate}>
+                            {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'Uploaded'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        {doc.url && (
+                          <TouchableOpacity 
+                            onPress={() => setPreviewImageModal(getImageUrl(doc.url))}
+                            style={styles.docActionBtn}
+                          >
+                            <Eye size={16} color="#6C47FF" />
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity 
+                          onPress={() => handleRemoveKyc(idx, doc.name || doc.type)}
+                          style={styles.docActionBtn}
+                        >
+                          <Trash2 size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.noDocsBox}>
+                  <FileText size={28} color="#94A3B8" />
+                  <Text style={styles.noDocsText}>No documents uploaded yet</Text>
+                </View>
+              )}
+
+              {/* Upload New Document Form */}
+              <Text style={styles.sectionSubTitle}>Upload ID Document</Text>
+
+              <Text style={styles.inputLabel}>Select ID Document Type</Text>
+              <View style={styles.labelChipsRow}>
+                {DOC_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[styles.labelChip, kycType === type && styles.labelChipActive]}
+                    onPress={() => setKycType(type)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.labelChipText, kycType === type && styles.labelChipTextActive]}>
+                      {type}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity style={styles.uploadDocBox} onPress={pickKycImage} activeOpacity={0.85}>
+                {docUrl ? (
+                  <View style={{ alignItems: 'center' }}>
+                    <Image source={{ uri: docUrl.uri }} style={styles.pickedDocPreview} />
+                    <Text style={styles.uploadDocTitle}>Document Selected ✓</Text>
+                    <Text style={styles.uploadDocSub}>Tap to change image</Text>
+                  </View>
                 ) : (
-                  <Text style={styles.modalPrimaryBtnText}>Submit Document for Verification →</Text>
+                  <View style={{ alignItems: 'center' }}>
+                    <UploadCloud size={32} color="#6C47FF" />
+                    <Text style={styles.uploadDocTitle}>Tap to Select Document Image</Text>
+                    <Text style={styles.uploadDocSub}>Supports JPG, PNG (Camera or Gallery)</Text>
+                  </View>
                 )}
-              </LinearGradient>
-            </TouchableOpacity>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.modalPrimaryBtn, (!docUrl || saving) && { opacity: 0.7 }]} 
+                onPress={handleUploadKyc}
+                disabled={!docUrl || saving}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={['#6C47FF', '#8B6FFF']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.modalPrimaryGradient}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.modalPrimaryBtnText}>Submit Document for Verification →</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════
+          FULLSCREEN IMAGE VIEWER MODAL
+      ═══════════════════════════════════════════ */}
+      <Modal visible={!!previewImageModal} transparent animationType="fade" onRequestClose={() => setPreviewImageModal(null)}>
+        <View style={styles.imageViewerOverlay}>
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={styles.imageViewerHeader}>
+              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 16 }}>Document Preview</Text>
+              <TouchableOpacity onPress={() => setPreviewImageModal(null)} style={styles.imageViewerClose}>
+                <X size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.imageViewerBody}>
+              {previewImageModal && (
+                <Image 
+                  source={{ uri: previewImageModal }} 
+                  style={{ width: '100%', height: '85%' }} 
+                  resizeMode="contain" 
+                />
+              )}
+            </View>
+          </SafeAreaView>
         </View>
       </Modal>
 
@@ -1175,6 +1374,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 8,
     marginLeft: 4,
   },
+  sectionSubTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    marginTop: 14,
+    marginBottom: 8,
+  },
   menuCard: {
     backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     borderRadius: 20,
@@ -1243,7 +1449,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   modalTitle: {
     fontSize: 20,
@@ -1307,6 +1513,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     marginTop: 20,
+    marginBottom: 10,
   },
   modalPrimaryGradient: {
     paddingVertical: 15,
@@ -1398,7 +1605,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: isDarkMode ? '#F8FAFC' : '#1E293B',
-    marginTop: 8,
   },
   emptyAddressSub: {
     fontSize: 12,
@@ -1425,12 +1631,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   // Edit Address Form
   labelChipsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   labelChip: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 10,
     backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
     borderWidth: 1,
@@ -1505,26 +1712,153 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
 
   // KYC
+  kycStatusCard: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.2,
+    marginBottom: 12,
+  },
+  kycStatusApproved: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  kycStatusPending: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  kycStatusRejected: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  kycStatusTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  kycStatusMsg: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  docItemCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 8,
+  },
+  docThumbBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: isDarkMode ? '#1E293B' : '#EEF2F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  docThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  docTypeBadge: {
+    backgroundColor: 'rgba(108, 71, 255, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 2,
+  },
+  docTypeBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#6C47FF',
+  },
+  docItemName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+  },
+  docItemDate: {
+    fontSize: 11,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    marginTop: 1,
+  },
+  docActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noDocsBox: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  noDocsText: {
+    fontSize: 12.5,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    marginTop: 6,
+  },
   uploadDocBox: {
     borderWidth: 1.5,
     borderColor: '#6C47FF',
     borderStyle: 'dashed',
     borderRadius: 16,
-    padding: 24,
+    padding: 20,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 8,
     backgroundColor: isDarkMode ? '#0F172A' : '#FAF8FF',
   },
+  pickedDocPreview: {
+    width: 120,
+    height: 80,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
   uploadDocTitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '800',
     color: '#6C47FF',
-    marginTop: 8,
+    marginTop: 4,
   },
   uploadDocSub: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: isDarkMode ? '#94A3B8' : '#64748B',
     marginTop: 2,
+  },
+
+  // Image Viewer
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+  },
+  imageViewerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  imageViewerClose: {
+    padding: 6,
+  },
+  imageViewerBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
   },
 });
 

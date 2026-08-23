@@ -13,7 +13,8 @@ const updateProfileSchema = Joi.object({
 // Update KYC schema — matches the controller contract:
 // documentType + (multipart file | documentBase64 | documentUrl)
 const updateKycSchema = Joi.object({
-  documentType: Joi.string().valid('PAN', 'AADHAR', 'VOTER_ID', 'DRIVING_LICENSE', 'LICENSE', 'OTHER').required(),
+  documentType: Joi.string().valid('PAN', 'AADHAR', 'VOTER_ID', 'DRIVING_LICENSE', 'LICENSE', 'PASSPORT', 'OTHER').required(),
+  documentName: Joi.string().allow('', null).optional(),
   documentBase64: Joi.string().min(10).optional(),
   documentUrl: Joi.string().uri().optional(),
 });

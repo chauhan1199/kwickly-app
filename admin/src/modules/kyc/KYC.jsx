@@ -155,8 +155,13 @@ export default function KYC() {
                   {selected.kyc.documents.map((doc, idx) => (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-dark)', borderRadius: 10, border: '1px solid var(--border)' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{doc.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 2 }}>{doc.docType || 'Document'}</div>
+                        <div style={{ fontWeight: 700, fontSize: 13.5, color: '#f8fafc' }}>
+                          {doc.name || `${doc.type || doc.docType || 'Identity'} Document`}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 2 }}>
+                          <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{doc.type || doc.docType || 'ID Proof'}</span>
+                          {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString()}` : ''}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
                         {doc.url && <button className="btn-icon" title="Preview" onClick={() => setPreviewDoc(doc)}><Eye size={14} /></button>}
@@ -226,8 +231,8 @@ export default function KYC() {
           <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--bg-card, #1a1f2e)', borderRadius: 16, padding: 20, zIndex: 2001, maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{previewDoc.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--mid)' }}>{previewDoc.docType || 'Document'}</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{previewDoc.name || `${previewDoc.type || 'Identity'} Document`}</div>
+                <div style={{ fontSize: 12, color: 'var(--mid)' }}>{previewDoc.type || previewDoc.docType || 'Document'}</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <a href={getImageUrl(previewDoc.url)} target="_blank" rel="noopener noreferrer" style={{ height: 32, padding: '0 12px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: 'var(--text)' }}>Open in Tab</a>
