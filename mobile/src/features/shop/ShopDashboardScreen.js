@@ -9,6 +9,7 @@ import {
   Image,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -355,7 +356,14 @@ const ShopDashboardScreen = ({ navigation }) => {
               </View>
 
               <View style={s.ordersCard}>
-                {pendingOrders.length === 0 && !loading ? (
+                {loading && pendingOrders.length === 0 ? (
+                  <View style={{ paddingVertical: 28, alignItems: 'center', justifyContent: 'center' }}>
+                    <ActivityIndicator size="small" color="#6C47FF" />
+                    <Text style={{ color: theme.colors.textDim, fontSize: 12, marginTop: 8, fontWeight: '600' }}>
+                      Checking live incoming orders...
+                    </Text>
+                  </View>
+                ) : pendingOrders.length === 0 ? (
                   <View style={s.emptyOrders}>
                     <View style={s.emptyOrdersIcon}>
                       <ClipboardList size={36} color="#6C47FF" />
