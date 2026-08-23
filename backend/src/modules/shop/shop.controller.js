@@ -71,7 +71,7 @@ exports.createShop = catchAsync(async (req, res) => {
  * Shop owner fetches their own shop
  */
 exports.getMyShop = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id }).populate('ownerId', 'name phone').select('-payoutMethods');
+    const shop = await Shop.findOne({ ownerId: req.user._id }).populate('ownerId', 'name phone');
     if (!shop) return errorResponse(res, 'No shop found for this account', StatusCodes.NOT_FOUND);
     return successResponse(res, shop, 'Shop fetched');
 });
@@ -565,4 +565,159 @@ exports.updateDeliveryConfig = catchAsync(async (req, res) => {
     triggerDashboardUpdate();
 
     return successResponse(res, shop, 'Delivery config updated');
+});
+
+/**
+ * POST /api/v1/shops/my/payout-methods
+ */
+exports.addPayoutMethod = catchAsync(async (req, res) => {
+    const { type, label, detail, bankName } = req.body;
+    if (!type || !['BANK', 'UPI'].includes(type.toUpperCase())) {
+        return errorResponse(res, 'Type must be BANK or UPI', StatusCodes.BAD_REQUEST);
+    }
+    if (!detail || !detail.trim()) {
+        return errorResponse(res, 'Account / UPI detail is required', StatusCodes.BAD_REQUEST);
+    }
+
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    if (shop.payoutMethods && shop.payoutMethods.length >= 5) {
+        return errorResponse(res, 'Maximum 5 payout methods allowed', StatusCodes.BAD_REQUEST);
+    }
+
+    const isPrimary = !shop.payoutMethods || shop.payoutMethods.length === 0;
+    const newMethod = {
+        type: type.toUpperCase(),
+        label: label || (type.toUpperCase() === 'BANK' ? (bankName || 'Bank Account') : 'UPI ID'),
+        detail: detail.trim(),
+        isPrimary
+    };
+
+    shop.payoutMethods.push(newMethod);
+    await shop.save();
+
+    return successResponse(res, shop.payoutMethods, 'Payout method added successfully', StatusCodes.CREATED);
+});
+
+/**
+ * PATCH /api/v1/shops/my/payout-methods/:methodId/primary
+ */
+exports.setPrimaryPayout = catchAsync(async (req, res) => {
+    const { methodId } = req.params;
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    let found = false;
+    shop.payoutMethods.forEach(method => {
+        if (method._id.toString() === methodId || method.id === methodId) {
+            method.isPrimary = true;
+            found = true;
+        } else {
+            method.isPrimary = false;
+        }
+    });
+
+    if (!found) return errorResponse(res, 'Payout method not found', StatusCodes.NOT_FOUND);
+
+    await shop.save();
+    return successResponse(res, shop.payoutMethods, 'Primary payout method updated');
+});
+
+/**
+ * DELETE /api/v1/shops/my/payout-methods/:methodId
+ */
+exports.deletePayoutMethod = catchAsync(async (req, res) => {
+    const { methodId } = req.params;
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const initialLength = shop.payoutMethods.length;
+    shop.payoutMethods = shop.payoutMethods.filter(m => m._id.toString() !== methodId && m.id !== methodId);
+
+    if (shop.payoutMethods.length === initialLength) {
+        return errorResponse(res, 'Payout method not found', StatusCodes.NOT_FOUND);
+    }
+
+    // If deleted method was primary, make the first remaining method primary
+    if (shop.payoutMethods.length > 0 && !shop.payoutMethods.some(m => m.isPrimary)) {
+        shop.payoutMethods[0].isPrimary = true;
+    }
+
+    await shop.save();
+    return successResponse(res, shop.payoutMethods, 'Payout method removed');
+});
+
+/**
+ * POST /api/v1/shops/my/withdraw
+ */
+exports.requestWithdrawal = catchAsync(async (req, res) => {
+    const { amount, payoutMethod } = req.body;
+    if (!amount || Number(amount) <= 0) {
+        return errorResponse(res, 'Invalid withdrawal amount', StatusCodes.BAD_REQUEST);
+    }
+    if (!payoutMethod) {
+        return errorResponse(res, 'Payout method destination is required', StatusCodes.BAD_REQUEST);
+    }
+
+    const SettingsService = require('../settings/settings.service');
+    const settings = await SettingsService.getAppSettings();
+    const minBalance = Number(settings?.wallet?.minimumBalance !== undefined ? settings.wallet.minimumBalance : 100);
+
+    const shop = await Shop.findOne({ ownerId: req.user._id });
+    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+
+    const currentBalance = Number(shop.wallet?.balance || 0);
+    const maxWithdrawable = Math.max(0, currentBalance - minBalance);
+
+    if (Number(amount) > maxWithdrawable) {
+        return errorResponse(res, `Insufficient withdrawable balance. Your total balance is ₹${currentBalance}, but ₹${minBalance} is reserved as safety balance. Max withdrawable amount is ₹${maxWithdrawable}.`, StatusCodes.BAD_REQUEST);
+    }
+
+    // Atomic deduct from shop wallet
+    const updatedShop = await Shop.findOneAndUpdate(
+        { _id: shop._id, 'wallet.balance': { $gte: Number(amount) + minBalance } },
+        { $inc: { 'wallet.balance': -Number(amount) } },
+        { returnDocument: 'after' }
+    );
+
+    if (!updatedShop) {
+        return errorResponse(res, 'Insufficient funds for withdrawal', StatusCodes.BAD_REQUEST);
+    }
+
+    const txn = await WalletTxn.create({
+        userId: req.user._id,
+        type: 'WITHDRAWAL',
+        amount: Number(amount),
+        balance: updatedShop.wallet.balance,
+        status: 'PENDING',
+        description: `Withdrawal to ${payoutMethod}`
+    });
+
+    const isUpi = payoutMethod.toLowerCase().includes('upi') || payoutMethod.includes('@');
+    const payout = await Payout.create({
+        shopId: shop._id,
+        amount: Number(amount),
+        paymentMethod: isUpi ? 'UPI' : 'BANK',
+        paymentDetails: payoutMethod,
+        walletTxnId: txn._id
+    });
+
+    const { delCache } = require('../../helpers/redis.helper');
+    await delCache(`session:${req.user._id}`);
+    await delCache('admin_payouts');
+
+    emitToAll('DASHBOARD_UPDATE', { type: 'NEW_PAYOUT', id: payout._id });
+
+    notifyUser({
+        userId: req.user._id,
+        title: 'Withdrawal Requested',
+        message: `Your shop withdrawal request for ₹${amount} has been initiated and is pending admin approval.`,
+        action: 'WITHDRAWAL',
+        entityType: 'WALLET',
+        entityId: txn._id,
+        targetRole: 'SHOP'
+    });
+
+    return successResponse(res, { txn, payout, newBalance: updatedShop.wallet.balance }, 'Withdrawal requested successfully', StatusCodes.CREATED);
 });

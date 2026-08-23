@@ -551,6 +551,25 @@ export default function ShopSettingsScreen({ navigation }) {
             ))}
           </View>
 
+          {/* Preferences & Display */}
+          <View style={[s.menuCard, { marginTop: 16 }]}>
+            <View style={[s.menuItem, { borderBottomWidth: 0, paddingVertical: 14 }]}>
+              <View style={[s.menuIcon, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : 'rgba(245, 158, 11, 0.15)' }]}>
+                {isDarkMode ? <Moon size={20} color="#8B6FFF" /> : <Sun size={20} color="#F59E0B" />}
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={s.menuTitle}>Dark Theme</Text>
+                <Text style={s.menuSub}>{isDarkMode ? 'Dark theme enabled' : 'Light theme enabled'}</Text>
+              </View>
+              <Switch
+                value={isDarkMode}
+                onValueChange={toggleTheme}
+                trackColor={{ false: '#D1D5DB', true: '#6C47FF' }}
+                thumbColor={'#FFFFFF'}
+              />
+            </View>
+          </View>
+
           {/* Delete Shop */}
           <Pressable
             style={({ pressed }) => [s.menuCard, { marginTop: 16 }, pressed && { opacity: 0.65 }]}

@@ -1,27 +1,55 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { 
   ScrollView, 
   View, 
   StyleSheet, 
   Text, 
-  TouchableOpacity,
-  StatusBar,
-  Modal,
-  TouchableWithoutFeedback,
-  TextInput,
-  Alert,
-  KeyboardAvoidingView,
-  Platform
+  TouchableOpacity, 
+  StatusBar, 
+  Modal, 
+  TextInput, 
+  Alert, 
+  KeyboardAvoidingView, 
+  Platform,
+  ActivityIndicator,
+  Linking
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowDown, ArrowUp, Landmark, Smartphone, Bell, ReceiptText, RefreshCw, Moon, Sun, Menu, CreditCard } from 'lucide-react-native';
+import { 
+  ArrowDown, 
+  ArrowUp, 
+  Landmark, 
+  Smartphone, 
+  Bell, 
+  ReceiptText, 
+  RefreshCw, 
+  Moon, 
+  Sun, 
+  CreditCard,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Copy,
+  ChevronRight,
+  ShieldCheck,
+  Zap,
+  Clock,
+  Sparkles,
+  Plus,
+  Trash2,
+  Check
+} from 'lucide-react-native';
 import { shopService } from '../../services/shopService';
+import { walletService } from '../../services/walletService';
 import LinearGradient from 'react-native-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
+const ADMIN_UPI_ID = 'ganshyam.tech-1@oksbi';
+const TOP_UP_PRESETS = [100, 200, 500, 1000];
+const MIN_SAFETY_FREEZE = 100; // ₹100 safety balance
 
 const ShopWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -31,27 +59,40 @@ const ShopWalletScreen = ({ navigation }) => {
 
   // Modals state
   const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
-  const [transactionModalVisible, setTransactionModalVisible] = useState(false);
   const [topUpModalVisible, setTopUpModalVisible] = useState(false);
+  const [upiPaymentModalVisible, setUpiPaymentModalVisible] = useState(false);
+  const [transactionModalVisible, setTransactionModalVisible] = useState(false);
+  const [subscriptionModalVisible, setSubscriptionModalVisible] = useState(false);
+  const [addAccountModalVisible, setAddAccountModalVisible] = useState(false);
 
   // Data state
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [topUpAmount, setTopUpAmount] = useState('');
-  const [topUpMethod, setTopUpMethod] = useState('UPI');
-  const [selectedAccountId, setSelectedAccountId] = useState(null);
-  
+  const [loading, setLoading] = useState(true);
+  const [submittingAction, setSubmittingAction] = useState(false);
   const [balance, setBalance] = useState(0);
   const [txns, setTxns] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [subscriptionModalVisible, setSubscriptionModalVisible] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+
+  // Top Up & Withdrawal forms
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [upiTxnId, setUpiTxnId] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('');
   const [dynamicPlans, setDynamicPlans] = useState([]);
 
+  // Add Account form
+  const [newAccountType, setNewAccountType] = useState('BANK'); // 'BANK' or 'UPI'
+  const [newAccountBankName, setNewAccountBankName] = useState('');
+  const [newAccountDetail, setNewAccountDetail] = useState('');
+  const [newAccountIfsc, setNewAccountIfsc] = useState('');
+  const [savingAccount, setSavingAccount] = useState(false);
+
   const fetchWallet = useCallback(async () => {
     try {
-      const [walletRes, settingsRes, balanceRes] = await Promise.all([
-        shopService.getMyShop(),
+      setLoading(true);
+      const [shopRes, settingsRes, balanceRes] = await Promise.all([
+        shopService.getMyShop().catch(() => null),
         shopService.getPublicSettings().catch(() => null),
         shopService.getWalletBalance().catch(() => null)
       ]);
@@ -61,28 +102,29 @@ const ShopWalletScreen = ({ navigation }) => {
         const formatted = plans.map(p => ({
           id: p.id || p.label,
           title: p.label || p.name,
-          desc: p.durationDays ? `${p.durationDays} days` : 'Custom duration',
-          price: `₹${p.price || 0}`
+          desc: p.durationDays ? `${p.durationDays} days validity` : 'Standard plan',
+          price: `₹${p.price || 0}`,
+          priceNum: p.price || 0,
+          days: p.durationDays || 30
         }));
-        // Add default free trial as first option
         const allPlans = [
-          { id: 'FREE_TRIAL', title: 'Worker Free Trial', desc: '6 months free', price: '₹0' },
+          { id: 'FREE_TRIAL', title: 'Shop 6-Month Free Trial', desc: '180 days unlimited orders', price: '₹0', priceNum: 0, days: 180 },
           ...formatted
         ];
         setDynamicPlans(allPlans);
         if (!selectedPlan) setSelectedPlan(allPlans[0].id);
       }
 
-      if (walletRes.data?.status === 'success') {
-        const myShop = walletRes.data.data;
+      if (shopRes?.data?.status === 'success') {
+        const myShop = shopRes.data.data;
         setBalance(myShop.wallet?.balance || 0);
-        
+
         const mappedAccs = (myShop.payoutMethods || []).map((m, i) => ({
-          id: m._id || i.toString(),
+          id: m._id || m.id || i.toString(),
           type: m.type === 'UPI' ? 'upi' : 'bank',
-          name: m.type === 'UPI' ? 'UPI Account' : m.bankName || 'Bank Account',
-          detail: m.type === 'UPI' ? m.upiId || m.detail : `****${(m.accountNumber || m.detail || '').slice(-4)}`,
-          isPrimary: m.isPrimary
+          name: m.label || (m.type === 'UPI' ? 'UPI Account' : m.bankName || 'Bank Account'),
+          detail: m.detail,
+          isPrimary: !!m.isPrimary
         }));
         setAccounts(mappedAccs);
         if (mappedAccs.length > 0) {
@@ -90,71 +132,167 @@ const ShopWalletScreen = ({ navigation }) => {
           setSelectedAccountId(primary.id);
         }
       }
-      
+
       if (balanceRes?.data?.status === 'success') {
         const tlist = balanceRes.data.data.transactions || [];
         const mappedTxns = tlist.map(t => ({
           id: t._id,
           txnId: t._id.slice(-8).toUpperCase(),
-          title: t.description || 'Transaction',
-          time: new Date(t.createdAt).toLocaleString(),
-          amount: `₹${t.amount}`,
-          type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT'].includes(t.type) ? 'credit' : 'debit',
-          status: t.status
+          title: t.description || (t.type === 'WITHDRAWAL' ? 'Withdrawal' : t.type === 'TOPUP' ? 'Wallet Top-Up' : 'Order Credit'),
+          time: new Date(t.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          amount: `₹${Number(t.amount).toFixed(2)}`,
+          amountNum: t.amount,
+          type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT', 'REFUND'].includes(t.type) ? 'credit' : 'debit',
+          status: t.status || 'COMPLETED'
         }));
         setTxns(mappedTxns);
       }
     } catch (e) {
-      // silently handle wallet fetch error
+      console.error('Wallet fetch error:', e);
+    } finally {
+      setLoading(false);
     }
   }, [selectedPlan]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchWallet();
   }, [fetchWallet]);
 
-  const handleSetPrimary = async (id) => {
+  // ═══════════════════════════════════════════
+  // TOP UP & UPI PAYMENT
+  // ═══════════════════════════════════════════
+  const handleOpenTopUp = () => {
+    setTopUpAmount('500');
+    setTopUpModalVisible(true);
+  };
+
+  const handleTopUpProceed = () => {
+    const amt = parseFloat(topUpAmount);
+    if (!amt || isNaN(amt) || amt < 10) {
+      Alert.alert('Invalid Amount', 'Minimum top-up amount is ₹10.');
+      return;
+    }
+    setTopUpModalVisible(false);
+    setUpiPaymentModalVisible(true);
+  };
+
+  const handleCopyUpi = () => {
+    Clipboard.setString(ADMIN_UPI_ID);
+    Alert.alert('UPI ID Copied 📋', `Admin UPI (${ADMIN_UPI_ID}) copied to clipboard.`);
+  };
+
+  const handlePayViaUpiApp = async () => {
+    const amt = parseFloat(topUpAmount) || 100;
+    const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=Kwickly_Admin&am=${amt.toFixed(2)}&cu=INR&tn=Shop_Wallet_Topup`;
+    
     try {
-      await shopService.setPrimaryPayoutMethod(id);
-      setAccounts(accounts.map(acc => ({
-        ...acc,
-        isPrimary: acc.id === id
-      })));
+      const supported = await Linking.canOpenURL(upiUrl);
+      if (supported) {
+        await Linking.openURL(upiUrl);
+      } else {
+        Alert.alert(
+          'UPI App Required',
+          `Please copy UPI ID "${ADMIN_UPI_ID}" and make payment of ₹${amt} from GPay, PhonePe, or Paytm.`
+        );
+      }
     } catch (e) {
-      Alert.alert('Error', 'Failed to set primary');
-      Alert.alert('Error', 'Failed to set primary account');
+      Alert.alert(
+        'Payment Info',
+        `Transfer ₹${amt} to Admin UPI: ${ADMIN_UPI_ID}\nThen enter the 12-digit UTR below.`
+      );
     }
   };
 
-  const handleDeleteAccount = (id) => {
-    Alert.alert(
-      "Delete Account",
-      "Are you sure you want to remove this account?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await shopService.deletePayoutMethod(id);
-              setAccounts(accounts.filter(acc => acc.id !== id));
-            } catch (e) {
-              Alert.alert('Error', 'Failed to delete account');
-            }
-          }
-        }
-      ]
-    );
-  };
-  // Add Account State
-  const [addAccountModalVisible, setAddAccountModalVisible] = useState(false);
-  const [newAccountType, setNewAccountType] = useState('BANK'); // 'BANK' or 'UPI'
-  const [newAccountBankName, setNewAccountBankName] = useState('');
-  const [newAccountDetail, setNewAccountDetail] = useState('');
-  const [newAccountIfsc, setNewAccountIfsc] = useState('');
-  const [savingAccount, setSavingAccount] = useState(false);
+  const handleVerifyUpiPayment = async () => {
+    if (!upiTxnId || upiTxnId.trim().length < 12) {
+      Alert.alert('Invalid Reference ID', 'Please enter the 12-digit UPI UTR / Bank Reference Number from your payment app receipt.');
+      return;
+    }
 
+    setSubmittingAction(true);
+    try {
+      const amt = parseFloat(topUpAmount);
+      const res = await walletService.topupWallet(amt, upiTxnId.trim());
+      if (res.data?.status === 'success') {
+        setUpiPaymentModalVisible(false);
+        setUpiTxnId('');
+        setTopUpAmount('');
+        Alert.alert('Payment Successful 🎉', `₹${amt} credited to your Shop Wallet.`);
+        fetchWallet();
+      } else {
+        Alert.alert('Verification Issue', res.data?.message || 'Payment received and queued for verification.');
+      }
+    } catch (error) {
+      Alert.alert('Payment Error', error.response?.data?.message || 'Failed to verify UPI transaction.');
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  // ═══════════════════════════════════════════
+  // WITHDRAWAL FLOW
+  // ═══════════════════════════════════════════
+  const maxWithdrawable = Math.max(0, balance - MIN_SAFETY_FREEZE);
+
+  const handleOpenWithdraw = () => {
+    if (accounts.length === 0) {
+      Alert.alert(
+        'No Payout Destination',
+        'Please add your Bank Account or UPI ID first before requesting withdrawal.',
+        [
+          { text: 'Add Now', onPress: handleAddAccount },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+    setWithdrawAmount(maxWithdrawable > 0 ? String(Math.min(maxWithdrawable, 500)) : '');
+    setWithdrawModalVisible(true);
+  };
+
+  const handleSubmitWithdrawal = async () => {
+    const amt = parseFloat(withdrawAmount);
+    if (!amt || isNaN(amt) || amt < 10) {
+      Alert.alert('Invalid Amount', 'Minimum withdrawal amount is ₹10.');
+      return;
+    }
+
+    if (amt > maxWithdrawable) {
+      Alert.alert(
+        'Safety Balance Protection',
+        `Your wallet balance is ₹${balance.toFixed(2)}, but ₹${MIN_SAFETY_FREEZE.toFixed(2)} is reserved as safety balance.\n\nMaximum withdrawable balance is ₹${maxWithdrawable.toFixed(2)}.`
+      );
+      return;
+    }
+
+    const selectedAcc = accounts.find(a => a.id === selectedAccountId) || accounts[0];
+    if (!selectedAcc) {
+      Alert.alert('No Account', 'Please select a payout account.');
+      return;
+    }
+
+    setSubmittingAction(true);
+    try {
+      const res = await shopService.withdraw(amt, selectedAcc.detail);
+      if (res.data?.status === 'success') {
+        setWithdrawModalVisible(false);
+        setWithdrawAmount('');
+        Alert.alert(
+          'Withdrawal Initiated 🚀',
+          `Your withdrawal request for ₹${amt} to ${selectedAcc.detail} has been submitted for admin approval.`
+        );
+        fetchWallet();
+      }
+    } catch (e) {
+      Alert.alert('Withdrawal Failed', e.response?.data?.message || 'Failed to submit withdrawal.');
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  // ═══════════════════════════════════════════
+  // PAYOUT ACCOUNTS MANAGEMENT
+  // ═══════════════════════════════════════════
   const handleAddAccount = () => {
     setNewAccountType('BANK');
     setNewAccountBankName('');
@@ -169,9 +307,18 @@ const ShopWalletScreen = ({ navigation }) => {
         Alert.alert('Validation Error', 'Bank name, Account Number, and IFSC Code are required.');
         return;
       }
+      if (!/^\d{9,18}$/.test(newAccountDetail.trim())) {
+        Alert.alert('Invalid Account', 'Account number must be 9 to 18 digits.');
+        return;
+      }
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(newAccountIfsc.trim())) {
+        Alert.alert('Invalid IFSC', 'Please enter a valid 11-digit IFSC code (e.g. SBIN0001234).');
+        return;
+      }
     } else {
-      if (!newAccountDetail.trim() || !newAccountDetail.includes('@')) {
-        Alert.alert('Validation Error', 'Please enter a valid UPI ID (e.g. name@upi).');
+      const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
+      if (!upiRegex.test(newAccountDetail.trim())) {
+        Alert.alert('Invalid UPI ID', 'Please enter a valid UPI ID (e.g. yourname@okhdfcbank).');
         return;
       }
     }
@@ -179,7 +326,7 @@ const ShopWalletScreen = ({ navigation }) => {
     try {
       setSavingAccount(true);
       const detailString = newAccountType === 'BANK'
-        ? `Acc: ${newAccountDetail.trim()} | IFSC: ${newAccountIfsc.trim().toUpperCase()}`
+        ? `${newAccountDetail.trim()} (${newAccountIfsc.trim().toUpperCase()})`
         : newAccountDetail.trim();
 
       const payload = {
@@ -191,7 +338,7 @@ const ShopWalletScreen = ({ navigation }) => {
       const res = await shopService.addPayoutMethod(payload);
       if (res.data?.status === 'success') {
         setAddAccountModalVisible(false);
-        Alert.alert('Success', 'Payout method added successfully ✅');
+        Alert.alert('Success ✅', 'Payout method added successfully.');
         fetchWallet();
       }
     } catch (e) {
@@ -201,92 +348,83 @@ const ShopWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handleSubmitWithdrawal = async () => {
-    if (!withdrawAmount || isNaN(withdrawAmount) || Number(withdrawAmount) <= 0) {
-      Alert.alert("Invalid Amount", "Please enter a valid amount.");
-      return;
-    }
-    const selectedAcc = accounts.find(a => a.id === selectedAccountId);
-    if (!selectedAcc) {
-      Alert.alert("No Account", "Please select or add a bank/UPI account first.");
-      return;
-    }
+  const handleSetPrimary = async (id) => {
     try {
-      const res = await shopService.withdraw(Number(withdrawAmount), selectedAcc.detail);
-      if (res.data?.status === 'success') {
-        setWithdrawModalVisible(false);
-        setWithdrawAmount('');
-        Alert.alert("Success", "Withdrawal request submitted ✅\n\nIt will be processed in 1-2 business days.");
-        fetchWallet();
-      }
+      await shopService.setPrimaryPayoutMethod(id);
+      fetchWallet();
+      Alert.alert('Updated', 'Primary payout method updated.');
     } catch (e) {
-      const msg = e.response?.data?.message || "Failed to withdraw.";
-      Alert.alert("Withdrawal Failed", msg);
+      Alert.alert('Error', 'Failed to update primary account');
     }
   };
 
-  const handleSubmitTopUp = async () => {
-    if (!topUpAmount || isNaN(topUpAmount) || Number(topUpAmount) <= 0) {
-      Alert.alert("Invalid Amount", "Please enter a valid amount.");
-      return;
-    }
-    if (!topUpMethod) {
-      Alert.alert("No Payment Method", "Please select a payment method.");
-      return;
-    }
-    
-    try {
-      const selectedOptionName = topUpMethod === 'UPI' ? 'UPI' : (topUpMethod === 'CARD' ? 'Credit/Debit Card' : 'Net Banking');
-      const res = await shopService.topUp(Number(topUpAmount), { method: selectedOptionName });
-      if (res.data?.status === 'success') {
-        setTopUpModalVisible(false);
-        setTopUpAmount('');
-        Alert.alert("Success", "Wallet topped up successfully ✅");
-        fetchWallet();
-      }
-    } catch (e) {
-      Alert.alert("Error", e.response?.data?.message || "Failed to top up.");
-    }
+  const handleDeleteAccount = (id) => {
+    Alert.alert(
+      'Remove Account',
+      'Are you sure you want to remove this payout destination?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await shopService.deletePayoutMethod(id);
+              fetchWallet();
+              Alert.alert('Removed', 'Payout account removed.');
+            } catch (e) {
+              Alert.alert('Error', 'Failed to remove account');
+            }
+          }
+        }
+      ]
+    );
   };
 
+  // ═══════════════════════════════════════════
+  // SUBSCRIPTION MANAGEMENT
+  // ═══════════════════════════════════════════
   const handleConfirmSubscription = async () => {
     try {
-      // Find selected plan to compute duration
+      setSubmittingAction(true);
       const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
-      const days = planConfig?.durationDays || (selectedPlan === 'FREE_TRIAL' ? 180 : 30);
+      const days = planConfig?.days || 30;
       const d = new Date();
       d.setDate(d.getDate() + days);
 
       const res = await shopService.updateMyShop({
-        subscription: { plan: selectedPlan, validUntil: d }
+        subscription: { planId: selectedPlan, expiryDate: d, status: 'ACTIVE', isTrial: selectedPlan === 'FREE_TRIAL' }
       });
       if (res.data?.status === 'success') {
         setSubscriptionModalVisible(false);
-        Alert.alert('Subscription Activated', 'Your subscription plan has been successfully updated!');
+        Alert.alert('Subscription Active 🎉', `Your plan "${planConfig?.title || 'Active'}" has been activated!`);
+        fetchWallet();
       }
     } catch (e) {
       Alert.alert('Error', e?.response?.data?.message || 'Failed to update subscription');
+    } finally {
+      setSubmittingAction(false);
     }
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <View>
-            <Text style={styles.appBarTitle}>Shop Wallet</Text>
-            <Text style={styles.appBarSubtitle}>Manage your balance</Text>
-          </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Shop Wallet</Text>
+          <Text style={styles.headerSub}>Manage earnings & payouts</Text>
         </View>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={toggleTheme} activeOpacity={0.7}>
             {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={fetchWallet} activeOpacity={0.7}>
+            <RefreshCw size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.navigate('ShopNotifications')} activeOpacity={0.7}>
             <Bell size={20} color={theme.colors.text} />
             {unreadCount > 0 && (
               <View style={styles.badge}>
@@ -297,928 +435,1354 @@ const ShopWalletScreen = ({ navigation }) => {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         
-        {/* Balance Card */}
-        <LinearGradient 
-          colors={isDarkMode ? ['#3B0764', '#6C47FF'] : ['#6C47FF', '#9333EA']} 
-          start={{x: 0, y: 0}} end={{x: 1, y: 1}}
-          style={styles.balanceCard}
+        {/* Wallet Hero Card */}
+        <LinearGradient
+          colors={['#6C47FF', '#8B6FFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroCard}
         >
-          <Text style={[styles.balanceLabel, { color: 'rgba(255,255,255,0.8)' }]}>Available balance</Text>
-          <Text style={[styles.balanceValue, { color: '#FFF' }]}>₹{balance}</Text>
-          
-          <View style={styles.balanceActions}>
-            <TouchableOpacity style={styles.walletBtnLeft} onPress={() => setTopUpModalVisible(true)}>
-              <Text style={styles.walletBtnLeftText}>Top Up</Text>
+          <View style={styles.heroTop}>
+            <Text style={styles.heroLabel}>TOTAL WALLET BALANCE</Text>
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.livePillText}>Instant UPI</Text>
+            </View>
+          </View>
+
+          <Text style={styles.heroBalance}>₹{balance.toFixed(2)}</Text>
+
+          {/* Reserve breakdown */}
+          <View style={styles.heroBreakdown}>
+            <View style={styles.breakdownItem}>
+              <Text style={styles.breakdownLabel}>Safety Reserve</Text>
+              <Text style={styles.breakdownVal}>₹{MIN_SAFETY_FREEZE.toFixed(2)}</Text>
+            </View>
+            <View style={styles.breakdownDivider} />
+            <View style={styles.breakdownItem}>
+              <Text style={styles.breakdownLabel}>Max Withdrawable</Text>
+              <Text style={[styles.breakdownVal, { color: '#A7F3D0' }]}>₹{maxWithdrawable.toFixed(2)}</Text>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.heroActionsRow}>
+            <TouchableOpacity style={styles.heroBtnTopUp} onPress={handleOpenTopUp} activeOpacity={0.85}>
+              <ArrowDown size={18} color="#6C47FF" />
+              <Text style={styles.heroBtnTopUpText}>+ Add Money</Text>
             </TouchableOpacity>
-            <View style={styles.walletBtnDivider} />
-            <TouchableOpacity style={styles.walletBtnRight} onPress={() => setWithdrawModalVisible(true)}>
-              <Text style={styles.walletBtnRightText}>Withdraw</Text>
+            <TouchableOpacity 
+              style={[styles.heroBtnWithdraw, maxWithdrawable <= 0 && { opacity: 0.6 }]} 
+              onPress={handleOpenWithdraw} 
+              activeOpacity={0.85}
+            >
+              <ArrowUp size={18} color="#FFFFFF" />
+              <Text style={styles.heroBtnWithdrawText}>Withdraw</Text>
             </TouchableOpacity>
           </View>
         </LinearGradient>
 
+        {/* Subscription Plan Card */}
+        <TouchableOpacity 
+          style={styles.subBanner} 
+          onPress={() => setSubscriptionModalVisible(true)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.subBannerLeft}>
+            <View style={styles.subIconBox}>
+              <Sparkles size={20} color="#F59E0B" />
+            </View>
+            <View>
+              <Text style={styles.subBannerTitle}>Shop Subscription</Text>
+              <Text style={styles.subBannerSub}>Free trial active · Tap to manage plans</Text>
+            </View>
+          </View>
+          <ChevronRight size={20} color={theme.colors.textDim} />
+        </TouchableOpacity>
+
+        {/* Saved Payout Accounts */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Payout Destinations</Text>
+          <TouchableOpacity onPress={handleAddAccount} activeOpacity={0.7}>
+            <Text style={styles.sectionAddText}>+ Add Account</Text>
+          </TouchableOpacity>
+        </View>
+
+        {accounts.length > 0 ? (
+          accounts.map(acc => (
+            <View key={acc.id} style={styles.accountItemCard}>
+              <View style={styles.accountItemLeft}>
+                <View style={[styles.accIconBox, { backgroundColor: acc.type === 'upi' ? '#EDE9FE' : '#CCFBF1' }]}>
+                  {acc.type === 'upi' ? <Smartphone size={18} color="#6C47FF" /> : <Landmark size={18} color="#0D9488" />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.accountItemName}>{acc.name}</Text>
+                    {acc.isPrimary && (
+                      <View style={styles.primaryBadge}>
+                        <Text style={styles.primaryBadgeText}>Primary</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.accountItemDetail}>{acc.detail}</Text>
+                </View>
+              </View>
+              <View style={styles.accountItemActions}>
+                {!acc.isPrimary && (
+                  <TouchableOpacity style={styles.setPrimaryBtn} onPress={() => handleSetPrimary(acc.id)}>
+                    <Text style={styles.setPrimaryText}>Set Default</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => handleDeleteAccount(acc.id)} style={{ padding: 4 }}>
+                  <Trash2 size={16} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        ) : (
+          <TouchableOpacity style={styles.noAccountsCard} onPress={handleAddAccount} activeOpacity={0.8}>
+            <Landmark size={24} color="#6C47FF" />
+            <Text style={styles.noAccountsText}>Add Bank Account or UPI ID to withdraw funds</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Recent Transactions */}
-        <Text style={styles.sectionTitle}>Recent Transactions</Text>
-        
-        <View style={styles.transactionsList}>
-          {txns.length > 0 ? txns.map((t) => (
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Recent Transactions</Text>
+          <Text style={styles.txCountText}>{txns.length} total</Text>
+        </View>
+
+        {loading ? (
+          <View style={{ padding: 30, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#6C47FF" />
+          </View>
+        ) : txns.length > 0 ? (
+          txns.map(t => (
             <TouchableOpacity 
               key={t.id} 
-              style={styles.transactionCard}
+              style={styles.txCard} 
               onPress={() => {
                 setSelectedTransaction(t);
                 setTransactionModalVisible(true);
               }}
+              activeOpacity={0.75}
             >
-              <View style={styles.txLeft}>
-                <View style={[styles.txIconBox, { backgroundColor: t.type === 'credit' ? '#e0f2fe' : '#fee2e2' }]}>
-                  {t.type === 'credit' ? (
-                    <ArrowDown size={18} color="#0284c7" />
-                  ) : (
-                    <ArrowUp size={18} color="#dc2626" />
-                  )}
-                </View>
-                <View style={styles.txInfo}>
-                  <Text style={styles.txTitle}>{t.title}</Text>
-                  <Text style={styles.txTime}>
-                    {t.time} • <Text style={{ color: t.status === 'PENDING' ? theme.colors.warning : (t.status === 'REJECTED' ? theme.colors.danger : theme.colors.success) }}>{t.status}</Text>
+              <View style={[styles.txIconBox, { backgroundColor: t.type === 'credit' ? '#ECFDF5' : '#FEF2F2' }]}>
+                {t.type === 'credit' ? <ArrowDown size={18} color="#10B981" /> : <ArrowUp size={18} color="#EF4444" />}
+              </View>
+              <View style={styles.txInfo}>
+                <Text style={styles.txTitle} numberOfLines={1}>{t.title}</Text>
+                <Text style={styles.txTime}>{t.time}</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[styles.txAmount, { color: t.type === 'credit' ? '#10B981' : '#EF4444' }]}>
+                  {t.type === 'credit' ? '+' : '-'}{t.amount}
+                </Text>
+                <View style={[
+                  styles.txStatusPill, 
+                  { backgroundColor: t.status === 'COMPLETED' ? '#ECFDF5' : t.status === 'PENDING' ? '#FFFBEB' : '#FEF2F2' }
+                ]}>
+                  <Text style={[
+                    styles.txStatusText,
+                    { color: t.status === 'COMPLETED' ? '#10B981' : t.status === 'PENDING' ? '#F59E0B' : '#EF4444' }
+                  ]}>
+                    {t.status || 'COMPLETED'}
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.txAmount, { color: t.type === 'credit' ? '#059669' : '#dc2626' }]}>
-                {t.amount}
-              </Text>
             </TouchableOpacity>
-          )) : (
-            <View style={{ padding: 30, alignItems: 'center' }}>
-              <Text style={{ color: theme.colors.textDim }}>No transactions yet.</Text>
-            </View>
-          )}
-        </View>
+          ))
+        ) : (
+          <View style={styles.emptyTxCard}>
+            <ReceiptText size={32} color={theme.colors.textDim} />
+            <Text style={styles.emptyTxText}>No transactions recorded yet.</Text>
+          </View>
+        )}
 
-        <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Withdraw Funds Modal */}
-      <Modal
-        visible={withdrawModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setWithdrawModalVisible(false)}
-      >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <TouchableOpacity 
-            style={{ flex: 1, width: '100%' }} 
-            activeOpacity={1} 
-            onPress={() => setWithdrawModalVisible(false)}
-          >
-            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-              <TouchableWithoutFeedback>
-                <View style={[styles.bottomSheet, { maxHeight: '95%' }]}>
-                  <View style={styles.sheetHeaderHandle} />
-                  <Text style={styles.sheetTitle}>Withdraw Funds</Text>
-                  <Text style={styles.sheetSub}>Select destination account</Text>
-
-                  {/* Accounts List */}
-                  <ScrollView style={styles.accountsList} showsVerticalScrollIndicator={false}>
-                    {accounts.map(acc => (
-                      <TouchableOpacity 
-                        key={acc.id} 
-                        style={[styles.accountCard, selectedAccountId === acc.id && styles.accountCardPrimary]}
-                        onPress={() => setSelectedAccountId(acc.id)}
-                      >
-                        
-                        <View style={styles.accountLeft}>
-                          <View style={styles.accountIconBox}>
-                            {acc.type === 'bank' ? <Landmark size={20} color="#0d9488" /> : <Smartphone size={20} color="#e11d48" />}
-                          </View>
-                          <View style={styles.accountInfo}>
-                            <Text style={styles.accountName}>{acc.name}</Text>
-                            <Text style={styles.accountDetail}>{acc.detail}</Text>
-                          </View>
-                        </View>
-                        
-                        <View style={styles.accountRight}>
-                          {acc.isPrimary ? (
-                            <View style={styles.primaryBadge}>
-                              <Text style={styles.primaryBadgeText}>Primary</Text>
-                            </View>
-                          ) : (
-                            <TouchableOpacity style={styles.setPrimaryBtn} onPress={() => handleSetPrimary(acc.id)}>
-                              <Text style={styles.setPrimaryBtnText}>Set Primary</Text>
-                            </TouchableOpacity>
-                          )}
-                          <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteAccount(acc.id)}>
-                            <Text style={styles.deleteBtnText}>Delete</Text>
-                          </TouchableOpacity>
-                        </View>
-
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-
-                  <TouchableOpacity style={styles.addAccountBtn} onPress={handleAddAccount}>
-                    <Text style={styles.addAccountBtnText}>+ Add Bank or UPI</Text>
-                  </TouchableOpacity>
-
-                  {/* Amount Input */}
-                  <TextInput
-                    style={[styles.amountInput, { fontSize: 24, textAlign: 'center', height: 70, marginTop: 10 }]}
-                    placeholder="₹0"
-                    placeholderTextColor={theme.colors.textDim}
-                    keyboardType="numeric"
-                    value={withdrawAmount}
-                    onChangeText={setWithdrawAmount}
-                  />
-                  <Text style={[styles.processingNote, { textAlign: 'center', marginTop: 8 }]}>Processing time: 1-2 business days</Text>
-
-                    <TouchableOpacity style={styles.withdrawSubmitBtn} onPress={handleSubmitWithdrawal}>
-                      <Text style={styles.withdrawSubmitBtnText}>Submit Request</Text>
-                    </TouchableOpacity>
-                </View>
-              </TouchableWithoutFeedback>
+      {/* ═══════════════════════════════════════════
+          MODAL 1: ADD MONEY (TOP UP AMOUNT)
+      ═══════════════════════════════════════════ */}
+      <Modal visible={topUpModalVisible} transparent animationType="slide" onRequestClose={() => setTopUpModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Add Money to Wallet</Text>
+                <Text style={styles.modalSub}>Instant balance credit via UPI</Text>
+              </View>
+              <TouchableOpacity onPress={() => setTopUpModalVisible(false)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
 
-      {/* Top Up Funds Modal */}
-      <Modal
-        visible={topUpModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setTopUpModalVisible(false)}
-      >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <TouchableOpacity 
-            style={{ flex: 1, width: '100%' }} 
-            activeOpacity={1} 
-            onPress={() => setTopUpModalVisible(false)}
-          >
-            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-              <TouchableWithoutFeedback>
-                <View style={[styles.bottomSheet, { maxHeight: '60%' }]}>
-                  <View style={styles.sheetHeaderHandle} />
-                  <Text style={styles.sheetTitle}>Top Up Wallet</Text>
-                  <Text style={styles.sheetSub}>Select payment method and enter amount</Text>
-
-                  {/* Payment Method Selection */}
-                  <ScrollView style={{ maxHeight: 220, marginBottom: 16 }} showsVerticalScrollIndicator={false}>
-                    {[
-                      { id: 'UPI', name: 'UPI', detail: 'Google Pay, PhonePe, Paytm', icon: <Smartphone size={18} color="#e11d48" /> },
-                      { id: 'CARD', name: 'Credit / Debit Card', detail: 'Visa, Mastercard, RuPay', icon: <CreditCard size={18} color="#0284c7" /> },
-                      { id: 'NETBANKING', name: 'Net Banking', detail: 'All major Indian banks supported', icon: <Landmark size={18} color="#059669" /> }
-                    ].map(opt => (
-                      <TouchableOpacity 
-                        key={opt.id} 
-                        style={[styles.accountCard, topUpMethod === opt.id && styles.accountCardPrimary, { padding: 12, marginBottom: 8 }]}
-                        onPress={() => setTopUpMethod(opt.id)}
-                      >
-                        <View style={styles.accountLeft}>
-                          <View style={[styles.accountIconBox, { width: 36, height: 36, borderRadius: 18 }]}>
-                            {opt.icon}
-                          </View>
-                          <View style={styles.accountInfo}>
-                            <Text style={[styles.accountName, { fontSize: 14 }]}>{opt.name}</Text>
-                            <Text style={[styles.accountDetail, { fontSize: 12 }]}>{opt.detail}</Text>
-                          </View>
-                        </View>
-                        {topUpMethod === opt.id && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.primary }} />}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-
-                  {/* Amount Input */}
-                  <TextInput
-                    style={[styles.amountInput, { fontSize: 24, textAlign: 'center', height: 70 }]}
-                    placeholder="₹0"
-                    placeholderTextColor={theme.colors.textDim}
-                    keyboardType="numeric"
-                    value={topUpAmount}
-                    onChangeText={setTopUpAmount}
-                  />
-
-                  {/* Quick Amounts */}
-                  <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 20 }}>
-                    {[100, 500, 1000].map(amt => (
-                      <TouchableOpacity key={amt} style={styles.quickAmtBtn} onPress={() => setTopUpAmount(amt.toString())}>
-                        <Text style={styles.quickAmtText}>+₹{amt}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <TouchableOpacity style={styles.withdrawSubmitBtn} onPress={handleSubmitTopUp}>
-                    <Text style={styles.withdrawSubmitBtnText}>Proceed to Pay</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableWithoutFeedback>
+            <View style={styles.amountInputRow}>
+              <Text style={styles.rupeePrefix}>₹</Text>
+              <TextInput
+                style={styles.amountInputText}
+                placeholder="500"
+                placeholderTextColor={theme.colors.textDim}
+                keyboardType="numeric"
+                value={topUpAmount}
+                onChangeText={setTopUpAmount}
+              />
             </View>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
 
-      {/* Subscription Modal */}
-      <Modal
-        visible={subscriptionModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setSubscriptionModalVisible(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1} 
-          onPress={() => setSubscriptionModalVisible(false)}
-        >
-          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.bottomSheet, { maxHeight: '90%', paddingBottom: 40 }]}>
-                <View style={styles.sheetHeaderHandle} />
-                <Text style={styles.sheetTitle}>Choose Subscription</Text>
-                
-                <View style={{ backgroundColor: '#10B98115', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: '#10B98130' }}>
-                  <Text style={{ color: '#059669', fontWeight: 'bold', textAlign: 'center', fontSize: 13 }}>
-                    🎉 6 Months Free for Registered Workers!
-                  </Text>
-                </View>
-
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  {(dynamicPlans.length > 0 ? dynamicPlans : [
-                    { id: 'FREE_TRIAL', title: 'Worker Free Trial', desc: '6 months free', price: '₹0' }
-                  ]).map(plan => (
-                    <TouchableOpacity
-                      key={plan.id}
-                      style={[
-                        styles.planCard,
-                        selectedPlan === plan.id && styles.planCardSelected
-                      ]}
-                      onPress={() => setSelectedPlan(plan.id)}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.planTitle, selectedPlan === plan.id && { color: theme.colors.primary }]}>{plan.title}</Text>
-                        <Text style={styles.planDesc}>{plan.desc}</Text>
-                      </View>
-                      <Text style={[styles.planPrice, selectedPlan === plan.id && { color: theme.colors.primary }]}>{plan.price}</Text>
-                      <View style={[styles.radioOuter, selectedPlan === plan.id && { borderColor: theme.colors.primary }]}>
-                        {selectedPlan === plan.id && <View style={styles.radioInner} />}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-
-                <TouchableOpacity 
-                  style={[styles.withdrawSubmitBtn, { marginTop: 16 }]} 
-                  onPress={handleConfirmSubscription}
+            <View style={styles.presetChipsRow}>
+              {TOP_UP_PRESETS.map(preset => (
+                <TouchableOpacity
+                  key={preset}
+                  style={[styles.presetChip, topUpAmount === String(preset) && styles.presetChipActive]}
+                  onPress={() => setTopUpAmount(String(preset))}
                 >
-                  <Text style={styles.withdrawSubmitBtnText}>Confirm Subscription</Text>
+                  <Text style={[styles.presetChipText, topUpAmount === String(preset) && styles.presetChipTextActive]}>
+                    +₹{preset}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleTopUpProceed}>
+              <Text style={styles.primaryBtnText}>Proceed to Pay via UPI →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════
+          MODAL 2: UPI PAYMENT CHECKOUT & 12-DIGIT UTR
+      ═══════════════════════════════════════════ */}
+      <Modal visible={upiPaymentModalVisible} transparent animationType="slide" onRequestClose={() => setUpiPaymentModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Complete UPI Payment</Text>
+                <Text style={styles.modalSub}>Pay ₹{topUpAmount} to Admin account</Text>
+              </View>
+              <TouchableOpacity onPress={() => setUpiPaymentModalVisible(false)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            {/* UPI Details Box */}
+            <View style={styles.upiInfoCard}>
+              <View style={styles.upiCardHeader}>
+                <Smartphone size={20} color="#6C47FF" />
+                <Text style={styles.upiCardTitle}>Official Admin UPI ID</Text>
+              </View>
+              <View style={styles.upiIdRow}>
+                <Text style={styles.upiIdText}>{ADMIN_UPI_ID}</Text>
+                <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpi}>
+                  <Copy size={14} color="#6C47FF" />
+                  <Text style={styles.copyBtnText}>Copy</Text>
                 </TouchableOpacity>
               </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Add Payout Account Modal */}
-      <Modal
-        visible={addAccountModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setAddAccountModalVisible(false)}
-      >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <TouchableOpacity 
-            style={{ flex: 1, width: '100%' }} 
-            activeOpacity={1} 
-            onPress={() => setAddAccountModalVisible(false)}
-          >
-            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-              <TouchableWithoutFeedback>
-                <View style={[styles.bottomSheet, { maxHeight: '85%' }]}>
-                  <View style={styles.sheetHeaderHandle} />
-                  <Text style={styles.sheetTitle}>Add Payout Method</Text>
-                  <Text style={styles.sheetSub}>Receive withdrawals to your bank or UPI</Text>
-
-                  {/* Type Selector */}
-                  <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
-                    <TouchableOpacity 
-                      style={[{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center' }, newAccountType === 'BANK' ? { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary } : { borderColor: theme.colors.border }]}
-                      onPress={() => setNewAccountType('BANK')}
-                    >
-                      <Text style={{ fontWeight: '700', color: newAccountType === 'BANK' ? '#fff' : theme.colors.text }}>🏦 Bank Account</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center' }, newAccountType === 'UPI' ? { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary } : { borderColor: theme.colors.border }]}
-                      onPress={() => setNewAccountType('UPI')}
-                    >
-                      <Text style={{ fontWeight: '700', color: newAccountType === 'UPI' ? '#fff' : theme.colors.text }}>📱 UPI ID</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView showsVerticalScrollIndicator={false}>
-                    {newAccountType === 'BANK' ? (
-                      <>
-                        <Text style={styles.inputLabel}>Bank Name</Text>
-                        <TextInput 
-                          style={styles.inputField} 
-                          placeholder="e.g. HDFC Bank / State Bank of India"
-                          placeholderTextColor={theme.colors.textDim}
-                          value={newAccountBankName}
-                          onChangeText={setNewAccountBankName}
-                        />
-                        
-                        <Text style={[styles.inputLabel, { marginTop: 12 }]}>Account Number</Text>
-                        <TextInput 
-                          style={styles.inputField} 
-                          placeholder="Enter account number"
-                          keyboardType="numeric"
-                          placeholderTextColor={theme.colors.textDim}
-                          value={newAccountDetail}
-                          onChangeText={setNewAccountDetail}
-                        />
-
-                        <Text style={[styles.inputLabel, { marginTop: 12 }]}>IFSC Code</Text>
-                        <TextInput 
-                          style={styles.inputField} 
-                          placeholder="e.g. HDFC0001234"
-                          autoCapitalize="characters"
-                          placeholderTextColor={theme.colors.textDim}
-                          value={newAccountIfsc}
-                          onChangeText={setNewAccountIfsc}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <Text style={styles.inputLabel}>UPI ID</Text>
-                        <TextInput 
-                          style={styles.inputField} 
-                          placeholder="e.g. mobilenumber@upi or name@okaxis"
-                          autoCapitalize="none"
-                          placeholderTextColor={theme.colors.textDim}
-                          value={newAccountDetail}
-                          onChangeText={setNewAccountDetail}
-                        />
-                      </>
-                    )}
-                  </ScrollView>
-
-                  <TouchableOpacity 
-                    style={[styles.withdrawSubmitBtn, { marginTop: 20 }]} 
-                    onPress={handleSubmitAddAccount}
-                    disabled={savingAccount}
-                  >
-                    <Text style={styles.withdrawSubmitBtnText}>{savingAccount ? 'Saving...' : 'Save Payout Method'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableWithoutFeedback>
+              <Text style={styles.upiAmountHint}>Amount to Transfer: <Text style={{ fontWeight: '900', color: '#6C47FF' }}>₹{topUpAmount}</Text></Text>
             </View>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
 
-      {/* Transaction Details Modal */}
-      <Modal
-        visible={transactionModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setTransactionModalVisible(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1} 
-          onPress={() => setTransactionModalVisible(false)}
-        >
-          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.bottomSheet, { alignItems: 'center' }]}>
-                {selectedTransaction && (
-                  <>
-                    <View style={styles.sheetHeaderHandle} />
-                    
-                    <View style={styles.receiptIconBox}>
-                      <ReceiptText size={32} color="#a78bfa" />
-                    </View>
-                    
-                    <Text style={styles.txDetailTitle}>{selectedTransaction.title}</Text>
-                    <Text style={styles.txDetailTime}>{selectedTransaction.time}</Text>
-                    
-                    <Text style={[styles.txDetailAmount, { color: selectedTransaction.type === 'credit' ? '#059669' : '#dc2626' }]}>
-                      {selectedTransaction.amount}
-                    </Text>
-                    
-                    <View style={styles.txDetailInfoBox}>
-                      <View style={styles.txDetailRow}>
-                        <Text style={styles.txDetailLabel}>Transaction ID</Text>
-                        <Text style={styles.txDetailValue}>{selectedTransaction.txnId}</Text>
-                      </View>
-                      <View style={styles.txDetailRow}>
-                        <Text style={styles.txDetailLabel}>Status</Text>
-                        <Text style={[styles.txDetailValue, { color: selectedTransaction.status === 'PENDING' ? theme.colors.warning : (selectedTransaction.status === 'REJECTED' ? theme.colors.danger : theme.colors.success), fontWeight: '700' }]}>
-                          {selectedTransaction.status || 'Successful'}
-                        </Text>
-                      </View>
-                      <View style={[styles.txDetailRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
-                        <Text style={styles.txDetailLabel}>Payment Method</Text>
-                        <Text style={styles.txDetailValue}>Wallet</Text>
-                      </View>
-                    </View>
+            {/* Direct App Button */}
+            <TouchableOpacity style={styles.upiIntentBtn} onPress={handlePayViaUpiApp} activeOpacity={0.85}>
+              <Zap size={18} color="#FFFFFF" />
+              <Text style={styles.upiIntentBtnText}>Open GPay / PhonePe / Paytm</Text>
+            </TouchableOpacity>
 
-                    <TouchableOpacity 
-                      style={styles.downloadBtn}
-                      onPress={() => {
-                        Alert.alert("Success", "Invoice downloaded successfully! 📄");
-                        setTransactionModalVisible(false);
-                      }}
-                    >
-                      <Text style={styles.downloadBtnText}>Download invoice</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            </TouchableWithoutFeedback>
+            {/* UTR Input */}
+            <View style={styles.utrSection}>
+              <Text style={styles.utrLabel}>Enter 12-Digit UPI Ref / UTR Number</Text>
+              <TextInput
+                style={styles.utrInput}
+                placeholder="e.g. 20260823000123"
+                placeholderTextColor={theme.colors.textDim}
+                keyboardType="numeric"
+                maxLength={12}
+                value={upiTxnId}
+                onChangeText={setUpiTxnId}
+              />
+              <Text style={styles.utrHint}>Found on your payment confirmation screen</Text>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]} 
+              onPress={handleVerifyUpiPayment}
+              disabled={submittingAction}
+            >
+              {submittingAction ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Verify & Credit ₹{topUpAmount} ✅</Text>
+              )}
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
-      </SafeAreaView>
-    </View>
+      {/* ═══════════════════════════════════════════
+          MODAL 3: WITHDRAW FUNDS
+      ═══════════════════════════════════════════ */}
+      <Modal visible={withdrawModalVisible} transparent animationType="slide" onRequestClose={() => setWithdrawModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '92%' }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Withdraw Earnings</Text>
+                <Text style={styles.modalSub}>Transfer funds to your account</Text>
+              </View>
+              <TouchableOpacity onPress={() => setWithdrawModalVisible(false)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Balance Breakdown */}
+            <View style={styles.withdrawBreakdownCard}>
+              <View style={styles.wBreakdownRow}>
+                <Text style={styles.wBreakdownLabel}>Total Wallet Balance</Text>
+                <Text style={styles.wBreakdownVal}>₹{balance.toFixed(2)}</Text>
+              </View>
+              <View style={styles.wBreakdownRow}>
+                <Text style={styles.wBreakdownLabel}>Safety Reserve (Freeze)</Text>
+                <Text style={[styles.wBreakdownVal, { color: '#EF4444' }]}>- ₹{MIN_SAFETY_FREEZE.toFixed(2)}</Text>
+              </View>
+              <View style={styles.wBreakdownDivider} />
+              <View style={styles.wBreakdownRow}>
+                <Text style={[styles.wBreakdownLabel, { fontWeight: '800', color: theme.colors.text }]}>Max Withdrawable</Text>
+                <Text style={[styles.wBreakdownVal, { fontWeight: '900', color: '#10B981', fontSize: 16 }]}>
+                  ₹{maxWithdrawable.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Destination Selection */}
+            <Text style={styles.fieldSectionLabel}>Select Destination Account</Text>
+            <ScrollView style={{ maxHeight: 150, marginBottom: 14 }} showsVerticalScrollIndicator={false}>
+              {accounts.map(acc => (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[styles.accountOptionCard, selectedAccountId === acc.id && styles.accountOptionCardActive]}
+                  onPress={() => setSelectedAccountId(acc.id)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.accountOptionName}>{acc.name}</Text>
+                    <Text style={styles.accountOptionDetail}>{acc.detail}</Text>
+                  </View>
+                  {selectedAccountId === acc.id && (
+                    <CheckCircle2 size={20} color="#6C47FF" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Amount Input */}
+            <View style={styles.amountInputRow}>
+              <Text style={styles.rupeePrefix}>₹</Text>
+              <TextInput
+                style={styles.amountInputText}
+                placeholder="0"
+                placeholderTextColor={theme.colors.textDim}
+                keyboardType="numeric"
+                value={withdrawAmount}
+                onChangeText={setWithdrawAmount}
+              />
+            </View>
+
+            {/* Quick Chips */}
+            <View style={styles.presetChipsRow}>
+              {[100, 500, maxWithdrawable].filter((v, i, a) => v > 0 && a.indexOf(v) === i).map((amt, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[styles.presetChip, withdrawAmount === String(amt) && styles.presetChipActive]}
+                  onPress={() => setWithdrawAmount(String(amt))}
+                >
+                  <Text style={[styles.presetChipText, withdrawAmount === String(amt) && styles.presetChipTextActive]}>
+                    {amt === maxWithdrawable ? `Max (₹${amt.toFixed(0)})` : `₹${amt}`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]} 
+              onPress={handleSubmitWithdrawal}
+              disabled={submittingAction}
+            >
+              {submittingAction ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Confirm Withdrawal →</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════
+          MODAL 4: ADD PAYOUT ACCOUNT (BANK/UPI)
+      ═══════════════════════════════════════════ */}
+      <Modal visible={addAccountModalVisible} transparent animationType="slide" onRequestClose={() => setAddAccountModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Add Payout Destination</Text>
+                <Text style={styles.modalSub}>Receive automated earnings payouts</Text>
+              </View>
+              <TouchableOpacity onPress={() => setAddAccountModalVisible(false)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Type selector */}
+            <View style={styles.typeToggleRow}>
+              <TouchableOpacity
+                style={[styles.typeToggleBtn, newAccountType === 'BANK' && styles.typeToggleBtnActive]}
+                onPress={() => setNewAccountType('BANK')}
+              >
+                <Landmark size={16} color={newAccountType === 'BANK' ? '#fff' : theme.colors.text} />
+                <Text style={[styles.typeToggleText, newAccountType === 'BANK' && { color: '#fff' }]}>Bank Account</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.typeToggleBtn, newAccountType === 'UPI' && styles.typeToggleBtnActive]}
+                onPress={() => setNewAccountType('UPI')}
+              >
+                <Smartphone size={16} color={newAccountType === 'UPI' ? '#fff' : theme.colors.text} />
+                <Text style={[styles.typeToggleText, newAccountType === 'UPI' && { color: '#fff' }]}>UPI ID</Text>
+              </TouchableOpacity>
+            </View>
+
+            {newAccountType === 'BANK' ? (
+              <>
+                <Text style={styles.inputLabel}>Bank Name</Text>
+                <TextInput
+                  style={styles.modalTextInput}
+                  placeholder="e.g. State Bank of India, HDFC Bank"
+                  placeholderTextColor={theme.colors.textDim}
+                  value={newAccountBankName}
+                  onChangeText={setNewAccountBankName}
+                />
+                <Text style={styles.inputLabel}>Account Number</Text>
+                <TextInput
+                  style={styles.modalTextInput}
+                  placeholder="e.g. 123456789012"
+                  placeholderTextColor={theme.colors.textDim}
+                  keyboardType="numeric"
+                  value={newAccountDetail}
+                  onChangeText={setNewAccountDetail}
+                />
+                <Text style={styles.inputLabel}>IFSC Code</Text>
+                <TextInput
+                  style={styles.modalTextInput}
+                  placeholder="e.g. SBIN0001234"
+                  placeholderTextColor={theme.colors.textDim}
+                  autoCapitalize="characters"
+                  value={newAccountIfsc}
+                  onChangeText={setNewAccountIfsc}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.inputLabel}>UPI ID (VPA)</Text>
+                <TextInput
+                  style={styles.modalTextInput}
+                  placeholder="e.g. shopname@okhdfcbank"
+                  placeholderTextColor={theme.colors.textDim}
+                  autoCapitalize="none"
+                  value={newAccountDetail}
+                  onChangeText={setNewAccountDetail}
+                />
+              </>
+            )}
+
+            <TouchableOpacity 
+              style={[styles.primaryBtn, savingAccount && { opacity: 0.7 }]} 
+              onPress={handleSubmitAddAccount}
+              disabled={savingAccount}
+            >
+              {savingAccount ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Save Account ✅</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════
+          MODAL 5: SUBSCRIPTION PLANS
+      ═══════════════════════════════════════════ */}
+      <Modal visible={subscriptionModalVisible} transparent animationType="slide" onRequestClose={() => setSubscriptionModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Shop Subscriptions</Text>
+                <Text style={styles.modalSub}>Select a plan for unlimited orders & delivery</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSubscriptionModalVisible(false)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+              {dynamicPlans.map(plan => (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={[styles.subPlanCard, selectedPlan === plan.id && styles.subPlanCardActive]}
+                  onPress={() => setSelectedPlan(plan.id)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.subPlanTitle, selectedPlan === plan.id && { color: '#6C47FF' }]}>{plan.title}</Text>
+                    <Text style={styles.subPlanDesc}>{plan.desc}</Text>
+                  </View>
+                  <Text style={[styles.subPlanPrice, selectedPlan === plan.id && { color: '#6C47FF' }]}>{plan.price}</Text>
+                  <View style={[styles.radioCircle, selectedPlan === plan.id && styles.radioCircleActive]}>
+                    {selectedPlan === plan.id && <View style={styles.radioDot} />}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]} 
+              onPress={handleConfirmSubscription}
+              disabled={submittingAction}
+            >
+              {submittingAction ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Activate Subscription →</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════
+          MODAL 6: TRANSACTION DETAILS
+      ═══════════════════════════════════════════ */}
+      <Modal visible={transactionModalVisible} transparent animationType="fade" onRequestClose={() => setTransactionModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: 24 }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Transaction Details</Text>
+              <TouchableOpacity onPress={() => setTransactionModalVisible(false)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedTransaction && (
+              <View style={styles.txDetailBox}>
+                <Text style={[styles.txDetailAmount, { color: selectedTransaction.type === 'credit' ? '#10B981' : '#EF4444' }]}>
+                  {selectedTransaction.type === 'credit' ? '+' : '-'}{selectedTransaction.amount}
+                </Text>
+                <Text style={styles.txDetailTitle}>{selectedTransaction.title}</Text>
+                
+                <View style={styles.txDetailRow}>
+                  <Text style={styles.txDetailLabel}>Transaction ID</Text>
+                  <Text style={styles.txDetailVal}>#{selectedTransaction.txnId}</Text>
+                </View>
+                <View style={styles.txDetailRow}>
+                  <Text style={styles.txDetailLabel}>Date & Time</Text>
+                  <Text style={styles.txDetailVal}>{selectedTransaction.time}</Text>
+                </View>
+                <View style={styles.txDetailRow}>
+                  <Text style={styles.txDetailLabel}>Status</Text>
+                  <Text style={[styles.txDetailVal, { color: selectedTransaction.status === 'COMPLETED' ? '#10B981' : '#F59E0B', fontWeight: '800' }]}>
+                    {selectedTransaction.status || 'COMPLETED'}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+    </SafeAreaView>
   );
 };
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
-  appBar: {
+  container: {
+    flex: 1,
+    backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    gap: 10,
     backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  appBarTitle: {
+  headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '900',
     color: theme.colors.text,
   },
-  appBarSubtitle: {
+  headerSub: {
     fontSize: 13,
     color: theme.colors.textDim,
-    marginTop: 1,
+    marginTop: 2,
   },
-  appBarIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative'
+    position: 'relative',
   },
   badge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: -3,
+    right: -3,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
     minWidth: 16,
     height: 16,
-    borderRadius: 8,
-    backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 3,
   },
   badgeText: {
-    color: '#FFF',
+    color: '#fff',
     fontSize: 9,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
-  balanceCard: {
-    backgroundColor: '#1e293b',
+
+  // Hero Card
+  heroCard: {
+    margin: 16,
     borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#000',
+    padding: 22,
+    shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.25,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: 6,
   },
-  balanceLabel: {
-    color: '#94a3b8',
-    fontSize: 14,
+  heroTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: 'rgba(255, 255, 255, 0.8)',
+    letterSpacing: 0.8,
+  },
+  livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 5,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#34D399',
+  },
+  livePillText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  heroBalance: {
+    fontSize: 38,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginVertical: 12,
+  },
+  heroBreakdown: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  breakdownItem: {
+    flex: 1,
+  },
+  breakdownDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    marginHorizontal: 12,
+  },
+  breakdownLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.75)',
     fontWeight: '600',
   },
-  balanceValue: {
-    color: 'white',
-    fontSize: 40,
-    fontWeight: '900',
-    marginTop: 8,
-    marginBottom: 24,
+  breakdownVal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 2,
   },
-  balanceActions: {
+  heroActionsRow: {
     flexDirection: 'row',
     gap: 12,
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 16,
-    overflow: 'hidden',
   },
-  walletBtnLeft: {
+  heroBtnTopUp: {
     flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  walletBtnLeftText: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  walletBtnDivider: {
-    width: 1,
-    height: '60%',
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  walletBtnRight: {
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  walletBtnRightText: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: theme.colors.text,
-    marginBottom: 16,
-  },
-  transactionsList: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 20,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  transactionCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  txLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  txIconBox: {
-    width: 44,
-    height: 44,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
     borderRadius: 14,
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 6,
   },
-  txInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  txTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  txTime: {
-    fontSize: 12,
-    color: theme.colors.textDim,
-    marginTop: 4,
-  },
-  txAmount: {
-    fontSize: 16,
+  heroBtnTopUpText: {
+    color: '#6C47FF',
     fontWeight: '800',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-    width: '100%'
-  },
-  bottomSheet: {
-    backgroundColor: theme.colors.background,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    width: '100%',
-  },
-  sheetHeaderHandle: {
-    width: 40,
-    height: 5,
-    backgroundColor: theme.colors.border,
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  sheetTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: theme.colors.text,
-  },
-  sheetSub: {
     fontSize: 14,
-    color: theme.colors.textDim,
-    marginTop: 4,
-    marginBottom: 24,
   },
-  accountsList: {
-    maxHeight: 240,
-    marginBottom: 16,
-  },
-  accountCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-  },
-  accountCardPrimary: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '0A',
-  },
-  accountLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  heroBtnWithdraw: {
     flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    paddingVertical: 12,
+    borderRadius: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
   },
-  accountIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#ccfbf1',
+  heroBtnWithdrawText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+
+  // Subscription banner
+  subBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  subBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  subIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  accountInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  accountName: {
+  subBannerTitle: {
     fontSize: 15,
     fontWeight: '800',
     color: theme.colors.text,
   },
-  accountDetail: {
-    fontSize: 13,
+  subBannerSub: {
+    fontSize: 12,
     color: theme.colors.textDim,
     marginTop: 2,
   },
-  accountRight: {
-    alignItems: 'flex-end',
+
+  // Section Headers
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  sectionAddText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  txCountText: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+
+  // Payout accounts
+  accountItemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  accountItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+    flex: 1,
+  },
+  accIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  accountItemName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  accountItemDetail: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginTop: 2,
   },
   primaryBadge: {
-    backgroundColor: '#d1fae5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
     borderRadius: 6,
   },
   primaryBadgeText: {
-    color: '#059669',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
+    color: '#16A34A',
   },
-  setPrimaryBtn: {
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  setPrimaryBtnText: {
-    color: theme.colors.text,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  deleteBtn: {
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  deleteBtnText: {
-    color: '#dc2626',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  addAccountBtn: {
-    paddingVertical: 16,
-    borderWidth: 1.5,
-    borderColor: theme.colors.primary,
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    marginBottom: 20,
-  },
-  addAccountBtnText: {
-    color: theme.colors.primary,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  amountInput: {
-    width: '100%',
-    height: 56,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: 8,
-  },
-  processingNote: {
-    fontSize: 12,
-    color: theme.colors.textDim,
-    marginBottom: 20,
-    paddingHorizontal: 4,
-  },
-  withdrawSubmitBtn: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  withdrawSubmitBtnText: {
-    color: '#001016',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  methodCard: {
-    flex: 1,
-    paddingVertical: 14,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    alignItems: 'center',
+  accountItemActions: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: 'center',
     gap: 8,
   },
-  methodCardActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '15',
+  setPrimaryBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: isDarkMode ? '#334155' : '#F1F5F9',
   },
-  methodCardText: {
-    fontSize: 14,
+  setPrimaryText: {
+    fontSize: 11,
     fontWeight: '700',
-    color: theme.colors.textDim,
+    color: '#6C47FF',
   },
-  methodCardTextActive: {
-    color: theme.colors.primary,
-  },
-  quickAmtBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: theme.colors.surface,
+  noAccountsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderStyle: 'dashed',
+    gap: 12,
   },
-  quickAmtText: {
+  noAccountsText: {
+    fontSize: 13,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+    flex: 1,
+  },
+
+  // Transactions
+  txCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  txIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  txInfo: {
+    flex: 1,
+  },
+  txTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.colors.text,
   },
-  
-  // Transaction Modal Styles
-  receiptIconBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#f3e8ff',
-    justifyContent: 'center',
+  txTime: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 3,
+  },
+  txAmount: {
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  txStatusPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  txStatusText: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  emptyTxCard: {
+    alignItems: 'center',
+    padding: 36,
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    marginHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  emptyTxText: {
+    fontSize: 13,
+    color: theme.colors.textDim,
+    marginTop: 8,
+  },
+
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 22,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: isDarkMode ? '#334155' : '#CBD5E1',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  txDetailTitle: {
+  modalTitle: {
     fontSize: 18,
+    fontWeight: '900',
+    color: theme.colors.text,
+  },
+  modalSub: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  closeBtn: {
+    padding: 6,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    borderRadius: 14,
+  },
+
+  // Amount Inputs
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    paddingHorizontal: 20,
+    height: 64,
+    marginBottom: 14,
+  },
+  rupeePrefix: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#6C47FF',
+    marginRight: 6,
+  },
+  amountInputText: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: theme.colors.text,
+    minWidth: 100,
+    textAlign: 'center',
+  },
+  presetChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  presetChip: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  presetChipActive: {
+    backgroundColor: 'rgba(108, 71, 255, 0.15)',
+    borderColor: '#6C47FF',
+  },
+  presetChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  presetChipTextActive: {
+    color: '#6C47FF',
+    fontWeight: '800',
+  },
+  primaryBtn: {
+    backgroundColor: '#6C47FF',
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  // UPI Info card
+  upiInfoCard: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginBottom: 14,
+  },
+  upiCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  upiCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  upiIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginBottom: 8,
+  },
+  upiIdText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#6C47FF',
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(108, 71, 255, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  copyBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  upiAmountHint: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+  },
+  upiIntentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 8,
+    marginBottom: 16,
+  },
+  upiIntentBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  utrSection: {
+    marginBottom: 18,
+  },
+  utrLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: 6,
+  },
+  utrInput: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#CBD5E1',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
     fontWeight: '700',
     color: theme.colors.text,
     textAlign: 'center',
+    letterSpacing: 1,
   },
-  txDetailTime: {
-    fontSize: 14,
+  utrHint: {
+    fontSize: 11,
     color: theme.colors.textDim,
+    textAlign: 'center',
     marginTop: 4,
-    marginBottom: 16,
   },
-  txDetailAmount: {
-    fontSize: 36,
-    fontWeight: '900',
-    marginBottom: 32,
+
+  // Withdraw Breakdown
+  withdrawBreakdownCard: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginBottom: 14,
   },
-  txDetailInfoBox: {
-    width: '100%',
-    marginBottom: 32,
-  },
-  txDetailRow: {
+  wBreakdownRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    alignItems: 'center',
+    paddingVertical: 3,
   },
-  txDetailLabel: {
-    fontSize: 14,
+  wBreakdownLabel: {
+    fontSize: 13,
     color: theme.colors.textDim,
   },
-  txDetailValue: {
-    fontSize: 14,
+  wBreakdownVal: {
+    fontSize: 13,
     fontWeight: '700',
     color: theme.colors.text,
   },
-  txDetailValueSuccess: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#059669',
+  wBreakdownDivider: {
+    height: 1,
+    backgroundColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginVertical: 6,
   },
-  downloadBtn: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 16,
-    borderRadius: 16,
-    width: '100%',
-    alignItems: 'center',
-  },
-  downloadBtnText: {
-    color: '#001016',
-    fontSize: 16,
+  fieldSectionLabel: {
+    fontSize: 13,
     fontWeight: '800',
+    color: theme.colors.text,
+    marginBottom: 8,
   },
-  planCard: {
+  accountOptionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 12,
-    backgroundColor: theme.colors.surface,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginBottom: 6,
   },
-  planCardSelected: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '05',
+  accountOptionCardActive: {
+    borderColor: '#6C47FF',
+    backgroundColor: 'rgba(108, 71, 255, 0.08)',
   },
-  planTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
+  accountOptionName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  accountOptionDetail: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 1,
+  },
+
+  // Add Account form
+  typeToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  typeToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  typeToggleBtnActive: {
+    backgroundColor: '#6C47FF',
+    borderColor: '#6C47FF',
+  },
+  typeToggleText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
     color: theme.colors.text,
     marginBottom: 4,
+    marginTop: 8,
   },
-  planDesc: {
+  modalTextInput: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#CBD5E1',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: theme.colors.text,
+    marginBottom: 8,
+  },
+
+  // Sub plans
+  subPlanCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginBottom: 8,
+  },
+  subPlanCardActive: {
+    borderColor: '#6C47FF',
+    backgroundColor: 'rgba(108, 71, 255, 0.08)',
+  },
+  subPlanTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  subPlanDesc: {
     fontSize: 12,
     color: theme.colors.textDim,
+    marginTop: 2,
   },
-  planPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  subPlanPrice: {
+    fontSize: 15,
+    fontWeight: '900',
     color: theme.colors.text,
-    marginRight: 16,
+    marginRight: 10,
   },
-  radioOuter: {
+  radioCircle: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: theme.colors.textDim,
+    borderColor: isDarkMode ? '#475569' : '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  radioInner: {
+  radioCircleActive: {
+    borderColor: '#6C47FF',
+  },
+  radioDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#6C47FF',
   },
+
+  // Tx details modal
+  txDetailBox: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  txDetailAmount: {
+    fontSize: 32,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  txDetailTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginBottom: 16,
+  },
+  txDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+  },
+  txDetailLabel: {
+    fontSize: 13,
+    color: theme.colors.textDim,
+  },
+  txDetailVal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text,
+  }
 });
 
 export default ShopWalletScreen;
