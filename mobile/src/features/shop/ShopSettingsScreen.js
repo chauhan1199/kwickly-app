@@ -861,67 +861,108 @@ const ShopSettingsScreen = ({ navigation }) => {
         </BottomSheetModal>
 
         {/* ══════════════════════════════════════════════
-            3. KYC & DOCUMENTS MODAL (WITH PRESET LABELS)
+            3. KYC & DOCUMENTS MODAL (UPGRADED DESIGN)
             ══════════════════════════════════════════════ */}
         <BottomSheetModal visible={kycOpen} onClose={() => setKycOpen(false)} title="KYC & Legal Documents">
-          {/* Status Chip */}
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            alignSelf: 'flex-start',
-            backgroundColor: shop?.kyc?.status === 'APPROVED' ? '#DCFCE7' : '#FEF3C7',
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            borderRadius: 10,
-            gap: 6,
-            marginBottom: 16
-          }}>
-            {shop?.kyc?.status === 'APPROVED' ? (
-              <CheckCircle2 size={16} color="#15803D" />
-            ) : (
-              <AlertCircle size={16} color="#B45309" />
-            )}
-            <Text style={{ color: shop?.kyc?.status === 'APPROVED' ? '#15803D' : '#B45309', fontWeight: '800', fontSize: 13 }}>
-              KYC Status: {shop?.kyc?.status || 'PENDING'}
-            </Text>
+          {/* Status Banner Card */}
+          <View style={[
+            s.kycStatusBanner,
+            shop?.kyc?.status === 'APPROVED' ? s.kycStatusBannerApproved : shop?.kyc?.status === 'REJECTED' ? s.kycStatusBannerRejected : s.kycStatusBannerPending
+          ]}>
+            <View style={s.kycStatusIconWrap}>
+              {shop?.kyc?.status === 'APPROVED' ? (
+                <CheckCircle2 size={22} color="#15803D" />
+              ) : shop?.kyc?.status === 'REJECTED' ? (
+                <AlertCircle size={22} color="#DC2626" />
+              ) : (
+                <Clock size={22} color="#B45309" />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[
+                s.kycStatusTitle,
+                { color: shop?.kyc?.status === 'APPROVED' ? '#15803D' : shop?.kyc?.status === 'REJECTED' ? '#DC2626' : '#B45309' }
+              ]}>
+                {shop?.kyc?.status === 'APPROVED' ? 'Verified Store Partner ✓' : shop?.kyc?.status === 'REJECTED' ? 'Verification Action Required ✕' : 'Verification Under Review ⏳'}
+              </Text>
+              <Text style={[
+                s.kycStatusDesc,
+                { color: shop?.kyc?.status === 'APPROVED' ? '#166534' : shop?.kyc?.status === 'REJECTED' ? '#991B1B' : '#92400E' }
+              ]}>
+                {shop?.kyc?.status === 'APPROVED'
+                  ? 'All business credentials verified. Your store is active for customer orders.'
+                  : shop?.kyc?.status === 'REJECTED'
+                  ? (shop?.kyc?.rejectReason || 'Documents did not meet verification criteria. Please re-upload clear photos.')
+                  : 'Your legal credentials have been submitted and are being reviewed by the admin.'}
+              </Text>
+            </View>
           </View>
 
           {/* List of uploaded documents */}
           {shop?.kyc?.documents?.length > 0 ? (
-            <View style={{ gap: 10, marginBottom: 14 }}>
-              {shop.kyc.documents.map((doc, i) => (
-                <View key={i} style={s.docCard}>
-                  <View style={s.docIconBox}>
-                    <FileText size={20} color="#6C47FF" />
+            <View style={{ gap: 12, marginBottom: 16 }}>
+              {shop.kyc.documents.map((doc, i) => {
+                const preset = KYC_PRESETS.find(p => p.key === doc.docType || p.label === doc.name) || { icon: '📄', category: 'Business Doc' };
+                const formattedDate = doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recently Uploaded';
+
+                return (
+                  <View key={i} style={s.docCard}>
+                    {/* Top Row: Icon + Name + Category */}
+                    <View style={s.docCardTop}>
+                      <View style={s.docIconBox}>
+                        <Text style={{ fontSize: 22 }}>{preset.icon}</Text>
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={s.docName}>{doc.name}</Text>
+                        <View style={s.docMetaRow}>
+                          <View style={s.docCategoryChip}>
+                            <Text style={s.docCategoryText}>{preset.category || doc.docType || 'Document'}</Text>
+                          </View>
+                          <Text style={s.docDateText}>• {formattedDate}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Divider */}
+                    <View style={s.cardDivider} />
+
+                    {/* Bottom Action Bar */}
+                    <View style={s.docActionsRow}>
+                      <TouchableOpacity 
+                        style={s.docViewBtn} 
+                        onPress={() => {
+                          if (doc.url) {
+                            setDocViewerUrl(getImageUrl(doc.url));
+                            setDocViewerVisible(true);
+                          } else {
+                            Alert.alert('Error', 'No document preview available');
+                          }
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Eye size={15} color="#6C47FF" />
+                        <Text style={s.docViewBtnText}>View Document</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity 
+                        style={s.docDeleteBtn} 
+                        onPress={() => deleteDoc(i)}
+                        activeOpacity={0.8}
+                      >
+                        <Trash2 size={15} color="#EF4444" />
+                        <Text style={s.docDeleteBtnText}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={s.docName}>{doc.name}</Text>
-                    <Text style={s.docSub}>{doc.docType || 'Document'} · {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('en-IN') : 'Uploaded'}</Text>
-                  </View>
-                  <TouchableOpacity 
-                    style={s.docBtn} 
-                    onPress={() => {
-                      if (doc.url) {
-                        setDocViewerUrl(getImageUrl(doc.url));
-                        setDocViewerVisible(true);
-                      } else {
-                        Alert.alert('Error', 'No document preview available');
-                      }
-                    }}
-                  >
-                    <Eye size={13} color="#6C47FF" />
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#6C47FF', marginLeft: 3 }}>View</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[s.docBtn, { backgroundColor: '#FEF2F2', marginLeft: 6 }]} onPress={() => deleteDoc(i)}>
-                    <Trash2 size={13} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                );
+              })}
             </View>
           ) : (
             <View style={s.emptyDocState}>
-              <UploadCloud size={36} color="#94A3B8" />
-              <Text style={s.emptyDocText}>No legal documents uploaded yet.</Text>
+              <View style={s.emptyDocIconBox}>
+                <UploadCloud size={36} color="#6C47FF" />
+              </View>
+              <Text style={s.emptyDocText}>No legal documents uploaded yet</Text>
               <Text style={s.emptyDocSub}>Upload GST, FSSAI, or Shop License for fast approval.</Text>
             </View>
           )}
@@ -929,8 +970,15 @@ const ShopSettingsScreen = ({ navigation }) => {
           {/* Upload Document Form */}
           {showDocForm ? (
             <View style={s.docUploadBox}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 15, fontWeight: '900', color: c.text }}>Upload New Document</Text>
+                <TouchableOpacity onPress={() => setShowDocForm(false)} style={{ padding: 4 }}>
+                  <X size={18} color={c.textDim} />
+                </TouchableOpacity>
+              </View>
+
               <Text style={s.label}>1. Select Document Type</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 6 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
                 {KYC_PRESETS.map(preset => {
                   const isSelected = newDoc.docType === preset.key;
                   return (
@@ -959,15 +1007,19 @@ const ShopSettingsScreen = ({ navigation }) => {
               <Text style={s.label}>3. Document Photo / File</Text>
               <TouchableOpacity style={s.dashedBtn} onPress={pickDocument} activeOpacity={0.8}>
                 {newDoc.uri ? (
-                  <View style={{ alignItems: 'center', gap: 4 }}>
-                    <Image source={{ uri: newDoc.uri }} style={{ width: 80, height: 80, borderRadius: 8, marginBottom: 4 }} />
-                    <Text style={{ color: '#10B981', fontWeight: '800', fontSize: 13 }}>✓ Document image selected</Text>
+                  <View style={{ alignItems: 'center', gap: 6 }}>
+                    <Image source={{ uri: newDoc.uri }} style={{ width: 100, height: 80, borderRadius: 10 }} resizeMode="cover" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <CheckCircle2 size={14} color="#10B981" />
+                      <Text style={{ color: '#10B981', fontWeight: '800', fontSize: 13 }}>Document image selected</Text>
+                    </View>
+                    <Text style={{ color: c.textDim, fontSize: 11 }}>Tap to choose a different photo</Text>
                   </View>
                 ) : (
-                  <View style={{ alignItems: 'center', gap: 4 }}>
-                    <Camera size={24} color="#6C47FF" />
-                    <Text style={{ color: '#6C47FF', fontWeight: '800', fontSize: 13 }}>+ Tap to Take Photo or Select File</Text>
-                    <Text style={{ color: c.textDim, fontSize: 11 }}>JPG, PNG or PDF supported</Text>
+                  <View style={{ alignItems: 'center', gap: 6 }}>
+                    <Camera size={26} color="#6C47FF" />
+                    <Text style={{ color: '#6C47FF', fontWeight: '800', fontSize: 14 }}>+ Tap to Take Photo or Select File</Text>
+                    <Text style={{ color: c.textDim, fontSize: 11 }}>JPG, PNG or PDF supported (Max 5MB)</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -982,7 +1034,7 @@ const ShopSettingsScreen = ({ navigation }) => {
               </View>
             </View>
           ) : (
-            <TouchableOpacity style={s.addDocBtn} onPress={() => setShowDocForm(true)} activeOpacity={0.85}>
+            <TouchableOpacity style={s.addDocBtn} onPress={() => setShowDocForm(true)} activeOpacity={0.88}>
               <UploadCloud size={18} color="#FFFFFF" />
               <Text style={s.addDocBtnText}>+ Upload New KYC Document</Text>
             </TouchableOpacity>
@@ -1406,62 +1458,174 @@ const createStyles = (theme, isDarkMode) =>
       color: '#FFFFFF',
     },
 
-    /* ── KYC Documents ── */
-    docCard: {
+    /* ── KYC Status Banner ── */
+    kycStatusBanner: {
       flexDirection: 'row',
       alignItems: 'center',
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      marginBottom: 16,
+      gap: 12,
+    },
+    kycStatusBannerApproved: {
+      backgroundColor: isDarkMode ? 'rgba(21, 128, 61, 0.15)' : '#DCFCE7',
+      borderColor: isDarkMode ? '#15803D' : '#86EFAC',
+    },
+    kycStatusBannerPending: {
+      backgroundColor: isDarkMode ? 'rgba(180, 83, 9, 0.15)' : '#FEF3C7',
+      borderColor: isDarkMode ? '#B45309' : '#FDE68A',
+    },
+    kycStatusBannerRejected: {
+      backgroundColor: isDarkMode ? 'rgba(220, 38, 38, 0.15)' : '#FEE2E2',
+      borderColor: isDarkMode ? '#DC2626' : '#FCA5A5',
+    },
+    kycStatusIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    kycStatusTitle: {
+      fontSize: 14,
+      fontWeight: '900',
+      marginBottom: 2,
+    },
+    kycStatusDesc: {
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: '600',
+    },
+
+    /* ── KYC Document Cards ── */
+    docCard: {
       backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
-      padding: 12,
-      borderRadius: 14,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      padding: 14,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.2 : 0.04,
+      shadowRadius: 6,
+      elevation: 2,
+    },
+    docCardTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
     },
     docIconBox: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#EDE9FE',
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE',
       justifyContent: 'center',
       alignItems: 'center',
     },
     docName: {
-      fontSize: 13,
-      fontWeight: '800',
-      color: theme.colors.text,
-    },
-    docSub: {
-      fontSize: 11,
-      color: theme.colors.textDim,
-      marginTop: 2,
-    },
-    docBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 8,
-      backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
-    },
-    emptyDocState: {
-      alignItems: 'center',
-      paddingVertical: 24,
-      gap: 4,
-    },
-    emptyDocText: {
       fontSize: 14,
       fontWeight: '800',
       color: theme.colors.text,
-      marginTop: 6,
+    },
+    docMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 3,
+    },
+    docCategoryChip: {
+      backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    },
+    docCategoryText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: '#6C47FF',
+    },
+    docDateText: {
+      fontSize: 11,
+      color: theme.colors.textDim,
+    },
+    cardDivider: {
+      height: 1,
+      backgroundColor: isDarkMode ? '#334155' : '#F1F5F9',
+      marginVertical: 12,
+    },
+    docActionsRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    docViewBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      paddingVertical: 9,
+      borderRadius: 12,
+      gap: 6,
+    },
+    docViewBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#6C47FF',
+    },
+    docDeleteBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 12,
+      gap: 6,
+    },
+    docDeleteBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#EF4444',
+    },
+
+    /* ── Empty State ── */
+    emptyDocState: {
+      alignItems: 'center',
+      paddingVertical: 28,
+      gap: 4,
+    },
+    emptyDocIconBox: {
+      width: 64,
+      height: 64,
+      borderRadius: 20,
+      backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    emptyDocText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: theme.colors.text,
     },
     emptyDocSub: {
       fontSize: 12,
       color: theme.colors.textDim,
       textAlign: 'center',
+      marginTop: 2,
     },
+
+    /* ── Upload Form ── */
     docUploadBox: {
       backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
       padding: 16,
-      borderRadius: 16,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: isDarkMode ? '#334155' : '#E2E8F0',
       marginTop: 10,
@@ -1470,7 +1634,7 @@ const createStyles = (theme, isDarkMode) =>
       borderWidth: 1.5,
       borderColor: isDarkMode ? '#334155' : '#CBD5E1',
       borderStyle: 'dashed',
-      borderRadius: 12,
+      borderRadius: 14,
       paddingVertical: 18,
       backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
       alignItems: 'center',
@@ -1482,10 +1646,15 @@ const createStyles = (theme, isDarkMode) =>
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: '#6C47FF',
-      paddingVertical: 13,
-      borderRadius: 14,
-      gap: 6,
+      paddingVertical: 14,
+      borderRadius: 16,
+      gap: 8,
       marginTop: 10,
+      shadowColor: '#6C47FF',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 3,
     },
     addDocBtnText: {
       color: '#FFFFFF',
