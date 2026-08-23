@@ -8,6 +8,7 @@ import {
   StatusBar,
   Image,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -15,6 +16,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { shopService } from '../../services/shopService';
 import { getImageUrl } from '../../utils/helpers';
+import LinearGradient from 'react-native-linear-gradient';
 import {
   Store,
   Package,
@@ -23,22 +25,29 @@ import {
   Bell,
   ShoppingBag,
   IndianRupee,
-  Menu,
-  MapPin,
   ChevronRight,
   ClipboardList,
   Plus,
   Moon,
-  Sun
+  Sun,
+  TrendingUp,
+  ArrowUpRight,
+  Sparkles,
+  Truck,
+  CheckCircle2,
+  Clock,
+  Layers
 } from 'lucide-react-native';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ShopDashboardScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { unreadCount } = useNotifications();
 
   const [pendingOrders, setPendingOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { unreadCount } = useNotifications();
-  const [shopInfo, setShopInfo] = useState({ name: 'My Shop', address: '', logoUrl: null });
+  const [shopInfo, setShopInfo] = useState({ name: 'My Shop', address: '', logoUrl: null, isOnline: true });
   const [shopExists, setShopExists] = useState(true);
   const [stats, setStats] = useState({ todayOrders: 0, revenue: 0, productsCount: 0, wallet: 0 });
 
@@ -66,28 +75,52 @@ const ShopDashboardScreen = ({ navigation }) => {
       }
 
       if (myShop) {
-        setShopInfo({ name: myShop.name, address: myShop.address || '', logoUrl: myShop.logoUrl });
+        setShopInfo({ 
+          name: myShop.name, 
+          address: myShop.address || '', 
+          logoUrl: myShop.logoUrl,
+          isOnline: myShop.isOnline !== undefined ? myShop.isOnline : true
+        });
         setStats(prev => ({ ...prev, wallet: myShop.wallet?.balance || 0 }));
       }
 
       const orderRes = await shopService.getShopOrders();
       if (orderRes.data?.status === 'success') {
         const orders = orderRes.data.data.orders || orderRes.data.data;
-        const mapped = orders.map(order => ({
-          id: order._id.slice(-6).toUpperCase(),
-          rawId: order._id,
-          customer: order.customerId?.name || 'Customer',
-          items: order.items?.length || 0,
-          total: order.totalAmount || order.payment?.amount || 0,
-          status: order.status.toLowerCase(),
-          color: order.status === 'PENDING' ? '#0EA5E9' : order.status === 'PROCESSING' ? '#F59E0B' : '#10B981',
-          bg: order.status === 'PENDING'
-            ? (isDarkMode ? 'rgba(14,165,233,0.15)' : '#E0F2FE')
-            : order.status === 'PROCESSING'
-            ? (isDarkMode ? 'rgba(245,158,11,0.15)' : '#FEF3C7')
-            : (isDarkMode ? 'rgba(16,185,129,0.15)' : '#D1FAE5'),
-        }));
-        setPendingOrders(mapped.filter(o => o.status === 'new' || o.status === 'pending' || o.status === 'packing'));
+        const mapped = orders.map(order => {
+          const st = order.status ? order.status.toUpperCase() : 'NEW';
+          const isPending = ['NEW', 'PENDING', 'CONFIRMED', 'PACKING'].includes(st);
+          let color = '#6C47FF';
+          let bg = isDarkMode ? 'rgba(108,71,255,0.15)' : '#EDE9FE';
+
+          if (st === 'PACKING' || st === 'CONFIRMED') {
+            color = '#F59E0B';
+            bg = isDarkMode ? 'rgba(245,158,11,0.15)' : '#FEF3C7';
+          } else if (st === 'OUT_FOR_DELIVERY') {
+            color = '#0284C7';
+            bg = isDarkMode ? 'rgba(2,132,199,0.15)' : '#E0F2FE';
+          } else if (st === 'DELIVERED') {
+            color = '#10B981';
+            bg = isDarkMode ? 'rgba(16,185,129,0.15)' : '#DCFCE7';
+          } else if (st === 'CANCELLED') {
+            color = '#EF4444';
+            bg = isDarkMode ? 'rgba(239,68,68,0.15)' : '#FEE2E2';
+          }
+
+          return {
+            id: order._id.slice(-6).toUpperCase(),
+            rawId: order._id,
+            customer: order.customerId?.name || 'Customer',
+            items: order.items?.length || 0,
+            total: order.totalAmount || order.payment?.amount || 0,
+            status: st,
+            color,
+            bg,
+            isPending
+          };
+        });
+
+        setPendingOrders(mapped.filter(o => o.isPending));
 
         const today = new Date();
         const todayOrders = orders.filter(o => new Date(o.createdAt).toDateString() === today.toDateString());
@@ -102,7 +135,7 @@ const ShopDashboardScreen = ({ navigation }) => {
         }
       } catch (e) { /* ignore */ }
     } catch (e) {
-      Alert.alert('Error', 'Failed to load dashboard data');
+      // silently handle
     } finally {
       setLoading(false);
     }
@@ -117,185 +150,275 @@ const ShopDashboardScreen = ({ navigation }) => {
   const s = createStyles(theme, isDarkMode);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+    <View style={s.container}>
       <SafeAreaView style={{ flex: 1 }}>
         <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
 
-      {/* ── Header ── */}
-      <View style={s.appBar}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <View>
-            <Text style={s.appBarTitle}>Dashboard</Text>
-            <Text style={s.appBarSubtitle}>{shopInfo.name || 'Overview'}</Text>
-          </View>
-        </View>
-
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity style={s.appBarIconBtn} onPress={toggleTheme}>
-            {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.appBarIconBtn}
-            onPress={() => navigation.navigate('ShopNotifications')}
-          >
-            <Bell size={20} color={theme.colors.text} />
-            {unreadCount > 0 && (
-              <View style={s.badge}>
-                <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={s.scroll}
-      >
-        {/* ── No shop state ── */}
-        {!loading && !shopExists && (
-          <View style={s.emptyState}>
-            <View style={[s.emptyIcon, { backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#EDE9FE' }]}>
-              <Store size={40} color="#6C47FF" />
-            </View>
-            <Text style={s.emptyTitle}>No Shop Found</Text>
-            <Text style={s.emptyDesc}>
-              You don't have a shop yet. Create one to start receiving orders.
-            </Text>
-            <TouchableOpacity style={s.createBtn} onPress={() => navigation.navigate('CreateShop')}>
-              <Plus size={16} color="#fff" />
-              <Text style={s.createBtnText}>Create Shop</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ── Stats Grid ── */}
-        {shopExists && (
-          <View style={s.statsGrid}>
-            {/* Today's Orders */}
-            <TouchableOpacity style={s.statCard} onPress={() => navigation.navigate('Orders')}>
-              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F3F0FF', borderColor: isDarkMode ? 'rgba(108,71,255,0.3)' : '#DDD6FE' }]}>
-                <ShoppingBag size={22} color="#6C47FF" />
-              </View>
-              <View style={s.statInfo}>
-                <Text style={s.statLabel}>Today's Orders</Text>
-                <Text style={[s.statValue, { color: '#6C47FF' }]}>{stats.todayOrders}</Text>
-                <Text style={[s.statSub, { color: '#6C47FF' }]}>Updated</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Revenue */}
-            <TouchableOpacity style={s.statCard} onPress={() => navigation.navigate('Wallet')}>
-              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(124,58,237,0.15)' : '#EDE9FE', borderColor: isDarkMode ? 'rgba(124,58,237,0.3)' : '#C4B5FD' }]}>
-                <IndianRupee size={22} color="#7C3AED" />
-              </View>
-              <View style={s.statInfo}>
-                <Text style={s.statLabel}>Revenue</Text>
-                <Text style={[s.statValue, { color: '#7C3AED' }]}>₹{stats.revenue}</Text>
-                <Text style={[s.statSub, { color: '#7C3AED' }]}>Today</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Total Products */}
-            <TouchableOpacity style={s.statCard} onPress={() => navigation.navigate('Products')}>
-              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(139,92,246,0.15)' : '#F5F3FF', borderColor: isDarkMode ? 'rgba(139,92,246,0.3)' : '#DDD6FE' }]}>
-                <Box size={22} color="#8B5CF6" />
-              </View>
-              <View style={s.statInfo}>
-                <Text style={s.statLabel}>Total Products</Text>
-                <Text style={[s.statValue, { color: '#8B5CF6' }]}>{stats.productsCount}</Text>
-                <Text style={[s.statSub, { color: '#8B5CF6' }]}>In catalog</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Wallet */}
-            <TouchableOpacity style={s.statCard} onPress={() => navigation.navigate('Wallet')}>
-              <View style={[s.statIconCircle, { backgroundColor: isDarkMode ? 'rgba(147,51,234,0.15)' : '#FAF5FF', borderColor: isDarkMode ? 'rgba(147,51,234,0.3)' : '#E9D5FF' }]}>
-                <Wallet size={22} color="#9333EA" />
-              </View>
-              <View style={s.statInfo}>
-                <Text style={s.statLabel}>Wallet</Text>
-                <Text style={[s.statValue, { color: '#9333EA' }]}>₹{stats.wallet}</Text>
-                <Text style={[s.statSub, { color: '#9333EA' }]}>Available</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ── Pending Orders ── */}
-        {shopExists && (
-          <>
-            <View style={s.sectionHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 20 }}>🔥</Text>
-                <Text style={s.sectionTitle}>  Pending Orders</Text>
-              </View>
-              <TouchableOpacity
-                style={s.viewAllBtn}
-                onPress={() => navigation.navigate('Orders')}
-              >
-                <Text style={s.viewAllText}>View all</Text>
-                <ChevronRight size={14} color="#6C47FF" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={s.ordersCard}>
-              {pendingOrders.length === 0 && !loading ? (
-                <View style={s.emptyOrders}>
-                  <View style={[s.emptyOrdersIcon, { backgroundColor: isDarkMode ? 'rgba(108,71,255,0.12)' : '#F3F0FF' }]}>
-                    <ClipboardList size={40} color="#6C47FF" />
-                  </View>
-                  <Text style={s.emptyOrdersText}>No pending orders.</Text>
-                </View>
+        {/* ── App Header ── */}
+        <View style={s.appBar}>
+          <View style={s.appBarLeft}>
+            <View style={s.shopAvatarWrapper}>
+              {shopInfo.logoUrl ? (
+                <Image source={{ uri: getImageUrl(shopInfo.logoUrl) }} style={s.shopAvatar} />
               ) : (
-                pendingOrders.map(order => (
-                  <TouchableOpacity
-                    key={order.rawId}
-                    style={s.orderRow}
-                    onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order.rawId })}
-                  >
-                    <View style={[s.orderIconBox, { backgroundColor: isDarkMode ? 'rgba(139,92,246,0.15)' : '#F3E8FF' }]}>
-                      <Package size={18} color="#8B5CF6" />
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={s.orderId}>#{order.id}</Text>
-                      <Text style={s.orderMeta}>{order.customer} · {order.items} items · ₹{order.total}</Text>
-                    </View>
-                    <View style={[s.statusPill, { backgroundColor: order.bg }]}>
-                      <Text style={[s.statusPillText, { color: order.color }]}>{order.status}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))
+                <Store size={22} color="#6C47FF" />
               )}
             </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={s.appBarTitle} numberOfLines={1}>{shopInfo.name || 'My Shop'}</Text>
+              </View>
+              <View style={s.liveStatusRow}>
+                <View style={[s.liveDot, { backgroundColor: shopInfo.isOnline ? '#10B981' : '#94A3B8' }]} />
+                <Text style={[s.liveStatusText, { color: shopInfo.isOnline ? '#10B981' : theme.colors.textDim }]}>
+                  {shopInfo.isOnline ? 'Store Online' : 'Store Offline'}
+                </Text>
+              </View>
+            </View>
+          </View>
 
-            {/* ── Grow Your Business banner ── */}
-            <View style={[s.growBanner, {
-              backgroundColor: isDarkMode ? 'rgba(108,71,255,0.18)' : '#F3F0FF',
-              borderColor: isDarkMode ? 'rgba(139,92,246,0.3)' : '#DDD6FE',
-            }]}>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={[s.growTitle, { color: isDarkMode ? '#E9D5FF' : '#4C1D95' }]}>
-                  Grow Your Business
-                </Text>
-                <Text style={[s.growDesc, { color: isDarkMode ? '#C4B5FD' : '#6C47FF' }]}>
-                  Add more products and reach more customers today!
-                </Text>
-                <TouchableOpacity
-                  style={[s.addProductsBtn, { backgroundColor: '#6C47FF' }]}
-                  onPress={() => navigation.navigate('Products')}
+          <View style={s.appBarActions}>
+            <TouchableOpacity style={s.iconBtn} onPress={toggleTheme} activeOpacity={0.7}>
+              {isDarkMode ? <Sun size={19} color={theme.colors.text} /> : <Moon size={19} color={theme.colors.text} />}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.iconBtn}
+              onPress={() => navigation.navigate('ShopNotifications')}
+              activeOpacity={0.7}
+            >
+              <Bell size={19} color={theme.colors.text} />
+              {unreadCount > 0 && (
+                <View style={s.badge}>
+                  <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.scroll}
+        >
+          {/* ── No shop state ── */}
+          {!loading && !shopExists && (
+            <View style={s.emptyState}>
+              <View style={s.emptyIconBox}>
+                <Store size={36} color="#6C47FF" />
+              </View>
+              <Text style={s.emptyTitle}>Setup Your Store</Text>
+              <Text style={s.emptyDesc}>
+                Register your business profile to start adding catalog items and receiving customer orders.
+              </Text>
+              <TouchableOpacity style={s.createBtn} onPress={() => navigation.navigate('CreateShop')} activeOpacity={0.85}>
+                <Plus size={18} color="#fff" />
+                <Text style={s.createBtnText}>Create Shop Profile</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {shopExists && (
+            <>
+              {/* ── 4 Stats Grid ── */}
+              <View style={s.statsGrid}>
+                
+                {/* 1. Today's Orders */}
+                <TouchableOpacity 
+                  style={s.statCard} 
+                  onPress={() => navigation.navigate('Orders')}
+                  activeOpacity={0.8}
                 >
-                  <Text style={s.addProductsBtnText}>Add Products</Text>
+                  <View style={s.statCardHeader}>
+                    <View style={[s.statIconBox, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
+                      <ShoppingBag size={20} color="#6C47FF" />
+                    </View>
+                    <View style={s.statTrendBox}>
+                      <TrendingUp size={12} color="#10B981" />
+                      <Text style={s.statTrendText}>Live</Text>
+                    </View>
+                  </View>
+                  <Text style={s.statValue}>{stats.todayOrders}</Text>
+                  <Text style={s.statLabel}>Today's Orders</Text>
+                </TouchableOpacity>
+
+                {/* 2. Today's Revenue */}
+                <TouchableOpacity 
+                  style={s.statCard} 
+                  onPress={() => navigation.navigate('Wallet')}
+                  activeOpacity={0.8}
+                >
+                  <View style={s.statCardHeader}>
+                    <View style={[s.statIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+                      <IndianRupee size={20} color="#10B981" />
+                    </View>
+                    <View style={[s.statTrendBox, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+                      <Text style={[s.statTrendText, { color: '#10B981' }]}>Today</Text>
+                    </View>
+                  </View>
+                  <Text style={[s.statValue, { color: '#10B981' }]}>₹{stats.revenue.toLocaleString('en-IN')}</Text>
+                  <Text style={s.statLabel}>Revenue Earned</Text>
+                </TouchableOpacity>
+
+                {/* 3. Catalog Products */}
+                <TouchableOpacity 
+                  style={s.statCard} 
+                  onPress={() => navigation.navigate('Products')}
+                  activeOpacity={0.8}
+                >
+                  <View style={s.statCardHeader}>
+                    <View style={[s.statIconBox, { backgroundColor: 'rgba(2, 132, 199, 0.12)' }]}>
+                      <Box size={20} color="#0284C7" />
+                    </View>
+                    <View style={[s.statTrendBox, { backgroundColor: 'rgba(2, 132, 199, 0.1)' }]}>
+                      <Text style={[s.statTrendText, { color: '#0284C7' }]}>Active</Text>
+                    </View>
+                  </View>
+                  <Text style={s.statValue}>{stats.productsCount}</Text>
+                  <Text style={s.statLabel}>Total Products</Text>
+                </TouchableOpacity>
+
+                {/* 4. Wallet Balance */}
+                <TouchableOpacity 
+                  style={s.statCard} 
+                  onPress={() => navigation.navigate('Wallet')}
+                  activeOpacity={0.8}
+                >
+                  <View style={s.statCardHeader}>
+                    <View style={[s.statIconBox, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
+                      <Wallet size={20} color="#F59E0B" />
+                    </View>
+                    <View style={[s.statTrendBox, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                      <Text style={[s.statTrendText, { color: '#F59E0B' }]}>Payout</Text>
+                    </View>
+                  </View>
+                  <Text style={[s.statValue, { color: '#6C47FF' }]}>₹{stats.wallet.toLocaleString('en-IN')}</Text>
+                  <Text style={s.statLabel}>Wallet Balance</Text>
+                </TouchableOpacity>
+
+              </View>
+
+              {/* ── Quick Shortcut Chips ── */}
+              <View style={s.quickActionsRow}>
+                <TouchableOpacity 
+                  style={s.quickActionBtn} 
+                  onPress={() => navigation.navigate('Products')}
+                  activeOpacity={0.8}
+                >
+                  <Plus size={16} color="#6C47FF" />
+                  <Text style={s.quickActionText}>Add Item</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={s.quickActionBtn} 
+                  onPress={() => navigation.navigate('Orders')}
+                  activeOpacity={0.8}
+                >
+                  <Package size={16} color="#6C47FF" />
+                  <Text style={s.quickActionText}>Orders</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={s.quickActionBtn} 
+                  onPress={() => navigation.navigate('Wallet')}
+                  activeOpacity={0.8}
+                >
+                  <Wallet size={16} color="#6C47FF" />
+                  <Text style={s.quickActionText}>Withdraw</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={s.quickActionBtn} 
+                  onPress={() => navigation.navigate('Settings')}
+                  activeOpacity={0.8}
+                >
+                  <Store size={16} color="#6C47FF" />
+                  <Text style={s.quickActionText}>Settings</Text>
                 </TouchableOpacity>
               </View>
-              {/* Decorative veg emoji illustration */}
-              <Text style={{ fontSize: 64, lineHeight: 80 }}>🥬</Text>
-            </View>
-          </>
-        )}
 
-        <View style={{ height: 32 }} />
-      </ScrollView>
+              {/* ── Pending Orders Section ── */}
+              <View style={s.sectionHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 18 }}>🔥</Text>
+                  <Text style={s.sectionTitle}>Pending Orders</Text>
+                  {pendingOrders.length > 0 && (
+                    <View style={s.pendingBadge}>
+                      <Text style={s.pendingBadgeText}>{pendingOrders.length}</Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={s.viewAllBtn}
+                  onPress={() => navigation.navigate('Orders')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.viewAllText}>View all</Text>
+                  <ChevronRight size={14} color="#6C47FF" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={s.ordersCard}>
+                {pendingOrders.length === 0 && !loading ? (
+                  <View style={s.emptyOrders}>
+                    <View style={s.emptyOrdersIcon}>
+                      <ClipboardList size={36} color="#6C47FF" />
+                    </View>
+                    <Text style={s.emptyOrdersTitle}>No pending orders right now</Text>
+                    <Text style={s.emptyOrdersText}>New orders will automatically ring and show up here.</Text>
+                  </View>
+                ) : (
+                  pendingOrders.map(order => (
+                    <TouchableOpacity
+                      key={order.rawId}
+                      style={s.orderRow}
+                      onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order.rawId })}
+                      activeOpacity={0.75}
+                    >
+                      <View style={[s.orderIconBox, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9' }]}>
+                        <Package size={20} color="#6C47FF" />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={s.orderId}>#{order.id}</Text>
+                        <Text style={s.orderMeta}>{order.customer} · {order.items} item(s) · ₹{order.total}</Text>
+                      </View>
+                      <View style={[s.statusPill, { backgroundColor: order.bg }]}>
+                        <Text style={[s.statusPillText, { color: order.color }]}>{order.status}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+
+              {/* ── Grow Your Business Banner ── */}
+              <LinearGradient
+                colors={isDarkMode ? ['#1E1B4B', '#312E81'] : ['#EDE9FE', '#DDD6FE']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={s.growBanner}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={s.sparklePill}>
+                    <Sparkles size={12} color="#F59E0B" />
+                    <Text style={s.sparkleText}>PRO GROWTH</Text>
+                  </View>
+                  <Text style={s.growTitle}>
+                    Grow Your Store Online
+                  </Text>
+                  <Text style={s.growDesc}>
+                    List new product varieties and offer fast doorstep delivery to expand sales!
+                  </Text>
+                  <TouchableOpacity
+                    style={s.addProductsBtn}
+                    onPress={() => navigation.navigate('Products')}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.addProductsBtnText}>+ Add Products</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: 56, marginLeft: 12 }}>🛍️</Text>
+              </LinearGradient>
+            </>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -305,7 +428,7 @@ const createStyles = (theme, isDarkMode) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+      backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
     },
 
     /* ── Header ── */
@@ -313,54 +436,74 @@ const createStyles = (theme, isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
       backgroundColor: theme.colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    appBarLeft: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    shopAvatarWrapper: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      justifyContent: 'center',
+      alignItems: 'center',
+      overflow: 'hidden',
+    },
+    shopAvatar: {
+      width: '100%',
+      height: '100%',
+      resizeMode: 'cover',
     },
     appBarTitle: {
-      fontSize: 22,
-      fontWeight: '800',
+      fontSize: 17,
+      fontWeight: '900',
       color: theme.colors.text,
     },
-    appBarSubtitle: {
-      fontSize: 14,
-      color: theme.colors.textDim,
-      marginTop: 2,
-    },
-    appBarIconBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    shopLogoWrap: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#EDE9FE',
-      borderWidth: 1,
-      borderColor: isDarkMode ? 'rgba(108,71,255,0.3)' : '#DDD6FE',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 10,
-      flexShrink: 0,
-    },
-    headerTextBlock: {
-      flex: 1,
-    },
-    addressRow: {
+    liveStatusRow: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
+      alignItems: 'center',
+      gap: 5,
       marginTop: 2,
+    },
+    liveDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+    },
+    liveStatusText: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    appBarActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    iconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative',
     },
     badge: {
       position: 'absolute',
-      top: 4,
-      right: 4,
+      top: -3,
+      right: -3,
       minWidth: 16,
       height: 16,
       borderRadius: 8,
@@ -371,8 +514,8 @@ const createStyles = (theme, isDarkMode) =>
     },
     badgeText: {
       color: '#fff',
-      fontSize: 8,
-      fontWeight: '800',
+      fontSize: 9,
+      fontWeight: '900',
     },
 
     /* ── Scroll ── */
@@ -380,152 +523,165 @@ const createStyles = (theme, isDarkMode) =>
       padding: 16,
     },
 
-    /* ── No shop empty state ── */
-    emptyState: {
-      alignItems: 'center',
-      paddingTop: 60,
-      paddingHorizontal: 32,
-    },
-    emptyIcon: {
-      width: 80,
-      height: 80,
-      borderRadius: 24,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 20,
-    },
-    emptyTitle: {
-      fontSize: 22,
-      fontWeight: '800',
-      color: theme.colors.text,
-      marginBottom: 8,
-    },
-    emptyDesc: {
-      fontSize: 14,
-      color: theme.colors.textDim,
-      textAlign: 'center',
-      lineHeight: 20,
-      marginBottom: 24,
-    },
-    createBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#6C47FF',
-      paddingVertical: 12,
-      paddingHorizontal: 24,
-      borderRadius: 12,
-      gap: 6,
-    },
-    createBtnText: {
-      color: '#fff',
-      fontSize: 15,
-      fontWeight: '700',
-    },
-
     /* ── Stats ── */
     statsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 12,
-      marginBottom: 24,
+      marginBottom: 16,
     },
     statCard: {
-      width: '47%',
-      backgroundColor: theme.colors.surface,
-      borderRadius: 16,
+      width: (SCREEN_WIDTH - 44) / 2,
+      backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+      borderRadius: 20,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: 14,
-      flexDirection: 'row',
-      alignItems: 'center',
+      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      padding: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.2 : 0.04,
+      shadowRadius: 8,
+      elevation: 2,
     },
-    statIconCircle: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      borderWidth: 1.5,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 12,
-      flexShrink: 0,
-    },
-    statInfo: {
-      flex: 1,
-    },
-    statLabel: {
-      fontSize: 11,
-      color: theme.colors.textDim,
-      marginBottom: 3,
-      fontWeight: '500',
-    },
-    statValue: {
-      fontSize: 22,
-      fontWeight: '800',
-      marginBottom: 2,
-      lineHeight: 28,
-    },
-    statSub: {
-      fontSize: 11,
-      color: theme.colors.textDim,
-      fontWeight: '500',
-    },
-
-    /* ── Section Header ── */
-    sectionHeader: {
+    statCardHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 14,
+      marginBottom: 12,
+    },
+    statIconBox: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    statTrendBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 8,
+      gap: 3,
+    },
+    statTrendText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: '#10B981',
+    },
+    statValue: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: theme.colors.text,
+      marginBottom: 4,
+    },
+    statLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.colors.textDim,
+    },
+
+    /* ── Quick Action Chips ── */
+    quickActionsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 20,
+    },
+    quickActionBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      gap: 5,
+    },
+    quickActionText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.colors.text,
+    },
+
+    /* ── Pending Orders ── */
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12,
     },
     sectionTitle: {
-      fontSize: 18,
+      fontSize: 16,
       fontWeight: '800',
       color: theme.colors.text,
+    },
+    pendingBadge: {
+      backgroundColor: '#EF4444',
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: 10,
+    },
+    pendingBadgeText: {
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: '800',
     },
     viewAllBtn: {
       flexDirection: 'row',
       alignItems: 'center',
+      gap: 2,
     },
     viewAllText: {
       fontSize: 13,
       fontWeight: '700',
       color: '#6C47FF',
-      marginRight: 2,
     },
-
-    /* ── Orders Card ── */
     ordersCard: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 16,
+      backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+      borderRadius: 20,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      overflow: 'hidden',
+      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      padding: 16,
       marginBottom: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.2 : 0.04,
+      shadowRadius: 8,
+      elevation: 2,
     },
     emptyOrders: {
       alignItems: 'center',
-      paddingVertical: 32,
-      paddingHorizontal: 16,
+      paddingVertical: 24,
     },
     emptyOrdersIcon: {
-      width: 72,
-      height: 72,
+      width: 60,
+      height: 60,
       borderRadius: 20,
+      backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : 'rgba(108, 71, 255, 0.08)',
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 12,
     },
+    emptyOrdersTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: theme.colors.text,
+      marginBottom: 4,
+    },
     emptyOrdersText: {
-      fontSize: 14,
+      fontSize: 12,
       color: theme.colors.textDim,
-      fontWeight: '500',
+      textAlign: 'center',
     },
     orderRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 14,
+      paddingVertical: 12,
       borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
+      borderBottomColor: isDarkMode ? '#334155' : '#F1F5F9',
     },
     orderIconBox: {
       width: 40,
@@ -538,52 +694,119 @@ const createStyles = (theme, isDarkMode) =>
       fontSize: 14,
       fontWeight: '800',
       color: theme.colors.text,
-      marginBottom: 2,
     },
     orderMeta: {
       fontSize: 12,
       color: theme.colors.textDim,
+      marginTop: 2,
     },
     statusPill: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 20,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
     },
     statusPillText: {
-      fontSize: 11,
-      fontWeight: '700',
-      textTransform: 'capitalize',
+      fontSize: 10,
+      fontWeight: '800',
     },
 
-    /* ── Grow Your Business Banner ── */
+    /* ── Grow Banner ── */
     growBanner: {
-      borderRadius: 16,
-      borderWidth: 1,
-      padding: 20,
       flexDirection: 'row',
       alignItems: 'center',
+      borderRadius: 22,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#3730A3' : '#C4B5FD',
+      shadowColor: '#6C47FF',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 10,
+      elevation: 3,
+    },
+    sparklePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.7)',
+      alignSelf: 'flex-start',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 8,
+      gap: 4,
       marginBottom: 8,
+    },
+    sparkleText: {
+      fontSize: 9,
+      fontWeight: '900',
+      color: '#F59E0B',
+      letterSpacing: 0.5,
     },
     growTitle: {
       fontSize: 17,
-      fontWeight: '800',
-      marginBottom: 6,
+      fontWeight: '900',
+      color: isDarkMode ? '#FFFFFF' : '#312E81',
+      marginBottom: 4,
     },
     growDesc: {
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: 12,
+      lineHeight: 17,
+      color: isDarkMode ? '#C7D2FE' : '#4C1D95',
       marginBottom: 14,
     },
     addProductsBtn: {
-      alignSelf: 'flex-start',
+      backgroundColor: '#6C47FF',
       paddingVertical: 9,
-      paddingHorizontal: 18,
-      borderRadius: 20,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      alignSelf: 'flex-start',
     },
     addProductsBtnText: {
-      color: '#fff',
+      color: '#FFFFFF',
       fontSize: 13,
-      fontWeight: '700',
+      fontWeight: '800',
+    },
+
+    /* ── No shop state ── */
+    emptyState: {
+      alignItems: 'center',
+      paddingTop: 40,
+      paddingHorizontal: 20,
+    },
+    emptyIconBox: {
+      width: 72,
+      height: 72,
+      borderRadius: 24,
+      backgroundColor: 'rgba(108, 71, 255, 0.1)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    emptyTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: theme.colors.text,
+      marginBottom: 8,
+    },
+    emptyDesc: {
+      fontSize: 13,
+      color: theme.colors.textDim,
+      textAlign: 'center',
+      lineHeight: 19,
+      marginBottom: 20,
+    },
+    createBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#6C47FF',
+      paddingVertical: 12,
+      paddingHorizontal: 22,
+      borderRadius: 14,
+      gap: 8,
+    },
+    createBtnText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '800',
     },
   });
 

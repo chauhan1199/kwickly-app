@@ -1,26 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   ScrollView, 
-  TouchableOpacity,
-  StatusBar,
-  TextInput,
-  Modal,
-  Alert,
-  Image,
-  ActivityIndicator
+  TouchableOpacity, 
+  StatusBar, 
+  TextInput, 
+  Modal, 
+  Alert, 
+  Image, 
+  ActivityIndicator,
+  Dimensions
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { Bell, Search, Image as ImageIcon, X, RefreshCw, Moon, Sun, Menu, ChevronDown } from 'lucide-react-native';
+import { 
+  Bell, 
+  Search, 
+  Image as ImageIcon, 
+  X, 
+  RefreshCw, 
+  Moon, 
+  Sun, 
+  ChevronDown, 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  Package, 
+  Tag, 
+  Layers,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { shopService } from '../../services/shopService';
 import { getImageUrl, requestCameraPermission } from '../../utils/helpers';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ShopProductsScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -28,12 +46,12 @@ const ShopProductsScreen = ({ navigation }) => {
   const styles = createStyles(theme, isDarkMode);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalMode, setModalMode] = useState('add'); // 'add' or 'edit'
   
-  // Dummy form data
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -50,8 +68,8 @@ const ShopProductsScreen = ({ navigation }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [showUnitDropdown, setShowUnitDropdown] = useState(false);
+
   const UNIT_OPTIONS = [
     'Piece', 'Kg (Kilogram)', 'Gram', 'Quintal (100 Kg)', 'Ton', 
     'Liter', 'Milliliter (ml)', 'Dozen (12 pcs)', 'Pack', 'Box', 
@@ -59,7 +77,7 @@ const ShopProductsScreen = ({ navigation }) => {
     'Sheet', 'Carton', 'Bar'
   ];
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchProducts();
   }, []);
 
@@ -99,9 +117,14 @@ const ShopProductsScreen = ({ navigation }) => {
     }
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const categories = ['All', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
+
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const handleOpenAddModal = () => {
     setModalMode('add');
@@ -132,7 +155,7 @@ const ShopProductsScreen = ({ navigation }) => {
   };
 
   const handleDelete = (id) => {
-    Alert.alert('Delete Product', 'Are you sure you want to delete this product?', [
+    Alert.alert('Delete Product', 'Are you sure you want to delete this product from your store catalog?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try {
@@ -161,9 +184,9 @@ const ShopProductsScreen = ({ navigation }) => {
               }
               const result = await launchCamera({
                 mediaType: 'photo',
-                quality: 0.5,
-                maxWidth: 600,
-                maxHeight: 600,
+                quality: 0.6,
+                maxWidth: 800,
+                maxHeight: 800,
                 includeBase64: true,
                 saveToPhotos: true,
               });
@@ -181,16 +204,14 @@ const ShopProductsScreen = ({ navigation }) => {
             try {
               const result = await launchImageLibrary({
                 mediaType: 'photo',
-                quality: 0.5,
-                maxWidth: 600,
-                maxHeight: 600,
+                quality: 0.6,
+                maxWidth: 800,
+                maxHeight: 800,
                 selectionLimit: 1,
                 includeBase64: true,
               });
               if (!result.didCancel && result.assets?.length > 0) {
                 setFormData(prev => ({ ...prev, image: result.assets[0] }));
-              } else if (result.errorCode) {
-                Alert.alert('Error', 'Failed to pick image: ' + result.errorMessage);
               }
             } catch (error) {
               Alert.alert('Error', 'Failed to open gallery');
@@ -220,38 +241,24 @@ const ShopProductsScreen = ({ navigation }) => {
   };
 
   const handleSave = async () => {
-    const nameStr = String(formData.name || '').trim();
-    if (!nameStr || nameStr.length < 2) {
-      Alert.alert('Validation Error', 'Product name must be at least 2 characters.');
+    const nameStr = (formData.name || '').trim();
+    if (!nameStr) {
+      Alert.alert('Validation Error', 'Product name is required.');
       return;
     }
-
-    const priceRaw = String(formData.price || '').trim();
-    if (!priceRaw) {
-      Alert.alert('Validation Error', 'Price is required.');
-      return;
-    }
-    const priceNum = Number(priceRaw);
+    const priceNum = Number(formData.price);
     if (isNaN(priceNum) || priceNum <= 0) {
-      Alert.alert('Validation Error', 'Price must be a valid numeric value greater than 0 (e.g. 100).');
+      Alert.alert('Validation Error', 'Please enter a valid price greater than 0.');
       return;
     }
-
-    const stockRaw = String(formData.stock ?? '').trim();
-    if (stockRaw === '') {
-      Alert.alert('Validation Error', 'Stock quantity is required.');
+    const stockNum = Number(formData.stock);
+    if (isNaN(stockNum) || stockNum < 0) {
+      Alert.alert('Validation Error', 'Please enter a valid stock quantity.');
       return;
     }
-    const stockNum = Number(stockRaw);
-    if (isNaN(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
-      Alert.alert('Validation Error', 'Stock must be a valid non-negative integer (e.g. 10).');
-      return;
-    }
-
-    const minQtyRaw = String(formData.minQty ?? '1').trim();
-    const minQtyNum = Number(minQtyRaw);
-    if (isNaN(minQtyNum) || minQtyNum < 1 || !Number.isInteger(minQtyNum)) {
-      Alert.alert('Validation Error', 'Minimum quantity must be a valid integer of at least 1 (e.g. 1).');
+    const minQtyNum = Number(formData.minQty || '1');
+    if (isNaN(minQtyNum) || minQtyNum < 1) {
+      Alert.alert('Validation Error', 'Minimum quantity must be at least 1.');
       return;
     }
 
@@ -279,334 +286,385 @@ const ShopProductsScreen = ({ navigation }) => {
 
       if (modalMode === 'add') {
         await shopService.createProduct(payload);
+        Alert.alert('Success 🎉', 'New product added to catalog.');
       } else {
         await shopService.updateProduct(formData.id, payload);
+        Alert.alert('Success ✅', 'Product updated successfully.');
       }
 
       setIsModalVisible(false);
       fetchProducts();
     } catch (e) {
-      setSaving(false);
-      const errDetails = e?.response?.data?.errors;
-      let errMsg = e?.response?.data?.message || e.message;
-      if (Array.isArray(errDetails) && errDetails.length > 0) {
-        errMsg = errDetails.join('\n• ');
-      }
-      Alert.alert('Save Failed', errMsg);
+      Alert.alert('Save Failed', e?.response?.data?.message || 'Failed to save product.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+    <View style={styles.container}>
       <SafeAreaView style={{ flex: 1 }}>
         <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+        {/* App Bar */}
+        <View style={styles.appBar}>
           <View>
-            <Text style={styles.appBarTitle}>Products</Text>
-            <Text style={styles.appBarSubtitle}>Manage your catalog</Text>
+            <Text style={styles.appBarTitle}>Store Catalog</Text>
+            <Text style={styles.appBarSubtitle}>{products.length} products listed</Text>
+          </View>
+
+          <View style={styles.appBarActions}>
+            <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme} activeOpacity={0.7}>
+              {isDarkMode ? <Sun size={19} color={theme.colors.text} /> : <Moon size={19} color={theme.colors.text} />}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={fetchProducts} activeOpacity={0.7}>
+              <RefreshCw size={19} color={theme.colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('ShopNotifications')} activeOpacity={0.7}>
+              <Bell size={19} color={theme.colors.text} />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
-            {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          
+          {/* Add Product Button */}
+          <TouchableOpacity style={styles.addBtn} onPress={handleOpenAddModal} activeOpacity={0.88}>
+            <Plus size={20} color="#FFFFFF" />
+            <Text style={styles.addBtnText}>+ Add New Product</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={fetchProducts}>
-            <RefreshCw size={20} color={theme.colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
-            <Bell size={20} color={theme.colors.text} />
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
-        {/* Add Product Button */}
-        <TouchableOpacity style={styles.addBtn} onPress={handleOpenAddModal}>
-          <Text style={styles.addBtnText}>+ Add New Product</Text>
-        </TouchableOpacity>
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <Search size={18} color={theme.colors.textDim} style={styles.searchIcon} />
+            <TextInput 
+              style={styles.searchInput}
+              placeholder="Search by product name, brand..."
+              placeholderTextColor={theme.colors.textDim}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery ? (
+              <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 6 }}>
+                <X size={16} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
-        {/* Search */}
-        <View style={styles.searchContainer}>
-          <Search size={20} color={theme.colors.textDim} style={styles.searchIcon} />
-          <TextInput 
-            style={styles.searchInput}
-            placeholder="Search products..."
-            placeholderTextColor={theme.colors.textDim}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+          {/* Category Filter Pills */}
+          {categories.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={{ gap: 8 }}>
+              {categories.map((cat) => {
+                const isActive = selectedCategory === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                    onPress={() => setSelectedCategory(cat)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.categoryText, isActive && styles.categoryTextActive]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
 
-        {/* Product List */}
-        <View style={styles.productsList}>
-          {filteredProducts.map((product) => {
-            const resolvedImage = getImageUrl(product.imageUrl);
-            return (
-            <View key={product.id} style={styles.productCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                <View style={[styles.productIconBox, { backgroundColor: product.bg, overflow: 'hidden' }]}>
-                  {resolvedImage ? (
-                    <Image 
-                      source={{ uri: resolvedImage }} 
-                      style={{ width: '100%', height: '100%' }} 
-                      resizeMode="cover" 
-                    />
-                  ) : (
-                    <Text style={{ fontSize: 28 }}>{product.icon}</Text>
-                  )}
-                </View>
-                <View style={styles.productInfo}>
-                  <Text style={styles.productName}>{product.name}</Text>
-                  {product.brand ? <Text style={{ color: theme.colors.textDim, fontSize: 12, marginBottom: 4 }}>Brand: {product.brand}</Text> : null}
-                  
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <View style={styles.tagPill}>
-                        <Text style={styles.tagPillText}>{product.stock} Stock</Text>
-                      </View>
-                      <View style={styles.tagPill}>
-                        <Text style={styles.tagPillText}>Min {product.minQty}</Text>
-                      </View>
-                      <View style={styles.tagPill}>
-                        <Text style={styles.tagPillText}>{product.unit}</Text>
-                      </View>
-                      {product.attributes?.map((attr, idx) => (
-                        <View key={idx} style={styles.tagPill}>
-                          <Text style={styles.tagPillText}>{attr.name}: {attr.value}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </ScrollView>
-
-                  <Text style={styles.productPrice}>₹{product.price} / {product.unit}</Text>
-                </View>
-              </View>
-              
-              <View style={styles.productActions}>
-                <TouchableOpacity style={[styles.editBtn, { flex: 1, marginRight: 6 }]} onPress={() => handleOpenEditModal(product)}>
-                  <Text style={styles.editBtnText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.deleteBtn, { flex: 1, marginLeft: 6 }]} onPress={() => handleDelete(product.id)}>
-                  <Text style={styles.deleteBtnText}>Delete</Text>
-                </TouchableOpacity>
-              </View>
+          {/* Product List */}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#6C47FF" />
             </View>
-          )})}
-          {filteredProducts.length === 0 && (
-            <View style={{ padding: 40, alignItems: 'center' }}>
-              <Text style={{ color: theme.colors.textDim }}>No products found.</Text>
+          ) : filteredProducts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconBox}>
+                <Package size={36} color="#6C47FF" />
+              </View>
+              <Text style={styles.emptyTitle}>No Products Found</Text>
+              <Text style={styles.emptyText}>Tap "+ Add New Product" to add items to your catalog.</Text>
+            </View>
+          ) : (
+            <View style={styles.productsList}>
+              {filteredProducts.map((product) => {
+                const resolvedImage = getImageUrl(product.imageUrl);
+                const isOutOfStock = product.stock <= 0;
+                const isLowStock = product.stock > 0 && product.stock <= 5;
+
+                return (
+                  <View key={product.id} style={styles.productCard}>
+                    
+                    {/* Top Row: Thumbnail + Details */}
+                    <View style={styles.productTopRow}>
+                      <View style={styles.productThumbnailWrap}>
+                        {resolvedImage ? (
+                          <Image 
+                            source={{ uri: resolvedImage }} 
+                            style={styles.productThumbnail} 
+                            resizeMode="cover" 
+                          />
+                        ) : (
+                          <View style={[styles.productThumbnail, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
+                            <Text style={{ fontSize: 26 }}>{product.icon}</Text>
+                          </View>
+                        )}
+                        {/* Stock status overlay */}
+                        <View style={[
+                          styles.stockOverlay,
+                          { backgroundColor: isOutOfStock ? '#EF4444' : isLowStock ? '#F59E0B' : '#10B981' }
+                        ]}>
+                          <Text style={styles.stockOverlayText}>
+                            {isOutOfStock ? 'Out of stock' : `${product.stock} in stock`}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.productDetails}>
+                        <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+                        {product.brand ? (
+                          <Text style={styles.productBrand}>Brand: <Text style={{ fontWeight: '700', color: theme.colors.text }}>{product.brand}</Text></Text>
+                        ) : null}
+
+                        {/* Badges / Chips */}
+                        <View style={styles.badgeRow}>
+                          <View style={styles.detailBadge}>
+                            <Text style={styles.detailBadgeText}>Min {product.minQty}</Text>
+                          </View>
+                          <View style={styles.detailBadge}>
+                            <Text style={styles.detailBadgeText}>{product.unit}</Text>
+                          </View>
+                          {product.category && product.category !== 'General' ? (
+                            <View style={styles.detailBadge}>
+                              <Text style={styles.detailBadgeText}>{product.category}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+
+                        {/* Price */}
+                        <Text style={styles.productPrice}>
+                          ₹{product.price.toFixed(2)} <Text style={styles.unitSuffix}>/ {product.unit}</Text>
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Divider */}
+                    <View style={styles.cardDivider} />
+
+                    {/* Bottom Actions */}
+                    <View style={styles.productActionsRow}>
+                      <TouchableOpacity 
+                        style={styles.editActionBtn} 
+                        onPress={() => handleOpenEditModal(product)}
+                        activeOpacity={0.8}
+                      >
+                        <Edit3 size={15} color="#6C47FF" />
+                        <Text style={styles.editActionText}>Edit Product</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity 
+                        style={styles.deleteActionBtn} 
+                        onPress={() => handleDelete(product.id)}
+                        activeOpacity={0.8}
+                      >
+                        <Trash2 size={15} color="#EF4444" />
+                        <Text style={styles.deleteActionText}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                  </View>
+                );
+              })}
             </View>
           )}
-        </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+          <View style={{ height: 40 }} />
+        </ScrollView>
 
-      {/* Add/Edit Product Modal */}
-      <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={() => setIsModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {modalMode === 'add' ? 'Add New Product' : `Edit: ${formData.name}`}
-              </Text>
-              <TouchableOpacity onPress={() => setIsModalVisible(false)} style={styles.closeBtn}>
-                <X size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Add/Edit Product Modal */}
+        <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={() => setIsModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
               
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Product Name</Text>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {modalMode === 'add' ? 'Add New Product' : 'Edit Product Details'}
+                </Text>
+                <TouchableOpacity onPress={() => setIsModalVisible(false)} style={styles.closeBtn}>
+                  <X size={20} color={theme.colors.textDim} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+                
+                {/* Image Picker Box */}
+                <TouchableOpacity style={styles.imagePickerCard} onPress={pickImage} activeOpacity={0.85}>
+                  {formData.image ? (
+                    <Image source={{ uri: formData.image.uri }} style={styles.imagePreview} />
+                  ) : formData.imageUrl ? (
+                    <Image source={{ uri: getImageUrl(formData.imageUrl) }} style={styles.imagePreview} />
+                  ) : (
+                    <View style={styles.imagePickerPlaceholder}>
+                      <ImageIcon size={32} color="#6C47FF" />
+                      <Text style={styles.imagePickerText}>+ Tap to upload product photo</Text>
+                      <Text style={styles.imagePickerSub}>Supports Camera and Photo Gallery</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <Text style={styles.formLabel}>Product Title *</Text>
                 <TextInput 
-                  style={styles.inputField} 
-                  placeholder="e.g. Tata Salt 1kg"
+                  style={styles.formInput} 
+                  placeholder="e.g. Dettol Handwash Refill 750ml"
                   placeholderTextColor={theme.colors.textDim}
                   value={formData.name}
                   onChangeText={(t) => setFormData({...formData, name: t})}
                 />
-              </View>
 
-              <View style={styles.rowInputs}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.inputLabel}>Category</Text>
-                  <TextInput 
-                    style={styles.inputField} 
-                    placeholder="e.g. Grocery"
-                    placeholderTextColor={theme.colors.textDim}
-                    value={formData.category}
-                    onChangeText={(t) => setFormData({...formData, category: t})}
-                  />
-                </View>
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.inputLabel}>Brand</Text>
-                  <TextInput 
-                    style={styles.inputField} 
-                    placeholder="e.g. Asian Paints"
-                    placeholderTextColor={theme.colors.textDim}
-                    value={formData.brand}
-                    onChangeText={(t) => setFormData({...formData, brand: t})}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Description</Text>
-                <TextInput 
-                  style={[styles.inputField, { height: 80, textAlignVertical: 'top' }]} 
-                  placeholder="Enter product description..."
-                  placeholderTextColor={theme.colors.textDim}
-                  multiline
-                  value={formData.description}
-                  onChangeText={(t) => setFormData({...formData, description: t})}
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { zIndex: 5 }]}>
-                <Text style={styles.inputLabel}>Selling Unit</Text>
-                <TouchableOpacity 
-                  style={[styles.inputField, { justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center' }]}
-                  onPress={() => setShowUnitDropdown(!showUnitDropdown)}
-                >
-                  <Text style={{ color: formData.unit ? theme.colors.text : theme.colors.textDim }}>
-                    {formData.unit || 'Select unit'}
-                  </Text>
-                  <ChevronDown size={16} color={theme.colors.textDim} />
-                </TouchableOpacity>
-                <Modal visible={showUnitDropdown} transparent animationType="fade" onRequestClose={() => setShowUnitDropdown(false)}>
-                  <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowUnitDropdown(false)}>
-                    <View style={{ width: '85%', maxHeight: '60%', backgroundColor: theme.colors.surface, borderRadius: 16, overflow: 'hidden', elevation: 5, shadowColor: '#000', shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.3, shadowRadius: 8 }}>
-                      <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.card }}>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: theme.colors.text }}>Select Unit</Text>
-                      </View>
-                      <ScrollView showsVerticalScrollIndicator={false}>
-                        {UNIT_OPTIONS.map((unit, i) => (
-                          <TouchableOpacity 
-                            key={i} 
-                            style={{ paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: i < UNIT_OPTIONS.length - 1 ? 1 : 0, borderBottomColor: theme.colors.border }}
-                            onPress={() => { setFormData({...formData, unit}); setShowUnitDropdown(false); }}
-                          >
-                            <Text style={{ color: formData.unit === unit ? theme.colors.primary : theme.colors.text, fontWeight: formData.unit === unit ? 'bold' : 'normal', fontSize: 15 }}>{unit}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  </TouchableOpacity>
-                </Modal>
-              </View>
-
-              <View style={styles.rowInputs}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.inputLabel}>Price (₹)</Text>
-                  <TextInput 
-                    style={styles.inputField} 
-                    placeholder="99"
-                    keyboardType="decimal-pad"
-                    placeholderTextColor={theme.colors.textDim}
-                    value={formData.price}
-                    onChangeText={(t) => setFormData({...formData, price: t.replace(/[^0-9.]/g, '')})}
-                  />
-                </View>
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.inputLabel}>Stock</Text>
-                  <TextInput 
-                    style={styles.inputField} 
-                    placeholder="50"
-                    keyboardType="number-pad"
-                    placeholderTextColor={theme.colors.textDim}
-                    value={formData.stock}
-                    onChangeText={(t) => setFormData({...formData, stock: t.replace(/[^0-9]/g, '')})}
-                  />
-                  <Text style={{ fontSize: 10, color: theme.colors.textDim, marginTop: 4 }}>Total inventory</Text>
-                </View>
-              </View>
-
-              <View style={styles.rowInputs}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.inputLabel}>Min Qty</Text>
-                  <TextInput 
-                    style={styles.inputField} 
-                    placeholder="1"
-                    keyboardType="number-pad"
-                    placeholderTextColor={theme.colors.textDim}
-                    value={formData.minQty}
-                    onChangeText={(t) => setFormData({...formData, minQty: t.replace(/[^0-9]/g, '')})}
-                  />
-                  <Text style={{ fontSize: 10, color: theme.colors.textDim, marginTop: 4 }}>Min order limit</Text>
-                </View>
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.inputLabel}>Image</Text>
-                  <TouchableOpacity style={styles.imageUploadBtn} onPress={pickImage}>
-                    {formData.image ? (
-                      <Image source={{ uri: formData.image.uri }} style={{ width: '100%', height: '100%', borderRadius: 8 }} />
-                    ) : formData.imageUrl ? (
-                      <Image source={{ uri: getImageUrl(formData.imageUrl) }} style={{ width: '100%', height: '100%', borderRadius: 8 }} />
-                    ) : (
-                      <Text style={styles.imageUploadText}>+ Upload Image</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={[styles.inputGroup, { marginTop: 16 }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <Text style={styles.inputLabel}>Dynamic Attributes</Text>
-                  <TouchableOpacity onPress={addAttribute}>
-                    <Text style={{ color: theme.colors.primary, fontWeight: 'bold' }}>+ Add Attribute</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                {formData.attributes?.map((attr, index) => (
-                  <View key={index} style={{ flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                <View style={styles.formRow}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.formLabel}>Category</Text>
                     <TextInput 
-                      style={[styles.inputField, { flex: 1, marginBottom: 0 }]} 
-                      placeholder="Name (e.g. Length)"
+                      style={styles.formInput} 
+                      placeholder="e.g. Personal Care"
                       placeholderTextColor={theme.colors.textDim}
-                      value={attr.name}
-                      onChangeText={(t) => updateAttribute(index, 'name', t)}
+                      value={formData.category}
+                      onChangeText={(t) => setFormData({...formData, category: t})}
                     />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.formLabel}>Brand</Text>
                     <TextInput 
-                      style={[styles.inputField, { flex: 1, marginBottom: 0 }]} 
-                      placeholder="Value (e.g. 10 ft)"
+                      style={styles.formInput} 
+                      placeholder="e.g. Dettol"
                       placeholderTextColor={theme.colors.textDim}
-                      value={attr.value}
-                      onChangeText={(t) => updateAttribute(index, 'value', t)}
+                      value={formData.brand}
+                      onChangeText={(t) => setFormData({...formData, brand: t})}
                     />
-                    <TouchableOpacity onPress={() => removeAttribute(index)} style={{ padding: 8 }}>
-                      <X size={20} color="#F43F5E" />
+                  </View>
+                </View>
+
+                <View style={styles.formRow}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.formLabel}>Price (₹) *</Text>
+                    <TextInput 
+                      style={styles.formInput} 
+                      placeholder="119"
+                      keyboardType="numeric"
+                      placeholderTextColor={theme.colors.textDim}
+                      value={formData.price}
+                      onChangeText={(t) => setFormData({...formData, price: t.replace(/[^0-9.]/g, '')})}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.formLabel}>Stock Inventory *</Text>
+                    <TextInput 
+                      style={styles.formInput} 
+                      placeholder="50"
+                      keyboardType="numeric"
+                      placeholderTextColor={theme.colors.textDim}
+                      value={formData.stock}
+                      onChangeText={(t) => setFormData({...formData, stock: t.replace(/[^0-9]/g, '')})}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.formRow}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.formLabel}>Min Order Qty</Text>
+                    <TextInput 
+                      style={styles.formInput} 
+                      placeholder="1"
+                      keyboardType="numeric"
+                      placeholderTextColor={theme.colors.textDim}
+                      value={formData.minQty}
+                      onChangeText={(t) => setFormData({...formData, minQty: t.replace(/[^0-9]/g, '')})}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.formLabel}>Unit Type</Text>
+                    <TouchableOpacity 
+                      style={[styles.formInput, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} 
+                      onPress={() => setShowUnitDropdown(!showUnitDropdown)}
+                    >
+                      <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 13 }}>{formData.unit}</Text>
+                      <ChevronDown size={16} color={theme.colors.textDim} />
                     </TouchableOpacity>
                   </View>
-                ))}
-              </View>
+                </View>
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.modalPrimaryBtn} onPress={handleSave} disabled={saving}>
-                  {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalPrimaryBtnText}>{modalMode === 'add' ? 'Add Product' : 'Save Changes'}</Text>}
-                </TouchableOpacity>
-                {modalMode === 'edit' && (
-                  <TouchableOpacity style={styles.modalDangerBtn} onPress={() => handleDelete(formData.id)}>
-                    <Text style={styles.modalDangerBtnText}>Delete Product</Text>
-                  </TouchableOpacity>
+                {showUnitDropdown && (
+                  <View style={styles.dropdownBox}>
+                    <ScrollView style={{ maxHeight: 150 }} showsVerticalScrollIndicator={false}>
+                      {UNIT_OPTIONS.map((u) => (
+                        <TouchableOpacity 
+                          key={u} 
+                          style={styles.dropdownOption}
+                          onPress={() => {
+                            setFormData({ ...formData, unit: u.split(' ')[0] });
+                            setShowUnitDropdown(false);
+                          }}
+                        >
+                          <Text style={{ color: theme.colors.text, fontSize: 13 }}>{u}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
                 )}
-              </View>
 
-            </ScrollView>
+                {/* Attributes */}
+                <View style={{ marginTop: 10 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={styles.formLabel}>Custom Attributes</Text>
+                    <TouchableOpacity onPress={addAttribute}>
+                      <Text style={{ color: '#6C47FF', fontWeight: '800', fontSize: 12 }}>+ Add Spec</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {formData.attributes?.map((attr, index) => (
+                    <View key={index} style={{ flexDirection: 'row', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+                      <TextInput 
+                        style={[styles.formInput, { flex: 1, marginBottom: 0, height: 42 }]} 
+                        placeholder="Key (e.g. Size)"
+                        placeholderTextColor={theme.colors.textDim}
+                        value={attr.name}
+                        onChangeText={(t) => updateAttribute(index, 'name', t)}
+                      />
+                      <TextInput 
+                        style={[styles.formInput, { flex: 1, marginBottom: 0, height: 42 }]} 
+                        placeholder="Value (e.g. 750ml)"
+                        placeholderTextColor={theme.colors.textDim}
+                        value={attr.value}
+                        onChangeText={(t) => updateAttribute(index, 'value', t)}
+                      />
+                      <TouchableOpacity onPress={() => removeAttribute(index)} style={{ padding: 6 }}>
+                        <X size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+
+                <TouchableOpacity 
+                  style={[styles.primarySaveBtn, saving && { opacity: 0.7 }]} 
+                  onPress={handleSave} 
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.primarySaveBtnText}>{modalMode === 'add' ? 'Save Product to Catalog ✅' : 'Update Product ✅'}</Text>
+                  )}
+                </TouchableOpacity>
+
+              </ScrollView>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
       </SafeAreaView>
     </View>
@@ -616,7 +674,7 @@ const ShopProductsScreen = ({ navigation }) => {
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   appBar: {
     flexDirection: 'row',
@@ -624,32 +682,40 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    gap: 10,
     backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   appBarTitle: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
     color: theme.colors.text,
   },
   appBarSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: theme.colors.textDim,
-    marginTop: 1,
+    marginTop: 2,
   },
-  appBarIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
+  appBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative'
   },
   badge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: -3,
+    right: -3,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
@@ -663,212 +729,343 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 9,
     fontWeight: 'bold',
   },
+
   scrollContent: {
     padding: 16,
   },
   addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#6C47FF',
     paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginBottom: 16,
+    borderRadius: 16,
+    gap: 8,
+    marginBottom: 14,
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 10,
+    elevation: 3,
   },
   addBtnText: {
-    color: '#FFF',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '800',
   },
+
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: isDarkMode ? '#1E293B' : '#F4F4F5',
-    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
     paddingHorizontal: 12,
-    marginBottom: 20,
+    marginBottom: 12,
+    height: 48,
   },
   searchIcon: {
     marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    height: 44,
-    fontSize: 15,
+    fontSize: 14,
     color: theme.colors.text,
   },
-  productsList: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    overflow: 'hidden',
+
+  categoryScroll: {
+    marginBottom: 16,
   },
-  productCard: {
-    flexDirection: 'column',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  productIconBox: {
-    width: 64,
-    height: 64,
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  categoryChipActive: {
+    backgroundColor: '#6C47FF',
+    borderColor: '#6C47FF',
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  categoryTextActive: {
+    color: '#FFFFFF',
+  },
+
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  emptyIconBox: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginBottom: 14,
   },
-  productInfo: {
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginBottom: 4,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: theme.colors.textDim,
+    textAlign: 'center',
+  },
+
+  /* ── Product Card ── */
+  productsList: {
+    gap: 14,
+  },
+  productCard: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDarkMode ? 0.25 : 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  productTopRow: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  productThumbnailWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  productThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  stockOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: 2,
+    alignItems: 'center',
+  },
+  stockOverlayText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  productDetails: {
     flex: 1,
+    justifyContent: 'space-between',
   },
   productName: {
     fontSize: 15,
     fontWeight: '800',
     color: theme.colors.text,
-    marginBottom: 4,
+    lineHeight: 20,
   },
-  tagPill: {
-    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F3F0FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  productBrand: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginVertical: 4,
+  },
+  detailBadge: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
   },
-  tagPillText: {
+  detailBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#6C47FF',
+    color: theme.colors.textDim,
   },
   productPrice: {
-    fontSize: 15,
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#6C47FF',
+  },
+  unitSuffix: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textDim,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: isDarkMode ? '#334155' : '#F1F5F9',
+    marginVertical: 12,
+  },
+  productActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  editActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    paddingVertical: 9,
+    borderRadius: 12,
+    gap: 6,
+  },
+  editActionText: {
+    fontSize: 13,
     fontWeight: '800',
     color: '#6C47FF',
   },
-  productActions: {
+  deleteActionBtn: {
     flexDirection: 'row',
-  },
-  editBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.12)' : '#F3F0FF',
-    borderWidth: 1,
-    borderColor: '#6C47FF',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center'
+    backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+    gap: 6,
   },
-  editBtnText: {
+  deleteActionText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#6C47FF',
-  },
-  deleteBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(239, 68, 68, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  deleteBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#EF4444',
   },
-  // Modal Styles
+
+  /* ── Modal ── */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    maxHeight: '85%',
+    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 22,
+    maxHeight: '92%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
     color: theme.colors.text,
   },
   closeBtn: {
-    padding: 4,
+    padding: 6,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    borderRadius: 14,
   },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.textDim,
-    marginBottom: 6,
-  },
-  inputField: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-    fontSize: 15,
-    color: theme.colors.text,
-    backgroundColor: theme.colors.background,
-  },
-  rowInputs: {
-    flexDirection: 'row',
-  },
-  imageUploadBtn: {
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
+  imagePickerCard: {
+    width: '100%',
+    height: 140,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? '#334155' : '#CBD5E1',
     borderStyle: 'dashed',
-    borderRadius: 10,
-    height: 44,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.primary + '10',
+    marginBottom: 16,
+    overflow: 'hidden',
   },
-  imageUploadText: {
-    color: theme.colors.primary,
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  imagePickerPlaceholder: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  imagePickerText: {
     fontSize: 13,
-    fontWeight: '700',
-  },
-  modalActions: {
-    marginTop: 24,
-    gap: 12,
-  },
-  modalPrimaryBtn: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  modalPrimaryBtnText: {
-    color: '#001016',
-    fontSize: 16,
     fontWeight: '800',
+    color: '#6C47FF',
+    marginTop: 4,
   },
-  modalDangerBtn: {
-    backgroundColor: '#FEF2F2',
+  imagePickerSub: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+  },
+  formLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginBottom: 5,
+    marginTop: 8,
+  },
+  formInput: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
     borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: isDarkMode ? '#334155' : '#CBD5E1',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: theme.colors.text,
+    marginBottom: 6,
   },
-  modalDangerBtnText: {
-    color: '#EF4444',
-    fontSize: 16,
+  formRow: {
+    flexDirection: 'row',
+  },
+  dropdownBox: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#CBD5E1',
+    marginTop: 4,
+    marginBottom: 8,
+    padding: 6,
+  },
+  dropdownOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  primarySaveBtn: {
+    backgroundColor: '#6C47FF',
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18,
+  },
+  primarySaveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '800',
   }
 });

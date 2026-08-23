@@ -4,16 +4,28 @@ import {
   Text, 
   StyleSheet, 
   ScrollView, 
-  TouchableOpacity,
-  StatusBar,
-  Alert
+  TouchableOpacity, 
+  StatusBar, 
+  Alert,
+  ActivityIndicator
 } from 'react-native';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useFocusEffect } from '@react-navigation/native';
-import { Bell, Package, RefreshCw, Moon, Sun, Menu } from 'lucide-react-native';
+import { 
+  Bell, 
+  Package, 
+  RefreshCw, 
+  Moon, 
+  Sun, 
+  ChevronRight, 
+  Clock, 
+  Truck, 
+  CheckCircle2, 
+  XCircle,
+  ShoppingBag,
+  User
+} from 'lucide-react-native';
 import { shopService } from '../../services/shopService';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,7 +38,7 @@ const ShopOrdersScreen = ({ navigation }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const filters = ['All', 'New', 'Packing', 'Out', 'Delivered'];
+  const filters = ['All', 'New', 'Packing', 'Out', 'Delivered', 'Cancelled'];
 
   useFocusEffect(
     React.useCallback(() => {
@@ -41,19 +53,60 @@ const ShopOrdersScreen = ({ navigation }) => {
       if (res.data?.status === 'success') {
         const list = res.data.data.orders || res.data.data;
         const mapped = list.map(order => {
-          let st = order.status.toLowerCase();
-          if (st === 'pending') st = 'new';
-          if (st === 'out_for_delivery') st = 'out';
-          
+          let st = (order.status || 'NEW').toUpperCase();
+          let filterKey = 'New';
+          let color = '#6C47FF';
+          let bg = isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE';
+          let label = 'New Order';
+
+          if (st === 'NEW' || st === 'PENDING') {
+            filterKey = 'New';
+            color = '#6C47FF';
+            bg = isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE';
+            label = '✨ New';
+          } else if (st === 'CONFIRMED' || st === 'PACKING') {
+            filterKey = 'Packing';
+            color = '#F59E0B';
+            bg = isDarkMode ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7';
+            label = '📦 Packing';
+          } else if (st === 'OUT_FOR_DELIVERY') {
+            filterKey = 'Out';
+            color = '#0284C7';
+            bg = isDarkMode ? 'rgba(2, 132, 199, 0.15)' : '#E0F2FE';
+            label = '🚚 On the way';
+          } else if (st === 'DELIVERED') {
+            filterKey = 'Delivered';
+            color = '#10B981';
+            bg = isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#DCFCE7';
+            label = '✓ Delivered';
+          } else if (st === 'CANCELLED') {
+            filterKey = 'Cancelled';
+            color = '#EF4444';
+            bg = isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2';
+            label = '✕ Cancelled';
+          }
+
+          const dateStr = new Date(order.createdAt).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+
           return {
             id: order._id.slice(-6).toUpperCase(),
             rawId: order._id,
             customer: order.customerId?.name || 'Customer',
-            items: order.items?.length || 0,
+            phone: order.customerId?.phone || '',
+            itemsCount: (order.items || []).reduce((sum, it) => sum + (it.qty || 1), 0),
+            itemsSummary: (order.items || []).map(i => i.name).slice(0, 2).join(', ') + ((order.items || []).length > 2 ? '...' : ''),
             total: order.totalAmount || order.payment?.amount || 0,
             status: st,
-            color: st === 'new' ? '#0EA5E9' : st === 'packing' ? '#F59E0B' : st === 'delivered' ? '#64748B' : '#10B981',
-            bg: st === 'new' ? '#E0F2FE' : st === 'packing' ? '#FEF3C7' : st === 'delivered' ? '#F1F5F9' : '#D1FAE5',
+            filterKey,
+            color,
+            bg,
+            label,
+            time: dateStr,
             originalOrder: order
           };
         });
@@ -66,92 +119,145 @@ const ShopOrdersScreen = ({ navigation }) => {
     }
   };
 
+  const getFilterCount = (filter) => {
+    if (filter === 'All') return orders.length;
+    return orders.filter(o => o.filterKey.toLowerCase() === filter.toLowerCase()).length;
+  };
+
   const filteredOrders = orders.filter(order => {
     if (activeFilter === 'All') return true;
-    return order.status.toLowerCase() === activeFilter.toLowerCase();
+    return order.filterKey.toLowerCase() === activeFilter.toLowerCase();
   });
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+    <View style={styles.container}>
       <SafeAreaView style={{ flex: 1 }}>
         <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
-      {/* App Bar */}
-      <View style={styles.appBar}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+        {/* App Bar */}
+        <View style={styles.appBar}>
           <View>
-            <Text style={styles.appBarTitle}>Orders</Text>
-            <Text style={styles.appBarSubtitle}>All customer orders</Text>
+            <Text style={styles.appBarTitle}>Customer Orders</Text>
+            <Text style={styles.appBarSubtitle}>{orders.length} total orders recorded</Text>
+          </View>
+
+          <View style={styles.appBarActions}>
+            <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme} activeOpacity={0.7}>
+              {isDarkMode ? <Sun size={19} color={theme.colors.text} /> : <Moon size={19} color={theme.colors.text} />}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={fetchOrders} activeOpacity={0.7}>
+              <RefreshCw size={19} color={theme.colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('ShopNotifications')} activeOpacity={0.7}>
+              <Bell size={19} color={theme.colors.text} />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
-            {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={fetchOrders}>
-            <RefreshCw size={20} color={theme.colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
-            <Bell size={20} color={theme.colors.text} />
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
 
-      {/* Filter Chips */}
-      <View style={styles.filtersContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll}>
-          {filters.map((filter) => {
-            const isActive = activeFilter === filter;
-            return (
-              <TouchableOpacity
-                key={filter}
-                style={[styles.filterChip, isActive && styles.filterChipActive]}
-                onPress={() => setActiveFilter(filter)}
-              >
-                <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
-                  {filter}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        {/* Filter Chips with Count Badges */}
+        <View style={styles.filtersContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll}>
+            {filters.map((filter) => {
+              const isActive = activeFilter === filter;
+              const count = getFilterCount(filter);
+              return (
+                <TouchableOpacity
+                  key={filter}
+                  style={[styles.filterChip, isActive && styles.filterChipActive]}
+                  onPress={() => setActiveFilter(filter)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                    {filter}
+                  </Text>
+                  <View style={[styles.countBadge, isActive && styles.countBadgeActive]}>
+                    <Text style={[styles.countText, isActive && styles.countTextActive]}>{count}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Order List */}
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#6C47FF" />
+            </View>
+          ) : filteredOrders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconBox}>
+                <Package size={36} color="#6C47FF" />
+              </View>
+              <Text style={styles.emptyTitle}>No Orders Found</Text>
+              <Text style={styles.emptyText}>There are no orders matching the "{activeFilter}" filter.</Text>
+            </View>
+          ) : (
+            <View style={styles.ordersList}>
+              {filteredOrders.map((order) => (
+                <TouchableOpacity 
+                  key={order.rawId} 
+                  style={styles.orderCard}
+                  onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order.rawId })}
+                  activeOpacity={0.8}
+                >
+                  {/* Card Header */}
+                  <View style={styles.orderCardHeader}>
+                    <View style={styles.orderIdGroup}>
+                      <View style={styles.orderIconWrap}>
+                        <ShoppingBag size={16} color="#6C47FF" />
+                      </View>
+                      <View>
+                        <Text style={styles.orderId}>#{order.id}</Text>
+                        <Text style={styles.orderTime}>{order.time}</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: order.bg }]}>
+                      <Text style={[styles.statusBadgeText, { color: order.color }]}>{order.label}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.cardDivider} />
+
+                  {/* Card Body */}
+                  <View style={styles.orderCardBody}>
+                    <View style={styles.customerRow}>
+                      <View style={styles.customerAvatar}>
+                        <User size={14} color="#6C47FF" />
+                      </View>
+                      <Text style={styles.customerName}>{order.customer}</Text>
+                      <Text style={styles.itemCountText}>· {order.itemsCount} item(s)</Text>
+                    </View>
+                    {order.itemsSummary ? (
+                      <Text style={styles.itemsSummary} numberOfLines={1}>
+                        📦 {order.itemsSummary}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  {/* Card Footer */}
+                  <View style={styles.orderCardFooter}>
+                    <View>
+                      <Text style={styles.totalLabel}>ORDER AMOUNT</Text>
+                      <Text style={styles.totalAmount}>₹{order.total.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.actionPill}>
+                      <Text style={styles.actionPillText}>View Details</Text>
+                      <ChevronRight size={14} color="#6C47FF" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          <View style={{ height: 40 }} />
         </ScrollView>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {filteredOrders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Package size={48} color={theme.colors.border} />
-            <Text style={styles.emptyText}>No orders found</Text>
-          </View>
-        ) : (
-          <View style={styles.ordersList}>
-            {filteredOrders.map((order) => (
-              <TouchableOpacity 
-              key={order.rawId} 
-              style={styles.orderCard}
-              onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order.rawId })}
-            >
-              <View style={styles.orderIconBox}>
-                <Package size={22} color="#6C47FF" />
-              </View>
-                <View style={{ flex: 1, marginLeft: 16 }}>
-                  <Text style={styles.orderId}>{order.id}</Text>
-                  <Text style={styles.orderDetails}>{order.customer} · {order.items} items · ₹{order.total}</Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: order.bg }]}>
-                  <Text style={[styles.statusBadgeText, { color: order.color }]}>{order.status}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-        <View style={{ height: 40 }} />
-      </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -160,7 +266,7 @@ const ShopOrdersScreen = ({ navigation }) => {
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   appBar: {
     flexDirection: 'row',
@@ -168,34 +274,40 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    gap: 10,
     backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   appBarTitle: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
     color: theme.colors.text,
   },
   appBarSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: theme.colors.textDim,
-    marginTop: 1,
+    marginTop: 2,
   },
-  appBarIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.surface,
+  appBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative'
   },
   badge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: -3,
+    right: -3,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
@@ -209,92 +321,223 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 9,
     fontWeight: 'bold',
   },
+
+  /* ── Filter Chips ── */
   filtersContainer: {
-    paddingVertical: 8,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.background,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
   },
   filtersScroll: {
     paddingHorizontal: 16,
     gap: 8,
   },
   filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    gap: 6,
   },
   filterChipActive: {
     backgroundColor: '#6C47FF',
     borderColor: '#6C47FF',
   },
   filterText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textDim,
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text,
   },
   filterTextActive: {
     color: '#FFFFFF',
-    fontWeight: '700',
   },
+  countBadge: {
+    backgroundColor: isDarkMode ? '#334155' : '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+  },
+  countBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  countText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: theme.colors.textDim,
+  },
+  countTextActive: {
+    color: '#FFFFFF',
+  },
+
+  /* ── Scroll ── */
   scrollContent: {
     padding: 16,
   },
-  ordersList: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    overflow: 'hidden',
-  },
-  orderCard: {
-    flexDirection: 'row',
+  loadingContainer: {
+    padding: 40,
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
-  orderIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F3F0FF',
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  emptyIconBox: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 14,
   },
-  orderId: {
-    fontSize: 16,
+  emptyTitle: {
+    fontSize: 18,
     fontWeight: '800',
     color: theme.colors.text,
     marginBottom: 4,
   },
-  orderDetails: {
+  emptyText: {
     fontSize: 13,
     color: theme.colors.textDim,
+    textAlign: 'center',
+  },
+
+  /* ── Order Card ── */
+  ordersList: {
+    gap: 12,
+  },
+  orderCard: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDarkMode ? 0.25 : 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  orderCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  orderIdGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  orderIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : 'rgba(108, 71, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  orderId: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: theme.colors.text,
+  },
+  orderTime: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 1,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
   statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: isDarkMode ? '#334155' : '#F1F5F9',
+    marginVertical: 12,
+  },
+  orderCardBody: {
+    marginBottom: 12,
+  },
+  customerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  customerAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : '#EDE9FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customerName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  itemCountText: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+  },
+  itemsSummary: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginTop: 3,
+  },
+  orderCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : '#F8FAFC',
+    marginHorizontal: -16,
+    marginBottom: -16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? '#334155' : '#F1F5F9',
+  },
+  totalLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: theme.colors.textDim,
+    letterSpacing: 0.5,
+  },
+  totalAmount: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: theme.colors.text,
+    marginTop: 1,
+  },
+  actionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    gap: 4,
+  },
+  actionPillText: {
     fontSize: 12,
     fontWeight: '800',
-    textTransform: 'capitalize'
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textDim,
+    color: '#6C47FF',
   }
 });
 

@@ -523,16 +523,15 @@ export default function ShopSettingsScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Menu */}
+          {/* Group 1: Store Management */}
+          <Text style={{ fontSize: 13, fontWeight: '800', color: c.textDim, marginBottom: 8, marginTop: 14, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            Store Management
+          </Text>
           <View style={s.menuCard}>
             {[
               { icon: Store,       color: '#6C47FF', title: 'Shop Details & Address', sub: shop?.address || 'Name, description, location', onPress: () => setDetailsOpen(true) },
               { icon: Clock,       color: '#7C3AED', title: 'Business Hours',        sub: shop?.businessHours?.monFri || '9 AM – 10 PM', onPress: () => setHoursOpen(true) },
-              { icon: Truck,       color: '#8B5CF6', title: 'Delivery Config', sub: 'Slots, fees, radius', onPress: () => navigation.navigate('ShopDeliveryConfig') },
-              { icon: ShieldCheck, color: '#9333EA', title: 'KYC / GST',            sub: `Status: ${shop?.kyc?.status || 'PENDING'}`, onPress: () => setKycOpen(true) },
-              { icon: CreditCard,  color: '#A855F7', title: 'Payout Methods',       sub: accounts.length ? `${accounts.length} method(s)` : 'Add Bank or UPI', onPress: () => setPayoutOpen(true) },
-              { icon: BarChart2,   color: '#6C47FF', title: 'Analytics & Reports',  sub: 'Revenue, insights, PDF', onPress: () => setAnalyticsOpen(true) },
-              { icon: MessageCircle, color: '#7C3AED', title: 'Help & Support',     sub: 'Chat with us, FAQs', onPress: () => navigation.navigate('HelpSupport') },
+              { icon: Truck,       color: '#8B5CF6', title: 'Delivery Configuration', sub: 'Slots, delivery fees, radius', onPress: () => navigation.navigate('ShopDeliveryConfig') },
             ].map(({ icon: Icon, color, title, sub, onPress }, i, arr) => (
               <Pressable
                 key={title}
@@ -540,7 +539,7 @@ export default function ShopSettingsScreen({ navigation }) {
                 onPress={onPress}
               >
                 <View style={[s.menuIcon, { backgroundColor: color + '18' }]}>
-                  <Icon size={20} color={color} />
+                  <Icon size={19} color={color} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 14 }}>
                   <Text style={s.menuTitle}>{title}</Text>
@@ -551,11 +550,41 @@ export default function ShopSettingsScreen({ navigation }) {
             ))}
           </View>
 
-          {/* Preferences & Display */}
-          <View style={[s.menuCard, { marginTop: 16 }]}>
-            <View style={[s.menuItem, { borderBottomWidth: 0, paddingVertical: 14 }]}>
+          {/* Group 2: Finance & Compliance */}
+          <Text style={{ fontSize: 13, fontWeight: '800', color: c.textDim, marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            Finance & Verification
+          </Text>
+          <View style={s.menuCard}>
+            {[
+              { icon: CreditCard,  color: '#059669', title: 'Payout Bank & UPI',      sub: accounts.length ? `${accounts.length} active payout method(s)` : 'Add Bank or UPI for withdrawals', onPress: () => setPayoutOpen(true) },
+              { icon: ShieldCheck, color: '#9333EA', title: 'KYC & GST Documents',    sub: `Status: ${shop?.kyc?.status || 'PENDING'}`, onPress: () => setKycOpen(true) },
+              { icon: BarChart2,   color: '#0284C7', title: 'Analytics & Insights',  sub: 'Revenue, order statistics, PDF reports', onPress: () => setAnalyticsOpen(true) },
+            ].map(({ icon: Icon, color, title, sub, onPress }, i, arr) => (
+              <Pressable
+                key={title}
+                style={({ pressed }) => [s.menuItem, pressed && { opacity: 0.65 }, i === arr.length - 1 && { borderBottomWidth: 0 }]}
+                onPress={onPress}
+              >
+                <View style={[s.menuIcon, { backgroundColor: color + '18' }]}>
+                  <Icon size={19} color={color} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={s.menuTitle}>{title}</Text>
+                  <Text style={s.menuSub} numberOfLines={1}>{sub}</Text>
+                </View>
+                <ChevronRight size={18} color={c.border} />
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Group 3: Preferences & Display */}
+          <Text style={{ fontSize: 13, fontWeight: '800', color: c.textDim, marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            Preferences & Support
+          </Text>
+          <View style={s.menuCard}>
+            <View style={[s.menuItem, { paddingVertical: 14 }]}>
               <View style={[s.menuIcon, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : 'rgba(245, 158, 11, 0.15)' }]}>
-                {isDarkMode ? <Moon size={20} color="#8B6FFF" /> : <Sun size={20} color="#F59E0B" />}
+                {isDarkMode ? <Moon size={19} color="#8B6FFF" /> : <Sun size={19} color="#F59E0B" />}
               </View>
               <View style={{ flex: 1, marginLeft: 14 }}>
                 <Text style={s.menuTitle}>Dark Theme</Text>
@@ -568,39 +597,57 @@ export default function ShopSettingsScreen({ navigation }) {
                 thumbColor={'#FFFFFF'}
               />
             </View>
-          </View>
 
-          {/* Delete Shop */}
-          <Pressable
-            style={({ pressed }) => [s.menuCard, { marginTop: 16 }, pressed && { opacity: 0.65 }]}
-            onPress={deleteShop}
-          >
-            <View style={[s.menuItem, { borderBottomWidth: 0 }]}>
-              <View style={[s.menuIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Trash2 size={20} color="#EF4444" />
+            <Pressable
+              style={({ pressed }) => [s.menuItem, pressed && { opacity: 0.65 }, { borderBottomWidth: 0 }]}
+              onPress={() => navigation.navigate('HelpSupport')}
+            >
+              <View style={[s.menuIcon, { backgroundColor: 'rgba(124, 58, 237, 0.15)' }]}>
+                <MessageCircle size={19} color="#7C3AED" />
               </View>
               <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={[s.menuTitle, { color: '#EF4444' }]}>Delete Shop</Text>
-                <Text style={s.menuSub}>Permanently remove shop and all data</Text>
+                <Text style={s.menuTitle}>Help & Support</Text>
+                <Text style={s.menuSub}>Chat with customer support, FAQs</Text>
               </View>
               <ChevronRight size={18} color={c.border} />
-            </View>
-          </Pressable>
+            </Pressable>
+          </View>
 
-          {/* Log Out */}
-          <Pressable
-            style={({ pressed }) => [s.menuCard, { marginTop: 16 }, pressed && { opacity: 0.65 }]}
-            onPress={signOut}
-          >
-            <View style={[s.menuItem, { borderBottomWidth: 0 }]}>
-              <View style={[s.menuIcon, { backgroundColor: (c.danger || '#EF4444') + '18' }]}>
-                <LogOut size={20} color={c.danger || '#EF4444'} />
+          {/* Group 4: Account Actions */}
+          <Text style={{ fontSize: 13, fontWeight: '800', color: c.textDim, marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            Account
+          </Text>
+          <View style={s.menuCard}>
+            {/* Log Out */}
+            <Pressable
+              style={({ pressed }) => [s.menuItem, pressed && { opacity: 0.65 }]}
+              onPress={signOut}
+            >
+              <View style={[s.menuIcon, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                <LogOut size={19} color="#EF4444" />
               </View>
               <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={[s.menuTitle, { color: c.danger || '#EF4444' }]}>Log Out</Text>
+                <Text style={[s.menuTitle, { color: '#EF4444' }]}>Log Out</Text>
+                <Text style={s.menuSub}>Sign out of your shop session</Text>
               </View>
-            </View>
-          </Pressable>
+              <ChevronRight size={18} color={c.border} />
+            </Pressable>
+
+            {/* Delete Shop */}
+            <Pressable
+              style={({ pressed }) => [s.menuItem, pressed && { opacity: 0.65 }, { borderBottomWidth: 0 }]}
+              onPress={deleteShop}
+            >
+              <View style={[s.menuIcon, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                <Trash2 size={19} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={[s.menuTitle, { color: '#EF4444' }]}>Delete Store</Text>
+                <Text style={s.menuSub}>Permanently delete shop and catalog</Text>
+              </View>
+              <ChevronRight size={18} color={c.border} />
+            </Pressable>
+          </View>
 
           <View style={{ height: 40 }} />
         </ScrollView>
