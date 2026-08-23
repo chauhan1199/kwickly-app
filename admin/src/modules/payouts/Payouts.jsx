@@ -89,29 +89,32 @@ export default function Payouts() {
     }
   }
 
+  const [customTxnId, setCustomTxnId] = useState('')
+
   const showToast = (m) => { setToast(m); setTimeout(()=>setToast(''), 2800) }
 
-  const approve = async (id) => {
+  const approve = async (id, txn) => {
     try {
       const realId = payouts.find(p => p.id === id)?._id || id
-      await api.patch(`/admin/payouts/${realId}/status`, { status: 'APPROVED' })
+      await api.patch(`/admin/payouts/${realId}/status`, { status: 'APPROVED', txnId: txn || undefined })
       fetchPayouts()
       showToast('Payout approved — ready to transfer')
       setConfirmModal(null)
+      setCustomTxnId('')
     } catch (e) {
       showToast('Failed to approve payout')
     }
   }
 
-  const transfer = async (id) => {
+  const transfer = async (id, manualTxn) => {
     try {
       const realId = payouts.find(p => p.id === id)?._id || id
-      // Generate a proper unique transaction ID using timestamp + random
-      const txn = 'TXN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase()
+      const txn = manualTxn?.trim() || ('TXN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase())
       await api.patch(`/admin/payouts/${realId}/status`, { status: 'TRANSFERRED', txnId: txn })
       fetchPayouts()
       showToast(`Transfer marked · ${txn}`)
       setConfirmModal(null)
+      setCustomTxnId('')
     } catch (e) {
       showToast('Failed to mark transferred', 'error')
     }
@@ -122,7 +125,7 @@ export default function Payouts() {
       const realId = payouts.find(p => p.id === id)?._id || id
       await api.patch(`/admin/payouts/${realId}/status`, { status: 'REJECTED', rejectReason: reason })
       fetchPayouts()
-      showToast('Payout rejected · worker notified')
+      showToast('Payout rejected · amount refunded to worker wallet')
       setConfirmModal(null)
       setRejectReason('')
     } catch (e) {
@@ -270,9 +273,19 @@ export default function Payouts() {
               </div>
             </div>
             <div className="grid-3" style={{marginBottom:16}}>
-              {[{label:'Wallet Balance',value:`₹${selectedFresh.balance}`},{label:'Requested',value:`₹${selectedFresh.requested}`},{label:'After Payout',value:`₹${selectedFresh.balance-selectedFresh.requested}`}].map((s,i)=>(
+              {[
+                {label:'In-App Balance', value:`₹${selectedFresh.balance}`},
+                {label:'Payout Requested', value:`₹${selectedFresh.requested}`, highlight: true},
+                {label:'Current Status', value:selectedFresh.status.toUpperCase(), isStatus: true}
+              ].map((s,i)=>(
                 <div key={i} className="card" style={{padding:14,textAlign:'center'}}>
-                  <div style={{fontWeight:800,fontSize:16}}>{s.value}</div>
+                  <div style={{
+                    fontWeight:800,
+                    fontSize:15,
+                    color: s.highlight ? 'var(--primary)' : s.isStatus ? (selectedFresh.status==='transferred'?'var(--success)':selectedFresh.status==='rejected'?'var(--danger)':'var(--warning)') : 'inherit'
+                  }}>
+                    {s.value}
+                  </div>
                   <div style={{fontSize:11,color:'var(--mid)',fontFamily:'var(--font-body)'}}>{s.label}</div>
                 </div>
               ))}
@@ -288,7 +301,7 @@ export default function Payouts() {
             <div className="divider"/>
             {selectedFresh.status==='pending'&&(
               <div style={{display:'flex',gap:10}}>
-                <button className="btn btn-success" style={{flex:1}} onClick={()=>setConfirmModal({type:'approve',payout:selectedFresh})}>✓ Approve</button>
+                <button className="btn btn-success" style={{flex:1}} onClick={()=>setConfirmModal({type:'transfer',payout:selectedFresh})}>✓ Approve & Transfer</button>
                 <button className="btn btn-danger"  style={{flex:1}} onClick={()=>setConfirmModal({type:'reject',payout:selectedFresh})}>✕ Reject</button>
               </div>
             )}
@@ -303,34 +316,53 @@ export default function Payouts() {
       {confirmModal && (
         <Modal
           open={true}
-          onClose={() => { setConfirmModal(null); setRejectReason('') }}
-          title={confirmModal.type==='approve'?'Approve Payout':confirmModal.type==='transfer'?'Mark as Transferred':'Reject Payout'}
-          width="420px"
+          onClose={() => { setConfirmModal(null); setRejectReason(''); setCustomTxnId('') }}
+          title={confirmModal.type==='approve'?'Approve Payout':confirmModal.type==='transfer'?'Mark Payout as Transferred':'Reject Payout'}
+          width="440px"
         >
           <div>
+            {confirmModal.type==='transfer'&&(
+              <div>
+                <p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6,marginBottom:12}}>
+                  Confirm transfer of <strong>₹{confirmModal.payout.requested.toLocaleString()}</strong> to <strong>{confirmModal.payout.worker}</strong> via <strong>{confirmModal.payout.upi||confirmModal.payout.bank}</strong>?
+                </p>
+                <div className="form-group" style={{marginBottom:14}}>
+                  <label className="form-label">Bank / UPI UTR / Transaction Reference (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. UTR20260823000123 / Auto-generated"
+                    value={customTxnId}
+                    onChange={e => setCustomTxnId(e.target.value)}
+                  />
+                  <small style={{fontSize:11,color:'var(--mid)',display:'block',marginTop:4}}>
+                    Enter UTR from your bank/UPI app. If left blank, an internal transaction ID will be generated.
+                  </small>
+                </div>
+              </div>
+            )}
             {confirmModal.type==='approve'&&<p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6}}>Approve ₹{confirmModal.payout.requested.toLocaleString()} payout to <strong>{confirmModal.payout.worker}</strong> via {confirmModal.payout.upi||confirmModal.payout.bank}?</p>}
-            {confirmModal.type==='transfer'&&<p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6}}>Confirm that ₹{confirmModal.payout.requested.toLocaleString()} has been physically transferred to <strong>{confirmModal.payout.worker}</strong>? A transaction ID will be generated.</p>}
             {confirmModal.type==='reject'&&(
               <>
-                <p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6,marginBottom:12}}>Reject payout request from <strong>{confirmModal.payout.worker}</strong>?</p>
+                <p style={{fontSize:13,color:'var(--mid)',fontFamily:'var(--font-body)',lineHeight:1.6,marginBottom:12}}>Reject payout request from <strong>{confirmModal.payout.worker}</strong>? The ₹{confirmModal.payout.requested} will be refunded to their wallet.</p>
                 <div className="form-group">
                   <label className="form-label">Reason *</label>
                   <select className="form-control" value={rejectReason} onChange={e=>setRejectReason(e.target.value)}>
                     <option value="">Select reason...</option>
-                    <option>Insufficient wallet balance</option>
-                    <option>UPI / bank details mismatch</option>
-                    <option>KYC verification pending</option>
+                    <option>Invalid UPI ID or Bank account details</option>
+                    <option>Bank name / IFSC mismatch</option>
+                    <option>KYC verification incomplete</option>
                     <option>Suspicious activity detected</option>
-                    <option>Minimum withdrawal amount not met</option>
+                    <option>Safety minimum balance violated</option>
                   </select>
                 </div>
               </>
             )}
             <div style={{display:'flex',gap:10,marginTop:20,paddingTop:14,borderTop:'1px solid var(--border)'}}>
-              <button type="button" className="btn-secondary" style={{flex:1}} onClick={()=>{setConfirmModal(null);setRejectReason('')}}>Cancel</button>
-              {confirmModal.type==='approve'&&<button type="button" className="btn-primary" style={{flex:1}} onClick={()=>approve(confirmModal.payout.id)}>✓ Approve</button>}
-              {confirmModal.type==='transfer'&&<button type="button" className="btn-primary" style={{flex:1}} onClick={()=>transfer(confirmModal.payout.id)}>💸 Confirm Transfer</button>}
-              {confirmModal.type==='reject'&&<button type="button" className="btn-danger" style={{flex:1}} disabled={!rejectReason} onClick={()=>reject(confirmModal.payout.id,rejectReason)}>✕ Reject</button>}
+              <button type="button" className="btn-secondary" style={{flex:1}} onClick={()=>{setConfirmModal(null);setRejectReason('');setCustomTxnId('')}}>Cancel</button>
+              {confirmModal.type==='approve'&&<button type="button" className="btn-primary" style={{flex:1}} onClick={()=>approve(confirmModal.payout.id, customTxnId)}>✓ Approve</button>}
+              {confirmModal.type==='transfer'&&<button type="button" className="btn-primary" style={{flex:1}} onClick={()=>transfer(confirmModal.payout.id, customTxnId)}>💸 Confirm & Mark Transferred</button>}
+              {confirmModal.type==='reject'&&<button type="button" className="btn-danger" style={{flex:1}} disabled={!rejectReason} onClick={()=>reject(confirmModal.payout.id,rejectReason)}>✕ Reject & Refund</button>}
             </div>
           </div>
         </Modal>

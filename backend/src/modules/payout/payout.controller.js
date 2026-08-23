@@ -61,6 +61,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
 
         // Idempotency guard — only refund when transitioning INTO REJECTED
         const isRejecting = payout.status !== 'REJECTED' && status === 'REJECTED';
+        const isTransferring = payout.status !== 'TRANSFERRED' && status === 'TRANSFERRED';
 
         payout.status = status;
         if (txnId) payout.txnId = txnId;
@@ -69,9 +70,74 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
 
         await payout.save({ session });
 
+        const WalletTxn = require('../wallet/wallet.model');
+        const isWorker = !!payout.workerId;
+        const targetId = isWorker ? payout.workerId : payout.shopId;
+        
+        let actualUserId = targetId;
+        if (!isWorker) {
+            const Shop = require('../shop/shop.model');
+            const shop = await Shop.findById(payout.shopId);
+            if (shop) actualUserId = shop.ownerId;
+        }
+
+        // When payout is completed / transferred: mark Worker's WalletTxn as COMPLETED and debit Admin Platform Wallet
+        if (isTransferring) {
+            if (payout.walletTxnId) {
+                await WalletTxn.findByIdAndUpdate(
+                    payout.walletTxnId,
+                    { status: 'COMPLETED', razorpayPaymentId: txnId || payout.txnId || `TXN-${Date.now()}` },
+                    { session }
+                );
+            } else {
+                await WalletTxn.findOneAndUpdate(
+                    { userId: actualUserId, type: 'WITHDRAWAL', status: 'PENDING' },
+                    { status: 'COMPLETED', razorpayPaymentId: txnId || payout.txnId || `TXN-${Date.now()}` },
+                    { sort: { createdAt: -1 }, session }
+                );
+            }
+
+            // Record payout disbursement in Admin Platform Wallet
+            try {
+                const { debitForPayout } = require('../adminWallet/adminWallet.service');
+                await debitForPayout(
+                    payout.amount,
+                    `Payout transfer to ${isWorker ? 'Worker' : 'Shop'} ${actualUserId} via ${payout.paymentMethod || 'UPI/Bank'}`,
+                    payout._id,
+                    'Payout',
+                    { txnId: txnId || payout.txnId, method: payout.paymentMethod },
+                    { session }
+                );
+            } catch (err) {
+                // If admin wallet balance is lower than disbursement, update without throwing error
+                const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
+                const adminWallet = await AdminWallet.findOneAndUpdate(
+                    {},
+                    { $inc: { balance: -payout.amount } },
+                    { returnDocument: 'after', session }
+                );
+                await AdminWalletTxn.create([{
+                    type: 'PAYOUT_DEBIT',
+                    amount: payout.amount,
+                    balanceAfter: adminWallet?.balance || 0,
+                    description: `Payout transfer to ${isWorker ? 'Worker' : 'Shop'} ${actualUserId}`,
+                    referenceId: payout._id,
+                    referenceModel: 'Payout',
+                    meta: { txnId: txnId || payout.txnId, method: payout.paymentMethod }
+                }], { session });
+            }
+        }
+
         // If rejected, refund the amount to the specific entity's wallet (atomic)
         if (isRejecting) {
-            const WalletTxn = require('../wallet/wallet.model');
+            if (payout.walletTxnId) {
+                await WalletTxn.findByIdAndUpdate(
+                    payout.walletTxnId,
+                    { status: 'FAILED' },
+                    { session }
+                );
+            }
+
             if (payout.workerId) {
                 const worker = await Customer.findOneAndUpdate(
                     { _id: payout.workerId },
@@ -110,24 +176,20 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
         if (useTransaction) session.endSession();
 
         await delCache(CACHE_KEY);
+        await delCache(`session:${actualUserId}`);
+        await delCache('admin_dashboard_stats');
+        await delCache('admin_wallet_summary');
+
+        const { emitToAll } = require('../../helpers/socket.helper');
+        emitToAll('DASHBOARD_UPDATE', { type: 'PAYOUT_STATUS_UPDATE', id: payout._id, status });
 
         // Notify the user about payout status
-        const isWorker = !!payout.workerId;
-        const targetId = isWorker ? payout.workerId : payout.shopId;
-        
-        let actualUserId = targetId;
-        if (!isWorker) {
-            const Shop = require('../shop/shop.model');
-            const shop = await Shop.findById(payout.shopId);
-            if (shop) actualUserId = shop.ownerId;
-        }
-
         notifyUser({
             userId: actualUserId,
             title: `Payout ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}`,
             message: status === 'REJECTED'
-                ? `Your payout request of â‚¹${payout.amount} was rejected. Reason: ${rejectReason || 'Admin review'}. The amount has been refunded to your wallet.`
-                : `Your payout of â‚¹${payout.amount} has been successfully processed.`,
+                ? `Your payout request of ₹${payout.amount} was rejected. Reason: ${rejectReason || 'Admin review'}. The amount has been refunded to your wallet.`
+                : `Your payout of ₹${payout.amount} has been successfully transferred to your ${payout.paymentMethod === 'UPI' ? 'UPI' : 'Bank Account'}.`,
             action: 'WALLET_UPDATE',
             entityType: 'WALLET',
             entityId: actualUserId,
