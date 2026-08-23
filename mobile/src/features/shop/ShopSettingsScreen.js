@@ -108,13 +108,13 @@ const BottomSheetModal = ({ visible, onClose, title, children }) => {
 };
 
 const KYC_PRESETS = [
-  { key: 'GST_CERTIFICATE', label: 'GST Registration Certificate', icon: '🏛️' },
-  { key: 'SHOP_LICENSE', label: 'Shop & Establishment License (Gumasta)', icon: '📜' },
-  { key: 'FSSAI_LICENSE', label: 'FSSAI Food License', icon: '🍲' },
-  { key: 'PAN_CARD', label: 'Business PAN Card', icon: '💳' },
-  { key: 'AADHAAR_CARD', label: 'Owner Aadhaar Card', icon: '🆔' },
-  { key: 'TRADE_LICENSE', label: 'Trade / Municipal License', icon: '📑' },
-  { key: 'OTHER', label: 'Other Business Document', icon: '📄' },
+  { key: 'GST_CERTIFICATE', label: 'GST Registration Certificate', shortLabel: 'GST Certificate', icon: '🏛️', category: 'Tax & GST' },
+  { key: 'SHOP_LICENSE', label: 'Shop & Establishment License (Gumasta)', shortLabel: 'Gumasta License', icon: '📜', category: 'Shop License' },
+  { key: 'FSSAI_LICENSE', label: 'FSSAI Food License', shortLabel: 'FSSAI License', icon: '🍲', category: 'Food Safety' },
+  { key: 'PAN_CARD', label: 'Business PAN Card', shortLabel: 'PAN Card', icon: '💳', category: 'Identity & Tax' },
+  { key: 'AADHAAR_CARD', label: 'Owner Aadhaar Card', shortLabel: 'Aadhaar Card', icon: '🆔', category: 'Owner Identity' },
+  { key: 'TRADE_LICENSE', label: 'Trade / Municipal License', shortLabel: 'Trade License', icon: '📑', category: 'Business Permit' },
+  { key: 'OTHER', label: 'Other Business Document', shortLabel: 'Other Document', icon: '📄', category: 'Supporting Doc' },
 ];
 
 /* ═════════════════════════════════════════════════════════════
@@ -978,7 +978,7 @@ const ShopSettingsScreen = ({ navigation }) => {
               </View>
 
               <Text style={s.label}>1. Select Document Type</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 8 }}>
                 {KYC_PRESETS.map(preset => {
                   const isSelected = newDoc.docType === preset.key;
                   return (
@@ -986,9 +986,10 @@ const ShopSettingsScreen = ({ navigation }) => {
                       key={preset.key}
                       style={[s.presetChip, isSelected && s.presetChipActive]}
                       onPress={() => setNewDoc(prev => ({ ...prev, docType: preset.key, name: preset.label }))}
+                      activeOpacity={0.8}
                     >
                       <Text style={[s.presetChipText, isSelected && s.presetChipTextActive]}>
-                        {preset.icon} {preset.label.split(' ')[0]}
+                        {preset.icon}  {preset.shortLabel}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -1008,7 +1009,7 @@ const ShopSettingsScreen = ({ navigation }) => {
               <TouchableOpacity style={s.dashedBtn} onPress={pickDocument} activeOpacity={0.8}>
                 {newDoc.uri ? (
                   <View style={{ alignItems: 'center', gap: 6 }}>
-                    <Image source={{ uri: newDoc.uri }} style={{ width: 100, height: 80, borderRadius: 10 }} resizeMode="cover" />
+                    <Image source={{ uri: newDoc.uri }} style={{ width: 120, height: 90, borderRadius: 10 }} resizeMode="cover" />
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <CheckCircle2 size={14} color="#10B981" />
                       <Text style={{ color: '#10B981', fontWeight: '800', fontSize: 13 }}>Document image selected</Text>
@@ -1017,19 +1018,21 @@ const ShopSettingsScreen = ({ navigation }) => {
                   </View>
                 ) : (
                   <View style={{ alignItems: 'center', gap: 6 }}>
-                    <Camera size={26} color="#6C47FF" />
+                    <View style={s.dashedIconWrap}>
+                      <Camera size={22} color="#6C47FF" />
+                    </View>
                     <Text style={{ color: '#6C47FF', fontWeight: '800', fontSize: 14 }}>+ Tap to Take Photo or Select File</Text>
                     <Text style={{ color: c.textDim, fontSize: 11 }}>JPG, PNG or PDF supported (Max 5MB)</Text>
                   </View>
                 )}
               </TouchableOpacity>
 
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                <TouchableOpacity style={[s.primaryBtn, { flex: 1, marginTop: 0 }]} onPress={submitDoc} disabled={saving}>
-                  {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.primaryBtnText}>Upload & Submit ✅</Text>}
+              <View style={{ marginTop: 14, gap: 8 }}>
+                <TouchableOpacity style={s.primaryBtn} onPress={submitDoc} disabled={saving} activeOpacity={0.85}>
+                  {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.primaryBtnText}>Upload & Submit for Verification ✅</Text>}
                 </TouchableOpacity>
-                <TouchableOpacity style={[s.outlineBtn, { marginTop: 0 }]} onPress={() => setShowDocForm(false)}>
-                  <Text style={s.outlineBtnText}>Cancel</Text>
+                <TouchableOpacity style={s.cancelTextBtn} onPress={() => setShowDocForm(false)} activeOpacity={0.7}>
+                  <Text style={s.cancelTextBtnText}>Cancel</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1640,6 +1643,25 @@ const createStyles = (theme, isDarkMode) =>
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 8,
+    },
+    dashedIconWrap: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    cancelTextBtn: {
+      paddingVertical: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cancelTextBtnText: {
+      color: theme.colors.textDim,
+      fontSize: 13,
+      fontWeight: '700',
     },
     addDocBtn: {
       flexDirection: 'row',
