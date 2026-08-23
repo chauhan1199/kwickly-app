@@ -237,9 +237,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
       const { amount, type, planId } = pendingPaymentContext;
 
       const res = await walletService.topupWallet(
-        amount,
+        Number(amount),
         { method: 'UPI', txnId: upiUtrNumber.trim() },
-        planId,
+        planId || undefined,
         `upi_ord_${Date.now()}`,
         `upi_pay_${upiUtrNumber.trim()}`
       );

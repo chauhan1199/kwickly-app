@@ -11,7 +11,9 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  Image
+  Image,
+  Switch,
+  Dimensions
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -36,51 +38,46 @@ import {
   Trash2,
   Edit2,
   Crosshair,
-  Briefcase
+  Briefcase,
+  Smartphone,
+  Landmark,
+  CheckCircle2,
+  Plus,
+  Compass,
+  Check
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { getImageUrl } from '../../utils/helpers';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const ADDR_LABELS = ['Home', 'Work', 'Office', 'Shop', 'Other'];
+
 const WorkerProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { signOut } = useAuth();
+  const { user, signOut, fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
-  const [activeModal, setActiveModal] = useState(null); // 'kyc', 'bank', 'editProfile'
+  const [activeModal, setActiveModal] = useState(null); // 'kyc', 'bank', 'editProfile', 'addresses', 'editAddress'
   const [loading, setLoading] = useState(true);
-  const [subCatModalVisible, setSubCatModalVisible] = useState(false);
-  const [selectedCategoryForSubCats, setSelectedCategoryForSubCats] = useState(null);
-  const [tempSelectedSubCats, setTempSelectedSubCats] = useState([]);
-  
-  // Image Viewer Modal State
-  const [viewerVisible, setViewerVisible] = useState(false);
-  const [viewerImage, setViewerImage] = useState(null);
-
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [isOnline, setIsOnline] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Form states for Edit Profile
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
 
-  // Form states for Bank
+  // Form states for Bank Account & UPI
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [ifscCode, setIfscCode] = useState('');
   const [upiId, setUpiId] = useState('');
 
+  // KYC state
   const [docUrl, setDocUrl] = useState('');
   const [kycType, setKycType] = useState('AADHAR');
-  
-  // Form states for Photo
-  const [photoUri, setPhotoUri] = useState('');
-  
-  const [showBankDropdown, setShowBankDropdown] = useState(false);
-  const bankOptions = ['HDFC Bank', 'ICICI Bank', 'SBI', 'Axis Bank', 'Kotak Mahindra', 'Bank of Baroda', 'Punjab National Bank', 'Other'];
 
+  // Address states
   const [addressList, setAddressList] = useState([]);
   const [editingAddress, setEditingAddress] = useState(null);
   const [addrLabel, setAddrLabel] = useState('Home');
@@ -88,7 +85,10 @@ const WorkerProfileScreen = ({ navigation }) => {
   const [addrArea, setAddrArea] = useState('');
   const [addrCity, setAddrCity] = useState('');
   const [addrPincode, setAddrPincode] = useState('');
+  const [addrIsPrimary, setAddrIsPrimary] = useState(false);
   const [addrCoordinate, setAddrCoordinate] = useState(null);
+  const [mapSearchText, setMapSearchText] = useState('');
+  const [gpsLoading, setGpsLoading] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -99,11 +99,12 @@ const WorkerProfileScreen = ({ navigation }) => {
   const fetchProfile = async () => {
     try {
       const res = await workerService.getProfile();
-      const userData = res.data.data;
+      const userData = res.data?.data || res.data;
       setProfile(userData);
       setEditName(userData?.name || '');
       setEditEmail(userData?.email || '');
       setEditPhone(userData?.phone || '');
+      
       if (userData?.wallet?.bankDetails) {
         setBankName(userData.wallet.bankDetails.bankName || '');
         setAccountNumber(userData.wallet.bankDetails.accountNumber || '');
@@ -116,53 +117,313 @@ const WorkerProfileScreen = ({ navigation }) => {
         setAddressList(userData.addresses);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to load profile');
+      // Silently handle
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUploadKyc = async () => {
-    if (!docUrl) {
-      Alert.alert('Error', 'Please select a document image to upload.');
+  // ═══════════════════════════════════════════
+  // 1. PROFILE PHOTO UPLOAD
+  // ═══════════════════════════════════════════
+  const handlePickPhoto = () => {
+    Alert.alert(
+      'Update Profile Photo',
+      'Choose how you would like to select your photo',
+      [
+        {
+          text: '📷 Take Photo (Camera)',
+          onPress: async () => {
+            const options = { mediaType: 'photo', quality: 0.8, includeBase64: true, maxWidth: 1024, maxHeight: 1024 };
+            const response = await launchCamera(options);
+            processPickedImage(response);
+          }
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: async () => {
+            const options = { mediaType: 'photo', quality: 0.8, includeBase64: true, maxWidth: 1024, maxHeight: 1024 };
+            const response = await launchImageLibrary(options);
+            processPickedImage(response);
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const processPickedImage = async (response) => {
+    if (response.didCancel) return;
+    if (response.errorCode) {
+      Alert.alert('Error', response.errorMessage || 'Failed to select image');
       return;
     }
+    if (response.assets && response.assets.length > 0) {
+      const asset = response.assets[0];
+      setSaving(true);
+      try {
+        const payload = {
+          profileImageBase64: `data:${asset.type || 'image/jpeg'};base64,${asset.base64}`
+        };
+        const res = await workerService.updateProfilePhoto(payload);
+        Alert.alert('Success 🎉', 'Profile photo updated successfully!');
+        fetchProfile();
+        if (fetchUser) fetchUser('WORKER');
+      } catch (error) {
+        const msg = error.response?.data?.message || error.message || 'Failed to upload photo';
+        Alert.alert('Upload Error', msg);
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  // ═══════════════════════════════════════════
+  // 2. BANK ACCOUNT & UPI MANAGEMENT
+  // ═══════════════════════════════════════════
+  const handleSaveBank = async () => {
+    if (!bankName && !accountNumber && !ifscCode && !upiId) {
+      Alert.alert('Required', 'Please provide either Bank Details or a UPI ID.');
+      return;
+    }
+
+    if (upiId && upiId.trim()) {
+      const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
+      if (!upiRegex.test(upiId.trim())) {
+        Alert.alert('Invalid UPI ID', 'Please enter a valid UPI ID (e.g. yourname@bank).');
+        return;
+      }
+    }
+
+    if (bankName || accountNumber || ifscCode) {
+      if (!bankName.trim() || !accountNumber.trim() || !ifscCode.trim()) {
+        Alert.alert('Incomplete Bank Details', 'Please enter Bank Name, Account Number, and IFSC code.');
+        return;
+      }
+      if (!/^\d{9,18}$/.test(accountNumber.trim())) {
+        Alert.alert('Invalid Account Number', 'Bank account number must be between 9 and 18 digits.');
+        return;
+      }
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(ifscCode.trim())) {
+        Alert.alert('Invalid IFSC Code', 'IFSC Code must be 11 characters (e.g. SBIN0001234, HDFC0001234).');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
-      const payload = {
-        documentType: kycType,
-        documentBase64: `data:${docUrl.type || 'image/jpeg'};base64,${docUrl.base64}`
-      };
-      
-      await workerService.updateKyc(payload);
-      Alert.alert('Success', 'KYC document uploaded successfully!');
+      const payload = {};
+      if (bankName && accountNumber && ifscCode) {
+        payload.bankDetails = {
+          bankName: bankName.trim(),
+          accountNumber: accountNumber.trim(),
+          ifscCode: ifscCode.trim().toUpperCase()
+        };
+      }
+      if (upiId && upiId.trim()) {
+        payload.upiId = upiId.trim();
+      }
+
+      await workerService.updateBank(payload);
+      Alert.alert('Success ✅', 'Payout account details updated successfully.');
       setActiveModal(null);
-      setDocUrl(''); // Clear selected image
       fetchProfile();
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload KYC document. ' + (error.message || JSON.stringify(error)));
+      Alert.alert('Error', error.response?.data?.message || 'Failed to save payment details.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleRemoveKyc = async (index) => {
-    Alert.alert('Confirm Delete', 'Are you sure you want to remove this document?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-          setSaving(true);
-          try {
-            await workerService.removeKycDocument(index);
-            fetchProfile();
-          } catch(e) {
-            Alert.alert('Error', 'Failed to delete document');
-          } finally {
-            setSaving(false);
+  const handleDeleteBankDetails = () => {
+    Alert.alert(
+      'Remove Bank Account',
+      'Are you sure you want to remove your saved bank account details?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setSaving(true);
+            try {
+              await workerService.updateBank({ bankDetails: null, upiId: upiId || '' });
+              setBankName('');
+              setAccountNumber('');
+              setIfscCode('');
+              fetchProfile();
+              Alert.alert('Removed', 'Bank details removed.');
+            } catch (e) {
+              Alert.alert('Error', 'Failed to remove bank details.');
+            } finally {
+              setSaving(false);
+            }
           }
-      }}
+        }
+      ]
+    );
+  };
+
+  const handleDeleteUpi = () => {
+    Alert.alert(
+      'Remove UPI ID',
+      'Are you sure you want to remove your UPI ID?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setSaving(true);
+            try {
+              await workerService.updateBank({
+                bankDetails: bankName && accountNumber && ifscCode ? { bankName, accountNumber, ifscCode } : null,
+                upiId: ''
+              });
+              setUpiId('');
+              fetchProfile();
+              Alert.alert('Removed', 'UPI ID removed.');
+            } catch (e) {
+              Alert.alert('Error', 'Failed to remove UPI ID.');
+            } finally {
+              setSaving(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // ═══════════════════════════════════════════
+  // 3. MANAGE ADDRESSES WITH MAP & GPS
+  // ═══════════════════════════════════════════
+  const handleUseGps = () => {
+    setGpsLoading(true);
+    Geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setAddrCoordinate({ latitude, longitude });
+        setGpsLoading(false);
+        Alert.alert('GPS Location Captured 📍', `Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`);
+      },
+      (error) => {
+        setGpsLoading(false);
+        // Fallback default coordinates (Ahmedabad)
+        setAddrCoordinate({ latitude: 23.0225, longitude: 72.5714 });
+        Alert.alert('GPS Notice', 'Could not get high-accuracy GPS. Default city coordinates selected.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
+  };
+
+  const handleSaveAddress = async () => {
+    if (!addrStreet.trim() || !addrArea.trim() || !addrCity.trim() || !addrPincode.trim()) {
+      Alert.alert('Required Fields', 'Please fill in Street, Area, City, and Pincode.');
+      return;
+    }
+    if (!/^[1-9][0-9]{5}$/.test(addrPincode.trim())) {
+      Alert.alert('Invalid Pincode', 'Please enter a valid 6-digit Indian postal pincode.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const data = {
+        label: addrLabel,
+        street: addrStreet.trim(),
+        area: addrArea.trim(),
+        city: addrCity.trim(),
+        pincode: addrPincode.trim(),
+        isPrimary: addrIsPrimary
+      };
+
+      if (addrCoordinate) {
+        data.location = {
+          type: 'Point',
+          coordinates: [addrCoordinate.longitude, addrCoordinate.latitude]
+        };
+      }
+
+      if (editingAddress) {
+        const res = await workerService.updateAddress(editingAddress._id, data);
+        setAddressList(res.data?.data || res.data || []);
+      } else {
+        const res = await workerService.addAddress(data);
+        setAddressList(res.data?.data || res.data || []);
+      }
+
+      Alert.alert('Success 🎉', 'Address saved successfully.');
+      setActiveModal('addresses');
+      fetchProfile();
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Failed to save address.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteAddress = (id) => {
+    Alert.alert('Delete Address', 'Are you sure you want to delete this address?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const res = await workerService.deleteAddress(id);
+            setAddressList(res.data?.data || res.data || []);
+            fetchProfile();
+          } catch (e) {
+            Alert.alert('Error', 'Failed to delete address.');
+          }
+        }
+      }
     ]);
   };
 
+  const handleSetPrimaryAddress = async (id) => {
+    try {
+      const res = await workerService.setPrimaryAddress(id);
+      setAddressList(res.data?.data || res.data || []);
+      fetchProfile();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to set primary address.');
+    }
+  };
+
+  const openEditAddress = (addr = null) => {
+    if (addr) {
+      setEditingAddress(addr);
+      setAddrLabel(addr.label || 'Home');
+      setAddrStreet(addr.street || '');
+      setAddrArea(addr.area || '');
+      setAddrCity(addr.city || '');
+      setAddrPincode(addr.pincode || '');
+      setAddrIsPrimary(addr.isPrimary || false);
+      if (addr.location?.coordinates && addr.location.coordinates.length === 2) {
+        setAddrCoordinate({
+          longitude: addr.location.coordinates[0],
+          latitude: addr.location.coordinates[1]
+        });
+      } else {
+        setAddrCoordinate(null);
+      }
+    } else {
+      setEditingAddress(null);
+      setAddrLabel('Home');
+      setAddrStreet('');
+      setAddrArea('');
+      setAddrCity(profile?.city || 'Ahmedabad');
+      setAddrPincode('');
+      setAddrIsPrimary(addressList.length === 0);
+      setAddrCoordinate(null);
+    }
+    setActiveModal('editAddress');
+  };
+
+  // ═══════════════════════════════════════════
+  // 4. KYC UPLOAD
+  // ═══════════════════════════════════════════
   const pickKycImage = () => {
     Alert.alert(
       'Upload KYC Document',
@@ -176,7 +437,7 @@ const WorkerProfileScreen = ({ navigation }) => {
             if (!response.didCancel && !response.errorCode && response.assets?.length > 0) {
               setDocUrl(response.assets[0]);
             }
-          },
+          }
         },
         {
           text: '🖼️ Choose from Gallery',
@@ -186,180 +447,38 @@ const WorkerProfileScreen = ({ navigation }) => {
             if (!response.didCancel && !response.errorCode && response.assets?.length > 0) {
               setDocUrl(response.assets[0]);
             }
-          },
+          }
         },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-      { cancelable: true }
+        { text: 'Cancel', style: 'cancel' }
+      ]
     );
   };
 
-  const handleSaveBank = async () => {
-    if (!bankName && !accountNumber && !ifscCode && !upiId) {
-      Alert.alert('Error', 'Please provide either Bank Details or UPI ID.');
+  const handleUploadKyc = async () => {
+    if (!docUrl) {
+      Alert.alert('Error', 'Please select a document image to upload.');
       return;
     }
-    if (upiId) {
-      const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
-      if (!upiRegex.test(upiId)) {
-        Alert.alert('Error', 'Please enter a valid UPI ID (e.g. name@upi).');
-        return;
-      }
-    }
-    if (bankName || accountNumber || ifscCode) {
-      if (!bankName || !accountNumber || !ifscCode) {
-        Alert.alert('Error', 'Please fill all Bank details if providing a Bank Account.');
-        return;
-      }
-    }
-
     setSaving(true);
     try {
-      const payload = {};
-      if (bankName && accountNumber && ifscCode) {
-        payload.bankDetails = { bankName, accountNumber, ifscCode };
-      }
-      if (upiId) payload.upiId = upiId;
-
-      await workerService.updateBank(payload);
-      Alert.alert('Success', 'Payment details saved successfully.');
+      const payload = {
+        documentType: kycType,
+        documentBase64: `data:${docUrl.type || 'image/jpeg'};base64,${docUrl.base64}`
+      };
+      await workerService.updateKyc(payload);
+      Alert.alert('Success 🎉', 'KYC document uploaded for admin verification!');
       setActiveModal(null);
+      setDocUrl('');
       fetchProfile();
     } catch (error) {
-      Alert.alert('Error', 'Failed to save payment details.');
+      Alert.alert('Error', error.response?.data?.message || 'Failed to upload KYC document.');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleEditProfile = async () => {
-    setSaving(true);
-    try {
-      await workerService.updateProfile({ name: editName, email: editEmail });
-      Alert.alert('Success', 'Profile updated');
-      setActiveModal(null);
-      fetchProfile();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update profile');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveAddress = async () => {
-    if (!addrStreet || !addrArea || !addrCity || !addrPincode) {
-      Alert.alert('Error', 'Please fill all address fields');
-      return;
-    }
-    setSaving(true);
-    try {
-      const data = { label: addrLabel, street: addrStreet, area: addrArea, city: addrCity, pincode: addrPincode };
-      if (addrCoordinate) {
-        data.location = { coordinates: [addrCoordinate.longitude, addrCoordinate.latitude] };
-      }
-      if (editingAddress) {
-        const res = await workerService.updateAddress(editingAddress._id, data);
-        setAddressList(res.data.data);
-      } else {
-        const res = await workerService.addAddress(data);
-        setAddressList(res.data.data);
-      }
-      Alert.alert('Success', 'Address saved successfully');
-      setActiveModal('addresses');
-    } catch (e) {
-      Alert.alert('Error', 'Failed to save address');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteAddress = async (id) => {
-    Alert.alert('Confirm Delete', 'Are you sure you want to delete this address?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            const res = await workerService.deleteAddress(id);
-            setAddressList(res.data.data);
-          } catch(e) {
-            Alert.alert('Error', 'Failed to delete address');
-          }
-      }}
-    ]);
-  };
-
-  const handleSetPrimaryAddress = async (id) => {
-    try {
-      const res = await workerService.setPrimaryAddress(id);
-      setAddressList(res.data.data);
-      fetchProfile();
-    } catch(e) {
-      Alert.alert('Error', 'Failed to set primary address');
-    }
-  };
-  
-  const openEditAddress = (addr = null) => {
-    if (addr) {
-      setEditingAddress(addr);
-      setAddrLabel(addr.label || 'Home');
-      setAddrStreet(addr.street || '');
-      setAddrArea(addr.area || '');
-      setAddrCity(addr.city || '');
-      setAddrPincode(addr.pincode || '');
-      if (addr.location && addr.location.coordinates) {
-        setAddrCoordinate({
-          longitude: addr.location.coordinates[0],
-          latitude: addr.location.coordinates[1]
-        });
-      } else {
-        setAddrCoordinate(null);
-      }
-    } else {
-      setEditingAddress(null);
-      setAddrLabel('Home');
-      setAddrStreet('');
-      setAddrArea('');
-      setAddrCity('');
-      setAddrPincode('');
-      setAddrCoordinate(null);
-    }
-    setActiveModal('editAddress');
-  };
-
-  const handlePickPhoto = async () => {
-    const options = {
-      mediaType: 'photo',
-      includeBase64: true,
-      maxHeight: 1024,
-      maxWidth: 1024,
-    };
-
-    const response = await launchImageLibrary(options);
-
-    if (response.didCancel) {
-      return;
-    } else if (response.errorCode) {
-      Alert.alert('Error', 'ImagePicker Error: ' + response.errorMessage);
-    } else if (response.assets && response.assets.length > 0) {
-      const asset = response.assets[0];
-      setSaving(true);
-      try {
-        const payload = {
-          profileImageBase64: `data:${asset.type || 'image/jpeg'};base64,${asset.base64}`
-        };
-        
-        await workerService.updateProfilePhoto(payload);
-        Alert.alert('Success', 'Profile photo updated');
-        fetchProfile();
-      } catch (error) {
-        Alert.alert('Error', 'Failed to update photo. ' + (error.message || JSON.stringify(error)));
-      } finally {
-        setSaving(false);
-      }
     }
   };
 
   const renderMenuItem = (icon, title, subtitle, onPress, showArrow = true, danger = false) => (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.75}>
       <View style={[styles.menuIconBox, danger && { backgroundColor: '#FEE2E2' }]}>
         {icon}
       </View>
@@ -374,17 +493,13 @@ const WorkerProfileScreen = ({ navigation }) => {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ActivityIndicator size="large" color="#6C47FF" />
       </View>
     );
   }
 
   const kycStatus = profile?.kyc?.status || 'PENDING';
   const isKycApproved = kycStatus === 'APPROVED';
-  
-  const ratingAvg = profile?.rating?.average || 0;
-  const ratingCount = profile?.rating?.count || 0;
-  
   const hasBank = !!profile?.wallet?.bankDetails?.accountNumber || !!profile?.wallet?.upiId;
 
   return (
@@ -392,7 +507,7 @@ const WorkerProfileScreen = ({ navigation }) => {
       <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         
-        {/* Top Gradient Header */}
+        {/* Top Gradient Profile Header */}
         <LinearGradient
           colors={['#6C47FF', '#8B6FFF']}
           start={{ x: 0, y: 0 }}
@@ -405,457 +520,517 @@ const WorkerProfileScreen = ({ navigation }) => {
                 <Image source={{ uri: getImageUrl(profile.profileImage) }} style={styles.avatarImageNew} />
               ) : (
                 <View style={[styles.avatarImageNew, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
-                  <Text style={{ fontSize: 40, fontWeight: '800', color: '#fff' }}>{profile?.name ? profile.name.charAt(0) : 'W'}</Text>
+                  <Text style={{ fontSize: 38, fontWeight: '800', color: '#fff' }}>{profile?.name ? profile.name.charAt(0) : 'W'}</Text>
                 </View>
               )}
               {saving ? (
-                <ActivityIndicator style={styles.avatarEditBtnNew} color="#6C47FF" />
+                <View style={styles.avatarEditBtnNew}>
+                  <ActivityIndicator size="small" color="#6C47FF" />
+                </View>
               ) : (
-                <TouchableOpacity style={styles.avatarEditBtnNew} onPress={handlePickPhoto}>
+                <TouchableOpacity style={styles.avatarEditBtnNew} onPress={handlePickPhoto} activeOpacity={0.85}>
                   <Camera size={14} color="#6C47FF" />
                 </TouchableOpacity>
               )}
             </View>
             
             <Text style={styles.profileNameNew}>{profile?.name || 'Worker'}</Text>
-            
-            {(() => {
-              const expiryDate = profile?.subscription?.expiryDate;
-              if (expiryDate) {
-                const diffTime = new Date(expiryDate).getTime() - new Date().getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                if (diffDays > 0) {
-                  return <Text style={styles.profileRoleNew}>Premium: {diffDays} days left</Text>;
-                } else {
-                  return <Text style={[styles.profileRoleNew, { color: '#ef4444' }]}>Plan Expired. Please recharge!</Text>;
-                }
-              }
-              return <Text style={styles.profileRoleNew}>Member since {profile?.createdAt ? new Date(profile.createdAt).getFullYear() : '2023'}</Text>;
-            })()}
+            <Text style={styles.profilePhoneNew}>{profile?.phone || ''}</Text>
+
+            {/* Subscription & Rating Badges */}
+            <View style={styles.headerBadgesRow}>
+              <View style={styles.badgePill}>
+                <Text style={styles.badgePillText}>
+                  {profile?.subscription?.expiryDate ? 'PRO Active' : 'Free Trial'}
+                </Text>
+              </View>
+              <View style={[styles.badgePill, { backgroundColor: isKycApproved ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)' }]}>
+                <Text style={[styles.badgePillText, { color: isKycApproved ? '#A7F3D0' : '#FDE68A' }]}>
+                  {isKycApproved ? 'KYC Verified ✓' : 'KYC Pending'}
+                </Text>
+              </View>
+            </View>
           </View>
         </LinearGradient>
 
-        {/* Floating Stats Card */}
-        <View style={styles.statsCardWrapper}>
-          <View style={styles.statsCardNew}>
-            <View style={styles.statBoxNew}>
-              <View style={[styles.statIconBox, { backgroundColor: '#6C47FF15' }]}>
-                 <Briefcase size={20} color="#6C47FF" />
-              </View>
-              <Text style={styles.statValueNew}>{profile?.jobsCompleted || 0}</Text>
-              <Text style={styles.statLabelNew}>Jobs Done</Text>
-            </View>
-            
-            <View style={styles.statDividerNew} />
-            
-            <View style={styles.statBoxNew}>
-              <View style={[styles.statIconBox, { backgroundColor: '#f59e0b15' }]}>
-                 <Star size={20} color="#f59e0b" />
-              </View>
-              <Text style={styles.statValueNew}>{ratingAvg.toFixed(1)}</Text>
-              <Text style={styles.statLabelNew}>Rating</Text>
-            </View>
-            
-            <View style={styles.statDividerNew} />
-            
-            <View style={styles.statBoxNew}>
-              <View style={[styles.statIconBox, { backgroundColor: '#10b98115' }]}>
-                 <ShieldCheck size={20} color="#10b981" />
-              </View>
-              <Text style={styles.statValueNew}>Pro</Text>
-              <Text style={styles.statLabelNew}>Level</Text>
-            </View>
+        {/* Menu Cards */}
+        <View style={styles.menuContainer}>
+          
+          {/* Section 1: Core Payouts & Addresses */}
+          <Text style={styles.sectionHeading}>Financial & Locations</Text>
+          <View style={styles.menuCard}>
+            {renderMenuItem(
+              <Landmark size={20} color="#6C47FF" />,
+              'Bank Account & UPI',
+              hasBank ? 'Active payout destinations configured' : 'Add Bank account or UPI ID for payouts',
+              () => setActiveModal('bank')
+            )}
+            <View style={styles.divider} />
+            {renderMenuItem(
+              <MapPin size={20} color="#6C47FF" />,
+              'Manage Addresses',
+              `${addressList.length} saved addresses (GPS & Map Pins)`,
+              () => setActiveModal('addresses')
+            )}
+          </View>
+
+          {/* Section 2: Services & KYC Verification */}
+          <Text style={styles.sectionHeading}>Professional Profile</Text>
+          <View style={styles.menuCard}>
+            {renderMenuItem(
+              <Wrench size={20} color="#6C47FF" />,
+              'My Services & Radius',
+              `${profile?.services?.length || 0} active categories configured`,
+              () => navigation.navigate('Services')
+            )}
+            <View style={styles.divider} />
+            {renderMenuItem(
+              <ShieldCheck size={20} color={isKycApproved ? '#10B981' : '#F59E0B'} />,
+              'KYC Verification',
+              isKycApproved ? 'Identity verified & approved by admin' : 'Upload ID proof to verify your account',
+              () => setActiveModal('kyc')
+            )}
+            <View style={styles.divider} />
+            {renderMenuItem(
+              <Star size={20} color="#F59E0B" />,
+              'My Ratings & Reviews',
+              `${profile?.rating?.average || 5.0} ★ (${profile?.rating?.count || 0} reviews)`,
+              () => Alert.alert('Customer Reviews', `Your average customer rating is ${profile?.rating?.average || 5.0} stars across ${profile?.rating?.count || 0} completed orders.`)
+            )}
+          </View>
+
+          {/* Section 3: App & Account */}
+          <Text style={styles.sectionHeading}>Account</Text>
+          <View style={styles.menuCard}>
+            {renderMenuItem(
+              <LogOut size={20} color="#EF4444" />,
+              'Log Out',
+              'Sign out of your worker account',
+              () => {
+                Alert.alert('Log Out', 'Are you sure you want to log out?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Log Out', style: 'destructive', onPress: signOut }
+                ]);
+              },
+              false,
+              true
+            )}
           </View>
         </View>
-
-        {/* Menu Items */}
-        <View style={styles.menuContainer}>
-          {renderMenuItem(
-            <ShieldCheck size={20} color={isKycApproved ? theme.colors.primary : theme.colors.danger} />, 
-            'KYC & Documents', 
-            `${profile?.kyc?.documents?.length || 0} Docs Uploaded`, 
-            () => setActiveModal('kyc')
-          )}
-          {renderMenuItem(
-            <Building2 size={20} color={theme.colors.textDim} />, 
-            'Bank Account & UPI', 
-            `${(profile?.wallet?.bankDetails?.accountNumber ? 1 : 0) + (profile?.wallet?.upiId ? 1 : 0)} Saved Accounts`, 
-            () => setActiveModal('bank')
-          )}
-          {renderMenuItem(
-            <MapPin size={20} color="#8B5CF6" />, 
-            'Manage Addresses', 
-            `${addressList.length} Saved Addresses`, 
-            () => setActiveModal('addresses')
-          )}
-          {renderMenuItem(
-            <Star size={20} color="#F59E0B" />, 
-            'My Ratings', 
-            `${ratingAvg.toFixed(1)} · ${ratingCount} reviews`, 
-            () => Alert.alert('Coming Soon', 'Reviews screen is under construction')
-          )}
-          {renderMenuItem(
-            <Wrench size={20} color="#3B82F6" />, 
-            'My Services', 
-            `${profile?.services?.length || 0} categories`, 
-            () => navigation.navigate('Services')
-          )}
-          {renderMenuItem(
-            <Wallet size={20} color="#10B981" />, 
-            'Earnings & Wallet', 
-            `₹${profile?.wallet?.balance || 0}`, 
-            () => navigation.navigate('Earnings')
-          )}
-          {renderMenuItem(
-            <LifeBuoy size={20} color="#EC4899" />, 
-            'Help & Support', null, 
-            () => navigation.navigate('HelpSupport')
-          )}
-          {renderMenuItem(
-            <LogOut size={20} color={theme.colors.danger} />, 
-            'Sign Out', null, signOut, false, true
-          )}
-        </View>
-
-        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* KYC Modal */}
-      <Modal visible={activeModal === 'kyc'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>KYC Documents</Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)}><X color={theme.colors.text} /></TouchableOpacity>
-            </View>
-
-            {profile?.kyc?.documents?.length > 0 && (
-              <View style={{ marginBottom: 20 }}>
-                <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Uploaded Documents:</Text>
-                {profile.kyc.documents.map((doc, idx) => (
-                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: theme.colors.background, padding: 8, borderRadius: 12 }}>
-                    <TouchableOpacity onPress={() => { setViewerImage(getImageUrl(doc.url)); setViewerVisible(true); }}>
-                      <Image source={{ uri: getImageUrl(doc.url) }} style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }} />
-                    </TouchableOpacity>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{doc.type}</Text>
-                      <Text style={{ color: theme.colors.textDim, fontSize: 12, marginTop: 2 }}>
-                        Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    <TouchableOpacity onPress={() => handleRemoveKyc(idx)} disabled={saving} style={{ padding: 8 }}>
-                      <Trash2 size={20} color={theme.colors.danger} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-                <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 12 }} />
-              </View>
-            )}
-
-            <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Upload New Document</Text>
-            <Text style={styles.modalSub}>Select document type and upload an image (Gallery/Camera).</Text>
-            
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-              {['AADHAR', 'PAN', 'LICENSE'].map(t => (
-                <TouchableOpacity 
-                  key={t}
-                  style={{ 
-                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
-                    backgroundColor: kycType === t ? theme.colors.primary : theme.colors.surface,
-                    borderWidth: 1, borderColor: kycType === t ? theme.colors.primary : theme.colors.border
-                  }}
-                  onPress={() => setKycType(t)}
-                >
-                  <Text style={{ color: kycType === t ? '#000' : theme.colors.text, fontWeight: '600' }}>{t}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TouchableOpacity 
-              style={[styles.input, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }]} 
-              onPress={pickKycImage}
-            >
-              <Text style={{ color: docUrl ? theme.colors.primary : theme.colors.textDim, fontWeight: '600' }}>
-                {docUrl ? 'Image Selected ✓ (Tap to change)' : 'Tap to Pick Document Image'}
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.primaryModalBtn} onPress={handleUploadKyc} disabled={saving}>
-              {saving ? <ActivityIndicator color="#001016" /> : <Text style={styles.primaryModalBtnText}>Upload & Submit</Text>}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Bank Modal */}
+      {/* ═══════════════════════════════════════════
+          MODAL 1: BANK ACCOUNT & UPI MANAGEMENT
+      ═══════════════════════════════════════════ */}
       <Modal visible={activeModal === 'bank'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={{flexGrow: 1, justifyContent: 'flex-end'}}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Payment Details</Text>
-                <TouchableOpacity onPress={() => setActiveModal(null)}><X color={theme.colors.text} /></TouchableOpacity>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHandle} />
+            
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Bank Account & UPI</Text>
+                <Text style={styles.modalSub}>Manage your payout destinations</Text>
               </View>
-              
-              <Text style={styles.sectionTitle}>Bank Account</Text>
-              
-              {/* Custom Dropdown for Banks */}
-              <TouchableOpacity 
-                style={[styles.input, { justifyContent: 'center' }]} 
-                onPress={() => setShowBankDropdown(true)}
-              >
-                <Text style={{ color: bankName ? theme.colors.text : theme.colors.textDim }}>
-                  {bankName || 'Select Bank (Tap to choose)'}
-                </Text>
-              </TouchableOpacity>
-              <TextInput 
-                style={styles.input} placeholder="Account Number" placeholderTextColor={theme.colors.textDim}
-                value={accountNumber} onChangeText={setAccountNumber} keyboardType="number-pad"
-              />
-              <TextInput 
-                style={styles.input} placeholder="IFSC Code" placeholderTextColor={theme.colors.textDim}
-                value={ifscCode} onChangeText={setIfscCode} autoCapitalize="characters"
-              />
-
-              <Text style={styles.sectionTitle}>OR UPI ID</Text>
-              <TextInput 
-                style={styles.input} placeholder="yourname@upi" placeholderTextColor={theme.colors.textDim}
-                value={upiId} onChangeText={setUpiId}
-              />
-              
-              <TouchableOpacity style={styles.primaryModalBtn} onPress={handleSaveBank} disabled={saving}>
-                {saving ? <ActivityIndicator color="#001016" /> : <Text style={styles.primaryModalBtnText}>Save Details</Text>}
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
               </TouchableOpacity>
             </View>
-          </ScrollView>
-        </View>
-      </Modal>
 
-      {/* Bank Selection Dropdown Modal */}
-      <Modal visible={showBankDropdown} transparent animationType="fade" onRequestClose={() => setShowBankDropdown(false)}>
-        <TouchableOpacity 
-          style={styles.modalOverlayCenter} 
-          activeOpacity={1} 
-          onPress={() => setShowBankDropdown(false)}
-        >
-          <View style={[styles.modalContent, { width: '85%', maxHeight: '60%', padding: 20, borderRadius: 16 }]}>
-            <Text style={[styles.modalTitle, { marginBottom: 16, fontSize: 18 }]}>Select Bank</Text>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {bankOptions.map(bank => (
-                <TouchableOpacity 
-                  key={bank}
-                  style={{
-                    paddingVertical: 14,
-                    borderBottomWidth: 1,
-                    borderBottomColor: theme.colors.border
-                  }}
-                  onPress={() => {
-                    setBankName(bank);
-                    setShowBankDropdown(false);
-                  }}
+              {/* Section A: Bank Details */}
+              <View style={styles.modalSectionBox}>
+                <View style={styles.modalSectionHeader}>
+                  <Landmark size={18} color="#6C47FF" style={{ marginRight: 6 }} />
+                  <Text style={styles.modalSectionTitle}>Bank Account Details</Text>
+                  {bankName && accountNumber ? (
+                    <TouchableOpacity onPress={handleDeleteBankDetails} style={styles.deleteMiniBtn}>
+                      <Trash2 size={14} color="#EF4444" />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+
+                <Text style={styles.inputLabel}>Bank Name</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. State Bank of India, HDFC"
+                  placeholderTextColor="#94A3B8"
+                  value={bankName}
+                  onChangeText={setBankName}
+                />
+
+                <Text style={styles.inputLabel}>Account Number</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. 123456789012"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                  value={accountNumber}
+                  onChangeText={setAccountNumber}
+                />
+
+                <Text style={styles.inputLabel}>IFSC Code</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. SBIN0001234"
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="characters"
+                  value={ifscCode}
+                  onChangeText={(t) => setIfscCode(t.toUpperCase())}
+                />
+              </View>
+
+              {/* Section B: UPI Details */}
+              <View style={[styles.modalSectionBox, { marginTop: 14 }]}>
+                <View style={styles.modalSectionHeader}>
+                  <Smartphone size={18} color="#6C47FF" style={{ marginRight: 6 }} />
+                  <Text style={styles.modalSectionTitle}>UPI ID (VPA)</Text>
+                  {upiId ? (
+                    <TouchableOpacity onPress={handleDeleteUpi} style={styles.deleteMiniBtn}>
+                      <Trash2 size={14} color="#EF4444" />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+
+                <Text style={styles.inputLabel}>UPI ID</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. mobile-number@oksbi, name@paytm"
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="none"
+                  value={upiId}
+                  onChangeText={setUpiId}
+                />
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.modalPrimaryBtn, saving && { opacity: 0.7 }]} 
+                onPress={handleSaveBank}
+                disabled={saving}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={['#6C47FF', '#8B6FFF']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.modalPrimaryGradient}
                 >
-                  <Text style={{ color: bankName === bank ? theme.colors.primary : theme.colors.text, fontSize: 16, fontWeight: bankName === bank ? 'bold' : '500' }}>
-                    {bank}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                  {saving ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.modalPrimaryBtnText}>Save Payout Details</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
             </ScrollView>
           </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Edit Profile Modal */}
-      <Modal
-        visible={activeModal === 'editProfile'}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setActiveModal(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setActiveModal(null)} />
-          <View style={styles.bottomSheet}>
-            <View style={styles.sheetHeaderHandle} />
-            <Text style={styles.sheetTitle}>Edit Profile</Text>
-
-            <Text style={styles.inputLabel}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              value={editName}
-              onChangeText={setEditName}
-              placeholder="Ramesh Kumar"
-              placeholderTextColor={theme.colors.textMuted}
-            />
-
-            <Text style={styles.inputLabel}>Phone Number</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.colors.background + '80', color: theme.colors.textDim }]}
-              value={editPhone}
-              editable={false}
-            />
-
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              value={editEmail}
-              onChangeText={setEditEmail}
-              placeholder="user@email.com"
-              placeholderTextColor={theme.colors.textMuted}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <View style={styles.sheetActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setActiveModal(null)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.submitBtn} onPress={handleEditProfile} disabled={saving}>
-                {saving ? <ActivityIndicator color="#001016" /> : <Text style={styles.submitBtnText}>Save Changes</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
       </Modal>
 
-      {/* Addresses List Modal */}
+      {/* ═══════════════════════════════════════════
+          MODAL 2: MANAGE ADDRESSES LIST
+      ═══════════════════════════════════════════ */}
       <Modal visible={activeModal === 'addresses'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={{flexGrow: 1, justifyContent: 'flex-end'}}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHandle} />
+            
+            <View style={styles.modalHeader}>
+              <View>
                 <Text style={styles.modalTitle}>Saved Addresses</Text>
-                <TouchableOpacity onPress={() => setActiveModal(null)}><X color={theme.colors.text} /></TouchableOpacity>
+                <Text style={styles.modalSub}>{addressList.length} registered locations</Text>
               </View>
-              
-              {addressList.length === 0 ? (
-                <Text style={{ textAlign: 'center', marginVertical: 20, color: theme.colors.textDim }}>No saved addresses found.</Text>
-              ) : (
-                addressList.map(addr => (
-                  <View key={addr._id} style={{
-                    borderWidth: 1, borderColor: addr.isPrimary ? theme.colors.primary : theme.colors.border,
-                    borderRadius: 12, padding: 16, marginBottom: 12, backgroundColor: addr.isPrimary ? '#F0FDF4' : theme.colors.surface
-                  }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={{ fontWeight: 'bold', fontSize: 16, color: theme.colors.text }}>
-                        {addr.label || 'Address'} {addr.isPrimary && <Text style={{ color: theme.colors.primary, fontSize: 12 }}>(Primary)</Text>}
-                      </Text>
-                      <View style={{ flexDirection: 'row', gap: 12 }}>
-                        <TouchableOpacity onPress={() => openEditAddress(addr)}>
-                          <Edit2 size={18} color={theme.colors.primary} />
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {addressList.map((addr) => {
+                const isPrimary = addr.isPrimary;
+                const hasCoords = addr.location?.coordinates?.length === 2;
+
+                return (
+                  <View key={addr._id} style={[styles.addressItemCard, isPrimary && styles.addressItemCardPrimary]}>
+                    <View style={styles.addrCardHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={styles.addrLabelPill}>
+                          <Text style={styles.addrLabelPillText}>{addr.label || 'Address'}</Text>
+                        </View>
+                        {isPrimary && (
+                          <View style={styles.primaryBadge}>
+                            <CheckCircle2 size={12} color="#10B981" style={{ marginRight: 3 }} />
+                            <Text style={styles.primaryBadgeText}>Default Primary</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity onPress={() => openEditAddress(addr)} style={styles.addrActionBtn}>
+                          <Edit2 size={15} color="#6C47FF" />
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleDeleteAddress(addr._id)}>
-                          <Trash2 size={18} color={theme.colors.danger} />
+                        <TouchableOpacity onPress={() => handleDeleteAddress(addr._id)} style={styles.addrActionBtn}>
+                          <Trash2 size={15} color="#EF4444" />
                         </TouchableOpacity>
                       </View>
                     </View>
-                    <Text style={{ color: theme.colors.textDim, marginBottom: 4 }}>{addr.street}</Text>
-                    <Text style={{ color: theme.colors.textDim, marginBottom: 12 }}>{addr.area}, {addr.city} - {addr.pincode}</Text>
+
+                    <Text style={styles.addrText}>{addr.street}, {addr.area}, {addr.city} - {addr.pincode}</Text>
                     
-                    {!addr.isPrimary && (
-                      <TouchableOpacity onPress={() => handleSetPrimaryAddress(addr._id)}>
-                        <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Set as Primary</Text>
+                    {hasCoords && (
+                      <View style={styles.coordsRow}>
+                        <Compass size={12} color="#6C47FF" style={{ marginRight: 4 }} />
+                        <Text style={styles.coordsText}>
+                          GPS: {addr.location.coordinates[1].toFixed(4)}, {addr.location.coordinates[0].toFixed(4)}
+                        </Text>
+                      </View>
+                    )}
+
+                    {!isPrimary && (
+                      <TouchableOpacity 
+                        style={styles.setDefaultBtn} 
+                        onPress={() => handleSetPrimaryAddress(addr._id)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.setDefaultBtnText}>Set as Default Primary</Text>
                       </TouchableOpacity>
                     )}
                   </View>
-                ))
+                );
+              })}
+
+              {addressList.length === 0 && (
+                <View style={styles.emptyAddressBox}>
+                  <MapPin size={36} color="#6C47FF" />
+                  <Text style={styles.emptyAddressTitle}>No Addresses Saved</Text>
+                  <Text style={styles.emptyAddressSub}>Add your primary working location for high-accuracy customer matches.</Text>
+                </View>
               )}
 
-              <TouchableOpacity style={[styles.primaryModalBtn, { marginTop: 16 }]} onPress={() => openEditAddress()}>
-                <Text style={styles.primaryModalBtnText}>+ Add New Address</Text>
+              <TouchableOpacity 
+                style={styles.addNewAddrBtn} 
+                onPress={() => openEditAddress(null)}
+                activeOpacity={0.85}
+              >
+                <Plus size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.addNewAddrBtnText}>+ Add New Address</Text>
               </TouchableOpacity>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
-      {/* Edit/Add Address Modal */}
+      {/* ═══════════════════════════════════════════
+          MODAL 3: ADD / EDIT ADDRESS WITH MAP & GPS
+      ═══════════════════════════════════════════ */}
       <Modal visible={activeModal === 'editAddress'} transparent animationType="slide" onRequestClose={() => setActiveModal('addresses')}>
         <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={{flexGrow: 1, justifyContent: 'flex-end'}}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{editingAddress ? 'Edit Address' : 'Add Address'}</Text>
-                <TouchableOpacity onPress={() => setActiveModal('addresses')}><X color={theme.colors.text} /></TouchableOpacity>
+          <View style={[styles.modalContent, { maxHeight: '92%' }]}>
+            <View style={styles.modalHandle} />
+            
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>{editingAddress ? 'Edit Address' : 'Add New Address'}</Text>
+                <Text style={styles.modalSub}>Configure location coordinates & postal details</Text>
               </View>
-              
-              <Text style={styles.inputLabel}>Label (Home, Office, etc)</Text>
-              <TextInput style={styles.input} value={addrLabel} onChangeText={setAddrLabel} placeholder="e.g. Home" placeholderTextColor={theme.colors.textDim} />
-              
+              <TouchableOpacity onPress={() => setActiveModal('addresses')} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Label Selector Chips */}
+              <Text style={styles.inputLabel}>Address Label</Text>
+              <View style={styles.labelChipsRow}>
+                {ADDR_LABELS.map((lbl) => (
+                  <TouchableOpacity
+                    key={lbl}
+                    style={[styles.labelChip, addrLabel === lbl && styles.labelChipActive]}
+                    onPress={() => setAddrLabel(lbl)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.labelChipText, addrLabel === lbl && styles.labelChipTextActive]}>
+                      {lbl}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               <Text style={styles.inputLabel}>Street / Building / Flat No.</Text>
-              <TextInput style={styles.input} value={addrStreet} onChangeText={setAddrStreet} placeholder="Enter street or building" placeholderTextColor={theme.colors.textDim} />
-              
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
-                <Text style={[styles.inputLabel, { marginTop: 0 }]}>Location Coordinates</Text>
-                <TouchableOpacity 
-                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.primary + '20', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
-                  onPress={() => {
-                    Geolocation.getCurrentPosition(
-                      (position) => {
-                        setAddrCoordinate({
-                          latitude: position.coords.latitude,
-                          longitude: position.coords.longitude
-                        });
-                      },
-                      (error) => {
-                        Alert.alert("GPS Error", error.message);
-                      },
-                      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-                    );
-                  }}
-                >
-                  <Crosshair size={16} color={theme.colors.primary} style={{ marginRight: 6 }} />
-                  <Text style={{ color: theme.colors.primary, fontWeight: 'bold', fontSize: 12 }}>Use GPS</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. Dwarkesh Heavens, Flat 402"
+                placeholderTextColor="#94A3B8"
+                value={addrStreet}
+                onChangeText={setAddrStreet}
+              />
+
+              {/* Area & GPS Button */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.inputLabel}>Area / Locality</Text>
+                <TouchableOpacity style={styles.useGpsMiniBtn} onPress={handleUseGps} activeOpacity={0.8}>
+                  {gpsLoading ? (
+                    <ActivityIndicator size="small" color="#6C47FF" />
+                  ) : (
+                    <>
+                      <Crosshair size={13} color="#6C47FF" style={{ marginRight: 4 }} />
+                      <Text style={styles.useGpsMiniText}>Use GPS</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
-              <Text style={styles.inputLabel}>Area / Locality</Text>
-              <TextInput style={styles.input} value={addrArea} onChangeText={setAddrArea} placeholder="Enter area name" placeholderTextColor={theme.colors.textDim} />
-              
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. Chandkheda"
+                placeholderTextColor="#94A3B8"
+                value={addrArea}
+                onChangeText={setAddrArea}
+              />
+
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.inputLabel}>City</Text>
-                  <TextInput style={styles.input} value={addrCity} onChangeText={setAddrCity} placeholder="City name" placeholderTextColor={theme.colors.textDim} />
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Ahmedabad"
+                    placeholderTextColor="#94A3B8"
+                    value={addrCity}
+                    onChangeText={setAddrCity}
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.inputLabel}>Pincode</Text>
-                  <TextInput style={styles.input} value={addrPincode} onChangeText={setAddrPincode} placeholder="Pincode" keyboardType="number-pad" placeholderTextColor={theme.colors.textDim} />
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="382424"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                    maxLength={6}
+                    value={addrPincode}
+                    onChangeText={setAddrPincode}
+                  />
                 </View>
               </View>
 
-              <Text style={[styles.inputLabel, { marginTop: 16 }]}>Pin Location</Text>
-              <View style={{ height: 150, borderRadius: 12, overflow: 'hidden', marginBottom: 16, backgroundColor: theme.colors.border }}>
+              {/* Interactive Map Pin Selection */}
+              <View style={styles.mapSectionBox}>
+                <View style={styles.mapSectionHeader}>
+                  <MapPin size={16} color="#6C47FF" style={{ marginRight: 4 }} />
+                  <Text style={styles.mapSectionTitle}>Pin Exact Location on Map</Text>
+                </View>
+
                 <LeafletMapPicker
-                  style={{ flex: 1 }}
-                  latitude={addrCoordinate?.latitude}
-                  longitude={addrCoordinate?.longitude}
-                  onLocationSelect={(coords) => setAddrCoordinate({ latitude: coords.lat, longitude: coords.lng })}
+                  initialCoordinate={addrCoordinate || { latitude: 23.1101, longitude: 72.5811 }}
+                  onLocationSelect={(coords) => {
+                    setAddrCoordinate(coords);
+                  }}
+                  height={180}
+                />
+                
+                {addrCoordinate && (
+                  <Text style={styles.pinnedCoordsText}>
+                    📍 Pinned: {addrCoordinate.latitude.toFixed(4)}, {addrCoordinate.longitude.toFixed(4)}
+                  </Text>
+                )}
+              </View>
+
+              {/* Set as Primary Switch */}
+              <View style={styles.primarySwitchRow}>
+                <View>
+                  <Text style={styles.primarySwitchTitle}>Set as Default Primary Address</Text>
+                  <Text style={styles.primarySwitchSub}>Used automatically for incoming job distance calculation</Text>
+                </View>
+                <Switch
+                  trackColor={{ false: isDarkMode ? '#334155' : '#E2E8F0', true: '#6C47FF' }}
+                  thumbColor={'#FFFFFF'}
+                  value={addrIsPrimary}
+                  onValueChange={setAddrIsPrimary}
                 />
               </View>
-              <Text style={{ fontSize: 12, color: theme.colors.textDim, marginBottom: 8, textAlign: 'center' }}>
-                {addrCoordinate ? `Pinned: ${addrCoordinate.latitude.toFixed(4)}, ${addrCoordinate.longitude.toFixed(4)}` : 'Tap on the map to drop a pin'}
-              </Text>
 
-              <TouchableOpacity style={[styles.primaryModalBtn, { marginTop: 8 }]} onPress={handleSaveAddress} disabled={saving}>
-                {saving ? <ActivityIndicator color="#001016" /> : <Text style={styles.primaryModalBtnText}>Save Address</Text>}
+              <TouchableOpacity 
+                style={[styles.modalPrimaryBtn, saving && { opacity: 0.7 }]} 
+                onPress={handleSaveAddress}
+                disabled={saving}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={['#6C47FF', '#8B6FFF']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.modalPrimaryGradient}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.modalPrimaryBtnText}>Save Address</Text>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
-      {/* Full Screen Image Viewer Modal */}
-      <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity 
-            style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }}
-            onPress={() => setViewerVisible(false)}
-          >
-            <X color="#fff" size={32} />
-          </TouchableOpacity>
-          {viewerImage && (
-            <Image 
-              source={{ uri: viewerImage }} 
-              style={{ width: '95%', height: '80%', resizeMode: 'contain' }} 
-            />
-          )}
+      {/* ═══════════════════════════════════════════
+          MODAL 4: KYC VERIFICATION UPLOAD
+      ═══════════════════════════════════════════ */}
+      <Modal visible={activeModal === 'kyc'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
+            
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>KYC Verification</Text>
+                <Text style={styles.modalSub}>Upload official ID proof for admin verification</Text>
+              </View>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>Select ID Document Type</Text>
+            <View style={styles.labelChipsRow}>
+              {['AADHAR', 'PAN', 'LICENSE', 'VOTER_ID'].map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.labelChip, kycType === type && styles.labelChipActive]}
+                  onPress={() => setKycType(type)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.labelChipText, kycType === type && styles.labelChipTextActive]}>
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.uploadDocBox} onPress={pickKycImage} activeOpacity={0.85}>
+              <UploadCloud size={32} color="#6C47FF" />
+              <Text style={styles.uploadDocTitle}>
+                {docUrl ? 'Document Selected ✓' : 'Tap to Upload Document Image'}
+              </Text>
+              <Text style={styles.uploadDocSub}>Supports JPG, PNG (Camera or Gallery)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.modalPrimaryBtn, (!docUrl || saving) && { opacity: 0.7 }]} 
+              onPress={handleUploadKyc}
+              disabled={!docUrl || saving}
+              activeOpacity={0.88}
+            >
+              <LinearGradient
+                colors={['#6C47FF', '#8B6FFF']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={styles.modalPrimaryGradient}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalPrimaryBtnText}>Submit Document for Verification →</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -864,172 +1039,445 @@ const WorkerProfileScreen = ({ navigation }) => {
 };
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 16 },
-  heroSection: {
-    alignItems: 'center', backgroundColor: theme.colors.surface,
-    paddingVertical: 32, paddingHorizontal: 20, borderRadius: 24,
+  container: {
+    flex: 1,
+    backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   profileHeaderGradient: {
-    paddingTop: 60,
-    paddingBottom: 70,
+    paddingTop: 48,
+    paddingBottom: 36,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    alignItems: 'center',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   profileHeaderContent: {
     alignItems: 'center',
   },
   avatarWrapperNew: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
     position: 'relative',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   avatarImageNew: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.3)',
-    backgroundColor: 'rgba(255,255,255,0.2)'
+    width: '100%',
+    height: '100%',
+    borderRadius: 46,
   },
   avatarEditBtnNew: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    bottom: -2,
+    right: -2,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 3,
   },
   profileNameNew: {
-    fontSize: 24,
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  profilePhoneNew: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: 2,
+  },
+  headerBadgesRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  badgePill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  badgePillText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
     fontWeight: '800',
-    color: '#fff',
-    marginBottom: 4,
   },
-  profileRoleNew: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '500',
+
+  // Menu items
+  menuContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 18,
   },
-  statsCardWrapper: {
-    paddingHorizontal: 20,
-    marginTop: -40,
-    marginBottom: 24,
-    zIndex: 10,
+  sectionHeading: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 4,
   },
-  statsCardNew: {
-    backgroundColor: theme.colors.card,
+  menuCard: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     borderRadius: 20,
-    paddingVertical: 20,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#EEF2F6',
+    marginBottom: 18,
+    overflow: 'hidden',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  menuIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  menuItemTextContainer: {
+    flex: 1,
+  },
+  menuItemTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+  },
+  menuItemSubtitle: {
+    fontSize: 12,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: isDarkMode ? '#334155' : '#F1F5F9',
+    marginLeft: 70,
+  },
+
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    paddingTop: 16,
+  },
+  modalHandle: {
+    width: 44,
+    height: 5,
+    backgroundColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+  },
+  modalSub: {
+    fontSize: 12.5,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalSectionBox: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  modalSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  modalSectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    flex: 1,
+  },
+  deleteMiniBtn: {
+    padding: 4,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    marginBottom: 6,
+    marginTop: 8,
+  },
+  modalInput: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontWeight: '600',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+  },
+  modalPrimaryBtn: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 20,
+  },
+  modalPrimaryGradient: {
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  // Address items
+  addressItemCard: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginBottom: 10,
+  },
+  addressItemCardPrimary: {
+    borderColor: '#6C47FF',
+    backgroundColor: isDarkMode ? '#1A1838' : '#FAF8FF',
+  },
+  addrCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    marginBottom: 6,
   },
-  statBoxNew: {
-    flex: 1,
+  addrLabelPill: {
+    backgroundColor: 'rgba(108, 71, 255, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginRight: 6,
+  },
+  addrLabelPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6C47FF',
+  },
+  primaryBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  statIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  primaryBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  addrActionBtn: {
+    padding: 4,
+  },
+  addrText: {
+    fontSize: 13,
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    lineHeight: 18,
+  },
+  coordsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  coordsText: {
+    fontSize: 11,
+    color: '#6C47FF',
+    fontWeight: '600',
+  },
+  setDefaultBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  setDefaultBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  emptyAddressBox: {
+    alignItems: 'center',
+    paddingVertical: 28,
+  },
+  emptyAddressTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    marginTop: 8,
+  },
+  emptyAddressSub: {
+    fontSize: 12,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    textAlign: 'center',
+    marginTop: 2,
+    paddingHorizontal: 20,
+  },
+  addNewAddrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#6C47FF',
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 14,
+  },
+  addNewAddrBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  // Edit Address Form
+  labelChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 6,
+  },
+  labelChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  labelChipActive: {
+    backgroundColor: '#6C47FF',
+    borderColor: '#6C47FF',
+  },
+  labelChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+  },
+  labelChipTextActive: {
+    color: '#FFFFFF',
+  },
+  useGpsMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(108, 71, 255, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  useGpsMiniText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6C47FF',
+  },
+  mapSectionBox: {
+    marginTop: 12,
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  mapSectionHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
   },
-  statValueNew: {
-    fontSize: 18,
+  mapSectionTitle: {
+    fontSize: 12.5,
     fontWeight: '800',
-    color: theme.colors.text,
-    marginBottom: 2,
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
   },
-  statLabelNew: {
-    fontSize: 12,
-    color: theme.colors.textDim,
-    fontWeight: '600',
+  pinnedCoordsText: {
+    fontSize: 11.5,
+    color: '#6C47FF',
+    fontWeight: '700',
+    marginTop: 6,
+    textAlign: 'center',
   },
-  statDividerNew: {
-    width: 1,
-    height: 40,
-    backgroundColor: theme.colors.border,
+  primarySwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 14,
   },
-  editProfileBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16 },
-  editProfileBtnText: { fontSize: 13, fontWeight: '700', color: theme.colors.text },
-  onlineToggle: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.background,
-    paddingVertical: 4, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border,
-    marginBottom: 24,
+  primarySwitchTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
   },
-  onlineDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  onlineText: { fontSize: 13, fontWeight: '700', color: theme.colors.text, marginRight: 8 },
-  statsRow: { flexDirection: 'row', alignItems: 'center' },
-  statBox: { alignItems: 'center', paddingHorizontal: 16 },
-  statValue: { fontSize: 16, fontWeight: '800', color: theme.colors.primary, marginBottom: 4 },
-  statLabel: { fontSize: 12, color: theme.colors.textDim, fontWeight: '600' },
-  statDivider: { width: 1, height: 24, backgroundColor: theme.colors.border },
-  menuContainer: { paddingHorizontal: 20 },
-  menuItem: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent',
-    paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+  primarySwitchSub: {
+    fontSize: 11,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    marginTop: 2,
+    maxWidth: 240,
   },
-  menuIconBox: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: '#6C47FF10',
-    justifyContent: 'center', alignItems: 'center', marginRight: 16,
+
+  // KYC
+  uploadDocBox: {
+    borderWidth: 1.5,
+    borderColor: '#6C47FF',
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginTop: 12,
+    backgroundColor: isDarkMode ? '#0F172A' : '#FAF8FF',
   },
-  menuItemTextContainer: { flex: 1 },
-  menuItemTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
-  menuItemSubtitle: { fontSize: 13, color: theme.colors.textDim, marginTop: 2 },
-  
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  bottomSheet: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: 32, borderTopRightRadius: 32,
-    paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16,
+  uploadDocTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#6C47FF',
+    marginTop: 8,
   },
-  sheetHeaderHandle: { width: 40, height: 5, backgroundColor: theme.colors.border, borderRadius: 3, alignSelf: 'center', marginBottom: 24 },
-  sheetTitle: { fontSize: 24, fontWeight: '900', color: theme.colors.text, marginBottom: 24 },
-  inputLabel: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim, marginBottom: 8, marginLeft: 4 },
-  sheetActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  cancelBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' },
-  cancelBtnText: { fontSize: 16, fontWeight: '700', color: theme.colors.textDim },
-  submitBtn: { flex: 2, paddingVertical: 16, borderRadius: 16, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center' },
-  submitBtnText: { fontSize: 16, fontWeight: '800', color: '#001016' },
-  modalContent: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: 32, borderTopRightRadius: 32,
-    paddingHorizontal: 24, paddingBottom: 40, paddingTop: 24,
+  uploadDocSub: {
+    fontSize: 11.5,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    marginTop: 2,
   },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 24, fontWeight: '900', color: theme.colors.text },
-  modalSub: { fontSize: 14, color: theme.colors.textDim, marginBottom: 24 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: theme.colors.text, marginBottom: 12, marginTop: 8 },
-  input: {
-    borderWidth: 1, borderColor: theme.colors.border, borderRadius: 16,
-    paddingHorizontal: 16, paddingVertical: 16, fontSize: 16, color: theme.colors.text,
-    backgroundColor: theme.colors.background, marginBottom: 16,
-  },
-  primaryModalBtn: {
-    backgroundColor: theme.colors.primary, paddingVertical: 18, borderRadius: 16,
-    alignItems: 'center', marginTop: 16,
-  },
-  primaryModalBtnText: { color: '#001016', fontSize: 16, fontWeight: '800' }
 });
 
 export default WorkerProfileScreen;

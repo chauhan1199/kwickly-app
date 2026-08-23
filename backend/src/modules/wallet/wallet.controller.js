@@ -106,13 +106,19 @@ exports.topupWallet = catchAsync(async (req, res) => {
     }
     amount = Number(amount);
 
+    const isUpiPayment = (paymentDetails?.method === 'UPI') ||
+                         (paymentDetails?.txnId && !razorpaySignature) ||
+                         (razorpayOrderId && razorpayOrderId.startsWith('upi_')) ||
+                         (razorpayPaymentId && razorpayPaymentId.startsWith('upi_pay_'));
+
+    if (isUpiPayment) {
+        if (!razorpayOrderId) razorpayOrderId = `upi_ord_${Date.now()}`;
+        if (!razorpayPaymentId) razorpayPaymentId = paymentDetails?.txnId || `upi_pay_${Date.now()}`;
+    }
+
     if (!razorpayOrderId || !razorpayPaymentId) {
         return errorResponse(res, 'Verified payment details are required to top up the wallet', StatusCodes.BAD_REQUEST);
     }
-
-    const isUpiPayment = (paymentDetails?.method === 'UPI') ||
-                         (razorpayOrderId && razorpayOrderId.startsWith('upi_')) ||
-                         (razorpayPaymentId && razorpayPaymentId.startsWith('upi_pay_'));
 
     if (!isUpiPayment) {
         // Razorpay payment verification

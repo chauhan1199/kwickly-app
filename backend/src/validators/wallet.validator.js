@@ -4,12 +4,12 @@ const topupSchema = Joi.object({
     amount: Joi.number().min(1).required(),
     paymentDetails: Joi.object({
         method: Joi.string().required(),
-        txnId: Joi.string().optional()
-    }).optional(),
-    planId: Joi.string().optional(),
-    razorpayOrderId: Joi.string().optional(),
-    razorpayPaymentId: Joi.string().optional(),
-    razorpaySignature: Joi.string().optional()
+        txnId: Joi.string().allow(null, '').optional()
+    }).allow(null).optional(),
+    planId: Joi.string().allow(null, '').optional(),
+    razorpayOrderId: Joi.string().allow(null, '').optional(),
+    razorpayPaymentId: Joi.string().allow(null, '').optional(),
+    razorpaySignature: Joi.string().allow(null, '').optional()
 });
 
 const withdrawSchema = Joi.object({

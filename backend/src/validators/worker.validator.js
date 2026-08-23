@@ -3,9 +3,11 @@ const Joi = require('joi');
 // Update worker profile schema
 const updateProfileSchema = Joi.object({
   name: Joi.string().min(2).max(50).optional(),
-  email: Joi.string().email().optional(),
-  profileImage: Joi.string().uri().optional(),
-  city: Joi.string().optional(),
+  email: Joi.string().email().allow('', null).optional(),
+  profileImage: Joi.string().allow('', null).optional(),
+  profileImageBase64: Joi.string().allow('', null).optional(),
+  city: Joi.string().allow('', null).optional(),
+  bio: Joi.string().allow('', null).optional(),
 });
 
 // Update KYC schema — matches the controller contract:
