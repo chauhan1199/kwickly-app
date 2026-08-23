@@ -164,8 +164,16 @@ exports.updateProfile = catchAsync(async (req, res) => {
 exports.updateBank = catchAsync(async (req, res) => {
     const { bankDetails, upiId } = req.body;
     const updateData = {};
-    if (bankDetails) updateData['wallet.bankDetails'] = bankDetails;
-    if (upiId) updateData['wallet.upiId'] = upiId;
+    if (bankDetails !== undefined) {
+        if (!bankDetails || !bankDetails.accountNumber) {
+            updateData['wallet.bankDetails'] = null;
+        } else {
+            updateData['wallet.bankDetails'] = bankDetails;
+        }
+    }
+    if (upiId !== undefined) {
+        updateData['wallet.upiId'] = upiId ? upiId.trim() : '';
+    }
     
     const user = await Customer.findByIdAndUpdate(
         req.user._id,

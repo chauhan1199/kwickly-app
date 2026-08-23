@@ -21,12 +21,12 @@ const updateKycSchema = Joi.object({
 // Update bank details schema — matches controller + mobile contract ({ bankDetails, upiId })
 const updateBankSchema = Joi.object({
   bankDetails: Joi.object({
-    accountNumber: Joi.string().min(9).max(18).optional(),
-    ifscCode: Joi.string().pattern(/^[A-Z]{4}0[A-Z0-9]{6}$/).optional(),
-    bankName: Joi.string().min(2).max(100).optional(),
-  }).optional(),
-  upiId: Joi.string().pattern(/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/).optional(),
-}).or('bankDetails', 'upiId');
+    accountNumber: Joi.string().allow('', null).optional(),
+    ifscCode: Joi.string().allow('', null).optional(),
+    bankName: Joi.string().allow('', null).optional(),
+  }).allow(null).optional(),
+  upiId: Joi.string().allow('', null).optional(),
+});
 
 // Update services schema (matches model + mobile contract: { category, categoryName, subcategories, isActive })
 const updateServicesSchema = Joi.object({

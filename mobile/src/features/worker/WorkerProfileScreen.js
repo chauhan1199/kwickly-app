@@ -13,6 +13,8 @@ import {
   ActivityIndicator,
   Image,
   Switch,
+  Platform,
+  PermissionsAndroid,
   Dimensions
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -87,7 +89,6 @@ const WorkerProfileScreen = ({ navigation }) => {
   const [addrPincode, setAddrPincode] = useState('');
   const [addrIsPrimary, setAddrIsPrimary] = useState(false);
   const [addrCoordinate, setAddrCoordinate] = useState(null);
-  const [mapSearchText, setMapSearchText] = useState('');
   const [gpsLoading, setGpsLoading] = useState(false);
 
   useFocusEffect(
@@ -109,9 +110,15 @@ const WorkerProfileScreen = ({ navigation }) => {
         setBankName(userData.wallet.bankDetails.bankName || '');
         setAccountNumber(userData.wallet.bankDetails.accountNumber || '');
         setIfscCode(userData.wallet.bankDetails.ifscCode || '');
+      } else {
+        setBankName('');
+        setAccountNumber('');
+        setIfscCode('');
       }
       if (userData?.wallet?.upiId) {
         setUpiId(userData.wallet.upiId);
+      } else {
+        setUpiId('');
       }
       if (userData?.addresses) {
         setAddressList(userData.addresses);
@@ -165,7 +172,7 @@ const WorkerProfileScreen = ({ navigation }) => {
         const payload = {
           profileImageBase64: `data:${asset.type || 'image/jpeg'};base64,${asset.base64}`
         };
-        const res = await workerService.updateProfilePhoto(payload);
+        await workerService.updateProfilePhoto(payload);
         Alert.alert('Success 🎉', 'Profile photo updated successfully!');
         fetchProfile();
         if (fetchUser) fetchUser('WORKER');
@@ -247,14 +254,14 @@ const WorkerProfileScreen = ({ navigation }) => {
           onPress: async () => {
             setSaving(true);
             try {
-              await workerService.updateBank({ bankDetails: null, upiId: upiId || '' });
+              await workerService.updateBank({ bankDetails: null });
               setBankName('');
               setAccountNumber('');
               setIfscCode('');
               fetchProfile();
-              Alert.alert('Removed', 'Bank details removed.');
+              Alert.alert('Removed ✅', 'Bank account details removed successfully.');
             } catch (e) {
-              Alert.alert('Error', 'Failed to remove bank details.');
+              Alert.alert('Error', e.response?.data?.message || 'Failed to remove bank details.');
             } finally {
               setSaving(false);
             }
@@ -276,15 +283,12 @@ const WorkerProfileScreen = ({ navigation }) => {
           onPress: async () => {
             setSaving(true);
             try {
-              await workerService.updateBank({
-                bankDetails: bankName && accountNumber && ifscCode ? { bankName, accountNumber, ifscCode } : null,
-                upiId: ''
-              });
+              await workerService.updateBank({ upiId: '' });
               setUpiId('');
               fetchProfile();
-              Alert.alert('Removed', 'UPI ID removed.');
+              Alert.alert('Removed ✅', 'UPI ID removed successfully.');
             } catch (e) {
-              Alert.alert('Error', 'Failed to remove UPI ID.');
+              Alert.alert('Error', e.response?.data?.message || 'Failed to remove UPI ID.');
             } finally {
               setSaving(false);
             }
@@ -297,23 +301,75 @@ const WorkerProfileScreen = ({ navigation }) => {
   // ═══════════════════════════════════════════
   // 3. MANAGE ADDRESSES WITH MAP & GPS
   // ═══════════════════════════════════════════
-  const handleUseGps = () => {
+  const handleUseGps = async () => {
     setGpsLoading(true);
-    Geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setAddrCoordinate({ latitude, longitude });
-        setGpsLoading(false);
-        Alert.alert('GPS Location Captured 📍', `Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`);
-      },
-      (error) => {
-        setGpsLoading(false);
-        // Fallback default coordinates (Ahmedabad)
-        setAddrCoordinate({ latitude: 23.0225, longitude: 72.5714 });
-        Alert.alert('GPS Notice', 'Could not get high-accuracy GPS. Default city coordinates selected.');
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-    );
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'GPS Location Permission',
+            message: 'Kwickly needs access to your GPS location to accurately set your address.',
+            buttonPositive: 'Allow'
+          }
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          setGpsLoading(false);
+          Alert.alert('Permission Denied', 'Please allow GPS location permission to auto-detect location.');
+          return;
+        }
+      }
+
+      Geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setAddrCoordinate({ latitude, longitude });
+          setGpsLoading(false);
+          // Auto reverse geocode
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+            .then(res => res.json())
+            .then(data => {
+              const a = data.address || {};
+              if (a.road || a.building) setAddrStreet(a.road || a.building);
+              if (a.suburb || a.neighbourhood) setAddrArea(a.suburb || a.neighbourhood);
+              if (a.city || a.town || a.village) setAddrCity(a.city || a.town || a.village);
+              if (a.postcode && /^[1-9][0-9]{5}$/.test(a.postcode)) setAddrPincode(a.postcode);
+            })
+            .catch(() => {});
+          Alert.alert('GPS Location Captured 📍', `Coordinates: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        },
+        (error) => {
+          // Fallback to network/coarse location
+          Geolocation.getCurrentPosition(
+            (fallbackPos) => {
+              const { latitude, longitude } = fallbackPos.coords;
+              setAddrCoordinate({ latitude, longitude });
+              setGpsLoading(false);
+            },
+            () => {
+              setGpsLoading(false);
+              setAddrCoordinate({ latitude: 23.0225, longitude: 72.5714 });
+              Alert.alert('GPS Notice', 'Could not get direct satellite lock. You can drag and pin your exact location on the map below.');
+            },
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 15000 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
+      );
+    } catch (e) {
+      setGpsLoading(false);
+    }
+  };
+
+  const handleMapLocationSelect = (locationData) => {
+    const { latitude, longitude, details } = locationData;
+    setAddrCoordinate({ latitude, longitude });
+    if (details) {
+      if (details.street && !addrStreet) setAddrStreet(details.street);
+      if (details.area) setAddrArea(details.area);
+      if (details.city) setAddrCity(details.city);
+      if (details.pincode && /^[1-9][0-9]{5}$/.test(details.pincode)) setAddrPincode(details.pincode);
+    }
   };
 
   const handleSaveAddress = async () => {
@@ -643,9 +699,9 @@ const WorkerProfileScreen = ({ navigation }) => {
                 <View style={styles.modalSectionHeader}>
                   <Landmark size={18} color="#6C47FF" style={{ marginRight: 6 }} />
                   <Text style={styles.modalSectionTitle}>Bank Account Details</Text>
-                  {bankName && accountNumber ? (
+                  {bankName || accountNumber ? (
                     <TouchableOpacity onPress={handleDeleteBankDetails} style={styles.deleteMiniBtn}>
-                      <Trash2 size={14} color="#EF4444" />
+                      <Trash2 size={16} color="#EF4444" />
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -687,7 +743,7 @@ const WorkerProfileScreen = ({ navigation }) => {
                   <Text style={styles.modalSectionTitle}>UPI ID (VPA)</Text>
                   {upiId ? (
                     <TouchableOpacity onPress={handleDeleteUpi} style={styles.deleteMiniBtn}>
-                      <Trash2 size={14} color="#EF4444" />
+                      <Trash2 size={16} color="#EF4444" />
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -820,7 +876,7 @@ const WorkerProfileScreen = ({ navigation }) => {
       </Modal>
 
       {/* ═══════════════════════════════════════════
-          MODAL 3: ADD / EDIT ADDRESS WITH MAP & GPS
+          MODAL 3: ADD / EDIT ADDRESS (UBER-LIKE MAP)
       ═══════════════════════════════════════════ */}
       <Modal visible={activeModal === 'editAddress'} transparent animationType="slide" onRequestClose={() => setActiveModal('addresses')}>
         <View style={styles.modalOverlay}>
@@ -830,7 +886,7 @@ const WorkerProfileScreen = ({ navigation }) => {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>{editingAddress ? 'Edit Address' : 'Add New Address'}</Text>
-                <Text style={styles.modalSub}>Configure location coordinates & postal details</Text>
+                <Text style={styles.modalSub}>Move map to drop pin or use GPS</Text>
               </View>
               <TouchableOpacity onPress={() => setActiveModal('addresses')} style={styles.closeBtn}>
                 <X size={20} color={theme.colors.textDim} />
@@ -838,6 +894,36 @@ const WorkerProfileScreen = ({ navigation }) => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Uber-Style Map Pin Selector */}
+              <View style={styles.mapSectionBox}>
+                <View style={styles.mapSectionHeader}>
+                  <MapPin size={16} color="#6C47FF" style={{ marginRight: 4 }} />
+                  <Text style={styles.mapSectionTitle}>Pin Location (Pan Map to Set Exact Spot)</Text>
+                  <TouchableOpacity style={styles.useGpsMiniBtn} onPress={handleUseGps} activeOpacity={0.8}>
+                    {gpsLoading ? (
+                      <ActivityIndicator size="small" color="#6C47FF" />
+                    ) : (
+                      <>
+                        <Crosshair size={13} color="#6C47FF" style={{ marginRight: 4 }} />
+                        <Text style={styles.useGpsMiniText}>Use GPS</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                <LeafletMapPicker
+                  initialCoordinate={addrCoordinate || { latitude: 23.0225, longitude: 72.5714 }}
+                  onLocationSelect={handleMapLocationSelect}
+                  height={220}
+                />
+                
+                {addrCoordinate && (
+                  <Text style={styles.pinnedCoordsText}>
+                    📍 Pinned: {addrCoordinate.latitude.toFixed(4)}, {addrCoordinate.longitude.toFixed(4)}
+                  </Text>
+                )}
+              </View>
+
               {/* Label Selector Chips */}
               <Text style={styles.inputLabel}>Address Label</Text>
               <View style={styles.labelChipsRow}>
@@ -864,20 +950,7 @@ const WorkerProfileScreen = ({ navigation }) => {
                 onChangeText={setAddrStreet}
               />
 
-              {/* Area & GPS Button */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={styles.inputLabel}>Area / Locality</Text>
-                <TouchableOpacity style={styles.useGpsMiniBtn} onPress={handleUseGps} activeOpacity={0.8}>
-                  {gpsLoading ? (
-                    <ActivityIndicator size="small" color="#6C47FF" />
-                  ) : (
-                    <>
-                      <Crosshair size={13} color="#6C47FF" style={{ marginRight: 4 }} />
-                      <Text style={styles.useGpsMiniText}>Use GPS</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.inputLabel}>Area / Locality</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="e.g. Chandkheda"
@@ -909,28 +982,6 @@ const WorkerProfileScreen = ({ navigation }) => {
                     onChangeText={setAddrPincode}
                   />
                 </View>
-              </View>
-
-              {/* Interactive Map Pin Selection */}
-              <View style={styles.mapSectionBox}>
-                <View style={styles.mapSectionHeader}>
-                  <MapPin size={16} color="#6C47FF" style={{ marginRight: 4 }} />
-                  <Text style={styles.mapSectionTitle}>Pin Exact Location on Map</Text>
-                </View>
-
-                <LeafletMapPicker
-                  initialCoordinate={addrCoordinate || { latitude: 23.1101, longitude: 72.5811 }}
-                  onLocationSelect={(coords) => {
-                    setAddrCoordinate(coords);
-                  }}
-                  height={180}
-                />
-                
-                {addrCoordinate && (
-                  <Text style={styles.pinnedCoordsText}>
-                    📍 Pinned: {addrCoordinate.latitude.toFixed(4)}, {addrCoordinate.longitude.toFixed(4)}
-                  </Text>
-                )}
               </View>
 
               {/* Set as Primary Switch */}
@@ -1402,31 +1453,28 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(108, 71, 255, 0.1)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   useGpsMiniText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '800',
     color: '#6C47FF',
   },
   mapSectionBox: {
-    marginTop: 12,
-    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1.2,
-    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginBottom: 12,
   },
   mapSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
   mapSectionTitle: {
     fontSize: 12.5,
     fontWeight: '800',
     color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    flex: 1,
   },
   pinnedCoordsText: {
     fontSize: 11.5,
