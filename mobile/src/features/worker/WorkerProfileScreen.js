@@ -50,7 +50,9 @@ import {
   Eye,
   FileText,
   AlertCircle,
-  Clock
+  Clock,
+  Moon,
+  Sun
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { getImageUrl } from '../../utils/helpers';
@@ -60,7 +62,7 @@ const ADDR_LABELS = ['Home', 'Work', 'Office', 'Shop', 'Other'];
 const DOC_TYPES = ['AADHAR', 'PAN', 'LICENSE', 'VOTER_ID', 'PASSPORT'];
 
 const WorkerProfileScreen = ({ navigation }) => {
-  const { theme, isDarkMode } = useTheme();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, signOut, fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
@@ -711,7 +713,27 @@ const WorkerProfileScreen = ({ navigation }) => {
             )}
           </View>
 
-          {/* Section 3: App & Account */}
+          {/* Section 3: Preferences & Display */}
+          <Text style={styles.sectionHeading}>Preferences & Display</Text>
+          <View style={styles.menuCard}>
+            <View style={[styles.menuItem, { paddingVertical: 14 }]}>
+              <View style={[styles.menuIconBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : 'rgba(245, 158, 11, 0.15)' }]}>
+                {isDarkMode ? <Moon size={20} color="#8B6FFF" /> : <Sun size={20} color="#F59E0B" />}
+              </View>
+              <View style={styles.menuItemTextContainer}>
+                <Text style={styles.menuItemTitle}>Dark Theme</Text>
+                <Text style={styles.menuItemSubtitle}>{isDarkMode ? 'Dark theme enabled' : 'Light theme enabled'}</Text>
+              </View>
+              <Switch
+                trackColor={{ false: '#E2E8F0', true: '#6C47FF' }}
+                thumbColor={'#FFFFFF'}
+                onValueChange={toggleTheme}
+                value={isDarkMode}
+              />
+            </View>
+          </View>
+
+          {/* Section 4: App & Account */}
           <Text style={styles.sectionHeading}>Account</Text>
           <View style={styles.menuCard}>
             {renderMenuItem(
