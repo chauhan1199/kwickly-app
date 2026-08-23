@@ -363,13 +363,20 @@ const WorkerEarningsScreen = ({ navigation }) => {
   };
 
   const handleSubmitWithdrawal = async () => {
+    const safetyReserve = 100;
+    const totalBalance = wallet.balance || 0;
+    const withdrawableBalance = Math.max(0, totalBalance - safetyReserve);
+
     const amt = Number(withdrawAmount);
-    if (!withdrawAmount || isNaN(amt) || amt < 50) {
-      Alert.alert("Invalid Amount", "Minimum withdrawal amount is ₹50.");
+    if (!withdrawAmount || isNaN(amt) || amt < 10) {
+      Alert.alert("Invalid Amount", "Minimum withdrawal amount is ₹10.");
       return;
     }
-    if (amt > wallet.balance) {
-      Alert.alert("Insufficient Balance", `You only have ₹${wallet.balance.toFixed(2)} in your wallet.`);
+    if (amt > withdrawableBalance) {
+      Alert.alert(
+        "Insufficient Withdrawable Balance",
+        `Your total balance is ₹${totalBalance.toFixed(2)}, but ₹${safetyReserve} is reserved as safety balance for job alerts. You can withdraw up to ₹${withdrawableBalance.toFixed(2)}.`
+      );
       return;
     }
     if (!selectedPayout) {
@@ -379,13 +386,18 @@ const WorkerEarningsScreen = ({ navigation }) => {
     
     try {
       setSubmittingAction(true);
-      const payoutLabel = selectedPayout === 'bank' ? 'Bank Account' : 'UPI ID';
+      const selectedAcc = accounts.find(a => a.id === selectedPayout);
+      const payoutLabel = selectedAcc ? `${selectedAcc.name} (${selectedAcc.detail})` : (selectedPayout === 'bank' ? 'Bank Account' : 'UPI ID');
       const res = await walletService.requestWithdrawal(amt, payoutLabel);
       if (res.data?.status === 'success') {
-        Alert.alert("Submitted ✅", "Withdrawal request submitted successfully. Payout will be processed within 24-48 hours.");
+        Alert.alert(
+          "Withdrawal Requested ✅",
+          `Your withdrawal request for ₹${amt} has been submitted successfully.\n\nOur admin team will transfer the amount to your selected ${selectedPayout === 'bank' ? 'Bank Account' : 'UPI ID'} within 24-48 hours.`
+        );
         setWithdrawAmount('');
         setWithdrawModalVisible(false);
         fetchWalletAndProfile();
+        if (fetchUser) fetchUser('WORKER');
       }
     } catch (e) {
       Alert.alert("Withdrawal Failed", e.response?.data?.message || "Failed to submit withdrawal request.");
@@ -839,17 +851,66 @@ const WorkerEarningsScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.withdrawBalanceRow}>
-              <Text style={styles.withdrawBalanceLabel}>Available Balance:</Text>
-              <Text style={styles.withdrawBalanceVal}>₹{wallet.balance.toFixed(2)}</Text>
+            {/* Balance Breakdown with Reserve Freeze */}
+            <View style={styles.withdrawBalanceSummaryBox}>
+              <View style={styles.withdrawBalanceRow}>
+                <Text style={styles.withdrawBalanceLabel}>Total Wallet Balance:</Text>
+                <Text style={styles.withdrawBalanceVal}>₹{(wallet.balance || 0).toFixed(2)}</Text>
+              </View>
+              <View style={styles.withdrawBalanceSubRow}>
+                <Text style={styles.withdrawBalanceSubLabel}>Safety Reserve (Freeze Balance):</Text>
+                <Text style={styles.withdrawBalanceSubVal}>- ₹100.00</Text>
+              </View>
+              <View style={styles.withdrawBalanceDivider} />
+              <View style={styles.withdrawBalanceRow}>
+                <Text style={[styles.withdrawBalanceLabel, { fontWeight: '800', color: '#10B981' }]}>Max Withdrawable:</Text>
+                <Text style={[styles.withdrawBalanceVal, { color: '#10B981', fontSize: 16 }]}>
+                  ₹{Math.max(0, (wallet.balance || 0) - 100).toFixed(2)}
+                </Text>
+              </View>
             </View>
+
+            {/* Quick Amount Suggestion Chips */}
+            {Math.max(0, (wallet.balance || 0) - 100) > 0 && (
+              <View style={styles.quickWithdrawRow}>
+                <Text style={styles.quickWithdrawHint}>Quick:</Text>
+                {Math.max(0, (wallet.balance || 0) - 100) >= 10 && (
+                  <TouchableOpacity
+                    style={[styles.quickWithdrawChip, withdrawAmount === '10' && styles.quickWithdrawChipActive]}
+                    onPress={() => setWithdrawAmount('10')}
+                  >
+                    <Text style={[styles.quickWithdrawChipText, withdrawAmount === '10' && styles.quickWithdrawChipTextActive]}>
+                      ₹10
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {Math.max(0, (wallet.balance || 0) - 100) >= 20 && (
+                  <TouchableOpacity
+                    style={[styles.quickWithdrawChip, withdrawAmount === '20' && styles.quickWithdrawChipActive]}
+                    onPress={() => setWithdrawAmount('20')}
+                  >
+                    <Text style={[styles.quickWithdrawChipText, withdrawAmount === '20' && styles.quickWithdrawChipTextActive]}>
+                      ₹20
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={[styles.quickWithdrawChip, withdrawAmount === String(Math.floor(Math.max(0, (wallet.balance || 0) - 100))) && styles.quickWithdrawChipActive]}
+                  onPress={() => setWithdrawAmount(String(Math.floor(Math.max(0, (wallet.balance || 0) - 100))))}
+                >
+                  <Text style={[styles.quickWithdrawChipText, withdrawAmount === String(Math.floor(Math.max(0, (wallet.balance || 0) - 100))) && styles.quickWithdrawChipTextActive]}>
+                    Max (₹{Math.floor(Math.max(0, (wallet.balance || 0) - 100))})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Amount Input */}
             <View style={styles.amountInputBox}>
               <Text style={styles.rupeeSymbol}>₹</Text>
               <TextInput
                 style={styles.amountInput}
-                placeholder="Enter amount (min ₹50)"
+                placeholder={Math.max(0, (wallet.balance || 0) - 100) > 0 ? `Enter amount (max ₹${Math.max(0, (wallet.balance || 0) - 100).toFixed(0)})` : "Min ₹100 required"}
                 placeholderTextColor="#94A3B8"
                 keyboardType="numeric"
                 value={withdrawAmount}
@@ -1401,24 +1462,80 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   quickChipTextActive: {
     color: '#FFFFFF',
   },
+  withdrawBalanceSummaryBox: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginBottom: 12,
+  },
   withdrawBalanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 14,
+  },
+  withdrawBalanceSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  withdrawBalanceDivider: {
+    height: 1,
+    backgroundColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginVertical: 6,
   },
   withdrawBalanceLabel: {
-    fontSize: 12.5,
+    fontSize: 13,
     color: isDarkMode ? '#94A3B8' : '#64748B',
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  withdrawBalanceSubLabel: {
+    fontSize: 12,
+    color: isDarkMode ? '#64748B' : '#94A3B8',
+    fontWeight: '500',
   },
   withdrawBalanceVal: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#6C47FF',
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+  },
+  withdrawBalanceSubVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  quickWithdrawRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  quickWithdrawHint: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+  },
+  quickWithdrawChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: isDarkMode ? '#1E293B' : '#EEF2F6',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#CBD5E1',
+  },
+  quickWithdrawChipActive: {
+    backgroundColor: '#6C47FF',
+    borderColor: '#6C47FF',
+  },
+  quickWithdrawChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: isDarkMode ? '#CBD5E1' : '#475569',
+  },
+  quickWithdrawChipTextActive: {
+    color: '#FFFFFF',
   },
   sectionSubTitle: {
     fontSize: 13,
