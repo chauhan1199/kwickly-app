@@ -1,22 +1,26 @@
 const multer = require('multer');
 
-const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+const allowedMimePatterns = [
+    'image/',
+    'video/',
+    'application/pdf'
+];
 
 const memoryUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 },
+    limits: { fileSize: 25 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        if (allowedTypes.includes(file.mimetype)) {
+        const mime = (file.mimetype || '').toLowerCase();
+        if (allowedMimePatterns.some(pattern => mime.startsWith(pattern)) || mime === 'application/octet-stream') {
             cb(null, true);
         } else {
-            cb(new Error(`File type '${file.mimetype}' not allowed. Allowed types: ${allowedTypes.join(', ')}`), false);
+            cb(new Error(`File type '${file.mimetype}' not allowed. Only photos and videos are allowed.`), false);
         }
     }
 });
 
 const upload = {
     single: (fieldName) => {
-        // Just return the multer middleware, no inline processing
         return [memoryUpload.single(fieldName)];
     }
 };

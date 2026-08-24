@@ -61,7 +61,12 @@ export const jobService = {
 
 
   uploadMedia: (formData) =>
-    withErrorHandling(() => api.post('/jobs/upload-media', formData)),
+    withErrorHandling(() =>
+      api.post('/jobs/upload-media', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        transformRequest: (data) => data,
+      })
+    ),
 
   getCategories: () =>
     withErrorHandling(() => api.get('/categories')),

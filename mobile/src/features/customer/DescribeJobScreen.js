@@ -101,11 +101,18 @@ const DescribeJobScreen = ({ route, navigation }) => {
   // Media action-sheet modal
   const [showMediaSheet, setShowMediaSheet] = useState(false);
 
+  const hasInitializedAddressRef = React.useRef(false);
+
   // ── Populate address from user profile on mount ──────────────────────────
   React.useEffect(() => {
-    if (user?.addresses?.length > 0) {
+    if (!hasInitializedAddressRef.current && user?.addresses?.length > 0) {
+      hasInitializedAddressRef.current = true;
       const primary = user.addresses.find(a => a.isPrimary) || user.addresses[0];
-      setAddress(`${primary.street}, ${primary.city} ${primary.pincode}`);
+      const fullAddr = [primary.street, primary.area, `${primary.city || ''} ${primary.pincode || ''}`]
+        .filter(Boolean)
+        .join(', ')
+        .trim();
+      setAddress(fullAddr || primary.address || '');
       setAddressType(primary.label || 'Home');
       if (primary.location?.coordinates) setLocation(primary.location);
     }
@@ -116,7 +123,11 @@ const DescribeJobScreen = ({ route, navigation }) => {
     useCallback(() => {
       const sel = route.params?.selectedAddress;
       if (sel) {
-        setAddress(`${sel.street || sel.address || ''}, ${sel.city || ''} ${sel.pincode || ''}`.trim());
+        const fullAddr = [sel.street, sel.area, `${sel.city || ''} ${sel.pincode || ''}`]
+          .filter(Boolean)
+          .join(', ')
+          .trim();
+        setAddress(fullAddr || sel.address || '');
         setAddressType(sel.label || 'Other');
         if (sel.location?.coordinates)  setLocation(sel.location);
         else if (sel.coordinates)        setLocation({ type: 'Point', coordinates: sel.coordinates });
@@ -334,7 +345,23 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
   // ── Map / Address picker ─────────────────────────────────────────────
   const handlePickMap = () => {
-    navigation.navigate('SavedAddresses', { fromBooking: true });
+    navigation.navigate('SavedAddresses', {
+      fromBooking: true,
+      onSelectAddress: (selectedAddr) => {
+        const fullAddr = [selectedAddr.street, selectedAddr.area, `${selectedAddr.city || ''} ${selectedAddr.pincode || ''}`]
+          .filter(Boolean)
+          .join(', ')
+          .trim();
+        setAddress(fullAddr || selectedAddr.address || '');
+        setAddressType(selectedAddr.label || 'Other');
+        if (selectedAddr.location?.coordinates) {
+          setLocation(selectedAddr.location);
+        } else if (selectedAddr.coordinates) {
+          setLocation({ type: 'Point', coordinates: selectedAddr.coordinates });
+        }
+        setAddressError('');
+      },
+    });
   };
 
   // ── Form validation ───────────────────────────────────────────────────
@@ -375,17 +402,33 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
       // Upload media files first, then send URLs to backend
       const mediaUrls = [];
+      let hadMediaError = false;
       for (const m of media) {
         try {
           const formData = new FormData();
-          formData.append('media', { uri: m.uri, type: m.type || 'image/jpeg', name: m.fileName || 'photo.jpg' });
+          const cleanUri = Platform.OS === 'android' ? m.uri : m.uri.replace('file://', '');
+          const fileType = m.type || 'image/jpeg';
+          const fileName = m.name || m.fileName || `media_${Date.now()}.jpg`;
+
+          formData.append('media', {
+            uri: cleanUri,
+            type: fileType,
+            name: fileName,
+          });
+
           const uploadRes = await jobService.uploadMedia(formData);
-          if (uploadRes.data?.status === 'success' && uploadRes.data?.data?.url) {
-            mediaUrls.push(uploadRes.data.data.url);
+          const uploadedUrl = uploadRes?.data?.data?.url || uploadRes?.data?.url;
+          if (uploadedUrl) {
+            mediaUrls.push(uploadedUrl);
           }
         } catch (e) {
-          Alert.alert('Upload Warning', 'Some media files could not be attached.');
+          console.warn('Failed to upload media item:', e?.response?.data || e?.message || e);
+          hadMediaError = true;
         }
+      }
+
+      if (hadMediaError && mediaUrls.length === 0 && media.length > 0) {
+        Alert.alert('Upload Notice', 'Some photos could not be attached, but your job request is being created.');
       }
 
       const payload = {
@@ -606,7 +649,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
             </View>
             <TouchableOpacity
               style={styles.noAddressBtn}
-              onPress={() => navigation.navigate('SavedAddresses', { fromBooking: true })}
+              onPress={handlePickMap}
             >
               <Text style={styles.noAddressBtnText}>Add</Text>
             </TouchableOpacity>

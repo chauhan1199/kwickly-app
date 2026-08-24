@@ -36,22 +36,29 @@ const extractPublicId = (urlOrPublicId) => {
  */
 const uploadImage = async (fileBuffer, folderPath = 'kwickly/misc') => {
     try {
-        // Compress and convert to WEBP
-        const webpBuffer = await sharp(fileBuffer)
-            .resize({ width: 1024, withoutEnlargement: true })
-            .webp({ quality: 80 })
-            .toBuffer();
+        let uploadBuffer = fileBuffer;
+        let formatOption = {};
+        try {
+            uploadBuffer = await sharp(fileBuffer)
+                .resize({ width: 1024, withoutEnlargement: true })
+                .webp({ quality: 80 })
+                .toBuffer();
+            formatOption = { format: 'webp' };
+        } catch (sharpErr) {
+            logger.warn(`[Cloudinary Service] Sharp conversion skipped: ${sharpErr.message}`);
+            uploadBuffer = fileBuffer;
+        }
 
         // Upload to Cloudinary using upload_stream
         const uploadResult = await new Promise((resolve, reject) => {
             const uploadStream = cloudinary.uploader.upload_stream(
-                { folder: folderPath, format: 'webp' },
+                { folder: folderPath, resource_type: 'auto', ...formatOption },
                 (error, result) => {
                     if (error) reject(error);
                     else resolve(result);
                 }
             );
-            uploadStream.end(webpBuffer);
+            uploadStream.end(uploadBuffer);
         });
 
         return {

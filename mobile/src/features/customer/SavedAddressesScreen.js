@@ -97,17 +97,44 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
     setShowMapModal(true);
   };
 
-  const handleSaveAddressPayload = async (payload) => {
-    if (selectedEditAddress?._id) {
-      await customerService.updateAddress(selectedEditAddress._id, payload);
+  const handleSelectAddress = (addr) => {
+    if (route.params?.onSelectAddress) {
+      route.params.onSelectAddress(addr);
+      navigation.goBack();
+      return;
+    }
+    const routes = navigation.getState?.()?.routes || [];
+    const prevRoute = routes[routes.length - 2];
+    if (prevRoute) {
+      navigation.navigate({
+        key: prevRoute.key,
+        params: { selectedAddress: addr },
+        merge: true,
+      });
     } else {
-      await customerService.addAddress({
+      navigation.goBack();
+    }
+  };
+
+  const handleSaveAddressPayload = async (payload) => {
+    let savedAddr = null;
+    if (selectedEditAddress?._id) {
+      const res = await customerService.updateAddress(selectedEditAddress._id, payload);
+      savedAddr = res.data?.data || payload;
+    } else {
+      const res = await customerService.addAddress({
         ...payload,
         isPrimary: addresses.length === 0
       });
+      savedAddr = res.data?.data || payload;
     }
     await fetchUser();
     refreshUnread();
+    setShowMapModal(false);
+
+    if (fromBooking && savedAddr) {
+      handleSelectAddress(savedAddr);
+    }
   };
 
   const getAddressIcon = (label) => {
@@ -233,13 +260,7 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
                 {fromBooking && (
                   <TouchableOpacity
                     style={styles.selectForBookingBtn}
-                    onPress={() =>
-                      navigation.navigate({
-                        name: 'DescribeJob',
-                        params: { selectedAddress: addr },
-                        merge: true
-                      })
-                    }
+                    onPress={() => handleSelectAddress(addr)}
                     activeOpacity={0.85}
                   >
                     <Navigation size={16} color="#fff" style={{ marginRight: 6 }} />
