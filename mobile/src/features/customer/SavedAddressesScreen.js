@@ -98,22 +98,13 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
   };
 
   const handleSelectAddress = (addr) => {
+    DeviceEventEmitter.emit('ADDRESS_SELECTED', addr);
     if (route.params?.onSelectAddress) {
-      route.params.onSelectAddress(addr);
-      navigation.goBack();
-      return;
+      try {
+        route.params.onSelectAddress(addr);
+      } catch (e) {}
     }
-    const routes = navigation.getState?.()?.routes || [];
-    const prevRoute = routes[routes.length - 2];
-    if (prevRoute) {
-      navigation.navigate({
-        key: prevRoute.key,
-        params: { selectedAddress: addr },
-        merge: true,
-      });
-    } else {
-      navigation.goBack();
-    }
+    navigation.goBack();
   };
 
   const handleSaveAddressPayload = async (payload) => {
@@ -240,7 +231,11 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
                 </View>
 
                 {/* Formatted Multi-line Address */}
-                <View style={styles.addressBody}>
+                <TouchableOpacity
+                  style={styles.addressBody}
+                  activeOpacity={fromBooking ? 0.7 : 1}
+                  onPress={() => fromBooking && handleSelectAddress(addr)}
+                >
                   {!!addr.street && (
                     <Text style={styles.addressStreet} numberOfLines={2}>
                       {addr.street}
@@ -254,7 +249,7 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
                   <Text style={styles.addressCityPin}>
                     {addr.city || 'Ahmedabad'}{addr.pincode ? ` - ${addr.pincode}` : ''}
                   </Text>
-                </View>
+                </TouchableOpacity>
 
                 {/* Booking action (if opened from booking) */}
                 {fromBooking && (

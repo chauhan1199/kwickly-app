@@ -14,6 +14,7 @@ import {
   Alert,
   Platform,
   PermissionsAndroid,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -118,7 +119,28 @@ const DescribeJobScreen = ({ route, navigation }) => {
     }
   }, [user]);
 
-  // ── Receive address back from SavedAddressesScreen ───────────────────────
+  // ── Listen for ADDRESS_SELECTED event from SavedAddressesScreen ──────────
+  React.useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('ADDRESS_SELECTED', (sel) => {
+      if (sel) {
+        const fullAddr = [sel.street, sel.area, `${sel.city || ''} ${sel.pincode || ''}`]
+          .filter(Boolean)
+          .join(', ')
+          .trim();
+        setAddress(fullAddr || sel.address || '');
+        setAddressType(sel.label || 'Other');
+        if (sel.location?.coordinates) {
+          setLocation(sel.location);
+        } else if (sel.coordinates) {
+          setLocation({ type: 'Point', coordinates: sel.coordinates });
+        }
+        setAddressError('');
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // ── Receive address back from SavedAddressesScreen route params ──────────
   useFocusEffect(
     useCallback(() => {
       const sel = route.params?.selectedAddress;
@@ -144,8 +166,13 @@ const DescribeJobScreen = ({ route, navigation }) => {
     if (!user?.addresses?.length) return;
     const matched = user.addresses.find(a => (a.label || '').toLowerCase() === type.toLowerCase());
     if (matched) {
-      setAddress(`${matched.street}, ${matched.city} ${matched.pincode}`);
+      const fullAddr = [matched.street, matched.area, `${matched.city || ''} ${matched.pincode || ''}`]
+        .filter(Boolean)
+        .join(', ')
+        .trim();
+      setAddress(fullAddr || matched.address || '');
       if (matched.location?.coordinates) setLocation(matched.location);
+      else if (matched.coordinates) setLocation({ type: 'Point', coordinates: matched.coordinates });
     } else if (type === 'Other') {
       setAddress('');
       setLocation(null);
@@ -395,10 +422,20 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
     setIsSubmitting(true);
     try {
-      const jobLocation = location || {
+      const categoryName = typeof category === 'string'
+        ? category
+        : (category?.name || category?.label || 'Service');
+
+      let jobLocation = {
         type: 'Point',
-        coordinates: [72.8777, 19.0760],
+        coordinates: [72.5714, 23.0225], // Default Ahmedabad coordinates
       };
+      if (location?.coordinates && Array.isArray(location.coordinates) && location.coordinates.length === 2) {
+        jobLocation = {
+          type: 'Point',
+          coordinates: [Number(location.coordinates[0]), Number(location.coordinates[1])],
+        };
+      }
 
       // Upload media files first, then send URLs to backend
       const mediaUrls = [];
@@ -432,12 +469,12 @@ const DescribeJobScreen = ({ route, navigation }) => {
       }
 
       const payload = {
-        category:       category.name,
-        subcategory,
+        category:       categoryName,
+        subcategory:    subcategory || 'General',
         description:    description.trim(),
-        media:          mediaUrls,
+        media:          mediaUrls.filter(Boolean),
         preferredDate:  preferredDate.toISOString(),
-        timeSlot,
+        timeSlot:       timeSlot || 'urgent',
         location:       jobLocation,
         addressDetails: address.trim(),
       };
