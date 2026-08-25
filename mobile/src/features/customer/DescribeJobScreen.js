@@ -552,10 +552,14 @@ const DescribeJobScreen = ({ route, navigation }) => {
           <Text style={styles.headerSub} numberOfLines={1}>{category.name} · {subcategory}</Text>
         </View>
 
-        <View style={styles.headerIcon}>
+        <TouchableOpacity
+          style={styles.headerIcon}
+          onPress={() => navigation.navigate('Notifications')}
+          activeOpacity={0.8}
+        >
           <Bell size={20} color="#fff" />
           <View style={styles.badge} />
-        </View>
+        </TouchableOpacity>
       </LinearGradient>
 
       <ScrollView

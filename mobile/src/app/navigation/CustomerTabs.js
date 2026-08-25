@@ -76,6 +76,7 @@ const ShopStack = () => (
     <Stack.Screen name="Cart"             component={CartScreen} />
     <Stack.Screen name="ShopOrderDetails" component={ShopOrderDetailsScreen} />
     <Stack.Screen name="OrderTracking"    component={OrderTrackingScreen} />
+    <Stack.Screen name="Notifications"    component={NotificationsScreen} />
   </Stack.Navigator>
 );
 
@@ -91,6 +92,7 @@ const BookStack = () => (
     <Stack.Screen name="RateExperience"   component={RateExperienceScreen} />
     <Stack.Screen name="WorkerProfile"    component={WorkerProfileScreen} />
     <Stack.Screen name="Quotes"           component={QuotesScreen} />
+    <Stack.Screen name="Notifications"    component={NotificationsScreen} />
   </Stack.Navigator>
 );
 

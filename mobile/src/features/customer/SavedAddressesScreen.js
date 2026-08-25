@@ -9,7 +9,8 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
-  Dimensions
+  Dimensions,
+  DeviceEventEmitter,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import {
