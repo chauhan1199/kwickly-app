@@ -18,8 +18,8 @@ import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
 import { jobService } from '../../services/jobService';
 import LinearGradient from 'react-native-linear-gradient';
-import AppBar from '../../components/AppBar';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { Bell, Moon, Sun, ChevronLeft, Radio } from 'lucide-react-native';
 
 const LiveBidsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -62,23 +62,48 @@ const LiveBidsScreen = ({ route, navigation }) => {
   }, [jobId]);
 
   useEffect(() => {
-    const createPulse = (anim, delay) => {
-      return Animated.loop(
+    // Continuous wave animation loop that resets smoothly and repeats indefinitely
+    const animateWave = (anim, initialDelay) => {
+      anim.setValue(0);
+      const loop = Animated.loop(
         Animated.sequence([
-          Animated.delay(delay),
           Animated.timing(anim, {
             toValue: 1,
-            duration: 3000,
-            easing: Easing.out(Easing.ease),
+            duration: 2600,
+            easing: Easing.out(Easing.quad),
             useNativeDriver: true,
-          })
+          }),
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
         ])
       );
+
+      let timer = null;
+      if (initialDelay > 0) {
+        timer = setTimeout(() => loop.start(), initialDelay);
+      } else {
+        loop.start();
+      }
+
+      return () => {
+        if (timer) clearTimeout(timer);
+        loop.stop();
+        anim.stopAnimation();
+      };
     };
 
-    createPulse(pulseAnim1, 0).start();
-    createPulse(pulseAnim2, 1000).start();
-    createPulse(pulseAnim3, 2000).start();
+    const c1 = animateWave(pulseAnim1, 0);
+    const c2 = animateWave(pulseAnim2, 850);
+    const c3 = animateWave(pulseAnim3, 1700);
+
+    return () => {
+      c1();
+      c2();
+      c3();
+    };
   }, [pulseAnim1, pulseAnim2, pulseAnim3]);
 
   useEffect(() => {
@@ -185,17 +210,17 @@ const LiveBidsScreen = ({ route, navigation }) => {
       <LinearGradient colors={['#6C47FF', '#8B6FFF']} style={styles.headerGradient}>
         <View style={styles.appBar}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtnText}>‹</Text>
+            <ChevronLeft size={22} color="#fff" />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 8 }}>
             <Text style={[styles.appBarTitle, { color: '#fff' }]} numberOfLines={1}>Live Bids</Text>
-            <Text style={[styles.appBarSub, { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>Job #{jobId}</Text>
+            <Text style={[styles.appBarSub, { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>Job #{jobId}</Text>
           </View>
-          <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-            <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
+          <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 6 }]}>
+            {isDarkMode ? <Sun size={18} color="#F59E0B" /> : <Moon size={18} color="#fff" />}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.bellBtn}>
-            <Text style={{fontSize: 16}}>🔔</Text>
+          <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
+            <Bell size={18} color="#fff" />
             <View style={styles.badge} />
           </TouchableOpacity>
         </View>

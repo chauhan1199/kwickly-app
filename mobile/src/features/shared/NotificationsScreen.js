@@ -120,6 +120,58 @@ const NotificationsScreen = ({ navigation }) => {
     } catch {}
   };
 
+  const handleNotificationPress = (item) => {
+    markRead(item.id);
+
+    const isCustomer = user?.role === 'CUSTOMER';
+    const isWorker = user?.role === 'WORKER';
+    const isShop = user?.role === 'SHOP' || user?.role === 'SHOP_OWNER';
+
+    try {
+      if (item.entityType === 'ORDER' || item.typeKey === 'ORDER') {
+        if (isCustomer) {
+          if (item.entityId) {
+            navigation.navigate('OrderTracking', { orderId: item.entityId });
+          } else {
+            navigation.navigate('CustomerShopOrders');
+          }
+        } else if (isShop || isWorker) {
+          if (item.entityId) {
+            navigation.navigate('ShopOrderDetails', { orderId: item.entityId });
+          } else {
+            navigation.navigate('CustomerShopOrders');
+          }
+        }
+      } else if (item.entityType === 'JOB' || item.typeKey === 'JOB') {
+        if (isCustomer) {
+          if (item.action === 'QUOTE_RECEIVED' || item.action === 'NEW_QUOTE') {
+            navigation.navigate('LiveBids', { jobId: item.entityId });
+          } else if (item.action === 'WORKER_ARRIVED' || item.action === 'JOB_STARTED') {
+            navigation.navigate('LiveTracking', { jobId: item.entityId });
+          } else if (item.entityId) {
+            navigation.navigate('PastJobDetails', { jobId: item.entityId });
+          }
+        } else if (isWorker) {
+          if (item.entityId) {
+            navigation.navigate('WorkerActiveJob', { jobId: item.entityId });
+          }
+        }
+      } else if (item.entityType === 'WALLET' || item.typeKey === 'WALLET') {
+        if (isCustomer) {
+          navigation.navigate('WalletMain');
+        } else if (isShop) {
+          navigation.navigate('ShopWallet');
+        } else if (isWorker) {
+          navigation.navigate('WorkerEarnings');
+        }
+      } else if (item.entityType === 'KYC') {
+        navigation.navigate('EditProfile');
+      }
+    } catch (err) {
+      console.log('[NotificationPress] Navigation error:', err.message);
+    }
+  };
+
   const markAllRead = async () => {
     try {
       await notificationService.markAllRead();
@@ -179,7 +231,7 @@ const NotificationsScreen = ({ navigation }) => {
           !item.read && styles.cardUnread,
           { borderColor: !item.read ? theme.colors.primary + '40' : theme.colors.border }
         ]}
-        onPress={() => markRead(item.id)}
+        onPress={() => handleNotificationPress(item)}
         activeOpacity={0.85}
       >
         {/* Unread accent bar */}

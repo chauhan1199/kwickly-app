@@ -5,6 +5,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal, Image, Linking
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -12,8 +13,11 @@ import AppBar from '../../components/AppBar';
 import { shopService } from '../../services/shopService';
 import { walletService } from '../../services/walletService';
 import {
+  GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon
+} from '../../components/ui/UpiBrandIcons';
+import {
   ShoppingCart, Minus, Plus, Trash2, MapPin, CreditCard,
-  Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone, QrCode, ArrowRight, ExternalLink
+  Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone, QrCode, ArrowRight, ExternalLink, Copy, CheckCircle2
 } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
 
@@ -41,6 +45,9 @@ const CartScreen = ({ route, navigation }) => {
   const [upiOrderData, setUpiOrderData] = useState(null);
   const [customUpiId, setCustomUpiId] = useState('');
   const [upiVerifying, setUpiVerifying] = useState(false);
+  const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [copiedVpa, setCopiedVpa] = useState(false);
 
   useEffect(() => { fetchCart(); }, [fetchCart]);
 
@@ -183,29 +190,42 @@ const CartScreen = ({ route, navigation }) => {
   };
 
   const handleOpenUpiApp = async (appScheme = null) => {
+    const chosen = appScheme || selectedUpiApp || 'generic';
+    setSelectedUpiApp(chosen);
     if (!upiOrderData?.upiIntentUri) return;
     try {
       let targetUri = upiOrderData.upiIntentUri;
-      if (appScheme === 'gpay') {
+      if (chosen === 'gpay') {
         targetUri = upiOrderData.upiIntentUri.replace('upi://', 'tez://upi/');
-      } else if (appScheme === 'phonepe') {
+      } else if (chosen === 'phonepe') {
         targetUri = upiOrderData.upiIntentUri.replace('upi://', 'phonepe://');
-      } else if (appScheme === 'paytm') {
+      } else if (chosen === 'paytm') {
         targetUri = upiOrderData.upiIntentUri.replace('upi://', 'paytmmp://');
       }
 
+      setPaymentInitiated(true);
       const supported = await Linking.canOpenURL(targetUri).catch(() => false);
       if (supported) {
         await Linking.openURL(targetUri);
       } else {
         await Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-          Alert.alert('UPI App', `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment".`);
+          Alert.alert('UPI App', `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "I Have Paid" below.`);
         });
       }
     } catch (err) {
+      setPaymentInitiated(true);
       Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-        Alert.alert('UPI App', `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment".`);
+        Alert.alert('UPI App', `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "I Have Paid" below.`);
       });
+    }
+  };
+
+  const handleCopyVpa = () => {
+    if (upiOrderData?.upiVpa) {
+      Clipboard.setString(upiOrderData.upiVpa);
+      setCopiedVpa(true);
+      setPaymentInitiated(true);
+      setTimeout(() => setCopiedVpa(false), 2500);
     }
   };
 
@@ -221,6 +241,7 @@ const CartScreen = ({ route, navigation }) => {
       });
 
       setShowUpiModal(false);
+      setPaymentInitiated(false);
       await clearCart();
       if (fetchUser) await fetchUser();
 
@@ -231,6 +252,7 @@ const CartScreen = ({ route, navigation }) => {
     } catch (err) {
       // If verify fails, still navigate to order tracking so user doesn't lose their order
       setShowUpiModal(false);
+      setPaymentInitiated(false);
       await clearCart();
       Alert.alert('Order Submitted', 'Your order is recorded and waiting for confirmation.', [
         { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: currentOrder._id }) }
@@ -519,7 +541,7 @@ const CartScreen = ({ route, navigation }) => {
           <View style={styles.upiModalContent}>
             <View style={styles.upiModalHeader}>
               <View style={styles.upiBadge}>
-                <Zap size={20} color="#6C47FF" />
+                <Zap size={22} color="#6C47FF" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.upiModalTitle}>UPI Instant Payment</Text>
@@ -530,67 +552,117 @@ const CartScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {/* Quick UPI Apps */}
-            <Text style={styles.upiAppsTitle}>Pay Directly Using App:</Text>
+            {/* Quick UPI Apps Grid */}
+            <Text style={styles.upiAppsTitle}>Select Your UPI App:</Text>
             <View style={styles.upiAppsGrid}>
-              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('gpay')}>
-                <View style={[styles.upiAppIconBox, { backgroundColor: '#EA433515' }]}>
-                  <Text style={{ fontSize: 22 }}>🟢</Text>
-                </View>
-                <Text style={styles.upiAppName}>Google Pay</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('phonepe')}>
-                <View style={[styles.upiAppIconBox, { backgroundColor: '#5F259F15' }]}>
-                  <Text style={{ fontSize: 22 }}>🟣</Text>
-                </View>
-                <Text style={styles.upiAppName}>PhonePe</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('paytm')}>
-                <View style={[styles.upiAppIconBox, { backgroundColor: '#00BAF215' }]}>
-                  <Text style={{ fontSize: 22 }}>🔵</Text>
-                </View>
-                <Text style={styles.upiAppName}>Paytm</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp()}>
-                <View style={[styles.upiAppIconBox, { backgroundColor: '#F9731615' }]}>
-                  <Text style={{ fontSize: 22 }}>⚡</Text>
-                </View>
-                <Text style={styles.upiAppName}>Any UPI App</Text>
-              </TouchableOpacity>
+              {[
+                { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
+                { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
+                { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
+                { key: 'generic', name: 'Any UPI', icon: BhimUpiIcon },
+              ].map((app) => {
+                const IconComponent = app.icon;
+                const isSelected = selectedUpiApp === app.key;
+                return (
+                  <TouchableOpacity
+                    key={app.key}
+                    style={[styles.upiAppBtn, isSelected && styles.upiAppBtnSelected]}
+                    onPress={() => handleOpenUpiApp(app.key)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.upiAppIconBox}>
+                      <IconComponent size={36} />
+                    </View>
+                    <Text style={[styles.upiAppName, isSelected && styles.upiAppNameSelected]}>
+                      {app.name}
+                    </Text>
+                    {isSelected && (
+                      <View style={styles.upiAppCheckBadge}>
+                        <Check size={10} color="#FFF" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
-            {/* Platform VPA Box */}
-            <View style={styles.vpaBox}>
-              <View>
-                <Text style={styles.vpaLabel}>UPI ID / VPA</Text>
-                <Text style={styles.vpaValue}>{upiOrderData?.upiVpa || 'kwickly@upi'}</Text>
+            {/* Step / Guidance State */}
+            {paymentInitiated ? (
+              <View style={styles.paymentActiveBanner}>
+                <View style={styles.paymentActiveHeader}>
+                  <View style={styles.pulseDot} />
+                  <Text style={styles.paymentActiveTitle}>
+                    Payment Initiated via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+                  </Text>
+                </View>
+                <Text style={styles.paymentActiveText}>
+                  Please complete the payment of ₹{total} in your UPI app, then tap "I Have Paid" below to confirm your order.
+                </Text>
               </View>
-              <View style={styles.amountPill}>
-                <Text style={styles.amountPillText}>₹{total}</Text>
+            ) : (
+              <View style={styles.vpaBox}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.vpaLabel}>UPI ID / VPA</Text>
+                  <Text style={styles.vpaValue}>{upiOrderData?.upiVpa || 'ganshyam.tech-1@oksbi'}</Text>
+                </View>
+                <TouchableOpacity style={styles.copyVpaBtn} onPress={handleCopyVpa}>
+                  {copiedVpa ? <CheckCircle2 size={16} color="#10B981" /> : <Copy size={16} color="#6C47FF" />}
+                  <Text style={[styles.copyVpaText, copiedVpa && { color: '#10B981' }]}>
+                    {copiedVpa ? 'Copied' : 'Copy'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </View>
+            )}
 
-            {/* Confirm Payment Button */}
-            <TouchableOpacity
-              style={[styles.confirmUpiBtn, upiVerifying && { opacity: 0.6 }]}
-              onPress={handleConfirmUpiPayment}
-              disabled={upiVerifying}
-            >
-              {upiVerifying ? (
-                <ActivityIndicator size="small" color="#001016" />
-              ) : (
-                <>
-                  <Check size={20} color="#001016" />
-                  <Text style={styles.confirmUpiBtnText}>I Have Paid ₹{total} • Confirm Order</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {/* Primary Action Button */}
+            {!paymentInitiated ? (
+              <TouchableOpacity
+                style={styles.openAppPrimaryBtn}
+                onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
+                activeOpacity={0.85}
+              >
+                <Zap size={18} color="#001016" />
+                <Text style={styles.openAppPrimaryText}>
+                  Pay ₹{total} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+                </Text>
+                <ArrowRight size={18} color="#001016" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.confirmUpiBtn, upiVerifying && { opacity: 0.6 }]}
+                onPress={handleConfirmUpiPayment}
+                disabled={upiVerifying}
+              >
+                {upiVerifying ? (
+                  <ActivityIndicator size="small" color="#001016" />
+                ) : (
+                  <>
+                    <Check size={20} color="#001016" />
+                    <Text style={styles.confirmUpiBtnText}>✓ I Have Paid ₹{total} • Confirm Order</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {/* Secondary actions when payment is initiated */}
+            {paymentInitiated && (
+              <View style={styles.upiSecondaryRow}>
+                <TouchableOpacity onPress={() => handleOpenUpiApp(selectedUpiApp)} style={styles.upiSecondaryBtn}>
+                  <ExternalLink size={14} color="#6C47FF" />
+                  <Text style={styles.upiSecondaryText}>Re-open UPI App</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleCopyVpa} style={styles.upiSecondaryBtn}>
+                  <Copy size={14} color={copiedVpa ? '#10B981' : theme.colors.textDim} />
+                  <Text style={[styles.upiSecondaryText, copiedVpa && { color: '#10B981' }]}>
+                    {copiedVpa ? 'UPI ID Copied' : 'Copy UPI ID'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <TouchableOpacity style={styles.cancelUpiBtn} onPress={() => {
               setShowUpiModal(false);
+              setPaymentInitiated(false);
               navigation.navigate('OrderTracking', { orderId: currentOrder?._id });
             }}>
               <Text style={styles.cancelUpiText}>Pay Later / View Pending Order</Text>
@@ -710,16 +782,35 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   modalCloseBtn: { padding: 8 },
   upiAppsTitle: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim, marginBottom: 12 },
   upiAppsGrid: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 16 },
-  upiAppBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, backgroundColor: theme.colors.background, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border },
-  upiAppIconBox: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+  upiAppBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, backgroundColor: theme.colors.background, borderRadius: 16, borderWidth: 1.5, borderColor: theme.colors.border, position: 'relative' },
+  upiAppBtnSelected: { borderColor: '#6C47FF', backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F5F3FF' },
+  upiAppIconBox: { width: 42, height: 42, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
   upiAppName: { fontSize: 11, fontWeight: '700', color: theme.colors.text },
+  upiAppNameSelected: { color: '#6C47FF', fontWeight: '900' },
+  upiAppCheckBadge: { position: 'absolute', top: 4, right: 4, width: 16, height: 16, borderRadius: 8, backgroundColor: '#6C47FF', justifyContent: 'center', alignItems: 'center' },
+  
+  paymentActiveBanner: { backgroundColor: isDarkMode ? 'rgba(16,185,129,0.12)' : '#ECFDF5', borderWidth: 1, borderColor: '#10B98140', borderRadius: 16, padding: 14, marginBottom: 16 },
+  paymentActiveHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
+  paymentActiveTitle: { fontSize: 13, fontWeight: '800', color: '#10B981' },
+  paymentActiveText: { fontSize: 12, color: isDarkMode ? '#D1FAE5' : '#065F46', lineHeight: 17 },
+
   vpaBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.colors.background, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: theme.colors.border },
   vpaLabel: { fontSize: 11, color: theme.colors.textDim, fontWeight: '600' },
   vpaValue: { fontSize: 14, fontWeight: '800', color: theme.colors.text, marginTop: 2 },
-  amountPill: { backgroundColor: '#05966915', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  amountPillText: { fontSize: 16, fontWeight: '900', color: '#059669' },
-  confirmUpiBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.colors.primary, paddingVertical: 16, borderRadius: 16, marginBottom: 10 },
-  confirmUpiBtnText: { fontSize: 15, fontWeight: '900', color: '#001016' },
+  copyVpaBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#6C47FF12' },
+  copyVpaText: { fontSize: 12, fontWeight: '800', color: '#6C47FF' },
+  
+  openAppPrimaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.colors.primary, paddingVertical: 16, borderRadius: 16, marginBottom: 10 },
+  openAppPrimaryText: { fontSize: 15, fontWeight: '900', color: '#001016' },
+
+  confirmUpiBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 16, borderRadius: 16, marginBottom: 10 },
+  confirmUpiBtnText: { fontSize: 15, fontWeight: '900', color: '#FFFFFF' },
+
+  upiSecondaryRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginBottom: 10, paddingHorizontal: 10 },
+  upiSecondaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
+  upiSecondaryText: { fontSize: 12, fontWeight: '700', color: '#6C47FF' },
+
   cancelUpiBtn: { alignItems: 'center', paddingVertical: 10 },
   cancelUpiText: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim },
 });

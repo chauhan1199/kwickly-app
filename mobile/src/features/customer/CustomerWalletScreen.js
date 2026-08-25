@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Building2, ShieldCheck, X } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
+import { GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon } from '../../components/ui/UpiBrandIcons';
 
 import { SearchBar } from '../../components/ui/SearchBar';
 import { walletService } from '../../services/walletService';
@@ -357,22 +358,30 @@ const CustomerWalletScreen = ({ navigation }) => {
             <Text style={styles.upiAppsHeading}>Choose UPI App</Text>
             <View style={styles.upiAppsGrid}>
               <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('gpay')}>
-                <Text style={styles.upiAppEmoji}>🟢</Text>
+                <View style={{ marginBottom: 4 }}>
+                  <GooglePayIcon size={34} />
+                </View>
                 <Text style={styles.upiAppLabel}>Google Pay</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('phonepe')}>
-                <Text style={styles.upiAppEmoji}>🟣</Text>
+                <View style={{ marginBottom: 4 }}>
+                  <PhonePeIcon size={34} />
+                </View>
                 <Text style={styles.upiAppLabel}>PhonePe</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('paytm')}>
-                <Text style={styles.upiAppEmoji}>🔵</Text>
+                <View style={{ marginBottom: 4 }}>
+                  <PaytmIcon size={34} />
+                </View>
                 <Text style={styles.upiAppLabel}>Paytm</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp()}>
-                <Text style={styles.upiAppEmoji}>⚡</Text>
+                <View style={{ marginBottom: 4 }}>
+                  <BhimUpiIcon size={34} />
+                </View>
                 <Text style={styles.upiAppLabel}>Any UPI</Text>
               </TouchableOpacity>
             </View>

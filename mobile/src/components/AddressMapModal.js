@@ -15,7 +15,7 @@ import {
   Animated,
   KeyboardAvoidingView
 } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
 import {
   MapPin,
@@ -259,12 +259,12 @@ export const AddressMapModal = ({
   };
 
   // Fetch live GPS location
-  const fetchGPSLocation = async (showAlert = true) => {
+  const fetchGPSLocation = async (manualClick = false) => {
     setIsLocatingGPS(true);
     const hasPermission = await requestLocationPermission();
     if (!hasPermission && Platform.OS === 'android') {
       setIsLocatingGPS(false);
-      if (showAlert) {
+      if (manualClick) {
         Alert.alert('Permission Required', 'Please grant location permission to find your current GPS position.');
       }
       return;
@@ -283,29 +283,24 @@ export const AddressMapModal = ({
       mapRef.current?.animateToRegion(newReg, 800);
       performReverseGeocode(lat, lon);
       setIsLocatingGPS(false);
-      if (showAlert) {
-        Alert.alert('Location Found', 'Map centered to your current GPS position.');
-      }
     };
 
-    const onLocationError = () => {
+    const onLocationError = (err) => {
       // Fallback to low-accuracy network provider
       Geolocation.getCurrentPosition(
         onLocationSuccess,
-        () => {
+        (err2) => {
           setIsLocatingGPS(false);
-          if (showAlert) {
-            Alert.alert('GPS Notice', 'Could not detect exact GPS satellite lock. You can drag the map or search your locality.');
-          }
+          console.log('[GPS] Location timeout/error:', err2?.message || err?.message);
         },
-        { enableHighAccuracy: false, timeout: 12000, maximumAge: 30000 }
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
       );
     };
 
     Geolocation.getCurrentPosition(
       onLocationSuccess,
       onLocationError,
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
     );
   };
 
@@ -433,11 +428,20 @@ export const AddressMapModal = ({
             provider={PROVIDER_DEFAULT}
             style={dynamicStyles.map}
             initialRegion={region}
+            mapType={Platform.OS === 'android' ? 'none' : 'standard'}
             onRegionChangeComplete={handleRegionChangeComplete}
             showsUserLocation={true}
             showsMyLocationButton={false}
             showsCompass={false}
-          />
+          >
+            <UrlTile
+              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maximumZ={19}
+              flipY={false}
+              zIndex={-1}
+              shouldReplaceMapContent={true}
+            />
+          </MapView>
 
           {/* Centered Uber/Urban Company Location Pin */}
           <View style={dynamicStyles.centerPinContainer} pointerEvents="none">
