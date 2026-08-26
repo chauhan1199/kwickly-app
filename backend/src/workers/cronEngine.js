@@ -222,8 +222,18 @@ const sweepGhostOrders = async () => {
                     balance: refundedCustomer?.wallet?.balance || 0,
                     refId: String(order._id),
                     status: 'COMPLETED',
-                    description: `Auto-refund for ignored order #${String(order._id).slice(-6)}`
+                    description: `Auto-refund for unconfirmed order #${order.orderNumber || String(order._id).slice(-6)}`
                 }], { session });
+
+                notifyUser({
+                    userId: order.customerId,
+                    title: 'Order Cancelled & Refunded',
+                    message: `Shop could not confirm your order #${order.orderNumber || String(order._id).slice(-6)} in time. ₹${order.total} has been refunded to your Kwickly Wallet.`,
+                    action: 'ORDER_CANCELLED',
+                    entityType: 'ORDER',
+                    entityId: order._id,
+                    targetRole: 'CUSTOMER'
+                });
             }
             await order.save({ session });
             

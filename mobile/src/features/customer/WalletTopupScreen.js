@@ -130,13 +130,21 @@ const WalletTopupScreen = ({ navigation }) => {
       });
 
       if (verifyRes?.data?.status === 'success') {
+        const verifyData = verifyRes.data.data;
         setUpiCheckoutModal(false);
         setUpiTxnId('');
         setPaymentInitiated(false);
         if (fetchUser) await fetchUser();
-        Alert.alert('Topup Successful! 🎉', `₹${upiOrderData.amount} has been verified and securely added to your wallet (UTR: ${cleanUtr}).`, [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]);
+
+        if (verifyData?.status === 'PENDING_VERIFICATION') {
+          Alert.alert('Topup Submitted ⏳', `Your UPI Reference (UTR: ${cleanUtr}) for ₹${upiOrderData.amount} has been submitted for admin verification. Balance will be credited once confirmed.`, [
+            { text: 'OK', onPress: () => navigation.goBack() }
+          ]);
+        } else {
+          Alert.alert('Topup Successful! 🎉', `₹${upiOrderData.amount} has been verified and securely added to your wallet (UTR: ${cleanUtr}).`, [
+            { text: 'OK', onPress: () => navigation.goBack() }
+          ]);
+        }
       } else {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }

@@ -161,13 +161,13 @@ export const AddressMapModal = ({
 
         const areaJoined = [road, suburb].filter(Boolean).join(', ');
         
-        if (bld && !flatBuilding) setFlatBuilding(bld);
+        if (bld) setFlatBuilding(bld);
         setStreetArea(areaJoined || bld || data.name || '');
-        setCity(cityName);
-        setStateName(st);
+        if (cityName) setCity(cityName);
+        if (st) setStateName(st);
         if (pin && pin.length === 6) setPincode(pin);
 
-        setFormattedAddress(data.display_name || `${areaJoined}, ${cityName}, ${st} ${pin}`);
+        setFormattedAddress(data.display_name || `${bld ? bld + ', ' : ''}${areaJoined}, ${cityName}, ${st} ${pin}`.trim());
         return;
       }
 
@@ -185,10 +185,10 @@ export const AddressMapModal = ({
         const pin = (p.postcode || '').replace(/\D/g, '').slice(0, 6);
 
         const areaJoined = [road, suburb].filter(Boolean).join(', ');
-        if (bld && !flatBuilding) setFlatBuilding(bld);
+        if (bld) setFlatBuilding(bld);
         setStreetArea(areaJoined || bld || '');
-        setCity(cityName);
-        setStateName(st);
+        if (cityName) setCity(cityName);
+        if (st) setStateName(st);
         if (pin && pin.length === 6) setPincode(pin);
         setFormattedAddress([bld, road, suburb, cityName, st, pin].filter(Boolean).join(', '));
       }

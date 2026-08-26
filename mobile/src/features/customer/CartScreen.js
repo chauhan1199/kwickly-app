@@ -59,6 +59,31 @@ const CartScreen = ({ route, navigation }) => {
     }
   }, [cart?.shopId, loadDeliverySlots]);
 
+  const [selectedDate, setSelectedDate] = useState(0); // 0 = Today, 1 = Tomorrow, 2 = Day After
+
+  const isSlotPassed = useCallback((slot, dayOffset = selectedDate) => {
+    if (dayOffset > 0) return false;
+    if (!slot.slotClose) return false;
+    const [h, m] = slot.slotClose.split(':').map(Number);
+    if (isNaN(h)) return false;
+    const now = new Date();
+    return (now.getHours() * 60 + now.getMinutes()) >= (h * 60 + (m || 0));
+  }, [selectedDate]);
+
+  const getDateLabel = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    if (offset === 0) return `Today (${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`;
+    if (offset === 1) return `Tomorrow (${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`;
+    return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  };
+
+  const getFullDateString = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return d.toISOString().split('T')[0];
+  };
+
   const loadDeliverySlots = useCallback(async () => {
     try {
       const shopId = typeof cart?.shopId === 'object' ? (cart.shopId._id || cart.shopId.id) : cart?.shopId;
@@ -79,22 +104,39 @@ const CartScreen = ({ route, navigation }) => {
           };
         });
         setSlots(formatted);
-        setSelectedSlot(prev => prev || formatted[0]);
+        
+        // Pick first slot that hasn't passed today
+        const firstAvailable = formatted.find(s => !isSlotPassed(s, 0));
+        if (firstAvailable) {
+          setSelectedSlot(firstAvailable);
+          setSelectedDate(0);
+        } else {
+          // If all slots passed today, default to tomorrow
+          setSelectedDate(1);
+          setSelectedSlot(formatted[0]);
+        }
       } else {
         const now = new Date();
         const eta = new Date(now.getTime() + 45 * 60000);
         const fallbackSlots = [
           { label: `Instant Delivery (By ${eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`, time: 'Instant Delivery' },
-          { label: 'Morning Slot (10:00 AM - 1:00 PM)', time: 'Morning (10:00 - 13:00)' },
-          { label: 'Evening Slot (5:00 PM - 8:00 PM)', time: 'Evening (17:00 - 20:00)' }
+          { label: 'Morning Slot (10:00 AM - 1:00 PM)', slotClose: '13:00', time: 'Morning (10:00 - 13:00)' },
+          { label: 'Evening Slot (5:00 PM - 8:00 PM)', slotClose: '20:00', time: 'Evening (17:00 - 20:00)' }
         ];
         setSlots(fallbackSlots);
-        setSelectedSlot(prev => prev || fallbackSlots[0]);
+        const firstAvailable = fallbackSlots.find(s => !isSlotPassed(s, 0));
+        if (firstAvailable) {
+          setSelectedSlot(firstAvailable);
+          setSelectedDate(0);
+        } else {
+          setSelectedDate(1);
+          setSelectedSlot(fallbackSlots[0]);
+        }
       }
     } catch (e) {
       console.warn('Could not load delivery slots:', e);
     }
-  }, [cart?.shopId]);
+  }, [cart?.shopId, isSlotPassed]);
 
   const handleApplyPromo = async () => {
     if (!promoInput.trim()) return;
@@ -135,6 +177,13 @@ const CartScreen = ({ route, navigation }) => {
       return Alert.alert('Insufficient Balance', `Your wallet balance is ₹${user?.wallet?.balance || 0}. Please top up or pay via UPI.`);
     }
 
+    if (selectedSlot && isSlotPassed(selectedSlot, selectedDate)) {
+      return Alert.alert(
+        'Slot Unavailable',
+        `The slot "${selectedSlot.label}" has already passed for today. Please select an upcoming slot or choose Tomorrow.`
+      );
+    }
+
     setIsProcessing(true);
     try {
       // Extract valid coordinates with fallback
@@ -160,7 +209,11 @@ const CartScreen = ({ route, navigation }) => {
           type: 'Point',
           coordinates: validCoords
         },
-        deliverySlot: selectedSlot?.label || selectedSlot?.time || selectedSlot || 'Standard Delivery'
+        deliverySlot: {
+          date: getFullDateString(selectedDate),
+          time: selectedSlot?.label || selectedSlot?.time || 'Standard Delivery',
+          label: `${getDateLabel(selectedDate)}: ${selectedSlot?.label || 'Standard'}`
+        }
       };
 
       const res = await shopService.placeOrder(orderData);
@@ -742,21 +795,67 @@ const CartScreen = ({ route, navigation }) => {
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowSlotModal(false)} />
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Delivery Slot</Text>
-            <ScrollView>
-              {slots.map((slot, idx) => (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={styles.modalTitle}>Delivery Schedule</Text>
+              <TouchableOpacity onPress={() => setShowSlotModal(false)} style={{ padding: 4 }}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Date Selection Pills */}
+            <View style={styles.dateTabsRow}>
+              {[0, 1, 2].map(offset => (
                 <TouchableOpacity
-                  key={idx}
-                  style={[styles.slotOption, selectedSlot?.label === slot.label && styles.slotOptionActive]}
-                  onPress={() => { setSelectedSlot(slot); setShowSlotModal(false); }}
+                  key={offset}
+                  style={[styles.dateTabPill, selectedDate === offset && styles.dateTabPillActive]}
+                  onPress={() => {
+                    setSelectedDate(offset);
+                    const firstAvail = slots.find(s => !isSlotPassed(s, offset)) || slots[0];
+                    if (firstAvail) setSelectedSlot(firstAvail);
+                  }}
                 >
-                  <Clock size={18} color={selectedSlot?.label === slot.label ? '#fff' : theme.colors.primary} />
-                  <Text style={[styles.slotOptionText, selectedSlot?.label === slot.label && { color: '#fff' }]}>
-                    {slot.label}
+                  <Text style={[styles.dateTabPillText, selectedDate === offset && styles.dateTabPillTextActive]}>
+                    {offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : getDateLabel(offset).split(' ')[0]}
                   </Text>
-                  {selectedSlot?.label === slot.label && <Check size={18} color="#fff" />}
                 </TouchableOpacity>
               ))}
+            </View>
+
+            <ScrollView style={{ maxHeight: 300 }}>
+              {slots.map((slot, idx) => {
+                const passed = isSlotPassed(slot, selectedDate);
+                const isSelected = selectedSlot?.label === slot.label && !passed;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[
+                      styles.slotOption,
+                      isSelected && styles.slotOptionActive,
+                      passed && { opacity: 0.45, backgroundColor: theme.colors.surface }
+                    ]}
+                    disabled={passed}
+                    onPress={() => {
+                      if (!passed) {
+                        setSelectedSlot(slot);
+                        setShowSlotModal(false);
+                      }
+                    }}
+                  >
+                    <Clock size={18} color={isSelected ? '#fff' : passed ? '#94a3b8' : theme.colors.primary} />
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={[styles.slotOptionText, isSelected && { color: '#fff' }, passed && { color: '#94a3b8' }]}>
+                        {slot.label}
+                      </Text>
+                      {passed && (
+                        <Text style={{ fontSize: 11, color: '#ef4444', fontWeight: '700', marginTop: 2 }}>
+                          ❌ Passed for today
+                        </Text>
+                      )}
+                    </View>
+                    {isSelected && <Check size={18} color="#fff" />}
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </View>
         </View>
@@ -893,7 +992,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   modalOverlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalBackdrop:  { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
   modalContent:   { backgroundColor: theme.colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '60%' },
-  modalTitle:     { fontSize: 18, fontWeight: '800', color: theme.colors.text, marginBottom: 16 },
+  modalTitle:     { fontSize: 18, fontWeight: '800', color: theme.colors.text },
+  dateTabsRow:    { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  dateTabPill:    { flex: 1, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, alignItems: 'center' },
+  dateTabPillActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '18' },
+  dateTabPillText: { fontSize: 12, fontWeight: '700', color: theme.colors.textDim },
+  dateTabPillTextActive: { color: theme.colors.primary, fontWeight: '900' },
   slotOption:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
   slotOptionActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
   slotOptionText: { flex: 1, fontSize: 15, fontWeight: '700', color: theme.colors.text },

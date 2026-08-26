@@ -254,9 +254,52 @@ exports.verifyPayment = catchAsync(async (req, res) => {
 
         // Wallet top-up flow (purpose: 'wallet_topup')
         if (payment.metadata?.notes?.purpose === 'wallet_topup' || req.body.purpose === 'wallet_topup') {
-            const alreadyCredited = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId: payment.razorpayPaymentId }).session(session);
+            const creditAmount = payment.amount || req.body.amount;
+            const isManualUpi = Boolean(upiRef) && (!razorpaySignature || razorpaySignature === 'upi_verified');
+
+            if (isManualUpi) {
+                // Manual UTR submission -> Hold in PENDING status for Admin Verification to prevent fake UTR fraud
+                const existingPending = await WalletTxn.findOne({
+                    userId: req.user._id,
+                    type: 'TOPUP',
+                    razorpayPaymentId: finalPaymentId
+                }).session(session);
+
+                if (!existingPending) {
+                    await WalletTxn.create([{
+                        userId: req.user._id,
+                        type: 'TOPUP',
+                        amount: creditAmount,
+                        balance: req.user.wallet?.balance || 0,
+                        balanceAfter: req.user.wallet?.balance || 0,
+                        status: 'PENDING',
+                        razorpayPaymentId: finalPaymentId,
+                        description: `Wallet Top-up (Pending Admin Verification - UTR: ${finalPaymentId})`
+                    }], { session });
+
+                    // Emit to Admin Dashboard
+                    emitToAll('DASHBOARD_UPDATE', {
+                        type: 'PENDING_WALLET_TOPUP',
+                        userId: req.user._id,
+                        userName: req.user.name,
+                        amount: creditAmount,
+                        utr: finalPaymentId
+                    });
+                }
+
+                if (useTransaction) await session.commitTransaction();
+                if (useTransaction) session.endSession();
+
+                return successResponse(res, {
+                    paymentId: payment._id,
+                    status: 'PENDING_VERIFICATION',
+                    utr: finalPaymentId,
+                    amount: creditAmount
+                }, `Top-up request for ₹${creditAmount} submitted! It will be verified and credited to your wallet.`);
+            }
+
+            const alreadyCredited = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId: payment.razorpayPaymentId, status: 'COMPLETED' }).session(session);
             if (!alreadyCredited) {
-                const creditAmount = payment.amount || req.body.amount;
                 const creditedUser = await Customer.findByIdAndUpdate(
                     payment.userId || req.user._id,
                     { $inc: { 'wallet.balance': creditAmount } },
@@ -271,7 +314,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                         balanceAfter: creditedUser.wallet?.balance || 0,
                         status: 'COMPLETED',
                         razorpayPaymentId: payment.razorpayPaymentId,
-                        description: `Wallet Top-up via Admin UPI (UTR: ${finalPaymentId})`
+                        description: `Wallet Top-up via Razorpay (ID: ${finalPaymentId})`
                     }], { session });
 
                     // Credit Admin Wallet for platform tracking
@@ -284,11 +327,9 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                         await AdminWalletTxn.create([{
                             type: 'TOPUP',
                             amount: creditAmount,
-                            balanceAfter: adminW.balance,
-                            description: `User ${creditedUser.name || creditedUser.phone || 'Customer'} wallet top-up via UPI (UTR: ${finalPaymentId})`,
-                            referenceId: payment._id,
-                            referenceModel: 'Payment',
-                            meta: { userId: creditedUser._id, purpose: 'wallet_topup', utr: finalPaymentId }
+                            balance: adminW.balance,
+                            refId: String(payment._id),
+                            description: `Customer ${creditedUser.name || 'User'} wallet top-up (Razorpay ID: ${finalPaymentId})`
                         }], { session });
                         emitToAll('DASHBOARD_UPDATE', { type: 'ADMIN_WALLET_CREDIT', id: payment._id, amount: creditAmount });
                     }

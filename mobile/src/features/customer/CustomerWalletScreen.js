@@ -165,16 +165,25 @@ const CustomerWalletScreen = ({ navigation }) => {
       });
 
       if (verifyRes?.data?.status === 'success') {
+        const verifyData = verifyRes.data.data;
         setUpiCheckoutModal(false);
         setTopupAmount('');
         setUpiTxnId('');
         setPaymentInitiated(false);
         if (fetchUser) await fetchUser();
         await fetchWallet();
-        Alert.alert(
-          'Top-up Successful! 🎉',
-          `₹${upiOrderData.amount} has been verified and securely credited to your Kwickly Wallet (UTR: ${cleanUtr}).`
-        );
+
+        if (verifyData?.status === 'PENDING_VERIFICATION') {
+          Alert.alert(
+            'Top-up Submitted ⏳',
+            `Your UPI Reference (UTR: ${cleanUtr}) for ₹${upiOrderData.amount} has been submitted for verification. Balance will be credited once confirmed.`
+          );
+        } else {
+          Alert.alert(
+            'Top-up Successful! 🎉',
+            `₹${upiOrderData.amount} has been verified and securely credited to your Kwickly Wallet (UTR: ${cleanUtr}).`
+          );
+        }
       } else {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }

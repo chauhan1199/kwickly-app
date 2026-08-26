@@ -216,6 +216,27 @@ exports.placeOrder = catchAsync(async (req, res) => {
             };
         }
 
+        // Validate that chosen slot for today is not in the past
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (slotData.date === todayStr && slotData.time) {
+            const timeMatch = slotData.time.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+            if (timeMatch) {
+                const endHour = parseInt(timeMatch[3], 10);
+                const endMin = parseInt(timeMatch[4], 10);
+                const now = new Date();
+                const istOffset = 5.5 * 60 * 60 * 1000;
+                const istTime = new Date(now.getTime() + (now.getTimezoneOffset() === 0 ? istOffset : 0));
+                const currentMinutes = istTime.getHours() * 60 + istTime.getMinutes();
+                const slotEndMinutes = endHour * 60 + endMin;
+
+                if (currentMinutes >= slotEndMinutes) {
+                    if (useTransaction && session) await session.abortTransaction();
+                    if (session) session.endSession();
+                    return errorResponse(res, `Selected delivery slot "${slotData.time}" has already passed for today. Please select an upcoming slot or choose tomorrow.`, StatusCodes.BAD_REQUEST);
+                }
+            }
+        }
+
         const [order] = await ShopOrder.create([{
             orderNumber,
             shopId,
