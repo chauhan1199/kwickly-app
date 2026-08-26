@@ -182,6 +182,29 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
 
+        {/* Delivery Schedule & Slot */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Delivery Schedule</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Selected Slot</Text>
+            <Text style={[styles.infoValue, { color: '#6C47FF', fontWeight: '800' }]}>
+              {order.deliverySlot?.time || order.deliverySlot?.label || (typeof order.deliverySlot === 'string' ? order.deliverySlot : 'Standard Delivery')}
+            </Text>
+          </View>
+          {order.deliverySlot?.date ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Delivery Date</Text>
+              <Text style={styles.infoValue}>{order.deliverySlot.date}</Text>
+            </View>
+          ) : null}
+          {order.deliverySlot?.notes ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Instructions</Text>
+              <Text style={styles.infoValue}>{order.deliverySlot.notes}</Text>
+            </View>
+          ) : null}
+        </View>
+
         {/* Order Items */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Items ({order.items?.length || 0})</Text>

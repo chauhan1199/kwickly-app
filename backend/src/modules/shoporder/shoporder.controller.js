@@ -34,7 +34,7 @@ function escapeHtml(str) {
  * Customer places a shop order with ATOMIC stock reservation
  */
 exports.placeOrder = catchAsync(async (req, res) => {
-    const { shopId, items, deliveryAddress, deliveryLocation, paymentMethod, promoCode } = req.body;
+    const { shopId, items, deliveryAddress, deliveryLocation, paymentMethod, promoCode, deliverySlot } = req.body;
 
     if (!items || items.length === 0) {
         return errorResponse(res, 'Order must contain at least one item', StatusCodes.BAD_REQUEST);
@@ -204,6 +204,18 @@ exports.placeOrder = catchAsync(async (req, res) => {
         const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
         const orderNumber = `ORD-${ts}-${rand}`;
 
+        // Format deliverySlot
+        let slotData = { time: 'Standard Delivery', date: new Date().toISOString().split('T')[0], notes: '' };
+        if (typeof deliverySlot === 'string' && deliverySlot.trim()) {
+            slotData.time = deliverySlot.trim();
+        } else if (deliverySlot && typeof deliverySlot === 'object') {
+            slotData = {
+                time: deliverySlot.time || deliverySlot.label || deliverySlot.value || 'Standard Delivery',
+                date: deliverySlot.date || new Date().toISOString().split('T')[0],
+                notes: deliverySlot.notes || ''
+            };
+        }
+
         const [order] = await ShopOrder.create([{
             orderNumber,
             shopId,
@@ -215,6 +227,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
             total,
             deliveryAddress,
             deliveryLocation,
+            deliverySlot: slotData,
             deliveryOtp,
             deliveryOtpGeneratedAt: new Date(),
             payment: { amount: total, status: paymentStatus, method: paymentMethod || 'WALLET' },

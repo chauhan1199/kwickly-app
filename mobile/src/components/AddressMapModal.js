@@ -137,10 +137,13 @@ export const AddressMapModal = ({
     ]).start();
   };
 
-  // Reverse Geocoding with OpenStreetMap Nominatim
+  const searchDebounceRef = useRef(null);
+
+  // Reverse Geocoding with OpenStreetMap Nominatim + Photon Fallback
   const performReverseGeocode = async (lat, lon) => {
     setIsReverseGeocoding(true);
     try {
+      // 1. Try Nominatim reverse geocode
       const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`;
       const res = await fetch(url, {
         headers: { 'User-Agent': 'KwicklyApp/1.0 (support@kwickly.in)' }
@@ -149,20 +152,45 @@ export const AddressMapModal = ({
 
       if (data && data.address) {
         const addr = data.address;
+        const bld = addr.building || addr.house_number || addr.amenity || addr.shop || data.name || '';
         const road = addr.road || addr.residential || addr.street || '';
-        const suburb = addr.suburb || addr.neighbourhood || addr.subdistrict || '';
+        const suburb = addr.suburb || addr.neighbourhood || addr.subdistrict || addr.district || '';
         const cityName = addr.city || addr.town || addr.village || addr.state_district || 'Ahmedabad';
-        const st = addr.state || '';
+        const st = addr.state || 'Gujarat';
         const pin = addr.postcode ? addr.postcode.replace(/\D/g, '').slice(0, 6) : '';
 
         const areaJoined = [road, suburb].filter(Boolean).join(', ');
         
-        setStreetArea(areaJoined || data.name || '');
+        if (bld && !flatBuilding) setFlatBuilding(bld);
+        setStreetArea(areaJoined || bld || data.name || '');
         setCity(cityName);
         setStateName(st);
         if (pin && pin.length === 6) setPincode(pin);
 
         setFormattedAddress(data.display_name || `${areaJoined}, ${cityName}, ${st} ${pin}`);
+        return;
+      }
+
+      // 2. Photon reverse geocode fallback
+      const pUrl = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`;
+      const pRes = await fetch(pUrl);
+      const pData = await pRes.json();
+      if (pData?.features?.length > 0) {
+        const p = pData.features[0].properties || {};
+        const bld = p.name || '';
+        const road = p.street || '';
+        const suburb = p.district || p.locality || '';
+        const cityName = p.city || 'Ahmedabad';
+        const st = p.state || 'Gujarat';
+        const pin = (p.postcode || '').replace(/\D/g, '').slice(0, 6);
+
+        const areaJoined = [road, suburb].filter(Boolean).join(', ');
+        if (bld && !flatBuilding) setFlatBuilding(bld);
+        setStreetArea(areaJoined || bld || '');
+        setCity(cityName);
+        setStateName(st);
+        if (pin && pin.length === 6) setPincode(pin);
+        setFormattedAddress([bld, road, suburb, cityName, st, pin].filter(Boolean).join(', '));
       }
     } catch (e) {
       console.log('[MapPicker] Reverse geocode error:', e.message);
@@ -185,29 +213,119 @@ export const AddressMapModal = ({
     }, 600);
   };
 
-  // Search places / localities in India
-  const handleSearch = async (text) => {
-    setSearchQuery(text);
+  // Multi-engine search function for Indian localities & societies
+  const executeSearch = async (text) => {
     if (!text || text.trim().length < 2) {
       setSearchResults([]);
       setShowSearchResults(false);
       return;
     }
 
+    const cleanQuery = text.trim();
     setIsSearching(true);
     setShowSearchResults(true);
+
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&q=${encodeURIComponent(text.trim())}&limit=5&addressdetails=1`;
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'KwicklyApp/1.0 (support@kwickly.in)' }
-      });
-      const list = await res.json();
-      setSearchResults(list || []);
+      const results = [];
+      const seenNames = new Set();
+
+      // Engine 1: Photon API (Fast OSM full-text & society search with location bias)
+      try {
+        const pUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&lat=${region.latitude}&lon=${region.longitude}&limit=6`;
+        const pRes = await fetch(pUrl, { headers: { 'User-Agent': 'KwicklyApp/1.0' } });
+        const pData = await pRes.json();
+
+        if (pData && Array.isArray(pData.features)) {
+          pData.features.forEach((f, idx) => {
+            const p = f.properties || {};
+            const coords = f.geometry?.coordinates;
+            if (!coords || coords.length !== 2) return;
+
+            const name = p.name || [p.street, p.district].filter(Boolean).join(', ') || p.city || 'Location';
+            const fullAddr = [p.name, p.street, p.district, p.city, p.state, p.postcode].filter(Boolean).join(', ');
+            
+            if (!seenNames.has(name.toLowerCase())) {
+              seenNames.add(name.toLowerCase());
+              results.push({
+                place_id: `photon_${p.osm_id || idx}_${Date.now()}`,
+                lat: coords[1],
+                lon: coords[0],
+                name: p.name || '',
+                street: p.street || '',
+                district: p.district || p.locality || '',
+                city: p.city || 'Ahmedabad',
+                state: p.state || 'Gujarat',
+                postcode: (p.postcode || '').replace(/\D/g, '').slice(0, 6),
+                display_name: fullAddr,
+                title: name,
+                subtitle: [p.street, p.district, p.city, p.postcode].filter(Boolean).join(', ')
+              });
+            }
+          });
+        }
+      } catch (pErr) {
+        console.log('[MapPicker] Photon search error:', pErr.message);
+      }
+
+      // Engine 2: OpenStreetMap Nominatim (if Photon had few results)
+      if (results.length < 3) {
+        try {
+          const nUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&q=${encodeURIComponent(cleanQuery)}&limit=5&addressdetails=1`;
+          const nRes = await fetch(nUrl, {
+            headers: { 'User-Agent': 'KwicklyApp/1.0 (support@kwickly.in)' }
+          });
+          const nData = await nRes.json();
+
+          if (Array.isArray(nData)) {
+            nData.forEach((item, idx) => {
+              const addr = item.address || {};
+              const title = item.display_name.split(',')[0];
+              if (!seenNames.has(title.toLowerCase())) {
+                seenNames.add(title.toLowerCase());
+                results.push({
+                  place_id: `nom_${item.place_id || idx}`,
+                  lat: parseFloat(item.lat),
+                  lon: parseFloat(item.lon),
+                  name: item.name || title,
+                  street: addr.road || addr.residential || '',
+                  district: addr.suburb || addr.neighbourhood || addr.district || '',
+                  city: addr.city || addr.town || addr.village || 'Ahmedabad',
+                  state: addr.state || 'Gujarat',
+                  postcode: (addr.postcode || '').replace(/\D/g, '').slice(0, 6),
+                  display_name: item.display_name,
+                  title: title,
+                  subtitle: item.display_name.split(',').slice(1, 4).join(',').trim()
+                });
+              }
+            });
+          }
+        } catch (nErr) {
+          console.log('[MapPicker] Nominatim search error:', nErr.message);
+        }
+      }
+
+      setSearchResults(results);
     } catch (e) {
-      console.log('[MapPicker] Search error:', e.message);
+      console.log('[MapPicker] Search total error:', e.message);
     } finally {
       setIsSearching(false);
     }
+  };
+
+  // Search input change handler with debounce
+  const handleSearch = (text) => {
+    setSearchQuery(text);
+    if (!text || text.trim().length < 2) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      executeSearch(text);
+    }, 350);
   };
 
   // Generate Interactive Leaflet Map HTML
@@ -250,6 +368,16 @@ export const AddressMapModal = ({
             }));
           }
         });
+
+        map.on('locationfound', function(e) {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'GPS_FOUND',
+              lat: e.latlng.lat,
+              lng: e.latlng.lng
+            }));
+          }
+        });
       </script>
     </body>
     </html>
@@ -260,7 +388,7 @@ export const AddressMapModal = ({
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'MOVE_START') {
         triggerPinBounce();
-      } else if (data.type === 'REGION_CHANGE') {
+      } else if (data.type === 'REGION_CHANGE' || data.type === 'GPS_FOUND') {
         const lat = data.lat;
         const lng = data.lng;
         setRegion({
@@ -296,19 +424,26 @@ export const AddressMapModal = ({
 
     setRegion(newReg);
     webviewRef.current?.injectJavaScript(`if (window.map) { map.setView([${lat}, ${lon}], 17, { animate: true }); } true;`);
-    setSearchQuery(item.display_name.split(',')[0]);
+    setSearchQuery(item.title || item.name || item.display_name.split(',')[0]);
     setShowSearchResults(false);
 
-    // Extract address fields
-    const addr = item.address || {};
-    const road = addr.road || addr.suburb || addr.neighbourhood || '';
-    const cityName = addr.city || addr.town || addr.village || addr.state_district || 'Ahmedabad';
-    const pin = addr.postcode ? addr.postcode.replace(/\D/g, '').slice(0, 6) : '';
+    // Auto-populate form fields
+    const bld = item.name || item.title || '';
+    const street = item.street || '';
+    const district = item.district || '';
+    const cityName = item.city || 'Ahmedabad';
+    const pin = item.postcode ? item.postcode.replace(/\D/g, '').slice(0, 6) : '';
 
-    if (road) setStreetArea(road);
+    const areaCombined = [street, district].filter(Boolean).join(', ') || bld;
+
+    if (bld) setFlatBuilding(bld);
+    if (areaCombined) setStreetArea(areaCombined);
     if (cityName) setCity(cityName);
+    if (item.state) setStateName(item.state);
     if (pin && pin.length === 6) setPincode(pin);
     setFormattedAddress(item.display_name);
+
+    triggerPinBounce();
   };
 
   // Request Android location permission
@@ -330,7 +465,7 @@ export const AddressMapModal = ({
     }
   };
 
-  // Fetch live GPS location
+  // Fetch live GPS location with multi-tier fallback
   const fetchGPSLocation = async (manualClick = false) => {
     setIsLocatingGPS(true);
     const hasPermission = await requestLocationPermission();
@@ -346,6 +481,9 @@ export const AddressMapModal = ({
       return;
     }
 
+    // Also trigger HTML5 map locate in WebView
+    webviewRef.current?.injectJavaScript(`if (window.map) { map.locate({ setView: true, maxZoom: 17, enableHighAccuracy: true }); } true;`);
+
     const onLocationSuccess = (pos) => {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
@@ -357,32 +495,33 @@ export const AddressMapModal = ({
       };
       setRegion(newReg);
       webviewRef.current?.injectJavaScript(`if (window.map) { map.setView([${lat}, ${lon}], 17, { animate: true }); } true;`);
+      triggerPinBounce();
       performReverseGeocode(lat, lon);
       setIsLocatingGPS(false);
     };
 
     const onLocationError = (err) => {
-      // Fallback to low-accuracy network provider
+      // Tier 2: Fallback to network provider
       Geolocation.getCurrentPosition(
         onLocationSuccess,
         (err2) => {
           setIsLocatingGPS(false);
           if (manualClick) {
             Alert.alert(
-              'Please Turn on GPS',
-              'GPS / Location is currently turned off or unavailable. Please enable Location in your device settings to detect your position.',
+              'Location Notice',
+              'Please ensure GPS is enabled in device settings. You can also search your society / landmark above or move the map pin.',
               [{ text: 'OK' }]
             );
           }
         },
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
+        { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
       );
     };
 
     Geolocation.getCurrentPosition(
       onLocationSuccess,
       onLocationError,
-      { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
     );
   };
 
@@ -457,13 +596,16 @@ export const AddressMapModal = ({
 
           {/* Search Box on Top */}
           <View style={dynamicStyles.searchContainer}>
-            <Search size={18} color="#6C47FF" style={dynamicStyles.searchIcon} />
+            <TouchableOpacity onPress={() => executeSearch(searchQuery)} activeOpacity={0.8}>
+              <Search size={18} color="#6C47FF" style={dynamicStyles.searchIcon} />
+            </TouchableOpacity>
             <TextInput
               style={dynamicStyles.searchInput}
               placeholder="Search society, landmark, area..."
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={handleSearch}
+              onSubmitEditing={() => executeSearch(searchQuery)}
               autoCapitalize="none"
               returnKeyType="search"
             />

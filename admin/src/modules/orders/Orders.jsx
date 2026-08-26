@@ -250,6 +250,7 @@ export default function Orders() {
               <div className="detail-row"><span>Order #</span><strong>{detail.orderNumber || detail._id?.slice(-6)}</strong></div>
               <div className="detail-row"><span>Customer</span><strong>{detail.customerId?.name || '—'} · {detail.customerId?.phone || '—'}</strong></div>
               <div className="detail-row"><span>Shop</span><strong>{detail.shopId?.name || '—'}</strong></div>
+              <div className="detail-row"><span>Delivery Slot</span><strong style={{ color: 'var(--primary)' }}>{detail.deliverySlot?.time || detail.deliverySlot?.label || (typeof detail.deliverySlot === 'string' ? detail.deliverySlot : 'Standard Delivery')}</strong></div>
               <div className="detail-row"><span>Payment</span><strong>{detail.paymentMethod || '—'}</strong></div>
               <div className="detail-row"><span>Delivery Address</span><strong>{detail.deliveryAddress || '—'}</strong></div>
               <div className="detail-row"><span>Date</span><strong>{new Date(detail.createdAt).toLocaleString('en-IN')}</strong></div>

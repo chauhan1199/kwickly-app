@@ -38,6 +38,7 @@ const CartScreen = ({ route, navigation }) => {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [slots, setSlots] = useState([]);
   const [showSlotModal, setShowSlotModal] = useState(false);
+  const [orderSuccessModal, setOrderSuccessModal] = useState(null);
 
   // UPI Modal State
   const [showUpiModal, setShowUpiModal] = useState(false);
@@ -148,10 +149,13 @@ const CartScreen = ({ route, navigation }) => {
       if (paymentMethod === 'WALLET') {
         await clearCart();
         if (fetchUser) await fetchUser();
-        Alert.alert('Order Placed! 🎉', `Order ${order.orderNumber || ''} has been placed successfully.`, [
-          { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: order._id }) },
-          { text: 'Continue Shopping', onPress: () => navigation.navigate('Shop') }
-        ]);
+        setOrderSuccessModal({
+          orderNumber: order.orderNumber || `#${order._id?.slice(-6)}`,
+          orderId: order._id,
+          total: total,
+          method: 'Wallet',
+          slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
+        });
         return;
       }
 
@@ -256,10 +260,14 @@ const CartScreen = ({ route, navigation }) => {
       await clearCart();
       if (fetchUser) await fetchUser();
 
-      Alert.alert('Payment Successful! 🎉', `Order ${currentOrder.orderNumber || ''} has been placed and confirmed via UPI (UTR: ${cleanUtr}).`, [
-        { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: currentOrder._id }) },
-        { text: 'Shop More', onPress: () => navigation.navigate('Shop') }
-      ]);
+      setOrderSuccessModal({
+        orderNumber: currentOrder.orderNumber || `#${currentOrder._id?.slice(-6)}`,
+        orderId: currentOrder._id,
+        total: total,
+        method: 'UPI',
+        utr: cleanUtr,
+        slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
+      });
     } catch (err) {
       Alert.alert(
         'Verification Failed',
@@ -346,7 +354,7 @@ const CartScreen = ({ route, navigation }) => {
           <ShoppingCart size={56} color={theme.colors.textDim} />
           <Text style={styles.emptyTitle}>Your cart is empty</Text>
           <Text style={styles.emptyDesc}>Add items from a nearby shop to get started</Text>
-          <TouchableOpacity style={styles.browseBtn} onPress={() => navigation?.navigate('Shop')}>
+          <TouchableOpacity style={styles.browseBtn} onPress={() => navigation?.navigate('Shop', { screen: 'ShopMain' })}>
             <Text style={styles.browseBtnText}>Browse Shops</Text>
           </TouchableOpacity>
         </View>
@@ -726,6 +734,65 @@ const CartScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Custom Order Placed Success Modal */}
+      <Modal visible={Boolean(orderSuccessModal)} transparent animationType="fade" onRequestClose={() => setOrderSuccessModal(null)}>
+        <View style={styles.successModalOverlay}>
+          <View style={styles.successModalCard}>
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              style={styles.successBadgeCircle}
+            >
+              <Check size={36} color="#FFFFFF" />
+            </LinearGradient>
+
+            <Text style={styles.successModalTitle}>Order Placed! 🎉</Text>
+            <Text style={styles.successModalSub}>
+              Order <Text style={{ fontWeight: '800', color: theme.colors.text }}>{orderSuccessModal?.orderNumber}</Text> has been placed successfully.
+            </Text>
+
+            <View style={styles.successDetailsBox}>
+              <View style={styles.successDetailRow}>
+                <Text style={styles.successDetailKey}>Amount Paid</Text>
+                <Text style={styles.successDetailVal}>₹{orderSuccessModal?.total}</Text>
+              </View>
+              <View style={styles.successDetailRow}>
+                <Text style={styles.successDetailKey}>Payment Method</Text>
+                <Text style={styles.successDetailVal}>{orderSuccessModal?.method}</Text>
+              </View>
+              {orderSuccessModal?.slot ? (
+                <View style={styles.successDetailRow}>
+                  <Text style={styles.successDetailKey}>Delivery Slot</Text>
+                  <Text style={[styles.successDetailVal, { color: '#6C47FF' }]}>{orderSuccessModal.slot}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <TouchableOpacity
+              style={styles.trackOrderBtn}
+              activeOpacity={0.85}
+              onPress={() => {
+                const oid = orderSuccessModal?.orderId;
+                setOrderSuccessModal(null);
+                navigation.navigate('OrderTracking', { orderId: oid });
+              }}
+            >
+              <Text style={styles.trackOrderBtnText}>🚚 Track Order</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.continueShopBtn}
+              activeOpacity={0.8}
+              onPress={() => {
+                setOrderSuccessModal(null);
+                navigation.navigate('Shop', { screen: 'ShopMain' });
+              }}
+            >
+              <Text style={styles.continueShopBtnText}>Continue Shopping</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -848,6 +915,21 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
 
   cancelUpiBtn: { alignItems: 'center', paddingVertical: 10 },
   cancelUpiText: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim },
+
+  // Order Success Modal Styles
+  successModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  successModalCard: { width: '100%', maxWidth: 360, backgroundColor: theme.colors.surface, borderRadius: 24, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },
+  successBadgeCircle: { width: 68, height: 68, borderRadius: 34, justifyContent: 'center', alignItems: 'center', marginBottom: 16, elevation: 4 },
+  successModalTitle: { fontSize: 22, fontWeight: '900', color: theme.colors.text, marginBottom: 8, textAlign: 'center' },
+  successModalSub: { fontSize: 13, color: theme.colors.textDim, textAlign: 'center', lineHeight: 18, marginBottom: 18 },
+  successDetailsBox: { width: '100%', backgroundColor: theme.colors.background, borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: theme.colors.border },
+  successDetailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
+  successDetailKey: { fontSize: 12, color: theme.colors.textDim, fontWeight: '600' },
+  successDetailVal: { fontSize: 13, color: theme.colors.text, fontWeight: '800' },
+  trackOrderBtn: { width: '100%', backgroundColor: theme.colors.primary, paddingVertical: 15, borderRadius: 14, alignItems: 'center', marginBottom: 10 },
+  trackOrderBtnText: { fontSize: 15, fontWeight: '900', color: '#001016' },
+  continueShopBtn: { width: '100%', backgroundColor: theme.colors.background, paddingVertical: 13, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },
+  continueShopBtnText: { fontSize: 14, fontWeight: '700', color: theme.colors.text },
 });
 
 export default CartScreen;

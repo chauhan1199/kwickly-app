@@ -107,6 +107,7 @@ const ShopOrdersScreen = ({ navigation }) => {
             bg,
             label,
             time: dateStr,
+            slot: order.deliverySlot?.time || order.deliverySlot?.label || (typeof order.deliverySlot === 'string' ? order.deliverySlot : ''),
             originalOrder: order
           };
         });
@@ -238,6 +239,11 @@ const ShopOrdersScreen = ({ navigation }) => {
                       <Text style={styles.itemsSummary} numberOfLines={1}>
                         📦 {order.itemsSummary}
                       </Text>
+                    ) : null}
+                    {order.slot ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, backgroundColor: '#6C47FF12', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#6C47FF' }}>🕒 {order.slot}</Text>
+                      </View>
                     ) : null}
                   </View>
 

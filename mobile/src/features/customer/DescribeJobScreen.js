@@ -431,11 +431,24 @@ const DescribeJobScreen = ({ route, navigation }) => {
         type: 'Point',
         coordinates: [72.5714, 23.0225], // Default Ahmedabad coordinates
       };
-      if (location?.coordinates && Array.isArray(location.coordinates) && location.coordinates.length === 2) {
+      if (location?.coordinates && Array.isArray(location.coordinates) && location.coordinates.length === 2 && (Number(location.coordinates[0]) !== 72.5714 || Number(location.coordinates[1]) !== 23.0225)) {
         jobLocation = {
           type: 'Point',
           coordinates: [Number(location.coordinates[0]), Number(location.coordinates[1])],
         };
+      } else if (address?.trim()) {
+        try {
+          const cleanAddr = address.trim();
+          const pUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanAddr)}&limit=1`;
+          const pRes = await fetch(pUrl, { headers: { 'User-Agent': 'KwicklyApp/1.0' } });
+          const pData = await pRes.json();
+          if (pData?.features?.[0]?.geometry?.coordinates?.length === 2) {
+            const [lon, lat] = pData.features[0].geometry.coordinates;
+            jobLocation = { type: 'Point', coordinates: [Number(lon), Number(lat)] };
+          }
+        } catch (geoErr) {
+          console.log('[DescribeJob] geocode fallback error:', geoErr.message);
+        }
       }
 
       // Upload media files first, then send URLs to backend

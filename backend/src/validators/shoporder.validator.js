@@ -16,8 +16,9 @@ const placeOrderSchema = Joi.object({
         type: Joi.string().valid('Point').default('Point'),
         coordinates: Joi.array().items(Joi.number()).length(2).required()
     }).required(),
+    deliverySlot: Joi.alternatives().try(Joi.string(), Joi.object()).optional(),
     promoCode: Joi.string().optional()
-});
+}).unknown(true);
 
 const updateOrderStatusSchema = Joi.object({
     status: Joi.string().valid('CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED').required(),

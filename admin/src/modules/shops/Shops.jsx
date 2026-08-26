@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { getImageUrl } from '../../services/api'
 import Toast from '../../components/Toast'
@@ -12,7 +13,7 @@ import { TextInput, TextArea, FormRow, validators } from '../../components/FormI
 import MapPicker from '../../components/MapPicker'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
-import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Package, Store, Copy, Upload, Wallet, FileText, Clock, Truck, CreditCard, User, Banknote } from 'lucide-react'
+import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Package, Store, Copy, Upload, Wallet, FileText, Clock, Truck, CreditCard, User, Banknote, ShoppingBag } from 'lucide-react'
 
 const PAGE_SIZE = 15
 const KYC_VARIANT = { APPROVED: 'success', PENDING: 'warning', REJECTED: 'danger' }
@@ -64,6 +65,7 @@ const validateUpi = (val) => {
 }
 
 export default function Shops() {
+  const navigate = useNavigate()
   const api = useAbortableRequest()
   const [kycFilter, setKycFilter] = useState('all')
   const filterCallback = useCallback((s) => {
@@ -1286,17 +1288,24 @@ export default function Shops() {
               {/* Shop Actions */}
               <div className="divider" />
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Shop Actions</div>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
                   className={detail.isOnline ? 'btn-danger' : 'btn-primary'}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: 130 }}
                   onClick={() => setConfirm({ type: 'toggle_shop', id: detail._id, name: detail.name, isOnline: detail.isOnline })}
                 >
                   {detail.isOnline ? 'Deactivate Shop' : 'Activate Shop'}
                 </button>
                 <button
                   className="btn-secondary"
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: 120 }}
+                  onClick={() => { setDetail(null); navigate('/orders?search=' + encodeURIComponent(detail.name)); }}
+                >
+                  <ShoppingBag size={14} /> View Orders
+                </button>
+                <button
+                  className="btn-secondary"
+                  style={{ flex: 1, minWidth: 110 }}
                   onClick={() => { openEditShop(detail); setDetail(null); }}
                 >
                   <Edit3 size={14} /> Edit Shop
