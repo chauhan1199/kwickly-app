@@ -249,6 +249,7 @@ const CartScreen = ({ route, navigation }) => {
       const verifyRes = await walletService.verifyPayment({
         razorpayOrderId: upiOrderData?.razorpayOrderId || `upi_${Date.now()}`,
         upiTransactionId: cleanUtr,
+        utrNumber: cleanUtr,
         razorpayPaymentId: cleanUtr,
         razorpaySignature: 'upi_verified',
         orderId: currentOrder._id

@@ -59,6 +59,24 @@ exports.getAdminActivityLogs = catchAsync(async (req, res) => {
     }, 'Activity logs fetched');
 });
 
+const cleanMojibake = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str
+        .replace(/ðŸ›Žï¸|ðŸ›Ž|ðŸ›/g, '🛍️ ')
+        .replace(/âœ…|âœ\.\.\.|âœ“|âœ/g, '✅ ')
+        .replace(/ðŸŽ‰/g, '🎉 ')
+        .replace(/âŒ/g, '❌ ')
+        .replace(/ðŸ’°|ðŸ’/g, '💰 ')
+        .replace(/ðŸ””/g, '🔔 ')
+        .replace(/ðŸšš/g, '🚚 ')
+        .replace(/ðŸ‘‹/g, '👋 ')
+        .replace(/ðŸ› ï¸|ðŸ› /g, '🛠️ ')
+        .replace(/âœ¨/g, '✨ ')
+        .replace(/Â/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+
 // ─── User: get MY notifications (DIRECT + BROADCAST for my role) ──────────────
 exports.getMyNotifications = catchAsync(async (req, res) => {
     const userId = req.user._id;
@@ -78,11 +96,18 @@ exports.getMyNotifications = catchAsync(async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(100);
 
+    const cleanedNotifications = notifications.map(n => {
+        const obj = n.toObject ? n.toObject() : { ...n };
+        obj.title = cleanMojibake(obj.title);
+        obj.message = cleanMojibake(obj.message);
+        return obj;
+    });
+
     const unreadCount = notifications.filter(
         n => !n.readBy.some(id => id.toString() === userId.toString())
     ).length;
 
-    return successResponse(res, { notifications, unreadCount }, 'Notifications fetched');
+    return successResponse(res, { notifications: cleanedNotifications, unreadCount }, 'Notifications fetched');
 });
 
 // ─── User: mark one as read ───────────────────────────────────────────────────

@@ -118,11 +118,15 @@ exports.verifyPayment = catchAsync(async (req, res) => {
     }
 
     const upiRef = (upiTransactionId || utrNumber || razorpayPaymentId || '').toString().trim();
-    const isUpiOrder = razorpayOrderId.startsWith('upi_') || (upiTransactionId && upiTransactionId.length > 0) || (utrNumber && utrNumber.length > 0) || (razorpayPaymentId && !razorpaySignature);
+    const isUpiOrder = razorpayOrderId.startsWith('upi_') || 
+                       Boolean(upiTransactionId) || 
+                       Boolean(utrNumber) || 
+                       razorpaySignature === 'upi_verified' || 
+                       !razorpaySignature;
 
     if (isUpiOrder) {
         if (!upiRef || upiRef.length < 4) {
-            return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.', StatusCodes.BAD_REQUEST);
+            return errorResponse(res, 'Please enter your 12-digit UPI Reference / UTR Number or Transaction ID from your payment receipt.', StatusCodes.BAD_REQUEST);
         }
 
         // Anti-replay / duplicate UTR check across past transactions
@@ -132,7 +136,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         }).lean();
 
         if (existingTxn) {
-            return errorResponse(res, 'This UPI Reference / Transaction ID has already been processed and credited.', StatusCodes.CONFLICT);
+            return errorResponse(res, 'This UPI Reference / Transaction ID has already been credited to your wallet.', StatusCodes.CONFLICT);
         }
 
         const existingPayment = await Payment.findOne({
@@ -142,7 +146,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         }).lean();
 
         if (existingPayment) {
-            return errorResponse(res, 'This UPI Reference / Transaction ID has already been used for another order.', StatusCodes.CONFLICT);
+            return errorResponse(res, 'This UPI Reference / Transaction ID has already been used for another payment.', StatusCodes.CONFLICT);
         }
     } else {
         // Verify signature for Razorpay

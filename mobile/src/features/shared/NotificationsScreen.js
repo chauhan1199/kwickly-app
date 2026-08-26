@@ -69,6 +69,24 @@ const NotificationsScreen = ({ navigation }) => {
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
+const cleanNotificationText = (str) => {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/ðŸ›Žï¸ |ðŸ›Ž|ðŸ›/g, '🛍️ ')
+    .replace(/âœ…|âœ\.\.\.|âœ“|âœ/g, '✅ ')
+    .replace(/ðŸŽ‰/g, '🎉 ')
+    .replace(/âŒ/g, '❌ ')
+    .replace(/ðŸ’°|ðŸ’/g, '💰 ')
+    .replace(/ðŸ””/g, '🔔 ')
+    .replace(/ðŸšš/g, '🚚 ')
+    .replace(/ðŸ‘‹/g, '👋 ')
+    .replace(/ðŸ› ï¸ |ðŸ› /g, '🛠️ ')
+    .replace(/âœ¨/g, '✨ ')
+    .replace(/Â/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
     try {
@@ -77,8 +95,8 @@ const NotificationsScreen = ({ navigation }) => {
         const userId = user?._id;
         const mapped = res.data.data.notifications.map(n => ({
           id:        n._id,
-          title:     n.title,
-          body:      n.message,
+          title:     cleanNotificationText(n.title),
+          body:      cleanNotificationText(n.message),
           typeKey:   mapType(n.entityType, n.action),
           action:    n.action,
           entityType: n.entityType,

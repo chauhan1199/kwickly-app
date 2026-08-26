@@ -157,6 +157,7 @@ const CustomerWalletScreen = ({ navigation }) => {
       const verifyRes = await walletService.verifyPayment({
         razorpayOrderId: upiOrderData.razorpayOrderId,
         upiTransactionId: cleanUtr,
+        utrNumber: cleanUtr,
         razorpayPaymentId: cleanUtr,
         razorpaySignature: 'upi_verified',
         purpose: 'wallet_topup',
