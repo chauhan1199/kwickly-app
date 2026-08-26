@@ -8,7 +8,8 @@ const CustomerSchema = new mongoose.Schema({
     isVerified: { type: Boolean, default: false },
     name: { type: String },
     profileImage: { type: String },
-    
+
+
     // Worker specific fields
     wallet: {
         balance: { type: Number, default: 0 },
@@ -32,9 +33,9 @@ const CustomerSchema = new mongoose.Schema({
         }]
     },
     subscription: {
-        planId:       { type: String },
-        expiryDate:   { type: Date },
-        isTrial:      { type: Boolean, default: true },
+        planId: { type: String },
+        expiryDate: { type: Date },
+        isTrial: { type: Boolean, default: true },
         trialEndDate: { type: Date }   // ← registration date + trialDurationDays
     },
     activeLocation: {
@@ -64,10 +65,10 @@ const CustomerSchema = new mongoose.Schema({
     serviceRadius: { type: Number, default: 10 }, // in km
     services: {
         type: [{
-            category:     { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+            category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
             categoryName: { type: String },  // ← denormalized name for fast category filtering
             subcategories: [{ type: String }],
-            isActive:     { type: Boolean, default: true }
+            isActive: { type: Boolean, default: true }
         }],
         validate: [arr => arr.length <= 20, 'Maximum 20 services']
     },

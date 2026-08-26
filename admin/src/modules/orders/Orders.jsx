@@ -6,7 +6,7 @@ import ConfirmModal from '../../components/ConfirmModal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import Drawer from '../../components/common/Drawer'
-import { Search, RefreshCw, Eye, Truck, XCircle, Copy } from 'lucide-react'
+import { Search, RefreshCw, Eye, Truck, XCircle, Copy, CheckCircle, ShieldAlert } from 'lucide-react'
 
 const PAGE_SIZE = 15
 const STATUS_VARIANT = {
@@ -65,6 +65,20 @@ export default function Orders() {
     setConfirm(null)
   }
 
+  const verifyPayment = async (orderId, action, reason = 'Fake / Unreceived UTR') => {
+    try {
+      const res = await api.post(`/shoporders/${orderId}/verify-payment`, { action, reason })
+      if (res.data.status === 'success') {
+        const updated = res.data.data
+        setOrders(prev => prev.map(o => o._id === orderId ? { ...o, payment: updated.payment, status: updated.status } : o))
+        if (detail?._id === orderId) setDetail(prev => ({ ...prev, payment: updated.payment, status: updated.status }))
+        showToast(action === 'approve' ? 'Payment approved & confirmed' : 'Payment rejected & order cancelled', action === 'approve' ? 'success' : 'info')
+      }
+    } catch {
+      showToast('Failed to verify payment', 'error')
+    }
+  }
+
   const cancelOrder = async (orderId) => {
     await updateStatus(orderId, 'CANCELLED')
     setDetail(null)
@@ -73,7 +87,8 @@ export default function Orders() {
   const filtered = orders.filter(o => {
     const matchSearch = (o.orderNumber || o._id?.slice(-6) || '').toLowerCase().includes(search.toLowerCase()) ||
       o.customerId?.name?.toLowerCase().includes(search.toLowerCase()) ||
-      o.shopId?.name?.toLowerCase().includes(search.toLowerCase())
+      o.shopId?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      (o.payment?.utrNumber || '').toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'all' || o.status === statusFilter
     return matchSearch && matchStatus
   })
@@ -106,7 +121,7 @@ export default function Orders() {
       <div className="page-header">
         <div>
           <div className="page-title">Order Management</div>
-          <div className="page-subtitle">Manage all shop orders — update status, view details, cancel on behalf of shop owners</div>
+          <div className="page-subtitle">Manage all shop orders — update status, view details, verify UPI payments</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-secondary" onClick={fetchOrders}><RefreshCw size={16} /> Refresh</button>
@@ -133,7 +148,7 @@ export default function Orders() {
       <div className="filters-row">
         <div className="search-box">
           <Search size={16} />
-          <input placeholder="Search order #, customer, shop..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input placeholder="Search order #, customer, shop, UTR..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="filter-tabs">
           {['all', 'NEW', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map(f => (
@@ -173,6 +188,7 @@ export default function Orders() {
                 <tbody>
                   {paged.map(o => {
                     const next = getNextStatus(o.status)
+                    const isPendingUpi = o.payment?.status === 'PENDING_VERIFICATION' || (o.paymentMethod === 'UPI' && o.payment?.status !== 'PAID')
                     return (
                       <tr key={o._id}>
                         <td>
@@ -190,7 +206,18 @@ export default function Orders() {
                         </td>
                         <td><strong>{o.items?.length || 0}</strong> items</td>
                         <td><strong>₹{(o.total || 0).toLocaleString('en-IN')}</strong></td>
-                        <td><span className={`badge badge-${o.paymentMethod === 'COD' ? 'warning' : 'success'}`}>{o.paymentMethod || '—'}</span></td>
+                        <td>
+                          <div>
+                            <span className={`badge badge-${o.payment?.status === 'PAID' || o.paymentMethod === 'WALLET' ? 'success' : isPendingUpi ? 'warning' : 'info'}`}>
+                              {isPendingUpi ? '⏳ UPI Pending' : o.paymentMethod || o.payment?.method || 'UPI'}
+                            </span>
+                            {o.payment?.utrNumber && (
+                              <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--mid)', marginTop: 2 }}>
+                                UTR: {o.payment.utrNumber}
+                              </div>
+                            )}
+                          </div>
+                        </td>
                         <td><span className={`badge badge-${STATUS_VARIANT[o.status] || 'gray'}`}>{STATUS_LABEL[o.status] || o.status}</span></td>
                         <td style={{ fontSize: 12, color: 'var(--mid)' }}>{new Date(o.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                         <td>
@@ -251,10 +278,58 @@ export default function Orders() {
               <div className="detail-row"><span>Customer</span><strong>{detail.customerId?.name || '—'} · {detail.customerId?.phone || '—'}</strong></div>
               <div className="detail-row"><span>Shop</span><strong>{detail.shopId?.name || '—'}</strong></div>
               <div className="detail-row"><span>Delivery Slot</span><strong style={{ color: 'var(--primary)' }}>{detail.deliverySlot?.time || detail.deliverySlot?.label || (typeof detail.deliverySlot === 'string' ? detail.deliverySlot : 'Standard Delivery')}</strong></div>
-              <div className="detail-row"><span>Payment</span><strong>{detail.paymentMethod || '—'}</strong></div>
+              <div className="detail-row">
+                <span>Payment</span>
+                <strong>
+                  {detail.paymentMethod || detail.payment?.method || 'UPI'}
+                  <span style={{ marginLeft: 6, fontSize: 11, color: detail.payment?.status === 'PAID' ? '#10B981' : '#F59E0B' }}>
+                    ({detail.payment?.status || 'PENDING'})
+                  </span>
+                </strong>
+              </div>
+              {detail.payment?.utrNumber && (
+                <div className="detail-row">
+                  <span>12-Digit UTR</span>
+                  <strong style={{ fontFamily: 'monospace', color: '#F59E0B' }}>{detail.payment.utrNumber}</strong>
+                </div>
+              )}
               <div className="detail-row"><span>Delivery Address</span><strong>{detail.deliveryAddress || '—'}</strong></div>
               <div className="detail-row"><span>Date</span><strong>{new Date(detail.createdAt).toLocaleString('en-IN')}</strong></div>
             </div>
+
+            {/* Anti-Fraud Pending UTR Alert inside Drawer */}
+            {(detail.payment?.status === 'PENDING_VERIFICATION' || (detail.paymentMethod === 'UPI' && detail.payment?.status !== 'PAID')) && (
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                borderRadius: 10,
+                padding: 14,
+                marginTop: 16
+              }}>
+                <div style={{ fontWeight: 800, color: '#F59E0B', fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ShieldAlert size={16} /> Direct UPI Payment Verification Required
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--mid)', marginBottom: 12 }}>
+                  Customer submitted 12-digit UTR: <strong style={{ color: '#fff', fontFamily: 'monospace' }}>{detail.payment?.utrNumber || '—'}</strong>. Verify this in your bank account before approving.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-success btn-sm"
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    onClick={() => verifyPayment(detail._id, 'approve')}
+                  >
+                    <CheckCircle size={14} /> Confirm Bank Credit
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    onClick={() => verifyPayment(detail._id, 'reject', 'Fake / Unreceived UTR in bank')}
+                  >
+                    <XCircle size={14} /> Reject (Fake UTR)
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Items */}
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Items</div>

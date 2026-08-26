@@ -187,6 +187,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         }
 
         const finalPaymentId = upiRef || razorpayPaymentId || `upi_txn_${Date.now()}`;
+        const isManualUpi = Boolean(upiRef) && (!razorpaySignature || razorpaySignature === 'upi_verified');
 
         if (!payment) {
             // Create record if not found
@@ -195,7 +196,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 razorpayOrderId,
                 amount: req.body.amount || 0,
                 userId: req.user._id,
-                status: 'CAPTURED',
+                status: isManualUpi ? 'PENDING' : 'CAPTURED',
                 method: 'UPI',
                 razorpayPaymentId: finalPaymentId,
                 razorpaySignature: razorpaySignature || 'upi_verified'
@@ -204,7 +205,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
             payment.razorpayPaymentId = finalPaymentId;
             payment.razorpaySignature = razorpaySignature || 'upi_verified';
             payment.method = 'UPI';
-            payment.status = 'CAPTURED';
+            payment.status = isManualUpi ? 'PENDING' : 'CAPTURED';
             await payment.save(sessOpts);
         }
 
@@ -213,16 +214,24 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         if (targetOrderId) {
             const order = await ShopOrder.findById(targetOrderId).session(session);
             if (order) {
-                order.payment.status = 'PAID';
+                order.payment.status = isManualUpi ? 'PENDING_VERIFICATION' : 'PAID';
                 order.payment.razorpayOrderId = razorpayOrderId;
                 order.payment.razorpayPaymentId = payment.razorpayPaymentId;
+                order.payment.utrNumber = finalPaymentId;
                 order.payment.method = 'UPI';
-                order.statusHistory.push({ status: order.status, timestamp: new Date(), note: `UPI Payment verified successfully (UTR: ${finalPaymentId})` });
+                order.statusHistory.push({
+                    status: order.status,
+                    timestamp: new Date(),
+                    note: isManualUpi
+                        ? `Direct UPI payment submitted (UTR: ${finalPaymentId} - Pending Verification)`
+                        : `UPI Payment verified successfully (UTR: ${finalPaymentId})`
+                });
                 await order.save(sessOpts);
 
-                // Credit Admin Treasury for shop order collection
-                const orderAmount = order.totalAmount || payment.amount || req.body.amount || 0;
-                if (orderAmount > 0) {
+                const orderAmount = order.total || order.totalAmount || payment.amount || req.body.amount || 0;
+
+                // Credit Admin Treasury ONLY for cryptographically verified gateway payments
+                if (!isManualUpi && orderAmount > 0) {
                     const adminW = await AdminWallet.findOneAndUpdate(
                         {},
                         { $inc: { balance: orderAmount, totalCollected: orderAmount } },
@@ -246,9 +255,28 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', {
                     orderId: order._id,
                     status: order.status,
-                    paymentStatus: 'PAID'
+                    paymentStatus: isManualUpi ? 'PENDING_VERIFICATION' : 'PAID',
+                    utr: finalPaymentId
                 });
-                emitToAll('DASHBOARD_UPDATE', { type: 'ORDER_PAYMENT_RECEIVED', id: order._id });
+                emitToAll('DASHBOARD_UPDATE', {
+                    type: isManualUpi ? 'PENDING_ORDER_PAYMENT' : 'ORDER_PAYMENT_RECEIVED',
+                    id: order._id,
+                    orderNumber: order.orderNumber,
+                    utr: finalPaymentId,
+                    amount: orderAmount
+                });
+
+                if (isManualUpi) {
+                    if (useTransaction) await session.commitTransaction();
+                    if (useTransaction) session.endSession();
+                    return successResponse(res, {
+                        paymentId: payment._id,
+                        status: 'PENDING_VERIFICATION',
+                        utr: finalPaymentId,
+                        orderId: order._id,
+                        orderNumber: order.orderNumber
+                    }, `Order placed! UPI Reference (UTR: ${finalPaymentId}) submitted for verification.`);
+                }
             }
         }
 

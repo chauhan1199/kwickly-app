@@ -14,6 +14,7 @@ router.post('/:id/cancel',  authMiddleware, authorize('CUSTOMER'), ctrl.cancelOr
 // Shop owner / Admin
 router.get('/shop',         authMiddleware, authorize('SHOP'),     ctrl.getShopOrders);
 router.patch('/:id/status', authMiddleware, authorize('SHOP', 'ADMIN'), validate(updateOrderStatusSchema), ctrl.updateOrderStatus);
+router.post('/:id/verify-payment', authMiddleware, authorize('SHOP', 'ADMIN'), ctrl.verifyShopOrderPayment);
 
 // Admin
 router.get('/all',          authMiddleware, authorize('ADMIN'),    ctrl.getAllOrders);

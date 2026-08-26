@@ -879,13 +879,21 @@ const CartScreen = ({ route, navigation }) => {
 
             <View style={styles.successDetailsBox}>
               <View style={styles.successDetailRow}>
-                <Text style={styles.successDetailKey}>Amount Paid</Text>
+                <Text style={styles.successDetailKey}>Order Total</Text>
                 <Text style={styles.successDetailVal}>₹{orderSuccessModal?.total}</Text>
               </View>
               <View style={styles.successDetailRow}>
                 <Text style={styles.successDetailKey}>Payment Method</Text>
-                <Text style={styles.successDetailVal}>{orderSuccessModal?.method}</Text>
+                <Text style={styles.successDetailVal}>{orderSuccessModal?.method || 'Wallet'}</Text>
               </View>
+              {orderSuccessModal?.utr ? (
+                <View style={styles.successDetailRow}>
+                  <Text style={styles.successDetailKey}>UTR / Status</Text>
+                  <Text style={[styles.successDetailVal, { color: '#F59E0B', fontSize: 12 }]}>
+                    ⏳ Pending Verification ({orderSuccessModal.utr})
+                  </Text>
+                </View>
+              ) : null}
               {orderSuccessModal?.slot ? (
                 <View style={styles.successDetailRow}>
                   <Text style={styles.successDetailKey}>Delivery Slot</Text>

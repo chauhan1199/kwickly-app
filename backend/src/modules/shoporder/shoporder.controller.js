@@ -9,6 +9,7 @@ const WalletTxn  = require('../wallet/wallet.model');
 const Promotion  = require('../promotion/promotion.model');
 const Settlement = require('../settlement/settlement.model');
 const AppSettings = require('../settings/settings.model');
+const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const logger = require('../../helpers/logger.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -758,3 +759,111 @@ exports.getAllOrders = catchAsync(async (req, res) => {
 
     return successResponse(res, { orders, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'All orders fetched');
 });
+
+/**
+ * POST /api/v1/shoporders/:id/verify-payment (Admin / Shop)
+ * Confirms that direct UPI payment (UTR) has arrived in the bank account.
+ */
+exports.verifyShopOrderPayment = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { action = 'approve', reason = 'Fake / Invalid UTR' } = req.body;
+
+    const order = await ShopOrder.findById(id).populate('customerId', 'name phone');
+    if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
+
+    if (action === 'approve') {
+        order.payment.status = 'PAID';
+        order.statusHistory.push({
+            status: order.status,
+            timestamp: new Date(),
+            note: `Payment verified & confirmed by Admin (UTR: ${order.payment?.utrNumber || 'UPI'})`
+        });
+        await order.save();
+
+        // Credit Admin Treasury Escrow
+        const orderAmount = order.total || 0;
+        if (orderAmount > 0) {
+            const adminW = await AdminWallet.findOneAndUpdate(
+                {},
+                { $inc: { balance: orderAmount, totalCollected: orderAmount } },
+                { returnDocument: 'after', upsert: true }
+            );
+            if (adminW) {
+                await AdminWalletTxn.create([{
+                    type: 'TOPUP',
+                    amount: orderAmount,
+                    balanceAfter: adminW.balance,
+                    description: `Shop Order #${order.orderNumber || order._id} UPI payment verified (UTR: ${order.payment?.utrNumber})`,
+                    referenceId: order._id,
+                    referenceModel: 'ShopOrder',
+                    meta: { userId: order.customerId?._id, orderId: order._id, utr: order.payment?.utrNumber }
+                }]);
+            }
+        }
+
+        // Notify customer
+        notifyUser({
+            userId: order.customerId?._id || order.customerId,
+            title: 'Payment Verified! 🎉',
+            message: `Your payment of ₹${order.total} for Order #${order.orderNumber} has been verified and confirmed.`,
+            action: 'ORDER_PAYMENT_CONFIRMED',
+            entityType: 'ORDER',
+            entityId: order._id,
+            targetRole: 'CUSTOMER'
+        });
+
+        emitToRoom(`customer_${order.customerId?._id || order.customerId}`, 'ORDER_STATUS', {
+            orderId: order._id,
+            status: order.status,
+            paymentStatus: 'PAID'
+        });
+        emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', {
+            orderId: order._id,
+            status: order.status,
+            paymentStatus: 'PAID'
+        });
+        emitToAll('DASHBOARD_UPDATE', { type: 'ORDER_PAYMENT_CONFIRMED', id: order._id });
+
+        return successResponse(res, order, 'Payment approved and confirmed successfully');
+    } else {
+        // Reject fake UTR -> cancel order and restore stock
+        for (const item of order.items) {
+            if (item.productId) {
+                await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } });
+            }
+        }
+        order.status = 'CANCELLED';
+        order.payment.status = 'FAILED';
+        order.statusHistory.push({
+            status: 'CANCELLED',
+            timestamp: new Date(),
+            note: `Payment rejected: ${reason}`
+        });
+        await order.save();
+
+        notifyUser({
+            userId: order.customerId?._id || order.customerId,
+            title: 'Payment Verification Failed ❌',
+            message: `Your payment for Order #${order.orderNumber} could not be verified (${reason}). The order has been cancelled.`,
+            action: 'ORDER_CANCELLED',
+            entityType: 'ORDER',
+            entityId: order._id,
+            targetRole: 'CUSTOMER'
+        });
+
+        emitToRoom(`customer_${order.customerId?._id || order.customerId}`, 'ORDER_STATUS', {
+            orderId: order._id,
+            status: 'CANCELLED',
+            paymentStatus: 'FAILED'
+        });
+        emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', {
+            orderId: order._id,
+            status: 'CANCELLED',
+            paymentStatus: 'FAILED'
+        });
+        emitToAll('DASHBOARD_UPDATE', { type: 'ORDER_STATUS_CHANGED', id: order._id });
+
+        return successResponse(res, order, `Payment rejected and order cancelled (${reason})`);
+    }
+});
+
