@@ -93,33 +93,23 @@ const sweepBroadcastingJobs = async () => {
         const nextRound = (job.broadcast.round || 1) + 1;
 
         if (nextRound > 3) {
-            // Check if it's a scheduled job in the future
-            const isScheduled = job.preferredDate && new Date(job.preferredDate) > new Date();
-
-            if (isScheduled) {
-                // Don't cancel scheduled jobs. Delay next broadcast by 30 minutes to avoid spam.
-                logger.info(`[Cron] Scheduled Job ${job._id} passed 3 rounds. Delaying next broadcast.`);
-                job.broadcast.lastAttemptAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
-                await job.save();
-                continue;
-            }
-
-            // Auto cancel after 3 rounds
-            logger.info(`[Cron] Cancelling job ${job._id} after 3 rounds (No workers found)`);
+            // Auto cancel after 3 rounds (75km radius search completed with 0 bids/workers)
+            logger.info(`[Cron] Auto-cancelling job ${job._id} after 3 search rounds (No workers found)`);
             job.status = 'CANCELLED';
-            job.cancelReason = 'No workers found nearby after expanding search radius.';
+            job.cancelReason = 'No workers found nearby after searching up to 75 km.';
+            job.broadcast.round = 3;
             await job.save();
             
             emitToRoom(`customer_${job.customerId?._id || job.customerId}`, 'JOB_STATUS_CHANGED', { 
                 jobId: job._id, 
                 status: 'CANCELLED', 
-                reason: 'No workers found nearby after expanding search radius.' 
+                reason: 'No workers found nearby after searching in 3 rounds up to 75 km.' 
             });
 
             notifyUser({
                 userId: job.customerId?._id || job.customerId,
-                title: 'Job Cancelled — No Workers Nearby',
-                message: `We searched up to ${job.broadcast?.radiusKm || (3 * maxRadius)} km but could not find available workers for your "${job.category}${job.subcategory ? ' - ' + job.subcategory : ''}" request. Tap to re-post or re-book anytime.`,
+                title: 'Job Request Cancelled',
+                message: `We searched in 3 rounds up to ${job.broadcast?.radiusKm || (3 * maxRadius)} km, but could not find available workers for your "${job.category}${job.subcategory ? ' - ' + job.subcategory : ''}" request. Please feel free to re-post anytime.`,
                 action: 'JOB_CANCELLED',
                 entityType: 'JOB',
                 entityId: job._id,

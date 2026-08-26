@@ -61,21 +61,39 @@ const CartScreen = ({ route, navigation }) => {
 
   const loadDeliverySlots = useCallback(async () => {
     try {
-      const shopId = typeof cart?.shopId === 'object' ? cart.shopId._id : cart?.shopId;
+      const shopId = typeof cart?.shopId === 'object' ? (cart.shopId._id || cart.shopId.id) : cart?.shopId;
       if (!shopId) return;
       const res = await shopService.getShopById(shopId);
-      const shopData = res.data?.data;
-      if (shopData?.deliveryConfig?.deliverySlots) {
-        setSlots(shopData.deliveryConfig.deliverySlots);
-      } else if (shopData?.delivery) {
-        const d = shopData.delivery;
-        if (d.estimatedMinutes) {
-          const now = new Date();
-          const eta = new Date(now.getTime() + d.estimatedMinutes * 60000);
-          setSlots([{ label: `By ${eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, slotOpen: now.toISOString(), slotClose: eta.toISOString() }]);
-        }
+      const shopData = res.data?.data || res.data;
+      const rawSlots = shopData?.deliveryConfig?.deliverySlots || shopData?.deliverySlots || [];
+      if (Array.isArray(rawSlots) && rawSlots.length > 0) {
+        const formatted = rawSlots.map(s => {
+          const slotLabel = (s.label || '').trim();
+          const timeRange = s.slotOpen && s.slotClose ? `${s.slotOpen} - ${s.slotClose}` : '';
+          const display = slotLabel && timeRange ? `${slotLabel} (${timeRange})` : (slotLabel || timeRange || 'Standard');
+          return {
+            label: display,
+            slotOpen: s.slotOpen,
+            slotClose: s.slotClose,
+            time: display
+          };
+        });
+        setSlots(formatted);
+        setSelectedSlot(prev => prev || formatted[0]);
+      } else {
+        const now = new Date();
+        const eta = new Date(now.getTime() + 45 * 60000);
+        const fallbackSlots = [
+          { label: `Instant Delivery (By ${eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`, time: 'Instant Delivery' },
+          { label: 'Morning Slot (10:00 AM - 1:00 PM)', time: 'Morning (10:00 - 13:00)' },
+          { label: 'Evening Slot (5:00 PM - 8:00 PM)', time: 'Evening (17:00 - 20:00)' }
+        ];
+        setSlots(fallbackSlots);
+        setSelectedSlot(prev => prev || fallbackSlots[0]);
       }
-    } catch (e) { Alert.alert('Error', 'Could not load delivery slots'); }
+    } catch (e) {
+      console.warn('Could not load delivery slots:', e);
+    }
   }, [cart?.shopId]);
 
   const handleApplyPromo = async () => {
@@ -93,7 +111,7 @@ const CartScreen = ({ route, navigation }) => {
 
   const handlePlaceOrder = async () => {
     if (!cart || !cart.items?.length) return;
-    const shopId = typeof cart.shopId === 'object' ? cart.shopId._id : cart.shopId;
+    const shopId = typeof cart.shopId === 'object' ? (cart.shopId._id || cart.shopId.id) : cart.shopId;
 
     if (total < 1) {
       return Alert.alert('Minimum Order', 'Your order must be at least ₹1.');
@@ -119,22 +137,30 @@ const CartScreen = ({ route, navigation }) => {
 
     setIsProcessing(true);
     try {
+      // Extract valid coordinates with fallback
+      const rawCoords = defaultAddress.location?.coordinates;
+      const validCoords = Array.isArray(rawCoords) && rawCoords.length === 2 && !isNaN(Number(rawCoords[0])) && !isNaN(Number(rawCoords[1]))
+        ? [Number(rawCoords[0]), Number(rawCoords[1])]
+        : [72.5714, 23.0225];
+
+      const fullAddressStr = `${defaultAddress.label || 'Home'}: ${defaultAddress.street || defaultAddress.address || ''}, ${defaultAddress.city || 'Ahmedabad'}`.trim();
+
       // Step 1: Place order on backend
       const orderData = {
         shopId,
         items: cart.items.map(i => ({
-          productId: typeof i.productId === 'object' ? i.productId._id : i.productId,
-          name: i.name,
-          price: i.price,
-          qty: i.qty
+          productId: typeof i.productId === 'object' ? (i.productId._id || i.productId.id) : (i.productId || i._id),
+          name: i.name || 'Product',
+          price: Number(i.price) || 0,
+          qty: Number(i.qty) || 1
         })),
-        deliveryAddress: `${defaultAddress.label || 'Home'}: ${defaultAddress.street || ''}, ${defaultAddress.city || ''}`,
+        deliveryAddress: fullAddressStr,
         paymentMethod: paymentMethod === 'WALLET' ? 'WALLET' : 'UPI',
         deliveryLocation: {
           type: 'Point',
-          coordinates: defaultAddress.location?.coordinates || [0, 0]
+          coordinates: validCoords
         },
-        deliverySlot: selectedSlot
+        deliverySlot: selectedSlot?.label || selectedSlot?.time || selectedSlot || 'Standard Delivery'
       };
 
       const res = await shopService.placeOrder(orderData);

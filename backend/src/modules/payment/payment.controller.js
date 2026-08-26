@@ -129,6 +129,14 @@ exports.verifyPayment = catchAsync(async (req, res) => {
             return errorResponse(res, 'Please enter your 12-digit UPI Reference / UTR Number or Transaction ID from your payment receipt.', StatusCodes.BAD_REQUEST);
         }
 
+        // Validate against fake / dummy sequential or repeated strings
+        const isDummy = /^(\d)\1{7,}$/.test(upiRef) || 
+                        /^(12345678|01234567|98765432|00000000)/i.test(upiRef) ||
+                        ['123456789012', '000000000000', '111111111111', '999999999999', '123412341234', '112233445566', '121212121212'].includes(upiRef);
+        if (isDummy) {
+            return errorResponse(res, 'Invalid UPI Reference / UTR Number. Please enter the valid 12-digit transaction number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
+        }
+
         // Anti-replay / duplicate UTR check across past transactions
         const existingTxn = await WalletTxn.findOne({
             razorpayPaymentId: upiRef,

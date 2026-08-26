@@ -8,16 +8,16 @@ const placeOrderSchema = Joi.object({
             name: Joi.string().required(),
             price: Joi.number().required().min(0),
             qty: Joi.number().integer().required().min(1)
-        })
+        }).unknown(true)
     ).min(1).required(),
     deliveryAddress: Joi.string().required(),
-    paymentMethod: Joi.string().valid('WALLET', 'UPI').required(),
+    paymentMethod: Joi.string().valid('WALLET', 'UPI', 'COD').default('WALLET'),
     deliveryLocation: Joi.object({
         type: Joi.string().valid('Point').default('Point'),
-        coordinates: Joi.array().items(Joi.number()).length(2).required()
-    }).required(),
-    deliverySlot: Joi.alternatives().try(Joi.string(), Joi.object()).optional(),
-    promoCode: Joi.string().optional()
+        coordinates: Joi.array().items(Joi.number().allow(null)).default([72.5714, 23.0225])
+    }).optional().default({ type: 'Point', coordinates: [72.5714, 23.0225] }),
+    deliverySlot: Joi.alternatives().try(Joi.string(), Joi.object(), Joi.allow(null, '')).optional(),
+    promoCode: Joi.string().optional().allow('', null)
 }).unknown(true);
 
 const updateOrderStatusSchema = Joi.object({

@@ -349,9 +349,12 @@ const LiveBidsScreen = ({ route, navigation }) => {
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.goBackBtn}
-                    onPress={() => navigation.goBack()}
+                    onPress={() => {
+                      if (navigation.canGoBack()) navigation.goBack();
+                      else navigation.navigate('MainTabs', { screen: 'Home' });
+                    }}
                   >
-                    <Text style={styles.goBackBtnText}>Go Back</Text>
+                    <Text style={styles.goBackBtnText}>Dashboard</Text>
                   </TouchableOpacity>
                 </View>
               </>

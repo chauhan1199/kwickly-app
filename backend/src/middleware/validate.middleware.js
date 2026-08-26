@@ -17,7 +17,8 @@ const validate = (schema, source = 'body') => (req, res, next) => {
     if (error) {
         const errorDetails = error.details.map(detail => detail.message);
         logger.error('VALIDATION ERROR:', errorDetails);
-        return errorResponse(res, 'Validation Error', StatusCodes.BAD_REQUEST, errorDetails);
+        const firstMsg = errorDetails.length > 0 ? errorDetails[0].replace(/"/g, '') : 'Validation Error';
+        return errorResponse(res, firstMsg, StatusCodes.BAD_REQUEST, errorDetails);
     }
 
     // Replace request object with validated value
