@@ -4,6 +4,7 @@ const createJobSchema = Joi.object({
     category: Joi.string().required(),
     subcategory: Joi.string().optional(),
     description: Joi.string().max(1000).optional(),
+    budget: Joi.number().min(0).allow(null).optional(),
     media: Joi.array().items(Joi.string().uri()).max(5).optional(),
     preferredDate: Joi.date().iso().optional(),
     timeSlot: Joi.string().valid('urgent', 'morning', 'afternoon', 'evening').optional(),

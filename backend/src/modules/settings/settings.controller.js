@@ -180,6 +180,8 @@ exports.getPublicSettings = catchAsync(async (req, res) => {
         appName: settings.branding?.appName || 'Kwickly',
         logoUrl: settings.branding?.logoUrl || '',
         iconUrl: settings.branding?.iconUrl || '',
+        maxRadius: settings.radius?.maxKm || 25,
+        searchRadius: settings.radius?.maxKm || 25,
         freeTrialDays: settings.subscription?.freeTrialDays || 14,
         termsOfService: settings.legal?.termsOfService || '',
         privacyPolicy: settings.legal?.privacyPolicy || ''

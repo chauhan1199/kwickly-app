@@ -81,7 +81,7 @@ exports.createJob = catchAsync(async (req, res) => {
     const minBalance = settings?.wallet?.minimumBalance || 100;
 
     // Initial radius is the first round or maxKm
-    const initialRadiusKm = settings?.radius?.rounds?.[0]?.maxKm || settings?.radius?.maxKm || 15;
+    const initialRadiusKm = settings?.radius?.rounds?.[0]?.maxKm || settings?.radius?.maxKm || 25;
 
     // Create the job
     let job;
@@ -91,6 +91,7 @@ exports.createJob = catchAsync(async (req, res) => {
             category,
             subcategory,
             description,
+            budget: req.body.budget ? Number(req.body.budget) : undefined,
             media,
             preferredDate,
             timeSlot,
@@ -117,13 +118,13 @@ exports.createJob = catchAsync(async (req, res) => {
         throw err;
     }
 
-    // â”€â”€ Step 2 & 3: Find ALL eligible workers using server-side criteria â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Step 2 & 3: Find ALL eligible workers using server-side criteria ────────────
     const eligibleWorkerIds = await findEligibleWorkers(job, initialRadiusKm, minBalance);
 
     // Update job to broadcast round 1
     job.broadcast.round = 1;
     await job.save();
-    // â”€â”€ Step 4: Load customer info for the notification payload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Step 4: Load customer info for the notification payload ─────────────────
     const customer = await Customer.findById(req.user._id)
         .select('name phone profileImage')
         .lean();
@@ -133,6 +134,7 @@ exports.createJob = catchAsync(async (req, res) => {
         category: job.category,
         subcategory: job.subcategory,
         description: job.description,
+        budget: job.budget,
         location: job.location,
         addressDetails: job.addressDetails,
         timeSlot: job.timeSlot,
@@ -742,6 +744,7 @@ exports.cancelJob = catchAsync(async (req, res) => {
 
     const previousStatus = job.status;
     job.status = 'CANCELLED';
+    job.cancelReason = req.body.reason || (req.user.role === 'CUSTOMER' ? 'Cancelled by customer' : 'Cancelled by admin');
     await job.save();
 
     await delCache(`job:${job._id}:assigned_worker`);

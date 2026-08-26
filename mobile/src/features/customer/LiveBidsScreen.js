@@ -6,32 +6,29 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
-  StatusBar,
-  ActivityIndicator,
-  Animated,
-  Easing,
-  Alert,
-  Platform
+  StatusBar, 
+  ActivityIndicator, 
+  Animated, 
+  Easing, 
+  Alert, 
+  Platform,
+  Image,
+  Modal
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
 import { jobService } from '../../services/jobService';
+import { settingsService } from '../../services/settingsService';
 import LinearGradient from 'react-native-linear-gradient';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { Bell, Moon, Sun, ChevronLeft, Radio } from 'lucide-react-native';
+import { Bell, Moon, Sun, ChevronLeft, Radio, MapPin, Calendar, Clock, Image as ImageIcon, X } from 'lucide-react-native';
 
 const LiveBidsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
-  const { 
-    category = { name: 'Cleaning' }, 
-    subcategory = 'Home Cleaning',
-    address = '',
-    budget = '499',
-    timeSlot = 'ASAP',
-    jobId = 'BK' + Math.floor(1000 + Math.random() * 9000)
-  } = route.params || {};
+  const routeParams = route.params || {};
+  const jobId = routeParams.jobId || (typeof routeParams.job === 'object' ? routeParams.job?._id : routeParams.job);
 
   const { user } = useAuth();
   const { socket } = useSocket({
@@ -39,12 +36,14 @@ const LiveBidsScreen = ({ route, navigation }) => {
     userId: user?._id
   });
   
+  const [jobData, setJobData] = useState(typeof routeParams.job === 'object' ? routeParams.job : null);
   const [bids, setBids] = useState([]);
   const [isAccepting, setIsAccepting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [jobStatus, setJobStatus] = useState('BROADCASTING');
-  const [cancelReason, setCancelReason] = useState('');
-  const [currentRadius, setCurrentRadius] = useState(15); // Start with default 15
+  const [jobStatus, setJobStatus] = useState(routeParams.job?.status || 'BROADCASTING');
+  const [cancelReason, setCancelReason] = useState(routeParams.job?.cancelReason || '');
+  const [currentRadius, setCurrentRadius] = useState(routeParams.job?.broadcast?.radiusKm || 25);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
 
   const [anims] = useState(() => [
     new Animated.Value(0),
@@ -57,7 +56,6 @@ const LiveBidsScreen = ({ route, navigation }) => {
     // Reset state when navigating to a new job using the same screen instance
     setJobStatus('BROADCASTING');
     setCancelReason('');
-    setCurrentRadius(15);
     setBids([]);
   }, [jobId]);
 
@@ -107,7 +105,38 @@ const LiveBidsScreen = ({ route, navigation }) => {
   }, [pulseAnim1, pulseAnim2, pulseAnim3]);
 
   useEffect(() => {
-    // 1. Fetch any existing bids for this job
+    if (!jobId) return;
+
+    // 1. Fetch full job details & public settings (for admin max radius)
+    const fetchJobAndSettings = async () => {
+      try {
+        const [jobRes, setRes] = await Promise.all([
+          jobService.getJobById(jobId).catch(() => null),
+          settingsService.getPublicSettings().catch(() => null)
+        ]);
+
+        const fetchedJob = jobRes?.data?.data || jobRes?.data;
+        const publicSettings = setRes?.data?.data || setRes?.data;
+
+        if (fetchedJob) {
+          setJobData(fetchedJob);
+          setJobStatus(fetchedJob.status || 'BROADCASTING');
+          if (fetchedJob.cancelReason) setCancelReason(fetchedJob.cancelReason);
+          if (fetchedJob.broadcast?.radiusKm) {
+            setCurrentRadius(fetchedJob.broadcast.radiusKm);
+          } else if (publicSettings?.maxRadius) {
+            setCurrentRadius(publicSettings.maxRadius);
+          }
+        } else if (publicSettings?.maxRadius) {
+          setCurrentRadius(publicSettings.maxRadius);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch job/settings in LiveBidsScreen:', err);
+      }
+    };
+    fetchJobAndSettings();
+
+    // 2. Fetch any existing bids for this job
     const fetchBids = async () => {
       try {
         const res = await jobService.getQuotesForJob(jobId);
@@ -115,31 +144,32 @@ const LiveBidsScreen = ({ route, navigation }) => {
           setBids(res.data.data);
         }
       } catch (e) {
-        Alert.alert('Error', 'Failed to load bids');
+        console.warn('Failed to load bids');
       }
     };
     fetchBids();
 
-    // 2. Listen for real-time bids
+    // 3. Listen for real-time bids and status changes
     if (socket) {
-      // The socket is already in the 'customer_customerId' room
-      // We listen for 'NEW_QUOTE'
       const handleNewQuote = (newBid) => {
-        // Only add if it's for this specific job
-        if (newBid.jobId === jobId) {
-          setBids(prev => [...prev, newBid]);
+        if (newBid.jobId === jobId || newBid.job?._id === jobId) {
+          setBids(prev => {
+            const exists = prev.some(b => (b._id || b.quoteId) === (newBid._id || newBid.quoteId));
+            if (exists) return prev;
+            return [...prev, newBid];
+          });
         }
       };
 
       const handleJobStatus = (data) => {
         if (data.jobId === jobId && data.status === 'CANCELLED') {
           setJobStatus('CANCELLED');
-          setCancelReason(data.reason || 'Job auto-cancelled');
+          setCancelReason(data.reason || 'No workers found nearby after expanding search radius.');
         }
       };
 
       const handleRadiusExpanded = (data) => {
-        if (data.jobId === jobId) {
+        if (data.jobId === jobId && data.radiusKm) {
           setCurrentRadius(data.radiusKm);
         }
       };
@@ -162,7 +192,6 @@ const LiveBidsScreen = ({ route, navigation }) => {
       const res = await jobService.acceptQuote(bid._id);
       if (res.data?.status === 'success') {
         const { job, quote } = res.data.data;
-        // Navigate to Live Tracking with the real worker data
         navigation.navigate('LiveTracking', { 
           job, 
           worker: bid.workerId, 
@@ -170,7 +199,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
         });
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to accept quote');
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to accept quote');
     } finally {
       setIsAccepting(false);
     }
@@ -203,6 +232,15 @@ const LiveBidsScreen = ({ route, navigation }) => {
 
   const styles = createStyles(theme, isDarkMode);
 
+  const displayCategory = jobData?.category || (typeof routeParams.category === 'object' ? routeParams.category?.name : routeParams.category) || 'Service';
+  const displaySubcategory = jobData?.subcategory || routeParams.subcategory || 'General';
+  const displayBudget = (jobData?.budget || routeParams.budget) ? `Budget ₹${jobData?.budget || routeParams.budget}` : 'Open to Bids';
+  const displayTimeSlot = jobData?.timeSlot || routeParams.timeSlot || 'ASAP';
+  const displayAddress = jobData?.addressDetails?.fullAddress || jobData?.addressDetails?.address || (typeof jobData?.addressDetails === 'string' ? jobData.addressDetails : '') || routeParams.address || 'Address not provided';
+  const displayDate = jobData?.preferredDate ? new Date(jobData.preferredDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
+  const displayDescription = jobData?.description || routeParams.description || '';
+  const displayMedia = jobData?.media || [];
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#6C47FF" translucent={true} />
@@ -214,7 +252,9 @@ const LiveBidsScreen = ({ route, navigation }) => {
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 8 }}>
             <Text style={[styles.appBarTitle, { color: '#fff' }]} numberOfLines={1}>Live Bids</Text>
-            <Text style={[styles.appBarSub, { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>Job #{jobId}</Text>
+            <Text style={[styles.appBarSub, { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>
+              Job #{jobId ? String(jobId).slice(-8) : ''}
+            </Text>
           </View>
           <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 6 }]}>
             {isDarkMode ? <Sun size={18} color="#F59E0B" /> : <Moon size={18} color="#fff" />}
@@ -238,16 +278,50 @@ const LiveBidsScreen = ({ route, navigation }) => {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
+        {/* Comprehensive Job Details Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.row}>
-            <View style={{flex: 1}}>
-              <Text style={styles.summaryTitle}>{category.name} · {subcategory}</Text>
-              <Text style={styles.summaryDesc}>Budget ₹{budget} · {timeSlot} · {address}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.summaryTitle}>{displayCategory} · {displaySubcategory}</Text>
+              <Text style={styles.summaryDesc}>
+                {displayBudget} · {displayTimeSlot}{displayDate ? ` · ${displayDate}` : ''}
+              </Text>
             </View>
             <View style={styles.bidsChip}>
-              <Text style={styles.bidsChipText}>{bids.length} bids</Text>
+              <Text style={styles.bidsChipText}>{bids.length} {bids.length === 1 ? 'bid' : 'bids'}</Text>
             </View>
           </View>
+
+          {/* Service Address */}
+          <View style={styles.summaryAddressRow}>
+            <MapPin size={13} color="#6C47FF" style={{ marginTop: 2 }} />
+            <Text style={styles.summaryAddressText} numberOfLines={2}>{displayAddress}</Text>
+          </View>
+
+          {/* Description if provided */}
+          {displayDescription ? (
+            <View style={styles.summaryDescBox}>
+              <Text style={styles.summaryDescQuote} numberOfLines={3}>"{displayDescription}"</Text>
+            </View>
+          ) : null}
+
+          {/* Customer Media Thumbnails if attached */}
+          {displayMedia.length > 0 && (
+            <View style={styles.summaryMediaRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {displayMedia.map((url, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.summaryMediaThumbBox}
+                    onPress={() => setSelectedPhoto(url)}
+                    activeOpacity={0.8}
+                  >
+                    <Image source={{ uri: url }} style={styles.summaryMediaThumb} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {bids.length === 0 ? (
@@ -258,13 +332,28 @@ const LiveBidsScreen = ({ route, navigation }) => {
                   <Text style={styles.radarIcon}>❌</Text>
                 </View>
                 <Text style={styles.waitingTitle}>Job Cancelled</Text>
-                <Text style={styles.waitingSub}>{cancelReason}</Text>
-                <TouchableOpacity 
-                  style={{ marginTop: 20, backgroundColor: '#6C47FF', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 100 }}
-                  onPress={() => navigation.goBack()}
-                >
-                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Go Back</Text>
-                </TouchableOpacity>
+                <Text style={styles.waitingSub}>
+                  {cancelReason || 'No workers found nearby after expanding search radius.'}
+                </Text>
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 22 }}>
+                  <TouchableOpacity 
+                    style={styles.repostBtn}
+                    onPress={() => navigation.navigate('DescribeJob', { 
+                      category: displayCategory, 
+                      subcategory: displaySubcategory,
+                      address: displayAddress
+                    })}
+                  >
+                    <Text style={styles.repostBtnText}>↺ Re-post Job</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.goBackBtn}
+                    onPress={() => navigation.goBack()}
+                  >
+                    <Text style={styles.goBackBtnText}>Go Back</Text>
+                  </TouchableOpacity>
+                </View>
               </>
             ) : (
               <>
@@ -353,6 +442,18 @@ const LiveBidsScreen = ({ route, navigation }) => {
           );
         })}
 
+        {/* Photo Preview Modal */}
+        <Modal visible={!!selectedPhoto} transparent animationType="fade" onRequestClose={() => setSelectedPhoto(null)}>
+          <View style={styles.photoModalOverlay}>
+            <TouchableOpacity style={styles.photoModalClose} onPress={() => setSelectedPhoto(null)}>
+              <X size={24} color="#fff" />
+            </TouchableOpacity>
+            {selectedPhoto && (
+              <Image source={{ uri: selectedPhoto }} style={styles.photoModalImage} resizeMode="contain" />
+            )}
+          </View>
+        </Modal>
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -365,87 +466,124 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   headerGradient: {
-    paddingBottom: 40,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingBottom: 36,
   },
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 10 : 10,
-    paddingBottom: 14,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 8 : 12,
+    paddingBottom: 10,
   },
   backBtn: {
     width: 36,
     height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  backBtnText: {
-    fontSize: 24,
-    color: '#fff',
-    lineHeight: 28,
   },
   appBarTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
-    color: theme.colors.text,
   },
   appBarSub: {
     fontSize: 12,
-    color: theme.colors.textDim,
-    marginTop: 2,
+    marginTop: 1,
   },
   bellBtn: {
     width: 36,
     height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
     position: 'relative',
   },
   badge: {
     position: 'absolute',
     top: 6,
-    right: 8,
+    right: 6,
     width: 8,
     height: 8,
-    backgroundColor: theme.colors.primary,
     borderRadius: 4,
+    backgroundColor: '#EF4444',
   },
   content: {
     paddingHorizontal: 14,
-    paddingTop: 4,
+    paddingBottom: 20,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   summaryCard: {
+    backgroundColor: theme.colors.surface,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   summaryTitle: {
-    color: '#001016',
+    fontSize: 16,
     fontWeight: '800',
-    fontSize: 15,
+    color: theme.colors.text,
+    marginBottom: 4,
   },
   summaryDesc: {
-    color: 'rgba(0, 16, 22, 0.7)',
-    fontSize: 11,
-    marginTop: 4,
+    fontSize: 13,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+  summaryAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  summaryAddressText: {
+    flex: 1,
+    fontSize: 12,
+    color: theme.colors.textDim,
+    lineHeight: 16,
+  },
+  summaryDescBox: {
+    marginTop: 8,
+    backgroundColor: theme.colors.background,
+    padding: 10,
+    borderRadius: 10,
+  },
+  summaryDescQuote: {
+    fontSize: 12,
+    color: theme.colors.text,
+    fontStyle: 'italic',
+  },
+  summaryMediaRow: {
+    marginTop: 10,
+  },
+  summaryMediaThumbBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  summaryMediaThumb: {
+    width: '100%',
+    height: '100%',
   },
   bidsChip: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: '#6C47FF',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
+    alignSelf: 'flex-start',
   },
   bidsChipText: {
     color: '#fff',
@@ -504,6 +642,30 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   radarIcon: {
     fontSize: 28,
+  },
+  repostBtn: {
+    backgroundColor: '#6C47FF',
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 100,
+  },
+  repostBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  goBackBtn: {
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 100,
+  },
+  goBackBtnText: {
+    color: theme.colors.text,
+    fontWeight: '700',
+    fontSize: 14,
   },
   workerCard: {
     backgroundColor: theme.colors.surface,
@@ -566,7 +728,29 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#001016',
-  }
+  },
+  photoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalClose: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? StatusBar.currentHeight + 16 : 48,
+    right: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalImage: {
+    width: '90%',
+    height: '80%',
+  },
 });
 
 export default LiveBidsScreen;

@@ -17,7 +17,7 @@ const WorkerJobCompleteScreen = ({ route, navigation }) => {
 
   const { job, quoteAmount } = route.params || {};
 
-  const amount = quoteAmount || job?.payment?.amount || 499;
+  const amount = quoteAmount || job?.payment?.workerPayout || job?.payment?.amount || job?.budget || 0;
   const commissionRate = job?.commissionRate || 0.1;
   const commission = Math.round(amount * commissionRate);
   const earning = amount - commission;

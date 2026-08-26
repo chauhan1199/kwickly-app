@@ -86,6 +86,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
   const [description,      setDescription]      = useState('');
   const [descriptionError, setDescriptionError] = useState('');
+  const [budget,           setBudget]           = useState('');
   const [media,            setMedia]            = useState([]);   // [{ uri, type, name, fileSize }]
   const [mediaError,       setMediaError]       = useState('');
   const [addressType,      setAddressType]      = useState('Home');
@@ -472,6 +473,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
         category:       categoryName,
         subcategory:    subcategory || 'General',
         description:    description.trim(),
+        budget:         budget.trim() ? Number(budget.trim()) : undefined,
         media:          mediaUrls.filter(Boolean),
         preferredDate:  preferredDate.toISOString(),
         timeSlot:       timeSlot || 'urgent',
@@ -757,6 +759,27 @@ const DescribeJobScreen = ({ route, navigation }) => {
             );
           })}
         </View>
+
+        {/* ── Estimated Budget (Optional) ── */}
+        <Text style={[styles.label, { marginTop: 14 }]}>
+          Estimated Budget (₹) <Text style={styles.optionalBadge}>(Optional)</Text>
+        </Text>
+        <View style={styles.budgetRow}>
+          <View style={styles.budgetCurrencyBadge}>
+            <Text style={styles.budgetCurrencyText}>₹</Text>
+          </View>
+          <TextInput
+            style={styles.budgetInput}
+            value={budget}
+            onChangeText={setBudget}
+            keyboardType="numeric"
+            placeholder="e.g. 500 (or leave empty for open bids)"
+            placeholderTextColor={theme.colors.textDim}
+          />
+        </View>
+        <Text style={styles.budgetHint}>
+          💡 Leave empty if you want nearby workers to provide their best custom quotes.
+        </Text>
 
         {/* ── Global submit error ── */}
         {submitError ? (
@@ -1488,6 +1511,49 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '800',
+  },
+  optionalBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textDim,
+  },
+  budgetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  budgetCurrencyBadge: {
+    width: 44,
+    height: 48,
+    backgroundColor: PURPLE_SOFT,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: theme.colors.border,
+  },
+  budgetCurrencyText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: PURPLE,
+  },
+  budgetInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  budgetHint: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 5,
+    lineHeight: 15,
   },
 });
 

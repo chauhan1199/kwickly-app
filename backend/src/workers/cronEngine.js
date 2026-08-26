@@ -85,7 +85,7 @@ const sweepBroadcastingJobs = async () => {
     // Load settings once for the sweep
     const SettingsService = require('../modules/settings/settings.service');
     const settings = await SettingsService.getAppSettings();
-    const maxRadius = settings?.radius?.maxKm || 15;
+    const maxRadius = settings?.radius?.maxKm || 25;
     const minBalance = settings?.wallet?.minimumBalance || 100;
 
     for (const job of broadcastingJobs) {
@@ -107,6 +107,7 @@ const sweepBroadcastingJobs = async () => {
             // Auto cancel after 3 rounds
             logger.info(`[Cron] Cancelling job ${job._id} after 3 rounds (No workers found)`);
             job.status = 'CANCELLED';
+            job.cancelReason = 'No workers found nearby after expanding radius.';
             await job.save();
             
             emitToRoom(`customer_${job.customerId?._id || job.customerId}`, 'JOB_STATUS_CHANGED', { 

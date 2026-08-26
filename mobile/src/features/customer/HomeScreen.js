@@ -177,7 +177,7 @@ const HomeScreen = ({ navigation }) => {
           subcategory: j.subcategory,
           worker: j.workerId?.name || null,
           status: j.status,
-          fromPrice: j.payment?.amount || '300',
+          fromPrice: j.payment?.amount || j.budget || null,
           preferredDate: j.preferredDate ? new Date(j.preferredDate).toLocaleDateString('en-IN') : null,
           timeSlot: j.timeSlot || 'urgent',
           progress:
@@ -753,7 +753,7 @@ const ActiveJobCard = ({ job, navigation, theme }) => {
         </View>
 
         <Text style={[styles.jobPrice, { color: accentColor, fontWeight: '800' }]}>
-          ₹{job.fromPrice}
+          {job.fromPrice ? `₹${job.fromPrice}` : 'Open Quotes'}
         </Text>
       </View>
     </TouchableOpacity>

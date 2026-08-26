@@ -22,10 +22,10 @@ const WorkCompletedScreen = ({ route, navigation }) => {
   const { worker, job } = route.params || {};
   const workerName = worker?.name || job?.workerId?.name || 'Worker';
 
-  const workerPayout = job?.payment?.workerPayout || job?.quote?.amount || job?.price || 499;
-  const platformFee = job?.payment?.platformFee !== undefined ? job?.payment?.platformFee : 50;
+  const workerPayout = job?.payment?.workerPayout || job?.quote?.amount || job?.price || job?.budget || 0;
+  const platformFee = job?.payment?.platformFee !== undefined ? job?.payment?.platformFee : (workerPayout > 0 ? 50 : 0);
   const gst = job?.payment?.gst !== undefined ? job?.payment?.gst : Math.round(platformFee * 0.18);
-  const totalAmount = job?.payment?.amount || (workerPayout + platformFee + gst);
+  const totalAmount = job?.payment?.amount || (workerPayout > 0 ? (workerPayout + platformFee + gst) : 0);
   const workerEarning = workerPayout;
   const jobAmount = totalAmount;
 

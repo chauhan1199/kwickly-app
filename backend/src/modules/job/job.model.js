@@ -7,6 +7,7 @@ const JobSchema = new mongoose.Schema({
     category: { type: String, required: true },
     subcategory: { type: String },
     description: { type: String },
+    budget: { type: Number },
     media: [{ type: String }],
     preferredDate: { type: Date },
     timeSlot: { type: String, enum: ['urgent', 'morning', 'afternoon', 'evening'] },
@@ -16,6 +17,7 @@ const JobSchema = new mongoose.Schema({
         enum: ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED', 'PAID', 'CLOSED', 'CANCELLED', 'DISPUTED'],
         default: 'BROADCASTING'
     },
+    cancelReason: { type: String },
 
     location: {
         type: { type: String, default: 'Point' },

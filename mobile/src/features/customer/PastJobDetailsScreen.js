@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -8,123 +8,391 @@ import {
   TouchableOpacity, 
   StatusBar,
   Linking,
-  Alert
+  Alert,
+  ActivityIndicator,
+  Image,
+  Platform
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { jobService } from '../../services/jobService';
+import { 
+  ChevronLeft, 
+  Bell, 
+  Moon, 
+  Sun, 
+  MapPin, 
+  Calendar, 
+  Clock, 
+  User, 
+  Receipt, 
+  RefreshCw, 
+  FileText, 
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Radio,
+  Share2
+} from 'lucide-react-native';
 
 const PastJobDetailsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
-  const { job } = route.params || {};
+  const { jobId, job } = route.params || {};
+  const resolvedJobId = jobId || (typeof job === 'object' ? job?._id : job);
 
-  // Mock data if no job is passed
-  const j = job || {
-    id: 'BK2033',
-    title: 'Home Cleaning',
-    worker: 'Priya Sharma',
-    price: '599',
-    rating: 5,
-    date: '28 May'
+  const [jobData, setJobData] = useState(typeof job === 'object' && job?._id ? job : null);
+  const [loading, setLoading] = useState(!jobData && !!resolvedJobId);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (resolvedJobId) {
+      fetchJobDetails();
+    }
+  }, [resolvedJobId]);
+
+  const fetchJobDetails = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await jobService.getJobById(resolvedJobId);
+      const fetched = res.data?.data || res.data;
+      if (fetched) {
+        setJobData(fetched);
+      } else {
+        throw new Error('Job details not found');
+      }
+    } catch (err) {
+      console.warn('Error fetching job details:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to load booking details');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const styles = createStyles(theme, isDarkMode);
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+        <View style={styles.appBar}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <ChevronLeft size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.appBarTitle}>Booking Details</Text>
+        </View>
+        <View style={styles.centerBox}>
+          <ActivityIndicator size="large" color="#6C47FF" />
+          <Text style={styles.loadingText}>Loading booking details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !jobData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+        <View style={styles.appBar}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <ChevronLeft size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.appBarTitle}>Booking Details</Text>
+        </View>
+        <View style={styles.centerBox}>
+          <AlertCircle size={44} color="#EF4444" />
+          <Text style={styles.errorTitle}>Booking Not Found</Text>
+          <Text style={styles.errorSub}>{error || 'Unable to retrieve this booking summary.'}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={fetchJobDetails}>
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const categoryName = typeof jobData.category === 'object' ? jobData.category?.name : (jobData.category || 'Service');
+  const subcategoryName = jobData.subcategory || 'General';
+  const status = (jobData.status || 'PENDING').toUpperCase();
+  const isCancelled = status === 'CANCELLED';
+  const isCompleted = status === 'COMPLETED' || status === 'PAID' || status === 'CLOSED';
+  const isBroadcasting = status === 'BROADCASTING' || status === 'QUOTES_RECEIVED';
+  const isInProgress = status === 'IN_PROGRESS' || status === 'ALLOCATED' || status === 'ARRIVING';
+
+  const dateStr = jobData.preferredDate 
+    ? new Date(jobData.preferredDate).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+    : (jobData.createdAt ? new Date(jobData.createdAt).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : 'Today');
+
+  const addressText = jobData.addressDetails?.fullAddress 
+    || jobData.addressDetails?.address 
+    || (typeof jobData.addressDetails === 'string' ? jobData.addressDetails : null) 
+    || 'Address not provided';
+
+  const worker = jobData.workerId;
+  const workerName = worker?.name || 'Assigned Professional';
+  const workerRating = worker?.rating?.average || 5;
+
+  const totalAmount = jobData.payment?.amount || (jobData.budget ? Number(jobData.budget) : 0);
+  const workerPayout = jobData.payment?.workerPayout || (totalAmount > 50 ? totalAmount - 50 : totalAmount);
+  const taxesFees = jobData.payment?.platformFee ? (jobData.payment.platformFee + (jobData.payment.gst || 0)) : (totalAmount > 50 ? 50 : 0);
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
       
       {/* App Bar */}
       <View style={styles.appBar}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnText}>‹</Text>
+          <ChevronLeft size={22} color={theme.colors.text} />
         </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 8 }}>
+        <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={styles.appBarTitle} numberOfLines={1}>Booking Summary</Text>
-          <Text style={styles.appBarSub} numberOfLines={1}>Job #{j.id}</Text>
+          <Text style={styles.appBarSub} numberOfLines={1}>Job #{String(jobData._id || resolvedJobId).slice(-8)}</Text>
         </View>
-        <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
+        <TouchableOpacity onPress={toggleTheme} style={[styles.appBarActionBtn, { marginRight: 6 }]}>
+          {isDarkMode ? <Sun size={18} color="#F59E0B" /> : <Moon size={18} color={theme.colors.text} />}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Text style={{fontSize: 16}}>🔔</Text>
-          <View style={styles.badge} />
+        <TouchableOpacity style={styles.appBarActionBtn} onPress={() => navigation.navigate('Notifications')}>
+          <Bell size={18} color={theme.colors.text} />
         </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
-        {/* Job Status Card */}
+        {/* ── Status Banner Card ── */}
         <View style={styles.card}>
           <View style={styles.row}>
-            <View style={styles.iconBox}>
-              <Text style={{fontSize: 22}}>✅</Text>
+            <View style={[
+              styles.statusIconBox,
+              isCancelled && styles.statusIconBoxCancelled,
+              isCompleted && styles.statusIconBoxCompleted,
+              isBroadcasting && styles.statusIconBoxBroadcasting,
+              isInProgress && styles.statusIconBoxProgress
+            ]}>
+              {isCancelled ? (
+                <XCircle size={24} color="#EF4444" />
+              ) : isCompleted ? (
+                <CheckCircle size={24} color="#10B981" />
+              ) : isBroadcasting ? (
+                <Radio size={24} color="#6C47FF" />
+              ) : (
+                <Clock size={24} color="#F59E0B" />
+              )}
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{j.title}</Text>
-              <Text style={styles.cardSub}>{j.date}</Text>
-            </View>
-            <View style={styles.statusPill}>
-              <Text style={styles.statusText}>Completed</Text>
-            </View>
-          </View>
-        </View>
 
-        {/* Worker Info Card */}
-        <View style={styles.card}>
-          <Text style={styles.sectionHeader}>Professional</Text>
-          <View style={[styles.row, { marginTop: 10 }]}>
-            <View style={styles.workerAvatar}>
-              <Text style={styles.workerAvatarText}>{j.worker ? j.worker[0] : 'P'}</Text>
-            </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.workerName}>{j.worker}</Text>
-              <Text style={styles.workerRating}>
-                <Text style={{ color: '#f5b300' }}>{'★'.repeat(typeof j.rating === 'object' ? Math.round(j.rating?.average || 5) : Math.round(j.rating || 5))}</Text>
-                <Text style={{ color: theme.colors.textDim }}>{'☆'.repeat(5 - (typeof j.rating === 'object' ? Math.round(j.rating?.average || 5) : Math.round(j.rating || 5)))}</Text>
+              <Text style={styles.cardTitle}>{categoryName} · {subcategoryName}</Text>
+              <Text style={styles.cardSub}>Scheduled: {dateStr} • {jobData.timeSlot || 'Urgent'}</Text>
+            </View>
+
+            <View style={[
+              styles.statusPill,
+              isCancelled && styles.statusPillCancelled,
+              isCompleted && styles.statusPillCompleted,
+              isBroadcasting && styles.statusPillBroadcasting,
+              isInProgress && styles.statusPillProgress
+            ]}>
+              <Text style={[
+                styles.statusText,
+                isCancelled && { color: '#EF4444' },
+                isCompleted && { color: '#10B981' },
+                isBroadcasting && { color: '#6C47FF' },
+                isInProgress && { color: '#F59E0B' }
+              ]}>
+                {isCancelled ? 'Cancelled' : isCompleted ? 'Completed' : isBroadcasting ? 'Searching' : 'In Progress'}
               </Text>
             </View>
           </View>
+
+          {/* Cancellation Notice */}
+          {isCancelled && (
+            <View style={styles.cancelNoticeBox}>
+              <Text style={styles.cancelNoticeTitle}>Reason for Cancellation:</Text>
+              <Text style={styles.cancelNoticeText}>
+                {jobData.cancelReason || 'No workers found nearby after expanding search radius. You can re-post this request anytime.'}
+              </Text>
+            </View>
+          )}
+
+          {/* Active Broadcasting Link */}
+          {isBroadcasting && (
+            <TouchableOpacity 
+              style={styles.actionBannerBtn}
+              onPress={() => navigation.navigate('LiveBids', { jobId: jobData._id, job: jobData })}
+            >
+              <Radio size={16} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.actionBannerBtnText}>View Live Quotes & Radar →</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* In-Progress Live Tracking Link */}
+          {isInProgress && (
+            <TouchableOpacity 
+              style={[styles.actionBannerBtn, { backgroundColor: '#10B981' }]}
+              onPress={() => navigation.navigate('LiveTracking', { jobId: jobData._id, job: jobData })}
+            >
+              <MapPin size={16} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.actionBannerBtnText}>Track Service Professional →</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Invoice Card */}
+        {/* ── Service Request Details ── */}
         <View style={styles.card}>
-          <Text style={styles.sectionHeader}>Payment Details</Text>
-          <View style={{ marginTop: 12 }}>
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceText}>Service charge</Text>
-              <Text style={styles.invoiceText}>₹{parseInt(j.price) - 50}</Text>
-            </View>
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceMuted}>Taxes & Fees</Text>
-              <Text style={styles.invoiceMuted}>₹50</Text>
-            </View>
-            
-            <View style={styles.separator} />
-            
-            <View style={styles.invoiceRow}>
-              <Text style={styles.totalText}>Total Paid</Text>
-              <Text style={styles.totalPrice}>₹{j.price}</Text>
+          <Text style={styles.sectionHeader}>Service Details</Text>
+          
+          {/* Address */}
+          <View style={styles.detailRow}>
+            <MapPin size={16} color="#6C47FF" style={{ marginTop: 2 }} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.detailLabel}>Service Location</Text>
+              <Text style={styles.detailValue}>{addressText}</Text>
             </View>
           </View>
+
+          {/* Date & Time */}
+          <View style={[styles.detailRow, { marginTop: 12 }]}>
+            <Calendar size={16} color="#6C47FF" style={{ marginTop: 2 }} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.detailLabel}>Scheduled Date & Time Slot</Text>
+              <Text style={styles.detailValue}>{dateStr} ({jobData.timeSlot || 'Urgent / ASAP'})</Text>
+            </View>
+          </View>
+
+          {/* Problem Description */}
+          {jobData.description ? (
+            <View style={[styles.detailRow, { marginTop: 12 }]}>
+              <FileText size={16} color="#6C47FF" style={{ marginTop: 2 }} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.detailLabel}>Problem Description</Text>
+                <Text style={styles.detailValue}>"{jobData.description}"</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* Budget */}
+          {jobData.budget ? (
+            <View style={[styles.detailRow, { marginTop: 12 }]}>
+              <Receipt size={16} color="#6C47FF" style={{ marginTop: 2 }} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.detailLabel}>Estimated Budget</Text>
+                <Text style={styles.detailValue}>₹{jobData.budget}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* Attached Media */}
+          {jobData.media && jobData.media.length > 0 && (
+            <View style={{ marginTop: 14 }}>
+              <Text style={styles.detailLabel}>Customer Photos</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                {jobData.media.map((url, idx) => (
+                  <View key={idx} style={styles.thumbWrapper}>
+                    <Image source={{ uri: url }} style={styles.thumbImage} resizeMode="cover" />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
-        {/* Actions */}
-        <TouchableOpacity style={styles.rebookBtn} onPress={() => navigation.navigate('Book')}>
-          <Text style={styles.rebookBtnText}>↺ Rebook Service</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.invoiceBtn}
-          onPress={() => {
-            if (job?.receipt?.invoiceUrl) {
-              Linking.openURL(job.receipt.invoiceUrl);
-            } else {
-              Alert.alert('Invoice', 'Invoice not available yet');
-            }
-          }}
-        >
-          <Text style={styles.invoiceBtnText}>📄 Download Invoice</Text>
-        </TouchableOpacity>
+        {/* ── Professional Info (if allocated/completed) ── */}
+        {worker ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader}>Service Professional</Text>
+            <View style={[styles.row, { marginTop: 12 }]}>
+              <View style={styles.workerAvatar}>
+                <Text style={styles.workerAvatarText}>{workerName[0]}</Text>
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.workerName}>{workerName}</Text>
+                <Text style={styles.workerRating}>
+                  <Text style={{ color: '#f5b300' }}>{'★'.repeat(Math.round(workerRating))}</Text>
+                  <Text style={{ color: theme.colors.textDim }}>{'☆'.repeat(5 - Math.round(workerRating))}</Text>
+                  <Text style={{ color: theme.colors.textDim, fontSize: 12 }}> ({workerRating})</Text>
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {/* ── Payment Details (if completed or has payment) ── */}
+        {isCompleted && totalAmount > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader}>Payment Details</Text>
+            <View style={{ marginTop: 12 }}>
+              <View style={styles.invoiceRow}>
+                <Text style={styles.invoiceText}>Service Charge</Text>
+                <Text style={styles.invoiceText}>₹{workerPayout}</Text>
+              </View>
+              {taxesFees > 0 && (
+                <View style={styles.invoiceRow}>
+                  <Text style={styles.invoiceMuted}>Platform Fee & GST</Text>
+                  <Text style={styles.invoiceMuted}>₹{taxesFees}</Text>
+                </View>
+              )}
+              
+              <View style={styles.separator} />
+              
+              <View style={styles.invoiceRow}>
+                <Text style={styles.totalText}>Total Paid</Text>
+                <Text style={styles.totalPrice}>₹{totalAmount}</Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {/* ── Action Buttons ── */}
+        {isCancelled ? (
+          <View style={{ gap: 10, marginTop: 8 }}>
+            <TouchableOpacity 
+              style={styles.rebookBtn}
+              onPress={() => navigation.navigate('DescribeJob', { 
+                category: categoryName, 
+                subcategory: subcategoryName,
+                address: addressText
+              })}
+            >
+              <RefreshCw size={18} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.rebookBtnText}>↺ Re-post / Book Again</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.invoiceBtn}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+            >
+              <Text style={styles.invoiceBtnText}>Browse Other Services</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isCompleted ? (
+          <View style={{ gap: 10, marginTop: 8 }}>
+            <TouchableOpacity 
+              style={styles.rebookBtn}
+              onPress={() => navigation.navigate('DescribeJob', { 
+                category: categoryName, 
+                subcategory: subcategoryName,
+                address: addressText
+              })}
+            >
+              <RefreshCw size={18} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.rebookBtnText}>↺ Rebook Service</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.invoiceBtn}
+              onPress={() => {
+                if (jobData.receipt?.invoiceUrl) {
+                  Linking.openURL(jobData.receipt.invoiceUrl);
+                } else {
+                  Alert.alert('Invoice', 'Tax invoice is being generated and will be available shortly.');
+                }
+              }}
+            >
+              <FileText size={16} color={theme.colors.text} style={{ marginRight: 6 }} />
+              <Text style={styles.invoiceBtnText}>📄 Download Invoice</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -137,6 +405,42 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  centerBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 14,
+    fontSize: 14,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginTop: 14,
+  },
+  errorSub: {
+    fontSize: 13,
+    color: theme.colors.textDim,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 18,
+  },
+  retryBtn: {
+    backgroundColor: '#6C47FF',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  retryBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 14,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -144,9 +448,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 14,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 8 : 12,
+    paddingBottom: 12,
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   backBtn: {
     width: 36,
@@ -154,12 +461,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-  },
-  backBtnText: {
-    fontSize: 24,
-    color: theme.colors.text,
-    lineHeight: 28,
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#F1F5F9',
   },
   appBarTitle: {
     fontSize: 17,
@@ -169,92 +471,170 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   appBarSub: {
     fontSize: 12,
     color: theme.colors.textDim,
-    marginTop: 2,
+    marginTop: 1,
   },
-  bellBtn: {
+  appBarActionBtn: {
     width: 36,
     height: 36,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-    position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: 6,
-    right: 8,
-    width: 8,
-    height: 8,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 4,
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#F1F5F9',
   },
   content: {
-    paddingHorizontal: 14,
-    paddingTop: 4,
+    paddingHorizontal: 16,
+    paddingTop: 14,
   },
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  iconBox: {
+  statusIconBox: {
     width: 48,
     height: 48,
-    borderRadius: 12,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(108, 71, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+  },
+  statusIconBoxCancelled: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+  },
+  statusIconBoxCompleted: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+  },
+  statusIconBoxBroadcasting: {
+    backgroundColor: 'rgba(108, 71, 255, 0.12)',
+  },
+  statusIconBoxProgress: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: '800',
     color: theme.colors.text,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   cardSub: {
     fontSize: 12,
     color: theme.colors.textDim,
+    fontWeight: '500',
   },
   statusPill: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: 'rgba(108, 71, 255, 0.12)',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 20,
   },
+  statusPillCancelled: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+  },
+  statusPillCompleted: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+  },
+  statusPillBroadcasting: {
+    backgroundColor: 'rgba(108, 71, 255, 0.12)',
+  },
+  statusPillProgress: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+  },
   statusText: {
-    color: '#10b981',
     fontSize: 11,
+    fontWeight: '800',
+  },
+  cancelNoticeBox: {
+    marginTop: 14,
+    padding: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  cancelNoticeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#EF4444',
+    marginBottom: 4,
+  },
+  cancelNoticeText: {
+    fontSize: 12.5,
+    color: theme.colors.text,
+    lineHeight: 17,
+  },
+  actionBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6C47FF',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 14,
+  },
+  actionBannerBtnText: {
+    color: '#fff',
+    fontSize: 13,
     fontWeight: '800',
   },
   sectionHeader: {
     fontSize: 14,
     fontWeight: '800',
     color: theme.colors.text,
+    marginBottom: 10,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  detailLabel: {
+    fontSize: 11.5,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+  detailValue: {
+    fontSize: 13.5,
+    color: theme.colors.text,
+    fontWeight: '700',
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  thumbWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
   },
   workerAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(14, 154, 167, 0.15)',
+    backgroundColor: 'rgba(108, 71, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   workerAvatarText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
-    color: theme.colors.primary,
+    color: '#6C47FF',
   },
   workerName: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.colors.text,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   workerRating: {
-    fontSize: 14,
+    fontSize: 13,
   },
   invoiceRow: {
     flexDirection: 'row',
@@ -263,7 +643,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   invoiceText: {
     color: theme.colors.text,
-    fontSize: 14,
+    fontSize: 13.5,
+    fontWeight: '600',
   },
   invoiceMuted: {
     color: theme.colors.textDim,
@@ -276,40 +657,42 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   totalText: {
     color: theme.colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
   },
   totalPrice: {
-    color: theme.colors.primary,
-    fontSize: 20,
-    fontWeight: '800',
+    color: '#6C47FF',
+    fontSize: 18,
+    fontWeight: '900',
   },
   rebookBtn: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
+    backgroundColor: '#6C47FF',
+    paddingVertical: 15,
+    borderRadius: 14,
   },
   rebookBtnText: {
-    color: '#001016',
+    color: '#fff',
     fontSize: 15,
     fontWeight: '800',
   },
   invoiceBtn: {
-    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
     paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 10,
+    borderRadius: 14,
   },
   invoiceBtnText: {
     color: theme.colors.text,
     fontSize: 14,
     fontWeight: '700',
-  }
+  },
 });
 
 export default PastJobDetailsScreen;
