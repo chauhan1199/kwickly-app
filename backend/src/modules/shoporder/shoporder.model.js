@@ -51,8 +51,9 @@ const ShopOrderSchema = new mongoose.Schema({
 
     payment: {
         amount:            { type: Number },
-        method:            { type: String, enum: ['WALLET', 'UPI', 'CASH'], default: 'WALLET' },
-        status:            { type: String, enum: ['PENDING', 'PAID', 'REFUNDED'], default: 'PENDING' },
+        method:            { type: String, enum: ['WALLET', 'UPI', 'CASH', 'COD'], default: 'WALLET' },
+        status:            { type: String, enum: ['PENDING', 'PENDING_VERIFICATION', 'PAID', 'FAILED', 'REFUNDED'], default: 'PENDING' },
+        utrNumber:         { type: String },
         razorpayOrderId:   { type: String },
         razorpayPaymentId: { type: String }
     },
