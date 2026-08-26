@@ -48,6 +48,7 @@ const CartScreen = ({ route, navigation }) => {
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
   const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [copiedVpa, setCopiedVpa] = useState(false);
+  const [upiTxnId, setUpiTxnId] = useState('');
 
   useEffect(() => { fetchCart(); }, [fetchCart]);
 
@@ -231,32 +232,39 @@ const CartScreen = ({ route, navigation }) => {
 
   const handleConfirmUpiPayment = async () => {
     if (!currentOrder) return;
+    const cleanUtr = upiTxnId.trim();
+    if (!cleanUtr || cleanUtr.length < 4) {
+      return Alert.alert(
+        'UTR Required',
+        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.'
+      );
+    }
+
     setUpiVerifying(true);
     try {
       const verifyRes = await walletService.verifyPayment({
         razorpayOrderId: upiOrderData?.razorpayOrderId || `upi_${Date.now()}`,
-        razorpayPaymentId: `upi_pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        upiTransactionId: cleanUtr,
+        razorpayPaymentId: cleanUtr,
         razorpaySignature: 'upi_verified',
         orderId: currentOrder._id
       });
 
       setShowUpiModal(false);
       setPaymentInitiated(false);
+      setUpiTxnId('');
       await clearCart();
       if (fetchUser) await fetchUser();
 
-      Alert.alert('Payment Successful! 🎉', `Order ${currentOrder.orderNumber || ''} has been placed and confirmed via UPI.`, [
+      Alert.alert('Payment Successful! 🎉', `Order ${currentOrder.orderNumber || ''} has been placed and confirmed via UPI (UTR: ${cleanUtr}).`, [
         { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: currentOrder._id }) },
         { text: 'Shop More', onPress: () => navigation.navigate('Shop') }
       ]);
     } catch (err) {
-      // If verify fails, still navigate to order tracking so user doesn't lose their order
-      setShowUpiModal(false);
-      setPaymentInitiated(false);
-      await clearCart();
-      Alert.alert('Order Submitted', 'Your order is recorded and waiting for confirmation.', [
-        { text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: currentOrder._id }) }
-      ]);
+      Alert.alert(
+        'Verification Failed',
+        err.response?.data?.message || err.message || 'Failed to verify UPI payment. Please check your UTR and try again.'
+      );
     } finally {
       setUpiVerifying(false);
     }
@@ -596,8 +604,24 @@ const CartScreen = ({ route, navigation }) => {
                   </Text>
                 </View>
                 <Text style={styles.paymentActiveText}>
-                  Please complete the payment of ₹{total} in your UPI app, then tap "I Have Paid" below to confirm your order.
+                  Please complete the payment of ₹{total} in your UPI app, then enter the 12-digit UPI Reference / UTR Number below to confirm your order:
                 </Text>
+
+                <View style={styles.utrInputBox}>
+                  <Text style={styles.utrInputLabel}>12-Digit UPI Reference / UTR Number *</Text>
+                  <TextInput
+                    style={styles.utrInput}
+                    placeholder="e.g. 423456789012"
+                    placeholderTextColor="#94A3B8"
+                    value={upiTxnId}
+                    onChangeText={setUpiTxnId}
+                    autoCapitalize="characters"
+                    returnKeyType="done"
+                  />
+                  <Text style={styles.utrHelpText}>
+                    💡 You can find the 12-digit UTR in your payment details in Google Pay / PhonePe / Paytm.
+                  </Text>
+                </View>
               </View>
             ) : (
               <View style={styles.vpaBox}>
@@ -629,16 +653,23 @@ const CartScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={[styles.confirmUpiBtn, upiVerifying && { opacity: 0.6 }]}
+                style={[
+                  styles.confirmUpiBtn,
+                  (!upiTxnId.trim() || upiTxnId.trim().length < 4 || upiVerifying) && { opacity: 0.5 }
+                ]}
                 onPress={handleConfirmUpiPayment}
-                disabled={upiVerifying}
+                disabled={!upiTxnId.trim() || upiTxnId.trim().length < 4 || upiVerifying}
               >
                 {upiVerifying ? (
-                  <ActivityIndicator size="small" color="#001016" />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
-                    <Check size={20} color="#001016" />
-                    <Text style={styles.confirmUpiBtnText}>✓ I Have Paid ₹{total} • Confirm Order</Text>
+                    <Check size={20} color="#FFFFFF" />
+                    <Text style={styles.confirmUpiBtnText}>
+                      {upiTxnId.trim().length >= 4
+                        ? `✓ I Have Paid ₹${total} • Confirm Order`
+                        : 'Enter UTR Number to Confirm'}
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -793,7 +824,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   paymentActiveHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
   paymentActiveTitle: { fontSize: 13, fontWeight: '800', color: '#10B981' },
-  paymentActiveText: { fontSize: 12, color: isDarkMode ? '#D1FAE5' : '#065F46', lineHeight: 17 },
+  paymentActiveText: { fontSize: 12, color: isDarkMode ? '#D1FAE5' : '#065F46', lineHeight: 17, marginBottom: 10 },
+  utrInputBox: { backgroundColor: theme.colors.background, borderRadius: 14, padding: 12, borderWidth: 1.5, borderColor: '#10B981', marginTop: 4 },
+  utrInputLabel: { fontSize: 11, fontWeight: '800', color: '#10B981', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  utrInput: { fontSize: 15, fontWeight: '800', color: theme.colors.text, paddingVertical: 2, letterSpacing: 1 },
+  utrHelpText: { fontSize: 11, color: theme.colors.textDim, marginTop: 4, lineHeight: 14 },
 
   vpaBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.colors.background, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: theme.colors.border },
   vpaLabel: { fontSize: 11, color: theme.colors.textDim, fontWeight: '600' },

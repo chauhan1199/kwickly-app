@@ -15,7 +15,7 @@ import {
   Animated,
   KeyboardAvoidingView
 } from 'react-native';
-import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import Geolocation from '@react-native-community/geolocation';
 import {
   MapPin,
@@ -46,7 +46,7 @@ export const AddressMapModal = ({
   theme,
   isDarkMode = false
 }) => {
-  const mapRef = useRef(null);
+  const webviewRef = useRef(null);
   const pinBounceAnim = useRef(new Animated.Value(0)).current;
 
   const [region, setRegion] = useState({
@@ -104,8 +104,8 @@ export const AddressMapModal = ({
         };
         setRegion(newReg);
         setTimeout(() => {
-          mapRef.current?.animateToRegion(newReg, 600);
-        }, 300);
+          webviewRef.current?.injectJavaScript(`if (window.map) { map.setView([${lat}, ${lng}], 17, { animate: true }); } true;`);
+        }, 500);
       } else {
         setLabel('Home');
         setCustomLabel('');
@@ -210,6 +210,78 @@ export const AddressMapModal = ({
     }
   };
 
+  // Generate Interactive Leaflet Map HTML
+  const leafletMapHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <style>
+        body { padding: 0; margin: 0; background: #e2e8f0; }
+        html, body, #map { height: 100%; width: 100%; }
+        .leaflet-control-attribution { display: none !important; }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${region.latitude}, ${region.longitude}], 16);
+        
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          maxZoom: 20,
+          subdomains: 'abcd'
+        }).addTo(map);
+
+        map.on('movestart', function() {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'MOVE_START' }));
+          }
+        });
+
+        map.on('moveend', function() {
+          var center = map.getCenter();
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'REGION_CHANGE',
+              lat: center.lat,
+              lng: center.lng
+            }));
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `;
+
+  const handleWebViewMessage = (event) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'MOVE_START') {
+        triggerPinBounce();
+      } else if (data.type === 'REGION_CHANGE') {
+        const lat = data.lat;
+        const lng = data.lng;
+        setRegion({
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: DEFAULT_DELTA,
+          longitudeDelta: DEFAULT_DELTA
+        });
+        triggerPinBounce();
+        if (geocodeTimeoutRef.current) {
+          clearTimeout(geocodeTimeoutRef.current);
+        }
+        geocodeTimeoutRef.current = setTimeout(() => {
+          performReverseGeocode(lat, lng);
+        }, 500);
+      }
+    } catch (err) {
+      console.log('[WebViewMessage] parse error:', err.message);
+    }
+  };
+
   // Select place from search autocomplete
   const handleSelectSearchResult = (item) => {
     const lat = parseFloat(item.lat);
@@ -223,7 +295,7 @@ export const AddressMapModal = ({
     };
 
     setRegion(newReg);
-    mapRef.current?.animateToRegion(newReg, 800);
+    webviewRef.current?.injectJavaScript(`if (window.map) { map.setView([${lat}, ${lon}], 17, { animate: true }); } true;`);
     setSearchQuery(item.display_name.split(',')[0]);
     setShowSearchResults(false);
 
@@ -265,7 +337,11 @@ export const AddressMapModal = ({
     if (!hasPermission && Platform.OS === 'android') {
       setIsLocatingGPS(false);
       if (manualClick) {
-        Alert.alert('Permission Required', 'Please grant location permission to find your current GPS position.');
+        Alert.alert(
+          'Location Permission Required',
+          'Please grant location permission to detect your current position on the map.',
+          [{ text: 'OK' }]
+        );
       }
       return;
     }
@@ -280,7 +356,7 @@ export const AddressMapModal = ({
         longitudeDelta: DEFAULT_DELTA
       };
       setRegion(newReg);
-      mapRef.current?.animateToRegion(newReg, 800);
+      webviewRef.current?.injectJavaScript(`if (window.map) { map.setView([${lat}, ${lon}], 17, { animate: true }); } true;`);
       performReverseGeocode(lat, lon);
       setIsLocatingGPS(false);
     };
@@ -291,16 +367,22 @@ export const AddressMapModal = ({
         onLocationSuccess,
         (err2) => {
           setIsLocatingGPS(false);
-          console.log('[GPS] Location timeout/error:', err2?.message || err?.message);
+          if (manualClick) {
+            Alert.alert(
+              'Please Turn on GPS',
+              'GPS / Location is currently turned off or unavailable. Please enable Location in your device settings to detect your position.',
+              [{ text: 'OK' }]
+            );
+          }
         },
-        { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
       );
     };
 
     Geolocation.getCurrentPosition(
       onLocationSuccess,
       onLocationError,
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
     );
   };
 
@@ -423,25 +505,18 @@ export const AddressMapModal = ({
 
         {/* Map Area */}
         <View style={dynamicStyles.mapWrapper}>
-          <MapView
-            ref={mapRef}
-            provider={PROVIDER_DEFAULT}
+          <WebView
+            ref={webviewRef}
+            originWhitelist={['*']}
+            source={{ html: leafletMapHTML }}
             style={dynamicStyles.map}
-            initialRegion={region}
-            mapType={Platform.OS === 'android' ? 'none' : 'standard'}
-            onRegionChangeComplete={handleRegionChangeComplete}
-            showsUserLocation={true}
-            showsMyLocationButton={false}
-            showsCompass={false}
-          >
-            <UrlTile
-              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maximumZ={19}
-              flipY={false}
-              zIndex={-1}
-              shouldReplaceMapContent={true}
-            />
-          </MapView>
+            onMessage={handleWebViewMessage}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            scalesPageToFit={false}
+            scrollEnabled={false}
+            bounces={false}
+          />
 
           {/* Centered Uber/Urban Company Location Pin */}
           <View style={dynamicStyles.centerPinContainer} pointerEvents="none">

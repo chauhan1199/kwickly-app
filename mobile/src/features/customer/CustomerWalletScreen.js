@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
-import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Building2, ShieldCheck, X } from 'lucide-react-native';
+import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield, Zap } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import { GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon } from '../../components/ui/UpiBrandIcons';
@@ -31,6 +31,9 @@ const CustomerWalletScreen = ({ navigation }) => {
   const [upiCheckoutModal, setUpiCheckoutModal] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [upiOrderData, setUpiOrderData] = useState(null);
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
+  const [upiTxnId, setUpiTxnId] = useState('');
   const [txnModal, setTxnModal] = useState(false);
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [topupAmount, setTopupAmount] = useState('');
@@ -89,6 +92,9 @@ const CustomerWalletScreen = ({ navigation }) => {
       };
 
       setUpiOrderData(orderPayload);
+      setPaymentInitiated(false);
+      setSelectedUpiApp('gpay');
+      setUpiTxnId('');
       setAddMoneyModal(false);
       setUpiCheckoutModal(true);
     } catch (error) {
@@ -98,8 +104,10 @@ const CustomerWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handleOpenUpiApp = async (appScheme = null) => {
+  const handleOpenUpiApp = async (appScheme = 'gpay') => {
     if (!upiOrderData?.upiIntentUri) return;
+    setSelectedUpiApp(appScheme);
+    setPaymentInitiated(true);
     try {
       let targetUri = upiOrderData.upiIntentUri;
       if (appScheme === 'gpay') {
@@ -115,12 +123,12 @@ const CustomerWalletScreen = ({ navigation }) => {
         await Linking.openURL(targetUri);
       } else {
         await Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-          Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment".`);
+          Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
         });
       }
     } catch (err) {
       Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-        Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment".`);
+        Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
       });
     }
   };
@@ -129,17 +137,27 @@ const CustomerWalletScreen = ({ navigation }) => {
     if (upiOrderData?.upiVpa) {
       Clipboard.setString(upiOrderData.upiVpa);
       setCopiedUpi(true);
+      setPaymentInitiated(true);
       setTimeout(() => setCopiedUpi(false), 2500);
     }
   };
 
   const handleConfirmUpiTopup = async () => {
     if (!upiOrderData) return;
+    const cleanUtr = upiTxnId.trim();
+    if (!cleanUtr || cleanUtr.length < 4) {
+      return Alert.alert(
+        'UTR Required',
+        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.'
+      );
+    }
+
     setIsVerifying(true);
     try {
       const verifyRes = await walletService.verifyPayment({
         razorpayOrderId: upiOrderData.razorpayOrderId,
-        razorpayPaymentId: `upi_pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        upiTransactionId: cleanUtr,
+        razorpayPaymentId: cleanUtr,
         razorpaySignature: 'upi_verified',
         purpose: 'wallet_topup',
         amount: upiOrderData.amount
@@ -148,17 +166,22 @@ const CustomerWalletScreen = ({ navigation }) => {
       if (verifyRes?.data?.status === 'success') {
         setUpiCheckoutModal(false);
         setTopupAmount('');
+        setUpiTxnId('');
+        setPaymentInitiated(false);
         if (fetchUser) await fetchUser();
         await fetchWallet();
         Alert.alert(
           'Top-up Successful! 🎉',
-          `₹${upiOrderData.amount} has been securely credited to your Kwickly Wallet.`
+          `₹${upiOrderData.amount} has been verified and securely credited to your Kwickly Wallet (UTR: ${cleanUtr}).`
         );
       } else {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }
     } catch (error) {
-      Alert.alert('Verification Failed', error.response?.data?.message || 'Failed to verify payment. Please try again.');
+      Alert.alert(
+        'Verification Failed',
+        error.response?.data?.message || error.message || 'Failed to verify payment. Please check the UTR and try again.'
+      );
     } finally {
       setIsVerifying(false);
     }
@@ -316,12 +339,12 @@ const CustomerWalletScreen = ({ navigation }) => {
 
       {/* ── UPI Checkout Modal ── */}
       <Modal visible={upiCheckoutModal} transparent animationType="slide" onRequestClose={() => !isVerifying && setUpiCheckoutModal(false)}>
-        <View style={styles.overlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
           <View style={styles.upiSheet}>
             <View style={styles.handle} />
             
             <View style={styles.upiHeaderRow}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.sheetTitle}>Pay via UPI / NetBanking</Text>
                 <Text style={styles.upiSubtitle}>Top-up Kwickly Wallet with instant credit</Text>
               </View>
@@ -332,14 +355,14 @@ const CustomerWalletScreen = ({ navigation }) => {
 
             {/* Total Amount Pill */}
             <View style={styles.amountPill}>
-              <Text style={styles.amountPillLabel}>Amount to Pay</Text>
+              <Text style={styles.amountPillLabel}>Amount to Add</Text>
               <Text style={styles.amountPillValue}>₹{upiOrderData?.amount || 0}</Text>
             </View>
 
             {/* Admin Payee Info Card */}
             <View style={styles.payeeCard}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.payeeNameLabel}>Payee: {upiOrderData?.payeeName || 'Kwickly PVT LTD'}</Text>
+                <Text style={styles.payeeNameLabel}>Admin Payee: {upiOrderData?.payeeName || 'Kwickly PVT LTD'}</Text>
                 <Text style={styles.payeeUpiText}>{upiOrderData?.upiVpa || 'ganshyam.tech-1@oksbi'}</Text>
               </View>
               <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpiId}>
@@ -357,67 +380,133 @@ const CustomerWalletScreen = ({ navigation }) => {
             {/* Quick UPI App Grid */}
             <Text style={styles.upiAppsHeading}>Choose UPI App</Text>
             <View style={styles.upiAppsGrid}>
-              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('gpay')}>
-                <View style={{ marginBottom: 4 }}>
-                  <GooglePayIcon size={34} />
-                </View>
-                <Text style={styles.upiAppLabel}>Google Pay</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('phonepe')}>
-                <View style={{ marginBottom: 4 }}>
-                  <PhonePeIcon size={34} />
-                </View>
-                <Text style={styles.upiAppLabel}>PhonePe</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp('paytm')}>
-                <View style={{ marginBottom: 4 }}>
-                  <PaytmIcon size={34} />
-                </View>
-                <Text style={styles.upiAppLabel}>Paytm</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.upiAppBtn} onPress={() => handleOpenUpiApp()}>
-                <View style={{ marginBottom: 4 }}>
-                  <BhimUpiIcon size={34} />
-                </View>
-                <Text style={styles.upiAppLabel}>Any UPI</Text>
-              </TouchableOpacity>
+              {[
+                { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
+                { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
+                { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
+                { key: 'generic', name: 'Any UPI', icon: BhimUpiIcon },
+              ].map((app) => {
+                const IconComponent = app.icon;
+                const isSelected = selectedUpiApp === app.key;
+                return (
+                  <TouchableOpacity
+                    key={app.key}
+                    style={[styles.upiAppBtn, isSelected && styles.upiAppBtnSelected]}
+                    onPress={() => handleOpenUpiApp(app.key)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ marginBottom: 4 }}>
+                      <IconComponent size={34} />
+                    </View>
+                    <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]}>
+                      {app.name}
+                    </Text>
+                    {isSelected && (
+                      <View style={styles.appCheckBadge}>
+                        <Check size={10} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
-            {/* Bank Transfer Details Box */}
-            {upiOrderData?.bankDetails && (
-              <View style={styles.bankDetailsBox}>
-                <View style={styles.bankHeader}>
-                  <Building2 size={16} color="#6C47FF" />
-                  <Text style={styles.bankHeaderText}>Direct Bank Transfer (IMPS / NEFT)</Text>
+            {/* Step 2: Payment Initiated & UTR Input */}
+            {paymentInitiated ? (
+              <View style={styles.utrSection}>
+                <View style={styles.utrHeader}>
+                  <View style={styles.pulseDot} />
+                  <Text style={styles.utrHeaderTitle}>
+                    Payment Initiated via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI'}
+                  </Text>
                 </View>
-                <View style={styles.bankGrid}>
-                  <Text style={styles.bankField}>A/C: <Text style={styles.bankVal}>{upiOrderData.bankDetails.accountNumber}</Text></Text>
-                  <Text style={styles.bankField}>IFSC: <Text style={styles.bankVal}>{upiOrderData.bankDetails.ifscCode}</Text></Text>
-                  <Text style={styles.bankField}>Bank: <Text style={styles.bankVal}>{upiOrderData.bankDetails.bankName}</Text></Text>
+                <Text style={styles.utrHeaderSub}>
+                  Complete the ₹{upiOrderData?.amount} payment in your UPI app, then enter the 12-digit UPI Reference / UTR Number below to credit your wallet:
+                </Text>
+
+                <View style={styles.utrInputBox}>
+                  <Text style={styles.utrInputLabel}>12-Digit UPI Reference / UTR Number *</Text>
+                  <TextInput
+                    style={styles.utrInput}
+                    placeholder="e.g. 423456789012"
+                    placeholderTextColor="#94A3B8"
+                    value={upiTxnId}
+                    onChangeText={setUpiTxnId}
+                    autoCapitalize="characters"
+                    returnKeyType="done"
+                  />
+                  <Text style={styles.utrHelpText}>
+                    💡 You can find the 12-digit UTR in your payment details in Google Pay / PhonePe / Paytm.
+                  </Text>
+                </View>
+
+                {/* Submit UTR Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.confirmPayBtn,
+                    (!upiTxnId.trim() || upiTxnId.trim().length < 4 || isVerifying) && { opacity: 0.5 }
+                  ]}
+                  onPress={handleConfirmUpiTopup}
+                  disabled={!upiTxnId.trim() || upiTxnId.trim().length < 4 || isVerifying}
+                >
+                  {isVerifying ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <ShieldCheck size={18} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.confirmPayBtnText}>
+                        {upiTxnId.trim().length >= 4
+                          ? `✓ I Have Paid ₹${upiOrderData?.amount || 0} • Add to Wallet`
+                          : 'Enter UTR Number to Confirm'}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.reopenRow}>
+                  <TouchableOpacity onPress={() => handleOpenUpiApp(selectedUpiApp)} style={styles.reopenBtn}>
+                    <ExternalLink size={13} color="#6C47FF" />
+                    <Text style={styles.reopenText}>Re-open UPI App</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleCopyUpiId} style={styles.reopenBtn}>
+                    <Copy size={13} color="#6C47FF" />
+                    <Text style={styles.reopenText}>Copy Admin UPI ID</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-            )}
+            ) : (
+              <>
+                {/* Bank Transfer Details Box */}
+                {upiOrderData?.bankDetails && (
+                  <View style={styles.bankDetailsBox}>
+                    <View style={styles.bankHeader}>
+                      <Building2 size={16} color="#6C47FF" />
+                      <Text style={styles.bankHeaderText}>Direct Bank Transfer (IMPS / NEFT)</Text>
+                    </View>
+                    <View style={styles.bankGrid}>
+                      <Text style={styles.bankField}>A/C: <Text style={styles.bankVal}>{upiOrderData.bankDetails.accountNumber}</Text></Text>
+                      <Text style={styles.bankField}>IFSC: <Text style={styles.bankVal}>{upiOrderData.bankDetails.ifscCode}</Text></Text>
+                      <Text style={styles.bankField}>Bank: <Text style={styles.bankVal}>{upiOrderData.bankDetails.bankName}</Text></Text>
+                    </View>
+                  </View>
+                )}
 
-            {/* Confirm & Credit Button */}
-            <TouchableOpacity
-              style={[styles.confirmPayBtn, isVerifying && { opacity: 0.7 }]}
-              onPress={handleConfirmUpiTopup}
-              disabled={isVerifying}
-            >
-              {isVerifying ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <ShieldCheck size={18} color="#fff" style={{ marginRight: 6 }} />
-                  <Text style={styles.confirmPayBtnText}>I have Paid ₹{upiOrderData?.amount || 0} — Add to Wallet</Text>
-                </>
-              )}
-            </TouchableOpacity>
+                {/* Pay via App Button */}
+                <TouchableOpacity
+                  style={styles.confirmPayBtn}
+                  onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
+                  activeOpacity={0.85}
+                >
+                  <Zap size={18} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.confirmPayBtnText}>
+                    Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+                  </Text>
+                  <ArrowRight size={18} color="#fff" style={{ marginLeft: 6 }} />
+                </TouchableOpacity>
+              </>
+            )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Transaction Details Modal */}
@@ -502,9 +591,25 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   copyBtnText:    { fontSize: 12, fontWeight: '800', color: '#6C47FF' },
   upiAppsHeading: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
   upiAppsGrid:    { flexDirection: 'row', gap: 10, marginBottom: 18 },
-  upiAppBtn:      { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border },
+  upiAppBtn:      { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: theme.colors.background, borderWidth: 1.5, borderColor: theme.colors.border, position: 'relative' },
+  upiAppBtnSelected: { borderColor: '#6C47FF', backgroundColor: '#6C47FF0D' },
   upiAppEmoji:    { fontSize: 20, marginBottom: 4 },
   upiAppLabel:    { fontSize: 11, fontWeight: '700', color: theme.colors.text },
+  appCheckBadge:  { position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: 8, backgroundColor: '#6C47FF', justifyContent: 'center', alignItems: 'center' },
+  
+  utrSection:     { marginBottom: 8 },
+  utrHeader:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  pulseDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
+  utrHeaderTitle: { fontSize: 13.5, fontWeight: '800', color: theme.colors.text },
+  utrHeaderSub:   { fontSize: 12, color: theme.colors.textDim, lineHeight: 17, marginBottom: 12 },
+  utrInputBox:    { backgroundColor: theme.colors.background, borderRadius: 16, padding: 14, borderWidth: 1.5, borderColor: '#6C47FF', marginBottom: 16 },
+  utrInputLabel:  { fontSize: 11.5, fontWeight: '800', color: '#6C47FF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  utrInput:       { fontSize: 16, fontWeight: '800', color: theme.colors.text, paddingVertical: 4, letterSpacing: 1 },
+  utrHelpText:    { fontSize: 11, color: theme.colors.textDim, marginTop: 6, lineHeight: 15 },
+  reopenRow:      { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+  reopenBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10 },
+  reopenText:     { fontSize: 12, fontWeight: '700', color: '#6C47FF' },
+
   bankDetailsBox: { backgroundColor: theme.colors.background, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 18 },
   bankHeader:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   bankHeaderText: { fontSize: 12, fontWeight: '700', color: theme.colors.text },

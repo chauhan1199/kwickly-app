@@ -486,19 +486,11 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
       setSubmitSuccess(true);
       setTimeout(() => {
-        if (selectedWorker) {
-          navigation.navigate('LiveTracking', { worker: selectedWorker });
-        } else {
-          navigation.navigate('LiveBids', {
-            jobId:      newJob._id,
-            job:        newJob,
-            category,
-            subcategory,
-            address,
-            timeSlot:   timeSlots.find(t => t.id === timeSlot)?.label || 'ASAP',
-          });
-        }
-      }, 600);
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs', state: { routes: [{ name: 'Home' }] } }],
+        });
+      }, 700);
     } catch (error) {
       const serverErrors = error.response?.data?.errors;
       const msg =

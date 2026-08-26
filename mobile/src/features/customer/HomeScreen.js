@@ -11,6 +11,7 @@ import {
   Image,
   Animated,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -20,7 +21,7 @@ import { shopService } from '../../services/shopService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ServiceCard, getServiceImage, getServiceRating } from '../../components/ui/ServiceCard';
 import LinearGradient from 'react-native-linear-gradient';
-import { ChevronRight, Star, Zap, MapPin, Bell, Package, Store, Clock, RotateCcw, X } from 'lucide-react-native';
+import { ChevronRight, Star, Zap, MapPin, Bell, Package, Store, Clock, RotateCcw, X, Radio, CheckCircle2 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchBar } from '../../components/ui/SearchBar';
 import GlassCard from '../../components/ui/GlassCard';
@@ -203,6 +204,12 @@ const HomeScreen = ({ navigation }) => {
       setRefreshing(false);
     }
   }, [userToken, userCoords]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   useEffect(() => {
     Animated.parallel([
@@ -468,6 +475,58 @@ const HomeScreen = ({ navigation }) => {
                DEFAULT HOME DASHBOARD (NO SEARCH)
             ═══════════════════════════════════════ */
             <>
+              {/* ── ACTIVE JOBS (LIVE BROADCAST / ASSIGNED) ── */}
+              {activeJobs.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <View style={styles.sectionHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Services</Text>
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countBadgeText}>{activeJobs.length}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  {activeJobs.map(job => (
+                    <ActiveJobCard key={job.id} job={job} navigation={navigation} theme={theme} />
+                  ))}
+                </View>
+              )}
+
+              {/* ── ACTIVE SHOP ORDERS ── */}
+              {activeShopOrders.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <View style={styles.sectionHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Shop Orders</Text>
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countBadgeText}>{activeShopOrders.length}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  {activeShopOrders.map(order => (
+                    <TouchableOpacity
+                      key={order._id}
+                      style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: PURPLE, borderLeftWidth: 4 }]}
+                      activeOpacity={0.8}
+                      onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order._id })}
+                    >
+                      <View style={styles.jobCardTop}>
+                        <View style={[styles.jobIconBox, { backgroundColor: PURPLE + '18' }]}>
+                          <Text style={{ fontSize: 22 }}>📦</Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>Order from {order.shopId?.name || 'Shop'}</Text>
+                          <Text style={styles.jobSub}>Status: {order.status} • Total: ₹{order.totalAmount || 0}</Text>
+                        </View>
+                        <View style={[styles.statusPill, { backgroundColor: PURPLE + '18' }]}>
+                          <Text style={[styles.statusPillText, { color: PURPLE }]}>TRACK</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
               {/* ── TOP SERVICES ── */}
               <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Top Services</Text>
@@ -597,58 +656,6 @@ const HomeScreen = ({ navigation }) => {
                 ))}
               </View>
 
-              {/* ── ACTIVE JOBS ── */}
-              {activeJobs.length > 0 && (
-                <>
-                  <View style={[styles.sectionHeader, { marginTop: 20 }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Jobs</Text>
-                      <View style={styles.countBadge}>
-                        <Text style={styles.countBadgeText}>{activeJobs.length}</Text>
-                      </View>
-                    </View>
-                  </View>
-                  {activeJobs.map(job => (
-                    <ActiveJobCard key={job.id} job={job} navigation={navigation} theme={theme} />
-                  ))}
-                </>
-              )}
-
-              {/* ── ACTIVE SHOP ORDERS ── */}
-              {activeShopOrders.length > 0 && (
-                <>
-                  <View style={[styles.sectionHeader, { marginTop: 20 }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Active Shop Orders</Text>
-                      <View style={styles.countBadge}>
-                        <Text style={styles.countBadgeText}>{activeShopOrders.length}</Text>
-                      </View>
-                    </View>
-                  </View>
-                  {activeShopOrders.map(order => (
-                    <TouchableOpacity
-                      key={order._id}
-                      style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: PURPLE }]}
-                      activeOpacity={0.8}
-                      onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order._id })}
-                    >
-                      <View style={styles.jobCardTop}>
-                        <View style={[styles.jobIconBox, { backgroundColor: PURPLE + '18' }]}>
-                          <Text style={{ fontSize: 22 }}>📦</Text>
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>Order from {order.shopId?.name || 'Shop'}</Text>
-                          <Text style={styles.jobSub}>Status: {order.status}</Text>
-                        </View>
-                        <View style={[styles.statusPill, { backgroundColor: PURPLE + '18' }]}>
-                          <Text style={[styles.statusPillText, { color: PURPLE }]}>TRACK</Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </>
-              )}
-
               {/* ── NEW REQUEST (when no active jobs) ── */}
               {activeJobs.length === 0 && (
                 <TouchableOpacity
@@ -680,12 +687,17 @@ const HomeScreen = ({ navigation }) => {
 
 // ── Active Job Card ──────────────────────────────────────
 const ActiveJobCard = ({ job, navigation, theme }) => {
-  const PURPLE = '#7E57C2';
-  const accentColor = PURPLE;
+  const PURPLE = '#6C47FF';
+  const accentColor = job.isCompleted ? '#10B981' : job.isIP ? '#0284C7' : PURPLE;
+  const serviceImg = getServiceImage(job.category);
+
   return (
     <TouchableOpacity
-      style={[styles.jobCard, { backgroundColor: theme.colors.card, borderLeftColor: accentColor }]}
-      activeOpacity={0.8}
+      style={[
+        styles.jobCard,
+        { backgroundColor: theme.colors.card, borderLeftColor: accentColor, borderLeftWidth: 4 }
+      ]}
+      activeOpacity={0.85}
       onPress={() => {
         if (job.isCompleted) navigation.navigate('WorkCompleted', { worker: { name: job.worker }, job: job.rawJob });
         else if (job.isIP) navigation.navigate('LiveTracking', { worker: { name: job.worker, rating: 4.8, jobs: 312, eta: 12, dist: '1.2 km' }, job: job.rawJob });
@@ -693,38 +705,56 @@ const ActiveJobCard = ({ job, navigation, theme }) => {
       }}
     >
       <View style={styles.jobCardTop}>
-        <View style={[styles.jobIconBox, { backgroundColor: accentColor + '18' }]}>
-          <Text style={{ fontSize: 22 }}>{job.isIP ? '❄️' : '🔧'}</Text>
+        <View style={[styles.jobIconBox, { backgroundColor: accentColor + '15' }]}>
+          {serviceImg ? (
+            <Image source={serviceImg} style={{ width: 44, height: 44, borderRadius: 12 }} resizeMode="cover" />
+          ) : (
+            <Text style={{ fontSize: 24 }}>{job.isCompleted ? '✅' : job.isIP ? '⚡' : '🔧'}</Text>
+          )}
         </View>
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>{job.title}</Text>
-          <Text style={styles.jobSub}>
-            {job.hasQuotes ? 'Quotes received — tap to accept!' :
-             job.isIP ? 'Worker on the way...' : 'Finding workers...'}
-          </Text>
-        </View>
-        <View style={[styles.statusPill, { backgroundColor: accentColor + '18' }]}>
-          <Text style={[styles.statusPillText, { color: accentColor }]}>
-            {job.hasQuotes ? 'QUOTES' : job.isIP ? 'ACTIVE' : 'PENDING'}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={[styles.jobTitle, { color: theme.colors.text, flex: 1 }]} numberOfLines={1}>
+              {job.title}
+            </Text>
+            <View style={[styles.statusPill, { backgroundColor: accentColor + '18' }]}>
+              <Text style={[styles.statusPillText, { color: accentColor }]}>
+                {job.status === 'BROADCASTING' ? '📡 LIVE RADAR' :
+                 job.hasQuotes ? '💬 QUOTES' :
+                 job.isIP ? '⚡ IN PROGRESS' :
+                 job.isCompleted ? '✓ DONE' : 'ACTIVE'}
+              </Text>
+            </View>
+          </View>
+          
+          <Text style={styles.jobSub} numberOfLines={1}>
+            {job.status === 'BROADCASTING' ? '⚡ Searching for nearby workers...' :
+             job.hasQuotes ? 'Quotes received — tap to accept!' :
+             job.isIP ? `Worker: ${job.worker || 'On the way'}` :
+             job.isCompleted ? 'Service finished successfully' : 'Pending assignment'}
           </Text>
         </View>
       </View>
+
       <View style={styles.progressTrack}>
         <LinearGradient
-          colors={[PURPLE, '#9575FF']}
+          colors={[accentColor, '#9575FF']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           style={[styles.progressFill, { width: `${job.progress}%` }]}
         />
       </View>
+
       <View style={styles.jobCardBottom}>
-        <Text style={[styles.workerName, { color: theme.colors.text }]}>{job.worker || 'Pending assignment'}</Text>
-        {job.preferredDate ? (
-          <Text style={[styles.jobPrice, { color: theme.colors.text, fontSize: 13, fontWeight: '600' }]}>
-            📅 {job.preferredDate} • {job.timeSlot}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Clock size={12} color={theme.colors.textDim} />
+          <Text style={[styles.workerName, { color: theme.colors.textDim, fontSize: 12 }]}>
+            {job.preferredDate ? `${job.preferredDate} • ${job.timeSlot}` : job.timeSlot === 'urgent' ? 'Immediate / Urgent' : job.timeSlot}
           </Text>
-        ) : (
-          <Text style={[styles.jobPrice, { color: theme.colors.text }]}>From ₹{job.fromPrice}</Text>
-        )}
+        </View>
+
+        <Text style={[styles.jobPrice, { color: accentColor, fontWeight: '800' }]}>
+          ₹{job.fromPrice}
+        </Text>
       </View>
     </TouchableOpacity>
   );

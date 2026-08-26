@@ -111,25 +111,50 @@ exports.createOrder = catchAsync(async (req, res) => {
  * Verifies payment after UPI or Razorpay checkout success
  */
 exports.verifyPayment = catchAsync(async (req, res) => {
-    const { razorpayOrderId, razorpayPaymentId, razorpaySignature, orderId } = req.body;
+    const { razorpayOrderId, razorpayPaymentId, upiTransactionId, utrNumber, razorpaySignature, orderId } = req.body;
 
     if (!razorpayOrderId) {
         return errorResponse(res, 'Missing payment order ID', StatusCodes.BAD_REQUEST);
     }
 
-    const isUpiOrder = razorpayOrderId.startsWith('upi_') || (razorpayPaymentId && razorpayPaymentId.startsWith('upi_pay_'));
+    const upiRef = (upiTransactionId || utrNumber || (razorpayPaymentId && razorpayPaymentId.startsWith('upi_') ? razorpayPaymentId : '')).toString().trim();
+    const isUpiOrder = razorpayOrderId.startsWith('upi_') || (upiTransactionId && upiTransactionId.length > 0) || (utrNumber && utrNumber.length > 0);
 
-    if (!isUpiOrder) {
+    if (isUpiOrder) {
+        if (!upiRef || upiRef.length < 4) {
+            return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.', StatusCodes.BAD_REQUEST);
+        }
+
+        // Anti-replay / duplicate UTR check across past transactions
+        const existingTxn = await WalletTxn.findOne({
+            razorpayPaymentId: upiRef,
+            status: 'COMPLETED'
+        }).lean();
+
+        if (existingTxn) {
+            return errorResponse(res, 'This UPI Reference / Transaction ID has already been processed and credited.', StatusCodes.CONFLICT);
+        }
+
+        const existingPayment = await Payment.findOne({
+            razorpayPaymentId: upiRef,
+            status: 'CAPTURED',
+            razorpayOrderId: { $ne: razorpayOrderId }
+        }).lean();
+
+        if (existingPayment) {
+            return errorResponse(res, 'This UPI Reference / Transaction ID has already been used for another order.', StatusCodes.CONFLICT);
+        }
+    } else {
         // Verify signature for Razorpay
         if (razorpaySignature) {
             const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
             if (!isValid) {
-                logger.warn('[Payment] Signature check failed for Razorpay order:', razorpayOrderId);
+                return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
             }
         }
     }
 
-    // B7 FIX: Use transactions to prevent partial updates
+    // Use transactions to prevent partial updates
     let session = null;
     let useTransaction = false;
     if (supportsTransactions()) {
@@ -149,6 +174,8 @@ exports.verifyPayment = catchAsync(async (req, res) => {
             payment = await Payment.findOne({ orderId }).session(session);
         }
 
+        const finalPaymentId = upiRef || razorpayPaymentId || `upi_txn_${Date.now()}`;
+
         if (!payment) {
             // Create record if not found
             payment = await Payment.create([{
@@ -157,15 +184,17 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 amount: req.body.amount || 0,
                 userId: req.user._id,
                 status: 'CAPTURED',
-                method: 'UPI'
+                method: 'UPI',
+                razorpayPaymentId: finalPaymentId,
+                razorpaySignature: razorpaySignature || 'upi_verified'
             }], sessOpts).then(arr => arr[0]);
+        } else {
+            payment.razorpayPaymentId = finalPaymentId;
+            payment.razorpaySignature = razorpaySignature || 'upi_verified';
+            payment.method = 'UPI';
+            payment.status = 'CAPTURED';
+            await payment.save(sessOpts);
         }
-
-        payment.razorpayPaymentId = razorpayPaymentId || `upi_txn_${Date.now()}`;
-        payment.razorpaySignature = razorpaySignature || 'upi_verified';
-        payment.method = 'UPI';
-        payment.status = 'CAPTURED';
-        await payment.save(sessOpts);
 
         // If linked to an order, update the order
         const targetOrderId = payment.orderId || orderId;
@@ -176,8 +205,30 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 order.payment.razorpayOrderId = razorpayOrderId;
                 order.payment.razorpayPaymentId = payment.razorpayPaymentId;
                 order.payment.method = 'UPI';
-                order.statusHistory.push({ status: order.status, timestamp: new Date(), note: 'UPI Payment verified successfully' });
+                order.statusHistory.push({ status: order.status, timestamp: new Date(), note: `UPI Payment verified successfully (UTR: ${finalPaymentId})` });
                 await order.save(sessOpts);
+
+                // Credit Admin Treasury for shop order collection
+                const orderAmount = order.totalAmount || payment.amount || req.body.amount || 0;
+                if (orderAmount > 0) {
+                    const adminW = await AdminWallet.findOneAndUpdate(
+                        {},
+                        { $inc: { balance: orderAmount, totalCollected: orderAmount } },
+                        { returnDocument: 'after', upsert: true, session }
+                    );
+                    if (adminW) {
+                        await AdminWalletTxn.create([{
+                            type: 'TOPUP',
+                            amount: orderAmount,
+                            balanceAfter: adminW.balance,
+                            description: `Shop Order #${order.orderNumber || order._id} UPI payment received (UTR: ${finalPaymentId})`,
+                            referenceId: order._id,
+                            referenceModel: 'ShopOrder',
+                            meta: { userId: req.user._id, orderId: order._id, utr: finalPaymentId }
+                        }], { session });
+                        emitToAll('DASHBOARD_UPDATE', { type: 'ADMIN_WALLET_CREDIT', id: order._id, amount: orderAmount });
+                    }
+                }
 
                 // Notify shop
                 emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', {
@@ -208,13 +259,13 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                         balanceAfter: creditedUser.wallet?.balance || 0,
                         status: 'COMPLETED',
                         razorpayPaymentId: payment.razorpayPaymentId,
-                        description: 'Wallet Top-up via Admin UPI'
+                        description: `Wallet Top-up via Admin UPI (UTR: ${finalPaymentId})`
                     }], { session });
 
-                    // Also credit Admin Wallet for platform tracking
+                    // Credit Admin Wallet for platform tracking
                     const adminW = await AdminWallet.findOneAndUpdate(
                         {},
-                        { $inc: { balance: creditAmount } },
+                        { $inc: { balance: creditAmount, totalCollected: creditAmount } },
                         { returnDocument: 'after', upsert: true, session }
                     );
                     if (adminW) {
@@ -222,18 +273,17 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                             type: 'TOPUP',
                             amount: creditAmount,
                             balanceAfter: adminW.balance,
-                            description: `User ${creditedUser.name || creditedUser.phone || 'Customer'} wallet top-up via UPI`,
+                            description: `User ${creditedUser.name || creditedUser.phone || 'Customer'} wallet top-up via UPI (UTR: ${finalPaymentId})`,
                             referenceId: payment._id,
                             referenceModel: 'Payment',
-                            meta: { userId: creditedUser._id, purpose: 'wallet_topup' }
+                            meta: { userId: creditedUser._id, purpose: 'wallet_topup', utr: finalPaymentId }
                         }], { session });
-                        emitToAll('DASHBOARD_UPDATE', { type: 'ADMIN_WALLET_CREDIT', id: payment._id });
+                        emitToAll('DASHBOARD_UPDATE', { type: 'ADMIN_WALLET_CREDIT', id: payment._id, amount: creditAmount });
                     }
                     await delCache(`session:${creditedUser._id}`);
                 }
             }
         }
-
 
         if (useTransaction) await session.commitTransaction();
         if (session) session.endSession();
@@ -242,8 +292,9 @@ exports.verifyPayment = catchAsync(async (req, res) => {
             verified: true,
             orderId: targetOrderId,
             paymentId: payment._id,
-            status: 'PAID'
-        }, 'Payment verified successfully');
+            status: payment.status || 'CAPTURED',
+            utr: finalPaymentId
+        }, 'Payment verified and credited successfully');
 
     } catch (error) {
         if (useTransaction && session) await session.abortTransaction();
