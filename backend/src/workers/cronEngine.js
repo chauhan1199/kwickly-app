@@ -107,19 +107,19 @@ const sweepBroadcastingJobs = async () => {
             // Auto cancel after 3 rounds
             logger.info(`[Cron] Cancelling job ${job._id} after 3 rounds (No workers found)`);
             job.status = 'CANCELLED';
-            job.cancelReason = 'No workers found nearby after expanding radius.';
+            job.cancelReason = 'No workers found nearby after expanding search radius.';
             await job.save();
             
             emitToRoom(`customer_${job.customerId?._id || job.customerId}`, 'JOB_STATUS_CHANGED', { 
                 jobId: job._id, 
                 status: 'CANCELLED', 
-                reason: 'No workers found nearby after expanding radius.' 
+                reason: 'No workers found nearby after expanding search radius.' 
             });
 
             notifyUser({
                 userId: job.customerId?._id || job.customerId,
-                title: 'Job Cancelled',
-                message: `We couldn't find any workers for your ${job.category} job. Please try again later.`,
+                title: 'Job Cancelled — No Workers Nearby',
+                message: `We searched up to ${job.broadcast?.radiusKm || (3 * maxRadius)} km but could not find available workers for your "${job.category}${job.subcategory ? ' - ' + job.subcategory : ''}" request. Tap to re-post or re-book anytime.`,
                 action: 'JOB_CANCELLED',
                 entityType: 'JOB',
                 entityId: job._id,

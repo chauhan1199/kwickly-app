@@ -488,11 +488,8 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
       setSubmitSuccess(true);
       setTimeout(() => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs', state: { routes: [{ name: 'Home' }] } }],
-        });
-      }, 700);
+        navigation.navigate('Home', { screen: 'HomeMain', params: { refresh: Date.now() } });
+      }, 500);
     } catch (error) {
       const serverErrors = error.response?.data?.errors;
       const msg =

@@ -237,7 +237,7 @@ exports.updateSettings = catchAsync(async (req, res) => {
         // Send a broadcast notification about plan updates to Workers
         await Notification.create({
             userId: null,
-            title: 'Subscription Plans Updated ðŸŽ¯',
+            title: 'Subscription Plans Updated',
             message: 'We have updated our subscription plans. Check out the new benefits in the app!',
             type: 'BROADCAST',
             action: 'UPDATE',
@@ -248,7 +248,7 @@ exports.updateSettings = catchAsync(async (req, res) => {
         // Send a broadcast notification about plan updates to Shops
         await Notification.create({
             userId: null,
-            title: 'Subscription Plans Updated ðŸŽ¯',
+            title: 'Subscription Plans Updated',
             message: 'We have updated our subscription plans. Check out the new benefits in the app!',
             type: 'BROADCAST',
             action: 'UPDATE',
@@ -258,14 +258,14 @@ exports.updateSettings = catchAsync(async (req, res) => {
 
         const { emitToAll } = require('../../helpers/socket.helper');
         emitToAll('NEW_NOTIFICATION', {
-            title: 'Subscription Plans Updated ðŸŽ¯',
+            title: 'Subscription Plans Updated',
             message: 'We have updated our subscription plans. Check out the new benefits in the app!',
             targetRole: 'WORKER',
             action: 'UPDATE',
             entityType: 'SETTINGS'
         });
         emitToAll('NEW_NOTIFICATION', {
-            title: 'Subscription Plans Updated ðŸŽ¯',
+            title: 'Subscription Plans Updated',
             message: 'We have updated our subscription plans. Check out the new benefits in the app!',
             targetRole: 'SHOP',
             action: 'UPDATE',

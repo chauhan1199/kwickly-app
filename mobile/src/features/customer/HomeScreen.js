@@ -487,7 +487,7 @@ const HomeScreen = ({ navigation }) => {
                     </View>
                   </View>
                   {activeJobs.map(job => (
-                    <ActiveJobCard key={job.id} job={job} navigation={navigation} theme={theme} />
+                    <ActiveJobCard key={job.id} job={job} navigation={navigation} theme={theme} categories={categories} />
                   ))}
                 </View>
               )}
@@ -686,10 +686,12 @@ const HomeScreen = ({ navigation }) => {
 };
 
 // ── Active Job Card ──────────────────────────────────────
-const ActiveJobCard = ({ job, navigation, theme }) => {
+const ActiveJobCard = ({ job, navigation, theme, categories = [] }) => {
   const PURPLE = '#6C47FF';
   const accentColor = job.isCompleted ? '#10B981' : job.isIP ? '#0284C7' : PURPLE;
-  const serviceImg = getServiceImage(job.category);
+  const matchedCat = categories.find(c => (c.name || c.label || '').toLowerCase() === (job.category || '').toLowerCase());
+  const networkImg = matchedCat?.imageUrl ? getImageUrl(matchedCat.imageUrl) : null;
+  const serviceImg = getServiceImage(job.category) || (matchedCat ? getServiceImage(matchedCat.name || matchedCat.label) : null);
 
   return (
     <TouchableOpacity
@@ -706,7 +708,9 @@ const ActiveJobCard = ({ job, navigation, theme }) => {
     >
       <View style={styles.jobCardTop}>
         <View style={[styles.jobIconBox, { backgroundColor: accentColor + '15' }]}>
-          {serviceImg ? (
+          {networkImg ? (
+            <Image source={{ uri: networkImg }} style={{ width: 44, height: 44, borderRadius: 12 }} resizeMode="cover" />
+          ) : serviceImg ? (
             <Image source={serviceImg} style={{ width: 44, height: 44, borderRadius: 12 }} resizeMode="cover" />
           ) : (
             <Text style={{ fontSize: 24 }}>{job.isCompleted ? '✅' : job.isIP ? '⚡' : '🔧'}</Text>

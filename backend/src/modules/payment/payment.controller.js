@@ -117,8 +117,8 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         return errorResponse(res, 'Missing payment order ID', StatusCodes.BAD_REQUEST);
     }
 
-    const upiRef = (upiTransactionId || utrNumber || (razorpayPaymentId && razorpayPaymentId.startsWith('upi_') ? razorpayPaymentId : '')).toString().trim();
-    const isUpiOrder = razorpayOrderId.startsWith('upi_') || (upiTransactionId && upiTransactionId.length > 0) || (utrNumber && utrNumber.length > 0);
+    const upiRef = (upiTransactionId || utrNumber || razorpayPaymentId || '').toString().trim();
+    const isUpiOrder = razorpayOrderId.startsWith('upi_') || (upiTransactionId && upiTransactionId.length > 0) || (utrNumber && utrNumber.length > 0) || (razorpayPaymentId && !razorpaySignature);
 
     if (isUpiOrder) {
         if (!upiRef || upiRef.length < 4) {

@@ -173,11 +173,11 @@ exports.createJob = catchAsync(async (req, res) => {
         notifiedWorkers: eligibleWorkerIds.length
     });
 
-    // â”€â”€ Notify customer that job was posted successfully â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Notify customer that job was posted successfully ─────────────────────
     notifyUser({
         userId: req.user._id,
-        title: 'âœ… Job Posted Successfully',
-        message: `Your ${job.category} job has been posted. We're finding the best workers for you!`,
+        title: 'Job Posted Successfully',
+        message: `Your request for ${job.category}${job.subcategory ? ' (' + job.subcategory + ')' : ''} has been broadcasted. Finding verified workers near you!`,
         action: 'JOB_CREATED',
         entityType: 'JOB',
         entityId: job._id,
@@ -457,8 +457,8 @@ exports.startJob = catchAsync(async (req, res) => {
 
     notifyUser({
         userId: job.customerId,
-        title: 'ðŸ› ï¸ Work Started',
-        message: `The worker has started your ${job.category} job.`,
+        title: 'Work Started',
+        message: `The assigned worker has arrived and started your ${job.category} service.`,
         action: 'JOB_UPDATED',
         entityType: 'JOB',
         entityId: job._id,
@@ -489,8 +489,8 @@ exports.completeJob = catchAsync(async (req, res) => {
 
     notifyUser({
         userId: job.customerId,
-        title: 'âœ… Job Completed',
-        message: `The worker has marked your ${job.category} job as completed. Please review and process payment.`,
+        title: 'Job Completed',
+        message: `Your ${job.category} service is complete! Please review the work and proceed with payment.`,
         action: 'JOB_UPDATED',
         entityType: 'JOB',
         entityId: job._id,
@@ -667,7 +667,7 @@ exports.payJob = catchAsync(async (req, res) => {
 
         notifyUser({
             userId: job.workerId,
-            title: 'ðŸ’¸ Payment Received',
+            title: 'Payment Received',
             message: `You have received payment for job #${String(job._id).slice(-6)}.`,
             action: 'JOB_UPDATED',
             entityType: 'JOB',
@@ -823,7 +823,7 @@ exports.reassignWorker = catchAsync(async (req, res) => {
     if (job.customerId) {
         notifyUser({
             userId: job.customerId,
-            title: 'ðŸ‘· Worker Reassigned',
+            title: 'Worker Reassigned',
             message: `A new worker has been assigned to your job #${String(job._id).slice(-6)} by the admin.`,
             action: 'JOB_UPDATED',
             entityType: 'JOB',
@@ -834,7 +834,7 @@ exports.reassignWorker = catchAsync(async (req, res) => {
 
     notifyUser({
         userId: workerId,
-        title: 'ðŸ‘· New Job Assigned',
+        title: 'New Job Assigned',
         message: `You have been manually assigned to job #${String(job._id).slice(-6)} by the admin.`,
         action: 'JOB_UPDATED',
         entityType: 'JOB',

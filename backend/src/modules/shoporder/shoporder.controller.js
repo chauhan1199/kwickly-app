@@ -233,8 +233,8 @@ exports.placeOrder = catchAsync(async (req, res) => {
         // Notify customer: order placed
         notifyUser({
             userId: req.user._id,
-            title: 'ðŸ›Žï¸ Order Placed Successfully',
-            message: `Your order has been placed with ${shop.name}. Total: â‚¹${total}. Order ID: #${String(order._id).slice(-6).toUpperCase()}`,
+            title: 'Order Placed Successfully',
+            message: `Your order has been placed with ${shop.name}. Total: ₹${total}. Order ID: #${String(order._id).slice(-6).toUpperCase()}`,
             action: 'ORDER_PLACED',
             entityType: 'ORDER',
             entityId: order._id,
@@ -299,7 +299,7 @@ exports.getOrderById = catchAsync(async (req, res) => {
 
     if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
 
-    // RBAC Security Check â€” Shop owners are identified by ownerId, not shopId on user
+    // RBAC Security Check — Shop owners are identified by ownerId, not shopId on user
     const orderCustomerId = order.customerId?._id?.toString() || order.customerId?.toString();
     const orderShopId = order.shopId?._id?.toString() || order.shopId?.toString();
     
@@ -329,7 +329,7 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
 
     if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
 
-    // RBAC Security Check â€” Shop owners are identified by ownerId, not shopId on user
+    // RBAC Security Check — Shop owners are identified by ownerId, not shopId on user
     const invoiceCustomerId = order.customerId?._id?.toString() || order.customerId?.toString();
     const invoiceShopId = order.shopId?._id?.toString() || order.shopId?.toString();
 
@@ -382,8 +382,8 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
 <body>
     <div class="page">
         <div class="header">
-            <h1>âš¡ Kwickly Invoice</h1>
-            <p>Order #${order._id.toString().slice(-6).toUpperCase()} Â· ${orderDate} Â· <span class="status-badge" style="background:rgba(255,255,255,0.2);color:#fff;">${escapeHtml(order.status)}</span></p>
+            <h1>⚡ Kwickly Invoice</h1>
+            <p>Order #${order._id.toString().slice(-6).toUpperCase()} · ${orderDate} · <span class="status-badge" style="background:rgba(255,255,255,0.2);color:#fff;">${escapeHtml(order.status)}</span></p>
         </div>
         <div class="body">
             <div class="meta-grid">
@@ -415,20 +415,20 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
                     <tr>
                         <td>${escapeHtml(item.name)}</td>
                         <td>${item.qty}</td>
-                        <td>â‚¹${escapeHtml(item.price.toFixed(2))}</td>
-                        <td style="text-align:right;font-weight:600">â‚¹${escapeHtml((item.price * item.qty).toFixed(2))}</td>
+                        <td>₹${escapeHtml(item.price.toFixed(2))}</td>
+                        <td style="text-align:right;font-weight:600">₹${escapeHtml((item.price * item.qty).toFixed(2))}</td>
                     </tr>`).join('')}
                 </tbody>
             </table>
 
             <div class="totals">
-                <div class="total-row"><span>Subtotal</span><span>â‚¹${order.subtotal.toFixed(2)}</span></div>
-                <div class="total-row"><span>Delivery Fee</span><span>â‚¹${order.deliveryFee.toFixed(2)}</span></div>
-                <div class="total-row grand"><span>Grand Total</span><span>â‚¹${order.total.toFixed(2)}</span></div>
+                <div class="total-row"><span>Subtotal</span><span>₹${order.subtotal.toFixed(2)}</span></div>
+                <div class="total-row"><span>Delivery Fee</span><span>₹${order.deliveryFee.toFixed(2)}</span></div>
+                <div class="total-row grand"><span>Grand Total</span><span>₹${order.total.toFixed(2)}</span></div>
             </div>
         </div>
         <div class="footer">
-            <p>Thank you for shopping with Kwickly! ðŸ™</p>
+            <p>Thank you for shopping with Kwickly! 😊</p>
             <button class="no-print" onclick="window.print()" style="margin-top:12px;padding:10px 24px;background:#0e9aa7;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Print / Save as PDF</button>
         </div>
     </div>
@@ -494,7 +494,7 @@ exports.cancelOrder = catchAsync(async (req, res) => {
     if (shop) {
         notifyUser({
             userId: shop.ownerId,
-            title: 'âŒ Order Cancelled',
+            title: '❌ Order Cancelled',
             message: `Order #${String(order._id).slice(-6).toUpperCase()} was cancelled by the customer.`,
             action: 'ORDER_CANCELLED',
             entityType: 'ORDER',
@@ -681,17 +681,17 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
 
     // Notify customer via notification
     const statusMessages = {
-        CONFIRMED:        { emoji: 'âœ…', msg: 'Your order has been confirmed by the shop and is being prepared.' },
-        PACKING:          { emoji: 'ðŸ“¦', msg: 'Your order is being packed and will be dispatched soon.' },
-        OUT_FOR_DELIVERY: { emoji: 'ðŸšš', msg: 'Your order is out for delivery! Prepare your OTP for handover.' },
-        DELIVERED:        { emoji: 'ðŸŽ‰', msg: 'Your order has been delivered successfully. Enjoy!' },
-        CANCELLED:        { emoji: 'âŒ', msg: 'Your order has been cancelled. A refund will be processed if applicable.' },
+        CONFIRMED:        { emoji: '✓', msg: 'Your order has been confirmed by the shop and is being prepared.' },
+        PACKING:          { emoji: '📦', msg: 'Your order is being packed and will be dispatched soon.' },
+        OUT_FOR_DELIVERY: { emoji: '🚚', msg: 'Your order is out for delivery! Prepare your OTP for handover.' },
+        DELIVERED:        { emoji: '🎉', msg: 'Your order has been delivered successfully. Enjoy!' },
+        CANCELLED:        { emoji: '❌', msg: 'Your order has been cancelled. A refund will be processed if applicable.' },
     };
     const sm = statusMessages[status];
     if (sm) {
         notifyUser({
             userId: order.customerId,
-            title: `${sm.emoji} Order ${status.charAt(0) + status.slice(1).toLowerCase()}`,
+            title: `Order ${status.charAt(0) + status.slice(1).toLowerCase()}`,
             message: sm.msg,
             action: status === 'DELIVERED' ? 'ORDER_DELIVERED' : status === 'CANCELLED' ? 'ORDER_CANCELLED' : 'ORDER_UPDATED',
             entityType: 'ORDER',

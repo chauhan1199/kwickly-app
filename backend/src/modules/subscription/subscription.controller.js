@@ -193,7 +193,7 @@ exports.subscribe = catchAsync(async (req, res) => {
     // Notify the user directly
     notifyUser({
         userId: userId,
-        title: 'Subscription Activated ðŸŽ¯',
+        title: 'Subscription Activated',
         message: `Your ${activePlan.label || activePlan.id} plan is now active!`,
         action: 'UPDATE',
         entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
@@ -204,8 +204,8 @@ exports.subscribe = catchAsync(async (req, res) => {
     // Notify the platform admins
     const adminNotif = await Notification.create({
         userId: null,
-        title: 'New Subscription Purchase ðŸ’°',
-        message: `A ${targetRole} has just purchased the ${activePlan.label || activePlan.id} plan for â‚¹${activePlan.price}.`,
+        title: 'New Subscription Purchase',
+        message: `A ${targetRole} has just purchased the ${activePlan.label || activePlan.id} plan for ₹${activePlan.price}.`,
         type: 'SYSTEM',
         action: 'CREATE',
         entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
@@ -214,7 +214,7 @@ exports.subscribe = catchAsync(async (req, res) => {
 
     const userNotif = await Notification.create({
         userId: userId,
-        title: 'Plan Activated! ðŸŽ‰',
+        title: 'Plan Activated Successfully',
         message: `Your ${activePlan.label || activePlan.id} subscription is now active!`,
         type: 'SYSTEM',
         action: 'UPDATE'

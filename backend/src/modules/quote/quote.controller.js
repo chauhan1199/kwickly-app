@@ -121,8 +121,8 @@ exports.placeQuote = catchAsync(async (req, res) => {
     // Notify customer: new quote received
     notifyUser({
         userId: job.customerId,
-        title: 'ðŸ’° New Quote Received',
-        message: `A worker has quoted \u20b9${amount} for your ${job.category} job. Tap to view all quotes!`,
+        title: 'New Quote Received',
+        message: `A nearby worker has quoted ₹${amount} for your ${job.category} job. Tap to view and accept quotes!`,
         action: 'QUOTE_RECEIVED',
         entityType: 'JOB',
         entityId: job._id,
@@ -361,8 +361,8 @@ exports.acceptQuote = catchAsync(async (req, res) => {
     // Notify customer: worker has been assigned
     notifyUser({
         userId: job.customerId,
-        title: 'ðŸ‘· Worker Assigned to Your Job',
-        message: `A worker has been assigned to your ${job.category} job. They will arrive shortly!`,
+        title: 'Worker Assigned to Your Job',
+        message: `A verified worker has accepted and been assigned to your ${job.category} service. They are heading your way!`,
         action: 'JOB_UPDATED',
         entityType: 'JOB',
         entityId: updatedJob._id,

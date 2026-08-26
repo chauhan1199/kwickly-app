@@ -359,7 +359,7 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
 
             <TouchableOpacity 
               style={styles.invoiceBtn}
-              onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+              onPress={() => navigation.navigate('Home', { screen: 'HomeMain' })}
             >
               <Text style={styles.invoiceBtnText}>Browse Other Services</Text>
             </TouchableOpacity>
