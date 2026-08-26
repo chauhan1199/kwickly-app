@@ -15,5 +15,8 @@ router.get('/my-transactions', authMiddleware,                    ctrl.getMyTran
 // Admin
 router.get('/transactions', authMiddleware, authorize('ADMIN'),   ctrl.getAllTransactions);
 router.post('/adjust',      authMiddleware, authorize('ADMIN'), validate(adjustSchema), ctrl.adminAdjust);
+router.get('/pending-topups', authMiddleware, authorize('ADMIN'), ctrl.getPendingTopups);
+router.post('/pending-topups/:id/approve', authMiddleware, authorize('ADMIN'), ctrl.approvePendingTopup);
+router.post('/pending-topups/:id/reject',  authMiddleware, authorize('ADMIN'), ctrl.rejectPendingTopup);
 
 module.exports = router;

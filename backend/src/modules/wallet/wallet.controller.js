@@ -448,3 +448,96 @@ exports.adminAdjust = catchAsync(async (req, res) => {
 
     return successResponse(res, { txn, adminBalance: adminWallet.balance }, 'Wallet adjusted successfully');
 });
+
+// ─── GET /api/v1/wallet/pending-topups (Admin) ───
+exports.getPendingTopups = catchAsync(async (req, res) => {
+    const txns = await WalletTxn.find({ type: 'TOPUP', status: 'PENDING' })
+        .populate('userId', 'name phone email role')
+        .sort('-createdAt')
+        .lean();
+
+    return successResponse(res, { txns, count: txns.length }, 'Pending top-up requests fetched');
+});
+
+// ─── POST /api/v1/wallet/pending-topups/:id/approve (Admin) ───
+exports.approvePendingTopup = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const txn = await WalletTxn.findById(id);
+    if (!txn) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
+    if (txn.status !== 'PENDING') return errorResponse(res, `Transaction is already ${txn.status}`, StatusCodes.BAD_REQUEST);
+
+    const user = await Customer.findByIdAndUpdate(
+        txn.userId,
+        { $inc: { 'wallet.balance': txn.amount } },
+        { returnDocument: 'after' }
+    );
+    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
+
+    txn.status = 'COMPLETED';
+    txn.balance = user.wallet?.balance || 0;
+    txn.description = `Wallet Top-up Verified & Credited (UTR: ${txn.razorpayPaymentId || 'UPI'})`;
+    await txn.save();
+
+    // Credit Admin Platform Wallet
+    const adminW = await AdminWallet.findOneAndUpdate(
+        {},
+        { $inc: { balance: txn.amount, totalCollected: txn.amount } },
+        { returnDocument: 'after', upsert: true }
+    );
+    if (adminW) {
+        await AdminWalletTxn.create([{
+            type: 'TOPUP',
+            amount: txn.amount,
+            balance: adminW.balance,
+            refId: String(txn._id),
+            description: `Customer ${user.name || 'User'} wallet top-up verified (UTR: ${txn.razorpayPaymentId})`
+        }]);
+    }
+
+    await delCache(`session:${user._id}`);
+    await delCache('admin_dashboard_stats');
+
+    // In-app notification to the user
+    await notifyUser({
+        userId: user._id,
+        title: 'Wallet Top-up Approved! 🎉',
+        message: `₹${txn.amount} has been verified and added to your Kwickly Wallet (UTR: ${txn.razorpayPaymentId}).`,
+        type: 'WALLET_CREDIT',
+        referenceId: txn._id,
+        referenceModel: 'WalletTxn'
+    });
+
+    emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_APPROVED', txnId: txn._id, userId: user._id });
+
+    return successResponse(res, { txn, newBalance: user.wallet?.balance || 0 }, `Top-up of ₹${txn.amount} approved and credited to ${user.name || 'user'}!`);
+});
+
+// ─── POST /api/v1/wallet/pending-topups/:id/reject (Admin) ───
+exports.rejectPendingTopup = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { reason = 'Payment not found / invalid UTR in admin bank account' } = req.body;
+    const txn = await WalletTxn.findById(id);
+    if (!txn) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
+    if (txn.status !== 'PENDING') return errorResponse(res, `Transaction is already ${txn.status}`, StatusCodes.BAD_REQUEST);
+
+    txn.status = 'FAILED';
+    txn.description = `Wallet Top-up Rejected (UTR: ${txn.razorpayPaymentId} - ${reason})`;
+    await txn.save();
+
+    await delCache(`session:${txn.userId}`);
+
+    // In-app notification to the user
+    await notifyUser({
+        userId: txn.userId,
+        title: 'Top-up Verification Failed ❌',
+        message: `Your top-up request for ₹${txn.amount} (UTR: ${txn.razorpayPaymentId}) was rejected: ${reason}`,
+        type: 'WALLET_REJECTED',
+        referenceId: txn._id,
+        referenceModel: 'WalletTxn'
+    });
+
+    emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_REJECTED', txnId: txn._id, userId: txn.userId });
+
+    return successResponse(res, { txn }, `Top-up request for ₹${txn.amount} rejected.`);
+});
+

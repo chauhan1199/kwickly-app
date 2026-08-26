@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Eye, Download } from 'lucide-react'
+import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Eye, Download, CheckCircle, XCircle, Clock, ShieldAlert, Copy } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
@@ -39,6 +39,15 @@ export default function Wallets() {
   const [toast, setToast] = useState(null)
   const [confirmWallet, setConfirmWallet] = useState(null)
 
+  // Pending UTR Approvals state
+  const [pendingTopups, setPendingTopups] = useState([])
+  const [pendingLoading, setPendingLoading] = useState(false)
+  const [pendingActionId, setPendingActionId] = useState(null)
+  const [pendingSearch, setPendingSearch] = useState('')
+  const [confirmApprove, setConfirmApprove] = useState(null)
+  const [confirmReject, setConfirmReject] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
+
   // All transactions state
   const [allTxns, setAllTxns] = useState([])
   const [allTxnsLoading, setAllTxnsLoading] = useState(false)
@@ -46,8 +55,15 @@ export default function Wallets() {
   const [txnTypeFilter, setTxnTypeFilter] = useState('all')
   const [txnRoleFilter, setTxnRoleFilter] = useState('all')
 
-  useEffect(() => { fetchAll() }, [])
-  useEffect(() => { if (tab === 'transactions' && allTxns.length === 0) fetchAllTxns() }, [tab])
+  useEffect(() => {
+    fetchAll()
+    fetchPendingTopups()
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'pending') fetchPendingTopups()
+    if (tab === 'transactions' && allTxns.length === 0) fetchAllTxns()
+  }, [tab])
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type })
@@ -76,6 +92,28 @@ export default function Wallets() {
     } finally { setLoading(false) }
   }
 
+  const fetchPendingTopups = async () => {
+    setPendingLoading(true)
+    try {
+      const res = await api.get('/wallet/pending-topups')
+      if (res.data.status === 'success') {
+        setPendingTopups(res.data.data.txns || [])
+      }
+    } catch (e) {
+      if (isAbortError(e)) return
+      // fallback to searching transactions with PENDING status
+      try {
+        const fallbackRes = await api.get('/admin/wallet/transactions', { params: { limit: 100 } })
+        if (fallbackRes.data.status === 'success') {
+          const list = fallbackRes.data.data.txns || []
+          setPendingTopups(list.filter(t => t.type === 'TOPUP' && t.status === 'PENDING'))
+        }
+      } catch (_) {}
+    } finally {
+      setPendingLoading(false)
+    }
+  }
+
   const fetchAllTxns = async () => {
     setAllTxnsLoading(true)
     try {
@@ -92,6 +130,45 @@ export default function Wallets() {
     } finally { setAllTxnsLoading(false) }
   }
 
+  const handleApproveTopup = async (txn) => {
+    setPendingActionId(txn._id)
+    try {
+      const res = await api.post(`/wallet/pending-topups/${txn._id}/approve`)
+      showToast(res.data?.message || `₹${txn.amount} verified & credited to user wallet!`, 'success')
+      await fetchPendingTopups()
+      await fetchAll()
+      if (tab === 'transactions') fetchAllTxns()
+      window.dispatchEvent(new Event('admin-action'))
+    } catch (e) {
+      showToast(extractErrorMessage(e, 'Failed to approve top-up'), 'error')
+    } finally {
+      setPendingActionId(null)
+      setConfirmApprove(null)
+    }
+  }
+
+  const handleRejectTopup = async (txn) => {
+    setPendingActionId(txn._id)
+    try {
+      const res = await api.post(`/wallet/pending-topups/${txn._id}/reject`, { reason: rejectReason || 'Invalid / Fake UTR number' })
+      showToast(res.data?.message || `Top-up request for ₹${txn.amount} rejected.`, 'info')
+      setRejectReason('')
+      await fetchPendingTopups()
+      if (tab === 'transactions') fetchAllTxns()
+      window.dispatchEvent(new Event('admin-action'))
+    } catch (e) {
+      showToast(extractErrorMessage(e, 'Failed to reject top-up'), 'error')
+    } finally {
+      setPendingActionId(null)
+      setConfirmReject(null)
+    }
+  }
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard?.writeText(text)
+    showToast(`Copied UTR: ${text}`, 'info')
+  }
+
   const filteredUsers = users.filter(u => {
     const name = u._role === 'SHOP' ? (u._displayName || u.name) : u.name
     const phone = u._role === 'SHOP' ? u._phone : u.phone
@@ -104,10 +181,22 @@ export default function Wallets() {
     return matchSearch && matchRole
   })
 
+  const filteredPending = pendingTopups.filter(t => {
+    const name = t.userId?.name || ''
+    const phone = t.userId?.phone || ''
+    const utr = t.razorpayPaymentId || ''
+    const matchSearch = !pendingSearch ||
+      name.toLowerCase().includes(pendingSearch.toLowerCase()) ||
+      phone.includes(pendingSearch) ||
+      utr.toLowerCase().includes(pendingSearch.toLowerCase())
+    return matchSearch
+  })
+
   const filteredTxns = allTxns.filter(t => {
     const name = t.userId?.name || t.userName || t.worker || ''
     const desc = t.description || ''
-    const matchSearch = !txnSearch || name.toLowerCase().includes(txnSearch.toLowerCase()) || desc.toLowerCase().includes(txnSearch.toLowerCase())
+    const utr = t.razorpayPaymentId || ''
+    const matchSearch = !txnSearch || name.toLowerCase().includes(txnSearch.toLowerCase()) || desc.toLowerCase().includes(txnSearch.toLowerCase()) || utr.toLowerCase().includes(txnSearch.toLowerCase())
     const matchType = txnTypeFilter === 'all' || t.type === txnTypeFilter
     const matchRole = txnRoleFilter === 'all' || (t.userId?.role || '').toUpperCase() === txnRoleFilter.toUpperCase()
     return matchSearch && matchType && matchRole
@@ -151,14 +240,16 @@ export default function Wallets() {
 
   const exportCsv = () => {
     if (filteredTxns.length === 0) return
-    const headers = ['Date', 'User', 'Role', 'Type', 'Description', 'Amount', 'Balance After']
+    const headers = ['Date', 'User', 'Role', 'Type', 'Description', 'UTR / ID', 'Amount', 'Status', 'Balance After']
     const rows = filteredTxns.map(t => [
       new Date(t.createdAt).toLocaleString('en-IN'),
       t.userId?.name || t.userName || t.worker || 'Unknown',
       t.userId?.role || '—',
       t.type || '',
       t.description || '',
+      t.razorpayPaymentId || '—',
       `${isCreditTxn(t) ? '+' : '-'}${t.amount || 0}`,
+      t.status || 'COMPLETED',
       t.balance ?? t.balanceAfter ?? 0
     ])
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -178,15 +269,40 @@ export default function Wallets() {
       <div className="page-header">
         <div>
           <h1 className="page-title">💰 Wallet Management</h1>
-          <p className="page-subtitle">View and manage all user wallets — credit, debit, and track transactions</p>
+          <p className="page-subtitle">View user wallets, verify direct UPI UTR numbers, and track platform transactions</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className={`btn ${tab === 'users' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('users')}>User Wallets</button>
-          <button className={`btn ${tab === 'transactions' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('transactions')}>All Transactions</button>
+          <button className={`btn ${tab === 'users' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('users')}>
+            User Wallets
+          </button>
+          <button
+            className={`btn ${tab === 'pending' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setTab('pending')}
+            style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <ShieldAlert size={15} />
+            Pending UTR Approvals
+            {pendingTopups.length > 0 && (
+              <span style={{
+                background: '#EF4444',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 7px',
+                borderRadius: 12,
+                marginLeft: 4
+              }}>
+                {pendingTopups.length}
+              </span>
+            )}
+          </button>
+          <button className={`btn ${tab === 'transactions' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('transactions')}>
+            All Transactions
+          </button>
         </div>
       </div>
 
-      {tab === 'users' ? (
+      {tab === 'users' && (
         <>
           {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
@@ -272,7 +388,155 @@ export default function Wallets() {
             )}
           </div>
         </>
-      ) : (
+      )}
+
+      {tab === 'pending' && (
+        <>
+          {/* Pending UTR Approvals Section */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+            <div className="stat-card-simple" style={{ borderTop: '3px solid #F59E0B' }}>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#F59E0B' }}>{pendingTopups.length}</div>
+              <div style={{ fontSize: 13, color: 'var(--mid)', fontWeight: 600, marginTop: 4 }}>Pending UTR Submissions</div>
+            </div>
+            <div className="stat-card-simple" style={{ borderTop: '3px solid #10B981' }}>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#10B981' }}>
+                ₹{pendingTopups.reduce((s, t) => s + (t.amount || 0), 0).toLocaleString('en-IN')}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--mid)', fontWeight: 600, marginTop: 4 }}>Pending Value to Verify</div>
+            </div>
+            <div className="stat-card-simple" style={{ borderTop: '3px solid #3B82F6' }}>
+              <div style={{ fontSize: 13, color: 'var(--mid)', lineHeight: 1.4, marginTop: 2 }}>
+                <strong style={{ color: '#fff' }}>🛡️ Anti-Fraud Verification:</strong> Compare the 12-digit UTR with your bank/UPI statement before approving. Approving credits the user's wallet automatically.
+              </div>
+            </div>
+          </div>
+
+          <div className="filters-row">
+            <div className="search-box">
+              <Search size={16} />
+              <input placeholder="Search by customer name, phone, or UTR number..." value={pendingSearch} onChange={e => setPendingSearch(e.target.value)} />
+            </div>
+            <button className="btn-secondary" onClick={() => fetchPendingTopups()} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <RefreshCw size={14} /> Refresh
+            </button>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--mid)', fontWeight: 600 }}>
+              {filteredPending.length} request{filteredPending.length !== 1 ? 's' : ''} waiting
+            </span>
+          </div>
+
+          <div className="table-card">
+            {pendingLoading ? (
+              <div style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>Loading pending UTR requests...</div>
+            ) : filteredPending.length === 0 ? (
+              <div style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>No Pending Top-up Requests</div>
+                <div style={{ fontSize: 13, color: 'var(--mid)', marginTop: 4 }}>All manual UPI top-up transactions are verified and clear.</div>
+              </div>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Amount Requested</th>
+                    <th>12-Digit UTR / Ref Number</th>
+                    <th>Date & Time</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Admin Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPending.map((t) => (
+                    <tr key={t._id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div className="avatar avatar-sm" style={{ background: 'linear-gradient(135deg, #00B4D8, #00B4D888)' }}>
+                            {(t.userId?.name || 'U')[0]?.toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700 }}>{t.userId?.name || 'Customer'}</div>
+                            <div style={{ fontSize: 12, color: 'var(--mid)' }}>{t.userId?.phone || '—'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 16, fontWeight: 900, color: '#10B981' }}>
+                          +₹{(t.amount || 0).toLocaleString('en-IN')}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontSize: 13,
+                            fontWeight: 800,
+                            letterSpacing: '0.8px',
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            padding: '4px 8px',
+                            borderRadius: 6,
+                            border: '1px solid rgba(255, 255, 255, 0.12)'
+                          }}>
+                            {t.razorpayPaymentId || '—'}
+                          </span>
+                          {t.razorpayPaymentId && (
+                            <button
+                              onClick={() => copyToClipboard(t.razorpayPaymentId)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mid)', padding: 4 }}
+                              title="Copy UTR"
+                            >
+                              <Copy size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="cell-muted" style={{ fontSize: 12 }}>
+                        {new Date(t.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </td>
+                      <td>
+                        <span style={{
+                          background: 'rgba(245, 158, 11, 0.15)',
+                          color: '#F59E0B',
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 800,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}>
+                          <Clock size={11} /> PENDING REVIEW
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: 8 }}>
+                          <button
+                            className="btn btn-success btn-sm"
+                            disabled={pendingActionId === t._id}
+                            onClick={() => setConfirmApprove(t)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <CheckCircle size={13} /> Approve
+                          </button>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            disabled={pendingActionId === t._id}
+                            onClick={() => { setConfirmReject(t); setRejectReason(''); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <XCircle size={13} /> Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
+
+      {tab === 'transactions' && (
         <>
           {/* All Transactions Tab */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
@@ -291,7 +555,7 @@ export default function Wallets() {
           <div className="filters-row">
             <div className="search-box">
               <Search size={16} />
-              <input placeholder="Search by user or description..." value={txnSearch} onChange={e => setTxnSearch(e.target.value)} />
+              <input placeholder="Search by user, UTR or description..." value={txnSearch} onChange={e => setTxnSearch(e.target.value)} />
             </div>
             <select className="filter-select" value={txnTypeFilter} onChange={e => setTxnTypeFilter(e.target.value)}>
               <option value="all">All Types</option>
@@ -320,7 +584,7 @@ export default function Wallets() {
             ) : (
               <table className="data-table">
                 <thead>
-                  <tr><th>User</th><th>Role</th><th>Type</th><th>Description</th><th>Amount</th><th>Balance After</th><th>Date</th></tr>
+                  <tr><th>User</th><th>Role</th><th>Type</th><th>Description / UTR</th><th>Amount</th><th>Status</th><th>Balance After</th><th>Date</th></tr>
                 </thead>
                 <tbody>
                   {filteredTxns.map((t, i) => {
@@ -335,11 +599,24 @@ export default function Wallets() {
                           {t.userId?.role ? <Badge label={t.userId.role} variant={t.userId.role === 'WORKER' ? 'purple' : t.userId.role === 'SHOP' ? 'success' : 'info'} /> : <span style={{ color: 'var(--mid)' }}>—</span>}
                         </td>
                         <td><Badge label={(t.type || 'UNKNOWN').replace(/_/g, ' ')} variant={TYPE_VARIANT[t.type] || 'neutral'} /></td>
-                        <td><span className="cell-muted" style={{ fontSize: 12 }}>{t.description || '—'}</span></td>
+                        <td>
+                          <div style={{ fontSize: 12, fontWeight: 600 }}>{t.description || '—'}</div>
+                          {t.razorpayPaymentId && (
+                            <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--mid)', marginTop: 2 }}>
+                              Ref: {t.razorpayPaymentId}
+                            </div>
+                          )}
+                        </td>
                         <td>
                           <span style={{ fontWeight: 800, color: credit ? '#059669' : '#dc2626' }}>
                             {credit ? '+' : '-'}₹{(t.amount || 0).toLocaleString('en-IN')}
                           </span>
+                        </td>
+                        <td>
+                          <Badge
+                            label={t.status || 'COMPLETED'}
+                            variant={t.status === 'COMPLETED' ? 'success' : t.status === 'PENDING' ? 'warning' : 'danger'}
+                          />
                         </td>
                         <td><strong>₹{(t.balance ?? t.balanceAfter ?? 0).toLocaleString('en-IN')}</strong></td>
                         <td className="cell-muted" style={{ fontSize: 12 }}>
@@ -349,7 +626,7 @@ export default function Wallets() {
                     )
                   })}
                   {filteredTxns.length === 0 && (
-                    <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>No transactions found</td></tr>
+                    <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>No transactions found</td></tr>
                   )}
                 </tbody>
               </table>
@@ -455,6 +732,8 @@ export default function Wallets() {
           </div>
         )}
       </Drawer>
+
+      {/* Confirm Manual Adjustment */}
       {confirmWallet && (
         <ConfirmModal
           title={confirmWallet.debit ? 'Debit Wallet' : 'Credit Wallet'}
@@ -464,6 +743,58 @@ export default function Wallets() {
           onConfirm={() => { adjustWallet(confirmWallet.debit); setConfirmWallet(null); }}
           onClose={() => setConfirmWallet(null)}
         />
+      )}
+
+      {/* Confirm Approve UTR Topup */}
+      {confirmApprove && (
+        <ConfirmModal
+          title="Approve UPI Top-up"
+          message={`Have you verified ₹${confirmApprove.amount} with UTR "${confirmApprove.razorpayPaymentId}" in your Admin Bank/UPI Account? Approving will instantly credit ₹${confirmApprove.amount} to ${confirmApprove.userId?.name || 'the customer'}'s wallet.`}
+          confirmText={`Approve & Credit ₹${confirmApprove.amount}`}
+          onConfirm={() => handleApproveTopup(confirmApprove)}
+          onClose={() => setConfirmApprove(null)}
+        />
+      )}
+
+      {/* Confirm Reject Fake UTR */}
+      {confirmReject && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+        }}>
+          <div style={{
+            background: 'var(--card-bg, #1e293b)',
+            borderRadius: 14,
+            padding: 24,
+            maxWidth: 460,
+            width: '100%',
+            border: '1px solid var(--border)'
+          }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: 18, color: '#EF4444', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <XCircle size={20} /> Reject Top-up Request
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--mid)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              Reject top-up of <strong>₹{confirmReject.amount}</strong> with UTR <strong>{confirmReject.razorpayPaymentId}</strong> for customer <strong>{confirmReject.userId?.name}</strong>.
+            </p>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Reason for Rejection</label>
+            <input
+              className="form-control"
+              placeholder="e.g. Fake UTR / Payment not received in bank"
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              style={{ width: '100%', marginBottom: 18 }}
+            />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn btn-outline" onClick={() => setConfirmReject(null)}>Cancel</button>
+              <button
+                className="btn btn-danger"
+                onClick={() => handleRejectTopup(confirmReject)}
+              >
+                Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
