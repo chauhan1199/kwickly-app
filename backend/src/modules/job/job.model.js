@@ -41,8 +41,12 @@ const JobSchema = new mongoose.Schema({
         amount: { type: Number }, // The total amount paid by customer (workerPayout + platformFee + gst)
         platformFee: { type: Number }, // Admin revenue
         gst: { type: Number }, // GST collected on platform fee
+        gstAmount: { type: Number },
         workerPayout: { type: Number }, // Exact amount worker quoted
+        quotedAmount: { type: Number },
         status: { type: String, enum: ['PENDING', 'PAID', 'REFUNDED'], default: 'PENDING' },
+        escrowStatus: { type: String, enum: ['UNLOCKED', 'LOCKED', 'SETTLED', 'REFUNDED'], default: 'UNLOCKED' },
+        method: { type: String, default: 'UPI' },
         razorpayOrderId: { type: String },
         razorpayPaymentId: { type: String }
     },

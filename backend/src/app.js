@@ -92,6 +92,7 @@ app.use('/api/v1/delivery-staff', require('./modules/deliveryStaff/deliveryStaff
 app.use('/api/v1/promotions',    require('./modules/promotion/promotion.routes'));
 app.use('/api/v1/payments',      require('./modules/payment/payment.routes'));
 app.use('/api/v1/admin/admin-wallet', require('./modules/adminWallet/adminWallet.routes'));
+app.use('/api/v1/ledger',             require('./modules/ledger/platformLedger.routes'));
 
 // Root & Health check — no auth, no rate limit
 app.get('/', (req, res) => {

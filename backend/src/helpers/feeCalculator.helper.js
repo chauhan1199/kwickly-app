@@ -1,47 +1,96 @@
 /**
- * Unified Platform Fee & Commission Calculator for Kwickly Platform
- * 
- * Supports:
- * - 'tiered' (Default): Flat minimum fee under threshold, percentage above threshold (e.g. ₹50 under ₹500, 12% above ₹500).
- * - 'percent': Fixed percentage on total quote.
- * - 'flat': Fixed flat fee regardless of amount.
+ * Kwickly Centralized Fee & GST Calculation Engine
+ * Implements Admin-configurable Dynamic Tiered, Percentage, and Fixed Fee calculations
  */
 
-function calculatePlatformFee(quoteAmount, feeConfig = {}) {
-    const workerPayout = Number(quoteAmount) || 0;
-    const type = feeConfig.type || 'tiered';
-    const gstPct = feeConfig.gstPercentage !== undefined ? Number(feeConfig.gstPercentage) : 18;
+const calculateJobFee = (workerQuoteAmount, config = {}) => {
+    const quote = Math.max(0, Number(workerQuoteAmount) || 0);
+    const mode = config.mode || 'TIERED'; // 'TIERED' | 'PERCENTAGE' | 'FIXED'
+    const threshold = config.threshold !== undefined ? Number(config.threshold) : 500;
+    const minFee = config.minFee !== undefined ? Number(config.minFee) : 50;
+    const percentAboveThreshold = config.percentAboveThreshold !== undefined ? Number(config.percentAboveThreshold) : 12;
+    const percentage = config.percentage !== undefined ? Number(config.percentage) : 12;
+    const fixedFee = config.fixedFee !== undefined ? Number(config.fixedFee) : 50;
+    const gstRate = config.gstPercent !== undefined ? Number(config.gstPercent) : 18;
 
     let platformFee = 0;
 
-    if (type === 'tiered') {
-        const threshold = feeConfig.threshold !== undefined ? Number(feeConfig.threshold) : (feeConfig.feeThreshold !== undefined ? Number(feeConfig.feeThreshold) : 500);
-        const minFee = feeConfig.minFee !== undefined ? Number(feeConfig.minFee) : (feeConfig.feeMinAmount !== undefined ? Number(feeConfig.feeMinAmount) : (feeConfig.amount || 50));
-        const percentage = feeConfig.percentage !== undefined ? Number(feeConfig.percentage) : (feeConfig.feePercentage !== undefined ? Number(feeConfig.feePercentage) : 12);
-
-        if (workerPayout <= threshold) {
+    if (mode === 'FIXED') {
+        platformFee = fixedFee;
+    } else if (mode === 'PERCENTAGE') {
+        platformFee = (quote * percentage) / 100;
+        if (minFee && platformFee < minFee) platformFee = minFee;
+    } else {
+        // Dynamic Tiered calculation
+        if (quote <= threshold) {
             platformFee = minFee;
         } else {
-            platformFee = Math.round((workerPayout * percentage) / 100);
+            // Above threshold: fee = quote * percentAboveThreshold% (e.g. 550 * 12% = 66)
+            platformFee = (quote * percentAboveThreshold) / 100;
             if (platformFee < minFee) platformFee = minFee;
         }
-    } else if (type === 'percent' || type === 'percentage') {
-        const pct = feeConfig.percentage || feeConfig.feePercentage || feeConfig.amount || 12;
-        platformFee = Math.round((workerPayout * pct) / 100);
-    } else { // flat
-        platformFee = feeConfig.minFee || feeConfig.feeMinAmount || feeConfig.amount || 50;
     }
 
-    const gst = Math.round((platformFee * gstPct) / 100);
-    const customerPayable = workerPayout + platformFee + gst;
+    // Round platform fee to 2 decimal places
+    platformFee = Math.round(platformFee * 100) / 100;
+
+    // GST on Platform Fee (e.g. 66 * 18% = 11.88)
+    const gstAmount = Math.round(((platformFee * gstRate) / 100) * 100) / 100;
+
+    // Total Paid by Customer
+    const customerTotal = Math.round((quote + platformFee + gstAmount) * 100) / 100;
 
     return {
-        workerPayout,
+        workerServiceAmount: quote,
         platformFee,
-        gst,
-        customerPayable,
-        gstPercentage: gstPct
+        gstAmount,
+        gstRate,
+        customerTotal,
+        workerCommissionPercent: 0,
+        workerNetEarning: quote // Worker gets 100% of quote!
     };
-}
+};
 
-module.exports = { calculatePlatformFee };
+const calculateShopOrderFee = (netProductSales, deliveryCharge = 0, config = {}) => {
+    const netSales = Math.max(0, Number(netProductSales) || 0);
+    const delivery = Math.max(0, Number(deliveryCharge) || 0);
+    const mode = config.mode || 'PERCENTAGE';
+    const percentage = config.percentage !== undefined ? Number(config.percentage) : 5;
+    const minFee = config.minFee !== undefined ? Number(config.minFee) : 10;
+    const fixedFee = config.fixedFee !== undefined ? Number(config.fixedFee) : 10;
+    const gstRate = config.gstPercent !== undefined ? Number(config.gstPercent) : 18;
+
+    let platformFee = 0;
+
+    if (mode === 'FIXED') {
+        platformFee = fixedFee;
+    } else {
+        // Percentage fee on net product sales (e.g. 234 * 5% = 11.70)
+        platformFee = (netSales * percentage) / 100;
+        if (minFee && platformFee < minFee) platformFee = minFee;
+    }
+
+    platformFee = Math.round(platformFee * 100) / 100;
+
+    // GST on Platform Fee (e.g. 11.70 * 18% = 2.11)
+    const gstAmount = Math.round(((platformFee * gstRate) / 100) * 100) / 100;
+
+    // Customer Total = Net Products + Platform Fee + GST + Delivery Fee
+    const customerTotal = Math.round((netSales + platformFee + gstAmount + delivery) * 100) / 100;
+
+    return {
+        netProductSales: netSales,
+        deliveryFee: delivery,
+        platformFee,
+        gstAmount,
+        gstRate,
+        customerTotal,
+        shopCommissionPercent: 0,
+        shopNetEarning: netSales // Shop gets 100% of product sales!
+    };
+};
+
+module.exports = {
+    calculateJobFee,
+    calculateShopOrderFee
+};

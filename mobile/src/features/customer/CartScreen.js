@@ -543,22 +543,45 @@ const CartScreen = ({ route, navigation }) => {
                 {/* Bill Details */}
                 <View style={styles.billBox}>
                   <Text style={styles.billTitle}>Bill Details</Text>
-                  {[
-                    ['Items Total', `₹${subtotal}`],
-                    ['Delivery Fee', deliveryCharge === 0 ? 'FREE' : `₹${deliveryCharge}`],
-                    promoDiscount > 0 ? ['Promo / Shop Discount', `-₹${promoDiscount}`] : null,
-                  ].filter(Boolean).map(([k, v]) => (
-                    <View key={k} style={styles.billRow}>
-                      <Text style={styles.billKey}>{k}</Text>
-                      <Text style={[styles.billVal, typeof v === 'string' && v.includes('FREE') && { color: '#059669' }]}>
-                        {v}
-                      </Text>
-                    </View>
-                  ))}
-                  <View style={[styles.billRow, styles.billTotalRow]}>
-                    <Text style={styles.billTotalKey}>To Pay</Text>
-                    <Text style={styles.billTotalVal}>₹{total}</Text>
-                  </View>
+                  {(() => {
+                    const netItems = Math.max(0, subtotal - promoDiscount);
+                    const fee = Math.round((netItems * 0.05) * 100) / 100;
+                    const gst = Math.round((fee * 0.18) * 100) / 100;
+                    const grandTotal = Math.round((netItems + (deliveryCharge || 0) + fee + gst) * 100) / 100;
+
+                    return (
+                      <>
+                        <View style={styles.billRow}>
+                          <Text style={styles.billKey}>Items Total</Text>
+                          <Text style={styles.billVal}>₹{subtotal}</Text>
+                        </View>
+                        {promoDiscount > 0 && (
+                          <View style={styles.billRow}>
+                            <Text style={styles.billKey}>Promo / Shop Discount</Text>
+                            <Text style={[styles.billVal, { color: '#059669' }]}>-₹{promoDiscount}</Text>
+                          </View>
+                        )}
+                        <View style={styles.billRow}>
+                          <Text style={styles.billKey}>Delivery Fee</Text>
+                          <Text style={[styles.billVal, deliveryCharge === 0 && { color: '#059669' }]}>
+                            {deliveryCharge === 0 ? 'FREE' : `₹${deliveryCharge}`}
+                          </Text>
+                        </View>
+                        <View style={styles.billRow}>
+                          <Text style={styles.billKey}>Kwickly Platform Fee (5%)</Text>
+                          <Text style={styles.billVal}>₹{fee}</Text>
+                        </View>
+                        <View style={styles.billRow}>
+                          <Text style={styles.billKey}>GST on Platform Fee (18%)</Text>
+                          <Text style={styles.billVal}>₹{gst}</Text>
+                        </View>
+                        <View style={[styles.billRow, styles.billTotalRow]}>
+                          <Text style={styles.billTotalKey}>To Pay</Text>
+                          <Text style={styles.billTotalVal}>₹{grandTotal}</Text>
+                        </View>
+                      </>
+                    );
+                  })()}
                 </View>
 
                 {/* Trust Badges */}

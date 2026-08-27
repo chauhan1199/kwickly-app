@@ -17,8 +17,12 @@ const ShopOrderSchema = new mongoose.Schema({
 
     subtotal:    { type: Number, required: true },
     deliveryFee: { type: Number, default: 0 },
-    discount:    { type: Number, default: 0 },
-    total:       { type: Number, required: true },
+    discount:        { type: Number, default: 0 },
+    promoDiscount:   { type: Number, default: 0 },
+    netProductSales: { type: Number },
+    platformFee:     { type: Number, default: 0 },
+    gstAmount:       { type: Number, default: 0 },
+    total:           { type: Number, required: true },
 
     deliveryAddress: { type: String },
     deliveryLocation: {
@@ -53,6 +57,7 @@ const ShopOrderSchema = new mongoose.Schema({
         amount:            { type: Number },
         method:            { type: String, enum: ['WALLET', 'UPI', 'CASH', 'COD'], default: 'WALLET' },
         status:            { type: String, enum: ['PENDING', 'PENDING_VERIFICATION', 'PAID', 'FAILED', 'REFUNDED'], default: 'PENDING' },
+        escrowStatus:      { type: String, enum: ['UNLOCKED', 'LOCKED', 'SETTLED', 'REFUNDED'], default: 'UNLOCKED' },
         utrNumber:         { type: String },
         razorpayOrderId:   { type: String },
         razorpayPaymentId: { type: String }

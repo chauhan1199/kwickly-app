@@ -249,15 +249,15 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         const arrivalOtp    = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
         const completionOtp = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
 
-        // Calculate final pricing model
-        const { calculatePlatformFee } = require('../../helpers/feeCalculator.helper');
-        const feeConfig = settings?.fees || { type: 'tiered', minFee: 50, threshold: 500, percentage: 12, gstPercentage: 18 };
+        // Calculate final pricing model using Centralized Fee Engine
+        const { calculateJobFee } = require('../../helpers/feeCalculator.helper');
+        const feeConfig = settings?.serviceJobFee || settings?.fees || { mode: 'TIERED', minFee: 50, threshold: 500, percentAboveThreshold: 12, gstPercent: 18 };
         
-        const feeBreakdown = calculatePlatformFee(quote.amount, feeConfig);
-        const workerPayout = feeBreakdown.workerPayout;
-        const platformFee = feeBreakdown.platformFee;
-        const gst = feeBreakdown.gst;
-        const customerPayable = feeBreakdown.customerPayable;
+        const feeBreakdown = calculateJobFee(quote.amount, feeConfig);
+        const workerPayout = feeBreakdown.workerServiceAmount; // 100% to Worker (₹550)
+        const platformFee = feeBreakdown.platformFee;          // Kwickly SaaS/Fee (₹66)
+        const gst = feeBreakdown.gstAmount;                    // GST on Fee (₹11.88)
+        const customerPayable = feeBreakdown.customerTotal;    // Customer Grand Total (₹627.88)
 
     let session = null;
     let useTransaction = false;
@@ -286,9 +286,12 @@ exports.acceptQuote = catchAsync(async (req, res) => {
                 'security.arrivalOtp':       arrivalOtp,
                 'security.completionOtp':    completionOtp,
                 'payment.amount':            customerPayable,
+                'payment.quotedAmount':      workerPayout,
                 'payment.workerPayout':      workerPayout,
                 'payment.platformFee':       platformFee,
-                'payment.gst':               gst
+                'payment.gst':               gst,
+                'payment.gstAmount':         gst,
+                'payment.escrowStatus':      'LOCKED'
             },
             { returnDocument: 'after', session }
         );

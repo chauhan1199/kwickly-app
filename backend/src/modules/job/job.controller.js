@@ -566,85 +566,52 @@ exports.payJob = catchAsync(async (req, res) => {
 
         if (worker) {
             if (method === 'CASH') {
-                // Worker got cash â€” Kwickly deducts commission from worker wallet
-                const updated = await Customer.findOneAndUpdate(
-                    { _id: worker._id, 'wallet.balance': { $gte: adminTotalRevenue } },
-                    { $inc: { 'wallet.balance': -adminTotalRevenue } },
-                    { returnDocument: 'after', session }
-                );
-                if (!updated) {
-                    // LOOPHOLE FIX #1 â€” Cash Payment Evasion Mitigation
-                    // Worker doesn't have enough balance â€” create debt record
-                    const debtUpdated = await Customer.findOneAndUpdate(
-                        { _id: worker._id, 'wallet.balance': { $gt: -500 } },
-                        { $inc: { 'wallet.balance': -adminTotalRevenue } },
+                const feeToDeduct = (platformFee + gst) - promoDiscount;
+                if (feeToDeduct > 0) {
+                    const updated = await Customer.findOneAndUpdate(
+                        { _id: worker._id, 'wallet.balance': { $gte: feeToDeduct } },
+                        { $inc: { 'wallet.balance': -feeToDeduct } },
                         { returnDocument: 'after', session }
                     );
-
-                    const txnType = adminTotalRevenue < 0 ? 'PROMO_CREDIT' : 'JOB_DEBIT';
-                    
-                    if (debtUpdated && debtUpdated.wallet?.balance < 0) {
-                        await Customer.findByIdAndUpdate(worker._id, { isOnline: false }, { session });
-                        logger.warn(`[Cash Evasion] Worker ${worker._id} locked offline â€” wallet at â‚¹${debtUpdated.wallet.balance}`);
-                        emitToRoom(`worker_${worker._id}`, 'FORCED_OFFLINE', {
-                            reason: 'Negative wallet balance from cash job. Please top-up to continue receiving jobs.',
-                            walletBalance: debtUpdated.wallet.balance
-                        });
+                    if (!updated) {
+                        const debtUpdated = await Customer.findOneAndUpdate(
+                            { _id: worker._id, 'wallet.balance': { $gt: -500 } },
+                            { $inc: { 'wallet.balance': -feeToDeduct } },
+                            { returnDocument: 'after', session }
+                        );
+                        if (debtUpdated && debtUpdated.wallet?.balance < 0) {
+                            await Customer.findByIdAndUpdate(worker._id, { isOnline: false }, { session });
+                            emitToRoom(`worker_${worker._id}`, 'FORCED_OFFLINE', {
+                                reason: 'Negative wallet balance from cash job fee. Please top-up to continue receiving jobs.',
+                                walletBalance: debtUpdated.wallet.balance
+                            });
+                        }
+                        await WalletTxn.create([{
+                            userId: worker._id, type: 'JOB_DEBIT', amount: feeToDeduct,
+                            balance: debtUpdated?.wallet?.balance || 0,
+                            refId: job._id.toString(), status: 'COMPLETED',
+                            description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
+                        }], { session });
+                    } else {
+                        await WalletTxn.create([{
+                            userId: worker._id, type: 'JOB_DEBIT', amount: feeToDeduct,
+                            balance: updated.wallet.balance,
+                            refId: job._id.toString(), status: 'COMPLETED',
+                            description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
+                        }], { session });
                     }
-
-                    await WalletTxn.create([{
-                        userId: worker._id, type: txnType, amount: Math.abs(adminTotalRevenue),
-                        balance: debtUpdated?.wallet?.balance || 0,
-                        refId: job._id.toString(), status: 'COMPLETED',
-                        description: adminTotalRevenue < 0 ? `Promo reimbursement for job #${job._id.toString().slice(-6)}` : `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
-                    }], { session });
-                } else {
-                    const txnType = adminTotalRevenue < 0 ? 'PROMO_CREDIT' : 'JOB_DEBIT';
-                    await WalletTxn.create([{
-                        userId: worker._id, type: txnType, amount: Math.abs(adminTotalRevenue),
-                        balance: updated.wallet.balance,
-                        refId: job._id.toString(), status: 'COMPLETED',
-                        description: adminTotalRevenue < 0 ? `Promo reimbursement for job #${job._id.toString().slice(-6)}` : `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
-                    }], { session });
                 }
             } else {
-                // Customer pays from wallet (online). Debit the customer first so we never
-                // credit the worker before the customer has actually paid.
-                const customerPayable = Math.max(0, (job.payment?.amount || 0) - promoDiscount);
-                if (customerPayable > 0) {
-                    const debited = await Customer.findOneAndUpdate(
-                        { _id: req.user._id, 'wallet.balance': { $gte: customerPayable } },
-                        { $inc: { 'wallet.balance': -customerPayable } },
-                        { returnDocument: 'after', session }
-                    );
-                    if (!debited) {
-                        if (useTransaction && session) await session.abortTransaction();
-                        if (session) session.endSession();
-                        return errorResponse(res, 'Insufficient wallet balance. Please top up your wallet to pay online.', StatusCodes.PAYMENT_REQUIRED);
-                    }
-                    await WalletTxn.create([{
-                        userId: req.user._id,
-                        type: 'JOB_PAYMENT',
-                        amount: customerPayable,
-                        balance: debited.wallet?.balance || 0,
-                        refId: job._id.toString(),
-                        status: 'COMPLETED',
-                        description: `Job payment for job #${job._id.toString().slice(-6)}`
-                    }], { session });
-                }
-
-                const creditedWorker = await Customer.findByIdAndUpdate(worker._id, { $inc: { 'wallet.balance': workerPayout } }, { returnDocument: 'after', session });
-                await WalletTxn.create([{
-                    userId: worker._id, type: 'JOB_CREDIT', amount: workerPayout,
-                    balance: creditedWorker?.wallet?.balance || 0,
-                    refId: job._id.toString(), status: 'COMPLETED',
-                    description: `Earnings for online job #${job._id.toString().slice(-6)}`
-                }], { session });
+                // Online settlement via Centralized Settlement Engine (100% to worker, fee to treasury, GST to tax ledger)
+                const { settleJobCompletion } = require('../../helpers/settlementEngine.helper');
+                await settleJobCompletion({ job, session });
             }
         }
 
         job.status = 'PAID';
+        if (!job.payment) job.payment = {};
         job.payment.status = 'PAID';
+        job.payment.escrowStatus = 'SETTLED';
         job.security = { ...job.security, completionOtp: undefined };
         await job.save({ session });
 

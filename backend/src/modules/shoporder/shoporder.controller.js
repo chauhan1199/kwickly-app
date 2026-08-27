@@ -602,57 +602,16 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
             return errorResponse(res, 'Invalid delivery OTP. Please ask the customer for the correct OTP.', StatusCodes.BAD_REQUEST);
         }
 
-        // Calculate commission and shop earning
-        const cfg = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        const commissionPercent = cfg?.fees?.percentage ?? 10;
-        // Commission strictly applied ONLY to the subtotal (product value) minus discount. Delivery fee is untouched.
-        const commissionableAmount = Math.max(0, order.subtotal - (order.discount || 0));
-        const commission = Math.round(commissionableAmount * commissionPercent / 100);
-        const shopPayout = order.total - commission;
-
-        // Create Settlement record
-        await Settlement.create({
-            type: 'PRODUCT_ORDER',
-            orderId: order._id,
-            shopId: shop._id,
-            customerId: order.customerId,
-            totalAmount: order.total,
-            platformCommission: commission,
-            shopEarning: shopPayout,
-            status: 'SETTLED'
-        });
-
-        // Credit shop wallet balance and increment total orders count
-        const updatedShop = await Shop.findByIdAndUpdate(
-            shop._id,
-            {
-                $inc: {
-                    'wallet.balance': shopPayout,
-                    'wallet.totalEarned': shopPayout,
-                    totalOrders: 1
-                }
-            },
-            { returnDocument: 'after' }
-        );
-
-        // Record wallet transaction for shop owner
-        if (shop.ownerId) {
-            await WalletTxn.create({
-                userId: shop.ownerId,
-                type: 'ORDER_CREDIT',
-                amount: shopPayout,
-                balance: updatedShop?.wallet?.balance || shopPayout,
-                refId: String(order._id),
-                status: 'COMPLETED',
-                description: `Earnings for Order #${order.orderNumber || String(order._id).slice(-6).toUpperCase()} (Platform Commission: ₹${commission})`
-            });
-            await delCache(`session:${shop.ownerId}`);
-        }
+        // Settle Shop Order via Centralized Idempotent Settlement Engine (100% to shop, 0% commission)
+        const { settleShopOrderDelivery } = require('../../helpers/settlementEngine.helper');
+        await settleShopOrderDelivery({ order });
 
         order.status = 'DELIVERED';
+        if (!order.payment) order.payment = {};
         if (order.payment?.method !== 'CASH') {
             order.payment.status = 'PAID';
         }
+        order.payment.escrowStatus = 'SETTLED';
         await order.save();
     } else if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
         let session = null, useTransaction = false;
