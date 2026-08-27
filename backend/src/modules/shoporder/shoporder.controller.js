@@ -165,6 +165,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
             discount = Math.min(discount, subtotal);
             if (discount > 0) {
                 promoDetails = { code: 'SHOP_OFFER', discount, type: cfg.discountType === 'percent' ? 'PERCENTAGE_DISCOUNT' : 'FLAT_DISCOUNT', title: `${cfg.discountPct || 10}% Shop Discount` };
+            }
         }
 
         const { calculateShopOrderFee } = require('../../helpers/feeCalculator.helper');
