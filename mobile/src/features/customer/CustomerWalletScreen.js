@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield, Zap } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
+import CustomAlert from '../../components/ui/CustomAlert';
 import { GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon } from '../../components/ui/UpiBrandIcons';
 
 import { SearchBar } from '../../components/ui/SearchBar';
@@ -38,6 +39,48 @@ const CustomerWalletScreen = ({ navigation }) => {
   const [txnModal, setTxnModal] = useState(false);
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [topupAmount, setTopupAmount] = useState('');
+
+  // Custom Themed Alert
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'success',
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancel: false,
+    onConfirm: () => {},
+    onCancel: () => {},
+  });
+
+  const showAlert = ({
+    title,
+    message,
+    type = 'success',
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    showCancel = false,
+    onConfirm,
+    onCancel
+  }) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      }
+    });
+  };
 
   const QUICK_AMOUNTS = ['100', '250', '500', '1000'];
 
@@ -72,7 +115,12 @@ const CustomerWalletScreen = ({ navigation }) => {
   const handleInitiateTopup = async () => {
     const amount = Number(topupAmount);
     if (!amount || isNaN(amount) || amount < 10) {
-      return Alert.alert('Invalid Amount', 'Minimum topup is ₹10.');
+      return showAlert({
+        title: 'Invalid Amount',
+        message: 'Minimum topup is ₹10.',
+        type: 'warning',
+        confirmText: 'OK'
+      });
     }
     
     setIsProcessing(true);
@@ -105,7 +153,12 @@ const CustomerWalletScreen = ({ navigation }) => {
       setAddMoneyModal(false);
       setUpiCheckoutModal(true);
     } catch (error) {
-      Alert.alert('Topup Failed', error.response?.data?.message || 'Failed to initialize payment. Please try again.');
+      showAlert({
+        title: 'Topup Failed',
+        message: error.response?.data?.message || 'Failed to initialize payment. Please try again.',
+        type: 'error',
+        confirmText: 'OK'
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -130,12 +183,22 @@ const CustomerWalletScreen = ({ navigation }) => {
         await Linking.openURL(targetUri);
       } else {
         await Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-          Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
+          showAlert({
+            title: 'UPI App',
+            message: `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`,
+            type: 'info',
+            confirmText: 'Got It'
+          });
         });
       }
     } catch (err) {
       Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-        Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
+        showAlert({
+          title: 'UPI App',
+          message: `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`,
+          type: 'info',
+          confirmText: 'Got It'
+        });
       });
     }
   };
@@ -153,10 +216,12 @@ const CustomerWalletScreen = ({ navigation }) => {
     if (!upiOrderData) return;
     const cleanUtr = upiTxnId.trim();
     if (!cleanUtr || cleanUtr.length < 4) {
-      return Alert.alert(
-        'UTR Required',
-        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.'
-      );
+      return showAlert({
+        title: 'UTR Required',
+        message: 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.',
+        type: 'warning',
+        confirmText: 'OK'
+      });
     }
 
     setIsVerifying(true);
@@ -181,24 +246,30 @@ const CustomerWalletScreen = ({ navigation }) => {
         await fetchWallet();
 
         if (verifyData?.status === 'PENDING_VERIFICATION') {
-          Alert.alert(
-            'Top-up Submitted ⏳',
-            `Your UPI Reference (UTR: ${cleanUtr}) for ₹${upiOrderData.amount} has been submitted for verification. Balance will be credited once confirmed.`
-          );
+          showAlert({
+            title: 'Top-up Submitted ⏳',
+            message: `Your UPI Reference (UTR: ${cleanUtr}) for ₹${upiOrderData.amount} has been submitted for verification. Balance will be credited once confirmed.`,
+            type: 'info',
+            confirmText: 'Done'
+          });
         } else {
-          Alert.alert(
-            'Top-up Successful! 🎉',
-            `₹${upiOrderData.amount} has been verified and securely credited to your Kwickly Wallet (UTR: ${cleanUtr}).`
-          );
+          showAlert({
+            title: 'Top-up Successful! 🎉',
+            message: `₹${upiOrderData.amount} has been verified and securely credited to your Kwickly Wallet (UTR: ${cleanUtr}).`,
+            type: 'success',
+            confirmText: 'Awesome!'
+          });
         }
       } else {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }
     } catch (error) {
-      Alert.alert(
-        'Verification Failed',
-        error.response?.data?.message || error.message || 'Failed to verify payment. Please check the UTR and try again.'
-      );
+      showAlert({
+        title: 'Verification Failed',
+        message: error.response?.data?.message || error.message || 'Failed to verify payment. Please check the UTR and try again.',
+        type: 'error',
+        confirmText: 'Try Again'
+      });
     } finally {
       setIsVerifying(false);
     }
@@ -551,6 +622,9 @@ const CustomerWalletScreen = ({ navigation }) => {
           </TouchableWithoutFeedback>
         </TouchableOpacity>
       </Modal>
+
+      {/* Modern Themed Alert Modal */}
+      <CustomAlert {...alertConfig} />
     </SafeAreaView>
   );
 };

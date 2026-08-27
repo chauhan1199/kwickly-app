@@ -30,6 +30,7 @@ import {
   Check
 } from 'lucide-react-native';
 import AppBar from '../../components/AppBar';
+import CustomAlert from '../../components/ui/CustomAlert';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { customerService } from '../../services/customerService';
@@ -186,6 +187,48 @@ export const PaymentMethodsScreen = ({ navigation }) => {
     setShowAddModal(true);
   };
 
+  // Custom Alert Modal State
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'success',
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancel: false,
+    onConfirm: () => {},
+    onCancel: () => {},
+  });
+
+  const showAlert = ({
+    title,
+    message,
+    type = 'success',
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    showCancel = false,
+    onConfirm,
+    onCancel
+  }) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      }
+    });
+  };
+
   const handleSetDefault = async (id) => {
     const updated = methods.map(m => ({
       ...m,
@@ -194,52 +237,65 @@ export const PaymentMethodsScreen = ({ navigation }) => {
     setMethods(updated);
     try {
       await AsyncStorage.setItem('mockPaymentMethods', JSON.stringify(updated));
-      Alert.alert('Default Updated', `${id === 'upi' ? 'UPI ID' : 'Bank Account'} set as default payment method.`);
+      showAlert({
+        title: 'Default Updated',
+        message: `${id === 'upi' ? 'UPI ID' : 'Bank Account'} set as default payment method.`,
+        type: 'success',
+        confirmText: 'Got it'
+      });
     } catch (_) {}
   };
 
-  const handleRemove = async (id) => {
-    Alert.alert(
-      'Remove Payment Method',
-      `Are you sure you want to remove this ${id === 'upi' ? 'UPI ID' : 'Bank Account'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setLoading(true);
-              const updatedWallet = {
-                upiId: id === 'upi' ? '' : (user?.wallet?.upiId || ''),
-                bankDetails: id === 'bank' ? { accountNumber: '', ifscCode: '', bankName: '' } : (user?.wallet?.bankDetails || null)
-              };
+  const handleRemove = (id) => {
+    showAlert({
+      title: 'Remove Payment Method',
+      message: `Are you sure you want to remove this ${id === 'upi' ? 'UPI ID' : 'Bank Account'}?`,
+      type: 'delete',
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+      showCancel: true,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          const updatedWallet = {
+            upiId: id === 'upi' ? '' : (user?.wallet?.upiId || ''),
+            bankDetails: id === 'bank' ? { accountNumber: '', ifscCode: '', bankName: '' } : (user?.wallet?.bankDetails || null)
+          };
 
-              // Optimistic update
-              setMethods(prev => prev.filter(m => m.id !== id));
+          // Optimistic update
+          setMethods(prev => prev.filter(m => m.id !== id));
 
-              await customerService.updateProfile({ wallet: updatedWallet });
-              await fetchUser();
+          await customerService.updateProfile({ wallet: updatedWallet });
+          await fetchUser();
 
-              customerService
-                .triggerNotification({
-                  title: 'Payment Method Removed',
-                  message: 'Payment method successfully deleted.'
-                })
-                .then(() => refreshUnread())
-                .catch(() => {});
+          customerService
+            .triggerNotification({
+              title: 'Payment Method Removed',
+              message: 'Payment method successfully deleted.'
+            })
+            .then(() => refreshUnread())
+            .catch(() => {});
 
-              Alert.alert('Removed', `${id === 'upi' ? 'UPI ID' : 'Bank Account'} has been removed.`);
-            } catch (e) {
-              await fetchUser();
-              Alert.alert('Error', e.response?.data?.message || 'Failed to remove payment method');
-            } finally {
-              setLoading(false);
-            }
-          }
+          setTimeout(() => {
+            showAlert({
+              title: 'Removed',
+              message: `${id === 'upi' ? 'UPI ID' : 'Bank Account'} has been removed.`,
+              type: 'success',
+              confirmText: 'OK'
+            });
+          }, 300);
+        } catch (e) {
+          await fetchUser();
+          showAlert({
+            title: 'Error',
+            message: e.response?.data?.message || 'Failed to remove payment method',
+            type: 'error'
+          });
+        } finally {
+          setLoading(false);
         }
-      ]
-    );
+      }
+    });
   };
 
   const submitPaymentMethod = async () => {
@@ -267,7 +323,7 @@ export const PaymentMethodsScreen = ({ navigation }) => {
       await customerService.updateProfile({ wallet: updatedWallet });
       await fetchUser();
 
-      const title = editMethodId ? 'Payment Method Updated' : 'Payment Method Added';
+      const title = editMethodId ? 'Payment Method Updated' : 'Success';
       const msg = editMethodId
         ? 'Your payment details have been successfully updated.'
         : 'Your new payment method has been verified and saved.';
@@ -278,9 +334,18 @@ export const PaymentMethodsScreen = ({ navigation }) => {
         .catch(() => {});
 
       setShowAddModal(false);
-      Alert.alert('Success', msg);
+      showAlert({
+        title,
+        message: msg,
+        type: 'success',
+        confirmText: 'OK'
+      });
     } catch (e) {
-      Alert.alert('Save Error', e.response?.data?.message || e.message || 'Failed to save payment method');
+      showAlert({
+        title: 'Save Error',
+        message: e.response?.data?.message || e.message || 'Failed to save payment method',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -672,6 +737,9 @@ export const PaymentMethodsScreen = ({ navigation }) => {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      {/* Modern Themed Alert Modal */}
+      <CustomAlert {...alertConfig} />
     </SafeAreaView>
   );
 };
