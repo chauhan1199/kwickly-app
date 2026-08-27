@@ -304,6 +304,7 @@ exports.getMyPayments = catchAsync(async (req, res) => {
         .lean();
     return successResponse(res, payments, 'Payments fetched');
 });
+exports.getPaymentHistory = exports.getMyPayments;
 
 /**
  * GET /api/v1/payments/:id
@@ -313,6 +314,7 @@ exports.getPaymentById = catchAsync(async (req, res) => {
     if (!payment) return errorResponse(res, 'Payment not found', StatusCodes.NOT_FOUND);
     return successResponse(res, payment, 'Payment fetched');
 });
+exports.getPaymentByOrder = exports.getPaymentById;
 
 /**
  * POST /api/v1/payments/:id/refund
