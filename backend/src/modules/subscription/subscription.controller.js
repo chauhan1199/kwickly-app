@@ -9,36 +9,24 @@ const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const Shop = require('../shop/shop.model');
 const Notification = require('../notification/notification.model');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
-const { verifyPaymentSignature, fetchPayment } = require('../../helpers/razorpay.helper');
+const { isValidUtr } = require('../../helpers/upi.helper');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 
-/* â”€â”€ WORKER SUBSCRIPTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── WORKER SUBSCRIPTION ────────────────────────────────────────────── */
 
 /**
  * POST /api/v1/subscriptions/subscribe
- * Worker purchases a plan
+ * Worker purchases a plan via In-App Wallet or Direct UPI
  */
 exports.subscribe = catchAsync(async (req, res) => {
-    const { planId, paymentId, targetRole = 'WORKER', razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+    const { planId, paymentId, targetRole = 'WORKER', razorpayPaymentId, utrNumber, paymentMethod = 'UPI' } = req.body;
     const userId = req.user._id;
 
-    // Payment verification is MANDATORY â€” prevent free subscription exploit
-    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-        return errorResponse(res, 'Payment verification required. Please complete payment via Razorpay.', StatusCodes.BAD_REQUEST);
-    }
+    const upiRef = (utrNumber || razorpayPaymentId || paymentId || '').toString().trim();
 
-    const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
-    if (!isValid) {
-        return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
-    }
-    try {
-        const rpPayment = await fetchPayment(razorpayPaymentId);
-        if (rpPayment.status !== 'captured') {
-            return errorResponse(res, 'Payment not captured in Razorpay', StatusCodes.BAD_REQUEST);
-        }
-    } catch (error) {
-        return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.INTERNAL_SERVER_ERROR);
+    if (paymentMethod === 'UPI' && (!upiRef || !isValidUtr(upiRef))) {
+        return errorResponse(res, 'A valid 12-digit UPI Reference / UTR Number from your payment receipt is required.', StatusCodes.BAD_REQUEST);
     }
 
     const AppSettings = require('../settings/settings.model');

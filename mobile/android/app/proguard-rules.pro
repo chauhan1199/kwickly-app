@@ -11,12 +11,6 @@
 -keep class * extends com.facebook.react.bridge.NativeModule { *; }
 -keep class * extends com.facebook.react.bridge.JavaScriptModule { *; }
 
-# Razorpay Proguard Rules
--keepattributes *Annotation*
--dontwarn com.razorpay.**
--keep class com.razorpay.** { *; }
--optimizations !class/merging/vertical*,!class/merging/horizontal*
-
 # React Native Maps
 -keep class com.airbnb.android.react.maps.** { *; }
 

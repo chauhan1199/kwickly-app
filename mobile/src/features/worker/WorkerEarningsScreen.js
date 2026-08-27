@@ -43,13 +43,11 @@ import {
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import WorkerBalanceCard from '../../components/WorkerBalanceCard';
 import LinearGradient from 'react-native-linear-gradient';
-import RazorpayCheckout from 'react-native-razorpay';
 
 import { walletService } from '../../services/walletService';
 import { workerService } from '../../services/workerService';
 import settingsService from '../../services/settingsService';
 import api from '../../services/api';
-import { RAZORPAY_LOGO_URL } from '../../config/env';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TOP_UP_PRESETS = [100, 500, 1000, 2000];
@@ -265,78 +263,14 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
   };
 
-  // Online Razorpay Payment flow
+  // Direct UPI Payment flow
   const processRazorpayPayment = async (amount, context, extraData) => {
-    try {
-      setSubmittingAction(true);
-      
-      const orderRes = await walletService.createPaymentOrder({
-        amount,
-        purpose: context === 'PLAN' ? 'plan_subscription' : 'wallet_topup'
-      });
-
-      if (orderRes.data?.status !== 'success') {
-        throw new Error(orderRes.data?.message || 'Failed to create payment order');
-      }
-
-      const { razorpayOrderId, keyId, amount: rpAmount, currency } = orderRes.data.data;
-
-      const options = {
-        description: context === 'PLAN' ? 'Subscription Plan Upgrade' : 'Wallet Balance Top-Up',
-        image: RAZORPAY_LOGO_URL,
-        currency: currency,
-        key: keyId,
-        amount: rpAmount,
-        name: 'Kwickly',
-        order_id: razorpayOrderId,
-        theme: { color: '#6C47FF' }
-      };
-
-      const data = await RazorpayCheckout.open(options);
-
-      if (context === 'PLAN') {
-        const res = await walletService.topupWallet(
-          amount, 
-          { method: 'RAZORPAY', planId: extraData.planId, txnId: data.razorpay_payment_id }, 
-          null, 
-          data.razorpay_order_id, 
-          data.razorpay_payment_id, 
-          data.razorpay_signature
-        );
-        if (res.data?.status === 'success') {
-          Alert.alert("Success 🎉", "Your subscription plan has been successfully activated!");
-          fetchWalletAndProfile();
-        }
-      } else {
-        const res = await walletService.topupWallet(
-          amount, 
-          { method: 'RAZORPAY', txnId: data.razorpay_payment_id }, 
-          null, 
-          data.razorpay_order_id, 
-          data.razorpay_payment_id, 
-          data.razorpay_signature
-        );
-        if (res.data?.status === 'success') {
-          Alert.alert("Success ✅", `₹${amount} added to your wallet balance.`);
-          setTopUpAmount('');
-          fetchWalletAndProfile();
-        }
-      }
-    } catch (e) {
-      if (e.code === 0 || e.code === 2) {
-        // User cancelled payment
-      } else {
-        // Switch to UPI payment modal fallback
-        setPendingPaymentContext({
-          amount: Number(amount),
-          type: context,
-          planId: extraData?.planId || null
-        });
-        setUpiPaymentModalVisible(true);
-      }
-    } finally {
-      setSubmittingAction(false);
-    }
+    setPendingPaymentContext({
+      amount: Number(amount),
+      type: context,
+      planId: extraData?.planId || null
+    });
+    setUpiPaymentModalVisible(true);
   };
 
   const handlePlanProceed = () => {

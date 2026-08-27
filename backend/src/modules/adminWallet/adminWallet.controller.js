@@ -126,7 +126,7 @@ exports.collectCommission = collectCommission;
 exports.collectPlatformFee = collectPlatformFee;
 exports.debitForPayout = debitForPayout;
 
-const { createRazorpayOrder, verifyPaymentSignature, fetchPayment } = require('../../helpers/razorpay.helper');
+const { generateUpiIntentUri, isValidUtr } = require('../../helpers/upi.helper');
 
 exports.createRazorpayOrder = catchAsync(async (req, res) => {
     const { amount } = req.body;
@@ -134,43 +134,44 @@ exports.createRazorpayOrder = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid amount', StatusCodes.BAD_REQUEST);
     }
 
-    try {
-        const rpOrder = await createRazorpayOrder(amount, 'wallet_topup_' + Date.now(), { purpose: 'Admin Wallet Topup' });
-        return successResponse(res, {
-            razorpayOrderId: rpOrder.id,
-            amount: rpOrder.amount,
-            currency: rpOrder.currency,
-            keyId: process.env.RAZORPAY_KEY_ID
-        }, 'Razorpay order created for wallet topup', StatusCodes.CREATED);
-    } catch (error) {
-        return errorResponse(res, error.message || 'Failed to create Razorpay order', StatusCodes.INTERNAL_SERVER_ERROR);
-    }
+    const upiOrderId = `upi_admin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const adminWallet = await AdminWallet.findOne().lean();
+    const platformVpa = adminWallet?.upiId || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi';
+    const payeeName = adminWallet?.bankDetails?.accountHolder || 'Kwickly Admin Treasury';
+
+    const { uri: upiIntentUri } = generateUpiIntentUri({
+        vpa: platformVpa,
+        payeeName,
+        amount: Number(amount),
+        purpose: 'admin_wallet_topup',
+        txnId: upiOrderId
+    });
+
+    return successResponse(res, {
+        razorpayOrderId: upiOrderId,
+        upiOrderId,
+        amount: Math.round(Number(amount) * 100),
+        currency: 'INR',
+        upiVpa: platformVpa,
+        payeeName,
+        bankDetails: adminWallet?.bankDetails || null,
+        upiIntentUri,
+        isUpiDirect: true
+    }, 'Direct UPI order created for wallet topup', StatusCodes.CREATED);
 });
 
 exports.verifyRazorpayPayment = catchAsync(async (req, res) => {
-    const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+    const { razorpayPaymentId, utrNumber, upiTransactionId, amount: reqAmount } = req.body;
+    const upiRef = (utrNumber || upiTransactionId || razorpayPaymentId || '').toString().trim();
 
-    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-        return errorResponse(res, 'Missing payment verification fields', StatusCodes.BAD_REQUEST);
+    if (!upiRef || !isValidUtr(upiRef)) {
+        return errorResponse(res, 'A valid 12-digit UPI Reference / UTR Number is required', StatusCodes.BAD_REQUEST);
     }
 
-    const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
-    if (!isValid) {
-        return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
+    const amount = Number(reqAmount) || 0;
+    if (amount <= 0) {
+        return errorResponse(res, 'Invalid topup amount', StatusCodes.BAD_REQUEST);
     }
-
-    let rpPayment;
-    try {
-        rpPayment = await fetchPayment(razorpayPaymentId);
-    } catch (e) {
-        return errorResponse(res, 'Failed to verify payment with Razorpay', StatusCodes.BAD_REQUEST);
-    }
-
-    if (rpPayment.status !== 'captured') {
-        return errorResponse(res, 'Payment not captured in Razorpay', StatusCodes.BAD_REQUEST);
-    }
-
-    const amount = rpPayment.amount / 100; // convert paise to rupees
 
     const wallet = await AdminWallet.findOneAndUpdate(
         {},
@@ -182,15 +183,14 @@ exports.verifyRazorpayPayment = catchAsync(async (req, res) => {
         type: 'TOPUP',
         amount,
         balanceAfter: wallet.balance,
-        description: 'Wallet top-up via Razorpay',
+        description: `Admin Treasury top-up via Direct UPI (UTR: ${upiRef})`,
         meta: { 
             performedBy: req.user._id,
-            paymentMethod: 'RAZORPAY',
-            razorpayOrderId,
-            razorpayPaymentId
+            paymentMethod: 'UPI',
+            utr: upiRef
         }
     });
 
     emitToAll('DASHBOARD_UPDATE', { type: 'ADMIN_WALLET_CREDIT', id: txn._id });
-    return successResponse(res, { balance: wallet.balance, txn }, 'Wallet top-up verified successfully');
+    return successResponse(res, { balance: wallet.balance, txn }, 'Wallet top-up credited successfully');
 });

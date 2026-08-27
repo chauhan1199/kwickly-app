@@ -35,7 +35,3 @@ jest.mock('@react-native-community/netinfo', () => ({
   fetch: jest.fn(() => Promise.resolve({ isConnected: true })),
 }));
 
-jest.mock('react-native-razorpay', () => ({
-  open: jest.fn(() => Promise.resolve({})),
-}));
-

@@ -12,7 +12,7 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToAll } = require('../../helpers/socket.helper');
 const { getCache, delCache, setCache } = require('../../helpers/redis.helper');
 const mongoose = require('mongoose');
-const { verifyPaymentSignature, fetchPayment } = require('../../helpers/razorpay.helper');
+const { isValidUtr } = require('../../helpers/upi.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 
 /**
@@ -100,56 +100,22 @@ exports.getWallet = catchAsync(async (req, res) => {
 
 // ─── POST /api/v1/wallet/topup ──────────────────────────────────────────────
 exports.topupWallet = catchAsync(async (req, res) => {
-    let { amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+    let { amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, utrNumber, upiTransactionId } = req.body;
     if (!amount || Number(amount) <= 0) {
         return errorResponse(res, 'Invalid top-up amount', StatusCodes.BAD_REQUEST);
     }
     amount = Number(amount);
 
-    const isUpiPayment = (paymentDetails?.method === 'UPI') ||
-                         (paymentDetails?.txnId && !razorpaySignature) ||
-                         (razorpayOrderId && razorpayOrderId.startsWith('upi_')) ||
-                         (razorpayPaymentId && razorpayPaymentId.startsWith('upi_pay_'));
+    const upiTxnRef = (utrNumber || upiTransactionId || paymentDetails?.txnId || razorpayPaymentId || '').toString().trim();
 
-    if (isUpiPayment) {
-        if (!razorpayOrderId) razorpayOrderId = `upi_ord_${Date.now()}`;
-        if (!razorpayPaymentId) razorpayPaymentId = paymentDetails?.txnId || `upi_pay_${Date.now()}`;
+    if (!upiTxnRef || !isValidUtr(upiTxnRef)) {
+        return errorResponse(res, 'A valid 12-digit UPI Reference / UTR Number from your bank payment receipt is required', StatusCodes.BAD_REQUEST);
     }
 
-    if (!razorpayOrderId || !razorpayPaymentId) {
-        return errorResponse(res, 'Verified payment details are required to top up the wallet', StatusCodes.BAD_REQUEST);
-    }
-
-    if (!isUpiPayment) {
-        // Razorpay payment verification
-        if (!razorpaySignature) {
-            return errorResponse(res, 'Verified payment signature is required to top up the wallet', StatusCodes.BAD_REQUEST);
-        }
-
-        const replayed = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId });
-        if (replayed) {
-            return errorResponse(res, 'This payment has already been credited to the wallet', StatusCodes.CONFLICT);
-        }
-
-        const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
-        if (!isValid) {
-            return errorResponse(res, 'Invalid payment signature', StatusCodes.BAD_REQUEST);
-        }
-        try {
-            const rpPayment = await fetchPayment(razorpayPaymentId);
-            if (rpPayment && rpPayment.status === 'captured') {
-                amount = rpPayment.amount / 100;
-            }
-        } catch (error) {
-            // Proceed with trusted amount
-        }
-    } else {
-        // Direct UPI Payment verification / replay check
-        const upiTxnRef = razorpayPaymentId;
-        const replayed = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId: upiTxnRef });
-        if (replayed) {
-            return errorResponse(res, 'This UPI transaction has already been credited to the wallet', StatusCodes.CONFLICT);
-        }
+    // Direct UPI Replay / duplicate UTR check
+    const replayed = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId: upiTxnRef });
+    if (replayed) {
+        return errorResponse(res, 'This UPI transaction reference has already been submitted or credited', StatusCodes.CONFLICT);
     }
 
     const user = await Customer.findById(req.user._id);

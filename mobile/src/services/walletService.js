@@ -11,14 +11,15 @@ export const walletService = {
   getTransactions: (page = 1, limit = 20) =>
     withErrorHandling(() => api.get('/wallet/my-transactions', { params: { page, limit } })),
 
-  topupWallet: (amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature) =>
+  topupWallet: (amount, paymentDetails, planId, utrNumber, upiOrderId, extra) =>
     withErrorHandling(() => api.post('/wallet/topup', {
       amount,
       paymentDetails,
       planId,
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature
+      utrNumber: utrNumber || extra,
+      upiOrderId,
+      razorpayPaymentId: utrNumber || extra,
+      razorpayOrderId: upiOrderId
     })),
 
   withdraw: (amount, payoutMethod) =>
@@ -27,15 +28,16 @@ export const walletService = {
   requestWithdrawal: (amount, payoutMethod) =>
     withErrorHandling(() => api.post('/wallet/withdraw', { amount, payoutMethod })),
 
-  topup: async (amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature) => {
+  topup: async (amount, paymentDetails, planId, utrNumber, upiOrderId) => {
     try {
       const response = await api.post('/wallet/topup', {
         amount,
         paymentDetails,
         planId,
-        razorpayOrderId,
-        razorpayPaymentId,
-        razorpaySignature
+        utrNumber,
+        upiOrderId,
+        razorpayPaymentId: utrNumber,
+        razorpayOrderId: upiOrderId
       });
       return response;
     } catch (error) {

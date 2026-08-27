@@ -24,4 +24,4 @@ if (IS_PROD && !baseUrl.startsWith('https://')) {
 
 export const API_BASE_URL = `${baseUrl}/api/v1`;
 export const SOCKET_URL = baseUrl;
-export const RAZORPAY_LOGO_URL = 'https://kwickly.in/logo.png';
+export const APP_LOGO_URL = 'https://kwickly.in/logo.png';
