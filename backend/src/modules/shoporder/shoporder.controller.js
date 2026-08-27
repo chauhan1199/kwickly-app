@@ -165,10 +165,16 @@ exports.placeOrder = catchAsync(async (req, res) => {
             discount = Math.min(discount, subtotal);
             if (discount > 0) {
                 promoDetails = { code: 'SHOP_OFFER', discount, type: cfg.discountType === 'percent' ? 'PERCENTAGE_DISCOUNT' : 'FLAT_DISCOUNT', title: `${cfg.discountPct || 10}% Shop Discount` };
-            }
         }
 
-        const total = Math.max(0, subtotal + deliveryFee - discount);
+        const { calculateShopOrderFee } = require('../../helpers/feeCalculator.helper');
+        const appSettings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+
+        const netProductSales = Math.max(0, subtotal - discount);
+        const feeCalc = calculateShopOrderFee(netProductSales, deliveryFee, appSettings?.shopOrderFee || {});
+        const platformFee = feeCalc.platformFee;
+        const gstAmount = feeCalc.gstAmount;
+        const total = feeCalc.customerTotal;
 
         // Handle wallet payment atomically
         let paymentStatus = 'PENDING';
@@ -246,6 +252,9 @@ exports.placeOrder = catchAsync(async (req, res) => {
             subtotal,
             deliveryFee,
             discount,
+            netProductSales,
+            platformFee,
+            gstAmount,
             total,
             deliveryAddress,
             deliveryLocation,

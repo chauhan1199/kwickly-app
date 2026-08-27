@@ -118,11 +118,15 @@ export const CartProvider = ({ children }) => {
 
   const shopDiscount = cart?.discount || 0;
   const effectiveDiscount = promoDiscount > 0 ? promoDiscount : shopDiscount;
-  const total = Math.max(0, subtotal + deliveryCharge - effectiveDiscount);
+  const netItems = Math.max(0, subtotal - effectiveDiscount);
+  const platformFee = (itemCount > 0 && netItems > 0) ? Math.round((netItems * 0.05) * 100) / 100 : 0;
+  const gstAmount = platformFee > 0 ? Math.round((platformFee * 0.18) * 100) / 100 : 0;
+  const total = itemCount > 0 ? Math.round((netItems + deliveryCharge + platformFee + gstAmount) * 100) / 100 : 0;
 
   return (
     <CartContext.Provider value={{
-      cart, loading, itemCount, subtotal, deliveryCharge, promoDiscount: effectiveDiscount, promoCode, total,
+      cart, loading, itemCount, subtotal, deliveryCharge, promoDiscount: effectiveDiscount, promoCode,
+      platformFee, gstAmount, total,
       shopConfig: shopCfg, freeDeliveryAbove: freeAbove, minOrderAmount: Number(shopCfg.minOrderAmount ?? shopCfg.minOrder ?? 0),
       fetchCart, addToCart, updateItem, removeItem, clearCart, validatePromo, removePromo
     }}>
