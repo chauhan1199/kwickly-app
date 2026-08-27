@@ -260,15 +260,18 @@ exports.getShopById = catchAsync(async (req, res) => {
     const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone');
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
-    const isOwner = req.user && String(shop.ownerId._id) === String(req.user._id);
+    const ownerIdStr = shop.ownerId?._id ? String(shop.ownerId._id) : (shop.ownerId ? String(shop.ownerId) : null);
+    const isOwner = req.user && ownerIdStr && ownerIdStr === String(req.user._id);
     const isAdmin = req.user && req.user.role === 'ADMIN';
+
+    const shopObj = shop.toObject ? shop.toObject() : { ...shop };
     if (!isOwner && !isAdmin) {
-        shop.wallet = undefined;
-        shop.payoutMethods = undefined;
-        shop.subscription = undefined;
+        delete shopObj.wallet;
+        delete shopObj.payoutMethods;
+        delete shopObj.subscription;
     }
 
-    return successResponse(res, shop, 'Shop fetched');
+    return successResponse(res, shopObj, 'Shop fetched');
 });
 
 /**

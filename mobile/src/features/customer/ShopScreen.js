@@ -54,7 +54,8 @@ const ShopScreen = ({ navigation }) => {
 
   // User location for distance sorting
   const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
-  const userCoords = primaryAddress?.location?.coordinates || [72.574115, 23.1222453]; // Default to Ahmedabad
+  const userLng = primaryAddress?.location?.coordinates?.[0] ?? 72.574115;
+  const userLat = primaryAddress?.location?.coordinates?.[1] ?? 23.1222453;
 
   // Instant local cache restore
   useEffect(() => {
@@ -81,16 +82,12 @@ const ShopScreen = ({ navigation }) => {
 
   const fetchShops = useCallback(async (isManualRefresh = false) => {
     try {
-      if (!isManualRefresh && shops.length === 0) {
-        setLoading(true);
+      if (isManualRefresh) {
+        setRefreshing(true);
       }
       setDebugError(null);
 
-      const params = {};
-      if (userCoords && userCoords.length === 2) {
-        params.lng = userCoords[0];
-        params.lat = userCoords[1];
-      }
+      const params = { lng: userLng, lat: userLat };
 
       // Parallel fetch for shops and banners
       const [shopsResult, bannersResult] = await Promise.allSettled([
@@ -107,8 +104,8 @@ const ShopScreen = ({ navigation }) => {
           let distanceFormatted = s.distanceFormatted;
           let deliveryEstimate = s.deliveryEstimate || '20-35 min';
 
-          if (userCoords && s.location?.coordinates && s.location.coordinates.length === 2) {
-            const rawDist = haversine(userCoords, s.location.coordinates);
+          if (s.location?.coordinates && s.location.coordinates.length === 2) {
+            const rawDist = haversine([userLng, userLat], s.location.coordinates);
             if (rawDist !== null) {
               distanceKm = Math.round(rawDist * 10) / 10;
               distanceFormatted = distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`;
@@ -160,7 +157,7 @@ const ShopScreen = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userCoords, shops.length]);
+  }, [userLng, userLat, shops.length]);
 
   useEffect(() => {
     fetchShops();
@@ -341,7 +338,7 @@ const ShopScreen = ({ navigation }) => {
                 key={shop.id} 
                 style={[styles.shopCard, !shop.isOnline && { opacity: 0.65 }]}
                 activeOpacity={0.88}
-                onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id })}
+                onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id, shopData: shop })}
               >
                 <View style={styles.shopCardMain}>
                   {/* Left: Shop Image with Rating Tag */}

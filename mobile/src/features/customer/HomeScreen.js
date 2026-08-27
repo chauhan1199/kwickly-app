@@ -48,6 +48,8 @@ const haversine = (coords1, coords2) => {
   return 6371 * c; // in km
 };
 
+const DEFAULT_COORDS = [72.574115, 23.1222453];
+
 const HomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { theme, isDarkMode } = useTheme();
@@ -63,9 +65,11 @@ const HomeScreen = ({ navigation }) => {
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const slideAnim = React.useRef(new Animated.Value(20)).current;
 
-  // Primary user address & coordinates
+  // Primary user address & stable coordinates
   const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
-  const userCoords = primaryAddress?.location?.coordinates || [72.574115, 23.1222453];
+  const userLng = primaryAddress?.location?.coordinates?.[0] ?? DEFAULT_COORDS[0];
+  const userLat = primaryAddress?.location?.coordinates?.[1] ?? DEFAULT_COORDS[1];
+  const userCoords = useMemo(() => [userLng, userLat], [userLng, userLat]);
 
   const displayLocation = primaryAddress 
     ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || 'Ahmedabad'}`
@@ -91,15 +95,13 @@ const HomeScreen = ({ navigation }) => {
       .catch(() => {});
   }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isManual = false) => {
     try {
-      setRefreshing(true);
-
-      const params = { limit: 10 };
-      if (userCoords && userCoords.length === 2) {
-        params.lng = userCoords[0];
-        params.lat = userCoords[1];
+      if (isManual) {
+        setRefreshing(true);
       }
+
+      const params = { limit: 10, lng: userLng, lat: userLat };
 
       // Parallelize all requests
       const [catRes, shopsRes, jobsRes, oRes] = await Promise.allSettled([
@@ -139,8 +141,8 @@ const HomeScreen = ({ navigation }) => {
           let distanceFormatted = s.distanceFormatted;
           let deliveryEstimate = s.deliveryEstimate || '20-35 min';
 
-          if (userCoords && s.location?.coordinates && s.location.coordinates.length === 2) {
-            const raw = haversine(userCoords, s.location.coordinates);
+          if (s.location?.coordinates && s.location.coordinates.length === 2) {
+            const raw = haversine([userLng, userLat], s.location.coordinates);
             if (raw !== null) {
               distanceKm = Math.round(raw * 10) / 10;
               distanceFormatted = distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`;
@@ -203,11 +205,11 @@ const HomeScreen = ({ navigation }) => {
     } finally {
       setRefreshing(false);
     }
-  }, [userToken, userCoords]);
+  }, [userToken, userLng, userLat]);
 
   useFocusEffect(
     useCallback(() => {
-      fetchData();
+      fetchData(false);
     }, [fetchData])
   );
 
@@ -215,17 +217,16 @@ const HomeScreen = ({ navigation }) => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 800,
+        duration: 600,
         useNativeDriver: true,
       }),
     ]).start();
-    fetchData();
-  }, [fetchData, fadeAnim, slideAnim]);
+  }, [fadeAnim, slideAnim]);
 
   // Search Results filtering for both Services & Shops
   const isSearching = searchQuery.trim().length > 0;
@@ -398,7 +399,7 @@ const HomeScreen = ({ navigation }) => {
                       key={shop.id || shop._id} 
                       style={[styles.shopSearchCard, { borderColor: theme.colors.border }]}
                       isDarkMode={isDarkMode}
-                      onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id || shop._id })}
+                      onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id || shop._id, shopData: shop })}
                     >
                       <View style={styles.shopSearchRow}>
                         <View style={[styles.shopSearchIconBox, { backgroundColor: '#6C47FF1A' }]}>
@@ -583,7 +584,7 @@ const HomeScreen = ({ navigation }) => {
                         width: Math.floor((SCREEN_WIDTH - 32 - 16) / 2.3)
                       }
                     ]}
-                    onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id || shop._id })}
+                    onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id || shop._id, shopData: shop })}
                     activeOpacity={0.88}
                   >
                     <View style={[styles.serviceCardImgBox, { backgroundColor: theme.colors.card }]}>

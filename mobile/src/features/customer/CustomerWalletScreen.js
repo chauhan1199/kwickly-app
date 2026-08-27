@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, Modal, TextInput,
@@ -12,6 +12,7 @@ import AppBar from '../../components/AppBar';
 import { GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon } from '../../components/ui/UpiBrandIcons';
 
 import { SearchBar } from '../../components/ui/SearchBar';
+import { useFocusEffect } from '@react-navigation/native';
 import { walletService } from '../../services/walletService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -20,10 +21,10 @@ const CustomerWalletScreen = ({ navigation }) => {
   const { user, fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState(user?.wallet?.balance || 0);
   const [transactions, setTransactions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -40,25 +41,31 @@ const CustomerWalletScreen = ({ navigation }) => {
 
   const QUICK_AMOUNTS = ['100', '250', '500', '1000'];
 
-  useEffect(() => {
-    fetchWallet();
-  }, []);
-
-  const fetchWallet = async () => {
-    setLoading(true);
+  const fetchWallet = async (isManual = false) => {
     try {
+      if (isManual) setLoading(true);
       const res = await walletService.getWallet();
-      if (res.data.status === 'success') {
+      if (res?.data?.status === 'success') {
         const wallet = res.data.data;
-        setBalance(wallet.balance || 0);
-        setTransactions(wallet.transactions || []);
+        setBalance(wallet?.balance ?? user?.wallet?.balance ?? 0);
+        setTransactions(Array.isArray(wallet?.transactions) ? wallet.transactions : []);
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to load wallet. Please try again.');
+      console.log('[Wallet] fetch error:', e?.message);
+      if (user?.wallet?.balance !== undefined) {
+        setBalance(user.wallet.balance);
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchWallet(false);
+      if (fetchUser) fetchUser();
+    }, [])
+  );
 
   const isCredit = (t) => ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP'].includes(t.type);
 
@@ -245,11 +252,6 @@ const CustomerWalletScreen = ({ navigation }) => {
         />
       </View>
 
-      {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      ) : (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
 
         {/* Clean Balance Card */}
@@ -299,7 +301,6 @@ const CustomerWalletScreen = ({ navigation }) => {
 
         <View style={{ height: 80 }} />
       </ScrollView>
-      )}
 
       {/* Add Money Modal */}
       <Modal visible={addMoneyModal} transparent animationType="slide" onRequestClose={() => setAddMoneyModal(false)}>

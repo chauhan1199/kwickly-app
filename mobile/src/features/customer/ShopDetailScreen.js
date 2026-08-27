@@ -27,11 +27,11 @@ import { getImageUrl } from '../../utils/helpers';
 const ShopDetailScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   
-  const { shopId } = route.params || {};
+  const { shopId, shopData } = route.params || {};
   
-  const [shop, setShop] = useState(null);
+  const [shop, setShop] = useState(shopData || null);
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!shopData);
   
   const { cart: globalCart, addToCart, updateItem, removeItem, clearCart } = useCart();
   
@@ -43,28 +43,34 @@ const ShopDetailScreen = ({ route, navigation }) => {
   const [selectedProductForQty, setSelectedProductForQty] = useState(null);
 
   const fetchShopAndProducts = useCallback(async () => {
+    if (!shopId) return;
     try {
-      setLoading(true);
-      const [shopRes, productsRes] = await Promise.all([
+      if (!shop) setLoading(true);
+      const [shopRes, productsRes] = await Promise.allSettled([
         shopService.getShopById(shopId),
         shopService.getProducts(shopId)
       ]);
-      if (shopRes.data?.status === 'success') {
-        setShop(shopRes.data.data);
+      
+      if (shopRes.status === 'fulfilled' && shopRes.value?.data?.status === 'success') {
+        setShop(shopRes.value.data.data);
       }
-      if (productsRes.data?.status === 'success') {
-        setProducts(productsRes.data.data);
+      
+      if (productsRes.status === 'fulfilled' && productsRes.value?.data?.status === 'success') {
+        const prodData = productsRes.value.data.data;
+        setProducts(Array.isArray(prodData) ? prodData : (prodData?.products || []));
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to load shop details. Please try again.');
+      if (!shop && !shopData) {
+        Alert.alert('Error', 'Failed to load shop details. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
-  }, [shopId]);
+  }, [shopId, shop, shopData]);
 
   useEffect(() => {
     fetchShopAndProducts();
-  }, [shopId, fetchShopAndProducts]);
+  }, [shopId]);
 
   const handleBack = () => {
     navigation.goBack();
