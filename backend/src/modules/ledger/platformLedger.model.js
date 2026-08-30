@@ -68,7 +68,7 @@ const PlatformLedgerSchema = new mongoose.Schema({
     // Payment & Settlement State
     paymentMethod: { type: String, enum: ['UPI', 'WALLET', 'COD', 'CASH', 'BANK_TRANSFER'], default: 'UPI' },
     paymentStatus: { type: String, enum: ['PENDING', 'PENDING_VERIFICATION', 'PAID', 'FAILED', 'REFUNDED'], default: 'PAID' },
-    settlementStatus: { type: String, enum: ['UNSETTLED', 'ESCROW_LOCKED', 'SETTLED', 'REFUNDED', 'DISPUTED'], default: 'SETTLED' },
+    settlementStatus: { type: String, enum: ['UNSETTLED', 'ESCROW_LOCKED', 'SETTLED', 'REFUNDED', 'DISPUTED', 'REVERSED'], default: 'SETTLED' },
 
     utrNumber: { type: String },
     bankReference: { type: String },

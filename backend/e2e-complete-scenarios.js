@@ -14,7 +14,7 @@ const WalletTxn = require('./src/modules/wallet/wallet.model');
 const { AdminWallet, AdminWalletTxn } = require('./src/modules/adminWallet/adminWallet.model');
 const jwt = require('jsonwebtoken');
 
-const ARTIFACTS_DIR = 'C:/Users/chauh/.gemini/antigravity-ide/brain/08b40c1a-7e03-4e15-8b95-7361257413f5';
+const ARTIFACTS_DIR = path.join(__dirname, 'test-artifacts');
 
 async function runCompleteTestSuite() {
     console.log('════════════════════════════════════════════════════════════════');
@@ -117,6 +117,7 @@ async function runCompleteTestSuite() {
     console.log('🧪 SCENARIO 2: Live Admin Panel Browser Test via Puppeteer');
     console.log('────────────────────────────────────────────────────────────────');
 
+    fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
     const browser = await puppeteer.launch({
         headless: 'new',
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900']

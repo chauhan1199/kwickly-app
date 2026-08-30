@@ -18,7 +18,8 @@ exports.getTopPros = catchAsync(async (req, res) => {
     const pros = await Customer.find({ role: 'WORKER', isVerified: true })
         .select('name phone profileImage activeLocation rating jobs')
         .sort('-rating')
-        .limit(10);
+        .limit(10)
+        .lean();
         
     await setCache('top_pros_list', pros, 3600);
 
@@ -26,7 +27,7 @@ exports.getTopPros = catchAsync(async (req, res) => {
 });
 
 exports.getProfile = catchAsync(async (req, res) => {
-    const user = await Customer.findById(req.user._id).select('-password');
+    const user = await Customer.findById(req.user._id).select('-password').lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
     return successResponse(res, user, 'Profile fetched');
 });
@@ -37,7 +38,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
     if (req.file) {
-        const existing = await Customer.findById(req.user._id).select('profileImage');
+        const existing = await Customer.findById(req.user._id).select('profileImage').lean();
         const { url } = await uploadImage(req.file.buffer, 'kwickly/customers');
         updateData.profileImage = url;
         if (existing?.profileImage && existing.profileImage !== url) {
@@ -69,7 +70,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
     if (req.body.profileImageBase64) {
         const base64Data = req.body.profileImageBase64.replace(/^data:image\/\w+;base64,/, '');
         const buffer = Buffer.from(base64Data, 'base64');
-        const existing = await Customer.findById(req.user._id).select('profileImage');
+        const existing = await Customer.findById(req.user._id).select('profileImage').lean();
         const { url } = await uploadImage(buffer, 'kwickly/customers');
         updateData.profileImage = url;
         if (existing?.profileImage && existing.profileImage !== url) {

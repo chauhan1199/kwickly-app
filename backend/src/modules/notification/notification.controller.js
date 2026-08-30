@@ -36,7 +36,8 @@ exports.getNotifications = catchAsync(async (req, res) => {
     // Admin can view all notifications across the platform
     const notifications = await Notification.find({})
         .sort({ createdAt: -1 })
-        .limit(100);
+        .limit(100)
+        .lean();
     
     return successResponse(res, notifications, 'Notifications fetched successfully');
 });
@@ -51,7 +52,8 @@ exports.getAdminActivityLogs = catchAsync(async (req, res) => {
     const logs = await Notification.find(query)
         .sort({ createdAt: -1 })
         .limit(Number(limit))
-        .skip((Number(page) - 1) * Number(limit));
+        .skip((Number(page) - 1) * Number(limit))
+        .lean();
 
     return successResponse(res, {
         logs, total, page: Number(page),
@@ -94,7 +96,8 @@ exports.getMyNotifications = catchAsync(async (req, res) => {
 
     const notifications = await Notification.find(query)
         .sort({ createdAt: -1 })
-        .limit(100);
+        .limit(100)
+        .lean();
 
     const cleanedNotifications = notifications.map(n => {
         const obj = n.toObject ? n.toObject() : { ...n };
@@ -112,7 +115,7 @@ exports.getMyNotifications = catchAsync(async (req, res) => {
 
 // ─── User: mark one as read ───────────────────────────────────────────────────
 exports.markAsRead = catchAsync(async (req, res) => {
-    const notification = await Notification.findById(req.params.id);
+    const notification = await Notification.findById(req.params.id).lean();
     if (!notification) return errorResponse(res, 'Notification not found', StatusCodes.NOT_FOUND);
 
     // Ownership check — only mark if notification belongs to user or is broadcast for their role
@@ -165,7 +168,7 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
 
 // ─── User: soft-delete a notification ────────────────────────────────────────
 exports.deleteNotification = catchAsync(async (req, res) => {
-    const notification = await Notification.findById(req.params.id);
+    const notification = await Notification.findById(req.params.id).lean();
     if (!notification) return errorResponse(res, 'Notification not found', StatusCodes.NOT_FOUND);
 
     // Ownership check

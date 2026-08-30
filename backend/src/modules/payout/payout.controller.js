@@ -23,7 +23,8 @@ exports.getPayouts = catchAsync(async (req, res) => {
     const payouts = await Payout.find(query)
         .populate('workerId', 'name city category wallet kyc')
         .populate({ path: 'shopId', select: 'name address kyc wallet ownerId ownerName' })
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
 
     await setCache(cacheKey, payouts, 300); // 5 min cache
     return successResponse(res, payouts, 'Payouts fetched successfully');
@@ -77,7 +78,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
         let actualUserId = targetId;
         if (!isWorker) {
             const Shop = require('../shop/shop.model');
-            const shop = await Shop.findById(payout.shopId);
+            const shop = await Shop.findById(payout.shopId).lean();
             if (shop) actualUserId = shop.ownerId;
         }
 

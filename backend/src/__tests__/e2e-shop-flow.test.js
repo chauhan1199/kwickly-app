@@ -209,7 +209,7 @@ describe('E2E Shop Flow', () => {
                 .set('Authorization', `Bearer ${S.shopOwnerToken}`)
                 .send({ type: 'UPI', detail: 'shop@upi', label: 'GPay' });
 
-            expect(res.status).toBe(200);
+            expect(res.status).toBe(201);
             expect(Array.isArray(res.body.data)).toBe(true);
             expect(res.body.data.length).toBeGreaterThan(0);
         });

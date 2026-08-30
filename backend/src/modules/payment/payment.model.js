@@ -9,7 +9,7 @@ const PaymentSchema = new mongoose.Schema({
     currency: { type: String, default: 'INR' },
     status: {
         type: String,
-        enum: ['CREATED', 'AUTHORIZED', 'CAPTURED', 'FAILED', 'REFUNDED', 'PARTIAL_REFUNDED'],
+        enum: ['CREATED', 'PENDING', 'PENDING_VERIFICATION', 'AUTHORIZED', 'CAPTURED', 'FAILED', 'REFUNDED', 'PARTIAL_REFUNDED'],
         default: 'CREATED'
     },
     method: { type: String },

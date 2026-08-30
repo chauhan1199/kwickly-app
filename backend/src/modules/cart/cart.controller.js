@@ -63,7 +63,7 @@ exports.addToCart = catchAsync(async (req, res) => {
     const { shopId, productId, qty } = req.body;
     const customerId = req.user._id;
 
-    const product = await Product.findById(productId);
+    const product = await Product.findById(productId).lean();
     if (!product || !product.isActive) {
         return errorResponse(res, 'Product not found', StatusCodes.NOT_FOUND);
     }
@@ -71,7 +71,7 @@ exports.addToCart = catchAsync(async (req, res) => {
         return errorResponse(res, 'Product out of stock', StatusCodes.UNPROCESSABLE_ENTITY);
     }
 
-    const shop = await Shop.findById(shopId);
+    const shop = await Shop.findById(shopId).lean();
     if (!shop || shop.kyc?.status !== 'APPROVED') {
         return errorResponse(res, 'Shop not approved', StatusCodes.FORBIDDEN);
     }
@@ -109,7 +109,8 @@ exports.addToCart = catchAsync(async (req, res) => {
 
     const populatedCart = await Cart.findById(cart._id)
         .populate('shopId', 'name logoUrl deliveryConfig delivery address location rating')
-        .populate('items.productId', 'name price imageUrl stock isActive');
+        .populate('items.productId', 'name price imageUrl stock isActive')
+        .lean();
 
     return successResponse(res, populatedCart, 'Item added to cart', StatusCodes.CREATED);
 });
@@ -130,7 +131,7 @@ exports.updateCartItem = catchAsync(async (req, res) => {
     } else {
         // Check stock availability
         const Product = require('../product/product.model');
-        const product = await Product.findById(item.productId).select('stock');
+        const product = await Product.findById(item.productId).select('stock').lean();
         if (product && product.stock < qty) {
             return errorResponse(res, `Only ${product.stock} items available in stock`, StatusCodes.BAD_REQUEST);
         }
@@ -142,14 +143,15 @@ exports.updateCartItem = catchAsync(async (req, res) => {
         return successResponse(res, null, 'Cart cleared');
     }
 
-    const shop = await Shop.findById(cart.shopId);
+    const shop = await Shop.findById(cart.shopId).lean();
     calculateCart(cart, shop);
     cart.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await cart.save();
 
     const populatedCart = await Cart.findById(cart._id)
         .populate('shopId', 'name logoUrl deliveryConfig delivery address location rating')
-        .populate('items.productId', 'name price imageUrl stock isActive');
+        .populate('items.productId', 'name price imageUrl stock isActive')
+        .lean();
 
     return successResponse(res, populatedCart, 'Cart updated');
 });
@@ -164,13 +166,14 @@ exports.removeCartItem = catchAsync(async (req, res) => {
         return successResponse(res, null, 'Cart cleared');
     }
 
-    const shop = await Shop.findById(cart.shopId);
+    const shop = await Shop.findById(cart.shopId).lean();
     calculateCart(cart, shop);
     await cart.save();
 
     const populatedCart = await Cart.findById(cart._id)
         .populate('shopId', 'name logoUrl deliveryConfig delivery address location rating')
-        .populate('items.productId', 'name price imageUrl stock isActive');
+        .populate('items.productId', 'name price imageUrl stock isActive')
+        .lean();
 
     return successResponse(res, populatedCart, 'Item removed');
 });

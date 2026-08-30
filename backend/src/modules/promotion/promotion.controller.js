@@ -17,7 +17,7 @@ exports.getBanners = catchAsync(async (req, res) => {
     if (position) filter.position = position;
     filter.$or = [{ startAt: null }, { startAt: { $lte: new Date() } }];
     filter.$and = [{ $or: [{ endAt: null }, { endAt: { $gte: new Date() } }] }];
-    const banners = await Banner.find(filter).sort({ priority: -1, createdAt: -1 });
+    const banners = await Banner.find(filter).sort({ priority: -1, createdAt: -1 }).lean();
 
     await setCache(cacheKey, banners, 600); // 10 mins TTL
     return successResponse(res, banners, 'Banners fetched');
@@ -25,7 +25,7 @@ exports.getBanners = catchAsync(async (req, res) => {
 
 // ─── Admin: all banners (including inactive) ──────────────────────────────────
 exports.getAllBanners = catchAsync(async (req, res) => {
-    const banners = await Banner.find({}).sort({ priority: -1 });
+    const banners = await Banner.find({}).sort({ priority: -1 }).lean();
     return successResponse(res, banners, 'All banners');
 });
 
@@ -76,7 +76,7 @@ exports.deleteBanner = catchAsync(async (req, res) => {
 // â”€â”€â”€ Public: validate promo code at checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.validatePromoCode = catchAsync(async (req, res) => {
     const { code, orderAmount, userId, userRole } = req.body;
-    const promo = await Promotion.findOne({ code: code.toUpperCase(), isActive: true });
+    const promo = await Promotion.findOne({ code: code.toUpperCase(), isActive: true }).lean();
     if (!promo) return errorResponse(res, 'Invalid promo code', StatusCodes.NOT_FOUND);
     if (promo.endAt && promo.endAt < new Date()) return errorResponse(res, 'Promo code expired', StatusCodes.BAD_REQUEST);
     if (promo.maxUsesTotal && promo.usesCount >= promo.maxUsesTotal) return errorResponse(res, 'Promo code usage limit reached', StatusCodes.BAD_REQUEST);
@@ -118,7 +118,7 @@ exports.validatePromoCode = catchAsync(async (req, res) => {
 
 // â”€â”€â”€ Admin: list all promotions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getAllPromotions = catchAsync(async (req, res) => {
-    const promos = await Promotion.find({}).sort({ createdAt: -1 });
+    const promos = await Promotion.find({}).sort({ createdAt: -1 }).lean();
     return successResponse(res, promos, 'All promotions');
 });
 

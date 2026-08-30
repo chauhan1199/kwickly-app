@@ -16,4 +16,9 @@ router.get('/my',           authMiddleware, authorize('WORKER', 'SHOP'), ctrl.ge
 // Admin — all subscriptions
 router.get('/all',          authMiddleware, authorize('ADMIN'),    ctrl.getAllSubscriptions);
 
+// Admin — pending UPI subscription verifications
+router.get('/pending',                      authMiddleware, authorize('ADMIN'), ctrl.getPendingSubscriptions);
+router.post('/pending/:id/approve',         authMiddleware, authorize('ADMIN'), ctrl.approvePendingSubscription);
+router.post('/pending/:id/reject',          authMiddleware, authorize('ADMIN'), ctrl.rejectPendingSubscription);
+
 module.exports = router;

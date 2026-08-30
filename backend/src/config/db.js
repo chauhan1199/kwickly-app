@@ -20,6 +20,16 @@ const connectDB = async () => {
         });
 
         logger.info(`✅ MongoDB connected: ${conn.connection.host}`);
+
+        // Connection lifecycle monitoring + automatic reconnect handling
+        const dbConn = mongoose.connection;
+        dbConn.on('connected', () => logger.info('MongoDB: connected'));
+        dbConn.on('reconnected', () => logger.info('MongoDB: reconnected'));
+        dbConn.on('disconnected', () => logger.warn('MongoDB: disconnected — mongoose driver will auto-reconnect'));
+        dbConn.on('error', (err) => logger.error(`MongoDB connection error: ${err.message}`));
+        // Initial connect failure triggers process.exit below; runtime failures rely on the driver's
+        // built-in retry (reconnectTries are gone in driver 4+, autoReconnect is implicit).
+        dbConn.on('close', () => logger.warn('MongoDB: connection closed'));
     } catch (error) {
         logger.error('MongoDB connection error:', error);
         process.exit(1);

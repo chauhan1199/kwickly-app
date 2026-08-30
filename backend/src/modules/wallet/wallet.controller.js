@@ -1,6 +1,7 @@
 const { StatusCodes } = require('http-status-codes');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const WalletTxn  = require('./wallet.model');
+const Payment    = require('../payment/payment.model');
 const Customer   = require('../customer/customer.model');
 const Shop       = require('../shop/shop.model');
 const Payout     = require('../payout/payout.model');
@@ -12,7 +13,7 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToAll } = require('../../helpers/socket.helper');
 const { getCache, delCache, setCache } = require('../../helpers/redis.helper');
 const mongoose = require('mongoose');
-const { isValidUtr } = require('../../helpers/upi.helper');
+const { isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 
 /**
@@ -70,12 +71,12 @@ const atomicCredit = async (userId, role, amount, session) => {
 // â”€â”€â”€ GET /api/v1/wallet/balance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.getWallet = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, type } = req.query;
-    const user = await Customer.findById(req.user._id).select('wallet name role');
+    const user = await Customer.findById(req.user._id).select('wallet name role').lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
     let balance = user.wallet?.balance || 0;
     if (user.role === 'SHOP') {
-        const shop = await Shop.findOne({ ownerId: req.user._id }).select('wallet');
+        const shop = await Shop.findOne({ ownerId: req.user._id }).select('wallet').lean();
         if (shop) balance = shop.wallet.balance;
     }
 
@@ -99,8 +100,11 @@ exports.getWallet = catchAsync(async (req, res) => {
 });
 
 // ─── POST /api/v1/wallet/topup ──────────────────────────────────────────────
+// Direct UPI flow: creates a PENDING transaction that an Admin must verify
+// against the platform bank statement before the wallet is credited.
+// No instant credit — prevents fake-UTR wallet minting.
 exports.topupWallet = catchAsync(async (req, res) => {
-    let { amount, paymentDetails, planId, razorpayOrderId, razorpayPaymentId, utrNumber, upiTransactionId } = req.body;
+    let { amount, paymentDetails, planId, razorpayPaymentId, utrNumber, upiTransactionId } = req.body;
     if (!amount || Number(amount) <= 0) {
         return errorResponse(res, 'Invalid top-up amount', StatusCodes.BAD_REQUEST);
     }
@@ -112,91 +116,61 @@ exports.topupWallet = catchAsync(async (req, res) => {
         return errorResponse(res, 'A valid 12-digit UPI Reference / UTR Number from your bank payment receipt is required', StatusCodes.BAD_REQUEST);
     }
 
-    // Direct UPI Replay / duplicate UTR check
-    const replayed = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId: upiTxnRef });
-    if (replayed) {
+    // Direct UPI Replay / duplicate UTR check across ALL flows
+    // (wallet topup, job/order payment, subscription)
+    const utrUsage = await findUtrUsage(upiTxnRef);
+    if (utrUsage) {
         return errorResponse(res, 'This UPI transaction reference has already been submitted or credited', StatusCodes.CONFLICT);
     }
 
-    const user = await Customer.findById(req.user._id);
+    const user = await Customer.findById(req.user._id).lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
-    // Handle subscription plan extension
-    let subscriptionUpdate = {};
+    // Verify the subscription plan (if this is a plan purchase) BEFORE queuing it
+    let plan = null;
     if (planId && user.role === 'WORKER') {
         const AppSettings = require('../settings/settings.model');
         const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
         const configuredPlans = settings?.subscriptionPlans || [];
-        const foundPlan = configuredPlans.find(p => p.id === planId);
+        plan = configuredPlans.find(p => p.id === planId) || null;
 
-        const planDaysMap = { monthly: 30, quarterly: 90, half: 180, yearly: 365 };
-        const days = foundPlan?.durationDays || planDaysMap[planId] || 30;
-
-        let baseDate = new Date();
-        if (user.subscription?.expiryDate && new Date(user.subscription.expiryDate) > new Date()) {
-            baseDate = new Date(user.subscription.expiryDate);
+        if (!plan) {
+            return errorResponse(res, 'Subscription plan not found', StatusCodes.NOT_FOUND);
         }
-        const newExpiry = new Date(baseDate.getTime() + days * 86400000);
-        subscriptionUpdate = {
-            'subscription.planId': planId,
-            'subscription.expiryDate': newExpiry,
-            'subscription.isTrial': false,
-            'subscription.isActive': true
-        };
+        if (Number(plan.price) !== amount) {
+            return errorResponse(res, `Top-up amount must exactly match the plan price of ₹${plan.price}`, StatusCodes.BAD_REQUEST);
+        }
     }
 
-    // Atomic credit to worker/user wallet
-    const result = await atomicCredit(req.user._id, user.role, amount, null);
-    if (!result) return errorResponse(res, 'Wallet credit failed', StatusCodes.INTERNAL_SERVER_ERROR);
-
-    // Apply subscription update if any
-    if (Object.keys(subscriptionUpdate).length > 0) {
-        await Customer.findByIdAndUpdate(req.user._id, subscriptionUpdate);
-    }
-
+    // Queue for admin verification — nothing is credited yet
     const txn = await WalletTxn.create({
         userId: req.user._id,
         type: 'TOPUP',
         amount,
-        balance: result.newBalance,
-        status: 'COMPLETED',
-        razorpayPaymentId,
-        description: planId ? `Subscription Plan: ${planId}` : `Wallet Top-up via ${paymentDetails?.method || 'UPI/Online'}`
+        balance: user.wallet?.balance || 0,
+        status: 'PENDING',
+        razorpayPaymentId: upiTxnRef,
+        planId: plan ? planId : undefined,
+        description: plan
+            ? `Subscription Plan Purchase: ${plan.label || planId} (Pending Admin Verification - UTR: ${upiTxnRef})`
+            : `Wallet Top-up (Pending Admin Verification - UTR: ${upiTxnRef})`
     });
 
-    const adminWallet = await AdminWallet.findOneAndUpdate(
-        {},
-        { $inc: { balance: amount } },
-        { returnDocument: 'after', upsert: true }
-    );
-
-    await AdminWalletTxn.create({
-        type: 'TOPUP',
-        amount,
-        balanceAfter: adminWallet?.balance || amount,
-        description: `Wallet top-up by ${user.role} ${user.name || user._id} via ${isUpiPayment ? 'UPI' : 'Online'}`,
-        referenceId: req.user._id,
-        referenceModel: 'Customer',
-        meta: { paymentMethod: isUpiPayment ? 'UPI' : 'RAZORPAY', txnRef: razorpayPaymentId }
-    });
-
-    emitToAll('DASHBOARD_UPDATE', { type: 'ADMIN_WALLET_TOPUP', amount });
-    await delCache(`session:${req.user._id}`);
-    await delCache('admin_dashboard_stats');
-    
-    emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP', id: txn._id });
-
-    notifyUser({
+    emitToAll('DASHBOARD_UPDATE', {
+        type: 'PENDING_WALLET_TOPUP',
         userId: req.user._id,
-        title: 'Wallet Top-up Successful',
-        message: `Successfully added â‚¹${amount} to your wallet.`,
-        action: 'TOPUP',
-        entityType: 'WALLET',
-        entityId: txn._id,
-        targetRole: (user.role === 'SHOP' || user.role === 'SHOP_OWNER') ? 'SHOP_OWNER' : 'CUSTOMER'
+        userName: user.name,
+        amount,
+        utr: upiTxnRef,
+        planId: plan ? planId : null
     });
 
-    return successResponse(res, { txn, newBalance: result.newBalance }, 'Wallet top-up successful');
+    return successResponse(res, {
+        txn,
+        status: 'PENDING_VERIFICATION',
+        utr: upiTxnRef,
+        amount
+    }, `Top-up request for ₹${amount} submitted! It will be credited after admin verification of your UPI payment.`, StatusCodes.CREATED);
 });
 
 // â”€â”€â”€ POST /api/v1/wallet/withdraw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -210,7 +184,7 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
         return errorResponse(res, 'Payout method is required', StatusCodes.BAD_REQUEST);
     }
 
-    const user = await Customer.findById(req.user._id).select('role');
+    const user = await Customer.findById(req.user._id).select('role').lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
     let session = null;
@@ -321,7 +295,7 @@ exports.getMyTransactions = catchAsync(async (req, res) => {
 exports.adminAdjust = catchAsync(async (req, res) => {
     const { userId, amount, type, description, debit } = req.body;
 
-    const user = await Customer.findById(userId).select('role wallet');
+    const user = await Customer.findById(userId).select('role wallet').lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
     let adminWallet;
@@ -439,6 +413,69 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
     );
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
+    // If this pending top-up was a subscription plan purchase, apply the plan
+    // extension instead of crediting the user's wallet balance.
+    if (txn.planId && user.role === 'WORKER') {
+        const AppSettings = require('../settings/settings.model');
+        const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+        const plan = (settings?.subscriptionPlans || []).find(p => p.id === txn.planId);
+        const days = plan?.durationDays || 30;
+
+        let baseDate = new Date();
+        if (user.subscription?.expiryDate && new Date(user.subscription.expiryDate) > baseDate) {
+            baseDate = new Date(user.subscription.expiryDate);
+        }
+        const newExpiry = new Date(baseDate.getTime() + days * 86400000);
+
+        const updatedUser = await Customer.findByIdAndUpdate(
+            txn.userId,
+            {
+                'subscription.planId': txn.planId,
+                'subscription.expiryDate': newExpiry,
+                'subscription.isTrial': false,
+                'subscription.isActive': true
+            },
+            { returnDocument: 'after' }
+        );
+
+        txn.status = 'COMPLETED';
+        txn.balance = updatedUser?.wallet?.balance || user.wallet?.balance || 0;
+        txn.description = `Subscription Plan "${txn.planId}" Verified & Activated (UTR: ${txn.razorpayPaymentId || 'UPI'})`;
+        await txn.save();
+
+        // Credit Admin Platform Wallet — this is subscription revenue, not wallet balance
+        const adminW = await AdminWallet.findOneAndUpdate(
+            {},
+            { $inc: { balance: txn.amount, totalCollected: txn.amount } },
+            { returnDocument: 'after', upsert: true }
+        );
+        if (adminW) {
+            await AdminWalletTxn.create([{
+                type: 'TOPUP',
+                amount: txn.amount,
+                balance: adminW.balance,
+                refId: String(txn._id),
+                description: `Worker ${updatedUser?.name || 'User'} subscription plan "${txn.planId}" verified (UTR: ${txn.razorpayPaymentId})`
+            }]);
+        }
+
+        await delCache(`session:${user._id}`);
+        await delCache('admin_dashboard_stats');
+
+        await notifyUser({
+            userId: user._id,
+            title: 'Subscription Activated! 🎉',
+            message: `Your ${plan?.label || txn.planId} plan payment of ₹${txn.amount} was verified and your subscription is now active until ${newExpiry.toDateString()}.`,
+            type: 'WALLET_CREDIT',
+            referenceId: txn._id,
+            referenceModel: 'WalletTxn'
+        });
+
+        emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_APPROVED', txnId: txn._id, userId: user._id });
+
+        return successResponse(res, { txn, newExpiry }, `Plan "${txn.planId}" verified and activated for ${updatedUser?.name || 'user'}!`);
+    }
+
     txn.status = 'COMPLETED';
     txn.balance = user.wallet?.balance || 0;
     txn.description = `Wallet Top-up Verified & Credited (UTR: ${txn.razorpayPaymentId || 'UPI'})`;
@@ -462,7 +499,6 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
 
     await delCache(`session:${user._id}`);
     await delCache('admin_dashboard_stats');
-
     // In-app notification to the user
     await notifyUser({
         userId: user._id,

@@ -108,7 +108,7 @@ describe('Auth Routes — Extended', () => {
                 .send({
                     phone: '9876543214',
                     code: '1234',
-                    newPassword: 'weak',
+                    newPassword: 'abc', // below the 4-char minimum
                     role: 'CUSTOMER'
                 });
 

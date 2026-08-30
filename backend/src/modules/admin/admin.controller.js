@@ -164,7 +164,13 @@ exports.getCustomers = catchAsync(async (req, res) => {
         .skip((Number(page) - 1) * Number(limit))
         .lean();
 
-    return successResponse(res, { customers, total, page: Number(page), totalPages: Math.ceil(total / limit) }, ADMIN.CUSTOMERS_FETCHED);
+    // Platform-wide aggregates (independent of the current page/search) for admin KPI cards
+    const [activeTotal, inactiveTotal] = await Promise.all([
+        Customer.countDocuments({ role: 'CUSTOMER', isVerified: true }),
+        Customer.countDocuments({ role: 'CUSTOMER', isVerified: { $ne: true } })
+    ]);
+
+    return successResponse(res, { customers, total, page: Number(page), totalPages: Math.ceil(total / limit), stats: { active: activeTotal, inactive: inactiveTotal } }, ADMIN.CUSTOMERS_FETCHED);
 });
 
 exports.getWorkers = catchAsync(async (req, res) => {
@@ -181,28 +187,73 @@ exports.getWorkers = catchAsync(async (req, res) => {
         .skip((Number(page) - 1) * Number(limit))
         .lean();
 
-    return successResponse(res, { workers, total, page: Number(page), totalPages: Math.ceil(total / limit) }, ADMIN.WORKERS_FETCHED);
+    // Platform-wide aggregates (independent of the current page/search) for admin KPI cards
+    const [activeTotal, kycPendingTotal, onlineTotal] = await Promise.all([
+        Customer.countDocuments({ role: 'WORKER', isVerified: true }),
+        Customer.countDocuments({ role: 'WORKER', 'kyc.status': 'PENDING' }),
+        Customer.countDocuments({ role: 'WORKER', isOnline: true })
+    ]);
+
+    return successResponse(res, { workers, total, page: Number(page), totalPages: Math.ceil(total / limit), stats: { active: activeTotal, kycPending: kycPendingTotal, online: onlineTotal } }, ADMIN.WORKERS_FETCHED);
 });
 
-exports.getPendingKYC = catchAsync(async (req, res) => {
-    const workers = await Customer.find({ role: 'WORKER', 'kyc.status': 'PENDING' })
-        .select('-password')
-        .sort('createdAt')
-        .limit(100)
-        .lean();
+// Max page size enforced across all admin list endpoints
+const MAX_PAGE_SIZE = 50;
+const clampLimit = (raw, fallback = 20) => {
+    const n = Number(raw) || fallback;
+    return Math.min(Math.max(1, Math.floor(n)), MAX_PAGE_SIZE);
+};
 
-    const shops = await Shop.find({ 'kyc.status': 'PENDING' })
-        .populate('ownerId', 'name phone')
-        .sort('createdAt')
-        .limit(100)
-        .lean();
+exports.getPendingKYC = catchAsync(async (req, res) => {
+    const { page = 1, limit = 20, search, kycType } = req.query;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const pageSize = clampLimit(limit, 20);
+
+    const workerQuery = { role: 'WORKER', 'kyc.status': 'PENDING' };
+    const shopQuery = { 'kyc.status': 'PENDING' };
+    if (search) {
+        const safeSearch = escapeRegex(search);
+        workerQuery.$or = [{ name: { $regex: safeSearch, $options: 'i' } }, { phone: { $regex: safeSearch, $options: 'i' } }];
+        shopQuery.$or = [{ name: { $regex: safeSearch, $options: 'i' } }, { phone: { $regex: safeSearch, $options: 'i' } }];
+    }
+
+    // Union pagination: the merged worker+shop queue is sorted by createdAt, so
+    // fetch one page from each source and merge+slice to the requested page.
+    const [workerTotal, shopTotal] = await Promise.all([
+        Customer.countDocuments(workerQuery),
+        Shop.countDocuments(shopQuery)
+    ]);
+
+    // Fetch enough rows from each source to cover the requested page window
+    const fetchLimit = pageNum * pageSize;
+    let [workers, shops] = await Promise.all([
+        kycType === 'SHOP' ? Promise.resolve([]) : Customer.find(workerQuery)
+            .select('-password')
+            .sort('createdAt')
+            .limit(fetchLimit)
+            .lean(),
+        kycType === 'WORKER' ? Promise.resolve([]) : Shop.find(shopQuery)
+            .populate('ownerId', 'name phone')
+            .sort('createdAt')
+            .limit(fetchLimit)
+            .lean()
+    ]);
 
     const items = [
         ...workers.map(w => ({ ...w, kycType: 'WORKER' })),
         ...shops.map(s => ({ ...s, kycType: 'SHOP', name: s.name, phone: s.ownerId?.phone }))
     ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    return successResponse(res, items, ADMIN.WORKERS_FETCHED);
+    const total = workerTotal + shopTotal;
+    const paged = items.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+
+    return successResponse(res, {
+        items: paged,
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / pageSize),
+        stats: { workers: workerTotal, shops: shopTotal }
+    }, ADMIN.WORKERS_FETCHED);
 });
 
 exports.updateKYC = catchAsync(async (req, res) => {
@@ -265,6 +316,7 @@ exports.extendWorkerSubscription = catchAsync(async (req, res) => {
 
     let target = await Customer.findById(id);
     let isShop = false;
+    if (target && target.role !== 'WORKER') target = null; // Customer ids are not valid targets
     if (!target) {
         target = await Shop.findById(id);
         if (target) isShop = true;
@@ -371,7 +423,7 @@ exports.removeKycDocument = catchAsync(async (req, res) => {
 exports.createUser = catchAsync(async (req, res) => {
     const { name, phone, role, password, email, city, bio, profileImage, address, location, services, serviceRadius, wallet } = req.body;
 
-    const existing = await Customer.findOne({ phone, role });
+    const existing = await Customer.findOne({ phone, role }).lean();
     if (existing) return errorResponse(res, 'User with this phone and role already exists', StatusCodes.BAD_REQUEST);
 
     const hashedPassword = password ? await bcrypt.hash(password, 12) : undefined;
@@ -428,7 +480,7 @@ exports.createUser = catchAsync(async (req, res) => {
 
     if (role === 'WORKER' || role === 'SHOP') {
         const AppSettings = require('../settings/settings.model');
-        const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+        const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
         const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
         const trialEndDate = new Date();
         trialEndDate.setDate(trialEndDate.getDate() + freeTrialDays);
@@ -620,7 +672,7 @@ exports.deleteUser = catchAsync(async (req, res) => {
 
 exports.impersonateUser = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const user = await Customer.findById(id);
+    const user = await Customer.findById(id).lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
     const jwt = require('jsonwebtoken');
@@ -630,7 +682,9 @@ exports.impersonateUser = catchAsync(async (req, res) => {
         { expiresIn: '1h' }
     );
 
-    logAdminActivity('IMPERSONATE', 'CUSTOMER', user._id, 'Admin Impersonation', `Admin impersonated user "${user.name}" (${user.phone})`, req.user?._id);
+    // Audit log for impersonation MUST be durable before the token is handed
+    // out — await instead of fire-and-forget.
+    await logAdminActivity('IMPERSONATE', 'CUSTOMER', user._id, 'Admin Impersonation', `Admin impersonated user "${user.name}" (${user.phone})`, req.user?._id);
 
     return successResponse(res, { token, user: { name: user.name, role: user.role } }, 'Impersonation token generated');
 });
@@ -650,7 +704,14 @@ exports.getShops = catchAsync(async (req, res) => {
         .skip((Number(page) - 1) * Number(limit))
         .lean();
 
-    return successResponse(res, { shops, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Shops fetched');
+    // Platform-wide aggregates (independent of the current page/search) for admin KPI cards
+    const [approvedTotal, pendingTotal, onlineTotal] = await Promise.all([
+        Shop.countDocuments({ isDeleted: { $ne: true }, 'kyc.status': 'APPROVED' }),
+        Shop.countDocuments({ isDeleted: { $ne: true }, 'kyc.status': 'PENDING' }),
+        Shop.countDocuments({ isDeleted: { $ne: true }, isOnline: true })
+    ]);
+
+    return successResponse(res, { shops, total, page: Number(page), totalPages: Math.ceil(total / limit), stats: { approved: approvedTotal, pending: pendingTotal, online: onlineTotal } }, 'Shops fetched');
 });
 
 exports.updateShopKYC = catchAsync(async (req, res) => {
@@ -724,7 +785,7 @@ exports.toggleShopStatus = catchAsync(async (req, res) => {
 exports.createShopAdmin = catchAsync(async (req, res) => {
     const { ownerPhone, ownerName, ownerEmail, name, category, description, address, location, delivery, deliveryConfig, businessHours, subscription } = req.body;
 
-    let owner = await Customer.findOne({ phone: ownerPhone, role: 'SHOP' });
+    let owner = await Customer.findOne({ phone: ownerPhone, role: 'SHOP' }).lean();
     let tempPassword = null;
     if (!owner) {
         tempPassword = crypto.randomBytes(8).toString('hex');
@@ -739,11 +800,11 @@ exports.createShopAdmin = catchAsync(async (req, res) => {
         });
     }
 
-    const existingShop = await Shop.findOne({ ownerId: owner._id });
+    const existingShop = await Shop.findOne({ ownerId: owner._id }).lean();
     if (existingShop) return errorResponse(res, 'This owner already has a registered shop', StatusCodes.CONFLICT);
 
     const AppSettings = require('../settings/settings.model');
-    const appSettings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+    const appSettings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
     const freeTrialDays = appSettings?.subscription?.freeTrialDays || 14;
     const defaultTrialEndDate = new Date();
     defaultTrialEndDate.setDate(defaultTrialEndDate.getDate() + freeTrialDays);
@@ -873,7 +934,7 @@ exports.updateShopAdminFull = catchAsync(async (req, res) => {
 });
 
 exports.deleteShopAdmin = catchAsync(async (req, res) => {
-    const shop = await Shop.findById(req.params.id);
+    const shop = await Shop.findById(req.params.id).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     // Clean up shop logo from Cloudinary
@@ -899,10 +960,10 @@ exports.deleteShopAdmin = catchAsync(async (req, res) => {
 });
 
 exports.getShopDetailAdmin = catchAsync(async (req, res) => {
-    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone email');
+    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone email').lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
-    const products = await Product.find({ shopId: shop._id }).sort('-createdAt');
+    const products = await Product.find({ shopId: shop._id }).sort('-createdAt').lean();
     const walletTxns = shop.ownerId ? await WalletTxn.find({ userId: shop.ownerId._id }).sort('-createdAt').limit(20).lean() : [];
 
     return successResponse(res, { shop, products, walletTxns }, 'Shop detail fetched');
@@ -910,10 +971,10 @@ exports.getShopDetailAdmin = catchAsync(async (req, res) => {
 
 exports.creditShopWallet = catchAsync(async (req, res) => {
     const { amount, description } = req.body;
-    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone');
+    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone').lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
-    let adminWallet = await AdminWallet.findOne();
+    let adminWallet = await AdminWallet.findOne().lean();
     if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
     if (adminWallet.balance < amount) {
         return errorResponse(res, `Insufficient admin wallet balance. Available: â‚¹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
@@ -968,7 +1029,7 @@ exports.creditShopWallet = catchAsync(async (req, res) => {
 
 exports.debitShopWallet = catchAsync(async (req, res) => {
     const { amount, description } = req.body;
-    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone');
+    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone').lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     // Atomic: debit shop wallet with $gte guard
@@ -982,7 +1043,7 @@ exports.debitShopWallet = catchAsync(async (req, res) => {
     }
 
     // Atomic: credit admin wallet
-    let adminWallet = await AdminWallet.findOne();
+    let adminWallet = await AdminWallet.findOne().lean();
     if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
     const creditedAdminWallet = await AdminWallet.findOneAndUpdate(
         { _id: adminWallet._id },
@@ -1196,7 +1257,7 @@ exports.getCustomerOrders = catchAsync(async (req, res) => {
 exports.adminCreateJob = catchAsync(async (req, res) => {
     const { customerId, category, subcategory, description, media, preferredDate, timeSlot, location, addressDetails } = req.body;
 
-    const customer = await Customer.findById(customerId);
+    const customer = await Customer.findById(customerId).lean();
     if (!customer) return errorResponse(res, 'Customer not found', StatusCodes.NOT_FOUND);
     if (customer.role !== 'CUSTOMER') return errorResponse(res, 'Target user must be a customer', StatusCodes.BAD_REQUEST);
 
@@ -1295,11 +1356,11 @@ exports.adminUpdateJob = catchAsync(async (req, res) => {
 exports.adminCreateOrder = catchAsync(async (req, res) => {
     const { customerId, shopId, items, deliveryAddress, deliveryLocation, paymentMethod } = req.body;
 
-    const customer = await Customer.findById(customerId);
+    const customer = await Customer.findById(customerId).lean();
     if (!customer) return errorResponse(res, 'Customer not found', StatusCodes.NOT_FOUND);
     if (customer.role !== 'CUSTOMER') return errorResponse(res, 'Target user must be a customer', StatusCodes.BAD_REQUEST);
 
-    const shop = await Shop.findById(shopId);
+    const shop = await Shop.findById(shopId).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
     if (shop.kyc?.status !== 'APPROVED') return errorResponse(res, 'Shop is not approved to receive orders', StatusCodes.FORBIDDEN);
 

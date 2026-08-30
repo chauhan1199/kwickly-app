@@ -19,7 +19,8 @@ exports.getSettlements = catchAsync(async (req, res) => {
     const settlements = await Settlement.find(filter)
         .populate('shopId', 'name')
         .populate('orderId', 'orderNumber total')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
 
     return successResponse(res, settlements, 'Settlements fetched');
 });
@@ -177,7 +178,8 @@ exports.bulkSettle = catchAsync(async (req, res) => {
 exports.getPendingSettlements = catchAsync(async (req, res) => {
     const settlements = await Settlement.find({ status: 'PENDING' })
         .populate('shopId', 'name')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
 
     const total = settlements.reduce((sum, s) => sum + s.shopEarning, 0);
     return successResponse(res, { settlements, total, count: settlements.length }, 'Pending settlements');

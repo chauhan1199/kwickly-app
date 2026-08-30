@@ -70,7 +70,7 @@ exports.placeQuote = catchAsync(async (req, res) => {
     }
 
     // Guard: Prevent duplicate quotes
-    const existing = await Quote.findOne({ jobId, workerId, status: { $in: ['PENDING', 'ACCEPTED'] } });
+    const existing = await Quote.findOne({ jobId, workerId, status: { $in: ['PENDING', 'ACCEPTED'] } }).lean();
     if (existing) return errorResponse(res, 'You already placed a quote on this job', StatusCodes.CONFLICT);
 
     // Calculate ETA via Haversine
@@ -154,8 +154,8 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
     // Fetch Global Settings for fee calculation
     const SettingsService = require('../settings/settings.service');
     const settings = await SettingsService.getAppSettings();
-    const { calculatePlatformFee } = require('../../helpers/feeCalculator.helper');
-    const feeConfig = settings?.fees || { type: 'tiered', minFee: 50, threshold: 500, percentage: 12, gstPercentage: 18 };
+    const { calculateJobFee } = require('../../helpers/feeCalculator.helper');
+    const feeConfig = settings?.fees || settings?.jobFee || { type: 'tiered', minFee: 50, threshold: 500, percentage: 12, gstPercentage: 18 };
 
     const jobLat = job.location?.coordinates?.[1];
     const jobLon = job.location?.coordinates?.[0];
@@ -171,14 +171,14 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
 
         // --- UNIFIED PRICING MODEL ---
         // Worker quote is their exact payout. Platform fee and GST added on top dynamically.
-        const feeBreakdown = calculatePlatformFee(quote.amount, feeConfig);
+        const feeBreakdown = calculateJobFee(quote.amount, feeConfig);
 
-        return { 
-            ...quote, 
-            distanceKm, 
-            platformFee: feeBreakdown.platformFee, 
-            gst: feeBreakdown.gst, 
-            customerPayable: feeBreakdown.customerPayable 
+        return {
+            ...quote,
+            distanceKm,
+            platformFee: feeBreakdown.platformFee,
+            gst: feeBreakdown.gstAmount,
+            customerPayable: feeBreakdown.customerTotal
         };
     });
 

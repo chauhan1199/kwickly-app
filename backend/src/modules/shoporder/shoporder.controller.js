@@ -1,12 +1,12 @@
 const crypto = require('crypto');
 const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
-const ShopOrder  = require('./shoporder.model');
-const Shop       = require('../shop/shop.model');
-const Product    = require('../product/product.model');
-const Customer   = require('../customer/customer.model');
-const WalletTxn  = require('../wallet/wallet.model');
-const Promotion  = require('../promotion/promotion.model');
+const ShopOrder = require('./shoporder.model');
+const Shop = require('../shop/shop.model');
+const Product = require('../product/product.model');
+const Customer = require('../customer/customer.model');
+const WalletTxn = require('../wallet/wallet.model');
+const Promotion = require('../promotion/promotion.model');
 const Settlement = require('../settlement/settlement.model');
 const AppSettings = require('../settings/settings.model');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
@@ -41,7 +41,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
         return errorResponse(res, 'Order must contain at least one item', StatusCodes.BAD_REQUEST);
     }
 
-    const shop = await Shop.findById(shopId);
+    const shop = await Shop.findById(shopId).lean();
     if (!shop || !shop.isOnline) return errorResponse(res, 'Shop is not available', StatusCodes.BAD_REQUEST);
     if (shop.kyc?.status !== 'APPROVED') {
         return errorResponse(res, 'Shop is not approved to receive orders.', StatusCodes.FORBIDDEN);
@@ -120,7 +120,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
         let discount = 0;
         let promoDetails = null;
         if (promoCode) {
-            const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), isActive: true });
+            const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), isActive: true }).lean();
             if (!promo) {
                 if (useTransaction && session) await session.abortTransaction();
                 if (session) session.endSession();
@@ -315,7 +315,7 @@ exports.getCustomerOrders = catchAsync(async (req, res) => {
  * GET /api/v1/shoporders/shop
  */
 exports.getShopOrders = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id }).select('_id');
+    const shop = await Shop.findOne({ ownerId: req.user._id }).select('_id').lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     const { status, page = 1, limit = 20 } = req.query;
@@ -347,7 +347,7 @@ exports.getOrderById = catchAsync(async (req, res) => {
     // RBAC Security Check — Shop owners are identified by ownerId, not shopId on user
     const orderCustomerId = order.customerId?._id?.toString() || order.customerId?.toString();
     const orderShopId = order.shopId?._id?.toString() || order.shopId?.toString();
-    
+
     let isShopOwner = false;
     if (req.user.role === 'SHOP' && orderShopId) {
         const Shop = require('../shop/shop.model');
@@ -355,8 +355,8 @@ exports.getOrderById = catchAsync(async (req, res) => {
         isShopOwner = shop && shop.ownerId?.toString() === req.user._id.toString();
     }
 
-    if (req.user.role !== 'ADMIN' && 
-        orderCustomerId !== req.user._id.toString() && 
+    if (req.user.role !== 'ADMIN' &&
+        orderCustomerId !== req.user._id.toString() &&
         !isShopOwner) {
         return errorResponse(res, 'Unauthorized access to this order', StatusCodes.FORBIDDEN);
     }
@@ -385,8 +385,8 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
         isInvoiceShopOwner = shop && shop.ownerId?.toString() === req.user._id.toString();
     }
 
-    if (req.user.role !== 'ADMIN' && 
-        invoiceCustomerId !== req.user._id.toString() && 
+    if (req.user.role !== 'ADMIN' &&
+        invoiceCustomerId !== req.user._id.toString() &&
         !isInvoiceShopOwner) {
         return errorResponse(res, 'Unauthorized access to this invoice', StatusCodes.FORBIDDEN);
     }
@@ -497,7 +497,7 @@ exports.cancelOrder = catchAsync(async (req, res) => {
         { returnDocument: 'after' }
     );
     if (!order) {
-        const existing = await ShopOrder.findOne({ _id: req.params.id, customerId: req.user._id });
+        const existing = await ShopOrder.findOne({ _id: req.params.id, customerId: req.user._id }).lean();
         if (!existing) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
         return errorResponse(res, 'Order cannot be cancelled in its current status', StatusCodes.BAD_REQUEST);
     }
@@ -535,7 +535,7 @@ exports.cancelOrder = catchAsync(async (req, res) => {
     emitToAll('DASHBOARD_UPDATE', { type: 'ORDER_STATUS_CHANGED', id: order._id });
 
     const Shop = require('../shop/shop.model');
-    const shop = await Shop.findById(order.shopId);
+    const shop = await Shop.findById(order.shopId).lean();
     if (shop) {
         notifyUser({
             userId: shop.ownerId,
@@ -564,9 +564,9 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
     if (req.user.role === 'ADMIN') {
         order = await ShopOrder.findById(req.params.id);
         if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
-        shop = await Shop.findById(order.shopId).select('_id wallet ownerId');
+        shop = await Shop.findById(order.shopId).select('_id wallet ownerId').lean();
     } else {
-        shop = await Shop.findOne({ ownerId: req.user._id }).select('_id wallet ownerId');
+        shop = await Shop.findOne({ ownerId: req.user._id }).select('_id wallet ownerId').lean();
         if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
         order = await ShopOrder.findOne({ _id: req.params.id, shopId: shop._id });
         if (!order) return errorResponse(res, 'Order not found or not authorized', StatusCodes.NOT_FOUND);
@@ -574,12 +574,12 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
 
     // Status transition validation
     const validTransitions = {
-        NEW:                ['CONFIRMED', 'CANCELLED'],
-        CONFIRMED:          ['PACKING', 'CANCELLED'],
-        PACKING:            ['OUT_FOR_DELIVERY', 'CANCELLED'],
-        OUT_FOR_DELIVERY:   ['DELIVERED', 'CANCELLED'],
-        DELIVERED:          ['CANCELLED'],
-        CANCELLED:          [],
+        NEW: ['CONFIRMED', 'CANCELLED'],
+        CONFIRMED: ['PACKING', 'CANCELLED'],
+        PACKING: ['OUT_FOR_DELIVERY', 'CANCELLED'],
+        OUT_FOR_DELIVERY: ['DELIVERED', 'CANCELLED'],
+        DELIVERED: ['CANCELLED'],
+        CANCELLED: [],
     };
     const allowedNext = validTransitions[order.status];
     if (!allowedNext) {
@@ -596,19 +596,36 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
             return errorResponse(res, 'Delivery OTP is required', StatusCodes.BAD_REQUEST);
         }
 
+        // P0 FIX: Atomic claim — exactly ONE concurrent DELIVERED update settles the order.
+        // Without this, parallel requests both read OUT_FOR_DELIVERY and both settle (shop paid twice).
+        const claimed = await ShopOrder.findOneAndUpdate(
+            { _id: order._id, status: 'OUT_FOR_DELIVERY' },
+            { status: 'DELIVERED' },
+            { returnDocument: 'after' }
+        );
+        if (!claimed) {
+            return errorResponse(res, 'Order is already being delivered or has already been delivered', StatusCodes.CONFLICT);
+        }
+        const revertClaim = async () => {
+            try { await ShopOrder.findByIdAndUpdate(order._id, { status: 'OUT_FOR_DELIVERY' }); } catch (e) { /* best-effort revert */ }
+        };
+
         // H15: Check OTP expiry (OTP_TTL seconds from generation)
         const otpAge = (Date.now() - new Date(order.deliveryOtpGeneratedAt || order.createdAt).getTime()) / 1000;
         if (otpAge > OTP_TTL) {
+            await revertClaim();
             return errorResponse(res, 'Delivery OTP has expired. Please request a new one.', StatusCodes.BAD_REQUEST);
         }
 
         // H15: Check attempt limit (max 5 attempts per OTP)
         if ((order.deliveryOtpAttempts || 0) >= 5) {
+            await revertClaim();
             return errorResponse(res, 'Too many OTP attempts. Please request a new OTP.', StatusCodes.BAD_REQUEST);
         }
 
         if (String(otp) !== String(order.deliveryOtp)) {
             await ShopOrder.findByIdAndUpdate(order._id, { $inc: { deliveryOtpAttempts: 1 } });
+            await revertClaim();
             return errorResponse(res, 'Invalid delivery OTP. Please ask the customer for the correct OTP.', StatusCodes.BAD_REQUEST);
         }
 
@@ -629,46 +646,62 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
 
         try {
             const sessOpts = useTransaction ? { session } : {};
-            // Restore stock for all items
-            for (const item of order.items) {
-                if (item.productId) {
-                    await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } }, sessOpts);
-                }
-            }
 
-            // Refund to customer wallet if payment was already made
-            if (order.payment.status === 'PAID') {
-                const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {
-                    $inc: { 'wallet.balance': order.total }
-                }, { returnDocument: 'after', ...sessOpts });
-
-                await WalletTxn.create([{
-                    userId: order.customerId,
-                    type: 'REFUND',
-                    amount: order.total,
-                    balance: refundedCustomer?.wallet?.balance || 0,
-                    refId: String(order._id),
-                    status: 'COMPLETED',
-                    description: `Refund for cancelled order #${String(order._id).slice(-6)}`
-                }], sessOpts);
-                await delCache(`session:${order.customerId}`);
-            }
-
-            // H16: If order was delivered, cancel the associated settlement
+            // If order was already DELIVERED (and therefore settled), reverse
+            // the settlement: claw back the shop payout (bounded by shop
+            // balance), reverse fee/GST from treasury, and refund the
+            // customer — all idempotently. Stock is NOT restored (goods were
+            // delivered) and the generic refund below must not double-pay.
             if (order.status === 'DELIVERED') {
+                const { reverseShopOrderDelivery } = require('../../helpers/settlementEngine.helper');
+                await reverseShopOrderDelivery({ order, session });
+
+                // Cancel any legacy pending Settlement doc as well
                 const settlement = await Settlement.findOne({ orderId: order._id, status: { $in: ['PENDING', 'PARTIAL'] } });
                 if (settlement) {
                     settlement.status = 'CANCELLED';
                     settlement.note = (settlement.note ? settlement.note + ' | ' : '') + 'Cancelled: order was cancelled after delivery';
                     await settlement.save(sessOpts);
                 }
+
+                if (order.payment) order.payment.escrowStatus = 'REFUNDED';
+                order.status = status;
+                await order.save(sessOpts);
+
+                if (useTransaction) await session.commitTransaction();
+                if (session) session.endSession();
+            } else {
+                // Restore stock for all items
+                for (const item of order.items) {
+                    if (item.productId) {
+                        await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } }, sessOpts);
+                    }
+                }
+
+                // Refund to customer wallet if payment was already made
+                if (order.payment.status === 'PAID') {
+                    const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {
+                        $inc: { 'wallet.balance': order.total }
+                    }, { returnDocument: 'after', ...sessOpts });
+
+                    await WalletTxn.create([{
+                        userId: order.customerId,
+                        type: 'REFUND',
+                        amount: order.total,
+                        balance: refundedCustomer?.wallet?.balance || 0,
+                        refId: String(order._id),
+                        status: 'COMPLETED',
+                        description: `Refund for cancelled order #${String(order._id).slice(-6)}`
+                    }], sessOpts);
+                    await delCache(`session:${order.customerId}`);
+                }
+
+                order.status = status;
+                await order.save(sessOpts);
+
+                if (useTransaction) await session.commitTransaction();
+                if (session) session.endSession();
             }
-
-            order.status = status;
-            await order.save(sessOpts);
-
-            if (useTransaction) await session.commitTransaction();
-            if (session) session.endSession();
         } catch (error) {
             if (useTransaction && session) await session.abortTransaction();
             if (session) session.endSession();
@@ -685,11 +718,11 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
 
     // Notify customer via notification
     const statusMessages = {
-        CONFIRMED:        { emoji: '✓', msg: 'Your order has been confirmed by the shop and is being prepared.' },
-        PACKING:          { emoji: '📦', msg: 'Your order is being packed and will be dispatched soon.' },
+        CONFIRMED: { emoji: '✓', msg: 'Your order has been confirmed by the shop and is being prepared.' },
+        PACKING: { emoji: '📦', msg: 'Your order is being packed and will be dispatched soon.' },
         OUT_FOR_DELIVERY: { emoji: '🚚', msg: 'Your order is out for delivery! Prepare your OTP for handover.' },
-        DELIVERED:        { emoji: '🎉', msg: 'Your order has been delivered successfully. Enjoy!' },
-        CANCELLED:        { emoji: '❌', msg: 'Your order has been cancelled. A refund will be processed if applicable.' },
+        DELIVERED: { emoji: '🎉', msg: 'Your order has been delivered successfully. Enjoy!' },
+        CANCELLED: { emoji: '❌', msg: 'Your order has been cancelled. A refund will be processed if applicable.' },
     };
     const sm = statusMessages[status];
     if (sm) {
@@ -712,10 +745,24 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
  * GET /api/v1/shoporders (Admin)
  */
 exports.getAllOrders = catchAsync(async (req, res) => {
-    const { status, page = 1, limit = 20, shopId } = req.query;
+    const { status, search, page = 1, limit = 20, shopId } = req.query;
     const query = {};
     if (status && status !== 'all') query.status = status.toUpperCase();
     if (shopId) query.shopId = shopId;
+
+    if (search && search.trim()) {
+        const regex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const [matchingCustomers, matchingShops] = await Promise.all([
+            Customer.find({ $or: [{ name: regex }, { phone: regex }] }).select('_id').lean(),
+            Shop.find({ name: regex }).select('_id').lean()
+        ]);
+        query.$or = [
+            { orderNumber: regex },
+            { 'payment.utrNumber': regex },
+            { customerId: { $in: matchingCustomers.map(c => c._id) } },
+            { shopId: { $in: matchingShops.map(s => s._id) } }
+        ];
+    }
 
     const total = await ShopOrder.countDocuments(query);
     const orders = await ShopOrder.find(query)
@@ -726,7 +773,24 @@ exports.getAllOrders = catchAsync(async (req, res) => {
         .skip((Number(page) - 1) * Number(limit))
         .lean();
 
-    return successResponse(res, { orders, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'All orders fetched');
+    // Platform-wide KPI stats (independent of status/search filters)
+    const [statusStats, revenueStats] = await Promise.all([
+        ShopOrder.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+        ShopOrder.aggregate([
+            { $match: { status: { $ne: 'CANCELLED' } } },
+            { $group: { _id: null, revenue: { $sum: '$total' } } }
+        ])
+    ]);
+    const byStatus = {};
+    statusStats.forEach(s => { byStatus[s._id] = s.count; });
+
+    return successResponse(res, {
+        orders,
+        total,
+        page: Number(page),
+        totalPages: Math.ceil(total / limit),
+        stats: { byStatus, total: Object.values(byStatus).reduce((a, b) => a + b, 0), revenue: revenueStats[0]?.revenue || 0 }
+    }, 'All orders fetched');
 });
 
 /**

@@ -209,6 +209,28 @@ const sweepGhostOrders = async () => {
         }
 
         try {
+            // Restore reserved stock — the manual cancel paths do this, so the
+            // automatic sweep must too, or stock leaks on every ghost order.
+            const restorableItems = order.items.filter(item => item.productId);
+            if (restorableItems.length > 0) {
+                // Merge duplicate product lines so we do one write per product
+                const restoreMap = new Map();
+                for (const item of restorableItems) {
+                    const key = String(item.productId);
+                    restoreMap.set(key, (restoreMap.get(key) || 0) + item.qty);
+                }
+                const Product = require('../modules/product/product.model');
+                await Product.bulkWrite(
+                    [...restoreMap.entries()].map(([productId, qty]) => ({
+                        updateOne: {
+                            filter: { _id: productId },
+                            update: { $inc: { stock: qty } }
+                        }
+                    })),
+                    { session }
+                );
+            }
+
             // Refund if paid
             if (order.payment.status === 'PAID') {
                 const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {

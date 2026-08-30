@@ -179,7 +179,7 @@ describe('Shop Owner Self-Service', () => {
                 .post('/api/v1/shops/my/payout-methods')
                 .set('Authorization', `Bearer ${shopToken}`)
                 .send({ type: 'UPI', detail: 'shop@upi', label: 'GPay' });
-            expect(res.status).toBe(200);
+            expect(res.status).toBe(201);
             expect(Array.isArray(res.body.data)).toBe(true);
             expect(res.body.data.length).toBe(1);
             expect(res.body.data[0].type).toBe('UPI');
@@ -191,7 +191,7 @@ describe('Shop Owner Self-Service', () => {
                 .post('/api/v1/shops/my/payout-methods')
                 .set('Authorization', `Bearer ${shopToken}`)
                 .send({ type: 'BANK', detail: '1234567890', label: 'SBI Savings' });
-            expect(res.status).toBe(200);
+            expect(res.status).toBe(201);
             expect(res.body.data[0].type).toBe('BANK');
         });
 
@@ -340,7 +340,9 @@ describe('Shop Owner Self-Service', () => {
                 .post('/api/v1/shops/my/withdraw')
                 .set('Authorization', `Bearer ${shopToken}`)
                 .send({ amount: 1000, payoutMethod: 'shop@upi' });
-            expect([200, 400]).toContain(res.status);
+            expect(res.status).toBe(201);
+            expect(res.body.data.txn.status).toBe('PENDING');
+            expect(res.body.data.newBalance).toBe(4000);
         });
 
         it('should reject withdrawal with insufficient balance', async () => {
@@ -350,7 +352,8 @@ describe('Shop Owner Self-Service', () => {
                 .post('/api/v1/shops/my/withdraw')
                 .set('Authorization', `Bearer ${shopToken}`)
                 .send({ amount: 500, payoutMethod: 'shop@upi' });
-            expect(res.status).toBe(402);
+            expect(res.status).toBe(400);
+            expect(res.body.message).toMatch(/safety balance/i);
         });
 
         it('should reject without required fields', async () => {

@@ -32,6 +32,7 @@ const WalletTxnSchema = new mongoose.Schema({
     },
 
     refId:      { type: String },    // jobId / orderId / subscriptionId
+    planId:     { type: String },    // subscription plan being purchased (top-up verification applies it)
     description:{ type: String },
     invoiceUrl: { type: String },
     razorpayPaymentId: { type: String }  // dedup key for wallet top-ups

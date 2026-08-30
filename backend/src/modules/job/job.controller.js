@@ -203,7 +203,7 @@ exports.getJobs = catchAsync(async (req, res) => {
         const regex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
         const matchingUsers = await Customer.find({
             $or: [{ name: regex }, { phone: regex }]
-        }).select('_id');
+        }).select('_id').lean();
         const userIds = matchingUsers.map(u => u._id);
 
         const searchOr = [
@@ -512,6 +512,20 @@ exports.payJob = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid Completion OTP', StatusCodes.BAD_REQUEST);
     }
 
+    // P0 FIX: Atomic claim — exactly ONE concurrent payment wins.
+    // Without this, two parallel requests both read status COMPLETED and both settle
+    // (worker credited twice, ledger duplicated).
+    const claimed = await Job.findOneAndUpdate(
+        { _id: job._id, status: 'COMPLETED' },
+        { status: 'PAID' },
+        { returnDocument: 'after' }
+    );
+    if (!claimed) {
+        return errorResponse(res, 'Payment is already being processed or has already been completed for this job', StatusCodes.CONFLICT);
+    }
+    let claimReverted = false;
+    job.status = 'PAID';
+
     let platformFee = job.payment?.platformFee || 0;
     const workerPayout = job.payment?.workerPayout || 0;
     const gst = job.payment?.gst || 0;
@@ -520,7 +534,7 @@ exports.payJob = catchAsync(async (req, res) => {
     // Validate and apply promo code
     if (promoCode) {
         const { Promotion } = require('../promotion/promotion.model');
-        const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), isActive: true });
+        const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), isActive: true }).lean();
         if (promo && (!promo.endAt || new Date(promo.endAt) > new Date())) {
             const amount = job.payment?.amount || 0;
             if (amount >= (promo.minOrderAmount || 0)) {
@@ -603,6 +617,34 @@ exports.payJob = catchAsync(async (req, res) => {
                 }
             } else {
                 // Online settlement via Centralized Settlement Engine (100% to worker, fee to treasury, GST to tax ledger)
+                // P0 FIX: Actually debit the customer's wallet — funds must come from somewhere.
+                const customerTotal = promoDiscount > 0
+                    ? Math.max(0, (job.payment?.amount || 0) - promoDiscount)
+                    : Number(job.payment?.amount || 0);
+
+                if (customerTotal > 0) {
+                    const debited = await Customer.findOneAndUpdate(
+                        { _id: job.customerId, 'wallet.balance': { $gte: customerTotal } },
+                        { $inc: { 'wallet.balance': -customerTotal } },
+                        { returnDocument: 'after', session }
+                    );
+                    if (!debited) {
+                        if (useTransaction && session) await session.abortTransaction();
+                        if (session) session.endSession();
+                        // Roll back the payment claim so the customer can retry after topping up
+                        await Job.findByIdAndUpdate(job._id, { status: 'COMPLETED' });
+                        claimReverted = true;
+                        return errorResponse(res, `Insufficient wallet balance. ₹${customerTotal} required to pay for this job. Please top up your wallet.`, StatusCodes.PAYMENT_REQUIRED);
+                    }
+                    await WalletTxn.create([{
+                        userId: job.customerId, type: 'JOB_PAYMENT', amount: customerTotal,
+                        balance: debited.wallet.balance + customerTotal,
+                        balanceAfter: debited.wallet.balance,
+                        refId: job._id.toString(), status: 'COMPLETED',
+                        description: `Payment for Service Job #${job._id.toString().slice(-6)}${promoDiscount > 0 ? ` (promo discount ₹${promoDiscount})` : ''}`
+                    }], { session });
+                }
+
                 const { settleJobCompletion } = require('../../helpers/settlementEngine.helper');
                 await settleJobCompletion({ job, session });
             }
@@ -646,11 +688,15 @@ exports.payJob = catchAsync(async (req, res) => {
     } catch (error) {
         if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
+        // Roll back the payment claim so a transient failure doesn't strand the job as PAID-unpaid
+        if (!claimReverted) {
+            try { await Job.findByIdAndUpdate(job._id, { status: 'COMPLETED' }); } catch (e) { /* best-effort revert */ }
+        }
         throw error;
     }
 });
 
-// â”€â”€â”€ POST /api/v1/jobs/:id/rate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€â”€â”€â”€ POST /api/v1/jobs/:id/rate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.rateJob = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { score, review } = req.body;
@@ -711,7 +757,7 @@ exports.cancelJob = catchAsync(async (req, res) => {
 
     const previousStatus = job.status;
     job.status = 'CANCELLED';
-    job.cancelReason = req.body.reason || (req.user.role === 'CUSTOMER' ? 'Cancelled by customer' : 'Cancelled by admin');
+    job.cancelReason = req.body?.reason || (req.user.role === 'CUSTOMER' ? 'Cancelled by customer' : 'Cancelled by admin');
     await job.save();
 
     await delCache(`job:${job._id}:assigned_worker`);
@@ -749,7 +795,7 @@ exports.cancelJob = catchAsync(async (req, res) => {
     } else if (previousStatus === 'QUOTES_RECEIVED' || previousStatus === 'BROADCASTING') {
         // Find if anyone quoted and notify them
         const Quote = require('../quote/quote.model');
-        const quotes = await Quote.find({ jobId: job._id });
+        const quotes = await Quote.find({ jobId: job._id }).lean();
         quotes.forEach(q => {
             emitToRoom(`worker_${q.workerId}`, 'JOB_STATUS_CHANGED', { 
                 jobId: job._id, 
@@ -969,10 +1015,9 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
 
     // Authorization check
-    if (
-        req.user.role === 'CUSTOMER' && String(job.customerId._id) !== String(req.user._id) ||
-        req.user.role === 'WORKER' && String(job.workerId?._id) !== String(req.user._id)
-    ) {
+    const isOwner = (req.user.role === 'CUSTOMER' && String(job.customerId._id) === String(req.user._id)) ||
+                    (req.user.role === 'WORKER' && String(job.workerId?._id) === String(req.user._id));
+    if (req.user.role !== 'ADMIN' && !isOwner) {
         return errorResponse(res, 'Forbidden to view this receipt', StatusCodes.FORBIDDEN);
     }
 

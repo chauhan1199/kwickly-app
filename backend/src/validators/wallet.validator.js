@@ -9,7 +9,9 @@ const topupSchema = Joi.object({
     planId: Joi.string().allow(null, '').optional(),
     razorpayOrderId: Joi.string().allow(null, '').optional(),
     razorpayPaymentId: Joi.string().allow(null, '').optional(),
-    razorpaySignature: Joi.string().allow(null, '').optional()
+    razorpaySignature: Joi.string().allow(null, '').optional(),
+    utrNumber: Joi.string().allow(null, '').optional(),
+    upiTransactionId: Joi.string().allow(null, '').optional()
 });
 
 const withdrawSchema = Joi.object({

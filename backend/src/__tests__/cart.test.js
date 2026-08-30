@@ -120,7 +120,7 @@ describe('Cart Routes', () => {
             expect(res.body.data.items.length).toBe(1);
             expect(res.body.data.items[0].qty).toBe(3);
             expect(res.body.data.subtotal).toBe(300);
-            expect(res.body.data.totalAmount).toBe(300);
+            expect(res.body.data.totalAmount).toBe(340); // 300 + 40 delivery (below free-delivery threshold)
         });
 
         it('should add item to existing cart from same shop', async () => {
@@ -146,7 +146,7 @@ describe('Cart Routes', () => {
             expect(res.status).toBe(201);
             expect(res.body.data.items.length).toBe(2);
             expect(res.body.data.subtotal).toBe(250);
-            expect(res.body.data.totalAmount).toBe(250);
+            expect(res.body.data.totalAmount).toBe(290); // 250 + 40 delivery
         });
 
         it('should increase qty if same product added again', async () => {
@@ -324,8 +324,7 @@ describe('Cart Routes', () => {
                 .send({ qty: 0 });
 
             expect(res.status).toBe(200);
-            expect(res.body.data.items.length).toBe(0);
-            expect(res.body.data.subtotal).toBe(0);
+            expect(res.body.data).toBeNull(); // cart is deleted when the last item is removed
         });
 
         it('should reject negative qty', async () => {
@@ -568,7 +567,7 @@ describe('Cart Routes', () => {
 
             expect(add2Res.body.data.subtotal).toBe(600);
 
-            const itemIdToRemove = add2Res.body.data.items.find(i => i.productId.toString() === product._id.toString())._id;
+            const itemIdToRemove = add2Res.body.data.items.find(i => String(i.productId?._id || i.productId) === String(product._id))._id;
 
             const removeRes = await request(app)
                 .delete(`/api/v1/cart/${itemIdToRemove}`)
@@ -576,7 +575,7 @@ describe('Cart Routes', () => {
 
             expect(removeRes.status).toBe(200);
             expect(removeRes.body.data.subtotal).toBe(500);
-            expect(removeRes.body.data.totalAmount).toBe(500);
+            expect(removeRes.body.data.totalAmount).toBe(540); // 500 + 40 delivery
         });
 
         it('should handle adding product with sellingPrice when available', async () => {

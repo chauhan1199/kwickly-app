@@ -9,33 +9,104 @@ const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const Shop = require('../shop/shop.model');
 const Notification = require('../notification/notification.model');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
-const { isValidUtr } = require('../../helpers/upi.helper');
+const { isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
+
+/* ─── Shared helpers ─────────────────────────────────────────────────── */
+
+/**
+ * Compute the date a new plan should start from (stacks on remaining
+ * trial/paid time so users never lose days they already paid for).
+ */
+const computeStartDate = (existingSubscription, createdAt, freeTrialDays) => {
+    let startDate = new Date();
+    if (existingSubscription?.expiryDate && new Date(existingSubscription.expiryDate) > startDate) {
+        startDate = new Date(existingSubscription.expiryDate);
+    } else if (existingSubscription?.isTrial !== false) {
+        if (existingSubscription?.trialEndDate && new Date(existingSubscription.trialEndDate) > startDate) {
+            startDate = new Date(existingSubscription.trialEndDate);
+        } else {
+            const registrationDate = new Date(createdAt || Date.now());
+            const trialEndDate = new Date(registrationDate.getTime() + freeTrialDays * 24 * 60 * 60 * 1000);
+            if (trialEndDate > startDate) startDate = trialEndDate;
+        }
+    }
+    return startDate;
+};
+
+async function creditTreasuryForSubscription(price, planId, referenceId, referenceModel, session) {
+    const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
+    let adminWallet = await AdminWallet.findOne().session(session);
+    if (!adminWallet) {
+        const [newWallet] = await AdminWallet.create([{ balance: 0 }], { session });
+        adminWallet = newWallet;
+    }
+    const creditedAdminWallet = await AdminWallet.findOneAndUpdate(
+        { _id: adminWallet._id },
+        { $inc: { balance: price, totalCommission: price, subscriptionRevenue: price } },
+        { returnDocument: 'after', session }
+    );
+
+    await AdminWalletTxn.create([{
+        type: 'PLATFORM_FEE_COLLECTED',
+        amount: price,
+        balanceAfter: creditedAdminWallet.balance,
+        description: `Subscription plan ${planId} purchased`,
+        referenceId,
+        referenceModel
+    }], { session });
+
+    await delCache('admin_dashboard_stats');
+}
+
+async function afterSubscriptionActivated(userId, targetRole, activePlan, subId) {
+    notifyUser({
+        userId,
+        title: 'Subscription Activated',
+        message: `Your ${activePlan.label || activePlan.id} plan is now active!`,
+        action: 'UPDATE',
+        entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
+        entityId: subId,
+        targetRole
+    });
+
+    const adminNotif = await Notification.create({
+        userId: null,
+        title: 'New Subscription Purchase',
+        message: `A ${targetRole} has just purchased the ${activePlan.label || activePlan.id} plan for ₹${activePlan.price}.`,
+        type: 'SYSTEM',
+        action: 'CREATE',
+        entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
+        targetRole: 'ADMIN'
+    });
+
+    emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SUBSCRIPTION', id: subId || 'new' });
+    const { getIO } = require('../../helpers/socket.helper');
+    const io = getIO();
+    if (io) io.to('admin_dashboard').emit('NEW_NOTIFICATION', adminNotif);
+}
 
 /* ─── WORKER SUBSCRIPTION ────────────────────────────────────────────── */
 
 /**
  * POST /api/v1/subscriptions/subscribe
- * Worker purchases a plan via In-App Wallet or Direct UPI
+ * Worker/Shop purchases a plan via:
+ *  - WALLET: deducted atomically, activated immediately
+ *  - UPI:    creates a PENDING subscription that an Admin verifies against
+ *            the bank statement before activation (anti fake-UTR)
  */
 exports.subscribe = catchAsync(async (req, res) => {
     const { planId, paymentId, targetRole = 'WORKER', razorpayPaymentId, utrNumber, paymentMethod = 'UPI' } = req.body;
     const userId = req.user._id;
 
-    const upiRef = (utrNumber || razorpayPaymentId || paymentId || '').toString().trim();
-
-    if (paymentMethod === 'UPI' && (!upiRef || !isValidUtr(upiRef))) {
-        return errorResponse(res, 'A valid 12-digit UPI Reference / UTR Number from your payment receipt is required.', StatusCodes.BAD_REQUEST);
-    }
-
     const AppSettings = require('../settings/settings.model');
-    const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+    const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
     const plan = settings?.subscriptionPlans?.find(p => p.id === planId && p.targetRole === targetRole);
-    
+
     // Fallback for older configurations that didn't have targetRole
     const activePlan = plan || settings?.subscriptionPlans?.find(p => p.id === planId);
-    
+
     if (!activePlan) return errorResponse(res, 'Plan not found', StatusCodes.NOT_FOUND);
 
     let session = null;
@@ -51,171 +122,196 @@ exports.subscribe = catchAsync(async (req, res) => {
         }
     }
 
-    let startDate = new Date();
-    let endDate = new Date();
-    let sub;
+    const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
 
     try {
-        if (targetRole === 'SHOP') {
-            const shop = await Shop.findOne({ ownerId: userId }).session(session);
-            if (!shop) {
-                if (useTransaction && session) await session.abortTransaction();
+        const isShop = targetRole === 'SHOP';
+
+        // ── WALLET PAYMENT: deduct atomically and activate immediately ──
+        if (paymentMethod === 'WALLET') {
+            if (isShop) {
+                const shop = await Shop.findOne({ ownerId: userId }).session(session);
+                if (!shop) throw Object.assign(new Error('Shop not found for this user'), { statusCode: StatusCodes.NOT_FOUND });
+
+                const startDate = computeStartDate(shop.subscription, shop.createdAt, freeTrialDays);
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
+
+                const updated = await Shop.findOneAndUpdate(
+                    { _id: shop._id, 'wallet.balance': { $gte: activePlan.price } },
+                    {
+                        $inc: { 'wallet.balance': -activePlan.price },
+                        $set: {
+                            'subscription.planId': activePlan.id,
+                            'subscription.expiryDate': endDate,
+                            'subscription.isTrial': false
+                        }
+                    },
+                    { returnDocument: 'after', session }
+                );
+                if (!updated) throw Object.assign(new Error('Insufficient shop wallet balance for this plan'), { statusCode: StatusCodes.PAYMENT_REQUIRED });
+
+                const [sub] = await ShopSubscription.create([{
+                    shopId: shop._id,
+                    planId: activePlan.id,
+                    planName: activePlan.label || activePlan.id,
+                    amount: activePlan.price,
+                    startDate,
+                    endDate,
+                    isTrial: false,
+                    payment: { status: 'PAID', razorpayPaymentId: paymentId || 'wallet' }
+                }], { session });
+
+                await WalletTxn.create([{
+                    userId,
+                    type: 'SUBSCRIPTION',
+                    amount: activePlan.price,
+                    balance: updated.wallet?.balance || 0,
+                    refId: String(sub._id),
+                    status: 'COMPLETED',
+                    description: `Subscription plan ${activePlan.label || activePlan.id} purchased via wallet`
+                }], { session });
+
+                await creditTreasuryForSubscription(activePlan.price, activePlan.id, shop._id, 'Shop', session);
+                if (useTransaction) await session.commitTransaction();
                 if (session) session.endSession();
-                return errorResponse(res, 'Shop not found for this user', StatusCodes.NOT_FOUND);
+
+                await afterSubscriptionActivated(userId, targetRole, activePlan, sub._id);
+                return successResponse(res, sub, 'Subscription activated via wallet', StatusCodes.CREATED);
+            } else {
+                const worker = await Customer.findById(userId).session(session);
+                if (!worker) throw Object.assign(new Error('Worker not found'), { statusCode: StatusCodes.NOT_FOUND });
+
+                const startDate = computeStartDate(worker.subscription, worker.createdAt, freeTrialDays);
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
+
+                const updated = await Customer.findOneAndUpdate(
+                    { _id: userId, 'wallet.balance': { $gte: activePlan.price } },
+                    {
+                        $inc: { 'wallet.balance': -activePlan.price },
+                        $set: {
+                            'subscription.planId': activePlan.id,
+                            'subscription.expiryDate': endDate,
+                            'subscription.isTrial': false,
+                            'subscription.isActive': true
+                        }
+                    },
+                    { returnDocument: 'after', session }
+                );
+                if (!updated) throw Object.assign(new Error('Insufficient wallet balance for this plan'), { statusCode: StatusCodes.PAYMENT_REQUIRED });
+
+                const [sub] = await WorkerSubscription.create([{
+                    workerId: userId,
+                    planId: activePlan.id,
+                    planName: activePlan.label || activePlan.id,
+                    amount: activePlan.price,
+                    startDate,
+                    endDate,
+                    isTrial: false,
+                    payment: { status: 'PAID', razorpayPaymentId: paymentId || 'wallet' }
+                }], { session });
+
+                await WalletTxn.create([{
+                    userId,
+                    type: 'SUBSCRIPTION',
+                    amount: activePlan.price,
+                    balance: updated.wallet?.balance || 0,
+                    refId: String(sub._id),
+                    status: 'COMPLETED',
+                    description: `Subscription plan ${activePlan.label || activePlan.id} purchased via wallet`
+                }], { session });
+
+                await creditTreasuryForSubscription(activePlan.price, activePlan.id, userId, 'Customer', session);
+                if (useTransaction) await session.commitTransaction();
+                if (session) session.endSession();
+
+                await delCache(`session:${userId}`);
+                await afterSubscriptionActivated(userId, targetRole, activePlan, sub._id);
+                return successResponse(res, sub, 'Subscription activated via wallet', StatusCodes.CREATED);
             }
+        }
 
-            const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+        // ── DIRECT UPI: hold for admin verification — nothing is activated yet ──
+        const upiRef = (utrNumber || razorpayPaymentId || paymentId || '').toString().trim();
 
-            if (shop.subscription?.expiryDate && new Date(shop.subscription.expiryDate) > new Date()) {
-                startDate = new Date(shop.subscription.expiryDate);
-            } else if (shop.subscription?.isTrial !== false) {
-                if (shop.subscription?.trialEndDate && new Date(shop.subscription.trialEndDate) > new Date()) {
-                    startDate = new Date(shop.subscription.trialEndDate);
-                } else {
-                    const registrationDate = new Date(shop.createdAt || Date.now());
-                    const trialEndDate = new Date(registrationDate.getTime() + freeTrialDays * 24 * 60 * 60 * 1000);
-                    if (trialEndDate > new Date()) startDate = trialEndDate;
-                }
-            }
+        if (!upiRef || !isValidUtr(upiRef)) {
+            throw Object.assign(new Error('A valid 12-digit UPI Reference / UTR Number from your payment receipt is required.'), { statusCode: StatusCodes.BAD_REQUEST });
+        }
 
-            endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
+        // Anti-replay: same UTR must never be reused across ANY flow
+        // (subscription, wallet topup, or job/order payment)
+        const utrUsage = await findUtrUsage(upiRef);
+        if (utrUsage) {
+            throw Object.assign(new Error('This UPI transaction reference has already been submitted or used'), { statusCode: StatusCodes.CONFLICT });
+        }
+
+        const holdDate = new Date();
+        let sub;
+        if (isShop) {
+            const shop = await Shop.findOne({ ownerId: userId }).session(session);
+            if (!shop) throw Object.assign(new Error('Shop not found for this user'), { statusCode: StatusCodes.NOT_FOUND });
 
             [sub] = await ShopSubscription.create([{
                 shopId: shop._id,
                 planId: activePlan.id,
                 planName: activePlan.label || activePlan.id,
-                amount:   activePlan.price,
-                startDate,
-                endDate,
-                isTrial:  false,
-                payment:  { status: 'PAID', razorpayPaymentId: paymentId || 'manual' }
+                amount: activePlan.price,
+                startDate: holdDate,
+                endDate: holdDate, // placeholder until admin verifies
+                isTrial: false,
+                payment: { status: 'PENDING', razorpayPaymentId: upiRef }
             }], { session });
-
-            const updatedShop = await Shop.findByIdAndUpdate(shop._id, {
-                'subscription.planId':     activePlan.id,
-                'subscription.expiryDate': endDate,
-                'subscription.isTrial':    false
-            }, { returnDocument: 'after', session });
         } else {
-            // WORKER logic
-            const worker = await Customer.findById(userId).session(session);
-            if (!worker) {
-                if (useTransaction && session) await session.abortTransaction();
-                if (session) session.endSession();
-                return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
-            }
-
-            const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
-
-            if (worker.subscription?.expiryDate && new Date(worker.subscription.expiryDate) > new Date()) {
-                startDate = new Date(worker.subscription.expiryDate);
-            } else if (worker.subscription?.isTrial !== false) {
-                if (worker.subscription?.trialEndDate && new Date(worker.subscription.trialEndDate) > new Date()) {
-                    startDate = new Date(worker.subscription.trialEndDate);
-                } else {
-                    const registrationDate = new Date(worker.createdAt || Date.now());
-                    const trialEndDate = new Date(registrationDate.getTime() + freeTrialDays * 24 * 60 * 60 * 1000);
-                    if (trialEndDate > new Date()) startDate = trialEndDate;
-                }
-            }
-
-            endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
-
             [sub] = await WorkerSubscription.create([{
                 workerId: userId,
                 planId: activePlan.id,
                 planName: activePlan.label || activePlan.id,
-                amount:   activePlan.price,
-                startDate,
-                endDate,
-                isTrial:  false,
-                payment:  { status: 'PAID', razorpayPaymentId: paymentId || 'manual' }
+                amount: activePlan.price,
+                startDate: holdDate,
+                endDate: holdDate, // placeholder until admin verifies
+                isTrial: false,
+                payment: { status: 'PENDING', razorpayPaymentId: upiRef }
             }], { session });
-
-            const updatedWorker = await Customer.findByIdAndUpdate(
-                userId, 
-                { 
-                    'subscription.planId':     activePlan.id,
-                    'subscription.expiryDate': endDate,
-                    'subscription.isTrial':    false
-                },
-                { returnDocument: 'after', session }
-            );
         }
-
-        // Atomic: credit Admin Wallet (Platform Revenue)
-        const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
-        let adminWallet = await AdminWallet.findOne().session(session);
-        if (!adminWallet) {
-            const [newWallet] = await AdminWallet.create([{ balance: 0 }], { session });
-            adminWallet = newWallet;
-        }
-        const creditedAdminWallet = await AdminWallet.findOneAndUpdate(
-            { _id: adminWallet._id },
-            { $inc: { balance: activePlan.price } },
-            { returnDocument: 'after', session }
-        );
-
-        await AdminWalletTxn.create([{
-            type: 'PLATFORM_FEE_COLLECTED',
-            amount: activePlan.price,
-            balanceAfter: creditedAdminWallet.balance,
-            description: `Subscription plan ${activePlan.id} purchased by ${targetRole}`,
-            referenceId: userId,
-            referenceModel: targetRole === 'SHOP' ? 'Shop' : 'Customer'
-        }], { session });
 
         if (useTransaction) await session.commitTransaction();
-        if (useTransaction) session.endSession();
+        if (session) session.endSession();
 
-        await delCache('admin_dashboard_stats');
+        emitToAll('DASHBOARD_UPDATE', {
+            type: 'PENDING_SUBSCRIPTION',
+            id: sub._id,
+            userId,
+            targetRole,
+            planId: activePlan.id,
+            amount: activePlan.price,
+            utr: upiRef
+        });
+
+        notifyUser({
+            userId,
+            title: 'Payment Submitted for Verification',
+            message: `Your UPI payment of ₹${activePlan.price} for the ${activePlan.label || activePlan.id} plan (UTR: ${upiRef}) is being verified. Your plan will activate shortly.`,
+            action: 'UPDATE',
+            entityType: isShop ? 'SHOP' : 'WORKER',
+            entityId: sub._id,
+            targetRole
+        });
+
+        return successResponse(res, {
+            subscription: sub,
+            status: 'PENDING_VERIFICATION',
+            utr: upiRef
+        }, 'Payment submitted! Your subscription will be activated once your UPI payment is verified.', StatusCodes.CREATED);
 
     } catch (error) {
         if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
+
+        // Attach statusCode so the global error handler returns the right HTTP code
+        if (error.statusCode) error.status = error.statusCode;
         throw error;
     }
-
-    // Notify the user directly
-    notifyUser({
-        userId: userId,
-        title: 'Subscription Activated',
-        message: `Your ${activePlan.label || activePlan.id} plan is now active!`,
-        action: 'UPDATE',
-        entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
-        entityId: sub._id,
-        targetRole: targetRole
-    });
-
-    // Notify the platform admins
-    const adminNotif = await Notification.create({
-        userId: null,
-        title: 'New Subscription Purchase',
-        message: `A ${targetRole} has just purchased the ${activePlan.label || activePlan.id} plan for ₹${activePlan.price}.`,
-        type: 'SYSTEM',
-        action: 'CREATE',
-        entityType: targetRole === 'SHOP' ? 'SHOP' : 'WORKER',
-        targetRole: 'ADMIN'
-    });
-
-    const userNotif = await Notification.create({
-        userId: userId,
-        title: 'Plan Activated Successfully',
-        message: `Your ${activePlan.label || activePlan.id} subscription is now active!`,
-        type: 'SYSTEM',
-        action: 'UPDATE'
-    });
-    
-    const { getIO, emitToUser } = require('../../helpers/socket.helper');
-    emitToUser(userId.toString(), 'NEW_NOTIFICATION', userNotif);
-    const io = getIO();
-    if (io) io.to('admin_dashboard').emit('NEW_NOTIFICATION', adminNotif);
-
-    emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SUBSCRIPTION', id: sub._id || 'new' });
-    emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP', id: sub._id || 'new' });
-    return successResponse(res, sub || {}, 'Subscription activated & Wallet Recharged', StatusCodes.CREATED);
 });
 
 /**
@@ -225,7 +321,8 @@ exports.subscribe = catchAsync(async (req, res) => {
 exports.getMySubscriptions = catchAsync(async (req, res) => {
     const subs = await WorkerSubscription.find({ workerId: req.user._id })
         .populate('planId', 'name durationDays price')
-        .sort('-createdAt');
+        .sort('-createdAt')
+        .lean();
     return successResponse(res, subs, 'Subscriptions fetched');
 });
 
@@ -251,6 +348,186 @@ exports.getAllSubscriptions = catchAsync(async (req, res) => {
         .populate('planId', 'name price')
         .sort('-createdAt')
         .limit(limit * 1)
-        .skip((page - 1) * limit);
+        .skip((page - 1) * limit)
+        .lean();
     return successResponse(res, { subs, total, page, totalPages: Math.ceil(total / limit) }, 'All subscriptions');
+});
+
+/* ─── ADMIN: pending UPI subscription verification ───────────────────── */
+
+/**
+ * GET /api/v1/subscriptions/pending (Admin)
+ */
+exports.getPendingSubscriptions = catchAsync(async (req, res) => {
+    const [workerSubs, shopSubs] = await Promise.all([
+        WorkerSubscription.find({ 'payment.status': 'PENDING' })
+            .populate('workerId', 'name phone')
+            .sort('-createdAt').lean(),
+        ShopSubscription.find({ 'payment.status': 'PENDING' })
+            .populate('shopId', 'name ownerId')
+            .sort('-createdAt').lean()
+    ]);
+
+    const pending = [
+        ...workerSubs.map(s => ({ ...s, targetRole: 'WORKER', userId: s.workerId?._id })),
+        ...shopSubs.map(s => ({ ...s, targetRole: 'SHOP', userId: s.shopId?.ownerId }))
+    ];
+
+    return successResponse(res, { pending, count: pending.length }, 'Pending subscription verifications fetched');
+});
+
+/**
+ * POST /api/v1/subscriptions/pending/:id/approve (Admin)
+ * Verifies the UTR hit the platform bank account, then activates the plan.
+ */
+exports.approvePendingSubscription = catchAsync(async (req, res) => {
+    const { id } = req.params;
+
+    const AppSettings = require('../settings/settings.model');
+    const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+    const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) { session = null; useTransaction = false; }
+    }
+
+    try {
+        const sessOpts = useTransaction ? { session } : {};
+
+        // Try worker subscription first, then shop subscription
+        let sub = await WorkerSubscription.findById(id).session(session);
+        let isShop = false;
+        if (!sub) {
+            sub = await ShopSubscription.findById(id).session(session);
+            isShop = true;
+        }
+        if (!sub) {
+            if (session) session.endSession();
+            return errorResponse(res, 'Subscription not found', StatusCodes.NOT_FOUND);
+        }
+        if (sub.payment?.status !== 'PENDING') {
+            if (session) session.endSession();
+            return errorResponse(res, `Subscription payment is already ${sub.payment?.status}`, StatusCodes.BAD_REQUEST);
+        }
+
+        const activePlan = (settings?.subscriptionPlans || []).find(p => p.id === sub.planId) ||
+            { id: sub.planId, label: sub.planName, price: sub.amount, durationDays: 30 };
+
+        if (isShop) {
+            const shop = await Shop.findById(sub.shopId).session(session);
+            if (!shop) {
+                if (session) session.endSession();
+                return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
+            }
+
+            const startDate = computeStartDate(shop.subscription, shop.createdAt, freeTrialDays);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
+
+            sub.startDate = startDate;
+            sub.endDate = endDate;
+            sub.payment.status = 'PAID';
+            await sub.save(sessOpts);
+
+            await Shop.findByIdAndUpdate(shop._id, {
+                'subscription.planId': activePlan.id,
+                'subscription.expiryDate': endDate,
+                'subscription.isTrial': false
+            }, { session });
+
+            if (useTransaction) await session.commitTransaction();
+            if (session) session.endSession();
+
+            await afterSubscriptionActivated(shop.ownerId, 'SHOP', activePlan, sub._id);
+        } else {
+            const worker = await Customer.findById(sub.workerId).session(session);
+            if (!worker) {
+                if (session) session.endSession();
+                return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
+            }
+
+            const startDate = computeStartDate(worker.subscription, worker.createdAt, freeTrialDays);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
+
+            sub.startDate = startDate;
+            sub.endDate = endDate;
+            sub.payment.status = 'PAID';
+            await sub.save(sessOpts);
+
+            await Customer.findByIdAndUpdate(worker._id, {
+                'subscription.planId': activePlan.id,
+                'subscription.expiryDate': endDate,
+                'subscription.isTrial': false,
+                'subscription.isActive': true
+            }, { session });
+
+            if (useTransaction) await session.commitTransaction();
+            if (session) session.endSession();
+
+            await delCache(`session:${worker._id}`);
+            await afterSubscriptionActivated(worker._id, 'WORKER', activePlan, sub._id);
+        }
+
+        await creditTreasuryForSubscription(sub.amount, sub.planId, sub._id, isShop ? 'ShopSubscription' : 'WorkerSubscription', null);
+
+        return successResponse(res, sub, 'Subscription payment verified and plan activated');
+    } catch (error) {
+        if (useTransaction && session) await session.abortTransaction();
+        if (session) session.endSession();
+        throw error;
+    }
+});
+
+/**
+ * POST /api/v1/subscriptions/pending/:id/reject (Admin)
+ * UTR never arrived — mark FAILED. No money moved, nothing to refund.
+ */
+exports.rejectPendingSubscription = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { reason = 'Payment not found / invalid UTR in admin bank account' } = req.body;
+
+    let sub = await WorkerSubscription.findById(id);
+    let isShop = false;
+    if (!sub) {
+        sub = await ShopSubscription.findById(id);
+        isShop = true;
+    }
+    if (!sub) return errorResponse(res, 'Subscription not found', StatusCodes.NOT_FOUND);
+    if (sub.payment?.status !== 'PENDING') {
+        return errorResponse(res, `Subscription payment is already ${sub.payment?.status}`, StatusCodes.BAD_REQUEST);
+    }
+
+    sub.payment.status = 'FAILED';
+    await sub.save();
+
+    let userId;
+    if (isShop) {
+        const shop = await Shop.findById(sub.shopId).select('ownerId').lean();
+        userId = shop?.ownerId;
+    } else {
+        userId = sub.workerId;
+    }
+
+    if (userId) {
+        notifyUser({
+            userId,
+            title: 'Subscription Payment Rejected ❌',
+            message: `Your payment of ₹${sub.amount} for the ${sub.planName || sub.planId} plan (UTR: ${sub.payment.razorpayPaymentId}) could not be verified: ${reason}`,
+            action: 'UPDATE',
+            entityType: 'WORKER',
+            entityId: sub._id,
+            targetRole: isShop ? 'SHOP' : 'WORKER'
+        });
+    }
+
+    emitToAll('DASHBOARD_UPDATE', { type: 'SUBSCRIPTION_REJECTED', id: sub._id });
+
+    return successResponse(res, sub, `Subscription payment rejected: ${reason}`);
 });

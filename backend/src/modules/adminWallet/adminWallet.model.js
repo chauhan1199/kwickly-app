@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const AdminWalletSchema = new mongoose.Schema({
     balance: { type: Number, default: 0, min: 0 },
+    // Revenue bookkeeping (treasury) — fee income vs GST collected on behalf of the government
+    totalCommission: { type: Number, default: 0 },
+    platformFeeRevenue: { type: Number, default: 0 },
+    subscriptionRevenue: { type: Number, default: 0 },
+    gstLiability: { type: Number, default: 0 },
     bankDetails: {
         accountHolder: { type: String },
         accountNumber: { type: String },
@@ -25,6 +30,7 @@ const AdminWalletTxnSchema = new mongoose.Schema({
             'SHOP_PAYOUT',
             'WITHDRAWAL',
             'REFUND_DEBIT',
+            'FEE_REVERSAL',
             'TOPUP'
         ],
         required: true

@@ -4,6 +4,8 @@ const chatController = require('./chat.controller');
 const { authMiddleware } = require('../../middleware/auth.middleware');
 const upload = require('../../middleware/upload.middleware');
 const logger = require('../../helpers/logger.helper');
+const validate = require('../../middleware/validate.middleware');
+const { sendMessageSchema, markReadSchema, uploadBase64Schema } = require('../../validators/chat.validator');
 
 router.use(authMiddleware);
 
@@ -24,7 +26,7 @@ router.post('/upload-image', upload.single('image'), async (req, res) => {
 });
 
 // Base64 upload - most reliable for React Native
-router.post('/upload-base64', async (req, res) => {
+router.post('/upload-base64', validate(uploadBase64Schema), async (req, res) => {
     try {
         const { base64 } = req.body;
         if (!base64) return res.status(400).json({ status: 'error', message: 'No base64 data provided' });
@@ -40,8 +42,8 @@ router.post('/upload-base64', async (req, res) => {
 });
 
 router.get('/history', chatController.getChatHistory);
-router.post('/send', chatController.sendMessage);
-router.post('/mark-read', chatController.markAsRead);
+router.post('/send', validate(sendMessageSchema), chatController.sendMessage);
+router.post('/mark-read', validate(markReadSchema), chatController.markAsRead);
 
 // Support threads — admin only
 const authorize = require('../../middleware/role.middleware');

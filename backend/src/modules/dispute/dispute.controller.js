@@ -46,7 +46,7 @@ exports.openDispute = catchAsync(async (req, res) => {
         return errorResponse(res, 'Unauthorized to open dispute for this item', StatusCodes.FORBIDDEN);
     }
 
-    const existingDispute = await Dispute.findOne({ customerId, [field]: targetId, status: { $ne: 'RESOLVED' } });
+    const existingDispute = await Dispute.findOne({ customerId, [field]: targetId, status: { $ne: 'RESOLVED' } }).lean();
     if (existingDispute) {
         return errorResponse(res, 'An active dispute already exists for this item', StatusCodes.CONFLICT);
     }
@@ -161,13 +161,13 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
                     let pModel = Customer;
                     if (dispute.shopOrderId) {
                         // Shop order: dispute.workerId holds the Shop _id (see openDispute)
-                        const shop = await Shop.findById(dispute.workerId).select('_id');
+                        const shop = await Shop.findById(dispute.workerId).select('_id').lean();
                         if (shop) {
                             pModel = Shop;
                             pQuery = { _id: shop._id };
                         }
                     } else {
-                        const shop = await Shop.findOne({ ownerId: dispute.workerId });
+                        const shop = await Shop.findOne({ ownerId: dispute.workerId }).lean();
                         if (shop) {
                             pModel = Shop;
                             pQuery = { _id: shop._id };
@@ -175,7 +175,7 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
                     }
 
                     // Check provider has sufficient balance before debiting
-                    const provider = await pModel.findById(pQuery._id).select('wallet.balance');
+                    const provider = await pModel.findById(pQuery._id).select('wallet.balance').lean();
                     if (!provider || (provider.wallet?.balance || 0) < actualRefundAmount) {
                         // Provider doesn't have enough â€” only deduct what they have
                         const maxDeduct = Math.max(0, provider?.wallet?.balance || 0);

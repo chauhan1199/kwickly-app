@@ -61,7 +61,7 @@ exports.getCategoryById = catchAsync(async (req, res) => {
 
 // â”€â”€â”€ POST /api/v1/categories (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.createCategory = catchAsync(async (req, res) => {
-    const existing = await Category.findOne({ name: { $regex: new RegExp(`^${escapeRegex(req.body.name.trim())}$`, 'i') } });
+    const existing = await Category.findOne({ name: { $regex: new RegExp(`^${escapeRegex(req.body.name.trim())}$`, 'i') } }).lean();
     if (existing) {
         return errorResponse(res, `Category "${existing.name}" already exists`, StatusCodes.CONFLICT);
     }
@@ -104,7 +104,7 @@ exports.updateCategory = catchAsync(async (req, res) => {
         const existing = await Category.findOne({
             name: { $regex: new RegExp(`^${escapeRegex(req.body.name.trim())}$`, 'i') },
             _id: { $ne: req.params.id }
-        });
+        }).lean();
         if (existing) {
             return errorResponse(res, `Category "${existing.name}" already exists`, StatusCodes.CONFLICT);
         }
@@ -123,7 +123,7 @@ exports.updateCategory = catchAsync(async (req, res) => {
 
     const updateData = { ...req.body };
     if (req.file) {
-        const existing = await Category.findById(req.params.id).select('imageUrl');
+        const existing = await Category.findById(req.params.id).select('imageUrl').lean();
         const { url } = await uploadImage(req.file.buffer, 'kwickly/categories');
         updateData.imageUrl = url;
         if (existing?.imageUrl && existing.imageUrl !== url) {
@@ -312,7 +312,7 @@ exports.deleteSubcategory = catchAsync(async (req, res) => {
 
 exports.getSuggestions = catchAsync(async (req, res) => {
     const Suggestion = require('../suggestion/suggestion.model');
-    const suggestions = await Suggestion.find().populate('workerId', 'name email phone').sort('-createdAt');
+    const suggestions = await Suggestion.find().populate('workerId', 'name email phone').sort('-createdAt').lean();
     return successResponse(res, suggestions, 'Suggestions fetched successfully');
 });
 
@@ -332,7 +332,7 @@ exports.processSuggestion = catchAsync(async (req, res) => {
 
     if (status === 'APPROVED') {
         if (suggestion.type === 'new_category') {
-            const existingCat = await Category.findOne({ name: { $regex: new RegExp(`^${escapeRegex(suggestion.payload?.name || suggestion.name)}$`, 'i') } });
+            const existingCat = await Category.findOne({ name: { $regex: new RegExp(`^${escapeRegex(suggestion.payload?.name || suggestion.name)}$`, 'i') } }).lean();
             if (existingCat) {
                 return errorResponse(res, `Category "${existingCat.name}" already exists`, StatusCodes.CONFLICT);
             }

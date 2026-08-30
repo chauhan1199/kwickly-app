@@ -39,7 +39,7 @@ exports.createShop = catchAsync(async (req, res) => {
     }
 
     const AppSettings = require('../settings/settings.model');
-    const appSettings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+    const appSettings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
     const freeTrialDays = appSettings?.subscription?.freeTrialDays || 14;
     const defaultTrialEndDate = new Date();
     defaultTrialEndDate.setDate(defaultTrialEndDate.getDate() + freeTrialDays);
@@ -71,7 +71,7 @@ exports.createShop = catchAsync(async (req, res) => {
  * Shop owner fetches their own shop
  */
 exports.getMyShop = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id }).populate('ownerId', 'name phone');
+    const shop = await Shop.findOne({ ownerId: req.user._id }).populate('ownerId', 'name phone').lean();
     if (!shop) return errorResponse(res, 'No shop found for this account', StatusCodes.NOT_FOUND);
     return successResponse(res, shop, 'Shop fetched');
 });
@@ -84,13 +84,26 @@ exports.updateMyShop = catchAsync(async (req, res) => {
     const updateData = { ...req.body };
 
     // Strip fields that shop owners must not modify (admin-only)
-    delete updateData.kyc;
+    if (updateData.kyc) {
+        // Owners may submit KYC documents for review, but status is admin-controlled.
+        const nextDocs = Array.isArray(updateData.kyc.documents)
+            ? updateData.kyc.documents
+                .filter(doc => doc && typeof doc === 'object' && String(doc.url || '').trim())
+                .map(doc => ({
+                    name: String(doc.name || '').trim(),
+                    url: String(doc.url).trim(),
+                    public_id: doc.public_id ? String(doc.public_id).trim() : undefined,
+                    docType: String(doc.docType || doc.type || 'OTHER').trim() || 'OTHER'
+                }))
+            : undefined;
+        updateData.kyc = { documents: nextDocs, status: 'PENDING' };
+    }
     delete updateData.ownerId;
     delete updateData.subscription;
     delete updateData.wallet;
 
     if (updateData.logoBase64) {
-        const existing = await Shop.findOne({ ownerId: req.user._id }).select('logoUrl');
+        const existing = await Shop.findOne({ ownerId: req.user._id }).select('logoUrl').lean();
         const { url } = await uploadBase64(updateData.logoBase64, 'kwickly/shops');
         updateData.logoUrl = url;
         delete updateData.logoBase64;
@@ -98,7 +111,7 @@ exports.updateMyShop = catchAsync(async (req, res) => {
             cleanupImage(existing.logoUrl);
         }
     } else if (req.file) {
-        const existing = await Shop.findOne({ ownerId: req.user._id }).select('logoUrl');
+        const existing = await Shop.findOne({ ownerId: req.user._id }).select('logoUrl').lean();
         const { url } = await uploadImage(req.file.buffer, 'kwickly/shops');
         updateData.logoUrl = url;
         if (existing?.logoUrl && existing.logoUrl !== url) {
@@ -257,7 +270,7 @@ exports.getAllShops = catchAsync(async (req, res) => {
  * Fetch a single shop by id (admin or customer browsing)
  */
 exports.getShopById = catchAsync(async (req, res) => {
-    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone');
+    const shop = await Shop.findById(req.params.id).populate('ownerId', 'name phone').lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     const ownerIdStr = shop.ownerId?._id ? String(shop.ownerId._id) : (shop.ownerId ? String(shop.ownerId) : null);
@@ -278,176 +291,7 @@ exports.getShopById = catchAsync(async (req, res) => {
  * PATCH /api/v1/shops/:id/kyc
  * Admin approves or rejects a shop's KYC
  */
-exports.reviewShopKyc = catchAsync(async (req, res) => {
-    const { status } = req.body; // 'APPROVED' | 'REJECTED'
-    if (!['APPROVED', 'REJECTED'].includes(status)) {
-        return errorResponse(res, 'Invalid status', StatusCodes.BAD_REQUEST);
-    }
 
-    const shop = await Shop.findByIdAndUpdate(
-        req.params.id,
-        { 'kyc.status': status },
-        { returnDocument: 'after' }
-    );
-    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-
-    emitToAll('DASHBOARD_UPDATE', { type: 'SHOP_KYC', id: shop._id, status });
-
-    notifyUser({
-        userId: shop.ownerId,
-        title: `Shop KYC ${status === 'APPROVED' ? 'Approved' : 'Rejected'}`,
-        message: status === 'APPROVED' 
-            ? 'Your shop KYC has been approved. You can now accept orders.'
-            : 'Your shop KYC was rejected. Please contact support.',
-        action: 'KYC',
-        entityType: 'SHOP',
-        entityId: shop._id,
-        targetRole: 'SHOP'
-    });
-
-    return successResponse(res, shop, `Shop KYC ${status.toLowerCase()}`);
-});
-
-/**
- * PATCH /api/v1/shops/:id/toggle
- * Admin blocks/unblocks a shop
- */
-exports.toggleShop = catchAsync(async (req, res) => {
-    const shop = await Shop.findById(req.params.id);
-    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-    shop.isOnline = !shop.isOnline;
-    await shop.save();
-
-    notifyUser({
-        userId: shop.ownerId,
-        title: shop.isOnline ? 'Shop Activated' : 'Shop Blocked',
-        message: shop.isOnline 
-            ? 'Your shop is now online and visible to customers.'
-            : 'Your shop has been blocked by the admin.',
-        action: 'UPDATE',
-        entityType: 'SHOP',
-        entityId: shop._id,
-        targetRole: 'CUSTOMER'
-    });
-
-    return successResponse(res, shop, `Shop ${shop.isOnline ? 'activated' : 'blocked'}`);
-});
-
-/**
- * POST /api/v1/shops/my/payout-methods
- * Shop owner adds a bank/UPI payout method
- */
-exports.addPayoutMethod = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
-    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-
-    // If first method, make it primary
-    if (shop.payoutMethods.length === 0) req.body.isPrimary = true;
-    shop.payoutMethods.push(req.body);
-    await shop.save();
-
-    return successResponse(res, shop.payoutMethods, 'Payout method added');
-});
-
-/**
- * PATCH /api/v1/shops/my/payout-methods/:methodId/primary
- * Set a payout method as primary
- */
-exports.setPrimaryPayout = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
-    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-
-    shop.payoutMethods.forEach(m => { m.isPrimary = String(m._id) === String(req.params.methodId); });
-    await shop.save();
-
-    return successResponse(res, shop.payoutMethods, 'Primary payout method updated');
-});
-
-/**
- * DELETE /api/v1/shops/my/payout-methods/:methodId
- */
-exports.deletePayoutMethod = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
-    if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-
-    const deletedMethod = shop.payoutMethods.find(m => String(m._id) === String(req.params.methodId));
-    shop.payoutMethods = shop.payoutMethods.filter(m => String(m._id) !== String(req.params.methodId));
-
-    // If deleted method was primary and other methods remain, auto-assign primary
-    if (deletedMethod?.isPrimary && shop.payoutMethods.length > 0) {
-        shop.payoutMethods[0].isPrimary = true;
-    }
-
-    await shop.save();
-
-    return successResponse(res, shop.payoutMethods, 'Payout method deleted');
-});
-
-/**
- * POST /api/v1/shops/my/withdraw
- * Shop owner requests a payout withdrawal
- */
-exports.requestWithdrawal = catchAsync(async (req, res) => {
-    const { amount, payoutMethod } = req.body; // payoutMethod is label/details string
-
-    let session = null;
-    let useTransaction = false;
-    if (supportsTransactions()) {
-        try {
-            session = await mongoose.startSession();
-            session.startTransaction();
-            useTransaction = true;
-        } catch (e) {
-            session = null;
-            useTransaction = false;
-        }
-    }
-    try {
-        const shop = await Shop.findOne({ ownerId: req.user._id }).session(session);
-        if (!shop) {
-            if (useTransaction && session) await session.abortTransaction();
-            if (session) session.endSession();
-            return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-        }
-        // Atomic: deduct from wallet with $gte guard
-        const updatedShop = await Shop.findOneAndUpdate(
-            { _id: shop._id, 'wallet.balance': { $gte: amount } },
-            { $inc: { 'wallet.balance': -amount } },
-            { returnDocument: 'after', session }
-        );
-        if (!updatedShop) {
-            if (useTransaction && session) await session.abortTransaction();
-            if (session) session.endSession();
-            return errorResponse(res, 'Insufficient wallet balance', StatusCodes.PAYMENT_REQUIRED);
-        }
-
-        const [txn] = await WalletTxn.create([{
-            userId:      req.user._id,
-            type:        'WITHDRAWAL',
-            amount,
-            balance:     updatedShop.wallet.balance,
-            status:      'PENDING',
-            description: `Shop Withdrawal to ${payoutMethod || 'bank'}`
-        }], { session });
-
-        const paymentMethodType = (payoutMethod || '').toLowerCase().includes('upi') ? 'UPI' : 'BANK';
-        await Payout.create([{
-            shopId: shop._id,
-            amount,
-            paymentMethod: paymentMethodType,
-            paymentDetails: payoutMethod || 'bank',
-            walletTxnId: txn._id
-        }], { session });
-
-        if (useTransaction) await session.commitTransaction();
-        if (useTransaction) session.endSession();
-        return successResponse(res, txn, 'Withdrawal initiated');
-    } catch (error) {
-        if (useTransaction && session) await session.abortTransaction();
-        if (session) session.endSession();
-        throw error;
-    }
-});
 
 /**
  * PATCH /api/v1/shops/my/owner
@@ -500,7 +344,7 @@ exports.updateShopAdmin = catchAsync(async (req, res) => {
 });
 
 exports.deleteMyShop = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
+    const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     // Clean up shop logo from Cloudinary
@@ -518,7 +362,7 @@ exports.deleteMyShop = catchAsync(async (req, res) => {
 });
 
 exports.deleteShop = catchAsync(async (req, res) => {
-    const shop = await Shop.findById(req.params.id);
+    const shop = await Shop.findById(req.params.id).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     // Clean up shop logo from Cloudinary
@@ -534,7 +378,7 @@ exports.deleteShop = catchAsync(async (req, res) => {
 });
 
 exports.getDeliveryConfig = catchAsync(async (req, res) => {
-    const shop = await Shop.findById(req.params.id).select('delivery delivery deliveryConfig');
+    const shop = await Shop.findById(req.params.id).select('delivery delivery deliveryConfig').lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
     return successResponse(res, shop, 'Delivery config fetched');
 });
@@ -667,7 +511,7 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
     const settings = await SettingsService.getAppSettings();
     const minBalance = Number(settings?.wallet?.minimumBalance !== undefined ? settings.wallet.minimumBalance : 100);
 
-    const shop = await Shop.findOne({ ownerId: req.user._id });
+    const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     const currentBalance = Number(shop.wallet?.balance || 0);
@@ -866,6 +710,18 @@ exports.toggleShop = catchAsync(async (req, res) => {
 
     shop.isOnline = !shop.isOnline;
     await shop.save();
+
+    notifyUser({
+        userId: shop.ownerId,
+        title: shop.isOnline ? 'Shop Activated' : 'Shop Blocked',
+        message: shop.isOnline
+            ? 'Your shop is now online and visible to customers.'
+            : 'Your shop has been blocked by the admin.',
+        action: 'UPDATE',
+        entityType: 'SHOP',
+        entityId: shop._id,
+        targetRole: 'CUSTOMER'
+    });
 
     return successResponse(res, shop, `Shop is now ${shop.isOnline ? 'Online' : 'Offline'}`);
 });

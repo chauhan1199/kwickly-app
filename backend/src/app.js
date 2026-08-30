@@ -7,8 +7,14 @@ const sanitizeMiddleware = require('./middleware/sanitize.middleware');
 const compression = require('compression');
 const errorHandler = require('./middleware/error.middleware');
 const { globalLimiter } = require('./middleware/rateLimit.middleware');
+const { requestId, slowRequestLogger } = require('./middleware/requestContext.middleware');
 
 const app = express();
+
+// Per-request tracing ID + slow-request (>=200ms) logging — must be first so
+// every response carries X-Request-ID and all downstream timing is captured.
+app.use(requestId);
+app.use(slowRequestLogger);
 
 // Trust proxy for Render / Cloud reverse proxies
 app.set('trust proxy', 1);
@@ -21,10 +27,15 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,ht
 // Enable CORS with wildcard and whitelist support
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, Postman)
+        // Allow requests with no origin (mobile apps, Postman, curl)
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return callback(null, true);
-        if (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) return callback(null, true);
+        // Suffix matching only outside production — in production the origin must be
+        // explicitly whitelisted via ALLOWED_ORIGINS (no wildcard subdomain takeover).
+        if (process.env.NODE_ENV !== 'production' &&
+            (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com'))) {
+            return callback(null, true);
+        }
         callback(new Error(`CORS: Origin ${origin} not allowed`));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -43,8 +54,10 @@ app.use(helmet({
 if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
 } else {
-    // Production structured logging
-    app.use(morgan('combined', {
+    // Production structured logging: request ID, userId, route, status, response time
+    morgan.token('reqId', (req) => req.id || '-');
+    morgan.token('userId', (req) => (req.user?._id || req.user?.id || '-').toString());
+    app.use(morgan(':reqId :userId :method :url :status :response-time ms', {
         stream: { write: (message) => require('./helpers/logger.helper').info(message.trim()) }
     }));
 }
@@ -100,7 +113,16 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', message: 'Kwickly API is running' });
+    const mongoose = require('mongoose');
+    const dbState = mongoose.connection.readyState; // 0=disconnected 1=connected 2=connecting 3=disconnecting
+    const db = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
+    // 503 when the DB is not usable so load balancers can pull the instance
+    const healthy = dbState === 1;
+    res.status(healthy ? 200 : 503).json({
+        status: healthy ? 'ok' : 'degraded',
+        db,
+        timestamp: new Date().toISOString()
+    });
 });
 
 // 404 handler

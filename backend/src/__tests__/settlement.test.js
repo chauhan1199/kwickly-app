@@ -75,8 +75,11 @@ describe('Settlement Flow — Complete E2E', () => {
         });
     });
 
-    // ─── 1. Full Delivery → Settlement Creation ─────────────────────────────────
-    describe('1. Settlement Created on Order Delivery', () => {
+    // ─── 1. Delivery → Idempotent Settlement Engine ────────────────────────────
+    describe('1. Settlement Engine Runs on Order Delivery', () => {
+        const PlatformLedger = require('../modules/ledger/platformLedger.model');
+        const { AdminWalletTxn } = require('../modules/adminWallet/adminWallet.model');
+
         // Helper: walk an order through the full status chain to DELIVERED
         const deliverOrder = async (orderId, deliveryOtp, shopOwnerToken) => {
             for (const status of ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY']) {
@@ -92,7 +95,7 @@ describe('Settlement Flow — Complete E2E', () => {
                 .send({ status: 'DELIVERED', otp: deliveryOtp });
         };
 
-        it('should create PENDING settlement when order is delivered with correct amounts', async () => {
+        it('should create a SETTLED ledger entry on delivery with correct amounts', async () => {
             const product = await Product.create({
                 shopId: shop._id, name: 'Test Product', price: 100,
                 stock: 10, category: 'General', unit: 'Piece', isActive: true
@@ -111,31 +114,29 @@ describe('Settlement Flow — Complete E2E', () => {
             expect(orderRes.status).toBe(201);
             const orderId = orderRes.body.data._id;
 
-
             const order = await ShopOrder.findById(orderId);
 
             const statusRes = await deliverOrder(orderId, order.deliveryOtp, shopOwnerToken);
             expect(statusRes.status).toBe(200);
             expect(statusRes.body.data.status).toBe('DELIVERED');
 
+            // Idempotent settlement engine: exactly one ledger entry, already SETTLED
+            const entries = await PlatformLedger.find({ entityType: 'SHOP_ORDER', entityId: orderId });
+            expect(entries.length).toBe(1);
 
-            const settlements = await Settlement.find({ orderId });
-            expect(settlements.length).toBe(1);
-
-            const s = settlements[0];
-            expect(s.status).toBe('PENDING');
-            expect(s.type).toBe('PRODUCT_ORDER');
-            expect(s.totalAmount).toBe(240); // 200 + 40 delivery
-            expect(s.shopEarning).toBeGreaterThan(0);
-            expect(s.platformCommission).toBeGreaterThan(0);
-            expect(s.shopEarning + s.platformCommission).toBe(240);
-            expect(String(s.shopId)).toBe(String(shop._id));
-            expect(String(s.customerId)).toBe(String(customer._id));
-            expect(String(s.orderId)).toBe(String(orderId));
+            const e = entries[0];
+            expect(e.settlementStatus).toBe('SETTLED');
+            expect(e.idempotencyKey).toBe(`settle_order_${orderId}`);
+            // 200 product + 40 delivery; fee 5% (min ₹10) = 10, GST 18% = 1.8 → total 251.8
+            expect(e.partnerAmount).toBe(200);          // shop gets 100% of product sales
+            expect(e.platformFee).toBe(10);
+            expect(e.gstAmount).toBe(1.8);
+            expect(e.deliveryFee).toBe(40);
+            expect(e.grossAmount).toBe(251.8);
+            expect(e.partnerCommissionPercent).toBe(0);
         });
 
-        it('should NOT credit shop wallet on delivery', async () => {
-
+        it('should credit shop wallet 100% of net product sales on delivery (0% commission)', async () => {
             const product = await Product.create({
                 shopId: shop._id, name: 'Widget', price: 500,
                 stock: 5, category: 'General', unit: 'Piece', isActive: true
@@ -151,16 +152,14 @@ describe('Settlement Flow — Complete E2E', () => {
                     deliveryLocation: { type: 'Point', coordinates: [72.57, 23.02] }
                 });
 
-
             const order = await ShopOrder.findById(orderRes.body.data._id);
             await deliverOrder(order._id, order.deliveryOtp, shopOwnerToken);
 
             const updatedShop = await Shop.findById(shop._id);
-            expect(updatedShop.wallet.balance).toBe(0);
+            expect(updatedShop.wallet.balance).toBe(500); // full product sales, no commission cut
         });
 
-        it('should NOT collect admin commission on delivery', async () => {
-
+        it('should collect only the customer platform fee + GST into treasury on delivery', async () => {
             const product = await Product.create({
                 shopId: shop._id, name: 'Item', price: 1000,
                 stock: 5, category: 'General', unit: 'Piece', isActive: true
@@ -176,13 +175,18 @@ describe('Settlement Flow — Complete E2E', () => {
                     deliveryLocation: { type: 'Point', coordinates: [72.57, 23.02] }
                 });
 
-
             const order = await ShopOrder.findById(orderRes.body.data._id);
             await deliverOrder(order._id, order.deliveryOtp, shopOwnerToken);
 
-
+            // Treasury holds ONLY the fee (50) — GST (9) is a liability, not income
             const adminWallet = await AdminWallet.findOne();
-            expect(adminWallet).toBeNull();
+            expect(adminWallet).toBeTruthy();
+            expect(adminWallet.balance).toBe(50);
+            expect(adminWallet.gstLiability).toBe(9);
+
+            const feeTxn = await AdminWalletTxn.findOne({ type: 'PLATFORM_FEE_COLLECTED' });
+            expect(feeTxn).toBeTruthy();
+            expect(feeTxn.amount).toBe(50);
         });
     });
 
@@ -708,10 +712,8 @@ describe('Settlement Flow — Complete E2E', () => {
 
     // ─── 9. End-to-End Complete Flow ────────────────────────────────────────────
     describe('9. Complete End-to-End Flow', () => {
-        it('should complete: place order → deliver → settlement created → admin settles → shop paid → commission collected', async () => {
-
-
-
+        it('should complete: place order → deliver → engine settles → shop paid 100% → fee+GST to treasury', async () => {
+            const PlatformLedger = require('../modules/ledger/platformLedger.model');
 
             // Setup
             const product = await Product.create({
@@ -720,7 +722,7 @@ describe('Settlement Flow — Complete E2E', () => {
             });
             await AdminWallet.create({ balance: 0 });
 
-            // Step 1: Customer places order
+            // Step 1: Customer places order (3 × 200 = 600, free delivery above ₹500)
             const orderRes = await request(app)
                 .post('/api/v1/shoporders')
                 .set('Authorization', `Bearer ${customerToken}`)
@@ -733,8 +735,8 @@ describe('Settlement Flow — Complete E2E', () => {
             expect(orderRes.status).toBe(201);
             const orderId = orderRes.body.data._id;
 
-            // Verify order total: 600 subtotal, free delivery (>= 500)
-            expect(orderRes.body.data.total).toBe(600);
+            // Order total: 600 products + 30 fee (5%) + 5.4 GST, delivery free
+            expect(orderRes.body.data.total).toBe(635.4);
 
             // Step 2: Shop walks through status chain to DELIVERED
             const order = await ShopOrder.findById(orderId);
@@ -751,46 +753,29 @@ describe('Settlement Flow — Complete E2E', () => {
                 .send({ status: 'DELIVERED', otp: order.deliveryOtp });
             expect(delRes.status).toBe(200);
 
-            // Step 3: Verify settlement created
-            const settlements = await Settlement.find({ orderId });
-            expect(settlements.length).toBe(1);
-            expect(settlements[0].status).toBe('PENDING');
-            expect(settlements[0].totalAmount).toBe(600); // 600 subtotal, free delivery (>= 500)
-            expect(settlements[0].shopEarning + settlements[0].platformCommission).toBe(600);
+            // Step 3: Engine settled immediately — exactly one SETTLED ledger entry
+            const entries = await PlatformLedger.find({ entityType: 'SHOP_ORDER', entityId: orderId });
+            expect(entries.length).toBe(1);
+            expect(entries[0].settlementStatus).toBe('SETTLED');
+            expect(entries[0].partnerAmount).toBe(600);
+            expect(entries[0].platformFee).toBe(30);
+            expect(entries[0].gstAmount).toBe(5.4);
+            expect(entries[0].grossAmount).toBe(635.4);
 
-            // Step 4: Shop wallet still 0
-            let shopData = await Shop.findById(shop._id);
-            expect(shopData.wallet.balance).toBe(0);
+            // Step 4: Shop wallet credited 100% of product sales
+            const shopData = await Shop.findById(shop._id);
+            expect(shopData.wallet.balance).toBe(600);
 
-            // Step 5: Admin settles
-            const settleRes = await request(app)
-                .post(`/api/v1/admin/settlements/${settlements[0]._id}/settle`)
-                .set('Authorization', `Bearer ${adminToken}`)
-                .send({ note: 'Weekly settlement' });
-            expect(settleRes.status).toBe(200);
-            expect(settleRes.body.data.status).toBe('SETTLED');
-
-            // Step 6: Shop wallet credited
-            shopData = await Shop.findById(shop._id);
-            expect(shopData.wallet.balance).toBe(settlements[0].shopEarning);
-
-            // Step 7: Admin wallet has commission
+            // Step 5: Treasury holds fee only; GST recorded as liability
             const adminWallet = await AdminWallet.findOne();
-            expect(adminWallet.balance).toBe(settlements[0].platformCommission);
+            expect(adminWallet.balance).toBe(30);
+            expect(adminWallet.gstLiability).toBe(5.4);
 
-            // Step 8: Verify wallet transactions created
-
+            // Step 6: Shop owner's transaction history shows the payout
             const shopTxns = await WalletTxn.find({ userId: shopOwner._id, type: 'ORDER_CREDIT' });
             expect(shopTxns.length).toBe(1);
-            expect(shopTxns[0].amount).toBe(settlements[0].shopEarning);
-
-            // Step 9: Can't settle again
-            const doubleSettle = await request(app)
-                .post(`/api/v1/admin/settlements/${settlements[0]._id}/settle`)
-                .set('Authorization', `Bearer ${adminToken}`)
-                .send({});
-            expect(doubleSettle.status).toBe(400);
-            expect(doubleSettle.body.message).toBe('Settlement already processed');
+            expect(shopTxns[0].amount).toBe(600);
+            expect(shopTxns[0].status).toBe('COMPLETED');
         });
     });
 });

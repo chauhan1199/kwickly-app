@@ -361,7 +361,8 @@ describe('validate.middleware', () => {
         expect(res.status).toHaveBeenCalledWith(400);
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
             status: 'error',
-            message: 'Validation Error'
+            message: 'email is required',
+            errors: ['"email" is required']
         }));
     });
 

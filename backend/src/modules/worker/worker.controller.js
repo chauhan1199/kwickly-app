@@ -119,7 +119,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
     const { name, city, bio, email } = req.body;
     const updateData = {};
     if (req.file) {
-        const existing = await Customer.findById(req.user._id).select('profileImage');
+        const existing = await Customer.findById(req.user._id).select('profileImage').lean();
         const { url, public_id } = await uploadImage(req.file.buffer, 'kwickly/profiles');
         updateData.profileImage = url;
         if (existing?.profileImage && existing.profileImage !== url) {
@@ -128,7 +128,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
     } else if (req.body.profileImageBase64) {
         const base64Data = req.body.profileImageBase64.replace(/^data:image\/\w+;base64,/, "");
         const buffer = Buffer.from(base64Data, 'base64');
-        const existing = await Customer.findById(req.user._id).select('profileImage');
+        const existing = await Customer.findById(req.user._id).select('profileImage').lean();
         const { url } = await uploadImage(buffer, 'kwickly/profiles');
         updateData.profileImage = url;
         if (existing?.profileImage && existing.profileImage !== url) {
@@ -209,7 +209,7 @@ exports.updateServices = catchAsync(async (req, res) => {
         const catId = s.category?._id || s.category;
         let catName = s.categoryName;
         if (!catName && catId) {
-            const catDoc = await Category.findById(catId).select('name');
+            const catDoc = await Category.findById(catId).select('name').lean();
             catName = catDoc?.name || '';
         }
         return {
@@ -491,7 +491,7 @@ exports.setPrimaryAddress = catchAsync(async (req, res) => {
 });
 
 exports.getProfile = catchAsync(async (req, res) => {
-    const user = await Customer.findById(req.user._id).select('-password').populate('services.category');
+    const user = await Customer.findById(req.user._id).select('-password').populate('services.category').lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
     return successResponse(res, user, 'Profile fetched successfully');
 });
@@ -507,7 +507,7 @@ exports.updateFullProfile = catchAsync(async (req, res) => {
     if (availability_hours !== undefined) updateData.availability_hours = availability_hours;
 
     if (req.file) {
-        const existing = await Customer.findById(req.user._id).select('profileImage');
+        const existing = await Customer.findById(req.user._id).select('profileImage').lean();
         const { url } = await uploadImage(req.file.buffer, 'kwickly/profiles');
         updateData.profileImage = url;
         if (existing?.profileImage && existing.profileImage !== url) {
@@ -683,6 +683,7 @@ exports.requestEarningsWithdrawal = catchAsync(async (req, res) => {
 exports.getSuggestions = catchAsync(async (req, res) => {
     const Suggestion = require('../suggestion/suggestion.model');
     const suggestions = await Suggestion.find({ workerId: req.user._id })
-        .sort('-createdAt');
+        .sort('-createdAt')
+        .lean();
     return successResponse(res, suggestions, 'Suggestions fetched');
 });

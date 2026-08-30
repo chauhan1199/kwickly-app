@@ -68,7 +68,20 @@ const updateShopSchema = Joi.object({
     bannerBase64: Joi.string().allow('', null).optional(),
     logoUrl: Joi.string().allow('', null).optional(),
     logoBase64: Joi.string().allow('', null).optional(),
-    isOnline: Joi.boolean().optional()
+    isOnline: Joi.boolean().optional(),
+    // Owner-submitted KYC documents: controller sanitizes entries and forces status back to PENDING
+    kyc: Joi.object({
+        status: Joi.string().optional(),
+        documents: Joi.array().items(
+            Joi.object({
+                name: Joi.string().allow('').optional(),
+                url: Joi.string().required(),
+                public_id: Joi.string().optional(),
+                docType: Joi.string().optional(),
+                type: Joi.string().optional()
+            }).unknown(true)
+        ).optional()
+    }).optional()
 }).min(1);
 
 

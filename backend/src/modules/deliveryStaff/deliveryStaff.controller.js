@@ -5,14 +5,14 @@ const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 
 exports.getStaff = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
+    const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
-    const staff = await DeliveryStaff.find({ shopId: shop._id });
+    const staff = await DeliveryStaff.find({ shopId: shop._id }).lean();
     return successResponse(res, staff, 'Delivery staff fetched');
 });
 
 exports.addStaff = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
+    const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
     // Whitelist allowed fields to prevent mass assignment
     const { name, phone } = req.body;
@@ -20,14 +20,14 @@ exports.addStaff = catchAsync(async (req, res) => {
     if (phone && !/^\d{10,15}$/.test(phone)) {
         return errorResponse(res, 'Phone must be 10-15 digits', StatusCodes.BAD_REQUEST);
     }
-    const existing = await DeliveryStaff.findOne({ phone, shopId: shop._id });
+    const existing = await DeliveryStaff.findOne({ phone, shopId: shop._id }).lean();
     if (existing) return errorResponse(res, 'Staff with this phone already exists', StatusCodes.CONFLICT);
     const staff = await DeliveryStaff.create({ name, phone, shopId: shop._id });
     return successResponse(res, staff, 'Staff added', StatusCodes.CREATED);
 });
 
 exports.updateStaff = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
+    const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
     // Whitelist allowed fields to prevent mass assignment
     const { name, phone } = req.body;
@@ -44,13 +44,13 @@ exports.updateStaff = catchAsync(async (req, res) => {
 });
 
 exports.removeStaff = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
+    const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
     const staff = await DeliveryStaff.findOne({ _id: req.params.staffId, shopId: shop._id });
     if (!staff) return errorResponse(res, 'Staff not found', StatusCodes.NOT_FOUND);
     if (staff.activeOrderId) {
         const Order = require('../shoporder/shoporder.model');
-        const activeOrder = await Order.findOne({ _id: staff.activeOrderId, status: { $in: ['NEW', 'CONFIRMED', 'PACKING'] } });
+        const activeOrder = await Order.findOne({ _id: staff.activeOrderId, status: { $in: ['NEW', 'CONFIRMED', 'PACKING'] } }).lean();
         if (activeOrder) {
             return errorResponse(res, 'Cannot remove staff with active delivery', StatusCodes.BAD_REQUEST);
         }

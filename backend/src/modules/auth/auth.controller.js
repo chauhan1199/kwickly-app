@@ -50,7 +50,7 @@ const resetOtpAttempts = async (phone) => {
 
 exports.checkStatus = catchAsync(async (req, res) => {
     const { phone, role } = req.body;
-    const user = await Customer.findOne({ phone, role });
+    const user = await Customer.findOne({ phone, role }).lean();
 
     return successResponse(res, {
         exists: !!user,
@@ -107,7 +107,7 @@ exports.verifyOTP = catchAsync(async (req, res) => {
         
         if (role === 'WORKER' || role === 'SHOP') {
             const AppSettings = require('../settings/settings.model');
-            let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+            let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
             const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
             const trialEndDate = new Date();
             trialEndDate.setDate(trialEndDate.getDate() + freeTrialDays);
@@ -237,14 +237,14 @@ exports.setPassword = catchAsync(async (req, res) => {
 
 exports.getMe = catchAsync(async (req, res) => {
     // req.user is already populated by auth middleware (from Redis or DB)
-    const user = await Customer.findById(req.user._id).select('-password').populate('services.category');
+    const user = await Customer.findById(req.user._id).select('-password').populate('services.category').lean();
     return successResponse(res, user, COMMON.SUCCESS);
 });
 
 exports.forgotPassword = catchAsync(async (req, res) => {
     const { phone, role } = req.body;
 
-    const user = await Customer.findOne({ phone, role: role || 'CUSTOMER' });
+    const user = await Customer.findOne({ phone, role: role || 'CUSTOMER' }).lean();
     if (!user) {
         return errorResponse(res, 'No account found with this phone number', StatusCodes.NOT_FOUND);
     }

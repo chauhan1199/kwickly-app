@@ -5,36 +5,27 @@ const Payment = require('../modules/payment/payment.model');
 const ShopOrder = require('../modules/shoporder/shoporder.model');
 const Shop = require('../modules/shop/shop.model');
 const Product = require('../modules/product/product.model');
+const WalletTxn = require('../modules/wallet/wallet.model');
 
-// Mock Razorpay helper
-jest.mock('../helpers/razorpay.helper', () => ({
-    createRazorpayOrder: jest.fn().mockResolvedValue({
-        id: 'order_test123',
-        amount: 50000,
-        currency: 'INR',
-        receipt: 'test_receipt'
-    }),
-    fetchPayment: jest.fn().mockResolvedValue({
-        id: 'pay_test123',
-        status: 'captured',
-        method: 'upi',
-        amount: 50000
-    }),
-    capturePayment: jest.fn().mockResolvedValue({ id: 'pay_test123', status: 'captured' }),
-    createRefund: jest.fn().mockResolvedValue({ id: 'refund_test123', amount: 50000 }),
-    verifyPaymentSignature: jest.fn().mockReturnValue(true),
-    getRazorpay: jest.fn().mockReturnValue({})
-}));
+// Pure Direct UPI (NPCI intent) — no payment gateway, no signature verification.
+// A payment is only ever CAPTURED after an admin verifies the 12-digit UTR
+// against the platform bank statement.
+
+// Generate a unique, format-valid (exactly 12 digits) UTR per test
+let utrSeq = 0;
+const genUtr = () => {
+    utrSeq++;
+    const suffix = String(Date.now()).slice(-6) + String(utrSeq).padStart(3, '0');
+    return ('4' + suffix + String(Math.floor(Math.random() * 90) + 10)).slice(0, 12).padEnd(12, '7');
+};
 
 beforeAll(async () => {
     await setup();
-    process.env.RAZORPAY_KEY_ID = 'rzp_test_key';
-    process.env.RAZORPAY_KEY_SECRET = 'test_secret';
 }, 60000);
 afterAll(async () => { await teardown(); }, 30000);
-afterEach(async () => { await clearCollections(); jest.clearAllMocks(); }, 10000);
+afterEach(async () => { await clearCollections(); }, 10000);
 
-describe('Payment Integration (Razorpay)', () => {
+describe('Payment Integration (Direct UPI)', () => {
     let customerToken, adminToken, customerId;
     let shopId, productId;
 
@@ -68,15 +59,24 @@ describe('Payment Integration (Razorpay)', () => {
     });
 
     describe('POST /api/v1/payments/create-order', () => {
-        it('should create a Razorpay order', async () => {
+        it('should create a Direct UPI order with an NPCI intent URI', async () => {
             const res = await request(app)
                 .post('/api/v1/payments/create-order')
                 .set('Authorization', `Bearer ${customerToken}`)
                 .send({ amount: 500, purpose: 'order_payment' });
 
             expect(res.status).toBe(201);
-            expect(res.body.data.razorpayOrderId).toBe('order_test123');
-            expect(res.body.data.keyId).toBeDefined();
+            expect(res.body.data.isUpiDirect).toBe(true);
+            expect(res.body.data.upiOrderId).toMatch(/^upi_ord_/);
+            expect(res.body.data.razorpayOrderId).toBe(res.body.data.upiOrderId); // backward-compat alias
+            expect(res.body.data.upiIntentUri).toMatch(/^upi:\/\/pay\?pa=/);
+            expect(res.body.data.upiVpa).toBeDefined();
+            expect(res.body.data.currency).toBe('INR');
+
+            const payment = await Payment.findOne({ razorpayOrderId: res.body.data.upiOrderId });
+            expect(payment).toBeTruthy();
+            expect(payment.status).toBe('CREATED');
+            expect(payment.method).toBe('UPI');
         });
 
         it('should reject with zero amount', async () => {
@@ -98,142 +98,175 @@ describe('Payment Integration (Razorpay)', () => {
     });
 
     describe('POST /api/v1/payments/verify', () => {
-        it('should verify a payment successfully', async () => {
-            // First create a payment record
-            const payment = await Payment.create({
-                razorpayOrderId: 'order_verify_test',
+        it('should hold a wallet top-up as PENDING_VERIFICATION (no instant credit)', async () => {
+            const createRes = await request(app)
+                .post('/api/v1/payments/create-order')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({ amount: 500, purpose: 'wallet_topup' });
+            expect(createRes.status).toBe(201);
+
+            const utr = genUtr();
+            const res = await request(app)
+                .post('/api/v1/payments/verify')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({
+                    razorpayOrderId: createRes.body.data.upiOrderId,
+                    utrNumber: utr,
+                    purpose: 'wallet_topup',
+                    amount: 500
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.status).toBe('PENDING_VERIFICATION');
+            expect(res.body.data.utr).toBe(utr);
+
+            // Wallet NOT credited yet — admin must verify against the bank statement
+            const pendingTxn = await WalletTxn.findOne({ type: 'TOPUP', razorpayPaymentId: utr });
+            expect(pendingTxn).toBeTruthy();
+            expect(pendingTxn.status).toBe('PENDING');
+        });
+
+        it('should reject an invalid UTR (not 12 digits)', async () => {
+            const createRes = await request(app)
+                .post('/api/v1/payments/create-order')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({ amount: 500, purpose: 'wallet_topup' });
+
+            const res = await request(app)
+                .post('/api/v1/payments/verify')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({
+                    razorpayOrderId: createRes.body.data.upiOrderId,
+                    utrNumber: '12345', // too short
+                    purpose: 'wallet_topup'
+                });
+
+            expect(res.status).toBe(400);
+        });
+
+        it('should reject a fake/dummy UTR pattern', async () => {
+            const createRes = await request(app)
+                .post('/api/v1/payments/create-order')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({ amount: 500, purpose: 'wallet_topup' });
+
+            const res = await request(app)
+                .post('/api/v1/payments/verify')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({
+                    razorpayOrderId: createRes.body.data.upiOrderId,
+                    utrNumber: '123456789012', // known dummy pattern
+                    purpose: 'wallet_topup'
+                });
+
+            expect(res.status).toBe(400);
+        });
+
+        it('should reject with missing order reference', async () => {
+            const res = await request(app)
+                .post('/api/v1/payments/verify')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({ utrNumber: genUtr() });
+
+            expect(res.status).toBe(400);
+        });
+
+        it('should not duplicate a pending top-up when the same UTR is re-submitted', async () => {
+            const createRes = await request(app)
+                .post('/api/v1/payments/create-order')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({ amount: 500, purpose: 'wallet_topup' });
+
+            const utr = genUtr();
+            const body = {
+                razorpayOrderId: createRes.body.data.upiOrderId,
+                utrNumber: utr,
+                purpose: 'wallet_topup',
+                amount: 500
+            };
+            await request(app).post('/api/v1/payments/verify')
+                .set('Authorization', `Bearer ${customerToken}`).send(body);
+            const res2 = await request(app).post('/api/v1/payments/verify')
+                .set('Authorization', `Bearer ${customerToken}`).send(body);
+
+            expect(res2.status).toBe(200);
+            const txns = await WalletTxn.find({ type: 'TOPUP', razorpayPaymentId: utr });
+            expect(txns.length).toBe(1); // still exactly one — no double credit
+        });
+
+        it('should reject a UTR already used on another captured payment', async () => {
+            const utr = genUtr();
+            // Simulate an already-verified (CAPTURED) payment from another order
+            await Payment.create({
+                razorpayOrderId: 'upi_ord_other',
+                razorpayPaymentId: utr,
                 amount: 500,
                 userId: customerId,
-                status: 'CREATED'
+                status: 'CAPTURED',
+                method: 'UPI'
+            });
+
+            const createRes = await request(app)
+                .post('/api/v1/payments/create-order')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({ amount: 500, purpose: 'wallet_topup' });
+
+            const res = await request(app)
+                .post('/api/v1/payments/verify')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({
+                    razorpayOrderId: createRes.body.data.upiOrderId,
+                    utrNumber: utr,
+                    purpose: 'wallet_topup'
+                });
+
+            expect(res.status).toBe(409);
+        });
+
+        it('should mark an order PENDING_VERIFICATION when paying for an order via UPI', async () => {
+            const utr = genUtr();
+            const order = await ShopOrder.create({
+                shopId, customerId,
+                items: [{ name: 'Test', price: 250, qty: 2 }],
+                subtotal: 500,
+                total: 500,
+                status: 'CONFIRMED',
+                payment: { amount: 500, status: 'PENDING', method: 'UPI' },
+                statusHistory: [{ status: 'CONFIRMED' }]
             });
 
             const res = await request(app)
                 .post('/api/v1/payments/verify')
                 .set('Authorization', `Bearer ${customerToken}`)
                 .send({
-                    razorpayOrderId: 'order_verify_test',
-                    razorpayPaymentId: 'pay_verify_test',
-                    razorpaySignature: 'valid_signature'
+                    razorpayOrderId: `upi_ord_${Date.now()}`,
+                    orderId: String(order._id),
+                    utrNumber: utr
                 });
 
             expect(res.status).toBe(200);
-            expect(res.body.data.status).toBe('CAPTURED');
-        });
+            expect(res.body.data.status).toBe('PENDING_VERIFICATION');
+            expect(String(res.body.data.orderId)).toBe(String(order._id));
 
-        it('should reject with invalid signature', async () => {
-            const { verifyPaymentSignature } = require('../helpers/razorpay.helper');
-            verifyPaymentSignature.mockReturnValueOnce(false);
-
-            const res = await request(app)
-                .post('/api/v1/payments/verify')
-                .set('Authorization', `Bearer ${customerToken}`)
-                .send({
-                    razorpayOrderId: 'order_bad',
-                    razorpayPaymentId: 'pay_bad',
-                    razorpaySignature: 'bad_signature'
-                });
-
-            expect(res.status).toBe(400);
-        });
-
-        it('should reject with missing fields', async () => {
-            const res = await request(app)
-                .post('/api/v1/payments/verify')
-                .set('Authorization', `Bearer ${customerToken}`)
-                .send({ razorpayOrderId: 'order123' });
-
-            expect(res.status).toBe(400);
+            const updated = await ShopOrder.findById(order._id);
+            expect(updated.payment.status).toBe('PENDING_VERIFICATION');
+            expect(updated.payment.utrNumber).toBe(utr);
         });
     });
 
     describe('POST /api/v1/payments/webhook', () => {
-        it('should handle payment.captured event', async () => {
+        it('should return 200 (no-op) in Direct UPI mode', async () => {
             const res = await request(app)
                 .post('/api/v1/payments/webhook')
-                .send({
-                    event: 'payment.captured',
-                    payload: {
-                        payment: {
-                            entity: {
-                                id: 'pay_webhook_test',
-                                order_id: 'order_webhook_test',
-                                method: 'upi',
-                                amount: 50000
-                            }
-                        }
-                    }
-                });
+                .send({ event: 'anything', payload: {} });
 
             expect(res.status).toBe(200);
-            expect(res.body.ok).toBe(true);
-        });
-
-        it('should handle payment.failed event', async () => {
-            // Create payment record first
-            await Payment.create({
-                razorpayOrderId: 'order_fail_test',
-                amount: 500,
-                userId: customerId,
-                status: 'CREATED'
-            });
-
-            const res = await request(app)
-                .post('/api/v1/payments/webhook')
-                .send({
-                    event: 'payment.failed',
-                    payload: {
-                        payment: {
-                            entity: {
-                                id: 'pay_fail_test',
-                                order_id: 'order_fail_test',
-                                error_description: 'Payment declined'
-                            }
-                        }
-                    }
-                });
-
-            expect(res.status).toBe(200);
-        });
-
-        it('should handle refund.created event', async () => {
-            await Payment.create({
-                razorpayOrderId: 'order_refund_test',
-                razorpayPaymentId: 'pay_refund_test',
-                amount: 500,
-                userId: customerId,
-                status: 'CAPTURED'
-            });
-
-            const res = await request(app)
-                .post('/api/v1/payments/webhook')
-                .send({
-                    event: 'refund.created',
-                    payload: {
-                        refund: {
-                            entity: {
-                                id: 'refund_webhook_test',
-                                payment_id: 'pay_refund_test',
-                                amount: 50000
-                            }
-                        }
-                    }
-                });
-
-            expect(res.status).toBe(200);
-        });
-
-        it('should always return 200 for unknown events', async () => {
-            const res = await request(app)
-                .post('/api/v1/payments/webhook')
-                .send({ event: 'unknown.event', payload: {} });
-
-            expect(res.status).toBe(200);
+            expect(res.body.status).toBe('ok');
         });
     });
 
     describe('POST /api/v1/payments/refund (Admin)', () => {
-        it('should process refund for an order', async () => {
-            // Create an order with payment
+        it('should refund a captured payment to the customer wallet', async () => {
             const order = await ShopOrder.create({
                 shopId,
                 customerId,
@@ -247,11 +280,12 @@ describe('Payment Integration (Razorpay)', () => {
 
             await Payment.create({
                 orderId: order._id,
-                razorpayOrderId: 'order_refundable',
+                razorpayOrderId: 'upi_ord_refundable',
                 razorpayPaymentId: 'pay_refundable',
                 amount: 540,
                 userId: customerId,
-                status: 'CAPTURED'
+                status: 'CAPTURED',
+                method: 'UPI'
             });
 
             const res = await request(app)
@@ -260,10 +294,18 @@ describe('Payment Integration (Razorpay)', () => {
                 .send({ orderId: order._id, amount: 540, reason: 'Customer request' });
 
             expect(res.status).toBe(200);
+            expect(res.body.data.status).toBe('REFUNDED');
             expect(res.body.data.amount).toBe(540);
+
+            const Customer = require('../modules/customer/customer.model');
+            const updatedCustomer = await Customer.findById(customerId);
+            expect(updatedCustomer.wallet.balance).toBe(1000 + 540);
+
+            const refundTxn = await WalletTxn.findOne({ userId: customerId, type: 'REFUND', amount: 540 });
+            expect(refundTxn).toBeTruthy();
         });
 
-        it('should reject refund for non-existing order', async () => {
+        it('should reject refund for non-existing order payment', async () => {
             const fakeId = '507f1f77bcf86cd799439011';
             const res = await request(app)
                 .post('/api/v1/payments/refund')
@@ -286,10 +328,11 @@ describe('Payment Integration (Razorpay)', () => {
     describe('GET /api/v1/payments/history', () => {
         it('should return user payment history', async () => {
             await Payment.create({
-                razorpayOrderId: 'order_hist_1',
+                razorpayOrderId: 'upi_ord_hist_1',
                 amount: 500,
                 userId: customerId,
-                status: 'CAPTURED'
+                status: 'CAPTURED',
+                method: 'UPI'
             });
 
             const res = await request(app)
@@ -297,7 +340,8 @@ describe('Payment Integration (Razorpay)', () => {
                 .set('Authorization', `Bearer ${customerToken}`);
 
             expect(res.status).toBe(200);
-            expect(Array.isArray(res.body.data.payments)).toBe(true);
+            expect(Array.isArray(res.body.data)).toBe(true);
+            expect(res.body.data.length).toBe(1);
         });
     });
 
@@ -311,20 +355,28 @@ describe('Payment Integration (Razorpay)', () => {
                 statusHistory: [{ status: 'NEW' }]
             });
 
-            await Payment.create({
+            const payment = await Payment.create({
                 orderId: order._id,
-                razorpayOrderId: 'order_detail_test',
+                razorpayOrderId: 'upi_ord_detail_test',
                 amount: 290,
                 userId: customerId,
-                status: 'CAPTURED'
+                status: 'CAPTURED',
+                method: 'UPI'
             });
 
             const res = await request(app)
-                .get(`/api/v1/payments/${order._id}`)
+                .get(`/api/v1/payments/${payment._id}`)
                 .set('Authorization', `Bearer ${customerToken}`);
 
             expect(res.status).toBe(200);
-            expect(res.body.data.razorpayOrderId).toBe('order_detail_test');
+            expect(res.body.data.razorpayOrderId).toBe('upi_ord_detail_test');
+
+            // Also resolvable by order reference
+            const byOrderRes = await request(app)
+                .get(`/api/v1/payments/${order._id}`)
+                .set('Authorization', `Bearer ${customerToken}`);
+            expect(byOrderRes.status).toBe(200);
+            expect(byOrderRes.body.data.razorpayOrderId).toBe('upi_ord_detail_test');
         });
 
         it('should return 404 for non-existing payment', async () => {
@@ -337,7 +389,7 @@ describe('Payment Integration (Razorpay)', () => {
     });
 });
 
-describe('Order with Razorpay Payment (E2E)', () => {
+describe('Order with UPI / Wallet Payment (E2E)', () => {
     let customerToken, customerId, shopId, productId;
 
     beforeEach(async () => {
@@ -369,53 +421,44 @@ describe('Order with Razorpay Payment (E2E)', () => {
         productId = product._id;
     });
 
-    it('should complete full Razorpay payment flow', async () => {
-        // Step 1: Create Razorpay order
+    it('should submit a UPI top-up for admin verification (not instant credit)', async () => {
+        // Step 1: Create Direct UPI order
         const createRes = await request(app)
             .post('/api/v1/payments/create-order')
             .set('Authorization', `Bearer ${customerToken}`)
-            .send({ amount: 290, purpose: 'order_payment' });
+            .send({ amount: 500, purpose: 'wallet_topup' });
 
         expect(createRes.status).toBe(201);
-        const { razorpayOrderId } = createRes.body.data;
+        const { upiOrderId } = createRes.body.data;
+        expect(createRes.body.data.upiIntentUri).toMatch(/^upi:\/\/pay\?pa=/);
 
-        // Step 2: Give customer wallet balance and place order with WALLET
-        const Customer = require('../modules/customer/customer.model');
-        await Customer.findByIdAndUpdate(customerId, { 'wallet.balance': 1000 });
-
-        const orderRes = await request(app)
-            .post('/api/v1/shoporders')
-            .set('Authorization', `Bearer ${customerToken}`)
-            .send({
-                shopId,
-                items: [{ productId, name: 'E2E Product', price: 250, qty: 1 }],
-                deliveryAddress: 'Home: 123 Test St, Mumbai',
-                paymentMethod: 'WALLET',
-                deliveryLocation: { type: 'Point', coordinates: [72.8777, 19.0760] }
-            });
-
-        expect(orderRes.status).toBe(201);
-        expect(orderRes.body.data.payment.status).toBe('PAID');
-
-        // Step 3: Verify payment
+        // Step 2: Customer pays in their UPI app and submits the UTR
+        const utr = genUtr();
         const verifyRes = await request(app)
             .post('/api/v1/payments/verify')
             .set('Authorization', `Bearer ${customerToken}`)
             .send({
-                razorpayOrderId,
-                razorpayPaymentId: 'pay_e2e_test',
-                razorpaySignature: 'valid_signature'
+                razorpayOrderId: upiOrderId,
+                utrNumber: utr,
+                purpose: 'wallet_topup',
+                amount: 500
             });
 
         expect(verifyRes.status).toBe(200);
-        expect(verifyRes.body.data.status).toBe('CAPTURED');
+        expect(verifyRes.body.data.status).toBe('PENDING_VERIFICATION');
 
-        // Step 4: Check payment history
+        // Step 3: Wallet still empty until admin approves
+        const Customer = require('../modules/customer/customer.model');
+        const cust = await Customer.findById(customerId);
+        expect(cust.wallet.balance).toBe(0);
+
+        // Step 4: Payment history shows the submitted payment
         const histRes = await request(app)
             .get('/api/v1/payments/history')
             .set('Authorization', `Bearer ${customerToken}`);
 
         expect(histRes.status).toBe(200);
+        expect(histRes.body.data.length).toBeGreaterThan(0);
     });
 
     it('should handle wallet payment flow', async () => {
@@ -441,46 +484,17 @@ describe('Order with Razorpay Payment (E2E)', () => {
     });
 });
 
-describe('Webhook Signature Verification', () => {
-    it('should handle webhook with valid signature', async () => {
-        const res = await request(app)
-            .post('/api/v1/payments/webhook')
-            .set('x-razorpay-signature', 'valid_sig')
-            .send({ event: 'payment.captured', payload: { payment: { entity: {} } } });
-
-        expect(res.status).toBe(200);
-    });
-
-    it('should reject webhook with invalid signature when secret is set', async () => {
-        const originalSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-        process.env.RAZORPAY_WEBHOOK_SECRET = 'test_webhook_secret';
-
-        const crypto = require('crypto');
-        const body = JSON.stringify({ event: 'test', payload: {} });
-        const validSig = crypto.createHmac('sha256', 'test_webhook_secret').update(body).digest('hex');
-
-        // Valid signature should pass
-        const res = await request(app)
-            .post('/api/v1/payments/webhook')
-            .set('x-razorpay-signature', validSig)
-            .send({ event: 'test', payload: {} });
-
-        expect(res.status).toBe(200);
-
-        process.env.RAZORPAY_WEBHOOK_SECRET = originalSecret;
-    });
-});
-
 describe('Payment Model Tests', () => {
     it('should create a payment record', async () => {
         const payment = await Payment.create({
-            razorpayOrderId: 'order_model_test',
+            razorpayOrderId: 'upi_ord_model_test',
             amount: 500,
             userId: '507f1f77bcf86cd799439011',
-            status: 'CREATED'
+            status: 'CREATED',
+            method: 'UPI'
         });
 
-        expect(payment.razorpayOrderId).toBe('order_model_test');
+        expect(payment.razorpayOrderId).toBe('upi_ord_model_test');
         expect(payment.amount).toBe(500);
         expect(payment.status).toBe('CREATED');
         expect(payment.currency).toBe('INR');
@@ -488,31 +502,32 @@ describe('Payment Model Tests', () => {
 
     it('should update payment status', async () => {
         const payment = await Payment.create({
-            razorpayOrderId: 'order_update_test',
+            razorpayOrderId: 'upi_ord_update_test',
             amount: 500,
             userId: '507f1f77bcf86cd799439011',
-            status: 'CREATED'
+            status: 'CREATED',
+            method: 'UPI'
         });
 
         payment.status = 'CAPTURED';
-        payment.razorpayPaymentId = 'pay_captured';
+        payment.razorpayPaymentId = '423456789012';
         await payment.save();
 
         const updated = await Payment.findById(payment._id);
         expect(updated.status).toBe('CAPTURED');
-        expect(updated.razorpayPaymentId).toBe('pay_captured');
+        expect(updated.razorpayPaymentId).toBe('423456789012');
     });
 
     it('should enforce unique razorpayOrderId', async () => {
         await Payment.create({
-            razorpayOrderId: 'order_unique_test',
+            razorpayOrderId: 'upi_ord_unique_test',
             amount: 500,
             userId: '507f1f77bcf86cd799439011'
         });
 
         await expect(
             Payment.create({
-                razorpayOrderId: 'order_unique_test',
+                razorpayOrderId: 'upi_ord_unique_test',
                 amount: 300,
                 userId: '507f1f77bcf86cd799439011'
             })

@@ -161,6 +161,20 @@ const settleShopOrderDelivery = async ({ order, session = null }) => {
         { returnDocument: 'after', session }
     );
 
+    // 1b. Record the payout in the shop owner's transaction history
+    if (updatedShop?.ownerId && netProductSales > 0) {
+        await WalletTxn.create([{
+            userId: updatedShop.ownerId,
+            type: 'ORDER_CREDIT',
+            amount: netProductSales,
+            balance: (updatedShop.wallet?.balance || 0) - netProductSales,
+            balanceAfter: updatedShop.wallet?.balance || netProductSales,
+            refId: String(order._id),
+            status: 'COMPLETED',
+            description: `Order payout for #${order.orderNumber || String(order._id).slice(-6)} (100% Product Sales, 0% Commission)`
+        }], { session });
+    }
+
     // 2. Credit Kwickly Treasury with Customer Platform Fee and record GST Liability
     const adminW = await AdminWallet.findOneAndUpdate(
         {},
@@ -235,7 +249,153 @@ const settleShopOrderDelivery = async ({ order, session = null }) => {
     return ledgerEntry;
 };
 
+/**
+ * Idempotent Reversal Engine for Shop Orders
+ * Used when an already-DELIVERED + SETTLED order is cancelled (e.g. return /
+ * dispute): claws the shop payout back (bounded by shop balance), reverses
+ * the platform fee + GST from treasury, refunds the customer, and records
+ * a REVERSED ledger entry linked to the original settlement.
+ */
+const reverseShopOrderDelivery = async ({ order, session = null }) => {
+    if (!order || !order._id) throw new Error('Order reference required for reversal');
+
+    const original = await PlatformLedger.findOne({
+        idempotencyKey: `settle_order_${order._id.toString()}`
+    }).session(session);
+    if (!original) {
+        logger.info(`[SettlementEngine] Order #${order._id} has no original settlement — nothing to reverse.`);
+        return null;
+    }
+
+    const reversalKey = `settle_order_${order._id.toString()}_reverse`;
+    const existingReversal = await PlatformLedger.findOne({ idempotencyKey: reversalKey }).session(session);
+    if (existingReversal) {
+        logger.info(`[SettlementEngine] Order #${order._id} already reversed — skipping duplicate execution.`);
+        return existingReversal;
+    }
+
+    const netProductSales = Number(original.partnerAmount || 0);
+    const platformFee = Number(original.platformFee || 0);
+    const gstAmount = Number(original.gstAmount || 0);
+    const customerTotal = Number(original.grossAmount || order.total || 0);
+
+    const settlementId = `REV_ORD_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const transactionId = `TXN_ORD_REV_${order.orderNumber || order._id.toString().slice(-6)}_${Date.now()}`;
+
+    // 1. Claw back the shop payout — bounded by the shop's current balance so
+    //    we can never drive a shop wallet negative through a reversal.
+    const shop = await Shop.findById(order.shopId).select('wallet.balance ownerId').session(session).lean();
+    let clawedBack = 0;
+    if (shop) {
+        clawedBack = Math.min(netProductSales, Math.max(0, shop.wallet?.balance || 0));
+        if (clawedBack > 0) {
+            const updatedShop = await Shop.findByIdAndUpdate(
+                order.shopId,
+                { $inc: { 'wallet.balance': -clawedBack, totalRevenue: -clawedBack } },
+                { returnDocument: 'after', session }
+            );
+            await WalletTxn.create([{
+                userId: shop.ownerId,
+                type: 'ORDER_DEBIT',
+                amount: clawedBack,
+                balance: updatedShop?.wallet?.balance || 0,
+                refId: String(order._id),
+                status: 'COMPLETED',
+                description: `Reversal of settled payout for cancelled Order #${order.orderNumber || String(order._id).slice(-6)}`
+            }], { session });
+        }
+    }
+
+    // 2. Reverse platform fee + GST from treasury
+    const adminDebit = platformFee + gstAmount;
+    if (adminDebit > 0) {
+        await AdminWallet.findOneAndUpdate(
+            {},
+            {
+                $inc: {
+                    balance: -platformFee,
+                    platformFeeRevenue: -platformFee,
+                    gstLiability: -gstAmount
+                }
+            },
+            { returnDocument: 'after', upsert: true, session }
+        );
+        await AdminWalletTxn.create([{
+            type: 'FEE_REVERSAL',
+            amount: adminDebit,
+            description: `Fee reversal for cancelled delivered Order #${order.orderNumber || String(order._id).slice(-6)}`,
+            referenceId: order._id,
+            referenceModel: 'ShopOrder',
+            meta: { platformFee, gstAmount, settlementId }
+        }], { session });
+    }
+
+    // 3. Refund the customer to their wallet
+    if (customerTotal > 0) {
+        const refundedCustomer = await Customer.findByIdAndUpdate(
+            order.customerId,
+            { $inc: { 'wallet.balance': customerTotal } },
+            { returnDocument: 'after', session }
+        );
+        await WalletTxn.create([{
+            userId: order.customerId,
+            type: 'REFUND',
+            amount: customerTotal,
+            balance: refundedCustomer?.wallet?.balance || 0,
+            refId: String(order._id),
+            status: 'COMPLETED',
+            description: `Refund for cancelled delivered order #${order.orderNumber || String(order._id).slice(-6)}`
+        }], { session });
+    }
+
+    // 4. Mark the original settlement REVERSED and record the reversal entry
+    await PlatformLedger.findOneAndUpdate(
+        { idempotencyKey: original.idempotencyKey },
+        { settlementStatus: 'REVERSED' },
+        { session }
+    );
+
+    const ledgerEntry = await PlatformLedger.create([{
+        transactionId,
+        settlementId,
+        idempotencyKey: reversalKey,
+        entityType: 'SHOP_ORDER',
+        entityId: order._id,
+        referenceNumber: order.orderNumber || `ORD-${order._id.toString().slice(-6).toUpperCase()}`,
+        grossAmount: -customerTotal,
+        partnerAmount: -clawedBack,
+        platformFee: -platformFee,
+        gstAmount: -gstAmount,
+        partnerCommissionPercent: 0,
+        fromAccount: { accountType: 'SHOP_WALLET', shopId: order.shopId },
+        toAccount: { accountType: 'ESCROW', userId: order.customerId },
+        paymentMethod: order.payment?.method || 'WALLET',
+        paymentStatus: 'REFUNDED',
+        settlementStatus: 'REVERSED',
+        description: `Shop Order Reversal: shop clawed back ₹${clawedBack} of ₹${netProductSales}, customer refunded ₹${customerTotal}`,
+        configSnapshot: {
+            appliedAt: new Date(),
+            rule: 'Post-delivery cancellation reversal',
+            originalSettlementId: original.settlementId
+        }
+    }], { session }).then(arr => arr[0]);
+
+    emitToRoom(`shop_${order.shopId}`, 'WALLET_DEBITED', {
+        amount: clawedBack,
+        orderId: order._id
+    });
+    emitToAll('DASHBOARD_UPDATE', {
+        type: 'ORDER_SETTLEMENT_REVERSED',
+        orderId: order._id,
+        shopClawback: clawedBack,
+        customerRefund: customerTotal
+    });
+
+    return ledgerEntry;
+};
+
 module.exports = {
     settleJobCompletion,
-    settleShopOrderDelivery
+    settleShopOrderDelivery,
+    reverseShopOrderDelivery
 };

@@ -195,7 +195,7 @@ exports.getBranding = catchAsync(async (req, res) => {
     const cachedData = await getCache('app_branding');
     if (cachedData) return successResponse(res, cachedData, 'Branding from cache');
 
-    let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
+    let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
     if (!settings) {
         settings = await AppSettings.create({ isSingleton: 'CONFIG' });
     }

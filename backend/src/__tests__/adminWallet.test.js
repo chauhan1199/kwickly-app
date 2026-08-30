@@ -3,23 +3,6 @@ const app = require('../app');
 const { setup, teardown, clearCollections, createTestUser, generateToken } = require('./testSetup');
 const { AdminWallet, AdminWalletTxn } = require('../modules/adminWallet/adminWallet.model');
 
-// Mock razorpay helper
-jest.mock('../helpers/razorpay.helper', () => ({
-    createRazorpayOrder: jest.fn().mockResolvedValue({
-        id: 'order_test123',
-        amount: 50000,
-        currency: 'INR'
-    }),
-    verifyPaymentSignature: jest.fn().mockReturnValue(true),
-    fetchPayment: jest.fn().mockResolvedValue({
-        status: 'captured',
-        method: 'upi',
-        amount: 50000
-        })
-    }));
-
-const { createRazorpayOrder, verifyPaymentSignature, fetchPayment } = require('../helpers/razorpay.helper');
-
 beforeAll(async () => { await setup(); }, 60000);
 afterAll(async () => { await teardown(); }, 30000);
 afterEach(async () => { await clearCollections(); }, 10000);
@@ -335,7 +318,7 @@ describe('Admin Wallet Routes', () => {
     describe('PATCH /api/v1/admin/admin-wallet/bank-details', () => {
         const validDetails = {
             accountHolder: 'John Doe',
-            accountNumber: '123456789012',
+            accountNumber: '987654321098',
             ifscCode: 'SBIN0001234',
             bankName: 'State Bank of India',
             upiId: 'john@upi'
@@ -349,7 +332,7 @@ describe('Admin Wallet Routes', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.data.bankDetails.accountHolder).toBe('John Doe');
-            expect(res.body.data.bankDetails.accountNumber).toBe('123456789012');
+            expect(res.body.data.bankDetails.accountNumber).toBe('987654321098');
             expect(res.body.data.bankDetails.ifscCode).toBe('SBIN0001234');
             expect(res.body.data.bankDetails.bankName).toBe('State Bank of India');
             expect(res.body.data.upiId).toBe('john@upi');
@@ -508,19 +491,22 @@ describe('Admin Wallet Routes', () => {
         });
     });
 
-    // ─── POST /razorpay-order ────────────────────────────────────────────
+    // ─── POST /razorpay-order (Direct UPI topup order) ──────────────────
     describe('POST /api/v1/admin/admin-wallet/razorpay-order', () => {
-        it('should create Razorpay order', async () => {
+        it('should create a Direct UPI topup order', async () => {
             const res = await request(app)
                 .post('/api/v1/admin/admin-wallet/razorpay-order')
                 .set('Authorization', `Bearer ${adminToken}`)
                 .send({ amount: 500 });
 
             expect(res.status).toBe(201);
-            expect(res.body.data.razorpayOrderId).toBe('order_test123');
+            expect(res.body.data.upiOrderId).toMatch(/^upi_admin_/);
+            expect(res.body.data.razorpayOrderId).toBe(res.body.data.upiOrderId);
             expect(res.body.data.amount).toBe(50000);
             expect(res.body.data.currency).toBe('INR');
-            expect(createRazorpayOrder).toHaveBeenCalled();
+            expect(res.body.data.isUpiDirect).toBe(true);
+            expect(res.body.data.upiIntentUri).toMatch(/^upi:\/\/pay\?/);
+            expect(res.body.data.upiVpa).toBeTruthy();
         });
 
         it('should reject with zero amount', async () => {
@@ -550,17 +536,6 @@ describe('Admin Wallet Routes', () => {
             expect(res.status).toBe(400);
         });
 
-        it('should handle razorpay order creation failure', async () => {
-            createRazorpayOrder.mockRejectedValueOnce(new Error('Gateway timeout'));
-
-            const res = await request(app)
-                .post('/api/v1/admin/admin-wallet/razorpay-order')
-                .set('Authorization', `Bearer ${adminToken}`)
-                .send({ amount: 500 });
-
-            expect(res.status).toBe(500);
-        });
-
         it('should reject unauthenticated request', async () => {
             const res = await request(app)
                 .post('/api/v1/admin/admin-wallet/razorpay-order')
@@ -577,103 +552,52 @@ describe('Admin Wallet Routes', () => {
         });
     });
 
-    // ─── POST /razorpay-verify ───────────────────────────────────────────
+    // ─── POST /razorpay-verify (Direct UPI UTR verification) ────────────
     describe('POST /api/v1/admin/admin-wallet/razorpay-verify', () => {
-        it('should verify payment and credit wallet', async () => {
+        it('should credit wallet with a valid 12-digit UTR', async () => {
             const res = await request(app)
                 .post('/api/v1/admin/admin-wallet/razorpay-verify')
                 .set('Authorization', `Bearer ${adminToken}`)
                 .send({
-                    razorpayOrderId: 'order_test123',
-                    razorpayPaymentId: 'pay_test456',
-                    razorpaySignature: 'sig_test789'
+                    utrNumber: '987654321098',
+                    amount: 500
                 });
 
             expect(res.status).toBe(200);
-            expect(res.body.data.balance).toBe(500); // 50000 paise / 100
+            expect(res.body.data.balance).toBe(500);
             expect(res.body.data.txn.type).toBe('TOPUP');
-            expect(verifyPaymentSignature).toHaveBeenCalledWith('order_test123', 'pay_test456', 'sig_test789');
+            expect(res.body.data.txn.meta.utr).toBe('987654321098');
+            expect(res.body.data.txn.meta.paymentMethod).toBe('UPI');
         });
 
-        it('should reject when razorpayOrderId is missing', async () => {
+        it('should reject an invalid (non 12-digit) UTR', async () => {
             const res = await request(app)
                 .post('/api/v1/admin/admin-wallet/razorpay-verify')
                 .set('Authorization', `Bearer ${adminToken}`)
                 .send({
-                    razorpayPaymentId: 'pay_test456',
-                    razorpaySignature: 'sig_test789'
+                    utrNumber: 'pay_test456',
+                    amount: 500
                 });
+
+            expect(res.status).toBe(400);
+            expect(res.body.message).toMatch(/UTR/i);
+        });
+
+        it('should reject when UTR is missing', async () => {
+            const res = await request(app)
+                .post('/api/v1/admin/admin-wallet/razorpay-verify')
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send({ amount: 500 });
 
             expect(res.status).toBe(400);
         });
 
-        it('should reject when razorpayPaymentId is missing', async () => {
+        it('should reject with zero/missing amount', async () => {
             const res = await request(app)
                 .post('/api/v1/admin/admin-wallet/razorpay-verify')
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({
-                    razorpayOrderId: 'order_test123',
-                    razorpaySignature: 'sig_test789'
-                });
+                .send({ utrNumber: '987654321098' });
 
-            expect(res.status).toBe(400);
-        });
-
-        it('should reject when razorpaySignature is missing', async () => {
-            const res = await request(app)
-                .post('/api/v1/admin/admin-wallet/razorpay-verify')
-                .set('Authorization', `Bearer ${adminToken}`)
-                .send({
-                    razorpayOrderId: 'order_test123',
-                    razorpayPaymentId: 'pay_test456'
-                });
-
-            expect(res.status).toBe(400);
-        });
-
-        it('should reject when signature verification fails', async () => {
-            verifyPaymentSignature.mockReturnValueOnce(false);
-
-            const res = await request(app)
-                .post('/api/v1/admin/admin-wallet/razorpay-verify')
-                .set('Authorization', `Bearer ${adminToken}`)
-                .send({
-                    razorpayOrderId: 'order_test123',
-                    razorpayPaymentId: 'pay_test456',
-                    razorpaySignature: 'bad_sig'
-                });
-
-            expect(res.status).toBe(400);
-        });
-
-        it('should reject when payment not captured', async () => {
-            fetchPayment.mockResolvedValueOnce({ status: 'created', method: 'upi', amount: 50000 });
-
-            const res = await request(app)
-                .post('/api/v1/admin/admin-wallet/razorpay-verify')
-                .set('Authorization', `Bearer ${adminToken}`)
-                .send({
-                    razorpayOrderId: 'order_test123',
-                    razorpayPaymentId: 'pay_test456',
-                    razorpaySignature: 'sig_test789'
-                });
-
-            expect(res.status).toBe(400);
-        });
-
-        it('should reject when fetchPayment throws (no fallback)', async () => {
-            fetchPayment.mockRejectedValueOnce(new Error('Network error'));
-
-            const res = await request(app)
-                .post('/api/v1/admin/admin-wallet/razorpay-verify')
-                .set('Authorization', `Bearer ${adminToken}`)
-                .send({
-                    razorpayOrderId: 'order_test123',
-                    razorpayPaymentId: 'pay_test456',
-                    razorpaySignature: 'sig_test789'
-                });
-
-            // Now returns error instead of fallback with fake data
             expect(res.status).toBe(400);
         });
 
@@ -681,9 +605,8 @@ describe('Admin Wallet Routes', () => {
             const res = await request(app)
                 .post('/api/v1/admin/admin-wallet/razorpay-verify')
                 .send({
-                    razorpayOrderId: 'order_test123',
-                    razorpayPaymentId: 'pay_test456',
-                    razorpaySignature: 'sig_test789'
+                    utrNumber: '987654321098',
+                    amount: 500
                 });
             expect(res.status).toBe(401);
         });
@@ -693,9 +616,8 @@ describe('Admin Wallet Routes', () => {
                 .post('/api/v1/admin/admin-wallet/razorpay-verify')
                 .set('Authorization', `Bearer ${customerToken}`)
                 .send({
-                    razorpayOrderId: 'order_test123',
-                    razorpayPaymentId: 'pay_test456',
-                    razorpaySignature: 'sig_test789'
+                    utrNumber: '987654321098',
+                    amount: 500
                 });
             expect(res.status).toBe(403);
         });

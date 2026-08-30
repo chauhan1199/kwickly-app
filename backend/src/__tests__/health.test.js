@@ -7,11 +7,14 @@ afterAll(async () => { await teardown(); }, 30000);
 afterEach(async () => { await clearCollections(); }, 10000);
 
 describe('Health Check', () => {
-    it('GET /health should return 200 with status ok', async () => {
+    it('GET /health should return 200 with status ok and DB state', async () => {
         const res = await request(app).get('/health');
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('ok');
-        expect(res.body.message).toBe('Kwickly API is running');
+        expect(res.body.db).toBe('connected');
+        expect(res.body.timestamp).toBeDefined();
+        // Tracing header must be present on every response
+        expect(res.headers['x-request-id']).toBeDefined();
     });
 });
 

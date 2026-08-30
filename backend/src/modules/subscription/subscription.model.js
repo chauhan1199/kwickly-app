@@ -18,6 +18,7 @@ const WorkerSubscriptionSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 WorkerSubscriptionSchema.index({ workerId: 1, endDate: -1 });
+WorkerSubscriptionSchema.index({ 'payment.razorpayPaymentId': 1 }, { partialFilterExpression: { 'payment.razorpayPaymentId': { $type: 'string' } } }); // cross-flow UTR replay lookup
 
 const ShopSubscriptionSchema = new mongoose.Schema({
     shopId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true },
@@ -37,6 +38,7 @@ const ShopSubscriptionSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 ShopSubscriptionSchema.index({ shopId: 1, endDate: -1 });
+ShopSubscriptionSchema.index({ 'payment.razorpayPaymentId': 1 }, { partialFilterExpression: { 'payment.razorpayPaymentId': { $type: 'string' } } }); // cross-flow UTR replay lookup
 
 module.exports = {
     WorkerSubscription:     mongoose.model('WorkerSubscription',     WorkerSubscriptionSchema),

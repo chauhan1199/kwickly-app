@@ -14,7 +14,9 @@ describe('Worker Routes', () => {
         const worker = await createTestUser({
             role: 'WORKER', email: `workerw-${uid}@test.com`, phone: `9800${uid}`,
             activeLocation: { type: 'Point', coordinates: [72.8777, 19.0760] },
-            kyc: { status: 'APPROVED', documents: [] }
+            kyc: { status: 'APPROVED', documents: [] },
+            services: [{ categoryName: 'Plumbing', subcategories: ['Tap repair'], isActive: true }],
+            wallet: { balance: 500, upiId: 'worker@upi' }
         });
         workerToken = generateToken(worker);
 
@@ -64,7 +66,8 @@ describe('Worker Routes', () => {
                 .patch('/api/v1/workers/me/online')
                 .set('Authorization', `Bearer ${workerToken}`)
                 .send({ isOnline: true });
-            expect([200, 500]).toContain(res.status);
+            if (res.status !== 200) console.log('DEBUG ONLINE:', JSON.stringify(res.body));
+            expect(res.status).toBe(200);
         });
     });
 
@@ -82,8 +85,16 @@ describe('Worker Routes', () => {
             const res = await request(app)
                 .patch('/api/v1/workers/me/kyc')
                 .set('Authorization', `Bearer ${workerToken}`)
+                .send({ documentType: 'AADHAR', documentUrl: 'https://example.com/aadhar.jpg' });
+            expect(res.status).toBe(200);
+        });
+
+        it('should reject KYC update without a document', async () => {
+            const res = await request(app)
+                .patch('/api/v1/workers/me/kyc')
+                .set('Authorization', `Bearer ${workerToken}`)
                 .send({ documentType: 'AADHAR' });
-            expect([200, 500]).toContain(res.status);
+            expect(res.status).toBe(400);
         });
     });
 });

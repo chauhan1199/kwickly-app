@@ -8,7 +8,9 @@ const subscribeSchema = Joi.object({
     targetRole: Joi.string().valid('WORKER', 'SHOP').default('WORKER'),
     razorpayOrderId: Joi.string().optional(),
     razorpayPaymentId: Joi.string().optional(),
-    razorpaySignature: Joi.string().optional()
+    razorpaySignature: Joi.string().optional(),
+    utrNumber: Joi.string().allow('', null).optional(),
+    paymentMethod: Joi.string().valid('UPI', 'WALLET').default('UPI')
 });
 
 const validateSubscribe = (req, res, next) => {

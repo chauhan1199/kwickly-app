@@ -24,11 +24,13 @@ jest.mock('../middleware/rateLimit.middleware', () => {
 // Mock shoporder model (referenced lazily in deliveryStaff controller)
 jest.mock('../modules/shoporder/shoporder.model', () => ({
     findOne: jest.fn().mockImplementation((query) => {
-        // Return an active order when the controller checks for active deliveries
+        // Return an active order when the controller checks for active deliveries.
+        // The controller chains .lean(), so resolve a chainable thenable.
         if (query && query.status && query.status.$in) {
-            return Promise.resolve({ _id: query._id, status: 'CONFIRMED' });
+            const doc = { _id: query._id, status: 'CONFIRMED' };
+            return { lean: () => Promise.resolve(doc) };
         }
-        return Promise.resolve(null);
+        return { lean: () => Promise.resolve(null) };
     })
 }), { virtual: true });
 

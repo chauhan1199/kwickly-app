@@ -51,7 +51,8 @@ exports.getChatHistory = catchAsync(async (req, res) => {
     const messages = await Message.find(query)
         .populate('senderId', 'name profileImage role')
         .sort('createdAt')
-        .limit(100);
+        .limit(100)
+        .lean();
 
     return successResponse(res, messages, 'Chat history fetched successfully');
 });

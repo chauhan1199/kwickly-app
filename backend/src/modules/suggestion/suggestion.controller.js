@@ -38,7 +38,7 @@ exports.approveSuggestion = catchAsync(async (req, res) => {
     let createdSubcategory = null;
 
     if (sug.type === 'new_category') {
-        const existingCat = await Category.findOne({ name: { $regex: new RegExp(`^${sug.payload.name}$`, 'i') } });
+        const existingCat = await Category.findOne({ name: { $regex: new RegExp(`^${sug.payload.name}$`, 'i') } }).lean();
         if (existingCat) {
             return errorResponse(res, `Category "${existingCat.name}" already exists. Suggestion rejected.`, StatusCodes.CONFLICT);
         }

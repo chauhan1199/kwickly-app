@@ -68,7 +68,7 @@ exports.getProducts = catchAsync(async (req, res) => {
     }
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
-    const products = await Product.find(query).sort('-createdAt');
+    const products = await Product.find(query).sort('-createdAt').lean();
     await setCache(cacheKey, products, 300); // cache for 5 min
     return successResponse(res, products, 'Products fetched');
 });
@@ -78,10 +78,10 @@ exports.getProducts = catchAsync(async (req, res) => {
  * Get all products for the currently logged-in shop owner
  */
 exports.getShopProducts = catchAsync(async (req, res) => {
-    const shop = await Shop.findOne({ ownerId: req.user._id });
+    const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
-    const products = await Product.find({ shopId: shop._id }).sort('-createdAt');
+    const products = await Product.find({ shopId: shop._id }).sort('-createdAt').lean();
     return successResponse(res, products, 'Shop products fetched');
 });
 
@@ -89,7 +89,7 @@ exports.getShopProducts = catchAsync(async (req, res) => {
  * GET /api/v1/products/:id
  */
 exports.getProductById = catchAsync(async (req, res) => {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).lean();
     if (!product) return errorResponse(res, 'Product not found', StatusCodes.NOT_FOUND);
     return successResponse(res, product, 'Product fetched');
 });
@@ -101,7 +101,7 @@ exports.getProductById = catchAsync(async (req, res) => {
 exports.createProduct = catchAsync(async (req, res) => {
     let targetShopId = req.body.shopId;
     if (req.user.role !== 'ADMIN') {
-        const shop = await Shop.findOne({ ownerId: req.user._id });
+        const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
         if (!shop) return errorResponse(res, 'Shop not found. Register your shop first.', StatusCodes.NOT_FOUND);
         targetShopId = shop._id;
     }
@@ -148,7 +148,7 @@ exports.createProduct = catchAsync(async (req, res) => {
 
     // Log admin activity notification
     try {
-        const shop = await Shop.findById(targetShopId);
+        const shop = await Shop.findById(targetShopId).lean();
         if (shop) await logProductActivity('CREATE', product, shop, req.user?._id);
     } catch (_) {}
 
@@ -164,12 +164,12 @@ exports.createProduct = catchAsync(async (req, res) => {
 exports.updateProduct = catchAsync(async (req, res) => {
     const query = { _id: req.params.id };
     if (req.user.role !== 'ADMIN') {
-        const shop = await Shop.findOne({ ownerId: req.user._id });
+        const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
         if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
         query.shopId = shop._id;
     }
 
-    const existing = await Product.findOne(query).select('imageUrl');
+    const existing = await Product.findOne(query).select('imageUrl').lean();
     const updateData = { ...req.body };
     if (req.file) {
         const { url } = await uploadImage(req.file.buffer, 'kwickly/products');
@@ -220,7 +220,7 @@ exports.updateProduct = catchAsync(async (req, res) => {
 
     // Log admin activity notification
     try {
-        const shop = await Shop.findById(product.shopId);
+        const shop = await Shop.findById(product.shopId).lean();
         if (shop) await logProductActivity('UPDATE', product, shop, req.user?._id);
     } catch (_) {}
 
@@ -236,7 +236,7 @@ exports.updateProduct = catchAsync(async (req, res) => {
 exports.deleteProduct = catchAsync(async (req, res) => {
     const query = { _id: req.params.id };
     if (req.user.role !== 'ADMIN') {
-        const shop = await Shop.findOne({ ownerId: req.user._id });
+        const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
         if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
         query.shopId = shop._id;
     }
@@ -250,7 +250,7 @@ exports.deleteProduct = catchAsync(async (req, res) => {
 
     // Log admin activity notification
     try {
-        const shop = await Shop.findById(product.shopId);
+        const shop = await Shop.findById(product.shopId).lean();
         if (shop) await logProductActivity('DELETE', product, shop, req.user?._id);
     } catch (_) {}
 

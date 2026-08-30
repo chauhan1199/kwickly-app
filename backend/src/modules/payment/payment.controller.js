@@ -13,7 +13,7 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
-const { generateUpiIntentUri, isValidUtr } = require('../../helpers/upi.helper');
+const { generateUpiIntentUri, isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 
@@ -117,24 +117,22 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         return errorResponse(res, 'Please enter a valid 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
     }
 
-    // Anti-replay / duplicate UTR check across past transactions
-    const existingTxn = await WalletTxn.findOne({
-        razorpayPaymentId: upiRef,
-        status: 'COMPLETED'
+    // Anti-replay / duplicate UTR check across ALL flows (topup, payment, subscription)
+    const utrUsage = await findUtrUsage(upiRef);
+    // Allow idempotent re-submission of the SAME payment record for this order:
+    // either the Payment itself, or the pending WalletTxn topup it created for
+    // the same user (the topup branch below already guards duplicates).
+    const existingForOrder = await Payment.findOne({
+        $or: [{ razorpayOrderId: orderRef }, ...(orderId ? [{ orderId }] : [])]
     }).lean();
+    const isSelfRetry = existingForOrder &&
+        String(existingForOrder.razorpayPaymentId || '') === upiRef &&
+        (utrUsage?.flow === 'WALLET_TOPUP'
+            ? String(utrUsage.ref.userId || '') === String(req.user._id)
+            : String(utrUsage?.ref?._id || '') === String(existingForOrder._id));
 
-    if (existingTxn) {
-        return errorResponse(res, 'This UPI Reference / Transaction ID has already been credited to your wallet.', StatusCodes.CONFLICT);
-    }
-
-    const existingPayment = await Payment.findOne({
-        razorpayPaymentId: upiRef,
-        status: 'CAPTURED',
-        razorpayOrderId: { $ne: orderRef }
-    }).lean();
-
-    if (existingPayment) {
-        return errorResponse(res, 'This UPI Reference / Transaction ID has already been used for another payment.', StatusCodes.CONFLICT);
+    if (utrUsage && !isSelfRetry) {
+        return errorResponse(res, 'This UPI Reference / Transaction ID has already been submitted or used on the platform.', StatusCodes.CONFLICT);
     }
 
     // Use transactions to prevent partial updates
@@ -307,24 +305,46 @@ exports.getMyPayments = catchAsync(async (req, res) => {
 exports.getPaymentHistory = exports.getMyPayments;
 
 /**
- * GET /api/v1/payments/:id
+ * GET /api/v1/payments/:orderId
+ * Route param is :orderId (holds either a payment id or an order reference)
  */
 exports.getPaymentById = catchAsync(async (req, res) => {
-    const payment = await Payment.findById(req.params.id).lean();
+    const ref = req.params.orderId || req.params.id;
+    let payment = null;
+
+    // Try payment id first, then fall back to payment-by-order lookup
+    if (mongoose.isValidObjectId(ref)) {
+        payment = await Payment.findById(ref).lean();
+    }
+    if (!payment && mongoose.isValidObjectId(ref)) {
+        payment = await Payment.findOne({ orderId: ref }).lean();
+    }
     if (!payment) return errorResponse(res, 'Payment not found', StatusCodes.NOT_FOUND);
     return successResponse(res, payment, 'Payment fetched');
 });
 exports.getPaymentByOrder = exports.getPaymentById;
 
 /**
- * POST /api/v1/payments/:id/refund
+ * POST /api/v1/payments/refund (Admin)
+ * Refunds a payment back to the customer's wallet.
+ * Body: { orderId, amount?, reason? }
  */
 exports.refundPayment = catchAsync(async (req, res) => {
-    const { amount, reason } = req.body;
-    const payment = await Payment.findById(req.params.id);
-    if (!payment) return errorResponse(res, 'Payment not found', StatusCodes.NOT_FOUND);
+    const { orderId, amount, reason } = req.body;
 
-    const refundAmount = amount || payment.amount;
+    let payment;
+    if (orderId) {
+        payment = await Payment.findOne({ orderId });
+    } else {
+        payment = await Payment.findById(req.params.id);
+    }
+    if (!payment) return errorResponse(res, 'Payment not found for this order', StatusCodes.NOT_FOUND);
+
+    if (payment.status === 'REFUNDED') {
+        return errorResponse(res, 'Payment has already been refunded', StatusCodes.BAD_REQUEST);
+    }
+
+    const refundAmount = Number(amount) || payment.amount;
 
     // Credit refund back to customer wallet
     const customer = await Customer.findByIdAndUpdate(
