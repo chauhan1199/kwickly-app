@@ -18,6 +18,7 @@ const { initSocket } = require('./helpers/socket.helper');
 const { initSocketHandlers } = require('./sockets');
 const { startCronEngine } = require('./workers/cronEngine');
 const { startSubscriptionCron } = require('./cron/subscription.cron');
+const { startKeepAlive } = require('./helpers/keepAlive.helper');
 const logger = require('./helpers/logger.helper');
 
 const PORT = process.env.PORT || 5000;
@@ -48,6 +49,9 @@ const startServer = async () => {
 
         server.listen(PORT, () => {
             logger.info(`✅ Kwickly server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+            // Stops an idle-scaled host from suspending the process, which would
+            // also stop every cron sweep. No-op outside production.
+            startKeepAlive();
         });
     } catch (error) {
         logger.error('Failed to start server:', error);

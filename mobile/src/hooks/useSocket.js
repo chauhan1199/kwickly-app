@@ -32,9 +32,16 @@ const useSocket = (options = {}) => {
     const token = await AsyncStorage.getItem('userToken');
 
     const socket = io(SOCKET_URL, {
-      transports: ['websocket'],
+      // Try websocket first, but fall back to long-polling: some mobile carriers
+      // and corporate proxies block websocket upgrades outright, and losing the
+      // socket means losing every live job/order update.
+      transports: ['websocket', 'polling'],
       auth: { token },
-      reconnectionAttempts: 5,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      timeout: 30000,
     });
 
     socket.on('connect', () => {

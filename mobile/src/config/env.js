@@ -23,5 +23,6 @@ if (IS_PROD && !baseUrl.startsWith('https://')) {
 }
 
 export const API_BASE_URL = `${baseUrl}/api/v1`;
+export const SERVER_BASE_URL = baseUrl; // origin only — /health, static assets
 export const SOCKET_URL = baseUrl;
 export const APP_LOGO_URL = 'https://kwickly.in/logo.png';

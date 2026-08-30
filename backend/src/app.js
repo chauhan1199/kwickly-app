@@ -20,9 +20,19 @@ app.use(slowRequestLogger);
 app.set('trust proxy', 1);
 
 // ─── Allowed Origins ─────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:19006,http://localhost:5173,http://localhost:5174')
-    .split(',')
-    .map(o => o.trim());
+// First-party deployments are always allowed. Keeping them in code means an
+// incomplete ALLOWED_ORIGINS on the host can never lock our own admin panel out
+// of its own API — the failure mode is a browser CORS block that looks like the
+// panel "crashing" with no server-side error.
+const FIRST_PARTY_ORIGINS = ['https://kwickly-app.vercel.app'];
+
+const allowedOrigins = [
+    ...FIRST_PARTY_ORIGINS,
+    ...(process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:19006,http://localhost:5173,http://localhost:5174')
+        .split(',')
+        .map(o => o.trim())
+        .filter(Boolean),
+];
 
 // Enable CORS with wildcard and whitelist support
 app.use(cors({

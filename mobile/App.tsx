@@ -8,9 +8,14 @@ import { CartProvider } from './src/context/CartContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import OfflineBanner from './src/components/OfflineBanner';
 import { initCrashReporting } from './src/utils/crashReporter';
+import { warmUpBackend } from './src/services/api';
 
 // Global JS error capture (no-op when ErrorUtils is unavailable).
 initCrashReporting();
+
+// Wake a sleeping backend instance now, so the user's first tap isn't the
+// request that waits out the cold start.
+warmUpBackend();
 
 function App() {
   LogBox.ignoreAllLogs();

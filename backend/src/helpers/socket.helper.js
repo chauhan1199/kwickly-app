@@ -6,9 +6,15 @@ let io = null;
 
 const initSocket = (server) => {
     try {
-        const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:19006')
-            .split(',')
-            .map(o => o.trim());
+        // First-party admin panel is always allowed (see app.js) so a missing
+        // ALLOWED_ORIGINS on the host can't kill the dashboard's live updates.
+        const allowedOrigins = [
+            'https://kwickly-app.vercel.app',
+            ...(process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:19006')
+                .split(',')
+                .map(o => o.trim())
+                .filter(Boolean),
+        ];
 
         io = new Server(server, {
             cors: {

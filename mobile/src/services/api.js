@@ -1,17 +1,31 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DeviceEventEmitter } from 'react-native';
-import { API_BASE_URL } from '../config/env';
+import { API_BASE_URL, SERVER_BASE_URL } from '../config/env';
 
-// Default request timeout: 10 seconds for normal JSON calls.
+// Default request timeout: 25 seconds for normal JSON calls. The API is hosted
+// on an instance that sleeps when idle and can take ~30s to answer the first
+// request, so a short timeout would fail every cold start (see warmUpBackend).
 // Image/photo uploads get a longer window (see request interceptor below).
-const DEFAULT_TIMEOUT = 10000;
+const DEFAULT_TIMEOUT = 25000;
 const UPLOAD_TIMEOUT = 60000;
+const COLD_START_TIMEOUT = 60000;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: DEFAULT_TIMEOUT,
 });
+
+/**
+ * Fire-and-forget ping that wakes a sleeping backend instance while the user is
+ * still on the splash/login screen, so their first real request isn't the one
+ * paying the cold-start cost. Never throws.
+ */
+export const warmUpBackend = () => {
+  // Never fire during unit tests — mounting <App /> must not hit the network.
+  if (typeof jest !== 'undefined') return;
+  axios.get(`${SERVER_BASE_URL}/health`, { timeout: COLD_START_TIMEOUT }).catch(() => {});
+};
 
 const isUploadRequest = (config) => {
   if (!config) return false;
@@ -47,7 +61,7 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    // Large image uploads legitimately take longer than the 10s default.
+    // Large image uploads legitimately take longer than the default window.
     if (isUploadRequest(config)) {
       config.timeout = Math.max(config.timeout || 0, UPLOAD_TIMEOUT);
     }
@@ -68,6 +82,22 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Cold-start / flaky-transport retry, once, for reads only. A POST/PATCH is
+    // never replayed — a timed-out write may still have been applied server-side
+    // and retrying it could double-create a job, order or wallet entry.
+    const config = error.config;
+    const method = (config?.method || 'get').toLowerCase();
+    if (
+      config &&
+      !config.__retried &&
+      !error.response &&
+      (method === 'get' || method === 'head')
+    ) {
+      config.__retried = true;
+      config.timeout = COLD_START_TIMEOUT;
+      return api(config);
+    }
+
     if (error.response?.status === 401) {
       // Clear the full stored session; AuthContext listens for this event
       // and resets state, landing the user back on the auth stack.

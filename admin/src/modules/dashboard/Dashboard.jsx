@@ -57,6 +57,9 @@ export default function Dashboard() {
     } finally { setLoading(false) }
   }
 
+  const s = stats || { totalCustomers: 0, totalWorkers: 0, totalShops: 0, activeJobs: 0, totalRevenue: 0, activities: [], topWorkers: [], chartData: [] }
+  const filteredActivities = useMemo(() => (s.activities || []).filter(a => !activitySearch || a.text?.toLowerCase().includes(activitySearch.toLowerCase())), [s.activities, activitySearch])
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>Loading dashboard...</div>
 
   if (fetchFailed) return (
@@ -71,7 +74,6 @@ export default function Dashboard() {
     </div>
   )
 
-  const s = stats || { totalCustomers: 0, totalWorkers: 0, totalShops: 0, activeJobs: 0, totalRevenue: 0, activities: [], topWorkers: [], chartData: [] }
   const chartData = s.chartData || []
   const maxJobs = chartData.length > 0 ? Math.max(...chartData.map(d => d.jobs)) : 100
   const maxRev = chartData.length > 0 ? Math.max(...chartData.map(d => d.revenue)) : 10000
@@ -96,8 +98,6 @@ export default function Dashboard() {
     if (jobId) navigate('/jobs')
     else if (a.text?.toLowerCase().includes('order')) navigate('/orders')
   }
-
-  const filteredActivities = useMemo(() => (s.activities || []).filter(a => !activitySearch || a.text?.toLowerCase().includes(activitySearch.toLowerCase())), [s.activities, activitySearch])
 
   return (
     <div>
