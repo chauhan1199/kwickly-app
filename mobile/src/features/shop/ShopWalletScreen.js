@@ -44,6 +44,7 @@ import {
   Check
 } from 'lucide-react-native';
 import { shopService } from '../../services/shopService';
+import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
 import { walletService } from '../../services/walletService';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -80,6 +81,8 @@ const ShopWalletScreen = ({ navigation }) => {
   const [upiTxnId, setUpiTxnId] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('');
   const [dynamicPlans, setDynamicPlans] = useState([]);
+  const [subPaymentStep, setSubPaymentStep] = useState(false);
+  const [subUtr, setSubUtr] = useState('');
 
   // Add Account form
   const [newAccountType, setNewAccountType] = useState('BANK'); // 'BANK' or 'UPI'
@@ -98,7 +101,8 @@ const ShopWalletScreen = ({ navigation }) => {
       ]);
 
       if (settingsRes?.data?.status === 'success') {
-        const plans = settingsRes.data.data.subscriptionPlans || [];
+        const plans = (settingsRes.data.data.subscriptionPlans || [])
+          .filter(p => !p.targetRole || p.targetRole === 'SHOP');
         const formatted = plans.map(p => ({
           id: p.id || p.label,
           title: p.label || p.name,
@@ -107,12 +111,10 @@ const ShopWalletScreen = ({ navigation }) => {
           priceNum: p.price || 0,
           days: p.durationDays || 30
         }));
-        const allPlans = [
-          { id: 'FREE_TRIAL', title: 'Shop 6-Month Free Trial', desc: '180 days unlimited orders', price: '₹0', priceNum: 0, days: 180 },
-          ...formatted
-        ];
-        setDynamicPlans(allPlans);
-        if (!selectedPlan) setSelectedPlan(allPlans[0].id);
+        setDynamicPlans(formatted);
+        if (!formatted.find(p => p.id === selectedPlan)) {
+          setSelectedPlan(formatted[0]?.id || '');
+        }
       }
 
       if (shopRes?.data?.status === 'success') {
@@ -212,12 +214,19 @@ const ShopWalletScreen = ({ navigation }) => {
     setSubmittingAction(true);
     try {
       const amt = parseFloat(topUpAmount);
-      const res = await walletService.topupWallet(amt, upiTxnId.trim());
+      const utr = upiTxnId.trim();
+      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: utr }, null, utr);
       if (res.data?.status === 'success') {
         setUpiPaymentModalVisible(false);
         setUpiTxnId('');
         setTopUpAmount('');
-        Alert.alert('Payment Successful 🎉', `₹${amt} credited to your Shop Wallet.`);
+        const isPending = res.data.data?.status === 'PENDING_VERIFICATION';
+        Alert.alert(
+          isPending ? 'Top-up Submitted ⏳' : 'Payment Successful 🎉',
+          isPending
+            ? `Your UPI payment of ₹${amt} (UTR: ${utr}) has been submitted for admin verification. It will be credited to your Shop Wallet once confirmed.`
+            : `₹${amt} credited to your Shop Wallet.`
+        );
         fetchWallet();
       } else {
         Alert.alert('Verification Issue', res.data?.message || 'Payment received and queued for verification.');
@@ -384,24 +393,64 @@ const ShopWalletScreen = ({ navigation }) => {
   // ═══════════════════════════════════════════
   // SUBSCRIPTION MANAGEMENT
   // ═══════════════════════════════════════════
-  const handleConfirmSubscription = async () => {
-    try {
-      setSubmittingAction(true);
-      const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
-      const days = planConfig?.days || 30;
-      const d = new Date();
-      d.setDate(d.getDate() + days);
+  const handleConfirmSubscription = () => {
+    const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
+    if (!planConfig || !planConfig.priceNum) {
+      Alert.alert('No Plan Selected', 'Please select a plan to continue.');
+      return;
+    }
+    setSubUtr('');
+    setSubPaymentStep(true);
+  };
 
-      const res = await shopService.updateMyShop({
-        subscription: { planId: selectedPlan, expiryDate: d, status: 'ACTIVE', isTrial: selectedPlan === 'FREE_TRIAL' }
+  const handlePaySubscriptionUpi = async () => {
+    const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
+    const amt = planConfig?.priceNum || 0;
+    const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=Kwickly_Admin&am=${amt.toFixed(2)}&cu=INR&tn=Shop_Subscription_${selectedPlan}`;
+    try {
+      const supported = await Linking.canOpenURL(upiUrl);
+      if (supported) {
+        await Linking.openURL(upiUrl);
+      } else {
+        Alert.alert('UPI App Required', `Please copy UPI ID "${ADMIN_UPI_ID}" and pay ₹${amt} from GPay, PhonePe, or Paytm.`);
+      }
+    } catch (e) {
+      Alert.alert('Payment Info', `Transfer ₹${amt} to Admin UPI: ${ADMIN_UPI_ID}\nThen enter the 12-digit UTR below.`);
+    }
+  };
+
+  const handleSubmitSubscriptionUtr = async () => {
+    const utr = subUtr.trim();
+    const utrError = utrValidationError(utr);
+    if (utrError) {
+      Alert.alert('Invalid UTR', utrError);
+      return;
+    }
+    const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
+
+    setSubmittingAction(true);
+    try {
+      const res = await shopService.subscribePlan({
+        planId: selectedPlan,
+        paymentMethod: 'UPI',
+        utrNumber: utr,
+        targetRole: 'SHOP'
       });
-      if (res.data?.status === 'success') {
-        setSubscriptionModalVisible(false);
+      const data = res.data?.data;
+      setSubscriptionModalVisible(false);
+      setSubPaymentStep(false);
+      setSubUtr('');
+      if (data?.status === 'PENDING_VERIFICATION') {
+        Alert.alert(
+          'Payment Submitted ⏳',
+          `Your UPI payment of ₹${planConfig?.priceNum || 0} for the "${planConfig?.title}" plan (UTR: ${utr}) has been submitted for admin verification. Your plan will activate automatically once confirmed.`
+        );
+      } else {
         Alert.alert('Subscription Active 🎉', `Your plan "${planConfig?.title || 'Active'}" has been activated!`);
         fetchWallet();
       }
     } catch (e) {
-      Alert.alert('Error', e?.response?.data?.message || 'Failed to update subscription');
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to subscribe. Please try again.');
     } finally {
       setSubmittingAction(false);
     }
@@ -917,50 +966,104 @@ const ShopWalletScreen = ({ navigation }) => {
       {/* ═══════════════════════════════════════════
           MODAL 5: SUBSCRIPTION PLANS
       ═══════════════════════════════════════════ */}
-      <Modal visible={subscriptionModalVisible} transparent animationType="slide" onRequestClose={() => setSubscriptionModalVisible(false)}>
+      <Modal visible={subscriptionModalVisible} transparent animationType="slide" onRequestClose={() => { setSubPaymentStep(false); setSubscriptionModalVisible(false); }}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>Shop Subscriptions</Text>
-                <Text style={styles.modalSub}>Select a plan for unlimited orders & delivery</Text>
+                <Text style={styles.modalSub}>{subPaymentStep ? 'Complete your UPI payment & enter UTR' : 'Select a plan for unlimited orders & delivery'}</Text>
               </View>
-              <TouchableOpacity onPress={() => setSubscriptionModalVisible(false)} style={styles.closeBtn}>
+              <TouchableOpacity onPress={() => { setSubPaymentStep(false); setSubscriptionModalVisible(false); }} style={styles.closeBtn}>
                 <X size={20} color={theme.colors.textDim} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-              {dynamicPlans.map(plan => (
-                <TouchableOpacity
-                  key={plan.id}
-                  style={[styles.subPlanCard, selectedPlan === plan.id && styles.subPlanCardActive]}
-                  onPress={() => setSelectedPlan(plan.id)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.subPlanTitle, selectedPlan === plan.id && { color: '#6C47FF' }]}>{plan.title}</Text>
-                    <Text style={styles.subPlanDesc}>{plan.desc}</Text>
+            {subPaymentStep ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.upiPayBox}>
+                  <Text style={styles.upiPayAmount}>Pay ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0}</Text>
+                  <Text style={styles.upiPayNote}>
+                    to the Kwickly Admin UPI ID below, then enter the 12-digit UPI Reference / UTR Number from your payment receipt.
+                  </Text>
+                  <View style={styles.upiPayIdRow}>
+                    <Text style={styles.upiPayIdText}>{ADMIN_UPI_ID}</Text>
+                    <TouchableOpacity style={styles.upiPayCopyBtn} onPress={() => { Clipboard.setString(ADMIN_UPI_ID); Alert.alert('Copied 📋', 'Admin UPI ID copied to clipboard.'); }}>
+                      <Copy size={14} color="#6C47FF" />
+                    </TouchableOpacity>
                   </View>
-                  <Text style={[styles.subPlanPrice, selectedPlan === plan.id && { color: '#6C47FF' }]}>{plan.price}</Text>
-                  <View style={[styles.radioCircle, selectedPlan === plan.id && styles.radioCircleActive]}>
-                    {selectedPlan === plan.id && <View style={styles.radioDot} />}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
 
-            <TouchableOpacity 
-              style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]} 
-              onPress={handleConfirmSubscription}
-              disabled={submittingAction}
-            >
-              {submittingAction ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.primaryBtnText}>Activate Subscription →</Text>
-              )}
-            </TouchableOpacity>
+                  <TouchableOpacity style={styles.primaryBtn} onPress={handlePaySubscriptionUpi}>
+                    <Zap size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.primaryBtnText}>Open UPI App & Pay</Text>
+                  </TouchableOpacity>
+
+                  <Text style={styles.upiPayLabel}>12-Digit UPI Reference / UTR Number *</Text>
+                  <TextInput
+                    style={styles.upiPayInput}
+                    placeholder="e.g. 423456789012"
+                    placeholderTextColor={theme.colors.textDim}
+                    value={subUtr}
+                    onChangeText={setSubUtr}
+                    keyboardType="number-pad"
+                    maxLength={12}
+                  />
+
+                  <TouchableOpacity
+                    style={[styles.primaryBtn, (!isValidUtr(subUtr.trim()) || submittingAction) && { opacity: 0.5 }]}
+                    onPress={handleSubmitSubscriptionUtr}
+                    disabled={!isValidUtr(subUtr.trim()) || submittingAction}
+                  >
+                    {submittingAction ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <>
+                        <ShieldCheck size={16} color="#fff" style={{ marginRight: 6 }} />
+                        <Text style={styles.primaryBtnText}>✓ I Have Paid • Submit for Verification</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => setSubPaymentStep(false)} style={{ alignItems: 'center', marginTop: 10 }}>
+                    <Text style={{ color: '#6C47FF', fontWeight: '700', fontSize: 13 }}>← Back to Plans</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            ) : (
+              <>
+                <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                  {dynamicPlans.map(plan => (
+                    <TouchableOpacity
+                      key={plan.id}
+                      style={[styles.subPlanCard, selectedPlan === plan.id && styles.subPlanCardActive]}
+                      onPress={() => setSelectedPlan(plan.id)}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.subPlanTitle, selectedPlan === plan.id && { color: '#6C47FF' }]}>{plan.title}</Text>
+                        <Text style={styles.subPlanDesc}>{plan.desc}</Text>
+                      </View>
+                      <Text style={[styles.subPlanPrice, selectedPlan === plan.id && { color: '#6C47FF' }]}>{plan.price}</Text>
+                      <View style={[styles.radioCircle, selectedPlan === plan.id && styles.radioCircleActive]}>
+                        {selectedPlan === plan.id && <View style={styles.radioDot} />}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]}
+                  onPress={handleConfirmSubscription}
+                  disabled={submittingAction || !selectedPlan}
+                >
+                  {submittingAction ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.primaryBtnText}>Pay via UPI & Activate →</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -1730,6 +1833,67 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontWeight: '900',
     color: theme.colors.text,
     marginRight: 10,
+  },
+  // Subscription UPI payment step
+  upiPayBox: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    padding: 16,
+  },
+  upiPayAmount: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: theme.colors.text,
+  },
+  upiPayNote: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    lineHeight: 17,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  upiPayIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  upiPayIdText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: theme.colors.text,
+    flex: 1,
+  },
+  upiPayCopyBtn: {
+    padding: 6,
+  },
+  upiPayLabel: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#6C47FF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  upiPayInput: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#6C47FF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 16,
+    fontWeight: '800',
+    color: theme.colors.text,
+    letterSpacing: 1,
+    marginBottom: 12,
   },
   radioCircle: {
     width: 20,

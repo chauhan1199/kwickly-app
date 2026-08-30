@@ -38,6 +38,10 @@ export const shopService = {
   topUp: (amount, paymentDetails) =>
     withErrorHandling(() => api.post('/wallet/topup', { amount, paymentDetails })),
 
+  // UPI → PENDING_VERIFICATION (admin verifies UTR); WALLET → instant activation
+  subscribePlan: ({ planId, paymentMethod = 'UPI', utrNumber, targetRole = 'SHOP' } = {}) =>
+    withErrorHandling(() => api.post('/subscriptions/subscribe', { planId, paymentMethod, utrNumber, targetRole })),
+
   updateDeliveryConfig: (shopId, config) =>
     withErrorHandling(() => api.patch(`/shops/${shopId}/delivery-config`, config)),
 

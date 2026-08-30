@@ -8,6 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import { walletService } from '../../services/walletService';
+import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
 import { Wallet, Zap, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield } from 'lucide-react-native';
 import { GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon } from '../../components/ui/UpiBrandIcons';
 
@@ -110,11 +111,9 @@ const WalletTopupScreen = ({ navigation }) => {
   const handleConfirmUpiTopup = async () => {
     if (!upiOrderData) return;
     const cleanUtr = upiTxnId.trim();
-    if (!cleanUtr || cleanUtr.length < 4) {
-      return Alert.alert(
-        'UTR Required',
-        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.'
-      );
+    const utrError = utrValidationError(cleanUtr);
+    if (utrError) {
+      return Alert.alert('UTR Required', utrError);
     }
 
     setIsVerifying(true);
@@ -340,10 +339,10 @@ const WalletTopupScreen = ({ navigation }) => {
                 <TouchableOpacity
                   style={[
                     styles.confirmPayBtn,
-                    (!upiTxnId.trim() || upiTxnId.trim().length < 4 || isVerifying) && { opacity: 0.5 }
+                    (!isValidUtr(upiTxnId.trim()) || isVerifying) && { opacity: 0.5 }
                   ]}
                   onPress={handleConfirmUpiTopup}
-                  disabled={!upiTxnId.trim() || upiTxnId.trim().length < 4 || isVerifying}
+                  disabled={!isValidUtr(upiTxnId.trim()) || isVerifying}
                 >
                   {isVerifying ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -351,7 +350,7 @@ const WalletTopupScreen = ({ navigation }) => {
                     <>
                       <ShieldCheck size={18} color="#fff" style={{ marginRight: 6 }} />
                       <Text style={styles.confirmPayBtnText}>
-                        {upiTxnId.trim().length >= 4
+                        {isValidUtr(upiTxnId.trim())
                           ? `✓ I Have Paid ₹${upiOrderData?.amount || 0} • Add to Wallet`
                           : 'Enter UTR Number to Confirm'}
                       </Text>

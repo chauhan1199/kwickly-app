@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
 import { User, Wrench, CheckCircle2, Store, Info, ChevronLeft, MessageSquare, Smartphone } from 'lucide-react-native';
-import api from '../../services/api';
+import api, { getApiErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
@@ -110,7 +110,7 @@ const RoleSelection = ({ navigation, route }) => {
         });
       }
     } catch (error) {
-      const errMessage = error.response?.data?.message || error.message || 'Something went wrong';
+      const errMessage = getApiErrorMessage(error, 'Something went wrong. Please try again.');
       showAlert('Error', errMessage);
     } finally {
       setLoading(false);

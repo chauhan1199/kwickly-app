@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useEffect, useRef } from 'react';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useAuth } from '../../context/AuthContext';
 import AuthStack from './AuthStack';
@@ -9,6 +9,7 @@ import WorkerTabs from './WorkerTabs';
 import ChatScreen from '../../features/chat/ChatScreen';
 import { View, ActivityIndicator } from 'react-native';
 import Theme from '../../constants/Theme';
+import { watchDeepLinksWhileLoggedOut } from '../../utils/deepLink';
 
 const Stack = createStackNavigator();
 
@@ -40,8 +41,35 @@ const linking = {
   },
 };
 
+export const navigationRef = createNavigationContainerRef();
+
 const RootNavigator = () => {
-  const { userToken, userRole, isLoading } = useAuth();
+  const { userToken, userRole, user, isLoading, pendingDeepLink, clearPendingDeepLink } = useAuth();
+  const lastAppliedDeepLink = useRef(null);
+
+  // While the user is logged out, watch for deep links to authenticated
+  // routes and stash them for post-login redirect. The navigator itself only
+  // registers authenticated screens when a token exists, so an
+  // unauthenticated deep link cannot reach them and lands on Auth instead.
+  const loggedOutRef = useRef(userToken == null);
+  loggedOutRef.current = userToken == null;
+  useEffect(() => {
+    return watchDeepLinksWhileLoggedOut(() => loggedOutRef.current);
+  }, []);
+
+  // After login, redirect to a pending deep-link target if the logged-in
+  // role can actually access it.
+  useEffect(() => {
+    if (userToken == null || !pendingDeepLink) return;
+    if (lastAppliedDeepLink.current === pendingDeepLink) return;
+    lastAppliedDeepLink.current = pendingDeepLink;
+    if (navigationRef.isReady() && pendingDeepLink.role === userRole) {
+      navigationRef.navigate(pendingDeepLink.app, {
+        screen: pendingDeepLink.screen,
+      });
+    }
+    clearPendingDeepLink();
+  }, [userToken, userRole, pendingDeepLink, clearPendingDeepLink, user]);
 
   if (isLoading) {
     return (
@@ -52,7 +80,7 @@ const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer linking={linking}>
+    <NavigationContainer linking={linking} ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {userToken == null ? (
           <Stack.Screen name="Auth" component={AuthStack} />

@@ -447,7 +447,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
             jobLocation = { type: 'Point', coordinates: [Number(lon), Number(lat)] };
           }
         } catch (geoErr) {
-          console.log('[DescribeJob] geocode fallback error:', geoErr.message);
+          console.warn('[DescribeJob] geocode fallback error:', geoErr.message);
         }
       }
 

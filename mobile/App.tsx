@@ -7,6 +7,10 @@ import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import OfflineBanner from './src/components/OfflineBanner';
+import { initCrashReporting } from './src/utils/crashReporter';
+
+// Global JS error capture (no-op when ErrorUtils is unavailable).
+initCrashReporting();
 
 function App() {
   LogBox.ignoreAllLogs();

@@ -186,7 +186,7 @@ const cleanNotificationText = (str) => {
         navigation.navigate('EditProfile');
       }
     } catch (err) {
-      console.log('[NotificationPress] Navigation error:', err.message);
+      console.warn('[NotificationPress] Navigation error:', err.message);
     }
   };
 

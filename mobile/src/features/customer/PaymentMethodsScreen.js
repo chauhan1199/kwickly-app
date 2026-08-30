@@ -14,7 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getDefaultPaymentMethod, setDefaultPaymentMethod } from '../../utils/paymentMethodPreference';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   CreditCard,
@@ -85,33 +85,43 @@ export const PaymentMethodsScreen = ({ navigation }) => {
   // Inline Validation Errors
   const [errors, setErrors] = useState({});
 
+  // Persisted local preference for which saved method is default.
+
   useEffect(() => {
-    const loadedMethods = [];
-    if (user?.wallet?.upiId) {
-      loadedMethods.push({
-        id: 'upi',
-        type: 'UPI',
-        title: 'UPI Virtual Payment',
-        details: user.wallet.upiId,
-        icon: Smartphone,
-        isDefault: !user?.wallet?.bankDetails
-      });
-    }
-    if (user?.wallet?.bankDetails && user.wallet.bankDetails.accountNumber) {
-      const bank = user.wallet.bankDetails;
-      loadedMethods.push({
-        id: 'bank',
-        type: 'BANK',
-        title: bank.bankName || 'Bank Account',
-        details: `Account: •••• ${bank.accountNumber.slice(-4)}  |  IFSC: ${bank.ifscCode || 'N/A'}`,
-        accountNumber: bank.accountNumber,
-        ifscCode: bank.ifscCode,
-        bankName: bank.bankName,
-        icon: Building2,
-        isDefault: !!user?.wallet?.bankDetails && !user?.wallet?.upiId
-      });
-    }
-    setMethods(loadedMethods);
+    let cancelled = false;
+    (async () => {
+      let preferred = null;
+      try {
+        preferred = await getDefaultPaymentMethod();
+      } catch (_) {}
+      const loadedMethods = [];
+      if (user?.wallet?.upiId) {
+        loadedMethods.push({
+          id: 'upi',
+          type: 'UPI',
+          title: 'UPI Virtual Payment',
+          details: user.wallet.upiId,
+          icon: Smartphone,
+          isDefault: preferred ? preferred === 'upi' : !user?.wallet?.bankDetails
+        });
+      }
+      if (user?.wallet?.bankDetails && user.wallet.bankDetails.accountNumber) {
+        const bank = user.wallet.bankDetails;
+        loadedMethods.push({
+          id: 'bank',
+          type: 'BANK',
+          title: bank.bankName || 'Bank Account',
+          details: `Account: •••• ${bank.accountNumber.slice(-4)}  |  IFSC: ${bank.ifscCode || 'N/A'}`,
+          accountNumber: bank.accountNumber,
+          ifscCode: bank.ifscCode,
+          bankName: bank.bankName,
+          icon: Building2,
+          isDefault: preferred ? preferred === 'bank' : !!user?.wallet?.bankDetails && !user?.wallet?.upiId
+        });
+      }
+      if (!cancelled) setMethods(loadedMethods);
+    })();
+    return () => { cancelled = true; };
   }, [user]);
 
   const validateForm = () => {
@@ -236,7 +246,8 @@ export const PaymentMethodsScreen = ({ navigation }) => {
     }));
     setMethods(updated);
     try {
-      await AsyncStorage.setItem('mockPaymentMethods', JSON.stringify(updated));
+      // Persist the default-method preference locally (methods themselves come from the user's wallet on the backend)
+      await setDefaultPaymentMethod(id);
       showAlert({
         title: 'Default Updated',
         message: `${id === 'upi' ? 'UPI ID' : 'Bank Account'} set as default payment method.`,

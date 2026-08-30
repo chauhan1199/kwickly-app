@@ -15,8 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { ChevronLeft, MessageSquare, Smartphone } from 'lucide-react-native';
 import CustomAlert from '../../components/ui/CustomAlert';
-import api from '../../services/api';
+import api, { getApiErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { validateOtpForSubmit, sanitizeOtp } from '../../utils/otpGuard';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const OTPVerifyScreen = ({ navigation, route }) => {
@@ -28,6 +29,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   
   const [code, setCode] = useState(['', '', '', '']);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error' });
   const inputs = useRef([]);
 
@@ -36,9 +38,10 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   };
 
   const handleChange = (text, index) => {
-    if (text.length > 1) {
+    const digitOnly = sanitizeOtp(text).slice(0, 4);
+    if (digitOnly.length > 1) {
       // Handle paste
-      const pastedCode = text.slice(0, 4).split('');
+      const pastedCode = digitOnly.slice(0, 4).split('');
       const newCode = [...code];
       pastedCode.forEach((char, i) => {
         if (index + i < 4) newCode[index + i] = char;
@@ -52,7 +55,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
     }
 
     const newCode = [...code];
-    newCode[index] = text;
+    newCode[index] = digitOnly;
     setCode(newCode);
 
     if (text && index < 3 && inputs.current[index + 1]) {
@@ -67,11 +70,13 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   };
 
   const handleVerify = async () => {
-    const otpCode = code.join('');
-    if (otpCode.length < 4) {
-      showAlert('Incomplete Code', 'Please enter the 4-digit verification code.');
+    if (loading || sending) return;
+    const validation = validateOtpForSubmit(code);
+    if (!validation.valid) {
+      showAlert('Invalid Code', validation.message);
       return;
     }
+    const otpCode = validation.code;
 
     setLoading(true);
     try {
@@ -81,16 +86,16 @@ const OTPVerifyScreen = ({ navigation, route }) => {
         role,
         name: fullName
       });
-      
+
       const { token, isNew, user } = response.data.data;
-      
+
       if (isNew) {
         navigation.navigate('SetMpin', { phone, role, token, user, name: fullName || user?.name || 'User' });
       } else {
         await signIn(token, user?.role || role, user);
       }
     } catch (error) {
-      const errDetails = error.response?.data?.errors?.join(', ') || error.response?.data?.message || 'Invalid verification code';
+      const errDetails = getApiErrorMessage(error, 'Invalid verification code');
       showAlert('Verification Failed', errDetails, 'error');
     } finally {
       setLoading(false);
@@ -98,12 +103,16 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   };
 
   const sendOtp = async (method) => {
+    if (sending || loading) return;
+    setSending(true);
     try {
       await api.post('/auth/send-otp', { phone, role, method });
       showAlert('OTP Sent', `A new verification code has been sent via ${method}`, 'success');
     } catch (error) {
-      const errDetails = error.response?.data?.message || 'Failed to send OTP';
+      const errDetails = getApiErrorMessage(error, 'Failed to send OTP');
       showAlert('Error', errDetails);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -183,7 +192,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
 
             <View style={styles.bottomSpacer} />
 
-            <TouchableOpacity style={styles.btnShadow} onPress={handleVerify} disabled={loading} activeOpacity={0.88}>
+            <TouchableOpacity style={styles.btnShadow} onPress={handleVerify} disabled={loading || sending} activeOpacity={0.88}>
               <LinearGradient
                 colors={['#7C3AED', '#6C47FF']}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -195,12 +204,16 @@ const OTPVerifyScreen = ({ navigation, route }) => {
 
             <View style={styles.resendContainer}>
               <Text style={styles.resendText}>Didn't receive code? </Text>
-              <TouchableOpacity onPress={handleResend} activeOpacity={0.7}>
-                <Text style={styles.resendAction}>Resend OTP</Text>
+              <TouchableOpacity onPress={handleResend} activeOpacity={0.7} disabled={sending || loading}>
+                <Text style={[styles.resendAction, (sending || loading) && { opacity: 0.5 }]}>
+                  {sending ? 'Sending...' : 'Resend OTP'}
+                </Text>
               </TouchableOpacity>
               <Text style={styles.resendText}> • </Text>
-              <TouchableOpacity onPress={toggleMethod} activeOpacity={0.7}>
-                <Text style={styles.switchAction}>Try {currentMethod === 'WHATSAPP' ? 'SMS' : 'WhatsApp'}</Text>
+              <TouchableOpacity onPress={toggleMethod} activeOpacity={0.7} disabled={sending || loading}>
+                <Text style={[styles.switchAction, (sending || loading) && { opacity: 0.5 }]}>
+                  Try {currentMethod === 'WHATSAPP' ? 'SMS' : 'WhatsApp'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

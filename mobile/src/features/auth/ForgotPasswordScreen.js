@@ -17,7 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
 import { Phone, Lock, ChevronLeft, Eye, EyeOff, CheckCircle2, ShieldCheck } from 'lucide-react-native';
-import api from '../../services/api';
+import api, { getApiErrorMessage } from '../../services/api';
+import { validateOtpForSubmit } from '../../utils/otpGuard';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const ForgotPasswordScreen = ({ navigation, route }) => {
@@ -53,7 +54,7 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
       await api.post('/auth/forgot-mpin', { phone, role });
       setStep('RESET');
     } catch (error) {
-      const errDetails = error.response?.data?.message || 'Failed to send OTP. Please check your mobile number.';
+      const errDetails = getApiErrorMessage(error, 'Failed to send OTP. Please check your mobile number.');
       showAlert('Error', errDetails);
     } finally {
       setLoading(false);
@@ -61,11 +62,12 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
   };
 
   const handleResetMpin = async () => {
-    const otpCode = code.join('');
-    if (otpCode.length < 4) {
-      showAlert('Incomplete Code', 'Please enter the 4-digit verification code.');
+    const validation = validateOtpForSubmit(code);
+    if (!validation.valid) {
+      showAlert('Invalid Code', validation.message);
       return;
     }
+    const otpCode = validation.code;
 
     if (!newMpin || newMpin.length !== 4 || !/^\d{4}$/.test(newMpin)) {
       showAlert('Invalid MPIN', 'New MPIN must be exactly 4 numeric digits.');
@@ -87,7 +89,7 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
       });
       setShowSuccessModal(true);
     } catch (error) {
-      const errDetails = error.response?.data?.message || 'Failed to reset MPIN. Please verify your OTP code.';
+      const errDetails = getApiErrorMessage(error, 'Failed to reset MPIN. Please verify your OTP code.');
       showAlert('Reset Failed', errDetails);
     } finally {
       setLoading(false);

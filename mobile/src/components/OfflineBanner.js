@@ -6,6 +6,8 @@ const OfflineBanner = () => {
   const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
+    // Fetch the current state once (the listener only fires on changes).
+    NetInfo.fetch().then(state => setIsOffline(state.isConnected === false)).catch(() => {});
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsOffline(!state.isConnected);
     });

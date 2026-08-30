@@ -5,8 +5,15 @@ export const workerService = {
   getPlans: () =>
     withErrorHandling(() => api.get('/subscriptions/plans')),
 
-  subscribe: (planId, paymentId) =>
-    withErrorHandling(() => api.post('/subscriptions/subscribe', { planId, paymentId })),
+  // paymentMethod 'UPI' → PENDING_VERIFICATION (admin verifies UTR); 'WALLET' → instant activation
+  subscribe: ({ planId, paymentMethod = 'UPI', utrNumber, paymentId, targetRole = 'WORKER' } = {}) =>
+    withErrorHandling(() => api.post('/subscriptions/subscribe', {
+      planId,
+      paymentMethod,
+      utrNumber,
+      paymentId,
+      targetRole
+    })),
 
   getMySubscriptions: () =>
     withErrorHandling(() => api.get('/subscriptions/my')),

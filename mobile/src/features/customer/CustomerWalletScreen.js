@@ -94,7 +94,7 @@ const CustomerWalletScreen = ({ navigation }) => {
         setTransactions(Array.isArray(wallet?.transactions) ? wallet.transactions : []);
       }
     } catch (e) {
-      console.log('[Wallet] fetch error:', e?.message);
+      console.warn('[Wallet] fetch error:', e?.message);
       if (user?.wallet?.balance !== undefined) {
         setBalance(user.wallet.balance);
       }

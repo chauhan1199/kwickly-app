@@ -55,6 +55,9 @@ const HomeScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { userToken, user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+  // True from mount until the first data fetch settles, so the screen never
+  // renders an empty-content state while its data is still loading.
+  const [initialLoading, setInitialLoading] = useState(true);
   const [activeJobs, setActiveJobs] = useState([]);
   const [activeShopOrders, setActiveShopOrders] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -100,6 +103,7 @@ const HomeScreen = ({ navigation }) => {
       if (isManual) {
         setRefreshing(true);
       }
+      setInitialLoading((prev) => prev || true);
 
       const params = { limit: 10, lng: userLng, lat: userLat };
 
@@ -204,6 +208,7 @@ const HomeScreen = ({ navigation }) => {
       // Error handled silently
     } finally {
       setRefreshing(false);
+      setInitialLoading(false);
     }
   }, [userToken, userLng, userLat]);
 
@@ -251,6 +256,17 @@ const HomeScreen = ({ navigation }) => {
   }, [shops, isSearching, q]);
 
   const firstName = user?.name?.split(' ')[0] || 'there';
+
+  // While the very first load is in flight and nothing is cached to show,
+  // render a spinner instead of an empty/blank home screen.
+  if (initialLoading && categories.length === 0 && shops.length === 0) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>

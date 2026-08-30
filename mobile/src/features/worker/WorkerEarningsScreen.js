@@ -45,6 +45,7 @@ import WorkerBalanceCard from '../../components/WorkerBalanceCard';
 import LinearGradient from 'react-native-linear-gradient';
 
 import { walletService } from '../../services/walletService';
+import { utrValidationError } from '../../utils/upiValidation';
 import { workerService } from '../../services/workerService';
 import settingsService from '../../services/settingsService';
 import api from '../../services/api';
@@ -223,10 +224,12 @@ const WorkerEarningsScreen = ({ navigation }) => {
     setTimeout(() => setCopiedUpi(false), 2500);
   };
 
-  // Submit UPI UTR / Reference ID for instant verification & credit
+  // Submit UPI UTR / Reference ID for admin verification
   const handleVerifyUpiPayment = async () => {
-    if (!upiUtrNumber || upiUtrNumber.trim().length < 6) {
-      Alert.alert('Invalid UTR / Ref Number', 'Please enter a valid 12-digit UPI transaction reference / UTR number.');
+    const utr = upiUtrNumber.trim();
+    const utrError = utrValidationError(utr);
+    if (utrError) {
+      Alert.alert('Invalid UTR', utrError);
       return;
     }
 
@@ -236,20 +239,24 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
       const res = await walletService.topupWallet(
         Number(amount),
-        { method: 'UPI', txnId: upiUtrNumber.trim() },
+        { method: 'UPI', txnId: utr },
         planId || undefined,
-        `upi_ord_${Date.now()}`,
-        `upi_pay_${upiUtrNumber.trim()}`
+        utr
       );
 
       if (res.data?.status === 'success' || res.data?.data) {
         setUpiPaymentModalVisible(false);
         setUpiUtrNumber('');
+        const isPending = res.data?.data?.status === 'PENDING_VERIFICATION';
         Alert.alert(
-          'Payment Success 🎉',
-          type === 'PLAN'
-            ? 'Your subscription plan has been activated successfully!'
-            : `₹${amount} has been successfully added to your wallet balance.`
+          isPending ? 'Payment Submitted ⏳' : 'Payment Success 🎉',
+          isPending
+            ? (type === 'PLAN'
+              ? `Your UPI payment of ₹${amount} (UTR: ${utr}) has been submitted for admin verification. Your plan will activate automatically once confirmed.`
+              : `Your UPI payment of ₹${amount} (UTR: ${utr}) has been submitted for admin verification. Your wallet will be credited once confirmed.`)
+            : (type === 'PLAN'
+              ? 'Your subscription plan has been activated successfully!'
+              : `₹${amount} has been successfully added to your wallet balance.`)
         );
         fetchWalletAndProfile();
         if (fetchUser) fetchUser('WORKER');

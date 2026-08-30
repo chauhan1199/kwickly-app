@@ -193,7 +193,7 @@ export const AddressMapModal = ({
         setFormattedAddress([bld, road, suburb, cityName, st, pin].filter(Boolean).join(', '));
       }
     } catch (e) {
-      console.log('[MapPicker] Reverse geocode error:', e.message);
+      console.warn('[MapPicker] Reverse geocode error:', e.message);
     } finally {
       setIsReverseGeocoding(false);
     }
@@ -264,7 +264,7 @@ export const AddressMapModal = ({
           });
         }
       } catch (pErr) {
-        console.log('[MapPicker] Photon search error:', pErr.message);
+        console.warn('[MapPicker] Photon search error:', pErr.message);
       }
 
       // Engine 2: OpenStreetMap Nominatim (if Photon had few results)
@@ -300,13 +300,13 @@ export const AddressMapModal = ({
             });
           }
         } catch (nErr) {
-          console.log('[MapPicker] Nominatim search error:', nErr.message);
+          console.warn('[MapPicker] Nominatim search error:', nErr.message);
         }
       }
 
       setSearchResults(results);
     } catch (e) {
-      console.log('[MapPicker] Search total error:', e.message);
+      console.warn('[MapPicker] Search total error:', e.message);
     } finally {
       setIsSearching(false);
     }
@@ -406,7 +406,7 @@ export const AddressMapModal = ({
         }, 500);
       }
     } catch (err) {
-      console.log('[WebViewMessage] parse error:', err.message);
+      console.warn('[WebViewMessage] parse error:', err.message);
     }
   };
 

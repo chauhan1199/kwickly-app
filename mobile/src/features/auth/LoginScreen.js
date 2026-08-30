@@ -25,6 +25,7 @@ import {
   MessageSquare
 } from 'lucide-react-native';
 import { authService } from '../../services/authService';
+import { getApiErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import CustomAlert from '../../components/ui/CustomAlert';
 import LinearGradient from 'react-native-linear-gradient';
@@ -90,7 +91,7 @@ const LoginScreen = ({ navigation, route }) => {
               await authService.sendOtp(phone, role);
               navigation.navigate('OTPVerify', { phone, role });
             } catch (otpErr) {
-              const otpErrMsg = otpErr.response?.data?.message || 'Failed to send OTP. Please try again.';
+              const otpErrMsg = getApiErrorMessage(otpErr, 'Failed to send OTP. Please try again.');
               showAlert('OTP Error', otpErrMsg);
             } finally {
               setLoading(false);
@@ -117,7 +118,7 @@ const LoginScreen = ({ navigation, route }) => {
       await authService.sendOtp(phone, role);
       navigation.navigate('OTPVerify', { phone, role });
     } catch (error) {
-      const errorMsg = error.response?.data?.errors?.join(', ') || error.response?.data?.message || 'Failed to send verification OTP. Please try again.';
+      const errorMsg = getApiErrorMessage(error, 'Failed to send verification OTP. Please try again.');
       showAlert('OTP Error', errorMsg);
     } finally {
       setLoading(false);

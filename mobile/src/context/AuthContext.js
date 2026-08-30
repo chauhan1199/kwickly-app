@@ -2,6 +2,8 @@ import React, { createContext, useState, useContext, useEffect, useCallback } fr
 import { Platform, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
+import { consumePendingDeepLink } from '../utils/deepLink';
+import { setCrashUserContext } from '../utils/crashReporter';
 
 const AuthContext = createContext();
 
@@ -10,6 +12,9 @@ export const AuthProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null);
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Deep-link target captured while logged out, applied after sign-in.
+  const [pendingDeepLink, setPendingDeepLink] = useState(null);
+  const clearPendingDeepLink = useCallback(() => setPendingDeepLink(null), []);
 
   const fetchUser = useCallback(async (role) => {
     try {
@@ -17,6 +22,7 @@ export const AuthProvider = ({ children }) => {
       const userData = res.data.data;
       if (userData) {
         setUser(userData);
+        setCrashUserContext(userData.id || userData._id || null, userData.role || role);
         await AsyncStorage.setItem('userData', JSON.stringify(userData)).catch(() => {});
       }
     } catch (error) {
@@ -32,6 +38,8 @@ export const AuthProvider = ({ children }) => {
       setUserToken(null);
       setUserRole(null);
       setUser(null);
+      setCrashUserContext(null, null);
+      setPendingDeepLink(null);
     } catch (e) {
       console.error('SignOut Error:', e);
     }
@@ -50,13 +58,19 @@ export const AuthProvider = ({ children }) => {
         if (role) setUserRole(role);
         if (cachedUserStr) {
           try {
-            setUser(JSON.parse(cachedUserStr));
+            const cachedUser = JSON.parse(cachedUserStr);
+            setUser(cachedUser);
+            if (token) setCrashUserContext(cachedUser?.id || cachedUser?._id || null, role);
           } catch (_) {}
         }
         
         if (token) {
           // Revalidate profile in background
           fetchUser(role);
+          // Re-register the device for push on cold start (the token may never
+          // have reached the backend, e.g. after a reinstall). No-op without FCM.
+          const { registerForPushNotifications } = require('../utils/pushNotification');
+          registerForPushNotifications().catch(() => {});
         }
       } catch (e) {
         console.error('Auth Storage Load Error:', e);
@@ -82,11 +96,20 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.setItem('userRole', role);
       setUserToken(token);
       setUserRole(role);
+      // Attach user context for crash reporting / error logs.
+      setCrashUserContext(userData?.id || userData?._id || null, role);
       if (userData) {
         setUser(userData);
+        setCrashUserContext(userData.id || userData._id || null, userData.role || role);
         await AsyncStorage.setItem('userData', JSON.stringify(userData)).catch(() => {});
       } else {
         fetchUser(role);
+      }
+      // If the user arrived via a deep link while logged out, surface it for
+      // post-login redirect.
+      const target = await consumePendingDeepLink().catch(() => null);
+      if (target && target.role === role) {
+        setPendingDeepLink(target);
       }
       // Fire-and-forget: register this device for push (no-op if Firebase SDK absent)
       const { registerForPushNotifications } = require('../utils/pushNotification');
@@ -97,7 +120,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ userToken, userRole, user, isLoading, signIn, signOut, fetchUser }}>
+    <AuthContext.Provider value={{ userToken, userRole, user, isLoading, signIn, signOut, fetchUser, pendingDeepLink, clearPendingDeepLink }}>
       {children}
     </AuthContext.Provider>
   );
