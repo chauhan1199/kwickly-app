@@ -29,7 +29,15 @@ export default function Login({ onLogin }) {
     try {
       const response = await api.post('/auth/login', { email, password, role: 'ADMIN' })
       const { token, user } = response.data.data
-      
+
+      // Guard: the panel must never store a non-admin session, even if a token is returned
+      if (!user || user.role !== 'ADMIN') {
+        localStorage.removeItem('kwickly_admin_token')
+        localStorage.removeItem('kwickly_admin_user')
+        setError('This account does not have admin access.')
+        return
+      }
+
       localStorage.setItem('kwickly_admin_token', token)
       localStorage.setItem('kwickly_admin_user', JSON.stringify(user))
       

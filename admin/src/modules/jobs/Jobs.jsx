@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
-import { isAbortError } from '../../utils/errorUtils'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -10,7 +10,7 @@ import EmptyState from '../../components/EmptyState'
 import { TextInput, FormRow } from '../../components/FormInput'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
-import { Search, RefreshCw, Eye, Ban, Users, Copy, FileText } from 'lucide-react'
+import { Search, RefreshCw, Eye, Ban, Users, Copy, FileText, Download } from 'lucide-react'
 
 const PAGE_SIZE = 15
 const STATUS_VARIANT = {
@@ -30,6 +30,9 @@ export default function Jobs() {
   const [jobs, setJobs] = useState([])
   const [workers, setWorkers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
+  const [actionId, setActionId] = useState(null)
+  const [reassigning, setReassigning] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
@@ -41,20 +44,56 @@ export default function Jobs() {
   const [reassignModal, setReassignModal] = useState(null)
   const [selectedWorker, setSelectedWorker] = useState('')
   const [impersonateToken, setImpersonateToken] = useState(null)
+  const [total, setTotal] = useState(0)
+  const [stats, setStats] = useState({ total: 0, active: 0, completed: 0, cancelled: 0 })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [exporting, setExporting] = useState(false)
 
-  useEffect(() => { fetchJobs(); fetchWorkers() }, [])
+  // Debounce the search box so the server query fires after typing stops
+  useEffect(() => {
+    const t = setTimeout(() => { setSearchQuery(search); setPage(1) }, 400)
+    return () => clearTimeout(t)
+  }, [search])
 
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     setLoading(true)
+    setFetchError(false)
     try {
-      const res = await api.get('/admin/jobs/all', { params: { limit: 500 } })
-      if (res.data.status === 'success') setJobs(res.data.data.jobs || [])
+      const res = await api.get('/admin/jobs/all', { params: { page, limit: PAGE_SIZE, status: statusFilter, search: searchQuery } })
+      if (res.data.status === 'success') {
+        setJobs(res.data.data.jobs || [])
+        if (typeof res.data.data.totalJobs === 'number') setTotal(res.data.data.totalJobs)
+      } else setFetchError(true)
     } catch (err) {
       if (isAbortError(err)) return
-      showToast('Failed to load jobs', 'error')
+      setFetchError(true)
+      showToast(extractErrorMessage(err, 'Failed to load jobs'), 'error')
     }
     finally { setLoading(false) }
-  }
+  }, [page, statusFilter, searchQuery])
+
+  // KPI counts computed server-side (a tiny limit=1 request per status returns the matching total)
+  const fetchStats = useCallback(async () => {
+    const statuses = ['all', 'BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'IN_PROGRESS', 'COMPLETED', 'PAID', 'CANCELLED']
+    try {
+      const results = await Promise.all(statuses.map(status =>
+        api.get('/admin/jobs/all', { params: { page: 1, limit: 1, status, search: searchQuery } })
+          .then(r => r.data?.data?.totalJobs || 0)
+          .catch(() => 0)
+      ))
+      const [all, broadcasting, quotes, allocated, inProgress, completed, paid, cancelled] = results
+      setStats({
+        total: all,
+        active: broadcasting + quotes + allocated + inProgress,
+        completed: completed + paid,
+        cancelled,
+      })
+    } catch { /* keep previous stats */ }
+  }, [searchQuery])
+
+  useEffect(() => { fetchJobs() }, [fetchJobs])
+  useEffect(() => { fetchStats() }, [fetchStats])
+  useEffect(() => { fetchWorkers() }, [])
 
   const fetchWorkers = async () => {
     try {
@@ -79,24 +118,35 @@ export default function Jobs() {
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
   const cancelJob = async (id) => {
+    if (actionId) return
+    setActionId(id)
     try {
       await api.patch(`/admin/jobs/${id}/cancel`)
       setJobs(prev => prev.map(j => j._id === id ? { ...j, status: 'CANCELLED' } : j))
       showToast('Job cancelled')
       if (detail?._id === id) setDetail(prev => ({ ...prev, status: 'CANCELLED' }))
-    } catch { showToast('Failed to cancel job', 'error') }
-    setConfirm(null)
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to cancel job'), 'error')
+    } finally {
+      setActionId(null)
+      setConfirm(null)
+    }
   }
 
   const reassignWorker = async () => {
-    if (!selectedWorker || !reassignModal) return
+    if (!selectedWorker || !reassignModal || reassigning) return
+    setReassigning(true)
     try {
       await api.patch(`/admin/jobs/${reassignModal._id}/reassign`, { workerId: selectedWorker })
       fetchJobs()
       showToast('Worker reassigned successfully')
-    } catch { showToast('Failed to reassign', 'error') }
-    setReassignModal(null)
-    setSelectedWorker('')
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to reassign'), 'error')
+    } finally {
+      setReassigning(false)
+      setReassignModal(null)
+      setSelectedWorker('')
+    }
   }
 
   const handleImpersonate = async (id) => {
@@ -108,22 +158,60 @@ export default function Jobs() {
 
   const copyToken = (t) => { navigator.clipboard.writeText(t); showToast('Copied') }
 
-  const filtered = jobs.filter(j => {
-    const name = j.customerId?.name || j.customer || ''
-    const worker = j.workerId?.name || j.worker || ''
-    const id = j._id?.toString().slice(-6) || ''
-    const matchSearch = name.toLowerCase().includes(search.toLowerCase()) ||
-      worker.toLowerCase().includes(search.toLowerCase()) ||
-      id.includes(search.toLowerCase()) ||
-      (j.category || '').toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter === 'all' || j.status === statusFilter
-    return matchSearch && matchStatus
-  })
+  // Search + status filtering is done server-side; `total` reflects the filtered result count
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const paged = jobs
 
+  useEffect(() => { setPage(1) }, [statusFilter])
 
+  const statsCards = useMemo(() => [
+    { label: 'Total Jobs', value: stats.total, color: '#2EF7F0' },
+    { label: 'Active', value: stats.active, color: '#F59E0B' },
+    { label: 'Completed', value: stats.completed, color: '#10B981' },
+    { label: 'Cancelled', value: stats.cancelled, color: '#EF4444' },
+  ], [stats])
 
-
-
+  const exportCsv = async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      // Fetch every page of the current filter (not just the visible page)
+      const all = []
+      let p = 1
+      const CHUNK = 100
+      while (p <= 50) { // hard cap of 5000 rows
+        const res = await api.get('/admin/jobs/all', { params: { page: p, limit: CHUNK, status: statusFilter, search: searchQuery } })
+        const batch = res.data?.data?.jobs || []
+        all.push(...batch)
+        if (batch.length < CHUNK) break
+        p += 1
+      }
+      if (all.length === 0) { showToast('No jobs to export', 'info'); return }
+      const headers = ['Job ID', 'Customer', 'Worker', 'Category', 'City', 'Amount', 'Platform Fee', 'Status', 'Created At']
+      const rows = all.map(j => [
+        j._id,
+        j.customerId?.name || j.customer || '',
+        j.workerId?.name || j.worker || '',
+        j.category + (j.subcategory ? ` - ${j.subcategory}` : ''),
+        j.addressDetails?.city || j.locationName || '',
+        j.payment?.amount || 0,
+        j.payment?.platformFee || 0,
+        j.status,
+        j.createdAt ? new Date(j.createdAt).toLocaleString('en-IN') : ''
+      ])
+      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `jobs-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast(`${all.length} jobs exported`)
+    } catch (err) {
+      if (!isAbortError(err)) showToast(extractErrorMessage(err, 'Failed to export jobs'), 'error')
+    } finally { setExporting(false) }
+  }
   const columns = [
     { header: 'Job ID', render: (j) => {
         const fj = formatJob(j);
@@ -162,18 +250,6 @@ export default function Jobs() {
         );
     }}
   ];
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  useEffect(() => { setPage(1) }, [search, statusFilter])
-
-  const stats = {
-    total: jobs.length,
-    active: jobs.filter(j => ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'IN_PROGRESS'].includes(j.status)).length,
-    completed: jobs.filter(j => j.status === 'COMPLETED' || j.status === 'PAID').length,
-    cancelled: jobs.filter(j => j.status === 'CANCELLED').length,
-  }
 
   const formatJob = (j) => ({
     id: j._id?.toString().slice(-6) || '—',
@@ -220,17 +296,15 @@ export default function Jobs() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-secondary" onClick={fetchJobs}><RefreshCw size={16} /> Refresh</button>
+          <button className="btn-secondary" onClick={exportCsv} disabled={exporting} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Download size={16} /> {exporting ? 'Exporting...' : 'Export CSV'}
+          </button>
         </div>
       </div>
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
-        {[
-          { label: 'Total Jobs', value: stats.total, color: '#2EF7F0' },
-          { label: 'Active', value: stats.active, color: '#F59E0B' },
-          { label: 'Completed', value: stats.completed, color: '#10B981' },
-          { label: 'Cancelled', value: stats.cancelled, color: '#EF4444' },
-        ].map(s => (
+        {statsCards.map(s => (
           <div key={s.label} className="stat-card-simple" style={{ borderTop: `3px solid ${s.color}` }}>
             <div style={{ fontSize: 28, fontWeight: 900, color: s.color }}>{s.value}</div>
             <div style={{ fontSize: 13, color: 'var(--mid)', fontWeight: 600, marginTop: 4 }}>{s.label}</div>
@@ -252,7 +326,7 @@ export default function Jobs() {
           ))}
         </div>
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--mid)', fontWeight: 600 }}>
-          {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+          {total} result{total !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -260,12 +334,19 @@ export default function Jobs() {
       <div className="table-card">
         {loading ? (
           <div style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>Loading jobs...</div>
+        ) : fetchError ? (
+          <EmptyState
+            icon="⚠️"
+            title="Couldn't load jobs"
+            description="The server didn't respond. Check your connection and try again."
+            action={<button className="btn btn-primary" onClick={() => fetchJobs()}>↻ Retry</button>}
+          />
         ) : paged.length === 0 ? (
           <EmptyState icon="📋" title="No jobs found" description={search ? 'Try a different search' : 'No jobs created yet'} />
         ) : (
           <>
             <Table columns={columns} data={paged} emptyMessage={search ? "Try a different search term" : "No jobs found"} />
-            <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </>
         )}
       </div>
@@ -424,8 +505,8 @@ export default function Jobs() {
               </select>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { setReassignModal(null); setSelectedWorker(''); }}>Cancel</button>
-              <button className="btn-primary" style={{ flex: 1 }} disabled={!selectedWorker} onClick={reassignWorker}>Reassign</button>
+              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { setReassignModal(null); setSelectedWorker(''); }} disabled={reassigning}>Cancel</button>
+              <button className="btn-primary" style={{ flex: 1 }} disabled={!selectedWorker || reassigning} onClick={reassignWorker}>{reassigning ? 'Reassigning…' : 'Reassign'}</button>
             </div>
           </div>
         )}
@@ -437,6 +518,7 @@ export default function Jobs() {
           title="Cancel Job"
           message={`Cancel ${confirm.name}? This action is done on behalf of the user and cannot be undone.`}
           confirmText="Cancel Job"
+          loading={actionId === confirm.id}
           onConfirm={() => cancelJob(confirm.id)}
           onClose={() => setConfirm(null)}
         />

@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
-import { isAbortError } from '../../utils/errorUtils'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
-import { AlertTriangle, Search, RefreshCw, Eye, MessageSquare, CheckCircle, Package, Wrench, XCircle, ChevronRight, User, Hash, FileText } from 'lucide-react'
+import { AlertTriangle, Search, RefreshCw, Eye, MessageSquare, CheckCircle, Package, Wrench, XCircle, ChevronRight, User, Hash, FileText, Download } from 'lucide-react'
 
 const PAGE_SIZE = 15
 
@@ -45,7 +45,7 @@ export default function Disputes() {
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
-  const filtered = disputes.filter(d => {
+  const filtered = useMemo(() => disputes.filter(d => {
     const custName = (d.customerId?.name || d.customer?.name || '').toLowerCase()
     const workName = (d.workerId?.name || d.worker?.name || '').toLowerCase()
     const reasonText = (d.reason || d.description || '').toLowerCase()
@@ -59,10 +59,36 @@ export default function Disputes() {
     const matchStatus = filter === 'all' || d.status.toLowerCase() === filter.toLowerCase()
     
     return matchSearch && matchStatus
-  })
+  }), [disputes, search, filter])
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+
+  const exportCsv = () => {
+    if (filtered.length === 0) return
+    const headers = ['Dispute ID', 'Reference', 'Type', 'Customer', 'Customer Phone', 'Provider', 'Provider Phone', 'Amount', 'Issue', 'Status', 'Created At']
+    const rows = filtered.map(d => [
+      d._id,
+      d.shopOrderId?.orderNumber || d.jobId?._id || d._id,
+      d.jobId ? 'Service Job' : 'Product Order',
+      d.customerId?.name || d.customer?.name || '—',
+      d.customerId?.phone || d.customer?.phone || '',
+      d.workerId?.name || d.worker?.name || '—',
+      d.workerId?.phone || d.worker?.phone || '',
+      d.amount || d.jobId?.payment?.amount || d.shopOrderId?.total || 0,
+      d.reason || d.issue || d.description || '',
+      d.status,
+      d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN') : ''
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `disputes-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const handleResolve = async (status) => {
     setSaving(true)
@@ -72,7 +98,7 @@ export default function Disputes() {
       window.dispatchEvent(new Event('admin-action'))
       fetchDisputes()
       setDetail(null)
-    } catch (err) { showToast(err.response?.data?.message || 'Error updating dispute', 'error') }
+    } catch (err) { showToast(extractErrorMessage(err, 'Error updating dispute'), 'error') }
     finally { setSaving(false) }
   }
 
@@ -141,6 +167,9 @@ export default function Disputes() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-secondary" onClick={fetchDisputes} disabled={loading}><RefreshCw size={16} /> Refresh</button>
+          <button className="btn-secondary" onClick={exportCsv} disabled={filtered.length === 0} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Download size={16} /> Export CSV
+          </button>
         </div>
       </div>
 

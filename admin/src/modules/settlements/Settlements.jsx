@@ -8,7 +8,7 @@ import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
-import { Search, RefreshCw, Eye, CheckCircle, Package, Store, Banknote, ListChecks, CheckCircle2, XCircle, ChevronRight, X } from 'lucide-react'
+import { Search, RefreshCw, Eye, CheckCircle, Package, Store, Banknote, ListChecks, CheckCircle2, XCircle, ChevronRight, X, Download } from 'lucide-react'
 
 const PAGE_SIZE = 15
 
@@ -54,6 +54,31 @@ export default function Settlements() {
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+
+  const exportCsv = () => {
+    if (filtered.length === 0) return
+    const headers = ['Settlement ID', 'Type', 'Shop', 'Order Ref', 'Total Amount', 'Platform Commission', 'Shop Earning', 'Status', 'Created At', 'Settled At']
+    const rows = filtered.map(s => [
+      s._id,
+      s.type,
+      s.shopId?.name || 'Unknown',
+      s.orderId?.orderNumber || s.orderId?._id || '—',
+      s.totalAmount || 0,
+      s.platformCommission || 0,
+      s.shopEarning || 0,
+      s.status,
+      s.createdAt ? new Date(s.createdAt).toLocaleString('en-IN') : '',
+      s.settledAt ? new Date(s.settledAt).toLocaleString('en-IN') : ''
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `settlements-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const handleSettle = async (id, note = '') => {
     setSaving(true)
@@ -149,6 +174,9 @@ export default function Settlements() {
             </button>
           )}
           <button className="btn-secondary" onClick={fetchSettlements} disabled={loading}><RefreshCw size={16} /> Refresh</button>
+          <button className="btn-secondary" onClick={exportCsv} disabled={filtered.length === 0} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Download size={16} /> Export CSV
+          </button>
         </div>
       </div>
 

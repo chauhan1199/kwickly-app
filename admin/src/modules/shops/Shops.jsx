@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { extractErrorMessage } from '../../utils/errorUtils'
 import { getImageUrl } from '../../services/api'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
@@ -72,9 +73,10 @@ export default function Shops() {
     return kycFilter === 'all' || s.kyc?.status === kycFilter.toUpperCase()
   }, [kycFilter])
   
-  const { data: shops, setData: setShops, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh } = useServerPagination('/admin/shops', PAGE_SIZE, filterCallback)
+  const { data: shops, setData: setShops, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh, meta } = useServerPagination('/admin/shops', PAGE_SIZE, filterCallback)
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
+  const [actionId, setActionId] = useState(null)
   const [kycReason, setKycReason] = useState('')
   const [detail, setDetail] = useState(null)
   const [shopProducts, setShopProducts] = useState([])
@@ -446,23 +448,28 @@ export default function Shops() {
   }
 
   const deleteShop = async (id) => {
-    const shopName = detail?._id === id ? detail.name : shops.find(s => s._id === id)?.name || 'Shop'
+    if (actionId) return
+    setActionId(id)
     try {
       const res = await api.delete(`/admin/shops/${id}`)
       if (res.data.status === 'success') {
         setShops(prev => prev.filter(s => s._id !== id))
         showToast('Shop deleted')
         if (detail?._id === id) setDetail(null)
-        
+
         window.dispatchEvent(new Event('admin-action'))
       }
-    } catch {
-      showToast('Failed to delete shop', 'error')
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to delete shop'), 'error')
+    } finally {
+      setActionId(null)
+      setConfirm(null)
     }
-    setConfirm(null)
   }
 
   const handleToggle = async (id) => {
+    if (actionId) return
+    setActionId(id)
     try {
       const res = await api.patch(`/admin/shops/${id}/toggle`, {})
       if (res.data.status === 'success') {
@@ -476,13 +483,16 @@ export default function Shops() {
         showToast(res.data.message || 'Failed to toggle shop status', 'error')
       }
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to toggle shop status', 'error')
+      showToast(extractErrorMessage(err, 'Failed to toggle shop status'), 'error')
+    } finally {
+      setActionId(null)
+      setConfirm(null)
     }
-    setConfirm(null)
   }
 
   const handleKycAction = async (id, status) => {
-    const shopName = detail?._id === id ? detail.name : shops.find(s => s._id === id)?.name || 'Unknown Shop'
+    if (actionId) return
+    setActionId(id)
     try {
       const payload = { status }
       if (status === 'REJECTED' && kycReason.trim()) payload.reason = kycReason.trim()
@@ -491,13 +501,15 @@ export default function Shops() {
         setShops(prev => prev.map(s => s._id === id ? res.data.data : s))
         if (detail?._id === id) setDetail(res.data.data)
         showToast(`KYC ${status.toLowerCase()}`)
-        
+
         window.dispatchEvent(new Event('admin-action'))
       }
-    } catch {
-      showToast('Failed to update KYC', 'error')
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to update KYC'), 'error')
+    } finally {
+      setActionId(null)
+      setConfirm(null)
     }
-    setConfirm(null)
   }
 
   const handleImpersonate = async (ownerId) => {
@@ -912,11 +924,12 @@ export default function Shops() {
     try { const fresh = await api.get(`/admin/shops/${detail._id}`); const updated = fresh.data.data?.shop; if (updated) { setDetail(prev => ({ ...prev, ...updated })); setShops(prev => prev.map(s => s._id === detail._id ? { ...s, ...updated } : s)); } } catch { /* silent */ }
   }
 
+  // Platform-wide counts from the server; page-slice fallback only while stats load
   const stats = {
-    total: shops.length,
-    approved: shops.filter(s => s.kyc?.status === 'APPROVED').length,
-    pending: shops.filter(s => s.kyc?.status === 'PENDING').length,
-    online: shops.filter(s => s.isOnline).length,
+    total,
+    approved: meta?.stats?.approved ?? shops.filter(s => s.kyc?.status === 'APPROVED').length,
+    pending: meta?.stats?.pending ?? shops.filter(s => s.kyc?.status === 'PENDING').length,
+    online: meta?.stats?.online ?? shops.filter(s => s.isOnline).length,
   }
 
   return (
@@ -1731,12 +1744,13 @@ export default function Shops() {
           message={shops.find(s => s._id === confirm.id)?.isOnline ? `Block ${confirm.name}? It will be hidden from customers.` : `Activate ${confirm.name}? It will be visible to customers.`}
           danger={shops.find(s => s._id === confirm.id)?.isOnline}
           confirmText={shops.find(s => s._id === confirm.id)?.isOnline ? 'Block Shop' : 'Activate Shop'}
+          loading={actionId === confirm.id}
           onConfirm={() => handleToggle(confirm.id)}
           onClose={() => setConfirm(null)}
         />
       )}
       {confirm?.type === 'delete_shop' && (
-        <ConfirmModal title="Delete Shop" message={`Permanently delete ${confirm.name}? All products and data will be lost.`} confirmText="Delete Permanently" onConfirm={() => deleteShop(confirm.id)} onClose={() => setConfirm(null)} />
+        <ConfirmModal title="Delete Shop" message={`Permanently delete ${confirm.name}? All products and data will be lost.`} confirmText="Delete Permanently" loading={actionId === confirm.id} onConfirm={() => deleteShop(confirm.id)} onClose={() => setConfirm(null)} />
       )}
       {confirm?.type === 'kyc_shop' && (
         <ConfirmModal
@@ -1744,6 +1758,7 @@ export default function Shops() {
           message={confirm.status === 'APPROVED' ? `Approve KYC for ${confirm.name}?` : `Reject KYC for ${confirm.name}?`}
           danger={confirm.status === 'REJECTED'}
           confirmText={confirm.status === 'APPROVED' ? 'Approve' : 'Reject'}
+          loading={actionId === confirm.id}
           onConfirm={() => { handleKycAction(confirm.id, confirm.status); setConfirm(null); setKycReason('') }}
           onClose={() => { setConfirm(null); setKycReason('') }}
         >
@@ -1946,6 +1961,7 @@ export default function Shops() {
             message={isOnline ? `Deactivate "${confirm.name}"? The shop will not accept new orders.` : `Activate "${confirm.name}"? The shop will become live.`}
             danger={isOnline}
             confirmText={isOnline ? 'Deactivate' : 'Activate'}
+            loading={actionId === confirm.id}
             onConfirm={() => handleToggle(confirm.id)}
             onClose={() => setConfirm(null)}
           />
@@ -1956,6 +1972,7 @@ export default function Shops() {
           title="Delete Shop"
           message={`Permanently delete "${confirm.name}"? All products and records will be deleted.`}
           confirmText="Delete Permanently"
+          loading={actionId === confirm.id}
           onConfirm={() => deleteShop(confirm.id)}
           onClose={() => setConfirm(null)}
         />
@@ -1966,6 +1983,7 @@ export default function Shops() {
           message={`${confirm.status === 'APPROVED' ? 'Approve' : 'Reject'} KYC application for "${confirm.name}"?`}
           danger={confirm.status === 'REJECTED'}
           confirmText={confirm.status === 'APPROVED' ? 'Approve' : 'Reject'}
+          loading={actionId === confirm.id}
           onConfirm={() => handleKycAction(confirm.id, confirm.status)}
           onClose={() => setConfirm(null)}
         />

@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { io } from 'socket.io-client'
+import { SOCKET_URL } from '../../config'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError } from '../../utils/errorUtils'
+import EmptyState from '../../components/EmptyState'
 import Toast from '../../components/Toast'
 
 export default function Dashboard() {
@@ -19,6 +22,7 @@ export default function Dashboard() {
     topWorkers: []
   })
   const [loading, setLoading] = useState(true)
+  const [fetchFailed, setFetchFailed] = useState(false)
   const [toast, setToast] = useState(null)
   const [showAllActivity, setShowAllActivity] = useState(false)
   const [activitySearch, setActivitySearch] = useState('')
@@ -28,8 +32,7 @@ export default function Dashboard() {
     let socket
     try {
       const token = localStorage.getItem('kwickly_admin_token')
-      const socketUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://kwickly-backend-r6zb.onrender.com'
-      socket = io(socketUrl, {
+      socket = io(SOCKET_URL, {
         auth: { token },
         transports: ['websocket', 'polling'],
         reconnectionAttempts: 3,
@@ -41,16 +44,32 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
+      setLoading(true)
+      setFetchFailed(false)
       const res = await api.get(`/admin/stats?range=${range}`)
       if (res.data.status === 'success') setStats(res.data.data)
+      else setFetchFailed(true)
     } catch (err) {
       // Ignore aborted requests (caused by range change or component unmount)
-      if (err?.name === 'AbortError' || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
+      if (isAbortError(err)) return
+      setFetchFailed(true)
       setToast({ msg: 'Failed to load dashboard data', type: 'error' })
     } finally { setLoading(false) }
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--mid)' }}>Loading dashboard...</div>
+
+  if (fetchFailed) return (
+    <div>
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      <EmptyState
+        icon="⚠️"
+        title="Couldn't load dashboard data"
+        description="The server didn't respond. Check your connection and try again."
+        action={<button className="btn btn-primary" onClick={() => fetchStats()}>↻ Retry</button>}
+      />
+    </div>
+  )
 
   const s = stats || { totalCustomers: 0, totalWorkers: 0, totalShops: 0, activeJobs: 0, totalRevenue: 0, activities: [], topWorkers: [], chartData: [] }
   const chartData = s.chartData || []
@@ -78,7 +97,7 @@ export default function Dashboard() {
     else if (a.text?.toLowerCase().includes('order')) navigate('/orders')
   }
 
-  const filteredActivities = (s.activities || []).filter(a => !activitySearch || a.text?.toLowerCase().includes(activitySearch.toLowerCase()))
+  const filteredActivities = useMemo(() => (s.activities || []).filter(a => !activitySearch || a.text?.toLowerCase().includes(activitySearch.toLowerCase())), [s.activities, activitySearch])
 
   return (
     <div>

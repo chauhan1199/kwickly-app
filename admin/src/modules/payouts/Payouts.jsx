@@ -1,12 +1,24 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
 import Drawer from '../../components/common/Drawer'
+import EmptyState from '../../components/EmptyState'
 import Modal from '../../components/Modal'
 import Toast from '../../components/Toast'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const statusColor = { pending:'badge-warning', approved:'badge-primary', transferred:'badge-success', rejected:'badge-danger' }
+
+// Mirrors the backend's UTR rules: 12 digits, rejecting obvious dummy patterns
+const UTR_DUMMY = ['123456789012', '123412341234', '112233445566', '121212121212']
+const validateUtr = (v) => {
+  const clean = (v || '').trim()
+  if (!clean) return 'UTR is required — enter the reference number from your bank/UPI app'
+  if (!/^\d{12}$/.test(clean)) return 'UTR must be exactly 12 digits'
+  if (UTR_DUMMY.includes(clean) || /^(\d)\1{11}$/.test(clean)) return 'This looks like a dummy UTR — enter the real reference from your bank statement'
+  return ''
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Payouts() {
@@ -19,7 +31,9 @@ export default function Payouts() {
   const [selected, setSelected] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
   const [confirmModal, setConfirmModal] = useState(null)
-  const [toast, setToast]       = useState('')
+  const [toast, setToast]       = useState(null)
+  const [fetchError, setFetchError] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     fetchPayouts()
@@ -51,13 +65,16 @@ export default function Payouts() {
             setLedger(mapped)
         }
     } catch (e) {
-        // silently ignored
+        if (isAbortError(e)) return
+        // Ledger is a secondary tab — surface the failure instead of an empty table
+        showToast(extractErrorMessage(e, 'Failed to load transaction ledger'), 'error')
     }
   }
 
   const fetchPayouts = async () => {
     try {
       setLoading(true)
+      setFetchError(false)
       const response = await api.get('/admin/payouts', { params: { status: filter === 'all' ? undefined : filter } })
       if (response.data.status === 'success') {
         const data = response.data.data.payouts.map(p => {
@@ -83,7 +100,8 @@ export default function Payouts() {
         setPayouts(data)
       }
     } catch (e) {
-      // silently ignored
+      if (isAbortError(e)) return
+      setFetchError(true)
     } finally {
       setLoading(false)
     }
@@ -91,9 +109,11 @@ export default function Payouts() {
 
   const [customTxnId, setCustomTxnId] = useState('')
 
-  const showToast = (m) => { setToast(m); setTimeout(()=>setToast(''), 2800) }
+  const showToast = (m, type = 'success') => { setToast({ msg: m, type }); setTimeout(()=>setToast(null), 2800) }
 
   const approve = async (id, txn) => {
+    if (actionLoading) return
+    setActionLoading(true)
     try {
       const realId = payouts.find(p => p.id === id)?._id || id
       await api.patch(`/admin/payouts/${realId}/status`, { status: 'APPROVED', txnId: txn || undefined })
@@ -102,25 +122,33 @@ export default function Payouts() {
       setConfirmModal(null)
       setCustomTxnId('')
     } catch (e) {
-      showToast('Failed to approve payout')
-    }
+      showToast(extractErrorMessage(e, 'Failed to approve payout'), 'error')
+    } finally { setActionLoading(false) }
   }
 
   const transfer = async (id, manualTxn) => {
+    // Direct-UPI reconciliation: a real 12-digit UTR from the bank/UPI app is REQUIRED.
+    // Never fabricate a transaction reference — it would corrupt bank reconciliation.
+    const txn = (manualTxn || '').trim()
+    const txnError = validateUtr(txn)
+    if (txnError) { showToast(txnError, 'error'); return }
+    if (actionLoading) return
+    setActionLoading(true)
     try {
       const realId = payouts.find(p => p.id === id)?._id || id
-      const txn = manualTxn?.trim() || ('TXN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase())
       await api.patch(`/admin/payouts/${realId}/status`, { status: 'TRANSFERRED', txnId: txn })
       fetchPayouts()
       showToast(`Transfer marked · ${txn}`)
       setConfirmModal(null)
       setCustomTxnId('')
     } catch (e) {
-      showToast('Failed to mark transferred', 'error')
-    }
+      showToast(extractErrorMessage(e, 'Failed to mark transferred'), 'error')
+    } finally { setActionLoading(false) }
   }
 
   const reject = async (id, reason) => {
+    if (actionLoading) return
+    setActionLoading(true)
     try {
       const realId = payouts.find(p => p.id === id)?._id || id
       await api.patch(`/admin/payouts/${realId}/status`, { status: 'REJECTED', rejectReason: reason })
@@ -129,8 +157,8 @@ export default function Payouts() {
       setConfirmModal(null)
       setRejectReason('')
     } catch (e) {
-      showToast('Failed to reject payout')
-    }
+      showToast(extractErrorMessage(e, 'Failed to reject payout'), 'error')
+    } finally { setActionLoading(false) }
   }
 
   const pending  = payouts.filter(p=>p.status==='pending').length
@@ -144,11 +172,11 @@ export default function Payouts() {
 
 
 
-  const filtered = payouts.filter(p=>filter==='all'||p.status===filter)
+  const filtered = useMemo(() => payouts.filter(p=>filter==='all'||p.status===filter), [payouts, filter])
   const selectedFresh = selected ? payouts.find(p=>p.id===selected.id) : null
 
-  const totalPending   = payouts.filter(p=>p.status==='pending').reduce((a,p)=>a+p.requested,0)
-  const totalTransferred = payouts.filter(p=>p.status==='transferred').reduce((a,p)=>a+p.requested,0)
+  const totalPending   = useMemo(() => payouts.filter(p=>p.status==='pending').reduce((a,p)=>a+p.requested,0), [payouts])
+  const totalTransferred = useMemo(() => payouts.filter(p=>p.status==='transferred').reduce((a,p)=>a+p.requested,0), [payouts])
 
   const ledgerColumns = [
     { header: 'Date', render: (t) => <div style={{fontSize:12,color:'var(--mid)'}}>{t.date}</div> },
@@ -203,7 +231,7 @@ export default function Payouts() {
 
   return (
     <div>
-      {toast && <Toast message={toast} type="success" onClose={() => setToast('')} />}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="page-header">
         <div>
@@ -245,7 +273,16 @@ export default function Payouts() {
           </div>
 
           <div className="table-card">
-            <Table columns={columns} data={filtered} onRowClick={setSelected} emptyMessage="No payout requests found." />
+            {fetchError && !loading ? (
+              <EmptyState
+                icon="⚠️"
+                title="Couldn't load payout requests"
+                description="The server didn't respond. Check your connection and try again."
+                action={<button className="btn btn-primary" onClick={() => { setLoading(true); fetchPayouts() }}>↻ Retry</button>}
+              />
+            ) : (
+              <Table columns={columns} data={filtered} onRowClick={setSelected} emptyMessage="No payout requests found." />
+            )}
           </div>
         </>
       ) : (
@@ -327,16 +364,17 @@ export default function Payouts() {
                   Confirm transfer of <strong>₹{confirmModal.payout.requested.toLocaleString()}</strong> to <strong>{confirmModal.payout.worker}</strong> via <strong>{confirmModal.payout.upi||confirmModal.payout.bank}</strong>?
                 </p>
                 <div className="form-group" style={{marginBottom:14}}>
-                  <label className="form-label">Bank / UPI UTR / Transaction Reference (Optional)</label>
+                  <label className="form-label">Bank / UPI UTR / Transaction Reference *</label>
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="e.g. UTR20260823000123 / Auto-generated"
+                    placeholder="12-digit UTR from your bank/UPI app"
                     value={customTxnId}
-                    onChange={e => setCustomTxnId(e.target.value)}
+                    onChange={e => setCustomTxnId(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                    inputMode="numeric"
                   />
-                  <small style={{fontSize:11,color:'var(--mid)',display:'block',marginTop:4}}>
-                    Enter UTR from your bank/UPI app. If left blank, an internal transaction ID will be generated.
+                  <small style={{fontSize:11,color:customTxnId && validateUtr(customTxnId) ? '#EF4444' : 'var(--mid)',display:'block',marginTop:4}}>
+                    {customTxnId && validateUtr(customTxnId) ? validateUtr(customTxnId) : 'Enter the real 12-digit UTR from your bank/UPI app — required for reconciliation.'}
                   </small>
                 </div>
               </div>
@@ -359,10 +397,10 @@ export default function Payouts() {
               </>
             )}
             <div style={{display:'flex',gap:10,marginTop:20,paddingTop:14,borderTop:'1px solid var(--border)'}}>
-              <button type="button" className="btn-secondary" style={{flex:1}} onClick={()=>{setConfirmModal(null);setRejectReason('');setCustomTxnId('')}}>Cancel</button>
-              {confirmModal.type==='approve'&&<button type="button" className="btn-primary" style={{flex:1}} onClick={()=>approve(confirmModal.payout.id, customTxnId)}>✓ Approve</button>}
-              {confirmModal.type==='transfer'&&<button type="button" className="btn-primary" style={{flex:1}} onClick={()=>transfer(confirmModal.payout.id, customTxnId)}>💸 Confirm & Mark Transferred</button>}
-              {confirmModal.type==='reject'&&<button type="button" className="btn-danger" style={{flex:1}} disabled={!rejectReason} onClick={()=>reject(confirmModal.payout.id,rejectReason)}>✕ Reject & Refund</button>}
+              <button type="button" className="btn-secondary" style={{flex:1}} disabled={actionLoading} onClick={()=>{setConfirmModal(null);setRejectReason('');setCustomTxnId('')}}>Cancel</button>
+              {confirmModal.type==='approve'&&<button type="button" className="btn-primary" style={{flex:1}} disabled={actionLoading} onClick={()=>approve(confirmModal.payout.id, customTxnId)}>{actionLoading ? 'Processing…' : '✓ Approve'}</button>}
+              {confirmModal.type==='transfer'&&<button type="button" className="btn-primary" style={{flex:1}} disabled={actionLoading || !!validateUtr(customTxnId)} onClick={()=>transfer(confirmModal.payout.id, customTxnId)}>{actionLoading ? 'Processing…' : '💸 Confirm & Mark Transferred'}</button>}
+              {confirmModal.type==='reject'&&<button type="button" className="btn-danger" style={{flex:1}} disabled={actionLoading || !rejectReason} onClick={()=>reject(confirmModal.payout.id,rejectReason)}>{actionLoading ? 'Processing…' : '✕ Reject & Refund'}</button>}
             </div>
           </div>
         </Modal>

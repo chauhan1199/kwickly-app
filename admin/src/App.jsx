@@ -2,6 +2,7 @@ import React, { useState, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout      from './layouts/AppLayout'
 import { ToastContainer } from './components/Toast'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const Login          = lazy(() => import('./modules/auth/Login'))
 const Dashboard      = lazy(() => import('./modules/dashboard/Dashboard'))
@@ -28,8 +29,18 @@ const AdminWallet    = lazy(() => import('./modules/admin-wallet/AdminWallet'))
 const SupportChats   = lazy(() => import('./modules/support/SupportChats'))
 import './index.css'
 
+// Session is valid only if a token exists AND the stored user is an ADMIN.
+// (Login also enforces this, but a stale/manually-crafted localStorage entry must not open the panel.)
+const isAdminSession = () => {
+  if (!localStorage.getItem('kwickly_admin_token')) return false
+  try {
+    const u = JSON.parse(localStorage.getItem('kwickly_admin_user') || 'null')
+    return !!u && u.role === 'ADMIN'
+  } catch { return false }
+}
+
 function App() {
-  const [authed, setAuthed] = useState(() => !!localStorage.getItem('kwickly_admin_token'))
+  const [authed, setAuthed] = useState(isAdminSession)
   
   const handleLogin  = () => { 
     setAuthed(true)  
@@ -43,12 +54,13 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ErrorBoundary>
       <Suspense fallback={<div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontWeight: 'bold' }}>Loading module...</div>}>
         <Routes>
           <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} />
-          
-          {/* Printable Receipt Route - No Layout */}
-          <Route path="/receipt/:id" element={<JobReceipt />} />
+
+          {/* Printable Receipt Route - No Layout (auth-guarded) */}
+          <Route path="/receipt/:id" element={authed ? <JobReceipt /> : <Navigate to="/login" replace />} />
 
           <Route element={authed ? <AppLayout onLogout={handleLogout} /> : <Navigate to="/login" replace />}>
             {/* Platform */}
@@ -86,6 +98,7 @@ function App() {
           </Route>
         </Routes>
       </Suspense>
+      </ErrorBoundary>
       <ToastContainer />
     </BrowserRouter>
   )

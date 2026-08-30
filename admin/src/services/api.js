@@ -1,6 +1,7 @@
 import axios from 'axios'
+import { API_URL } from '../config'
 
-const BASE_URL = 'https://kwickly-backend-r6zb.onrender.com/api/v1'
+const BASE_URL = API_URL
 
 const api = axios.create({
   baseURL: BASE_URL,

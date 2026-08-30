@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Plus, Edit3, Trash2, CheckCircle, Ban, RefreshCw, Search, Shield, Zap, Sparkles, Clock, AlertCircle } from 'lucide-react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
-import { isAbortError } from '../../utils/errorUtils'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -15,10 +15,23 @@ const planColorMap = {
   default: '#6366F1'
 }
 
+const DUMMY_UTRS = new Set(['123456789012', '123412341234', '112233445566', '121212121212'])
+
+// Client-side UTR sanity check: must be exactly 12 digits and not a dummy pattern.
+function validateUtr(utr) {
+  if (!utr) return { valid: false, reason: 'No UTR stored — cannot verify payment' }
+  const u = String(utr).trim()
+  if (!/^\d{12}$/.test(u)) return { valid: false, reason: 'UTR must be exactly 12 digits' }
+  if (DUMMY_UTRS.has(u)) return { valid: false, reason: 'UTR matches a known dummy pattern' }
+  if (/^(\d)\1{11}$/.test(u)) return { valid: false, reason: 'UTR cannot be all same digits' }
+  return { valid: true, reason: '' }
+}
+
 function EditPlanModal({ plan, onSave, onClose }) {
   const isNew = plan.isNew
+  const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
   const [form, setForm] = useState({
-    id: plan.id || `${(plan.targetRole || 'WORKER').toLowerCase()}_${Date.now()}`,
+    id: plan.id || `${(plan.targetRole || 'WORKER').toLowerCase()}_${slug(plan.name || 'new')}_plan`,
     name: plan.name || plan.label || '',
     price: plan.price !== undefined ? plan.price : 499,
     durationDays: plan.durationDays || 30,
@@ -57,7 +70,6 @@ function EditPlanModal({ plan, onSave, onClose }) {
 
     const finalFeatures = [...form.features]
     if (newFeat.trim()) finalFeatures.push(newFeat.trim())
-    if (finalFeatures.length === 0) finalFeatures.push('Standard Platform Access')
 
     onSave({
       ...plan,
@@ -199,10 +211,88 @@ export default function Subscriptions() {
   const [activeRole, setActiveRole] = useState('WORKER') // 'WORKER' or 'SHOP'
   const [confirmExtend, setConfirmExtend] = useState(null)
   const [search, setSearch] = useState('')
+  const [planActionId, setPlanActionId] = useState(null)
+  const [extendActionId, setExtendActionId] = useState(null)
+
+  // Pending UPI subscription verification state
+  const [tab, setTab] = useState('overview') // 'overview' | 'pending'
+  const [pendingSubs, setPendingSubs] = useState([])
+  const [pendingLoading, setPendingLoading] = useState(false)
+  const [pendingActionId, setPendingActionId] = useState(null)
+  const [confirmApproveSub, setConfirmApproveSub] = useState(null)
+  const [confirmRejectSub, setConfirmRejectSub] = useState(null)
+  const [rejectSubReason, setRejectSubReason] = useState('')
 
   useEffect(() => {
     fetchData()
+    fetchPendingSubs()
   }, [])
+
+  useEffect(() => {
+    if (tab === 'pending') fetchPendingSubs()
+  }, [tab])
+
+  const fetchPendingSubs = async () => {
+    setPendingLoading(true)
+    try {
+      const res = await api.get('/subscriptions/pending')
+      if (res.data.status === 'success') {
+        setPendingSubs(res.data.data.pending || [])
+      }
+    } catch (e) {
+      if (isAbortError(e)) return
+    } finally {
+      setPendingLoading(false)
+    }
+  }
+
+  const handleApproveSub = async (sub) => {
+    const utr = sub.payment?.razorpayPaymentId
+    const utrCheck = validateUtr(utr)
+    if (!utrCheck.valid) {
+      showToast(`Cannot approve: ${utrCheck.reason}. Reject the payment and ask the subscriber for a valid 12-digit UTR.`, 'error')
+      setConfirmApproveSub(null)
+      return
+    }
+    setPendingActionId(sub._id)
+    try {
+      const res = await api.post(`/subscriptions/pending/${sub._id}/approve`)
+      showToast(res.data?.message || `Plan verified & activated for ${sub.planName || sub.planId}!`)
+      await fetchPendingSubs()
+      await fetchData()
+      window.dispatchEvent(new Event('admin-action'))
+    } catch (e) {
+      if (isAbortError(e)) return
+      showToast(e.response?.data?.message || 'Failed to approve subscription', 'error')
+    } finally {
+      setPendingActionId(null)
+      setConfirmApproveSub(null)
+    }
+  }
+
+  const handleRejectSub = async (sub) => {
+    setPendingActionId(sub._id)
+    try {
+      const res = await api.post(`/subscriptions/pending/${sub._id}/reject`, {
+        reason: rejectSubReason || 'Invalid / Fake UTR number'
+      })
+      showToast(res.data?.message || `Subscription payment rejected.`, 'info')
+      setRejectSubReason('')
+      await fetchPendingSubs()
+      window.dispatchEvent(new Event('admin-action'))
+    } catch (e) {
+      if (isAbortError(e)) return
+      showToast(e.response?.data?.message || 'Failed to reject subscription', 'error')
+    } finally {
+      setPendingActionId(null)
+      setConfirmRejectSub(null)
+    }
+  }
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard?.writeText(text)
+    showToast(`Copied UTR: ${text}`, 'info')
+  }
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
@@ -217,7 +307,7 @@ export default function Subscriptions() {
 
       if (settingsRes.data.status === 'success') {
         const rawPlans = settingsRes.data.data.subscriptionPlans || []
-        const parsed = rawPlans.map(p => {
+        const parsed = rawPlans.map((p, idx) => {
           const lowerName = (p.label || p.name || '').toLowerCase()
           let color = planColorMap.default
           if (p.price === 0 || lowerName.includes('trial')) color = planColorMap.trial
@@ -227,12 +317,12 @@ export default function Subscriptions() {
           else if (lowerName.includes('starter')) color = planColorMap.starter
 
           return {
-            id: p.id || `plan_${Date.now()}`,
+            id: p.id || `plan_${(p.label || p.name || idx).toString().toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
             name: p.label || p.name || 'Custom Plan',
             label: p.label || p.name || 'Custom Plan',
             price: Number(p.price) || 0,
             durationDays: Number(p.durationDays) || 30,
-            features: p.features?.length > 0 ? p.features : ['Standard Platform Access'],
+            features: p.features?.length > 0 ? p.features : [],
             targetRole: (p.targetRole || 'WORKER').toUpperCase(),
             isActive: p.isActive !== false,
             color
@@ -246,15 +336,13 @@ export default function Subscriptions() {
       if (workersRes.data?.status === 'success') {
         const workersArr = workersRes.data.data.workers || workersRes.data.data
         const workersData = (Array.isArray(workersArr) ? workersArr : []).map(w => {
-          let expiry = w.subscription?.expiryDate || w.subscription?.trialEndDate
-          if (!expiry && w.createdAt) {
-            const created = new Date(w.createdAt)
-            expiry = new Date(created.getTime() + 14 * 24 * 60 * 60 * 1000)
-          }
-
-          const daysLeft = expiry ? Math.ceil((new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0
-          const isExpired = !expiry || new Date(expiry) < new Date()
-          const isTrial = w.subscription?.isTrial !== false
+          const sub = w.subscription
+          // Never fabricate expiry dates — only use real subscription record values
+          const expiry = sub?.expiryDate || sub?.trialEndDate || null
+          const hasSub = !!expiry
+          const daysLeft = hasSub ? Math.ceil((new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0
+          const isExpired = !hasSub || new Date(expiry) < new Date()
+          const isTrial = sub?.isTrial === true
 
           return {
             id: w._id.toString().slice(-6),
@@ -262,12 +350,12 @@ export default function Subscriptions() {
             name: w.name,
             phone: w.phone,
             role: 'WORKER',
-            plan: isTrial ? 'Free Trial' : (w.subscription?.planId || 'Standard'),
+            plan: !hasSub ? 'No Subscription' : isTrial ? 'Free Trial' : (sub.planId || 'Standard'),
             isTrial,
             startDate: w.createdAt ? new Date(w.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
-            endDate: expiry ? new Date(expiry).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Expired',
+            endDate: hasSub ? new Date(expiry).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
             daysLeft: Math.max(0, daysLeft),
-            status: isExpired ? 'expired' : isTrial ? 'trial' : 'active'
+            status: !hasSub ? 'none' : isExpired ? 'expired' : isTrial ? 'trial' : 'active'
           }
         })
         allSubs = [...allSubs, ...workersData]
@@ -276,15 +364,13 @@ export default function Subscriptions() {
       if (shopsRes.data?.status === 'success') {
         const shopsArr = shopsRes.data.data.shops || shopsRes.data.data
         const shopsData = (Array.isArray(shopsArr) ? shopsArr : []).map(s => {
-          let expiry = s.subscription?.expiryDate || s.subscription?.trialEndDate
-          if (!expiry && s.createdAt) {
-            const created = new Date(s.createdAt)
-            expiry = new Date(created.getTime() + 14 * 24 * 60 * 60 * 1000)
-          }
-
-          const daysLeft = expiry ? Math.ceil((new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0
-          const isExpired = !expiry || new Date(expiry) < new Date()
-          const isTrial = s.subscription?.isTrial !== false
+          const sub = s.subscription
+          // Never fabricate expiry dates — only use real subscription record values
+          const expiry = sub?.expiryDate || sub?.trialEndDate || null
+          const hasSub = !!expiry
+          const daysLeft = hasSub ? Math.ceil((new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0
+          const isExpired = !hasSub || new Date(expiry) < new Date()
+          const isTrial = sub?.isTrial === true
 
           return {
             id: s._id.toString().slice(-6),
@@ -292,12 +378,12 @@ export default function Subscriptions() {
             name: s.name || s.ownerName || 'Shop',
             phone: s.phone || s.ownerPhone,
             role: 'SHOP',
-            plan: isTrial ? 'Free Trial' : (s.subscription?.planId || 'Standard'),
+            plan: !hasSub ? 'No Subscription' : isTrial ? 'Free Trial' : (sub.planId || 'Standard'),
             isTrial,
             startDate: s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
-            endDate: expiry ? new Date(expiry).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Expired',
+            endDate: hasSub ? new Date(expiry).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
             daysLeft: Math.max(0, daysLeft),
-            status: isExpired ? 'expired' : isTrial ? 'trial' : 'active'
+            status: !hasSub ? 'none' : isExpired ? 'expired' : isTrial ? 'trial' : 'active'
           }
         })
         allSubs = [...allSubs, ...shopsData]
@@ -313,6 +399,8 @@ export default function Subscriptions() {
   }
 
   const savePlan = async (updated) => {
+    if (planActionId) return
+    setPlanActionId(updated.id)
     try {
       let updatedList = [...plans]
       const existsIdx = updatedList.findIndex(p => p.id === updated.id)
@@ -338,12 +426,14 @@ export default function Subscriptions() {
       showToast(`${updated.name} saved successfully!`)
       setEditPlan(null)
       fetchData()
-    } catch {
-      showToast('Failed to save subscription plan', 'error')
-    }
+    } catch (e) {
+      showToast(extractErrorMessage(e, 'Failed to save subscription plan'), 'error')
+    } finally { setPlanActionId(null) }
   }
 
   const togglePlanStatus = async (plan) => {
+    if (planActionId) return
+    setPlanActionId(plan.id)
     try {
       const updatedList = plans.map(p => p.id === plan.id ? { ...p, isActive: !p.isActive } : p)
       const payload = updatedList.map(p => ({
@@ -360,12 +450,14 @@ export default function Subscriptions() {
       await api.patch('/admin/settings', { subscriptionPlans: payload })
       showToast(`${plan.name} is now ${!plan.isActive ? 'Active' : 'Inactive'}`)
       fetchData()
-    } catch {
-      showToast('Failed to toggle plan status', 'error')
-    }
+    } catch (e) {
+      showToast(extractErrorMessage(e, 'Failed to toggle plan status'), 'error')
+    } finally { setPlanActionId(null) }
   }
 
   const deletePlan = async (planId) => {
+    if (planActionId) return
+    setPlanActionId(planId)
     try {
       const updatedList = plans.filter(p => p.id !== planId)
       const payload = updatedList.map(p => ({
@@ -383,29 +475,31 @@ export default function Subscriptions() {
       showToast('Plan deleted successfully')
       setConfirmDelete(null)
       fetchData()
-    } catch {
-      showToast('Failed to delete plan', 'error')
-    }
+    } catch (e) {
+      showToast(extractErrorMessage(e, 'Failed to delete plan'), 'error')
+    } finally { setPlanActionId(null) }
   }
 
   const extendSubscription = async (targetId, days = 30) => {
+    if (extendActionId) return
+    setExtendActionId(targetId)
     try {
       const endpoint = activeRole === 'SHOP' ? `/admin/shops/${targetId}/extend-subscription` : `/admin/workers/${targetId}/extend-subscription`
       await api.patch(endpoint, { days })
       showToast(`Subscription extended by ${days} days!`)
       fetchData()
-    } catch {
-      showToast('Failed to extend subscription', 'error')
-    }
+    } catch (e) {
+      showToast(extractErrorMessage(e, 'Failed to extend subscription'), 'error')
+    } finally { setExtendActionId(null) }
   }
 
-  const rolePlans = plans.filter(p => p.targetRole === activeRole)
-  const roleSubscribers = subscribers.filter(s => {
+  const rolePlans = useMemo(() => plans.filter(p => p.targetRole === activeRole), [plans, activeRole])
+  const roleSubscribers = useMemo(() => subscribers.filter(s => {
     const matchRole = s.role === activeRole
     const matchFilter = subFilter === 'all' || s.status === subFilter
     const matchSearch = !search || s.name?.toLowerCase().includes(search.toLowerCase()) || s.phone?.includes(search)
     return matchRole && matchFilter && matchSearch
-  })
+  }), [subscribers, activeRole, subFilter, search])
 
   return (
     <div>
@@ -420,48 +514,246 @@ export default function Subscriptions() {
           <div style={{ display: 'flex', gap: 4, background: 'var(--input-bg)', padding: 4, borderRadius: 10, border: '1px solid var(--border)' }}>
             <button
               className="btn-secondary"
-              onClick={() => setActiveRole('WORKER')}
+              onClick={() => setTab('overview')}
               style={{
                 fontSize: 12,
                 padding: '6px 14px',
                 borderRadius: 7,
                 border: 'none',
-                background: activeRole === 'WORKER' ? 'var(--primary)' : 'transparent',
-                color: activeRole === 'WORKER' ? '#000' : 'var(--text)',
-                fontWeight: activeRole === 'WORKER' ? 700 : 500
+                background: tab === 'overview' ? 'var(--primary)' : 'transparent',
+                color: tab === 'overview' ? '#000' : 'var(--text)',
+                fontWeight: tab === 'overview' ? 700 : 500
               }}
             >
-              👷 Worker Plans
+              📋 Overview
             </button>
             <button
               className="btn-secondary"
-              onClick={() => setActiveRole('SHOP')}
+              onClick={() => setTab('pending')}
               style={{
                 fontSize: 12,
                 padding: '6px 14px',
                 borderRadius: 7,
                 border: 'none',
-                background: activeRole === 'SHOP' ? 'var(--primary)' : 'transparent',
-                color: activeRole === 'SHOP' ? '#000' : 'var(--text)',
-                fontWeight: activeRole === 'SHOP' ? 700 : 500
+                background: tab === 'pending' ? 'var(--primary)' : 'transparent',
+                color: tab === 'pending' ? '#000' : 'var(--text)',
+                fontWeight: tab === 'pending' ? 700 : 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
               }}
             >
-              🏪 Shop Plans
+              🛡️ Pending UPI
+              {pendingSubs.length > 0 && (
+                <span style={{
+                  background: '#EF4444',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '1px 7px',
+                  borderRadius: 12
+                }}>
+                  {pendingSubs.length}
+                </span>
+              )}
             </button>
           </div>
-          <button
-            className="btn-primary"
-            onClick={() => setEditPlan({ isNew: true, targetRole: activeRole, name: '', price: activeRole === 'WORKER' ? 499 : 299, durationDays: 30, features: ['Unlimited Access', 'Direct Contact'] })}
-          >
-            <Plus size={16} /> New {activeRole === 'WORKER' ? 'Worker' : 'Shop'} Plan
-          </button>
-          <button className="btn-secondary" onClick={fetchData} title="Refresh">
+          {tab === 'overview' && (
+            <>
+              <div style={{ display: 'flex', gap: 4, background: 'var(--input-bg)', padding: 4, borderRadius: 10, border: '1px solid var(--border)' }}>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setActiveRole('WORKER')}
+                  style={{
+                    fontSize: 12,
+                    padding: '6px 14px',
+                    borderRadius: 7,
+                    border: 'none',
+                    background: activeRole === 'WORKER' ? 'var(--primary)' : 'transparent',
+                    color: activeRole === 'WORKER' ? '#000' : 'var(--text)',
+                    fontWeight: activeRole === 'WORKER' ? 700 : 500
+                  }}
+                >
+                  👷 Worker Plans
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setActiveRole('SHOP')}
+                  style={{
+                    fontSize: 12,
+                    padding: '6px 14px',
+                    borderRadius: 7,
+                    border: 'none',
+                    background: activeRole === 'SHOP' ? 'var(--primary)' : 'transparent',
+                    color: activeRole === 'SHOP' ? '#000' : 'var(--text)',
+                    fontWeight: activeRole === 'SHOP' ? 700 : 500
+                  }}
+                >
+                  🏪 Shop Plans
+                </button>
+              </div>
+              <button
+                className="btn-primary"
+                onClick={() => setEditPlan({ isNew: true, targetRole: activeRole, name: '', price: activeRole === 'WORKER' ? 499 : 299, durationDays: 30, features: ['Unlimited Access', 'Direct Contact'] })}
+              >
+                <Plus size={16} /> New {activeRole === 'WORKER' ? 'Worker' : 'Shop'} Plan
+              </button>
+            </>
+          )}
+          <button className="btn-secondary" onClick={() => { fetchData(); fetchPendingSubs(); }} title="Refresh">
             <RefreshCw size={15} />
           </button>
         </div>
       </div>
 
-      {/* Plan Cards Grid */}
+      {/* ─── Pending UPI Subscription Verifications Tab ─── */}
+      {tab === 'pending' && (
+        <div className="table-container" style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Shield size={16} color="#F59E0B" />
+            Pending UPI Subscription Payments ({pendingSubs.length})
+          </div>
+
+          <div style={{
+            padding: '12px 16px',
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            borderRadius: 10,
+            fontSize: 12.5,
+            color: 'var(--mid)',
+            marginBottom: 14,
+            lineHeight: 1.5
+          }}>
+            <strong style={{ color: '#F59E0B' }}>🛡️ Anti-Fraud Verification:</strong> Workers/Shops who paid via Direct UPI submit a 12-digit UTR.
+            Compare it with your bank/UPI statement before approving — approving instantly activates the plan and credits platform revenue.
+          </div>
+
+          {pendingLoading ? (
+            <div style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>Loading pending verifications...</div>
+          ) : pendingSubs.length === 0 ? (
+            <div style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>No Pending Subscription Payments</div>
+              <div style={{ fontSize: 13, color: 'var(--mid)', marginTop: 4 }}>All UPI subscription payments are verified and clear.</div>
+            </div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Subscriber</th>
+                  <th>Role</th>
+                  <th>Plan</th>
+                  <th>Amount</th>
+                  <th>12-Digit UTR</th>
+                  <th>Submitted</th>
+                  <th style={{ textAlign: 'right' }}>Admin Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingSubs.map((s) => (
+                  <tr key={s._id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div className="avatar avatar-sm" style={{ background: s.targetRole === 'SHOP' ? 'linear-gradient(135deg, #10B981, #10B98188)' : 'linear-gradient(135deg, #8B5CF6, #8B5CF688)' }}>
+                          {((s.targetRole === 'SHOP' ? s.shopId?.name : s.workerId?.name) || 'U')[0]?.toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700 }}>{(s.targetRole === 'SHOP' ? s.shopId?.name : s.workerId?.name) || 'Unknown'}</div>
+                          <div style={{ fontSize: 12, color: 'var(--mid)' }}>
+                            {s.targetRole === 'SHOP' ? (s.shopId?.ownerId?.phone || 'Shop') : (s.workerId?.phone || '—')}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{
+                        background: s.targetRole === 'SHOP' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(139, 92, 246, 0.15)',
+                        color: s.targetRole === 'SHOP' ? '#10B981' : '#8B5CF6',
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 800
+                      }}>
+                        {s.targetRole || 'WORKER'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{s.planName || s.planId}</div>
+                      <div style={{ fontSize: 11, color: 'var(--mid)' }}>{s.planId}</div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: 15, fontWeight: 900, color: '#10B981' }}>₹{(s.amount || 0).toLocaleString('en-IN')}</span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          fontWeight: 800,
+                          letterSpacing: '0.8px',
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          border: '1px solid rgba(255, 255, 255, 0.12)'
+                        }}>
+                          {s.payment?.razorpayPaymentId || '—'}
+                        </span>
+                        {s.payment?.razorpayPaymentId && (
+                          <button
+                            onClick={() => copyToClipboard(s.payment.razorpayPaymentId)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mid)', padding: 4 }}
+                            title="Copy UTR"
+                          >
+                            ⧉
+                          </button>
+                        )}
+                      </div>
+                      {(() => {
+                        const check = validateUtr(s.payment?.razorpayPaymentId)
+                        return !check.valid ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: '#EF4444', fontWeight: 700 }}>
+                            <AlertCircle size={11} /> {check.reason}
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: '#10B981', fontWeight: 700 }}>
+                            <CheckCircle size={11} /> Format OK — verify against bank statement
+                          </div>
+                        )
+                      })()}
+                    </td>
+                    <td style={{ fontSize: 12, color: 'var(--mid)' }}>
+                      {new Date(s.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: 8 }}>
+                        <button
+                          className="btn btn-success btn-sm"
+                          disabled={pendingActionId === s._id}
+                          onClick={() => setConfirmApproveSub(s)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <CheckCircle size={13} /> Approve
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          disabled={pendingActionId === s._id}
+                          onClick={() => { setConfirmRejectSub(s); setRejectSubReason(''); }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <Ban size={13} /> Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {tab === 'overview' && (<>
+
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
           <Sparkles size={16} color="var(--primary)" />
@@ -582,14 +874,14 @@ export default function Subscriptions() {
                 style={{ fontSize: 12, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', width: '100%' }}
               />
             </div>
-            {['all', 'active', 'trial', 'expired'].map(f => (
+            {['all', 'active', 'trial', 'expired', 'none'].map(f => (
               <button
                 key={f}
                 className={`filter-chip ${subFilter === f ? 'active' : ''}`}
                 style={{ fontSize: 11, padding: '4px 10px' }}
                 onClick={() => setSubFilter(f)}
               >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === 'none' ? 'No Subscription' : f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
           </div>
@@ -651,7 +943,9 @@ export default function Subscriptions() {
                     <td style={{ fontSize: 12, color: 'var(--mid)' }}>{sub.startDate}</td>
                     <td style={{ fontSize: 12, color: sub.status === 'expired' ? '#EF4444' : 'var(--text)', fontWeight: 600 }}>{sub.endDate}</td>
                     <td>
-                      {sub.status === 'expired' ? (
+                      {sub.status === 'none' ? (
+                        <span style={{ color: 'var(--mid)', fontWeight: 800, fontSize: 12 }}>—</span>
+                      ) : sub.status === 'expired' ? (
                         <span style={{ color: '#EF4444', fontWeight: 800, fontSize: 12 }}>0 Days</span>
                       ) : (
                         <span style={{ fontWeight: 800, color: sub.daysLeft <= 7 ? '#EF4444' : sub.daysLeft <= 30 ? '#F59E0B' : '#10B981', fontSize: 12 }}>
@@ -666,11 +960,11 @@ export default function Subscriptions() {
                           fontWeight: 700,
                           padding: '3px 8px',
                           borderRadius: 6,
-                          background: sub.status === 'expired' ? 'rgba(239, 68, 68, 0.15)' : sub.status === 'trial' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                          color: sub.status === 'expired' ? '#EF4444' : sub.status === 'trial' ? '#F59E0B' : '#10B981'
+                          background: sub.status === 'expired' ? 'rgba(239, 68, 68, 0.15)' : sub.status === 'trial' ? 'rgba(245, 158, 11, 0.15)' : sub.status === 'none' ? 'rgba(107, 114, 128, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: sub.status === 'expired' ? '#EF4444' : sub.status === 'trial' ? '#F59E0B' : sub.status === 'none' ? '#6B7280' : '#10B981'
                         }}
                       >
-                        {sub.status.toUpperCase()}
+                        {sub.status === 'none' ? 'NO SUBSCRIPTION' : sub.status.toUpperCase()}
                       </span>
                     </td>
                     <td onClick={e => e.stopPropagation()}>
@@ -700,6 +994,7 @@ export default function Subscriptions() {
           </table>
         </div>
       </div>
+      </>)}
 
       {editPlan && <EditPlanModal plan={editPlan} onSave={savePlan} onClose={() => setEditPlan(null)} />}
 
@@ -709,6 +1004,7 @@ export default function Subscriptions() {
           message={`Are you sure you want to delete "${confirmDelete.name}"? Existing subscribers will retain their current validity.`}
           confirmText="Delete Plan"
           danger={true}
+          loading={planActionId === confirmDelete.id}
           onConfirm={() => deletePlan(confirmDelete.id)}
           onClose={() => setConfirmDelete(null)}
         />
@@ -719,9 +1015,64 @@ export default function Subscriptions() {
           title="Extend Validity"
           message={`Extend validity for "${confirmExtend.name}" by ${confirmExtend.days} days?`}
           confirmText={`Extend +${confirmExtend.days}d`}
+          loading={extendActionId === confirmExtend.id}
           onConfirm={() => { extendSubscription(confirmExtend.id, confirmExtend.days); setConfirmExtend(null); }}
           onClose={() => setConfirmExtend(null)}
         />
+      )}
+
+      {/* Confirm Approve Pending Subscription */}
+      {confirmApproveSub && (
+        <ConfirmModal
+          title="Approve UPI Subscription Payment"
+          message={`Have you verified ₹${confirmApproveSub.amount} with UTR "${confirmApproveSub.payment?.razorpayPaymentId}" in your Admin Bank/UPI Account? Approving will instantly activate the ${confirmApproveSub.planName || confirmApproveSub.planId} plan for ${(confirmApproveSub.targetRole === 'SHOP' ? confirmApproveSub.shopId?.name : confirmApproveSub.workerId?.name) || 'the subscriber'}.`}
+          confirmText={`Verify & Activate Plan`}
+          onConfirm={() => handleApproveSub(confirmApproveSub)}
+          onClose={() => setConfirmApproveSub(null)}
+        />
+      )}
+
+      {/* Confirm Reject Fake Subscription UTR */}
+      {confirmRejectSub && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+        }}>
+          <div style={{
+            background: 'var(--card-bg, #1e293b)',
+            borderRadius: 14,
+            padding: 24,
+            maxWidth: 460,
+            width: '100%',
+            border: '1px solid var(--border)'
+          }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: 18, color: '#EF4444', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Ban size={20} /> Reject Subscription Payment
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--mid)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              Reject payment of <strong>₹{confirmRejectSub.amount}</strong> with UTR <strong>{confirmRejectSub.payment?.razorpayPaymentId}</strong> for the <strong>{confirmRejectSub.planName || confirmRejectSub.planId}</strong> plan.
+              The plan will NOT be activated; no money has moved.
+            </p>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Reason for Rejection</label>
+            <input
+              className="form-control"
+              placeholder="e.g. Fake UTR / Payment not received in bank"
+              value={rejectSubReason}
+              onChange={e => setRejectSubReason(e.target.value)}
+              style={{ width: '100%', marginBottom: 18 }}
+            />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn btn-outline" onClick={() => setConfirmRejectSub(null)}>Cancel</button>
+              <button
+                className="btn btn-danger"
+                disabled={pendingActionId === confirmRejectSub._id}
+                onClick={() => handleRejectSub(confirmRejectSub)}
+              >
+                Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

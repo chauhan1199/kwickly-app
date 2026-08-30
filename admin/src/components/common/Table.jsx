@@ -1,7 +1,9 @@
 import React from 'react';
 import EmptyState from '../EmptyState';
 
-export default function Table({ columns, data, onRowClick, emptyMessage = 'No data found', emptyIcon, loading = false }) {
+// Memoized: tables render up to 50 rows; skipping re-renders when props are
+// referentially stable keeps filter/search typing cheap in list modules.
+const Table = React.memo(function Table({ columns, data, onRowClick, emptyMessage = 'No data found', emptyIcon, loading = false }) {
   if (loading) {
     return (
       <div className="table-loading" role="status" aria-live="polite" aria-busy="true">
@@ -49,4 +51,6 @@ export default function Table({ columns, data, onRowClick, emptyMessage = 'No da
       </table>
     </div>
   );
-}
+});
+
+export default Table;

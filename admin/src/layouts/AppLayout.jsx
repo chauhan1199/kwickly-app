@@ -3,6 +3,7 @@ import { Outlet, NavLink, useLocation, Link } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
 import api from '../services/api'
 import { io } from 'socket.io-client'
+import { SOCKET_URL } from '../config'
 
 const actionIcons = {
   CREATE: '➕', UPDATE: '✏️', DELETE: '🗑️', TOGGLE_STATUS: '🔄', KYC: '🪪', PAYOUT: '💰', WALLET_CREDIT: '💚', WALLET_DEBIT: '🔴', BROADCAST: '📣', SYSTEM: '⚙️', OTHER: '📋'
@@ -57,8 +58,7 @@ export default function AppLayout({ onLogout }) {
     fetchBadges()
     fetchSettings()
     const token = localStorage.getItem('kwickly_admin_token')
-    const socketUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://kwickly-backend-r6zb.onrender.com'
-    const socket = io(socketUrl, { auth: { token } })
+    const socket = io(SOCKET_URL, { auth: { token } })
     socket.on('connect', () => {
       socket.emit('JOIN_ADMIN_ROOM')
     })
@@ -168,7 +168,7 @@ export default function AppLayout({ onLogout }) {
     ]},
   ]
 
-  const initials = user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'SA'
+  const initials = user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'AD'
 
   return (
     <div className="app-layout">
@@ -204,7 +204,7 @@ export default function AppLayout({ onLogout }) {
           <div className="sidebar-user" onClick={onLogout} title="Click to logout">
             <div className="sidebar-user-avatar">{initials}</div>
             <div className="sidebar-user-info">
-              <div className="sidebar-user-name">{user?.name || 'Super Admin'}</div>
+              <div className="sidebar-user-name">{user?.name || 'Admin'}</div>
               <div className="sidebar-user-role">Logout →</div>
             </div>
           </div>

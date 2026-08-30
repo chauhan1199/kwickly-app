@@ -7,8 +7,11 @@ import Modal from '../../components/Modal'
 import {
   Plus, RefreshCw, Edit3, Trash2, Eye, Tag, Image, ToggleLeft, ToggleRight,
   AlertCircle, CheckCircle, XCircle, TrendingUp, Users, Calendar, Link as LinkIcon,
-  MapPin, Percent, DollarSign, Hash, ArrowUpRight, Megaphone, Gift
+  MapPin, Percent, DollarSign, Hash, ArrowUpRight, Megaphone, Gift, Search, Download
 } from 'lucide-react'
+import Pagination from '../../components/Pagination'
+
+const PAGE_SIZE = 15
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const BANNER_POSITIONS = [
@@ -525,6 +528,10 @@ export default function Promotions() {
   const [showPromoForm, setShowPromoForm] = useState(false)
   const [editPromo, setEditPromo]         = useState(null)
   const [viewPromo, setViewPromo]         = useState(null)
+  const [search, setSearch]               = useState('')
+  const [page, setPage]                   = useState(1)
+
+  useEffect(() => { setPage(1) }, [search, tab])
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
@@ -593,6 +600,54 @@ export default function Promotions() {
   const totalUses      = promos.reduce((a, p) => a + (p.usesCount || 0), 0)
   const expiredPromos  = promos.filter(p => p.endAt && new Date(p.endAt) < new Date()).length
 
+  const q = search.trim().toLowerCase()
+  const filteredBanners = q
+    ? banners.filter(b =>
+        (b.title || '').toLowerCase().includes(q) ||
+        (b.subtitle || '').toLowerCase().includes(q) ||
+        (b.position || '').toLowerCase().includes(q))
+    : banners
+  const filteredPromos = q
+    ? promos.filter(p =>
+        (p.code || '').toLowerCase().includes(q) ||
+        (p.title || '').toLowerCase().includes(q) ||
+        (p.description || '').toLowerCase().includes(q) ||
+        (p.type || '').toLowerCase().includes(q))
+    : promos
+
+  const currentList = tab === 'banners' ? filteredBanners : filteredPromos
+  const totalPages = Math.ceil(currentList.length / PAGE_SIZE) || 1
+  const pagedList = currentList.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const exportCsv = () => {
+    if (currentList.length === 0) return
+    const headers = tab === 'banners'
+      ? ['Title', 'Subtitle', 'Position', 'Priority', 'Link Type', 'Link Value', 'Active', 'Start At', 'End At', 'Created At']
+      : ['Code', 'Title', 'Type', 'Value', 'Min Order Amount', 'Max Discount Cap', 'Uses', 'Max Uses', 'Per User', 'Active', 'Start At', 'End At', 'Created At']
+    const rows = tab === 'banners'
+      ? filteredBanners.map(b => [
+          b.title, b.subtitle || '', b.position, b.priority ?? 0, b.linkType || 'NONE', b.linkValue || '',
+          b.isActive ? 'Yes' : 'No',
+          b.startAt || '', b.endAt || '',
+          b.createdAt ? new Date(b.createdAt).toLocaleString('en-IN') : ''
+        ])
+      : filteredPromos.map(p => [
+          p.code, p.title, p.type, p.value, p.minOrderAmount || 0, p.maxDiscountCap || '',
+          p.usesCount || 0, p.maxUsesTotal || '', p.maxUsesPerUser || '',
+          p.isActive ? 'Yes' : 'No',
+          p.startAt || '', p.endAt || '',
+          p.createdAt ? new Date(p.createdAt).toLocaleString('en-IN') : ''
+        ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${tab}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="page-container">
       {/* Page Header */}
@@ -603,7 +658,14 @@ export default function Promotions() {
             Manage banners and promo codes displayed to customers on the mobile app
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="search-box">
+            <Search size={16} />
+            <input placeholder={tab === 'banners' ? 'Search banners...' : 'Search promo codes...'} value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <button className="btn btn-secondary" onClick={exportCsv} disabled={currentList.length === 0} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Download size={14} />Export CSV
+          </button>
           <button className="btn btn-secondary" onClick={loadData} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <RefreshCw size={14} />Refresh
           </button>
@@ -652,14 +714,18 @@ export default function Promotions() {
           <div className="loading">Loading...</div>
         ) : tab === 'banners' ? (
           /* ─ BANNERS TABLE ─ */
-          banners.length === 0 ? (
+          filteredBanners.length === 0 ? (
             <div className="empty-state" style={{ padding: '60px 20px', textAlign: 'center' }}>
               <Image size={48} color="var(--text-muted)" style={{ marginBottom: 12, opacity: 0.4 }} />
-              <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>No banners yet</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Create your first banner to promote offers on the mobile app</div>
-              <button className="btn btn-primary" onClick={() => { setEditBanner(null); setShowBannerForm(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Plus size={14} />Create Banner
-              </button>
+              <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>{search ? 'No banners match your search' : 'No banners yet'}</div>
+              {!search && (
+                <>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Create your first banner to promote offers on the mobile app</div>
+                  <button className="btn btn-primary" onClick={() => { setEditBanner(null); setShowBannerForm(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Plus size={14} />Create Banner
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <table>
@@ -674,7 +740,7 @@ export default function Promotions() {
                 </tr>
               </thead>
               <tbody>
-                {banners.map(b => {
+                {pagedList.map(b => {
                   const isLive = b.isActive && (!b.endAt || new Date(b.endAt) > new Date()) && (!b.startAt || new Date(b.startAt) <= new Date())
                   return (
                     <tr key={b._id} style={{ cursor: 'pointer' }} onClick={() => setViewBanner(b)}>
@@ -718,14 +784,18 @@ export default function Promotions() {
           )
         ) : (
           /* ─ PROMOS TABLE ─ */
-          promos.length === 0 ? (
+          filteredPromos.length === 0 ? (
             <div className="empty-state" style={{ padding: '60px 20px', textAlign: 'center' }}>
               <Tag size={48} color="var(--text-muted)" style={{ marginBottom: 12, opacity: 0.4 }} />
-              <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>No promo codes yet</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Create promo codes your customers can redeem at checkout</div>
-              <button className="btn btn-primary" onClick={() => { setEditPromo(null); setShowPromoForm(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f59e0b', borderColor: '#f59e0b' }}>
-                <Plus size={14} />Create Promo Code
-              </button>
+              <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>{search ? 'No promo codes match your search' : 'No promo codes yet'}</div>
+              {!search && (
+                <>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Create promo codes your customers can redeem at checkout</div>
+                  <button className="btn btn-primary" onClick={() => { setEditPromo(null); setShowPromoForm(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f59e0b', borderColor: '#f59e0b' }}>
+                    <Plus size={14} />Create Promo Code
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <table>
@@ -742,7 +812,7 @@ export default function Promotions() {
                 </tr>
               </thead>
               <tbody>
-                {promos.map(p => {
+                {pagedList.map(p => {
                   const isExpired = p.endAt && new Date(p.endAt) < new Date()
                   const usedPct = p.maxUsesTotal ? Math.round((p.usesCount || 0) / p.maxUsesTotal * 100) : 0
                   const promoType = PROMO_TYPES.find(pt => pt.value === p.type)
@@ -794,6 +864,10 @@ export default function Promotions() {
               </tbody>
             </table>
           )
+        )}
+
+        {!loading && currentList.length > 0 && (
+          <Pagination page={page} totalPages={totalPages} total={currentList.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
         )}
       </div>
 

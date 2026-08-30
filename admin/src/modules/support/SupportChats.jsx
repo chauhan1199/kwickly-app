@@ -3,14 +3,21 @@ import useAbortableRequest from '../../hooks/useAbortableRequest';
 import { isAbortError } from '../../utils/errorUtils';
 import { getImageUrl } from '../../services/api';
 import Toast from '../../components/Toast';
+import Pagination from '../../components/Pagination';
+import { Search } from 'lucide-react';
 import { io } from 'socket.io-client';
+import { SOCKET_URL } from '../../config';
 import './SupportChats.css';
+
+const PAGE_SIZE = 20
 
 const SupportChats = () => {
   const api = useAbortableRequest();
   const token = localStorage.getItem('kwickly_admin_token');
   const user = JSON.parse(localStorage.getItem('kwickly_admin_user') || '{}');
   const [threads, setThreads] = useState([]);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [activeThread, setActiveThread] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loadingThreads, setLoadingThreads] = useState(true);
@@ -37,8 +44,7 @@ const SupportChats = () => {
 
   const setupSocket = () => {
     const token = localStorage.getItem('kwickly_admin_token');
-    const socketUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://kwickly-backend-r6zb.onrender.com'
-    const socket = io(socketUrl, { auth: { token } });
+    const socket = io(SOCKET_URL, { auth: { token } });
     
     socket.on('connect', () => {
       socket.emit('JOIN_ADMIN_ROOM');
@@ -166,6 +172,20 @@ const SupportChats = () => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const q = search.trim().toLowerCase();
+  const filteredThreads = q
+    ? threads.filter(t =>
+        (t.user?.name || '').toLowerCase().includes(q) ||
+        (t.user?.phone || '').toLowerCase().includes(q) ||
+        (t.user?.role || '').toLowerCase().includes(q) ||
+        (t.latestMessage?.text || '').toLowerCase().includes(q))
+    : threads;
+
+  useEffect(() => { setPage(1) }, [search]);
+
+  const totalPages = Math.ceil(filteredThreads.length / PAGE_SIZE) || 1;
+  const pagedThreads = filteredThreads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div className="support-chats-container">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -174,14 +194,19 @@ const SupportChats = () => {
           <h2>Support Inbox</h2>
           <button className="refresh-btn" onClick={fetchThreads} title="Refresh">↻</button>
         </div>
-        
+
+        <div className="search-box" style={{ margin: '0 12px 12px', flex: '0 0 auto' }}>
+          <Search size={16} />
+          <input placeholder="Search users or messages..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+
         <div className="threads-list">
           {loadingThreads ? (
             <div className="loading-state">Loading...</div>
-          ) : threads.length === 0 ? (
-            <div className="empty-state">No support threads found.</div>
+          ) : filteredThreads.length === 0 ? (
+            <div className="empty-state">{search ? 'No threads match your search.' : 'No support threads found.'}</div>
           ) : (
-            threads.map((thread) => {
+            pagedThreads.map((thread) => {
               const u = thread.user || {};
               const isActive = activeThread?.user?._id === u._id;
               
@@ -207,6 +232,9 @@ const SupportChats = () => {
                 </div>
               );
             })
+          )}
+          {!loadingThreads && filteredThreads.length > 0 && (
+            <Pagination page={page} totalPages={totalPages} total={filteredThreads.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
           )}
         </div>
       </div>

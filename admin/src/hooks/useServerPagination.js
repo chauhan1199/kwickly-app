@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
-import Toast from '../components/Toast'
+import { showToast } from '../components/Toast'
 import { isAbortError } from '../utils/errorUtils'
 
 export function useServerPagination(endpoint, pageSize = 15, extraFilter = null) {
@@ -12,6 +12,8 @@ export function useServerPagination(endpoint, pageSize = 15, extraFilter = null)
   const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
   const [searchTrigger, setSearchTrigger] = useState('')
+  // Extra payload (e.g. platform-wide `stats` counts) returned alongside the list
+  const [meta, setMeta] = useState(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -21,6 +23,7 @@ export function useServerPagination(endpoint, pageSize = 15, extraFilter = null)
       if (res.data.status === 'success') {
         let list = res.data.data
         if (list && !Array.isArray(list)) {
+          setMeta(list)
           const keys = Object.keys(list)
           const arrayKey = keys.find(k => Array.isArray(list[k]))
           if (arrayKey) list = list[arrayKey]
@@ -52,17 +55,13 @@ export function useServerPagination(endpoint, pageSize = 15, extraFilter = null)
         }
       } else {
         setError(res.data.message || 'Failed to fetch data')
-        if (typeof Toast === 'function') Toast(res.data.message || 'Failed to fetch data')
-        else if (Toast?.error) Toast.error(res.data.message || 'Failed to fetch data')
-        else if (Toast?.show) Toast.show(res.data.message || 'Failed to fetch data')
+        showToast(res.data.message || 'Failed to fetch data', 'error')
       }
     } catch (e) {
       if (isAbortError(e)) return
       const errorMsg = e.response?.data?.message || 'Error fetching data'
       setError(errorMsg)
-      if (typeof Toast === 'function') Toast(errorMsg)
-      else if (Toast?.error) Toast.error(errorMsg)
-      else if (Toast?.show) Toast.show(errorMsg)
+      showToast(errorMsg, 'error')
     } finally {
       setLoading(false)
     }
@@ -98,6 +97,7 @@ export function useServerPagination(endpoint, pageSize = 15, extraFilter = null)
     handleSearch,
     clearSearch,
     refresh: fetchData,
-    setData
+    setData,
+    meta
   }
 }

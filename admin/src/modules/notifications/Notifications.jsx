@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
-import { isAbortError } from '../../utils/errorUtils'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import Modal from '../../components/Modal'
-
-const CITIES_LIST = ['Mumbai','Delhi','Bangalore','Ahmedabad','Pune','Chennai','Hyderabad','Kolkata','Jaipur','Surat']
 
 const TEMPLATES = [
   { label:'🎉 Festival/Sale',         title:'Festival Sale is LIVE!',         body:'Big discounts on all services. Use code FESTIVE20 for 20% off. Book now!' },
@@ -15,13 +13,15 @@ const TEMPLATES = [
   { label:'⭐ Rate Your Service',     title:'How was your experience?',        body:'Rate your recent service and help us improve quality for everyone.' },
 ]
 
-function ComposeModal({ onSend, onClose }) {
-  const [form, setForm] = useState({ title:'', body:'', target:'customers', city:'all', category:'all', schedule:false, scheduleDate:'', scheduleTime:'' })
+function ComposeModal({ onSend, onClose, sending }) {
+  const [form, setForm] = useState({ title:'', body:'', target:'customers' })
   const set = (k,v) => setForm(p=>({...p,[k]:v}))
   const applyTemplate = (t) => setForm(p=>({...p,title:t.title,body:t.body}))
 
-  const CATEGORIES = ['all','Plumbing','Electrical','AC Service','Cleaning','Carpentry','Painting']
-  const estimatedReach = form.target==='customers' ? (form.city==='all'?'~24,000':' ~3,200') : (form.city==='all'?'~480':' ~60')
+  const reachLabel = form.target==='customers' ? 'all customers'
+    : form.target==='workers' ? 'all workers'
+    : form.target==='shops' ? 'all shop owners'
+    : 'all users'
 
   return (
     <Modal open={true} onClose={onClose} title="📣 Compose Push Notification" width="560px">
@@ -47,57 +47,24 @@ function ComposeModal({ onSend, onClose }) {
           <div style={{ fontSize:10,color:'var(--light)',textAlign:'right',marginTop:2 }}>{form.body.length}/200</div>
         </div>
 
-        <div className="grid-2">
-          <div className="form-group">
-            <label className="form-label">Send To</label>
-            <select className="form-control" value={form.target} onChange={e=>set('target',e.target.value)}>
-              <option value="customers">All Customers</option>
-              <option value="workers">All Workers</option>
-              <option value="shops">All Shop Owners</option>
-              <option value="both">Everyone</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">City</label>
-            <select className="form-control" value={form.city} onChange={e=>set('city',e.target.value)}>
-              <option value="all">All Cities</option>
-              {['Mumbai','Delhi','Bangalore','Ahmedabad','Pune','Chennai','Hyderabad'].map(c=><option key={c}>{c}</option>)}
-            </select>
-          </div>
-        </div>
         <div className="form-group">
-          <label className="form-label">Filter by Category (optional)</label>
-          <select className="form-control" value={form.category} onChange={e=>set('category',e.target.value)}>
-            {CATEGORIES.map(c=><option key={c} value={c}>{c==='all'?'All Categories':c}</option>)}
+          <label className="form-label">Send To</label>
+          <select className="form-control" value={form.target} onChange={e=>set('target',e.target.value)}>
+            <option value="customers">All Customers</option>
+            <option value="workers">All Workers</option>
+            <option value="shops">All Shop Owners</option>
+            <option value="both">Everyone</option>
           </select>
         </div>
 
-        {/* Estimated reach */}
+        {/* Reach — no fabricated device counts; the backend broadcasts to the whole audience */}
         <div style={{ background:'var(--primary-light)', border:'1px solid var(--primary-mid)', borderRadius:10, padding:'10px 14px', marginBottom:16, display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:20 }}>📡</span>
           <div>
-            <div style={{ fontWeight:700, fontSize:13 }}>Estimated Reach: <span style={{ color:'var(--primary)' }}>{estimatedReach} devices</span></div>
-            <div style={{ fontSize:11, color:'var(--mid)', fontFamily:'var(--font-body)' }}>Based on target audience selection</div>
+            <div style={{ fontWeight:700, fontSize:13 }}>Reach: <span style={{ color:'var(--primary)' }}>{reachLabel} in selected audience</span></div>
+            <div style={{ fontSize:11, color:'var(--mid)', fontFamily:'var(--font-body)' }}>Sent instantly to every user in the selected audience</div>
           </div>
         </div>
-
-        {/* Schedule */}
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-          <button type="button" className={`toggle ${form.schedule?'on':''}`} onClick={()=>set('schedule',!form.schedule)} />
-          <span style={{ fontSize:13, fontWeight:600 }}>Schedule for later</span>
-        </div>
-        {form.schedule&&(
-          <div className="grid-2">
-            <div className="form-group">
-              <label className="form-label">Date</label>
-              <input className="form-control" type="date" value={form.scheduleDate} onChange={e=>set('scheduleDate',e.target.value)} min={new Date().toISOString().split('T')[0]} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Time</label>
-              <input className="form-control" type="time" value={form.scheduleTime} onChange={e=>set('scheduleTime',e.target.value)} />
-            </div>
-          </div>
-        )}
 
         {/* Phone preview */}
         {(form.title||form.body)&&(
@@ -116,9 +83,9 @@ function ComposeModal({ onSend, onClose }) {
         )}
 
         <div style={{ display:'flex', gap:10, marginTop:20, paddingTop:14, borderTop:'1px solid var(--border)' }}>
-          <button type="button" className="btn-secondary" style={{ flex:1 }} onClick={onClose}>Cancel</button>
-          <button type="button" className="btn-primary" style={{ flex:1 }} disabled={!form.title||!form.body} onClick={()=>onSend(form)}>
-            {form.schedule?'⏰ Schedule':'📣 Send Now'}
+          <button type="button" className="btn-secondary" style={{ flex:1 }} onClick={onClose} disabled={sending}>Cancel</button>
+          <button type="button" className="btn-primary" style={{ flex:1 }} disabled={sending||!form.title||!form.body} onClick={()=>onSend(form)}>
+            {sending ? 'Sending…' : '📣 Send Now'}
           </button>
         </div>
       </div>
@@ -134,7 +101,8 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true)
   const [compose, setCompose] = useState(false)
   const [filter, setFilter]  = useState('all')
-  const [toast, setToast]    = useState('')
+  const [toast, setToast]    = useState(null)
+  const [sending, setSending] = useState(false)
 
   useEffect(() => {
     fetchNotifications()
@@ -152,22 +120,24 @@ export default function Notifications() {
           body: n.message,
           target: n.targetRole ? n.targetRole.toLowerCase() : 'all',
           sentAt: new Date(n.createdAt).toLocaleString(),
-          status: 'sent',
+          status: n.status ? n.status.toLowerCase() : 'sent',
           createdAt: n.createdAt
         }))
         setNotifs(data)
       }
     } catch (e) {
       if (isAbortError(e)) return
-      showToast('Failed to load notifications')
+      showToast('Failed to load notifications', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  const showToast = (m) => { setToast(m); setTimeout(()=>setToast(''),2800) }
+  const showToast = (m, type='success') => { setToast({ msg:m, type }); setTimeout(()=>setToast(null),2800) }
 
   const send = async (form) => {
+    if (sending) return
+    setSending(true)
     try {
       await api.post('/admin/notifications/broadcast', {
         title: form.title,
@@ -178,15 +148,17 @@ export default function Notifications() {
       fetchNotifications()
       showToast('Push notification broadcasted successfully!')
     } catch (e) {
-      showToast('Failed to send notification')
+      showToast(extractErrorMessage(e, 'Failed to send notification'), 'error')
+    } finally {
+      setSending(false)
     }
   }
 
-  const filtered = notifs.filter(n=>filter==='all'||n.status===filter)
+  const filtered = useMemo(() => notifs.filter(n=>filter==='all'||n.status===filter), [notifs, filter])
 
   return (
     <div>
-      {toast && <Toast message={toast} type="success" onClose={() => setToast('')} />}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="page-header">
         <div>
@@ -227,7 +199,7 @@ export default function Notifications() {
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
                   <span style={{ fontWeight:800, fontSize:15 }}>{n.title}</span>
-                  <span className="badge badge-success" style={{ fontSize:10 }}>Sent</span>
+                  <span className="badge badge-success" style={{ fontSize:10 }}>{n.status ? n.status.charAt(0).toUpperCase()+n.status.slice(1) : 'Sent'}</span>
                 </div>
                 <div style={{ fontSize:13, color:'var(--mid)', fontFamily:'var(--font-body)', marginBottom:10 }}>{n.body}</div>
                 <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
@@ -241,7 +213,7 @@ export default function Notifications() {
         {filtered.length===0&&<div className="empty-state"><div className="empty-state-icon">📭</div><div className="empty-state-title">No notifications</div><div className="empty-state-desc">Compose your first push notification above</div></div>}
       </div>
 
-      {compose&&<ComposeModal onSend={send} onClose={()=>setCompose(false)} />}
+      {compose&&<ComposeModal onSend={send} onClose={()=>setCompose(false)} sending={sending} />}
     </div>
   )
 }

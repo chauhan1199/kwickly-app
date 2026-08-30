@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Download, Building2, CreditCard } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
-import { extractErrorMessage } from '../../utils/errorUtils'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
+import EmptyState from '../../components/EmptyState'
 import Modal from '../../components/Modal'
 
 const TXN_VARIANT = {
@@ -35,6 +36,8 @@ export default function AdminWallet() {
   const [txns, setTxns] = useState([])
   const [loading, setLoading] = useState(true)
   const [txnLoading, setTxnLoading] = useState(true)
+  const [walletError, setWalletError] = useState(false)
+  const [txnError, setTxnError] = useState(false)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [amount, setAmount] = useState('')
@@ -46,6 +49,40 @@ export default function AdminWallet() {
   const [bankForm, setBankForm] = useState({ accountHolder: '', accountNumber: '', ifscCode: '', bankName: '', upiId: '' })
   const [bankErrors, setBankErrors] = useState({})
   const [bankSaving, setBankSaving] = useState(false)
+  const [upiTopup, setUpiTopup] = useState(null)
+  const [upiUtr, setUpiUtr] = useState('')
+  const [upiVerifying, setUpiVerifying] = useState(false)
+
+  // Mirrors the backend's UTR rules: 12 digits, rejecting obvious dummy patterns
+  const UTR_DUMMY = ['123456789012', '123412341234', '112233445566', '121212121212']
+  const utrError = (v) => {
+    const clean = (v || '').trim()
+    if (!clean) return 'UTR is required'
+    if (!/^\d{12}$/.test(clean)) return 'UTR must be exactly 12 digits'
+    if (UTR_DUMMY.includes(clean) || /^(\d)\1{11}$/.test(clean)) return 'This looks like a dummy UTR — enter the real reference number from your UPI app'
+    return ''
+  }
+
+  const handleUpiVerify = async () => {
+    const err = utrError(upiUtr)
+    if (err) return showToast(err, 'error')
+    setUpiVerifying(true)
+    try {
+      await api.post('/admin/admin-wallet/razorpay-verify', {
+        razorpayOrderId: upiTopup.orderId,
+        utrNumber: upiUtr.trim(),
+        amount: upiTopup.amount
+      })
+      showToast(`₹${upiTopup.amount.toLocaleString('en-IN')} added via Direct UPI`)
+      setUpiTopup(null); setUpiUtr('')
+      setAmount(''); setDesc(''); setPaymentMethod('CASH')
+      fetchWallet(); fetchTxns()
+    } catch (e) {
+      showToast(extractErrorMessage(e, 'Verification failed'), 'error')
+    } finally {
+      setUpiVerifying(false)
+    }
+  }
   const creditDebitRef = useRef(null)
 
   useEffect(() => { fetchWallet(); fetchTxns() }, [])
@@ -57,21 +94,29 @@ export default function AdminWallet() {
 
   const fetchWallet = async () => {
     setLoading(true)
+    setWalletError(false)
     try {
       const res = await api.get('/admin/admin-wallet/balance')
       if (res.data.status === 'success') setWallet(res.data.data)
+      else setWalletError(true)
     } catch (e) {
-      // silently ignored
+      if (isAbortError(e)) return
+      setWalletError(true)
+      showToast(extractErrorMessage(e, 'Failed to load admin wallet'), 'error')
     } finally { setLoading(false) }
   }
 
   const fetchTxns = async () => {
     setTxnLoading(true)
+    setTxnError(false)
     try {
       const res = await api.get('/admin/admin-wallet/transactions', { params: { limit: 200 } })
       if (res.data.status === 'success') setTxns(res.data.data.txns || [])
+      else setTxnError(true)
     } catch (e) {
-      // silently ignored
+      if (isAbortError(e)) return
+      setTxnError(true)
+      showToast(extractErrorMessage(e, 'Failed to load admin wallet transactions'), 'error')
     } finally { setTxnLoading(false) }
   }
 
@@ -83,41 +128,21 @@ export default function AdminWallet() {
     if (!amount || Number(amount) <= 0) return
     setActionLoading(true)
 
-    if (paymentMethod === 'RAZORPAY') {
+    if (paymentMethod === 'UPI_DIRECT') {
       try {
         const { data } = await api.post('/admin/admin-wallet/razorpay-order', { amount: Number(amount) });
-        const { razorpayOrderId, keyId, amount: rpAmount, currency } = data.data;
-
-        const options = {
-          key: keyId,
-          amount: rpAmount,
-          currency: currency,
-          name: 'Kwickly Admin',
-          description: desc || 'Admin Wallet Topup',
-          order_id: razorpayOrderId,
-          handler: async function (response) {
-            try {
-              await api.post('/admin/admin-wallet/razorpay-verify', {
-                razorpayOrderId: response.razorpay_order_id,
-                razorpayPaymentId: response.razorpay_payment_id,
-                razorpaySignature: response.razorpay_signature
-              });
-              showToast(`₹${Number(amount).toLocaleString('en-IN')} added via Razorpay!`);
-              setAmount(''); setDesc(''); setPaymentMethod('CASH');
-              fetchWallet(); fetchTxns();
-            } catch (err) {
-              showToast(err.response?.data?.message || 'Verification failed', 'error');
-            }
-          },
-          theme: { color: '#059669' }
-        };
-        const rzp = new window.Razorpay(options);
-        rzp.on('payment.failed', function (response) {
-          showToast(response.error.description || 'Payment failed', 'error');
+        const d = data.data || {};
+        setUpiTopup({
+          amount: Number(amount),
+          orderId: d.upiOrderId || d.razorpayOrderId,
+          vpa: d.upiVpa,
+          payeeName: d.payeeName,
+          bankDetails: d.bankDetails,
+          intentUri: d.upiIntentUri
         });
-        rzp.open();
+        setUpiUtr('');
       } catch (e) {
-        showToast(extractErrorMessage(e, 'Failed to create order'), 'error');
+        showToast(extractErrorMessage(e, 'Failed to create UPI order'), 'error');
       } finally {
         setActionLoading(false);
       }
@@ -186,12 +211,12 @@ export default function AdminWallet() {
     setShowBankForm(true)
   }
 
-  const filtered = txns.filter(t => {
+  const filtered = useMemo(() => txns.filter(t => {
     const d = t.description || ''
     const matchSearch = !search || d.toLowerCase().includes(search.toLowerCase())
     const matchType = typeFilter === 'all' || t.type === typeFilter
     return matchSearch && matchType
-  })
+  }), [txns, search, typeFilter])
 
   const totalCredit = txns.filter(t => CREDIT_TYPES.includes(t.type)).reduce((s, t) => s + (t.amount || 0), 0)
   const totalDebit = txns.filter(t => !CREDIT_TYPES.includes(t.type)).reduce((s, t) => s + (t.amount || 0), 0)
@@ -211,6 +236,7 @@ export default function AdminWallet() {
     const a = document.createElement('a'); a.href = url
     a.download = `admin-wallet-transactions-${new Date().toISOString().slice(0, 10)}.csv`
     a.click(); URL.revokeObjectURL(url)
+    showToast(`${rows.length} transactions exported`)
   }
 
   return (
@@ -228,6 +254,16 @@ export default function AdminWallet() {
       </div>
 
       {/* Balance Card */}
+      {loading ? (
+        <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--mid)', marginBottom: 24 }}>Loading admin wallet…</div>
+      ) : walletError ? (
+        <EmptyState
+          icon="⚠️"
+          title="Couldn't load admin wallet"
+          description="The server didn't respond. Check your connection and try again."
+          action={<button className="btn btn-primary" onClick={() => fetchWallet()}>↻ Retry</button>}
+        />
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
         <div style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', borderRadius: 16, padding: 28, color: 'white', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
@@ -272,7 +308,7 @@ export default function AdminWallet() {
                 <option value="UPI">UPI</option>
                 <option value="BANK_TRANSFER">Bank Transfer</option>
                 <option value="OTHER">Other</option>
-                <option value="RAZORPAY">Razorpay Gateway</option>
+                <option value="UPI_DIRECT">Direct UPI (Bank Transfer)</option>
               </select>
               <input className="form-control" placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} style={{ fontSize: 13 }} />
             </div>
@@ -287,6 +323,7 @@ export default function AdminWallet() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Bank/UPI Details */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
@@ -339,6 +376,13 @@ export default function AdminWallet() {
       <div className="table-card">
         {txnLoading ? (
           <div style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>Loading transactions...</div>
+        ) : txnError ? (
+          <EmptyState
+            icon="⚠️"
+            title="Couldn't load transactions"
+            description="The server didn't respond. Check your connection and try again."
+            action={<button className="btn btn-primary" onClick={() => { setTxnLoading(true); fetchTxns() }}>↻ Retry</button>}
+          />
         ) : (
           <table className="data-table">
             <thead>
@@ -371,6 +415,36 @@ export default function AdminWallet() {
           </table>
         )}
       </div>
+
+      {/* Direct UPI Topup Modal */}
+      <Modal open={!!upiTopup} onClose={() => !upiVerifying && setUpiTopup(null)} title="Direct UPI Treasury Top-up" width="460px">
+        {upiTopup && (
+          <div>
+            <div style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 12, lineHeight: 1.5 }}>
+              Pay <strong>₹{upiTopup.amount.toLocaleString('en-IN')}</strong> to the platform treasury account below from any UPI app, then enter the 12-digit UTR / Reference Number from the payment receipt to credit the treasury.
+            </div>
+            <div className="detail-grid" style={{ marginBottom: 12 }}>
+              <div className="detail-row"><span>Pay To (UPI ID)</span><strong>{upiTopup.vpa || '—'}</strong></div>
+              <div className="detail-row"><span>Payee Name</span><strong>{upiTopup.payeeName || 'Kwickly Admin Treasury'}</strong></div>
+              {upiTopup.bankDetails?.accountNumber && (
+                <div className="detail-row"><span>Bank A/C</span><strong>{upiTopup.bankDetails.accountNumber} {upiTopup.bankDetails.ifscCode ? `(${upiTopup.bankDetails.ifscCode})` : ''}</strong></div>
+              )}
+              <div className="detail-row"><span>Amount</span><strong>₹{upiTopup.amount.toLocaleString('en-IN')}</strong></div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">UPI Reference / UTR Number *</label>
+              <input className="form-control" value={upiUtr} onChange={e => setUpiUtr(e.target.value.replace(/\D/g, '').slice(0, 12))} placeholder="12-digit UTR from your UPI app" inputMode="numeric" style={utrError(upiUtr) && upiUtr ? { borderColor: '#EF4444' } : {}} />
+              {upiUtr && utrError(upiUtr) && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{utrError(upiUtr)}</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+              <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setUpiTopup(null)} disabled={upiVerifying}>Cancel</button>
+              <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={handleUpiVerify} disabled={upiVerifying || !!utrError(upiUtr)}>
+                {upiVerifying ? 'Verifying...' : 'Verify & Credit'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Bank Details Modal */}
       <Modal open={showBankForm} onClose={() => !bankSaving && setShowBankForm(false)} title="Bank & UPI Details" width="460px">

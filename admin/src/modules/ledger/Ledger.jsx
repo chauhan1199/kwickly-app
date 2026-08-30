@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Search, Download, RefreshCw, CheckCircle, AlertTriangle, ShieldCheck, FileSpreadsheet } from 'lucide-react'
 import Badge from '../../components/common/Badge'
+import EmptyState from '../../components/EmptyState'
+import Toast from '../../components/Toast'
+import { isAbortError } from '../../utils/errorUtils'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 
 export default function Ledger() {
@@ -11,8 +14,22 @@ export default function Ledger() {
   const [gstReport, setGstReport] = useState(null);
   const [treasury, setTreasury] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [toast, setToast] = useState(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setType] = useState('ALL');
+  const [gstPct, setGstPct] = useState(18);
+
+  useEffect(() => {
+    // Fetch platform settings so tax labels reflect the configured GST rate
+    api.get('/admin/settings')
+      .then(res => {
+        if (res.data.status === 'success' && res.data.data?.gstPercentage !== undefined) {
+          setGstPct(Number(res.data.data.gstPercentage));
+        }
+      })
+      .catch(() => { /* use default */ });
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -20,29 +37,38 @@ export default function Ledger() {
 
   const fetchData = async () => {
     setLoading(true);
+    setFetchError(false);
     try {
       if (activeTab === 'ledger') {
         const res = await api.get('/ledger');
         if (res.data.status === 'success') {
           setEntries(res.data.data?.entries || []);
-        }
+        } else setFetchError(true);
       } else if (activeTab === 'reconciliation') {
         const res = await api.get('/ledger/reconciliation');
         const treasRes = await api.get('/ledger/treasury-summary');
         if (res.data.status === 'success') setReconciliation(res.data.data);
+        else setFetchError(true);
         if (treasRes.data.status === 'success') setTreasury(treasRes.data.data);
       } else if (activeTab === 'gst') {
         const res = await api.get('/ledger/gst-report');
         if (res.data.status === 'success') setGstReport(res.data.data);
+        else setFetchError(true);
       }
     } catch (e) {
-      // Fallback
+      if (isAbortError(e)) return;
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
   };
 
-  const filtered = entries.filter(e => {
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const filtered = useMemo(() => entries.filter(e => {
     const txn = e.transactionId || '';
     const ref = e.referenceNumber || '';
     const desc = e.description || '';
@@ -51,10 +77,10 @@ export default function Ledger() {
                         desc.toLowerCase().includes(search.toLowerCase());
     const matchType = typeFilter === 'ALL' || e.entityType === typeFilter;
     return matchSearch && matchType;
-  });
+  }), [entries, search, typeFilter]);
 
   const exportCSV = () => {
-    const headers = ['Txn ID', 'Type', 'Reference', 'Gross Paid', 'Partner 100%', 'Platform Fee', 'GST (18%)', 'Delivery Fee', 'Status', 'Date'];
+    const headers = ['Txn ID', 'Type', 'Reference', 'Gross Paid', 'Partner 100%', 'Platform Fee', `GST (${gstPct}%)`, 'Delivery Fee', 'Status', 'Date'];
     const rows = filtered.map(t => [
       t.transactionId,
       t.entityType,
@@ -75,10 +101,12 @@ export default function Ledger() {
     a.download = `kwickly_platform_ledger_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    showToast(`${rows.length} ledger entries exported`);
   };
 
   return (
     <div className="page">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <div className="page-header" style={{ marginBottom: 20 }}>
         <div>
           <h1 className="page-title">📖 Universal Platform Ledger</h1>
@@ -121,8 +149,21 @@ export default function Ledger() {
         ))}
       </div>
 
+      {/* Loading / fetch-failure states */}
+      {loading && (
+        <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>Loading ledger data…</div>
+      )}
+      {!loading && fetchError && (
+        <EmptyState
+          icon="⚠️"
+          title="Couldn't load ledger data"
+          description="The server didn't respond. Check your connection and try again."
+          action={<button className="btn-secondary" onClick={() => fetchData()}><RefreshCw size={15} /> Retry</button>}
+        />
+      )}
+
       {/* TAB 1: LEDGER */}
-      {activeTab === 'ledger' && (
+      {activeTab === 'ledger' && !loading && !fetchError && (
         <>
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 240 }}>
@@ -157,7 +198,7 @@ export default function Ledger() {
                     <th>CUSTOMER PAID</th>
                     <th>PARTNER (100%)</th>
                     <th>KWICKLY FEE</th>
-                    <th>GST (18%)</th>
+                    <th>GST ({gstPct}%)</th>
                     <th>STATUS</th>
                     <th>DATE</th>
                   </tr>
@@ -182,7 +223,7 @@ export default function Ledger() {
                         </td>
                         <td style={{ fontWeight: 600, fontSize: 12 }}>{t.referenceNumber || '—'}</td>
                         <td style={{ fontWeight: 700, color: 'var(--text)' }}>₹{t.grossAmount}</td>
-                        <td style={{ fontWeight: 700, color: '#10B981' }}>₹{t.partnerAmount} (0% fee)</td>
+                        <td style={{ fontWeight: 700, color: '#10B981' }}>₹{t.partnerAmount} (0% commission)</td>
                         <td style={{ fontWeight: 700, color: '#8B5CF6' }}>₹{t.platformFee}</td>
                         <td style={{ fontWeight: 600, color: '#F59E0B' }}>₹{t.gstAmount}</td>
                         <td>
@@ -204,14 +245,20 @@ export default function Ledger() {
       )}
 
       {/* TAB 2: RECONCILIATION */}
-      {activeTab === 'reconciliation' && reconciliation && (
+      {activeTab === 'reconciliation' && !loading && !fetchError && reconciliation && (() => {
+        const discrepancy = Number(reconciliation.discrepancy) || 0
+        const isBalanced = reconciliation.status === 'BALANCED' && discrepancy <= 0.05
+        return (
         <div>
-          <div className="alert alert-success" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <CheckCircle size={24} color="#10B981" />
+          <div
+            className={`alert ${isBalanced ? 'alert-success' : 'alert-danger'}`}
+            style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}
+          >
+            {isBalanced ? <CheckCircle size={24} color="#10B981" /> : <AlertTriangle size={24} color="#DC2626" />}
             <div>
               <strong>Daily Invariant Status: {reconciliation.status}</strong>
               <div style={{ fontSize: 12, opacity: 0.9 }}>
-                {reconciliation.reconciliationFormula} (Discrepancy: ₹{reconciliation.discrepancy})
+                {reconciliation.reconciliationFormula} (Discrepancy: ₹{discrepancy})
               </div>
             </div>
           </div>
@@ -243,10 +290,11 @@ export default function Ledger() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* TAB 3: GST */}
-      {activeTab === 'gst' && gstReport && (
+      {activeTab === 'gst' && !loading && !fetchError && gstReport && (
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <div>
@@ -265,7 +313,7 @@ export default function Ledger() {
                 <th>TRANSACTION</th>
                 <th>TYPE</th>
                 <th>TAXABLE PLATFORM FEE</th>
-                <th>GST COLLECTED (18%)</th>
+                <th>GST COLLECTED ({gstPct}%)</th>
                 <th>DATE</th>
               </tr>
             </thead>

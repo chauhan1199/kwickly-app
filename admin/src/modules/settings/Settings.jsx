@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
-import { isAbortError } from '../../utils/errorUtils'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 
@@ -472,8 +472,12 @@ export default function Settings() {
                             });
                             if (resp.data.status === 'success') {
                               set('logoUrl', resp.data.data.url);
+                            } else {
+                              showToast('Logo upload failed', 'error')
                             }
-                          } catch (err) { /* ignored */ }
+                          } catch (err) {
+                            if (!isAbortError(err)) showToast(extractErrorMessage(err, 'Logo upload failed'), 'error')
+                          }
                         }
                       }}
                     />
@@ -509,8 +513,12 @@ export default function Settings() {
                             });
                             if (resp.data.status === 'success') {
                               set('iconUrl', resp.data.data.url);
+                            } else {
+                              showToast('Icon upload failed', 'error')
                             }
-                          } catch (err) { /* ignored */ }
+                          } catch (err) {
+                            if (!isAbortError(err)) showToast(extractErrorMessage(err, 'Icon upload failed'), 'error')
+                          }
                         }
                       }}
                     />
@@ -622,11 +630,6 @@ export default function Settings() {
         )}
       </div>
 
-      {/* Sticky save bar */}
-      <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-        <button className="btn btn-outline" onClick={() => fetchSettings()}>Reset to Default</button>
-        <button className="btn btn-primary btn-lg" onClick={() => setSavedMsg('✓ All settings are auto-saved on change')}>💾 Settings Secured</button>
-      </div>
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {confirmMaintenance && (
         <ConfirmModal

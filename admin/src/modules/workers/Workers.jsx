@@ -44,7 +44,7 @@ export default function Workers() {
     return matchKyc && matchStatus
   }, [kycFilter, statusFilter])
   
-  const { data: workers, setData: setWorkers, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh } = useServerPagination('/admin/workers', PAGE_SIZE, filterCallback)
+  const { data: workers, setData: setWorkers, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh, meta } = useServerPagination('/admin/workers', PAGE_SIZE, filterCallback)
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
@@ -521,11 +521,12 @@ export default function Workers() {
     } catch { showToast('Failed to remove document', 'error') }
   }
 
+  // Platform-wide counts from the server; page-slice fallback only while stats load
   const stats = {
-    total: workers.length,
-    active: workers.filter(w => w.isVerified).length,
-    kycPending: workers.filter(w => w.kyc?.status === 'PENDING').length,
-    online: workers.filter(w => w.isOnline).length,
+    total,
+    active: meta?.stats?.active ?? workers.filter(w => w.isVerified).length,
+    kycPending: meta?.stats?.kycPending ?? workers.filter(w => w.kyc?.status === 'PENDING').length,
+    online: meta?.stats?.online ?? workers.filter(w => w.isOnline).length,
   }
 
   const getPrimaryAddress = (w) => w.addresses?.find(a => a.isPrimary) || w.addresses?.[0] || null

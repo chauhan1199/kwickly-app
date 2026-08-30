@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
-import { isAbortError } from '../../utils/errorUtils'
+import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import Drawer from '../../components/common/Drawer'
-import { Search, RefreshCw, Eye, Truck, XCircle, Copy, CheckCircle, ShieldAlert } from 'lucide-react'
+import { Search, RefreshCw, Eye, Truck, XCircle, Copy, CheckCircle, ShieldAlert, Download } from 'lucide-react'
 
 const PAGE_SIZE = 15
 const STATUS_VARIANT = {
@@ -23,6 +23,8 @@ export default function Orders() {
   const api = useAbortableRequest();
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
+  const [actionId, setActionId] = useState(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
@@ -30,25 +32,39 @@ export default function Orders() {
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
   const [total, setTotal] = useState(0)
+  const [stats, setStats] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [exporting, setExporting] = useState(false)
+
+  // Debounce the search box so the server query fires after typing stops
+  useEffect(() => {
+    const t = setTimeout(() => { setSearchQuery(search); setPage(1) }, 400)
+    return () => clearTimeout(t)
+  }, [search])
 
   const fetchOrders = useCallback(async () => {
     setLoading(true)
+    setFetchError(false)
     try {
-      const res = await api.get('/admin/shoporders/all', { params: { page, limit: PAGE_SIZE } })
+      const res = await api.get('/admin/shoporders/all', { params: { page, limit: PAGE_SIZE, status: statusFilter, search: searchQuery } })
       const payload = res.data.data
       setOrders(payload?.orders || payload || [])
       if (typeof payload?.total === 'number') setTotal(payload.total)
+      if (payload?.stats) setStats(payload.stats)
     } catch (err) {
       if (isAbortError(err)) return
-      showToast('Failed to load orders', 'error')
+      setFetchError(true)
+      showToast(extractErrorMessage(err, 'Failed to load orders'), 'error')
     } finally { setLoading(false) }
-  }, [page])
+  }, [page, statusFilter, searchQuery])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
   const updateStatus = async (orderId, newStatus) => {
+    if (actionId) return
+    setActionId(orderId)
     try {
       const current = orders.find(o => o._id === orderId) || detail
       const body = { status: newStatus }
@@ -59,13 +75,17 @@ export default function Orders() {
         if (detail?._id === orderId) setDetail(prev => ({ ...prev, status: newStatus }))
         showToast(`Order updated to ${STATUS_LABEL[newStatus] || newStatus}`)
       }
-    } catch {
-      showToast('Failed to update order', 'error')
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to update order'), 'error')
+    } finally {
+      setActionId(null)
+      setConfirm(null)
     }
-    setConfirm(null)
   }
 
   const verifyPayment = async (orderId, action, reason = 'Fake / Unreceived UTR') => {
+    if (actionId) return
+    setActionId(orderId)
     try {
       const res = await api.post(`/shoporders/${orderId}/verify-payment`, { action, reason })
       if (res.data.status === 'success') {
@@ -74,8 +94,10 @@ export default function Orders() {
         if (detail?._id === orderId) setDetail(prev => ({ ...prev, payment: updated.payment, status: updated.status }))
         showToast(action === 'approve' ? 'Payment approved & confirmed' : 'Payment rejected & order cancelled', action === 'approve' ? 'success' : 'info')
       }
-    } catch {
-      showToast('Failed to verify payment', 'error')
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to verify payment'), 'error')
+    } finally {
+      setActionId(null)
     }
   }
 
@@ -84,27 +106,68 @@ export default function Orders() {
     setDetail(null)
   }
 
-  const filtered = orders.filter(o => {
-    const matchSearch = (o.orderNumber || o._id?.slice(-6) || '').toLowerCase().includes(search.toLowerCase()) ||
-      o.customerId?.name?.toLowerCase().includes(search.toLowerCase()) ||
-      o.shopId?.name?.toLowerCase().includes(search.toLowerCase()) ||
-      (o.payment?.utrNumber || '').toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter === 'all' || o.status === statusFilter
-    return matchSearch && matchStatus
-  })
-
+  // Search + status filtering is done server-side; `total` reflects the filtered result count
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1
-  const paged = filtered.slice(0, PAGE_SIZE)
+  const paged = orders
 
-  useEffect(() => { setPage(1) }, [search, statusFilter])
+  useEffect(() => { setPage(1) }, [statusFilter])
 
-  const stats = {
-    total: orders.length,
-    new: orders.filter(o => o.status === 'NEW').length,
-    packing: orders.filter(o => o.status === 'PACKING').length,
-    delivering: orders.filter(o => o.status === 'OUT_FOR_DELIVERY').length,
-    delivered: orders.filter(o => o.status === 'DELIVERED').length,
-    revenue: orders.filter(o => o.status !== 'CANCELLED').reduce((sum, o) => sum + (o.total || 0), 0),
+  const kpi = useMemo(() => stats
+    ? {
+      total: stats.total,
+      new: stats.byStatus?.NEW || 0,
+      packing: stats.byStatus?.PACKING || 0,
+      delivering: stats.byStatus?.OUT_FOR_DELIVERY || 0,
+      revenue: stats.revenue || 0,
+    }
+    : {
+      total, new: 0, packing: 0, delivering: 0, revenue: 0,
+    }
+  , [stats, total])
+
+  const exportCsv = async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      // Fetch every page of the current filter (not just the visible page)
+      const all = []
+      let p = 1
+      const CHUNK = 100
+      while (p <= 50) { // hard cap of 5000 rows
+        const res = await api.get('/admin/shoporders/all', { params: { page: p, limit: CHUNK, status: statusFilter, search: searchQuery } })
+        const batch = res.data?.data?.orders || []
+        all.push(...batch)
+        if (batch.length < CHUNK) break
+        p += 1
+      }
+      if (all.length === 0) { showToast('No orders to export', 'info'); return }
+      const headers = ['Order #', 'Order ID', 'Customer', 'Phone', 'Shop', 'Items', 'Total', 'Payment Method', 'Payment Status', 'UTR', 'Status', 'Created At']
+      const rows = all.map(o => [
+        o.orderNumber || o._id?.slice(-6),
+        o._id,
+        o.customerId?.name || '—',
+        o.customerId?.phone || '',
+        o.shopId?.name || '—',
+        o.items?.length || 0,
+        o.total || 0,
+        o.paymentMethod || o.payment?.method || 'UPI',
+        o.payment?.status || 'PENDING',
+        o.payment?.utrNumber || '',
+        o.status,
+        o.createdAt ? new Date(o.createdAt).toLocaleString('en-IN') : ''
+      ])
+      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast(`${all.length} orders exported`)
+    } catch (err) {
+      if (!isAbortError(err)) showToast(extractErrorMessage(err, 'Failed to export orders'), 'error')
+    } finally { setExporting(false) }
   }
 
   const getNextStatus = (current) => {
@@ -125,17 +188,20 @@ export default function Orders() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn-secondary" onClick={fetchOrders}><RefreshCw size={16} /> Refresh</button>
+          <button className="btn-secondary" onClick={exportCsv} disabled={exporting} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Download size={16} /> {exporting ? 'Exporting...' : 'Export CSV'}
+          </button>
         </div>
       </div>
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 20 }}>
         {[
-          { label: 'Total Orders', value: stats.total, color: '#2EF7F0' },
-          { label: 'New', value: stats.new, color: '#2563EB' },
-          { label: 'Packing', value: stats.packing, color: '#F59E0B' },
-          { label: 'Delivering', value: stats.delivering, color: '#8B5CF6' },
-          { label: 'Revenue', value: `₹${stats.revenue.toLocaleString('en-IN')}`, color: '#10B981' },
+          { label: 'Total Orders', value: kpi.total, color: '#2EF7F0' },
+          { label: 'New', value: kpi.new, color: '#2563EB' },
+          { label: 'Packing', value: kpi.packing, color: '#F59E0B' },
+          { label: 'Delivering', value: kpi.delivering, color: '#8B5CF6' },
+          { label: 'Revenue (non-cancelled)', value: `₹${kpi.revenue.toLocaleString('en-IN')}`, color: '#10B981' },
         ].map(s => (
           <div key={s.label} className="stat-card-simple" style={{ borderTop: `3px solid ${s.color}` }}>
             <div style={{ fontSize: 26, fontWeight: 900, color: s.color }}>{s.value}</div>
@@ -158,7 +224,7 @@ export default function Orders() {
           ))}
         </div>
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--mid)', fontWeight: 600 }}>
-          {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+          {total} result{total !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -166,6 +232,13 @@ export default function Orders() {
       <div className="table-card">
         {loading ? (
           <div style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>Loading orders...</div>
+        ) : fetchError ? (
+          <EmptyState
+            icon="⚠️"
+            title="Couldn't load orders"
+            description="The server didn't respond. Check your connection and try again."
+            action={<button className="btn btn-primary" onClick={() => fetchOrders()}>↻ Retry</button>}
+          />
         ) : paged.length === 0 ? (
           <EmptyState icon="🛒" title="No orders found" description={search ? 'Try a different search' : 'No shop orders yet'} />
         ) : (
@@ -316,16 +389,18 @@ export default function Orders() {
                   <button
                     className="btn btn-success btn-sm"
                     style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    disabled={actionId === detail._id}
                     onClick={() => verifyPayment(detail._id, 'approve')}
                   >
-                    <CheckCircle size={14} /> Confirm Bank Credit
+                    <CheckCircle size={14} /> {actionId === detail._id ? 'Verifying…' : 'Confirm Bank Credit'}
                   </button>
                   <button
                     className="btn btn-danger btn-sm"
                     style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    disabled={actionId === detail._id}
                     onClick={() => verifyPayment(detail._id, 'reject', 'Fake / Unreceived UTR in bank')}
                   >
-                    <XCircle size={14} /> Reject (Fake UTR)
+                    <XCircle size={14} /> {actionId === detail._id ? 'Rejecting…' : 'Reject (Fake UTR)'}
                   </button>
                 </div>
               </div>
@@ -374,6 +449,7 @@ export default function Orders() {
           message={`Mark ${confirm.name} as "${STATUS_LABEL[confirm.next]}"? This action is done on behalf of the shop owner.`}
           danger={false}
           confirmText={`Mark as ${STATUS_LABEL[confirm.next]}`}
+          loading={actionId === confirm.id}
           onConfirm={() => updateStatus(confirm.id, confirm.next)}
           onClose={() => setConfirm(null)}
         />
@@ -383,6 +459,7 @@ export default function Orders() {
           title="Cancel Order"
           message={`Cancel ${confirm.name}? This action is done on behalf of the shop owner and cannot be undone.`}
           confirmText="Cancel Order"
+          loading={actionId === confirm.id}
           onConfirm={() => cancelOrder(confirm.id)}
           onClose={() => setConfirm(null)}
         />

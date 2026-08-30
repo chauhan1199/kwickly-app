@@ -1,13 +1,25 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Search, RefreshCw, Wallet, ArrowDownCircle, ArrowUpCircle, Eye, Download, CheckCircle, XCircle, Clock, ShieldAlert, Copy } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import ConfirmModal from '../../components/ConfirmModal'
 import Toast from '../../components/Toast'
+import EmptyState from '../../components/EmptyState'
 import Drawer from '../../components/common/Drawer'
 
 const ROLE_COLORS = { CUSTOMER: '#00B4D8', WORKER: '#8B5CF6', SHOP: '#10B981' }
+
+// Mirrors the backend's UTR rules: 12 digits, rejecting obvious dummy patterns.
+// The backend stores the UTR in the legacy `razorpayPaymentId` field.
+const UTR_DUMMY = ['123456789012', '123412341234', '112233445566', '121212121212']
+const validateUtr = (v) => {
+  const clean = (v || '').trim()
+  if (!clean) return 'UTR is missing from this top-up record'
+  if (!/^\d{12}$/.test(clean)) return 'UTR must be exactly 12 digits (got a malformed reference)'
+  if (UTR_DUMMY.includes(clean) || /^(\d)\1{11}$/.test(clean)) return 'this looks like a dummy UTR pattern'
+  return ''
+}
 
 const TYPE_VARIANT = {
   JOB_CREDIT: 'success', ORDER_CREDIT: 'success', REFERRAL_BONUS: 'success',
@@ -28,6 +40,7 @@ export default function Wallets() {
   const [tab, setTab] = useState('users')
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [usersError, setUsersError] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [selected, setSelected] = useState(null)
@@ -72,6 +85,7 @@ export default function Wallets() {
 
   const fetchAll = async () => {
     setLoading(true)
+    setUsersError(false)
     try {
       const [cRes, wRes, sRes] = await Promise.allSettled([
         api.get('/admin/customers', { params: { limit: 500 } }),
@@ -86,9 +100,18 @@ export default function Wallets() {
         wallet: s.wallet || { balance: 0 }
       })) : []
       setUsers([...customers, ...workers, ...shops])
+      // If every audience fetch failed, show a retry state instead of an empty table
+      if (cRes.status === 'rejected' && wRes.status === 'rejected' && sRes.status === 'rejected') {
+        const firstErr = cRes.reason || wRes.reason || sRes.reason
+        if (!isAbortError(firstErr)) {
+          setUsersError(true)
+          showToast(extractErrorMessage(firstErr, 'Failed to load wallet data'), 'error')
+        }
+      }
     } catch (e) {
       if (isAbortError(e)) return
-      showToast('Failed to load wallet data', 'error')
+      setUsersError(true)
+      showToast(extractErrorMessage(e, 'Failed to load wallet data'), 'error')
     } finally { setLoading(false) }
   }
 
@@ -108,7 +131,9 @@ export default function Wallets() {
           const list = fallbackRes.data.data.txns || []
           setPendingTopups(list.filter(t => t.type === 'TOPUP' && t.status === 'PENDING'))
         }
-      } catch (_) {}
+      } catch (e2) {
+        if (!isAbortError(e2)) showToast(extractErrorMessage(e2, 'Failed to load pending UTR approvals'), 'error')
+      }
     } finally {
       setPendingLoading(false)
     }
@@ -131,6 +156,14 @@ export default function Wallets() {
   }
 
   const handleApproveTopup = async (txn) => {
+    // Direct-UPI zero-trust: the stored UTR must be a valid 12-digit reference before crediting
+    const utr = (txn.razorpayPaymentId || '').trim()
+    const utrErr = validateUtr(utr)
+    if (utrErr) {
+      showToast(`Cannot approve: ${utrErr}`, 'error')
+      setConfirmApprove(null)
+      return
+    }
     setPendingActionId(txn._id)
     try {
       const res = await api.post(`/wallet/pending-topups/${txn._id}/approve`)
@@ -169,19 +202,19 @@ export default function Wallets() {
     showToast(`Copied UTR: ${text}`, 'info')
   }
 
-  const filteredUsers = users.filter(u => {
+  const filteredUsers = useMemo(() => users.filter(u => {
     const name = u._role === 'SHOP' ? (u._displayName || u.name) : u.name
     const phone = u._role === 'SHOP' ? u._phone : u.phone
-    const matchSearch = !search || 
-      name?.toLowerCase().includes(search.toLowerCase()) || 
-      phone?.includes(search) || 
+    const matchSearch = !search ||
+      name?.toLowerCase().includes(search.toLowerCase()) ||
+      phone?.includes(search) ||
       (u._role === 'SHOP' && u._ownerName?.toLowerCase().includes(search.toLowerCase()))
-      
+
     const matchRole = roleFilter === 'all' || u._role === roleFilter.toUpperCase()
     return matchSearch && matchRole
-  })
+  }), [users, search, roleFilter])
 
-  const filteredPending = pendingTopups.filter(t => {
+  const filteredPending = useMemo(() => pendingTopups.filter(t => {
     const name = t.userId?.name || ''
     const phone = t.userId?.phone || ''
     const utr = t.razorpayPaymentId || ''
@@ -190,9 +223,9 @@ export default function Wallets() {
       phone.includes(pendingSearch) ||
       utr.toLowerCase().includes(pendingSearch.toLowerCase())
     return matchSearch
-  })
+  }), [pendingTopups, pendingSearch])
 
-  const filteredTxns = allTxns.filter(t => {
+  const filteredTxns = useMemo(() => allTxns.filter(t => {
     const name = t.userId?.name || t.userName || t.worker || ''
     const desc = t.description || ''
     const utr = t.razorpayPaymentId || ''
@@ -200,7 +233,7 @@ export default function Wallets() {
     const matchType = txnTypeFilter === 'all' || t.type === txnTypeFilter
     const matchRole = txnRoleFilter === 'all' || (t.userId?.role || '').toUpperCase() === txnRoleFilter.toUpperCase()
     return matchSearch && matchType && matchRole
-  })
+  }), [allTxns, txnSearch, txnTypeFilter, txnRoleFilter])
 
   const totalBalance = users.reduce((s, u) => s + (u.wallet?.balance || 0), 0)
   const totalCredit = allTxns.filter(t => isCreditTxn(t)).reduce((s, t) => s + (t.amount || 0), 0)
@@ -260,6 +293,7 @@ export default function Wallets() {
     a.download = `wallet-transactions-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
+    showToast(`${rows.length} transactions exported`)
   }
 
   return (
@@ -338,6 +372,13 @@ export default function Wallets() {
           <div className="table-card">
             {loading ? (
               <div style={{ padding: 48, textAlign: 'center', color: 'var(--mid)' }}>Loading wallets...</div>
+            ) : usersError ? (
+              <EmptyState
+                icon="⚠️"
+                title="Couldn't load wallets"
+                description="The server didn't respond. Check your connection and try again."
+                action={<button className="btn btn-primary" onClick={() => { setLoading(true); fetchAll() }}>↻ Retry</button>}
+              />
             ) : (
               <table className="data-table">
                 <thead>
@@ -788,9 +829,10 @@ export default function Wallets() {
               <button className="btn btn-outline" onClick={() => setConfirmReject(null)}>Cancel</button>
               <button
                 className="btn btn-danger"
+                disabled={pendingActionId === confirmReject._id}
                 onClick={() => handleRejectTopup(confirmReject)}
               >
-                Confirm Reject
+                {pendingActionId === confirmReject._id ? 'Rejecting…' : 'Confirm Reject'}
               </button>
             </div>
           </div>

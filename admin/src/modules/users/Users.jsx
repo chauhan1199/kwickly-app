@@ -39,7 +39,7 @@ export default function Users() {
     return filter === status
   }, [filter])
 
-  const { data: customers, setData: setCustomers, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh } = useServerPagination('/admin/customers', PAGE_SIZE, filterCallback)
+  const { data: customers, setData: setCustomers, loading, page, setPage, totalPages, total, search, setSearch, handleSearch, refresh, meta } = useServerPagination('/admin/customers', PAGE_SIZE, filterCallback)
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
@@ -377,10 +377,11 @@ export default function Users() {
 
   const copyToken = (t) => { navigator.clipboard.writeText(t); showToast('Token copied') }
 
+  // Platform-wide counts from the server; page-slice fallback only while stats load
   const stats = {
-    total: customers.length,
-    active: customers.filter(c => c.isVerified).length,
-    inactive: customers.filter(c => !c.isVerified).length,
+    total,
+    active: meta?.stats?.active ?? customers.filter(c => c.isVerified).length,
+    inactive: meta?.stats?.inactive ?? customers.filter(c => !c.isVerified).length,
   }
 
   const getPrimaryAddress = (user) => user.addresses?.find(a => a.isPrimary) || user.addresses?.[0] || null
