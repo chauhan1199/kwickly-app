@@ -348,6 +348,13 @@ exports.acceptQuote = catchAsync(async (req, res) => {
 
     // Notify other workers in the job room (for UI state update)
     emitToRoom(`job_${job._id}`, 'JOB_TAKEN', { jobId: job._id });
+
+    // Also tell workers who quoted (but may not have joined the job room) to drop the card
+    if (rejectedQuotes && rejectedQuotes.length > 0) {
+        rejectedQuotes.forEach(rq => {
+            emitToRoom(`worker_${rq.workerId}`, 'JOB_TAKEN', { jobId: job._id });
+        });
+    }
     
     // Also trigger the unread notification badge for the rejected workers
     if (rejectedQuotes && rejectedQuotes.length > 0) {

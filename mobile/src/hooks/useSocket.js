@@ -38,10 +38,8 @@ const useSocket = (options = {}) => {
     });
 
     socket.on('connect', () => {
-      // Join the appropriate personal room
-      if (role === 'CUSTOMER' && userId) socket.emit('JOIN_CUSTOMER_ROOM', { userId });
-      if (role === 'WORKER'   && userId) socket.emit('JOIN_WORKER_ROOM',   { userId });
-      if (role === 'SHOP'     && shopId) socket.emit('JOIN_SHOP_ROOM',     { shopId });
+      // Role rooms (customer_/worker_/shop_/user_) are joined server-side on
+      // connection from the JWT in `auth.token` — nothing to request here.
     });
 
     // Forward all events to the consumer
@@ -94,14 +92,9 @@ const useSocket = (options = {}) => {
     };
   }, [getOrCreate]);
 
-  // Re-emit join events if auth state becomes available AFTER connection is already established
-  useEffect(() => {
-    if (socketRef.current?.connected) {
-      if (role === 'CUSTOMER' && userId) socketRef.current.emit('JOIN_CUSTOMER_ROOM', { userId });
-      if (role === 'WORKER'   && userId) socketRef.current.emit('JOIN_WORKER_ROOM',   { userId });
-      if (role === 'SHOP'     && shopId) socketRef.current.emit('JOIN_SHOP_ROOM',     { shopId });
-    }
-  }, [role, userId, shopId]);
+  // Nothing to re-emit on auth state change — rooms are joined server-side
+  // from the JWT handshake, and reconnection re-runs that handshake.
+  useEffect(() => { }, [role, userId, shopId]);
 
   const joinJobRoom = (jobId) => socketRef.current?.emit('JOIN_JOB_ROOM', { jobId });
   const leaveJobRoom = () => {}; // rooms are ephemeral in socket.io

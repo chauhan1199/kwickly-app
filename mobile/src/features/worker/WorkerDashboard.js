@@ -176,21 +176,26 @@ const WorkerDashboard = ({ navigation }) => {
   useEffect(() => {
     if (socket) {
       const handleNewJob = (jobAlert) => {
-        if (!isOnline) return;
+        if (!isOnline || !jobAlert) return;
+        // Backend alert payload is keyed `jobId`; local list items use `_id`
+        const id = jobAlert.jobId || jobAlert._id;
+        if (!id) return;
         setAvailableJobs(prev => {
-          if (prev.find(j => j._id === jobAlert.jobId)) return prev;
-          return [jobAlert, ...prev];
+          if (prev.find(j => (j._id || j.jobId) === String(id))) return prev;
+          return [{ ...jobAlert, _id: id }, ...prev];
         });
       };
 
-      socket.on('NEW_JOB_BROADCAST', handleNewJob);
-      socket.on('JOB_ACCEPTED', (data) => {
-        setAvailableJobs(prev => prev.filter(j => j._id !== data.jobId));
+      socket.on('NEW_JOB_ALERT', handleNewJob);
+      socket.on('JOB_TAKEN', (data) => {
+        const id = data?.jobId || data?._id;
+        if (!id) return;
+        setAvailableJobs(prev => prev.filter(j => (j._id || j.jobId) !== String(id)));
       });
 
       return () => {
-        socket.off('NEW_JOB_BROADCAST', handleNewJob);
-        socket.off('JOB_ACCEPTED');
+        socket.off('NEW_JOB_ALERT', handleNewJob);
+        socket.off('JOB_TAKEN');
       };
     }
   }, [socket, isOnline]);
