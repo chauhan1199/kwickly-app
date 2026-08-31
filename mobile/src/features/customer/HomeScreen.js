@@ -200,10 +200,16 @@ const HomeScreen = ({ navigation }) => {
         setActiveJobs(active);
       }
 
-      // Active Shop Orders
+      // Active Shop Orders (only show orders that are confirmed/paid/in-progress and not cancelled or unpaid draft)
       if (oRes.status === 'fulfilled' && oRes.value?.data?.status === 'success') {
         const list = oRes.value.data.data.orders || oRes.value.data.data;
-        setActiveShopOrders(list.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)));
+        const validActiveOrders = (Array.isArray(list) ? list : []).filter(o => {
+          if (!o || ['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)) return false;
+          // Must have successful or submitted payment (WALLET, verified UPI, or confirmed status)
+          const isPaid = o.payment?.status === 'PAID' || o.payment?.status === 'PENDING_VERIFICATION' || o.payment?.method === 'WALLET' || ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.status);
+          return isPaid;
+        });
+        setActiveShopOrders(validActiveOrders);
       }
     } catch (e) {
       // Error handled silently
@@ -534,7 +540,7 @@ const HomeScreen = ({ navigation }) => {
                         </View>
                         <View style={{ flex: 1, marginLeft: 12 }}>
                           <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>Order from {order.shopId?.name || 'Shop'}</Text>
-                          <Text style={styles.jobSub}>Status: {order.status} • Total: ₹{order.totalAmount || 0}</Text>
+                          <Text style={styles.jobSub}>Status: {order.status} • Total: ₹{Number(order.total ?? order.payment?.amount ?? order.totalAmount ?? 0).toFixed(2)}</Text>
                         </View>
                         <View style={[styles.statusPill, { backgroundColor: PURPLE + '18' }]}>
                           <Text style={[styles.statusPillText, { color: PURPLE }]}>TRACK</Text>

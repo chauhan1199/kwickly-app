@@ -419,6 +419,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
   // ── Submit ────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     setSubmitError('');
     if (!validateForm()) return;
 
@@ -428,59 +429,68 @@ const DescribeJobScreen = ({ route, navigation }) => {
         ? category
         : (category?.name || category?.label || 'Service');
 
+      // Fast coordinate resolution: use provided location, user active location, primary address, or fallback
       let jobLocation = {
         type: 'Point',
-        coordinates: [72.5714, 23.0225], // Default Ahmedabad coordinates
+        coordinates: [72.5714, 23.0225], // Ahmedabad default
       };
-      if (location?.coordinates && Array.isArray(location.coordinates) && location.coordinates.length === 2 && (Number(location.coordinates[0]) !== 72.5714 || Number(location.coordinates[1]) !== 23.0225)) {
+
+      if (
+        location?.coordinates &&
+        Array.isArray(location.coordinates) &&
+        location.coordinates.length === 2 &&
+        !isNaN(Number(location.coordinates[0])) &&
+        !isNaN(Number(location.coordinates[1]))
+      ) {
         jobLocation = {
           type: 'Point',
           coordinates: [Number(location.coordinates[0]), Number(location.coordinates[1])],
         };
-      } else if (address?.trim()) {
-        try {
-          const cleanAddr = address.trim();
-          const pUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanAddr)}&limit=1`;
-          const pRes = await fetch(pUrl, { headers: { 'User-Agent': 'KwicklyApp/1.0' } });
-          const pData = await pRes.json();
-          if (pData?.features?.[0]?.geometry?.coordinates?.length === 2) {
-            const [lon, lat] = pData.features[0].geometry.coordinates;
-            jobLocation = { type: 'Point', coordinates: [Number(lon), Number(lat)] };
-          }
-        } catch (geoErr) {
-          console.warn('[DescribeJob] geocode fallback error:', geoErr.message);
+      } else if (
+        user?.activeLocation?.coordinates &&
+        Array.isArray(user.activeLocation.coordinates) &&
+        user.activeLocation.coordinates.length === 2
+      ) {
+        jobLocation = {
+          type: 'Point',
+          coordinates: [Number(user.activeLocation.coordinates[0]), Number(user.activeLocation.coordinates[1])],
+        };
+      } else {
+        const primaryAddr = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
+        if (primaryAddr?.location?.coordinates?.length === 2) {
+          jobLocation = {
+            type: 'Point',
+            coordinates: [Number(primaryAddr.location.coordinates[0]), Number(primaryAddr.location.coordinates[1])],
+          };
         }
       }
 
-      // Upload media files first, then send URLs to backend
+      // Parallelize media uploads if attached
       const mediaUrls = [];
-      let hadMediaError = false;
-      for (const m of media) {
-        try {
-          const formData = new FormData();
-          const cleanUri = Platform.OS === 'android' ? m.uri : m.uri.replace('file://', '');
-          const fileType = m.type || 'image/jpeg';
-          const fileName = m.name || m.fileName || `media_${Date.now()}.jpg`;
+      if (Array.isArray(media) && media.length > 0) {
+        const uploadPromises = media.map(async (m) => {
+          try {
+            const formData = new FormData();
+            const cleanUri = Platform.OS === 'android' ? m.uri : m.uri.replace('file://', '');
+            const fileType = m.type || 'image/jpeg';
+            const fileName = m.name || m.fileName || `media_${Date.now()}.jpg`;
 
-          formData.append('media', {
-            uri: cleanUri,
-            type: fileType,
-            name: fileName,
-          });
+            formData.append('media', {
+              uri: cleanUri,
+              type: fileType,
+              name: fileName,
+            });
 
-          const uploadRes = await jobService.uploadMedia(formData);
-          const uploadedUrl = uploadRes?.data?.data?.url || uploadRes?.data?.url;
-          if (uploadedUrl) {
-            mediaUrls.push(uploadedUrl);
+            const uploadRes = await jobService.uploadMedia(formData);
+            return uploadRes?.data?.data?.url || uploadRes?.data?.url || null;
+          } catch (e) {
+            console.warn('Failed to upload media item:', e?.message || e);
+            return null;
           }
-        } catch (e) {
-          console.warn('Failed to upload media item:', e?.response?.data || e?.message || e);
-          hadMediaError = true;
-        }
-      }
+        });
 
-      if (hadMediaError && mediaUrls.length === 0 && media.length > 0) {
-        Alert.alert('Upload Notice', 'Some photos could not be attached, but your job request is being created.');
+        const uploadedResults = await Promise.all(uploadPromises);
+        mediaUrls.push(...uploadedResults.filter(Boolean));
       }
 
       const payload = {
@@ -503,7 +513,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
       setSubmitSuccess(true);
       setTimeout(() => {
         navigation.navigate('Home', { screen: 'HomeMain', params: { refresh: Date.now() } });
-      }, 500);
+      }, 400);
     } catch (error) {
       const serverErrors = error.response?.data?.errors;
       const msg =
