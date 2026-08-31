@@ -1,3 +1,4 @@
+import { Platform, PermissionsAndroid } from 'react-native';
 import { API_BASE_URL } from '../config/env';
 
 export const getImageUrl = (url) => {
@@ -22,9 +23,8 @@ export const getImageUrl = (url) => {
 };
 
 export const requestCameraPermission = async () => {
-  if (require('react-native').Platform.OS === 'android') {
+  if (Platform.OS === 'android') {
     try {
-      const { PermissionsAndroid } = require('react-native');
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.CAMERA,
         {

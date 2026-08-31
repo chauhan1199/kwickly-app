@@ -10,6 +10,7 @@ import {
   Dimensions,
   Image,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
