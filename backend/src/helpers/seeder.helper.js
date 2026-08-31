@@ -75,8 +75,8 @@ const seedData = async () => {
             isSingleton: 'CONFIG',
             branding: {
               appName: 'Kwickly',
-              logoUrl: 'http://localhost:5000/uploads/logowithtext.jpeg',
-              iconUrl: 'http://localhost:5000/uploads/logo.jpeg'
+              logoUrl: '/uploads/logowithtext.jpeg',
+              iconUrl: '/uploads/logo.jpeg'
             },
             fees: { amount: 12, type: 'percent' },
             paymentMethods: { qrExpiry: 45, cashEnabled: true },
