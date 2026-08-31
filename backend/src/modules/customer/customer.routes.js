@@ -11,6 +11,11 @@ const { openDisputeSchema } = require('../../validators/dispute.validator');
 const { updateProfileSchema, addAddressSchema, updateAddressSchema, notificationPreferencesSchema } = require('../../validators/customer.validator');
 const upload = require('../../middleware/upload.middleware');
 
+// -- Public Browse Endpoints (Accessible for both guests & logged-in customers) --
+router.get('/top-pros', customerController.getTopPros);
+router.get('/workers/:id/profile', customerController.getWorkerProfile);
+
+// -- Protected Routes --
 router.use(authMiddleware);
 
 // -- Customer Profile --
@@ -25,7 +30,6 @@ router.delete('/me/addresses/:addressId', authorize('CUSTOMER'), customerControl
 router.patch('/me/addresses/:addressId/primary', authorize('CUSTOMER'), customerController.setPrimaryAddress);
 
 // -- Customer Jobs --
-router.get('/top-pros', authorize('CUSTOMER'), customerController.getTopPros);
 router.get('/jobs/active', authorize('CUSTOMER'), customerController.getActiveJob);
 router.get('/jobs/:id/receipt', authorize('CUSTOMER'), customerController.getJobReceipt);
 
@@ -35,9 +39,6 @@ router.post('/disputes', authorize('CUSTOMER'), validate(openDisputeSchema), dis
 // -- Notifications --
 router.put('/me/notifications', authorize('CUSTOMER'), validate(notificationPreferencesSchema), customerController.updateNotificationPreferences);
 router.post('/me/notifications/trigger', authorize('CUSTOMER'), customerController.triggerNotification);
-
-// -- Worker Profile (browse) --
-router.get('/workers/:id/profile', authorize('CUSTOMER'), customerController.getWorkerProfile);
 
 // -- Suggestions --
 router.post('/category-suggestions', authorize('CUSTOMER'), customerController.submitCategorySuggestion);

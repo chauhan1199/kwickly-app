@@ -38,6 +38,8 @@ import GlassCard from '../../components/ui/GlassCard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryTheme';
 import { getImageUrl } from '../../utils/helpers';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../../services/api';
 
 const { width } = Dimensions.get('window');
 
@@ -95,17 +97,31 @@ const BookServiceScreen = ({ navigation, route }) => {
     return { lat: 23.0225, lng: 72.5714 };
   }, [route.params?.location, user]);
 
+  // Load cached categories immediately on launch
+  useEffect(() => {
+    AsyncStorage.getItem('kwickly_cache_categories')
+      .then(catJson => {
+        if (catJson) {
+          try {
+            const parsed = JSON.parse(catJson);
+            if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+          } catch (_) {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       setError(null);
-      const [catRes, workerRes, bannerRes] = await Promise.all([
+      const [catRes, workerRes, bannerRes] = await Promise.allSettled([
         jobService.getCategories(),
         customerService.getTopPros(),
-        api.get('/promotions/banners').catch(() => ({ data: { status: 'error', data: [] } }))
+        api.get('/promotions/banners')
       ]);
 
-      if (catRes.data?.status === 'success') {
-        const mappedCats = catRes.data.data.map(c => ({
+      if (catRes.status === 'fulfilled' && catRes.value?.data?.status === 'success') {
+        const mappedCats = catRes.value.data.data.map(c => ({
           id: c._id,
           _id: c._id,
           icon: getCategoryIcon(c.name, c.icon),
@@ -120,14 +136,15 @@ const BookServiceScreen = ({ navigation, route }) => {
           }))
         }));
         setCategories(mappedCats);
+        AsyncStorage.setItem('kwickly_cache_categories', JSON.stringify(mappedCats)).catch(() => {});
       }
 
-      if (bannerRes.data?.status === 'success') {
-        setBanners(bannerRes.data.data.filter(b => b.position === 'CATEGORY_PAGE'));
+      if (bannerRes.status === 'fulfilled' && bannerRes.value?.data?.status === 'success') {
+        setBanners(bannerRes.value.data.data.filter(b => b.position === 'CATEGORY_PAGE'));
       }
 
-      if (workerRes.data?.status === 'success') {
-        const mappedWorkers = workerRes.data.data.map(w => {
+      if (workerRes.status === 'fulfilled' && workerRes.value?.data?.status === 'success') {
+        const mappedWorkers = workerRes.value.data.data.map(w => {
           const wLat = w.activeLocation?.coordinates?.[1] || customerCoords.lat + (Math.random() * 0.04 - 0.02);
           const wLon = w.activeLocation?.coordinates?.[0] || customerCoords.lng + (Math.random() * 0.04 - 0.02);
           
@@ -186,14 +203,20 @@ const BookServiceScreen = ({ navigation, route }) => {
         mappedWorkers.sort((a, b) => (a.distNumeric || 0) - (b.distNumeric || 0));
         setWorkers(mappedWorkers);
       }
+
+      if (catRes.status !== 'fulfilled' && categories.length === 0) {
+        setError('Unable to load services right now. Pull down to retry.');
+      }
     } catch (e) {
       console.log('[BookServiceScreen] Fetch error:', e?.message);
-      setError('Unable to load services right now. Pull down to retry.');
+      if (categories.length === 0) {
+        setError('Unable to load services right now. Pull down to retry.');
+      }
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, [customerCoords]);
+  }, [customerCoords, categories.length]);
 
   useEffect(() => {
     fetchData();
