@@ -21,6 +21,7 @@ import {
   Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone, QrCode, ArrowRight, ExternalLink, Copy, CheckCircle2
 } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
+import { isValidUtr, utrValidationError } from '../../utils/upiValidation';
 
 const CartScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -306,10 +307,12 @@ const CartScreen = ({ route, navigation }) => {
         await clearCart();
         if (fetchUser) await fetchUser();
         setOrderSuccessModal({
-          orderNumber: order.orderNumber || `#${order._id?.slice(-6)}`,
+          orderNumber: order.orderNumber || `#${order._id?.slice(-6).toUpperCase()}`,
           orderId: order._id,
-          total: total,
+          total: Number(total).toFixed(2),
           method: 'Wallet',
+          isPaid: true,
+          utr: null,
           slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
         });
         return;
@@ -405,11 +408,20 @@ const CartScreen = ({ route, navigation }) => {
   const handleConfirmUpiPayment = async () => {
     if (!currentOrder) return;
     const cleanUtr = upiTxnId.trim();
-    if (!cleanUtr || cleanUtr.length < 4) {
+    if (!cleanUtr) {
       return showAlert({
         type: 'warning',
         title: 'UTR Number Required',
         message: 'Please enter the 12-digit UPI Reference / UTR Number from your payment confirmation screen.'
+      });
+    }
+
+    if (!isValidUtr(cleanUtr)) {
+      const err = utrValidationError(cleanUtr);
+      return showAlert({
+        type: 'warning',
+        title: 'Invalid UTR Number',
+        message: err || 'Please enter the genuine 12-digit UPI Reference / UTR Number from your bank receipt. Fake, sequential, or dummy numbers are rejected.'
       });
     }
 
@@ -431,10 +443,11 @@ const CartScreen = ({ route, navigation }) => {
       if (fetchUser) await fetchUser();
 
       setOrderSuccessModal({
-        orderNumber: currentOrder.orderNumber || `#${currentOrder._id?.slice(-6)}`,
+        orderNumber: currentOrder.orderNumber || `#${currentOrder._id?.slice(-6).toUpperCase()}`,
         orderId: currentOrder._id,
-        total: total,
+        total: Number(total).toFixed(2),
         method: 'UPI',
+        isPaid: false,
         utr: cleanUtr,
         slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
       });
@@ -976,35 +989,61 @@ const CartScreen = ({ route, navigation }) => {
               colors={['#10B981', '#059669']}
               style={styles.successBadgeCircle}
             >
-              <Check size={36} color="#FFFFFF" />
+              <Check size={36} color="#FFFFFF" strokeWidth={3} />
             </LinearGradient>
 
             <Text style={styles.successModalTitle}>Order Placed! 🎉</Text>
             <Text style={styles.successModalSub}>
-              Order <Text style={{ fontWeight: '800', color: theme.colors.text }}>{orderSuccessModal?.orderNumber}</Text> has been placed successfully.
+              Order <Text style={{ fontWeight: '900', color: theme.colors.text }}>{orderSuccessModal?.orderNumber}</Text> has been created successfully.
             </Text>
 
             <View style={styles.successDetailsBox}>
               <View style={styles.successDetailRow}>
                 <Text style={styles.successDetailKey}>Order Total</Text>
-                <Text style={styles.successDetailVal}>₹{orderSuccessModal?.total}</Text>
+                <Text style={[styles.successDetailVal, { fontSize: 15, fontWeight: '900', color: theme.colors.primary }]}>
+                  ₹{orderSuccessModal?.total}
+                </Text>
               </View>
+
               <View style={styles.successDetailRow}>
                 <Text style={styles.successDetailKey}>Payment Method</Text>
-                <Text style={styles.successDetailVal}>{orderSuccessModal?.method || 'Wallet'}</Text>
-              </View>
-              {orderSuccessModal?.utr ? (
-                <View style={styles.successDetailRow}>
-                  <Text style={styles.successDetailKey}>UTR / Status</Text>
-                  <Text style={[styles.successDetailVal, { color: '#F59E0B', fontSize: 12 }]}>
-                    ⏳ Pending Verification ({orderSuccessModal.utr})
+                <View style={styles.paymentMethodPill}>
+                  <Text style={styles.paymentMethodPillText}>
+                    {orderSuccessModal?.method === 'Wallet' ? '💳 Kwickly Wallet' : '⚡ Direct UPI'}
                   </Text>
                 </View>
+              </View>
+
+              <View style={styles.successDetailRow}>
+                <Text style={styles.successDetailKey}>Payment Status</Text>
+                <View style={[
+                  styles.paymentStatusBadge,
+                  orderSuccessModal?.isPaid ? styles.statusBadgePaid : styles.statusBadgePending
+                ]}>
+                  <Text style={[
+                    styles.paymentStatusBadgeText,
+                    orderSuccessModal?.isPaid ? styles.statusTextPaid : styles.statusTextPending
+                  ]}>
+                    {orderSuccessModal?.isPaid ? '✓ Paid Instantly' : '⏳ Pending Verification'}
+                  </Text>
+                </View>
+              </View>
+
+              {orderSuccessModal?.utr ? (
+                <View style={[styles.successDetailRow, { alignItems: 'flex-start', paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }]}>
+                  <Text style={[styles.successDetailKey, { marginTop: 4 }]}>UTR Ref</Text>
+                  <View style={styles.utrBadgeBox}>
+                    <Text style={styles.utrBadgeText}>{orderSuccessModal.utr}</Text>
+                  </View>
+                </View>
               ) : null}
+
               {orderSuccessModal?.slot ? (
-                <View style={styles.successDetailRow}>
+                <View style={[styles.successDetailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: 6 }]}>
                   <Text style={styles.successDetailKey}>Delivery Slot</Text>
-                  <Text style={[styles.successDetailVal, { color: '#6C47FF' }]}>{orderSuccessModal.slot}</Text>
+                  <Text style={[styles.successDetailVal, { color: '#6C47FF', maxWidth: '60%', textAlign: 'right' }]} numberOfLines={1}>
+                    {orderSuccessModal.slot}
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -1015,10 +1054,10 @@ const CartScreen = ({ route, navigation }) => {
               onPress={() => {
                 const oid = orderSuccessModal?.orderId;
                 setOrderSuccessModal(null);
-                navigation.navigate('OrderTracking', { orderId: oid });
+                navigation.navigate('ShopOrderDetails', { orderId: oid });
               }}
             >
-              <Text style={styles.trackOrderBtnText}>🚚 Track Order</Text>
+              <Text style={styles.trackOrderBtnText}>📍 Track Order</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1177,15 +1216,25 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   cancelUpiText: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim },
 
   // Order Success Modal Styles
-  successModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  successModalCard: { width: '100%', maxWidth: 360, backgroundColor: theme.colors.surface, borderRadius: 24, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },
-  successBadgeCircle: { width: 68, height: 68, borderRadius: 34, justifyContent: 'center', alignItems: 'center', marginBottom: 16, elevation: 4 },
-  successModalTitle: { fontSize: 22, fontWeight: '900', color: theme.colors.text, marginBottom: 8, textAlign: 'center' },
-  successModalSub: { fontSize: 13, color: theme.colors.textDim, textAlign: 'center', lineHeight: 18, marginBottom: 18 },
-  successDetailsBox: { width: '100%', backgroundColor: theme.colors.background, borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: theme.colors.border },
-  successDetailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
-  successDetailKey: { fontSize: 12, color: theme.colors.textDim, fontWeight: '600' },
+  successModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  successModalCard: { width: '100%', maxWidth: 360, backgroundColor: theme.colors.surface, borderRadius: 28, padding: 22, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 10 },
+  successBadgeCircle: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 14, elevation: 4 },
+  successModalTitle: { fontSize: 22, fontWeight: '900', color: theme.colors.text, marginBottom: 6, textAlign: 'center' },
+  successModalSub: { fontSize: 13, color: theme.colors.textDim, textAlign: 'center', lineHeight: 18, marginBottom: 16 },
+  successDetailsBox: { width: '100%', backgroundColor: theme.colors.background, borderRadius: 16, padding: 14, marginBottom: 18, borderWidth: 1, borderColor: theme.colors.border },
+  successDetailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  successDetailKey: { fontSize: 12, color: theme.colors.textDim, fontWeight: '700' },
   successDetailVal: { fontSize: 13, color: theme.colors.text, fontWeight: '800' },
+  paymentMethodPill: { backgroundColor: theme.colors.surface, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.border },
+  paymentMethodPillText: { fontSize: 12, fontWeight: '800', color: theme.colors.text },
+  paymentStatusBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
+  statusBadgePaid: { backgroundColor: '#10B98118' },
+  statusBadgePending: { backgroundColor: '#F59E0B18' },
+  paymentStatusBadgeText: { fontSize: 11.5, fontWeight: '900' },
+  statusTextPaid: { color: '#10B981' },
+  statusTextPending: { color: '#D97706' },
+  utrBadgeBox: { backgroundColor: isDarkMode ? 'rgba(245,158,11,0.12)' : '#FEF3C7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B40' },
+  utrBadgeText: { fontSize: 12, fontWeight: '900', color: isDarkMode ? '#FDE68A' : '#B45309', letterSpacing: 0.8 },
   trackOrderBtn: { width: '100%', backgroundColor: theme.colors.primary, paddingVertical: 15, borderRadius: 14, alignItems: 'center', marginBottom: 10 },
   trackOrderBtnText: { fontSize: 15, fontWeight: '900', color: '#001016' },
   continueShopBtn: { width: '100%', backgroundColor: theme.colors.background, paddingVertical: 13, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },

@@ -40,6 +40,9 @@ describe('UPI UTR validation (shared across all payment screens)', () => {
             expect(isValidUtr('123412341234')).toBe(false);
             expect(isValidUtr('112233445566')).toBe(false);
             expect(isValidUtr('121212121212')).toBe(false);
+            expect(isValidUtr('123456543212')).toBe(false);
+            expect(isValidUtr('123456654321')).toBe(false);
+            expect(isValidUtr('123123123123')).toBe(false);
         });
     });
 

@@ -6,24 +6,31 @@ import {
   SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
-  StatusBar,
-  ActivityIndicator,
-  Alert,
-  Linking
+  StatusBar, 
+  ActivityIndicator, 
+  Alert, 
+  Linking 
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { shopService } from '../../services/shopService';
 import { API_BASE_URL } from '../../config/env';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
+import { 
+  Clock, CheckCircle2, XCircle, AlertTriangle, 
+  Package, MapPin, FileText, ArrowLeft, RefreshCw, Wallet, RotateCcw 
+} from 'lucide-react-native';
 
 const ShopOrderDetailsScreen = ({ route, navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
+  const { fetchUser } = useAuth();
 
   const { orderId } = route.params || {};
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
   const [showMap, setShowMap] = useState(false);
 
   const styles = createStyles(theme, isDarkMode);
@@ -36,7 +43,7 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
         setOrder(res.data.data);
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to load order details. Please try again.');
+      console.warn('[ShopOrderDetails] fetch error:', e?.message);
     } finally {
       if (showLoader) setLoading(false);
     }
@@ -49,6 +56,54 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
     return () => clearInterval(interval);
   }, [orderId, fetchOrder]);
 
+  const handleCancelOrder = () => {
+    if (!order) return;
+    const isPaid = order.payment?.status === 'PAID' || order.payment?.method === 'WALLET';
+    const isUpiPending = order.payment?.status === 'PENDING_VERIFICATION';
+
+    let refundMsg = 'Are you sure you want to cancel this order?';
+    if (isPaid) {
+      refundMsg = `Are you sure you want to cancel this order? The paid amount of ₹${order.total || 0} will be immediately refunded back to your Kwickly Wallet.`;
+    } else if (isUpiPending) {
+      refundMsg = `Are you sure you want to cancel this order? If your UPI payment was deducted by your bank, our support will credit your wallet upon verification.`;
+    }
+
+    Alert.alert(
+      'Cancel Order?',
+      refundMsg,
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        {
+          text: 'Yes, Cancel Order',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setCancelling(true);
+              const res = await shopService.cancelOrder(orderId);
+              if (res.data?.status === 'success') {
+                if (fetchUser) await fetchUser();
+                Alert.alert(
+                  'Order Cancelled',
+                  isPaid 
+                    ? `Order #${order.orderNumber || orderId?.slice(-6)?.toUpperCase()} has been cancelled and ₹${order.total || 0} has been refunded to your Kwickly Wallet.`
+                    : `Order #${order.orderNumber || orderId?.slice(-6)?.toUpperCase()} has been cancelled successfully.`,
+                  [{ text: 'OK', onPress: () => fetchOrder(true) }]
+                );
+              }
+            } catch (err) {
+              Alert.alert(
+                'Cancellation Failed', 
+                err.response?.data?.message || err.message || 'Unable to cancel this order in its current status.'
+              );
+            } finally {
+              setCancelling(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loading || !order) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -58,24 +113,30 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
   }
 
   const o = {
-    id: order._id.slice(-6).toUpperCase(),
+    id: order.orderNumber || `#${order._id.slice(-6).toUpperCase()}`,
     shop: order.shopId?.name || 'Shop',
     s: order.status,
-    amt: order.total,
+    amt: Number(order.total ?? order.payment?.amount ?? 0).toFixed(2),
     icon: '🏪',
     color: '#10b981'
   };
 
-
-
-  const isActive = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.s);
+  const isCancelled = o.s === 'CANCELLED';
+  const isDelivered = o.s === 'DELIVERED';
+  const isActive = ['NEW', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.s);
+  const canCancel = ['NEW', 'CONFIRMED', 'PACKING'].includes(o.s);
   const isOutForDelivery = o.s === 'OUT_FOR_DELIVERY';
   const priceNum = o.amt;
+
+  const isUpiVerification = order.payment?.status === 'PENDING_VERIFICATION' && !isCancelled;
+  const isWalletPaid = order.payment?.status === 'PAID' || order.payment?.method === 'WALLET';
+  const isRefunded = order.payment?.status === 'REFUNDED' || (isCancelled && isWalletPaid);
 
   const items = order.items || [];
   const subtotal = order.subtotal || 0;
   const deliveryFee = order.deliveryFee || 0;
-  const taxes = 0; // if applicable
+  const platformFee = order.platformFee || 0;
+  const gstAmount = order.gstAmount || 0;
 
   const mapHTML = `
     <!DOCTYPE html>
@@ -122,18 +183,16 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
     </html>
   `;
 
-
-
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
       
       {/* App Bar - Themed */}
       <LinearGradient
         colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingBottom: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, position: 'relative', overflow: 'hidden' }}
+        style={{ paddingBottom: 16, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, position: 'relative', overflow: 'hidden' }}
       >
         <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
         <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
@@ -141,7 +200,7 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
         <AppBar 
           showBack={true} 
           title="Order Details" 
-          subtitle={`Order #${o.id}`} 
+          subtitle={o.id} 
           transparent={true} 
           showLogo={false} 
         />
@@ -149,64 +208,114 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         
+        {/* Cancelled Banner */}
+        {isCancelled && (
+          <View style={styles.cancelledBanner}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={styles.cancelledIconBox}>
+                <XCircle size={22} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cancelledTitle}>Order Cancelled</Text>
+                <Text style={styles.cancelledSub}>
+                  {isRefunded 
+                    ? `₹${priceNum} has been refunded to your Kwickly Wallet.` 
+                    : 'This order was cancelled and items have been released.'}
+                </Text>
+              </View>
+            </View>
+            {isRefunded && (
+              <TouchableOpacity 
+                style={styles.walletShortcutBtn}
+                onPress={() => navigation.navigate('Wallet')}
+                activeOpacity={0.8}
+              >
+                <Wallet size={14} color="#059669" />
+                <Text style={styles.walletShortcutText}>View Wallet Balance</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* UPI Verification Pending Notice */}
+        {isUpiVerification && (
+          <View style={styles.upiPendingBanner}>
+            <Clock size={20} color="#D97706" style={{ marginTop: 2 }} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.upiPendingTitle}>Payment Under Shop Verification</Text>
+              <Text style={styles.upiPendingText}>
+                UTR: <Text style={{ fontWeight: '900', color: '#B45309' }}>{order.payment?.utrNumber}</Text>
+              </Text>
+              <Text style={styles.upiPendingSub}>
+                The shop owner will verify the bank credit and prepare your delivery shortly.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Status Card */}
         <View style={styles.card}>
           <View style={styles.row}>
-            <View style={[styles.iconBox, { backgroundColor: (isActive ? '#f5b300' : '#10b981') + '26' }]}>
-              <Text style={{fontSize: 22}}>{o.icon}</Text>
+            <View style={[styles.iconBox, { backgroundColor: isCancelled ? '#ef444418' : (isActive ? '#6C47FF18' : '#10b98118') }]}>
+              <Text style={{fontSize: 22}}>{isCancelled ? '❌' : o.icon}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{o.shop}</Text>
-              <Text style={styles.cardSub}>Today, 10:30 AM</Text>
+              <Text style={styles.cardSub}>
+                {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Today'}
+              </Text>
             </View>
-            <View style={[styles.statusPill, { backgroundColor: (isActive ? '#f5b300' : '#10b981') + '26' }]}>
-              <Text style={[styles.statusText, { color: isActive ? '#f5b300' : '#10b981' }]}>{o.s}</Text>
+            <View style={[styles.statusPill, { backgroundColor: isCancelled ? '#ef444418' : (isActive ? '#6C47FF18' : '#10b98118') }]}>
+              <Text style={[styles.statusText, { color: isCancelled ? '#ef4444' : (isActive ? '#6C47FF' : '#10b981') }]}>
+                {o.s}
+              </Text>
             </View>
           </View>
           
-          {/* Order Tracking Timeline */}
-          <View style={styles.timelineBox}>
-            <Text style={styles.sectionHeader}>Order Tracking</Text>
-            <View style={{ marginTop: 16 }}>
-              {[
-                { key: 'NEW', label: 'Order Placed', icon: '📝', sub: 'Waiting for shop to accept' },
-                { key: 'PACKING', label: 'Processing & Packing', icon: '📦', sub: 'Shop is preparing your items' },
-                { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: '🛵', sub: 'Assigning delivery partner' },
-                { key: 'DELIVERED', label: 'Delivered', icon: '🎉', sub: 'Order completed' }
-              ].map((step, idx, arr) => {
-                const statusOrder = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
-                const currentIndex = statusOrder.indexOf(o.s);
-                const stepIndex = statusOrder.indexOf(step.key);
-                
-                const isCompleted = stepIndex < currentIndex;
-                const isCurrent = stepIndex === currentIndex;
-                const isPending = stepIndex > currentIndex;
+          {/* Order Tracking Timeline (Hide if cancelled) */}
+          {!isCancelled && (
+            <View style={styles.timelineBox}>
+              <Text style={styles.sectionHeader}>Order Tracking</Text>
+              <View style={{ marginTop: 16 }}>
+                {[
+                  { key: 'NEW', label: 'Order Placed', icon: '📝', sub: 'Waiting for shop to accept' },
+                  { key: 'PACKING', label: 'Processing & Packing', icon: '📦', sub: 'Shop is preparing your items' },
+                  { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: '🛵', sub: 'Assigning delivery partner' },
+                  { key: 'DELIVERED', label: 'Delivered', icon: '🎉', sub: 'Order completed' }
+                ].map((step, idx, arr) => {
+                  const statusOrder = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+                  const currentIndex = statusOrder.indexOf(o.s);
+                  const stepIndex = statusOrder.indexOf(step.key);
+                  
+                  const isCompleted = stepIndex < currentIndex;
+                  const isCurrent = stepIndex === currentIndex;
 
-                let iconColor = isCompleted ? '#10b981' : isCurrent ? '#6C47FF' : theme.colors.border;
-                let textColor = (isCompleted || isCurrent) ? theme.colors.text : theme.colors.textDim;
+                  let iconColor = isCompleted ? '#10b981' : isCurrent ? '#6C47FF' : theme.colors.border;
+                  let textColor = (isCompleted || isCurrent) ? theme.colors.text : theme.colors.textDim;
 
-                return (
-                  <View key={step.key} style={{ flexDirection: 'row', marginBottom: idx === arr.length - 1 ? 0 : 20 }}>
-                    <View style={{ alignItems: 'center', marginRight: 12 }}>
-                      <View style={[styles.timelineDot, { backgroundColor: isCompleted || isCurrent ? iconColor + '20' : theme.colors.background, borderColor: iconColor, borderWidth: 2 }]}>
-                        {isCompleted ? <Text style={{fontSize: 14}}>✓</Text> : <Text style={{fontSize: 12}}>{step.icon}</Text>}
+                  return (
+                    <View key={step.key} style={{ flexDirection: 'row', marginBottom: idx === arr.length - 1 ? 0 : 20 }}>
+                      <View style={{ alignItems: 'center', marginRight: 12 }}>
+                        <View style={[styles.timelineDot, { backgroundColor: isCompleted || isCurrent ? iconColor + '20' : theme.colors.background, borderColor: iconColor, borderWidth: 2 }]}>
+                          {isCompleted ? <Text style={{fontSize: 14}}>✓</Text> : <Text style={{fontSize: 12}}>{step.icon}</Text>}
+                        </View>
+                        {idx !== arr.length - 1 && (
+                          <View style={[styles.timelineLine, { backgroundColor: isCompleted ? '#10b981' : theme.colors.border }]} />
+                        )}
                       </View>
-                      {idx !== arr.length - 1 && (
-                        <View style={[styles.timelineLine, { backgroundColor: isCompleted ? '#10b981' : theme.colors.border }]} />
-                      )}
+                      <View style={{ flex: 1, paddingTop: 2 }}>
+                        <Text style={{ fontSize: 15, fontWeight: isCurrent ? '800' : '600', color: textColor }}>{step.label}</Text>
+                        <Text style={{ fontSize: 13, color: theme.colors.textDim, marginTop: 2 }}>{step.sub}</Text>
+                      </View>
                     </View>
-                    <View style={{ flex: 1, paddingTop: 2 }}>
-                      <Text style={{ fontSize: 15, fontWeight: isCurrent ? '800' : '600', color: textColor }}>{step.label}</Text>
-                      <Text style={{ fontSize: 13, color: theme.colors.textDim, marginTop: 2 }}>{step.sub}</Text>
-                    </View>
-                  </View>
-                );
-              })}
+                  );
+                })}
+              </View>
             </View>
-          </View>
+          )}
         </View>
 
-        {(isOutForDelivery || showMap) && (
+        {(isOutForDelivery || showMap) && !isCancelled && (
           <View style={styles.card}>
             <Text style={styles.sectionHeader}>Live Tracking</Text>
             <View style={{ height: 200, borderRadius: 16, overflow: 'hidden', marginTop: 12 }}>
@@ -240,19 +349,19 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {isActive && order.deliveryOtp && (
+        {isActive && order.deliveryOtp && !isCancelled && (
           <View style={styles.card}>
             <Text style={styles.sectionHeader}>Delivery OTP</Text>
             <Text style={{ fontSize: 32, fontWeight: '900', color: theme.colors.primary, letterSpacing: 10, textAlign: 'center', marginTop: 16 }}>
               {order.deliveryOtp}
             </Text>
             <Text style={{ textAlign: 'center', color: theme.colors.textDim, marginTop: 8 }}>
-              Share this OTP with the delivery partner
+              Share this OTP with the delivery partner upon arrival
             </Text>
           </View>
         )}
 
-        {/* Items */}
+        {/* Items & Bill Details */}
         <View style={styles.card}>
           <Text style={styles.sectionHeader}>Bill Details</Text>
           <View style={{ marginTop: 12 }}>
@@ -262,7 +371,7 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
                   <Text style={styles.qtyText}>{item.qty}x</Text>
                 </View>
                 <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.itemPrice}>₹{item.price}</Text>
+                <Text style={styles.itemPrice}>₹{item.price * item.qty}</Text>
               </View>
             ))}
             
@@ -282,11 +391,18 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
                 <Text style={[styles.invoiceText, { color: '#10b981' }]}>-₹{order.discount || order.promoDiscount}</Text>
               </View>
             )}
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceMuted}>Taxes & Charges</Text>
-              <Text style={styles.invoiceMuted}>₹{taxes}</Text>
-            </View>
-
+            {platformFee > 0 && (
+              <View style={styles.invoiceRow}>
+                <Text style={styles.invoiceMuted}>Platform Fee (5%)</Text>
+                <Text style={styles.invoiceMuted}>₹{platformFee.toFixed(2)}</Text>
+              </View>
+            )}
+            {gstAmount > 0 && (
+              <View style={styles.invoiceRow}>
+                <Text style={styles.invoiceMuted}>GST on Fee (18%)</Text>
+                <Text style={styles.invoiceMuted}>₹{gstAmount.toFixed(2)}</Text>
+              </View>
+            )}
             
             <View style={styles.separator} />
             
@@ -294,20 +410,52 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
               <Text style={styles.totalText}>Grand Total</Text>
               <Text style={styles.totalPrice}>₹{priceNum}</Text>
             </View>
+
+            <View style={[styles.invoiceRow, { marginTop: 4 }]}>
+              <Text style={styles.paymentMethodLabel}>Payment Method</Text>
+              <Text style={[styles.paymentMethodVal, { color: isWalletPaid ? '#10B981' : '#6C47FF' }]}>
+                {order.payment?.method === 'WALLET' ? 'Kwickly Wallet' : 'Direct UPI'}
+              </Text>
+            </View>
           </View>
         </View>
 
         {/* Actions */}
-        {isActive ? (
+        {isActive && (
           <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowMap(true)}>
-            <Text style={styles.primaryBtnText}>📍 Track Order</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('Shop')}>
-            <Text style={styles.primaryBtnText}>↺ Browse Shop</Text>
+            <Text style={styles.primaryBtnText}>📍 Live Map Tracking</Text>
           </TouchableOpacity>
         )}
-        
+
+        {/* Cancel Order Action */}
+        {canCancel && (
+          <TouchableOpacity 
+            style={[styles.cancelBtn, cancelling && { opacity: 0.6 }]} 
+            onPress={handleCancelOrder}
+            disabled={cancelling}
+            activeOpacity={0.8}
+          >
+            {cancelling ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <>
+                <XCircle size={18} color="#EF4444" />
+                <Text style={styles.cancelBtnText}>Cancel Order & Refund</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {isCancelled && (
+          <TouchableOpacity 
+            style={styles.primaryBtn} 
+            onPress={() => navigation.navigate('Shop', { screen: 'ShopMain' })}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryBtnText}>🛍️ Browse Shops Again</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity 
           style={styles.secondaryBtn} 
           onPress={() => {
@@ -335,68 +483,93 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  appBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 14,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-  },
-  backBtnText: {
-    fontSize: 24,
-    color: theme.colors.text,
-    lineHeight: 28,
-  },
-  appBarTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  appBarSub: {
-    fontSize: 12,
-    color: theme.colors.textDim,
-    marginTop: 2,
-  },
-  bellBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-    position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: 6,
-    right: 8,
-    width: 8,
-    height: 8,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 4,
-  },
   content: {
     paddingHorizontal: 14,
-    paddingTop: 4,
+    paddingTop: 12,
+  },
+  cancelledBanner: {
+    backgroundColor: isDarkMode ? 'rgba(239,68,68,0.12)' : '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#EF444440',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+  },
+  cancelledIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EF444420',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelledTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#EF4444',
+  },
+  cancelledSub: {
+    fontSize: 12.5,
+    color: isDarkMode ? '#FCA5A5' : '#991B1B',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  walletShortcutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: '#10B98118',
+    borderWidth: 1,
+    borderColor: '#10B98140',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginTop: 12,
+  },
+  walletShortcutText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  upiPendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: isDarkMode ? 'rgba(245,158,11,0.12)' : '#FFFBEB',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B40',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 16,
+  },
+  upiPendingTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: isDarkMode ? '#FDE68A' : '#B45309',
+  },
+  upiPendingText: {
+    fontSize: 12.5,
+    color: theme.colors.text,
+    marginTop: 2,
+  },
+  upiPendingSub: {
+    fontSize: 11.5,
+    color: theme.colors.textDim,
+    marginTop: 2,
+    lineHeight: 15,
   },
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   iconBox: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
@@ -419,17 +592,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   statusText: {
     fontSize: 11,
     fontWeight: '800',
-  },
-  deliveryBox: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  deliveryText: {
-    fontSize: 13,
-    color: theme.colors.text,
-    fontWeight: '500',
   },
   sectionHeader: {
     fontSize: 14,
@@ -455,7 +617,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.background,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 4,
+    borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginRight: 10,
@@ -469,12 +631,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: theme.colors.text,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   itemPrice: {
     fontSize: 13,
     color: theme.colors.text,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   invoiceRow: {
     flexDirection: 'row',
@@ -487,7 +649,16 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   invoiceMuted: {
     color: theme.colors.textDim,
-    fontSize: 13,
+    fontSize: 12,
+  },
+  paymentMethodLabel: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+  paymentMethodVal: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   separator: {
     height: 1,
@@ -502,18 +673,35 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   totalPrice: {
     color: theme.colors.text,
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   primaryBtn: {
     backgroundColor: theme.colors.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 15,
+    borderRadius: 14,
     alignItems: 'center',
     marginBottom: 10,
   },
   primaryBtnText: {
     color: '#001016',
     fontSize: 15,
+    fontWeight: '900',
+  },
+  cancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: isDarkMode ? 'rgba(239,68,68,0.12)' : '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#EF444450',
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginBottom: 10,
+  },
+  cancelBtnText: {
+    color: '#EF4444',
+    fontSize: 14,
     fontWeight: '800',
   },
   secondaryBtn: {
@@ -521,7 +709,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     marginBottom: 10,
   },

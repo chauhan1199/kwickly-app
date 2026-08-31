@@ -32,11 +32,41 @@ const isValidUtr = (utr) => {
     // Must be exactly 12 digits (NPCI UPI Reference Number / RRN format)
     if (!/^\d{12}$/.test(clean)) return false;
 
-    // Reject repetitive / obviously fake patterns
-    const isDummy = /^(\d)\1{11}$/.test(clean) ||
-                    ['123456789012', '000000000000', '111111111111', '999999999999', '123412341234', '112233445566', '121212121212'].includes(clean);
+    // Reject all identical digits (e.g. 111111111111, 222222222222, etc.)
+    if (/^(\d)\1{11}$/.test(clean)) return false;
 
-    return !isDummy;
+    // Minimum entropy check: a valid 12-digit bank RRN must have at least 4 unique digits
+    const uniqueDigits = new Set(clean.split('')).size;
+    if (uniqueDigits < 4) return false;
+
+    // Check repetitive chunks (e.g. 121212121212, 123123123123, 123412341234, 123456123456)
+    if (/^(\d{2})\1{5}$/.test(clean) || /^(\d{3})\1{3}$/.test(clean) || /^(\d{4})\1{2}$/.test(clean) || /^(\d{6})\1{1}$/.test(clean)) {
+        return false;
+    }
+
+    // Reject common fake test/sequential/mirror sequences
+    const blockedSequences = [
+        '123456789012', '012345678901', '987654321098', '098765432109',
+        '123456543212', '123456654321', '123456789000', '123456789123',
+        '000000000000', '111111111111', '222222222222', '333333333333',
+        '444444444444', '555555555555', '666666666666', '777777777777',
+        '888888888888', '999999999999', '121212121212', '123123123123',
+        '123412341234', '112233445566', '665544332211', '010203040506',
+        '102030405060', '111222333444', '987987987987', '000111222333'
+    ];
+
+    if (blockedSequences.includes(clean)) return false;
+
+    // Check ascending / descending sequential runs (e.g. 123456789012, 234567890123)
+    let isAsc = true, isDesc = true;
+    for (let i = 0; i < 11; i++) {
+        const diff = Number(clean[i + 1]) - Number(clean[i]);
+        if (diff !== 1 && !(clean[i] === '9' && clean[i + 1] === '0')) isAsc = false;
+        if (diff !== -1 && !(clean[i] === '0' && clean[i + 1] === '9')) isDesc = false;
+    }
+    if (isAsc || isDesc) return false;
+
+    return true;
 };
 
 

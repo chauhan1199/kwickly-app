@@ -487,22 +487,22 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
 
 /**
  * POST /api/v1/shoporders/:id/cancel
- * Customer cancels their own order (only if NEW status)
+ * Customer cancels their own order (if NEW, CONFIRMED, or PACKING status)
  */
 exports.cancelOrder = catchAsync(async (req, res) => {
-    // Atomic status check: only cancel if order is in NEW or CONFIRMED state
+    // Atomic status check: cancel if order is in NEW, CONFIRMED, or PACKING state
     const order = await ShopOrder.findOneAndUpdate(
-        { _id: req.params.id, customerId: req.user._id, status: { $in: ['NEW', 'CONFIRMED'] } },
+        { _id: req.params.id, customerId: req.user._id, status: { $in: ['NEW', 'CONFIRMED', 'PACKING'] } },
         { status: 'CANCELLED', $push: { statusHistory: { status: 'CANCELLED', timestamp: new Date(), note: 'Cancelled by customer' } } },
         { returnDocument: 'after' }
     );
     if (!order) {
         const existing = await ShopOrder.findOne({ _id: req.params.id, customerId: req.user._id }).lean();
         if (!existing) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
-        return errorResponse(res, 'Order cannot be cancelled in its current status', StatusCodes.BAD_REQUEST);
+        return errorResponse(res, 'Order cannot be cancelled once it is out for delivery or completed', StatusCodes.BAD_REQUEST);
     }
 
-    // Restore stock (partial restoration is acceptable)
+    // Restore stock
     for (const item of order.items) {
         if (item.productId) {
             try {
@@ -513,11 +513,12 @@ exports.cancelOrder = catchAsync(async (req, res) => {
         }
     }
 
-    // Refund if paid
+    // Refund to Wallet if already paid
     if (order.payment.status === 'PAID') {
         const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {
             $inc: { 'wallet.balance': order.total }
         }, { returnDocument: 'after' });
+
         await WalletTxn.create({
             userId: order.customerId,
             type: 'REFUND',
@@ -525,12 +526,38 @@ exports.cancelOrder = catchAsync(async (req, res) => {
             balance: refundedCustomer?.wallet?.balance ?? 0,
             refId: String(order._id),
             status: 'COMPLETED',
-            description: `Refund for cancelled order #${String(order._id).slice(-6)}`
+            description: `Refund for cancelled order #${order.orderNumber || String(order._id).slice(-6).toUpperCase()}`
         });
+
+        order.payment.status = 'REFUNDED';
+        await order.save();
         await delCache(`session:${order.customerId}`);
+
+        notifyUser({
+            userId: order.customerId,
+            title: '💰 Order Refunded',
+            message: `₹${order.total} has been refunded to your Kwickly Wallet for Order #${order.orderNumber || String(order._id).slice(-6).toUpperCase()}.`,
+            action: 'ORDER_CANCELLED',
+            entityType: 'ORDER',
+            entityId: order._id,
+            targetRole: 'CUSTOMER'
+        });
+    } else {
+        order.payment.status = 'CANCELLED';
+        await order.save();
+
+        notifyUser({
+            userId: order.customerId,
+            title: '❌ Order Cancelled',
+            message: `Order #${order.orderNumber || String(order._id).slice(-6).toUpperCase()} has been cancelled successfully.`,
+            action: 'ORDER_CANCELLED',
+            entityType: 'ORDER',
+            entityId: order._id,
+            targetRole: 'CUSTOMER'
+        });
     }
 
-    // Notify shop
+    // Notify shop owner
     emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', { orderId: order._id, status: 'CANCELLED' });
     emitToAll('DASHBOARD_UPDATE', { type: 'ORDER_STATUS_CHANGED', id: order._id });
 
@@ -540,7 +567,7 @@ exports.cancelOrder = catchAsync(async (req, res) => {
         notifyUser({
             userId: shop.ownerId,
             title: '❌ Order Cancelled',
-            message: `Order #${String(order._id).slice(-6).toUpperCase()} was cancelled by the customer.`,
+            message: `Order #${order.orderNumber || String(order._id).slice(-6).toUpperCase()} was cancelled by the customer.`,
             action: 'ORDER_CANCELLED',
             entityType: 'ORDER',
             entityId: order._id,
@@ -548,7 +575,7 @@ exports.cancelOrder = catchAsync(async (req, res) => {
         });
     }
 
-    return successResponse(res, order, 'Order cancelled successfully');
+    return successResponse(res, order, 'Order cancelled successfully and refund processed if applicable');
 });
 
 /**
