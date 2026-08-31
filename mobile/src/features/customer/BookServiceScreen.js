@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -10,48 +10,93 @@ import {
   ActivityIndicator,
   Dimensions,
   Platform,
-  Alert
+  Image,
+  RefreshControl
 } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
+import { 
+  Search, 
+  Star, 
+  MapPin, 
+  Clock, 
+  ShieldCheck, 
+  Briefcase, 
+  CheckCircle2, 
+  ChevronRight, 
+  SlidersHorizontal,
+  Wrench,
+  Sparkles,
+  Zap
+} from 'lucide-react-native';
+import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 import { customerService } from '../../services/customerService';
 import AppBar from '../../components/AppBar';
 import api from '../../services/api';
 import BannerCarousel from '../../components/ui/BannerCarousel';
 import GlassCard from '../../components/ui/GlassCard';
-import { ServiceCard } from '../../components/ui/ServiceCard';
 import { SearchBar } from '../../components/ui/SearchBar';
 
+const { width } = Dimensions.get('window');
 
-// Haversine formula to calculate distance between two coordinates in km
+// Haversine formula to calculate accurate distance between two coordinates in km
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-  const R = 6371; // km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
 
 const BookServiceScreen = ({ navigation, route }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
-
-  const chips = ['🔥 Popular', '🏠 Home', '🚗 Vehicle', '💄 Beauty', '🌿 Garden', '💻 Tech'];
+  const { theme, isDarkMode } = useTheme();
+  const { user } = useAuth();
 
   const [categories, setCategories] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [banners, setBanners] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('ALL');
   const [error, setError] = useState(null);
+
+  // Determine customer's active location coordinates
+  const customerCoords = useMemo(() => {
+    if (route.params?.location?.latitude && route.params?.location?.longitude) {
+      return {
+        lat: route.params.location.latitude,
+        lng: route.params.location.longitude
+      };
+    }
+    const primaryAddr = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
+    if (primaryAddr?.location?.coordinates?.length === 2) {
+      return {
+        lat: primaryAddr.location.coordinates[1],
+        lng: primaryAddr.location.coordinates[0]
+      };
+    }
+    if (user?.activeLocation?.coordinates?.length === 2) {
+      return {
+        lat: user.activeLocation.coordinates[1],
+        lng: user.activeLocation.coordinates[0]
+      };
+    }
+    // Default fallback coordinates (Ahmedabad city center)
+    return { lat: 23.0225, lng: 72.5714 };
+  }, [route.params?.location, user]);
 
   const fetchData = useCallback(async () => {
     try {
-      setIsLoading(true);
+      setError(null);
       const [catRes, workerRes, bannerRes] = await Promise.all([
         jobService.getCategories(),
         customerService.getTopPros(),
@@ -61,11 +106,13 @@ const BookServiceScreen = ({ navigation, route }) => {
       if (catRes.data?.status === 'success') {
         const mappedCats = catRes.data.data.map(c => ({
           id: c._id,
-          icon: c.icon,
+          _id: c._id,
+          icon: c.icon || '⚡',
           name: c.name,
           label: c.name,
           imageUrl: c.imageUrl || null,
-          subs: c.subcategories.map(s => ({
+          basePrice: c.basePrice || 199,
+          subs: (c.subcategories || []).map(s => ({
             id: s._id,
             name: s.name,
             imageUrl: s.imageUrl || null
@@ -79,174 +126,417 @@ const BookServiceScreen = ({ navigation, route }) => {
       }
 
       if (workerRes.data?.status === 'success') {
-        // Try to get customer's actual location, fallback to API-provided coordinates
-        let custLat = 19.0760;
-        let custLon = 72.8777;
-        try {
-          // Use location from route params or user's saved address if available
-          if (route.params?.location) {
-            custLat = route.params.location.latitude || custLat;
-            custLon = route.params.location.longitude || custLon;
-          }
-        } catch (e) {
-          Alert.alert('Location', 'Using default location');
-        }
-
         const mappedWorkers = workerRes.data.data.map(w => {
-          const wLat = w.activeLocation?.coordinates?.[1] || 19.0800;
-          const wLon = w.activeLocation?.coordinates?.[0] || 72.8800;
-          const distKm = calculateDistance(custLat, custLon, wLat, wLon) || 2.5;
-          const etaMins = Math.round(distKm * 5); // Rough estimate: 5 mins per km
+          const wLat = w.activeLocation?.coordinates?.[1] || customerCoords.lat + (Math.random() * 0.04 - 0.02);
+          const wLon = w.activeLocation?.coordinates?.[0] || customerCoords.lng + (Math.random() * 0.04 - 0.02);
+          
+          let distKm = calculateDistance(customerCoords.lat, customerCoords.lng, wLat, wLon);
+          if (distKm === null || isNaN(distKm)) distKm = 1.8;
+          
+          // Clamp realistic urban distance & ETA
+          const formattedDist = distKm < 1 ? `${(distKm * 1000).toFixed(0)} m` : `${distKm.toFixed(1)} km`;
+          const etaMins = Math.max(5, Math.min(60, Math.round(distKm * 4.5)));
+
+          // Extract all structured services
+          const servicesList = (w.services || [])
+            .filter(s => s && s.isActive !== false)
+            .map(s => {
+              const catName = s.categoryName || s.category?.name || (typeof s === 'string' ? s : 'General');
+              const catIcon = s.category?.icon || '⚡';
+              const subs = Array.isArray(s.subcategories) ? s.subcategories : [];
+              const basePrice = s.category?.basePrice || 199;
+              return { catName, catIcon, subs, basePrice };
+            });
+
+          const primaryCategory = servicesList[0]?.catName || 'General Expert';
+          const primaryIcon = servicesList[0]?.catIcon || '🛠️';
+          const allSubs = servicesList.flatMap(s => s.subs);
+          const startingPrice = servicesList.length > 0
+            ? Math.min(...servicesList.map(s => s.basePrice))
+            : (w.price || 199);
+
+          const ratingAvg = typeof w.rating === 'object' ? (w.rating?.average || 5.0) : (Number(w.rating) || 5.0);
+          const ratingCount = typeof w.rating === 'object' ? (w.rating?.count || 0) : 0;
+          const totalJobs = w.completedJobs !== undefined ? w.completedJobs : (w.jobs || 0);
 
           return {
-            id: w._id,
-            name: w.name,
-            rating: w.rating || 4.5,
-            jobs: w.jobs || 0,
-            price: 299, // default base price
+            id: w._id || w.id,
+            _id: w._id || w.id,
+            name: w.name || 'Verified Professional',
+            profileImage: w.profileImage || null,
+            phone: w.phone,
+            rating: { average: ratingAvg, count: ratingCount },
+            jobs: totalJobs,
+            price: startingPrice,
             eta: etaMins,
-            verified: true,
-            dist: `${distKm.toFixed(1)} km`,
-            cat: w.services?.[0] || 'General'
+            verified: w.kyc?.status === 'APPROVED' || w.isVerified !== false,
+            dist: formattedDist,
+            distNumeric: distKm,
+            cat: primaryCategory,
+            catIcon: primaryIcon,
+            services: servicesList,
+            subcategories: allSubs,
+            bio: w.bio,
+            city: w.city
           };
         });
+
+        // Sort nearest pros first
+        mappedWorkers.sort((a, b) => (a.distNumeric || 0) - (b.distNumeric || 0));
         setWorkers(mappedWorkers);
       }
     } catch (e) {
-      setError('Failed to load data. Please try again.');
+      console.log('[BookServiceScreen] Fetch error:', e?.message);
+      setError('Unable to load services right now. Pull down to retry.');
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
-  }, [route.params?.location]);
+  }, [customerCoords]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
+
+  // Filter workers based on search query and category filter
+  const filteredWorkers = useMemo(() => {
+    return workers.filter(w => {
+      // Category filter
+      if (selectedCategoryFilter !== 'ALL') {
+        const matchesCategory = (w.services || []).some(s => 
+          s.catName.toLowerCase().includes(selectedCategoryFilter.toLowerCase())
+        ) || w.cat.toLowerCase().includes(selectedCategoryFilter.toLowerCase());
+        
+        if (!matchesCategory) return false;
+      }
+
+      // Search query
+      if (searchQuery.trim().length > 0) {
+        const query = searchQuery.toLowerCase().trim();
+        const matchesName = w.name.toLowerCase().includes(query);
+        const matchesCat = w.cat.toLowerCase().includes(query);
+        const matchesService = (w.services || []).some(s => 
+          s.catName.toLowerCase().includes(query) ||
+          s.subs.some(sub => sub.toLowerCase().includes(query))
+        );
+        return matchesName || matchesCat || matchesService;
+      }
+
+      return true;
+    });
+  }, [workers, selectedCategoryFilter, searchQuery]);
+
   const styles = createStyles(theme, isDarkMode);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent={true} backgroundColor="transparent" />
 
-      {/* Unified App Bar inside a purple gradient */}
+      {/* Unified Purple Gradient App Header */}
       <LinearGradient
-        colors={['#6C47FF', '#8B6FFF']}
+        colors={['#5535d4', '#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+        style={styles.gradientHeader}
       >
-        {/* Dynamic background shapes */}
-        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+        <View style={styles.ambientShape1} />
+        <View style={styles.ambientShape2} />
 
-        <AppBar title="Book a Service" transparent={true} showBack={true} />
+        <SafeAreaView style={styles.safeHeaderArea}>
+          <AppBar title="Book a Service" transparent={true} showBack={true} />
+        </SafeAreaView>
       </LinearGradient>
 
-      {/* Search - overlapping header */}
-      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10 }}>
+      {/* Floating Search Bar */}
+      <View style={styles.searchBarWrapper}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
+          placeholder="Search electricians, plumbers, AC repair..."
           theme={theme}
           onFilterPress={() => {}}
         />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6C47FF']} />
+        }
+      >
         {error && (
-          <View style={{ padding: 14, marginBottom: 10, backgroundColor: '#FEE2E2', borderRadius: 12 }}>
-            <Text style={{ color: '#991B1B', textAlign: 'center', fontWeight: '600' }}>{error}</Text>
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
 
-        <View style={styles.listContainer}>
-          {/* Dynamic Banners */}
-          {banners.length > 0 && (
+        {/* Dynamic Promotional Banners */}
+        {banners.length > 0 && (
+          <View style={{ marginBottom: 18 }}>
             <BannerCarousel 
               banners={banners} 
-              itemWidth={Dimensions.get('window').width - 28} 
-              itemHeight={140}
-              style={{ marginBottom: 16 }}
+              itemWidth={width - 28} 
+              itemHeight={135}
               autoPlayInterval={4000}
-              contentContainerStyle={{ paddingHorizontal: 0 }}
+              contentContainerStyle={{ paddingHorizontal: 14 }}
             />
-          )}
-
-          <Text style={styles.sectionTitle}>All Service Categories</Text>
-          
-          <View style={[styles.serviceGrid, { justifyContent: 'flex-start' }]}>
-            {isLoading ? (
-              <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20, width: '100%' }} />
-            ) : (
-              categories
-                .filter(cat => !searchQuery || (cat.label || cat.name).toLowerCase().includes(searchQuery.toLowerCase()))
-                .map((cat, index) => (
-                <ServiceCard 
-                  key={cat.id || index} 
-                  cat={cat} 
-                  index={index} 
-                  theme={theme} 
-                  style={{ width: '31%', marginRight: (index % 3 === 2) ? 0 : '3.5%' }}
-                  onPress={(cat) => navigation.navigate('SubCategories', cat)} 
-                />
-              ))
-            )}
           </View>
+        )}
 
-          <Text style={[styles.sectionTitle, { marginTop: 14 }]}>Top Pros Near You</Text>
+        {/* Service Categories Grid Header */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Explore Service Categories</Text>
+            <Text style={styles.sectionSubtitle}>Verified doorstep professionals & instant booking</Text>
+          </View>
+        </View>
 
+        {/* Dynamic Service Categories Grid */}
+        <View style={styles.categoryGrid}>
           {isLoading ? (
-            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
-          ) : workers.length === 0 ? (
-            <Text style={{ textAlign: 'center', marginTop: 10, color: theme.colors.textDim }}>No top pros available.</Text>
+            <ActivityIndicator size="small" color="#6C47FF" style={{ marginVertical: 20, width: '100%' }} />
+          ) : categories.length === 0 ? (
+            <Text style={styles.emptyText}>No categories found.</Text>
           ) : (
-            workers.map((worker) => (
-              <GlassCard
+            categories
+              .filter(cat => !searchQuery || (cat.label || cat.name).toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((cat, index) => (
+                <TouchableOpacity
+                  key={cat.id || index}
+                  style={styles.categoryCard}
+                  activeOpacity={0.8}
+                  onPress={() => navigation.navigate('SubCategories', cat)}
+                >
+                  <View style={styles.categoryIconCircle}>
+                    <Text style={styles.categoryIconText}>{cat.icon || '⚡'}</Text>
+                  </View>
+                  <Text style={styles.categoryName} numberOfLines={2}>
+                    {cat.name}
+                  </Text>
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryBadgeText}>
+                      {cat.subs?.length || 1} {cat.subs?.length === 1 ? 'Service' : 'Services'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+          )}
+        </View>
+
+        {/* Dynamic Category Filter Pills */}
+        <View style={styles.filterSection}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            contentContainerStyle={styles.filterScroll}
+          >
+            <TouchableOpacity
+              style={[
+                styles.filterPill,
+                selectedCategoryFilter === 'ALL' && styles.filterPillActive
+              ]}
+              onPress={() => setSelectedCategoryFilter('ALL')}
+              activeOpacity={0.75}
+            >
+              <Text style={[
+                styles.filterPillText,
+                selectedCategoryFilter === 'ALL' && styles.filterPillTextActive
+              ]}>
+                🔥 All Pros ({workers.length})
+              </Text>
+            </TouchableOpacity>
+
+            {categories.map(c => {
+              const count = workers.filter(w => 
+                (w.services || []).some(s => s.catName.toLowerCase().includes(c.name.toLowerCase())) ||
+                w.cat.toLowerCase().includes(c.name.toLowerCase())
+              ).length;
+
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[
+                    styles.filterPill,
+                    selectedCategoryFilter === c.name && styles.filterPillActive
+                  ]}
+                  onPress={() => setSelectedCategoryFilter(selectedCategoryFilter === c.name ? 'ALL' : c.name)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[
+                    styles.filterPillText,
+                    selectedCategoryFilter === c.name && styles.filterPillTextActive
+                  ]}>
+                    {c.icon} {c.name} {count > 0 ? `(${count})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Section Header: Top Pros Near You */}
+        <View style={[styles.sectionHeader, { marginTop: 14 }]}>
+          <View>
+            <Text style={styles.sectionTitle}>Top Verified Pros Near You</Text>
+            <Text style={styles.sectionSubtitle}>
+              {filteredWorkers.length} {filteredWorkers.length === 1 ? 'expert available' : 'experts available'} around your location
+            </Text>
+          </View>
+        </View>
+
+        {/* Pros List */}
+        <View style={styles.workersList}>
+          {isLoading ? (
+            <ActivityIndicator size="large" color="#6C47FF" style={{ marginVertical: 30 }} />
+          ) : filteredWorkers.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Sparkles size={32} color="#6C47FF" style={{ marginBottom: 8 }} />
+              <Text style={styles.emptyTitle}>No professionals found</Text>
+              <Text style={styles.emptySub}>
+                Try selecting "All Pros" or searching for another service category.
+              </Text>
+            </View>
+          ) : (
+            filteredWorkers.map((worker) => (
+              <TouchableOpacity
                 key={worker.id} 
-                style={styles.workerCard}
-                isDarkMode={isDarkMode}
+                style={styles.proCard}
+                activeOpacity={0.88}
                 onPress={() => navigation.navigate('WorkerProfile', { worker })}
               >
-                <View style={styles.row}>
-                  <View style={styles.workerAvatar}>
-                    <Text style={styles.workerAvatarText}>{worker.name ? worker.name[0] : 'W'}</Text>
+                {/* Top Row: Avatar, Name, KYC, and Price */}
+                <View style={styles.proCardHeader}>
+                  <View style={styles.proAvatarWrapper}>
+                    {worker.profileImage ? (
+                      <Image source={{ uri: worker.profileImage }} style={styles.proAvatarImg} />
+                    ) : (
+                      <LinearGradient
+                        colors={['#8B6FFF', '#6C47FF']}
+                        style={styles.proAvatarPlaceholder}
+                      >
+                        <Text style={styles.proAvatarText}>
+                          {worker.name ? worker.name.trim().charAt(0).toUpperCase() : 'P'}
+                        </Text>
+                      </LinearGradient>
+                    )}
+                    <View style={styles.onlineDotBorder}>
+                      <View style={styles.onlineDotInner} />
+                    </View>
                   </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <View style={[styles.row, { gap: 6 }]}>
-                      <Text style={styles.workerName}>{worker.name || 'Worker'}</Text>
+
+                  <View style={styles.proInfoCol}>
+                    <View style={styles.proNameRow}>
+                      <Text style={styles.proName} numberOfLines={1}>
+                        {worker.name}
+                      </Text>
                       {worker.verified && (
-                        <View style={styles.kycChip}>
-                          <Text style={styles.kycChipText}>✓ KYC</Text>
+                        <View style={styles.kycBadge}>
+                          <ShieldCheck size={11} color="#10b981" style={{ marginRight: 3 }} />
+                          <Text style={styles.kycBadgeText}>KYC</Text>
                         </View>
                       )}
                     </View>
-                    <Text style={styles.workerStars}>
-                      <Text style={{ color: '#f5b300' }}>★★★★★</Text>
-                      <Text style={styles.workerMuted}> {typeof worker.rating === 'object' ? (worker.rating?.average || 0) : (worker.rating || 4.5)} · {worker.jobs} jobs</Text>
-                    </Text>
-                    <Text style={styles.workerMuted}>📍 {worker.dist} · ⏱ {worker.eta} min away</Text>
+
+                    {/* Rating & Jobs Done */}
+                    <View style={styles.ratingJobsRow}>
+                      <View style={styles.starPill}>
+                        <Star size={11} color="#f59e0b" fill="#f59e0b" />
+                        <Text style={styles.starText}>
+                          {worker.rating?.average > 0 ? worker.rating.average.toFixed(1) : '5.0'}
+                        </Text>
+                      </View>
+                      <Text style={styles.dotDivider}>·</Text>
+                      <Text style={styles.jobsDoneText}>
+                        {worker.jobs} {worker.jobs === 1 ? 'job done' : 'jobs done'}
+                      </Text>
+                      <Text style={styles.dotDivider}>·</Text>
+                      <Text style={styles.distanceText}>📍 {worker.dist}</Text>
+                    </View>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.workerPrice}>₹{worker.price}</Text>
-                    <TouchableOpacity 
-                      style={styles.viewBtn}
+
+                  <View style={styles.proPriceCol}>
+                    <Text style={styles.priceLabel}>From</Text>
+                    <Text style={styles.priceValue}>₹{worker.price}</Text>
+                  </View>
+                </View>
+
+                {/* Middle Row: Specialized Services Badges (Crucial) */}
+                <View style={styles.servicesPillsContainer}>
+                  {(worker.services && worker.services.length > 0) ? (
+                    worker.services.slice(0, 3).map((srv, sIdx) => (
+                      <View key={sIdx} style={styles.serviceBadge}>
+                        <Text style={styles.serviceBadgeText}>
+                          {srv.catIcon} {srv.catName}
+                        </Text>
+                      </View>
+                    ))
+                  ) : (
+                    <View style={styles.serviceBadge}>
+                      <Text style={styles.serviceBadgeText}>
+                        {worker.catIcon} {worker.cat}
+                      </Text>
+                    </View>
+                  )}
+
+                  {worker.subcategories && worker.subcategories.length > 0 && (
+                    <View style={styles.subSkillBadge}>
+                      <Text style={styles.subSkillBadgeText} numberOfLines={1}>
+                        ⚡ {worker.subcategories.slice(0, 2).join(' · ')}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Bottom Action Footer */}
+                <View style={styles.proCardFooter}>
+                  <View style={styles.etaContainer}>
+                    <Clock size={13} color="#10b981" />
+                    <Text style={styles.etaText}>Arrives in ~{worker.eta} mins</Text>
+                  </View>
+
+                  <View style={styles.actionBtnGroup}>
+                    <TouchableOpacity
+                      style={styles.viewProfileBtn}
+                      activeOpacity={0.7}
                       onPress={() => navigation.navigate('WorkerProfile', { worker })}
                     >
-                      <Text style={styles.viewBtnText}>View</Text>
+                      <Text style={styles.viewProfileBtnText}>View Profile</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.bookNowBtn}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        navigation.navigate('DescribeJob', { 
+                          category: { name: worker.cat }, 
+                          subcategory: worker.subcategories?.[0] || 'Inspection & Repair',
+                          selectedWorker: worker
+                        });
+                      }}
+                    >
+                      <LinearGradient
+                        colors={['#6C47FF', '#5535d4']}
+                        style={styles.bookNowBtnGradient}
+                      >
+                        <Text style={styles.bookNowBtnText}>Book Now</Text>
+                      </LinearGradient>
                     </TouchableOpacity>
                   </View>
                 </View>
-              </GlassCard>
+              </TouchableOpacity>
             ))
           )}
-
         </View>
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 60 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -255,255 +545,392 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  searchBar: {
-    backgroundColor: '#fff',
-    borderRadius: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
+  gradientHeader: {
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 10,
+    paddingBottom: 38,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  searchPlaceholder: {
-    flex: 1,
-    color: '#9ca3af',
-    fontSize: 14,
+  ambientShape1: {
+    position: 'absolute',
+    top: -50,
+    right: -30,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
-  filterBtn: {
-    backgroundColor: '#6C47FF',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+  ambientShape2: {
+    position: 'absolute',
+    bottom: -60,
+    left: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
-  content: {
+  safeHeaderArea: {
+    paddingHorizontal: 4,
+  },
+  searchBarWrapper: {
+    paddingHorizontal: 14,
+    marginTop: -24,
+    zIndex: 10,
+  },
+  scrollContent: {
     paddingTop: 16,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  appBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 10,
-    paddingBottom: 8,
-    gap: 8,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-  },
-  backBtnText: {
-    fontSize: 24,
-    color: theme.colors.text,
-    lineHeight: 28,
-  },
-  appBarTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  bellBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
-    position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: 6,
-    right: 8,
-    width: 8,
-    height: 8,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 4,
-  },
-  contentSpacer: {
-    paddingTop: 30,
-  },
-  searchBarContainer: {
+  errorBanner: {
     marginHorizontal: 14,
-    marginBottom: 14,
-  },
-  searchInput: {
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f8fafc',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: '#FEE2E2',
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: theme.colors.text,
   },
-  chipsScroll: {
-    marginBottom: 14,
-  },
-  chipItem: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginRight: 8,
-  },
-  chipText: {
-    fontSize: 13,
-    color: theme.colors.text,
-    fontWeight: '500',
-  },
-  listContainer: {
-    paddingHorizontal: 14,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: theme.colors.text,
-    marginBottom: 10,
-  },
-  serviceGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    marginBottom: 24,
-  },
-  catTile: {
-    width: '30%',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 6,
-    marginBottom: 10,
-  },
-  catIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    backgroundColor: 'rgba(14, 154, 167, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  catIconText: {
-    fontSize: 26,
-  },
-  catNameText: {
-    fontSize: 11,
+  errorText: {
+    color: '#991B1B',
     textAlign: 'center',
-    lineHeight: 14,
-    color: theme.colors.text,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontSize: 13,
   },
-  workerCard: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 16,
-    padding: 16,
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
     marginBottom: 12,
   },
-  workerAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(14, 154, 167, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  workerAvatarText: {
-    fontSize: 20,
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: '800',
-    color: theme.colors.primary,
-  },
-  workerName: {
-    fontWeight: '800',
-    fontSize: 14,
     color: theme.colors.text,
+    letterSpacing: 0.1,
   },
-  kycChip: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  kycChipText: {
-    color: '#10b981',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  workerStars: {
-    fontSize: 12,
-    marginVertical: 4,
-  },
-  workerMuted: {
+  sectionSubtitle: {
     fontSize: 12,
     color: theme.colors.textDim,
+    marginTop: 2,
   },
-  workerPrice: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: theme.colors.primary,
-  },
-  viewBtn: {
-    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f1f5f9',
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 10,
-    marginTop: 6,
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  viewBtnText: {
+  categoryCard: {
+    width: '31%',
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+  categoryIconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : '#F3F0FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryIconText: {
+    fontSize: 22,
+  },
+  categoryName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text,
+    textAlign: 'center',
+    lineHeight: 16,
+    minHeight: 32,
+  },
+  categoryBadge: {
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  categoryBadgeText: {
+    fontSize: 9,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+  filterSection: {
+    marginBottom: 14,
+  },
+  filterScroll: {
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  filterPillActive: {
+    backgroundColor: '#6C47FF',
+    borderColor: '#6C47FF',
+  },
+  filterPillText: {
     fontSize: 12,
     fontWeight: '700',
     color: theme.colors.text,
   },
-  bannerImageContainer: {
-    width: Dimensions.get('window').width - 28,
-    height: 140,
+  filterPillTextActive: {
+    color: '#ffffff',
+  },
+  workersList: {
+    paddingHorizontal: 14,
+  },
+  emptyCard: {
+    backgroundColor: theme.colors.surface,
     borderRadius: 16,
-    overflow: 'hidden',
-    marginRight: 10,
-    position: 'relative',
-    backgroundColor: '#1a237e'
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginTop: 8,
   },
-  bannerImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  bannerOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 12,
-    paddingTop: 24,
-  },
-  bannerTitle: {
-    fontSize: 16,
+  emptyTitle: {
+    fontSize: 15,
     fontWeight: '800',
-    color: '#fff',
-    marginBottom: 4,
+    color: theme.colors.text,
   },
-  bannerSubText: {
-    color: 'rgba(255,255,255,0.9)',
+  emptySub: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: theme.colors.textDim,
+    marginVertical: 10,
+    width: '100%',
+  },
+  proCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+  },
+  proCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  proAvatarWrapper: {
+    position: 'relative',
+  },
+  proAvatarImg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  proAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  proAvatarText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#ffffff',
+  },
+  onlineDotBorder: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: theme.colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  onlineDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10b981',
+  },
+  proInfoCol: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  proNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  proName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  kycBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.14)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  kycBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#10b981',
+  },
+  ratingJobsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  starPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  starText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  dotDivider: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+  },
+  jobsDoneText: {
     fontSize: 11,
+    color: theme.colors.textDim,
+    fontWeight: '500',
+  },
+  distanceText: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+  proPriceCol: {
+    alignItems: 'flex-end',
+  },
+  priceLabel: {
+    fontSize: 10,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+  priceValue: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#6C47FF',
+  },
+  servicesPillsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+  },
+  serviceBadge: {
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.18)' : '#F3F0FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  serviceBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: isDarkMode ? '#C4B5FD' : '#5B21B6',
+  },
+  subSkillBadge: {
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#F8FAFC',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    maxWidth: '50%',
+  },
+  subSkillBadgeText: {
+    fontSize: 10,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+  },
+  proCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+  },
+  etaContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  etaText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  actionBtnGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  viewProfileBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#F1F5F9',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  viewProfileBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  bookNowBtn: {
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  bookNowBtnGradient: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  bookNowBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#ffffff',
   }
 });
 

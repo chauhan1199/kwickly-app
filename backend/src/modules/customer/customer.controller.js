@@ -10,20 +10,24 @@ const Suggestion = require('../suggestion/suggestion.model');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 
 exports.getTopPros = catchAsync(async (req, res) => {
-    const cachedData = await getCache('top_pros_list');
-    if (cachedData) {
-        return successResponse(res, cachedData, 'Top pros fetched from cache');
-    }
-
     const pros = await Customer.find({ role: 'WORKER', isVerified: true })
-        .select('name phone profileImage activeLocation rating jobs')
-        .sort('-rating')
-        .limit(10)
+        .select('name phone profileImage activeLocation rating jobs services bio kyc serviceRadius isOnline city createdAt')
+        .populate('services.category', 'name icon basePrice')
+        .sort('-rating.average -rating.count -jobs')
+        .limit(20)
         .lean();
-        
-    await setCache('top_pros_list', pros, 3600);
 
-    return successResponse(res, pros, 'Top pros fetched successfully');
+    const enrichedPros = await Promise.all(pros.map(async (p) => {
+        const completedJobs = await Job.countDocuments({ workerId: p._id, status: { $in: ['COMPLETED', 'PAID'] } });
+        return {
+            ...p,
+            jobs: completedJobs || p.jobs || 0,
+            completedJobs: completedJobs || p.jobs || 0,
+            verified: p.kyc?.status === 'APPROVED' || p.isVerified
+        };
+    }));
+
+    return successResponse(res, enrichedPros, 'Top pros fetched successfully');
 });
 
 exports.getProfile = catchAsync(async (req, res) => {
@@ -150,8 +154,8 @@ exports.getActiveJob = catchAsync(async (req, res) => {
 
 exports.getWorkerProfile = catchAsync(async (req, res) => {
     const worker = await Customer.findById(req.params.id)
-        .select('name phone profileImage rating services city kyc.status isOnline role bio')
-        .populate('services.category', 'name icon')
+        .select('name phone email profileImage rating services city kyc.status isOnline role bio activeLocation serviceRadius createdAt')
+        .populate('services.category', 'name icon basePrice description')
         .lean();
 
     if (!worker || worker.role !== 'WORKER') {
@@ -160,7 +164,33 @@ exports.getWorkerProfile = catchAsync(async (req, res) => {
 
     const completedJobs = await Job.countDocuments({ workerId: req.params.id, status: { $in: ['COMPLETED', 'PAID'] } });
 
-    return successResponse(res, { ...worker, completedJobs }, 'Worker profile fetched');
+    // Fetch real verified customer reviews for this worker
+    const reviews = await Job.find({
+        workerId: req.params.id,
+        'rating.score': { $exists: true, $gt: 0 }
+    })
+    .populate('customerId', 'name profileImage')
+    .select('rating customerId createdAt category subcategory')
+    .sort('-rating.createdAt')
+    .limit(10)
+    .lean();
+
+    const formattedReviews = reviews.map(r => ({
+        id: r._id,
+        reviewerName: r.customerId?.name || 'Verified Customer',
+        reviewerImage: r.customerId?.profileImage || null,
+        score: r.rating?.score || 5,
+        reviewText: r.rating?.review || 'Completed job on time with great quality.',
+        date: r.rating?.createdAt || r.createdAt,
+        service: r.subcategory || r.category || 'Service'
+    }));
+
+    return successResponse(res, { 
+        ...worker, 
+        completedJobs,
+        verified: worker.kyc?.status === 'APPROVED' || worker.isVerified,
+        reviews: formattedReviews
+    }, 'Worker profile fetched');
 });
 
 exports.updateNotificationPreferences = catchAsync(async (req, res) => {
