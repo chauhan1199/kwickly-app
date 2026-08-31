@@ -58,9 +58,17 @@ const ShopOrderSchema = new mongoose.Schema({
         method:            { type: String, enum: ['WALLET', 'UPI', 'CASH', 'COD'], default: 'WALLET' },
         status:            { type: String, enum: ['PENDING', 'PENDING_VERIFICATION', 'PAID', 'FAILED', 'REFUNDED'], default: 'PENDING' },
         escrowStatus:      { type: String, enum: ['UNLOCKED', 'LOCKED', 'SETTLED', 'REFUNDED'], default: 'UNLOCKED' },
-        utrNumber:         { type: String },
-        razorpayOrderId:   { type: String },
-        razorpayPaymentId: { type: String }
+
+        // ── Automated UPI gateway fields ─────────────────────────────────
+        gatewayOrderId:       { type: String },   // provider session ref
+        gatewayTransactionId: { type: String },   // provider txn ID from webhook
+        webhookEventId:       { type: String },   // idempotency key (unique sparse index below)
+        verifiedAt:           { type: Date },     // when webhook confirmed the payment
+
+        // ── Legacy fields (kept for backward compat with in-flight orders) ───
+        utrNumber:         { type: String },      // manually submitted UTR (retired)
+        razorpayOrderId:   { type: String },      // legacy field name for internal txn ref
+        razorpayPaymentId: { type: String }       // legacy field name for UTR storage
     },
 
     promoCode: { type: String },
@@ -74,5 +82,10 @@ ShopOrderSchema.index({ shopId: 1, status: 1, createdAt: -1 }); // Shop dashboar
 ShopOrderSchema.index({ customerId: 1, createdAt: -1 });        // Customer order history
 ShopOrderSchema.index({ createdAt: -1 });                       // Admin list sort
 ShopOrderSchema.index({ status: 1, createdAt: -1 });            // Status-based filtering
+// Webhook idempotency — prevents duplicate processing of the same payment event
+ShopOrderSchema.index(
+    { 'payment.webhookEventId': 1 },
+    { unique: true, sparse: true }
+);
 
 module.exports = mongoose.model('ShopOrder', ShopOrderSchema);

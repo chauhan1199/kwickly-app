@@ -1,21 +1,43 @@
 const { StatusCodes } = require('http-status-codes');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const Payment = require('./payment.model');
+const Payment   = require('./payment.model');
 const ShopOrder = require('../shoporder/shoporder.model');
-const Shop = require('../shop/shop.model');
-const Customer = require('../customer/customer.model');
-const Product = require('../product/product.model');
+const Shop      = require('../shop/shop.model');
+const Customer  = require('../customer/customer.model');
+const Product   = require('../product/product.model');
 const WalletTxn = require('../wallet/wallet.model');
 const AppSettings = require('../settings/settings.model');
-const catchAsync = require('../../helpers/async.helper');
+const catchAsync  = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
-const { delCache } = require('../../helpers/redis.helper');
+const { delCache }  = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
-const { generateUpiIntentUri, isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
+const { generateUpiIntentUri } = require('../../helpers/upi.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
+const { registerPaymentIntent } = require('../../services/upiProvider.service');
+const {
+    handleWalletTopupWebhook,
+    handleShopOrderWebhook,
+    handleWorkerSubscriptionWebhook,
+    handleShopSubscriptionWebhook,
+    handleFailedPaymentWebhook
+} = require('../../helpers/webhookHandlers.helper');
+
+/**
+ * Constant-time buffer comparison — prevents HMAC timing attacks.
+ */
+const safeCompare = (a, b) => {
+    try {
+        const bufA = Buffer.from(typeof a === 'string' ? a : String(a), 'hex');
+        const bufB = Buffer.from(typeof b === 'string' ? b : String(b), 'hex');
+        if (bufA.length !== bufB.length) return false;
+        return crypto.timingSafeEqual(bufA, bufB);
+    } catch {
+        return false;
+    }
+};
 
 /**
  * GET /api/v1/payments/admin-upi
@@ -37,7 +59,11 @@ exports.getAdminUpiConfig = catchAsync(async (req, res) => {
 
 /**
  * POST /api/v1/payments/create-order
- * Creates a Pure Direct UPI order (NPCI Intent) for a given amount
+ * Creates a Direct UPI payment intent.
+ * - Registers the intent with the provider (if configured) so an automated
+ *   webhook fires when money lands at the platform VPA.
+ * - Falls back to a plain NPCI deeplink when no provider is configured
+ *   (manual-UTR backward-compat mode).
  */
 exports.createOrder = catchAsync(async (req, res) => {
     const { amount, orderId, purpose } = req.body;
@@ -46,56 +72,56 @@ exports.createOrder = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid amount', StatusCodes.BAD_REQUEST);
     }
 
-    const receipt = `rcpt_${req.user._id.toString().slice(-8)}_${Date.now()}`;
-    const notes = {
-        userId: req.user._id.toString(),
-        purpose: purpose || 'order_payment',
-        orderId: orderId || null
-    };
-
     const adminWallet = await AdminWallet.findOne().lean();
     const platformVpa = adminWallet?.upiId || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi';
-    const payeeName = adminWallet?.bankDetails?.accountHolder || 'Kwickly PVT LTD';
-    const upiOrderId = `upi_ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const payeeName   = adminWallet?.bankDetails?.accountHolder || 'Kwickly PVT LTD';
 
-    const { uri: upiIntentUri } = generateUpiIntentUri({
-        vpa: platformVpa,
-        payeeName,
-        amount,
-        purpose,
-        orderId,
-        txnId: upiOrderId
-    });
-
-    // Store the payment order in our DB
+    // Create a Payment record first so we have a real MongoDB _id to embed
+    // as the webhook back-reference (internalId in provider metadata).
     const payment = await Payment.create({
-        orderId: orderId || null,
-        razorpayOrderId: upiOrderId, // maintain field for backward compatibility
+        orderId:  orderId || null,
         amount,
-        userId: req.user._id,
-        status: 'CREATED',
-        method: 'UPI',
+        userId:   req.user._id,
+        status:   'CREATED',
+        method:   'UPI',
         metadata: {
-            receipt,
-            notes,
+            notes: {
+                userId:  req.user._id.toString(),
+                purpose: purpose || 'order_payment',
+                orderId: orderId || null
+            },
             isUpiDirect: true,
-            upiIntentUri,
             payeeName,
             platformVpa
         }
     });
 
+    // Register with provider (falls back to plain deeplink if not configured)
+    const { gatewayOrderId, upiIntentUri } = await registerPaymentIntent({
+        amount,
+        internalId: payment._id,
+        purpose:    purpose || 'order_payment',
+        userId:     req.user._id
+    });
+
+    // Persist gateway session ref and deeplink on the payment record
+    payment.gatewayOrderId = gatewayOrderId;
+    payment.metadata.upiIntentUri = upiIntentUri;
+    payment.metadata.gatewayOrderId = gatewayOrderId;
+    await payment.save();
+
     return successResponse(res, {
-        razorpayOrderId: upiOrderId, // for existing clients
-        upiOrderId,
-        amount: Math.round(amount * 100),
-        currency: 'INR',
-        paymentId: payment._id,
-        upiVpa: platformVpa,
+        razorpayOrderId: payment._id.toString(), // legacy key for existing clients
+        upiOrderId:      payment._id.toString(),
+        paymentId:       payment._id,
+        gatewayOrderId,
+        amount:          Math.round(amount * 100),
+        currency:        'INR',
+        upiVpa:          platformVpa,
         payeeName,
-        bankDetails: adminWallet?.bankDetails || null,
+        bankDetails:     adminWallet?.bankDetails || null,
         upiIntentUri,
-        isUpiDirect: true
+        isUpiDirect:     true
     }, 'Direct UPI payment order created successfully', StatusCodes.CREATED);
 });
 
@@ -285,12 +311,104 @@ exports.verifyPayment = catchAsync(async (req, res) => {
 });
 
 /**
- * POST /api/v1/payments/webhook
- * Safe fallback for webhook endpoints (returns 200 OK)
+ * POST /api/v1/payments/free-upi-webhook   (PUBLIC — no auth middleware)
+ *
+ * Receives automated payment notifications from the UPI tech-overlay provider.
+ * Security model:
+ *   1. HMAC SHA256 signature check (fail-fast at layer 1 — no DB queries if invalid)
+ *   2. Timestamp validation — rejects stale replays older than 5 minutes
+ *   3. Purpose-based routing to idempotent handlers
+ *   4. Fast 200 OK returned BEFORE running downstream logic
+ *
+ * The route must be registered with express.raw({ type: '* / *' }) so the raw
+ * body buffer is available for signature verification.
  */
-exports.handleWebhook = catchAsync(async (req, res) => {
-    return res.status(200).json({ status: 'ok', message: 'Direct UPI payment mode active' });
-});
+exports.handleWebhook = async (req, res) => {
+    const WEBHOOK_SECRET = process.env.UPI_PROVIDER_WEBHOOK_SECRET || '';
+
+    // ── Step 1: HMAC SHA256 Signature Verification ──────────────────────────────
+    if (WEBHOOK_SECRET) {
+        const rawBody     = req.body; // Buffer from express.raw()
+        const receivedSig = (req.headers['x-upi-signature'] || req.headers['x-kwikupi-hmac'] || req.headers['x-webhook-signature'] || '').toString().toLowerCase();
+
+        const expectedSig = crypto
+            .createHmac('sha256', WEBHOOK_SECRET)
+            .update(rawBody)
+            .digest('hex')
+            .toLowerCase();
+
+        if (!receivedSig || !safeCompare(receivedSig, expectedSig)) {
+            logger.warn(`[Webhook] Signature mismatch from IP: ${req.ip} — header: ${req.headers['x-upi-signature'] || 'absent'}`);
+            return res.status(401).json({ error: 'Invalid webhook signature' });
+        }
+    } else {
+        logger.warn('[Webhook] UPI_PROVIDER_WEBHOOK_SECRET not set — running in unsigned mode (dev/test only)');
+    }
+
+    // ── Step 2: Parse Payload ─────────────────────────────────────────────────────
+    let payload;
+    try {
+        const raw = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : JSON.stringify(req.body);
+        payload = JSON.parse(raw);
+    } catch (parseErr) {
+        logger.warn(`[Webhook] JSON parse failed: ${parseErr.message}`);
+        return res.status(400).json({ error: 'Invalid JSON payload' });
+    }
+
+    // Validate timestamp (reject replays older than 5 minutes)
+    if (payload.timestamp) {
+        const tsMs = new Date(payload.timestamp).getTime();
+        if (!isNaN(tsMs) && Math.abs(Date.now() - tsMs) > 5 * 60 * 1000) {
+            logger.warn(`[Webhook] Stale timestamp rejected: ${payload.timestamp}`);
+            return res.status(400).json({ error: 'Stale webhook timestamp' });
+        }
+    }
+
+    const eventId  = payload.transactionId || payload.eventId || payload.id || `evt_${Date.now()}`;
+    const purpose  = payload.metadata?.purpose;
+    const isSuccess = (payload.status || '').toUpperCase() === 'SUCCESS';
+
+    logger.info(`[Webhook] Received event=${payload.event}, purpose=${purpose}, eventId=${eventId}, status=${payload.status}`);
+
+    // ── Step 3: Acknowledge immediately (provider must get 200 ASAP) ──────────────
+    res.status(200).json({ received: true });
+
+    // ── Step 4: Route to purpose handler asynchronously ───────────────────────────
+    setImmediate(async () => {
+        try {
+            if (!isSuccess) {
+                await handleFailedPaymentWebhook(payload, eventId);
+                return;
+            }
+
+            // Only process recognised payment success events
+            const successEvents = ['payment.success', 'payment.captured', 'payment.paid', 'transaction.success'];
+            if (!successEvents.includes((payload.event || '').toLowerCase())) {
+                logger.info(`[Webhook] Ignoring non-payment event: ${payload.event}`);
+                return;
+            }
+
+            switch (purpose) {
+                case 'wallet_topup':
+                    await handleWalletTopupWebhook(payload, eventId);
+                    break;
+                case 'shop_order':
+                    await handleShopOrderWebhook(payload, eventId);
+                    break;
+                case 'worker_subscription':
+                    await handleWorkerSubscriptionWebhook(payload, eventId);
+                    break;
+                case 'shop_subscription':
+                    await handleShopSubscriptionWebhook(payload, eventId);
+                    break;
+                default:
+                    logger.warn(`[Webhook] Unknown payment purpose: ${purpose} — eventId=${eventId}`);
+            }
+        } catch (err) {
+            logger.error(`[Webhook] Unhandled error in async handler: ${err.message}`);
+        }
+    });
+};
 
 /**
  * GET /api/v1/payments/my-payments

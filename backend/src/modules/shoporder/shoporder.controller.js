@@ -19,6 +19,7 @@ const { collectCommission } = require('../adminWallet/adminWallet.service');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { OTP_MIN, OTP_MAX, OTP_TTL } = require('../../constants/business');
+const { registerPaymentIntent } = require('../../services/upiProvider.service');
 
 function escapeHtml(str) {
     if (!str) return '';
@@ -268,6 +269,26 @@ exports.placeOrder = catchAsync(async (req, res) => {
             statusHistory: [{ status: 'NEW', timestamp: new Date(), note: 'Order placed' }]
         }], sessOpts);
 
+        let upiIntentUri = null;
+        let gatewayOrderId = null;
+
+        // If UPI payment method, register payment intent with overlay provider
+        if (paymentMethod === 'UPI') {
+            const intentRes = await registerPaymentIntent({
+                amount: total,
+                internalId: order._id,
+                purpose: 'shop_order',
+                userId: req.user._id
+            });
+            gatewayOrderId = intentRes.gatewayOrderId;
+            upiIntentUri = intentRes.upiIntentUri;
+
+            if (gatewayOrderId) {
+                order.payment.gatewayOrderId = gatewayOrderId;
+                await order.save({ session });
+            }
+        }
+
         if (useTransaction) await session.commitTransaction();
         if (session) session.endSession();
 
@@ -286,7 +307,13 @@ exports.placeOrder = catchAsync(async (req, res) => {
             targetRole: 'CUSTOMER'
         });
 
-        return successResponse(res, order, 'Order placed successfully', StatusCodes.CREATED);
+        const orderData = order.toObject();
+        if (upiIntentUri) {
+            orderData.upiIntentUri = upiIntentUri;
+            orderData.gatewayOrderId = gatewayOrderId;
+        }
+
+        return successResponse(res, orderData, 'Order placed successfully', StatusCodes.CREATED);
 
     } catch (error) {
         if (useTransaction && session) await session.abortTransaction();

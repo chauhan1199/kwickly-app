@@ -70,6 +70,20 @@ const startCronEngine = () => {
             await releaseLock('cron:worker_sweep', holderId);
         }
     });
+
+    // Run every 3 minutes (reconcile pending automated UPI payments)
+    cron.schedule('*/3 * * * *', async () => {
+        const holderId = await acquireLock('cron:upi_reconcile_sweep', 170);
+        if (!holderId) return;
+
+        try {
+            await reconcilePendingUpiPayments();
+        } catch (err) {
+            logger.error('[Cron Engine] UPI reconcile sweep error: ' + err.message);
+        } finally {
+            await releaseLock('cron:upi_reconcile_sweep', holderId);
+        }
+    });
 };
 
 const sweepBroadcastingJobs = async () => {
@@ -292,4 +306,99 @@ const sweepExpiredSubscriptions = async () => {
     }
 };
 
-module.exports = { startCronEngine, sweepBroadcastingJobs };
+const reconcilePendingUpiPayments = async () => {
+    const { isProviderConfigured, checkTransactionStatus } = require('../services/upiProvider.service');
+    if (!isProviderConfigured()) return;
+
+    const {
+        handleWalletTopupWebhook,
+        handleShopOrderWebhook,
+        handleFailedPaymentWebhook
+    } = require('../helpers/webhookHandlers.helper');
+
+    // 1. Reconcile WalletTxn PENDING records (between 2 min and 24 hours old)
+    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const pendingTxns = await WalletTxn.find({
+        status: 'PENDING',
+        gatewayTransactionId: { $exists: true, $ne: null, $ne: '' },
+        createdAt: { $lt: twoMinAgo, $gt: oneDayAgo }
+    }).limit(20);
+
+    for (const txn of pendingTxns) {
+        try {
+            const status = await checkTransactionStatus(txn.gatewayTransactionId);
+            if (status === 'SUCCESS') {
+                logger.info(`[Cron] Reconciled SUCCESS for WalletTxn ${txn._id}`);
+                await handleWalletTopupWebhook({
+                    metadata: {
+                        internalId: txn._id.toString(),
+                        purpose: txn.planId ? 'worker_subscription' : 'wallet_topup',
+                        userId: txn.userId.toString(),
+                        planId: txn.planId || null
+                    },
+                    amount: txn.amount,
+                    status: 'SUCCESS',
+                    event: 'payment.success',
+                    transactionId: txn.gatewayTransactionId
+                }, `cron_recon_${txn.gatewayTransactionId}`);
+            } else if (status === 'FAILED') {
+                logger.info(`[Cron] Reconciled FAILED for WalletTxn ${txn._id}`);
+                await handleFailedPaymentWebhook({
+                    metadata: {
+                        internalId: txn._id.toString(),
+                        purpose: txn.planId ? 'worker_subscription' : 'wallet_topup',
+                        userId: txn.userId.toString()
+                    },
+                    status: 'FAILED',
+                    transactionId: txn.gatewayTransactionId
+                }, `cron_recon_${txn.gatewayTransactionId}`);
+            }
+        } catch (err) {
+            logger.error(`[Cron] Reconcile error for WalletTxn ${txn._id}: ${err.message}`);
+        }
+    }
+
+    // 2. Reconcile ShopOrder PENDING records
+    const pendingOrders = await ShopOrder.find({
+        'payment.status': 'PENDING',
+        'payment.gatewayOrderId': { $exists: true, $ne: null, $ne: '' },
+        createdAt: { $lt: twoMinAgo, $gt: oneDayAgo }
+    }).limit(20);
+
+    for (const order of pendingOrders) {
+        try {
+            const status = await checkTransactionStatus(order.payment.gatewayOrderId);
+            if (status === 'SUCCESS') {
+                logger.info(`[Cron] Reconciled SUCCESS for ShopOrder ${order._id}`);
+                await handleShopOrderWebhook({
+                    metadata: {
+                        internalId: order._id.toString(),
+                        purpose: 'shop_order',
+                        userId: order.customerId.toString()
+                    },
+                    amount: order.total,
+                    status: 'SUCCESS',
+                    event: 'payment.success',
+                    transactionId: order.payment.gatewayOrderId
+                }, `cron_recon_${order.payment.gatewayOrderId}`);
+            } else if (status === 'FAILED') {
+                logger.info(`[Cron] Reconciled FAILED for ShopOrder ${order._id}`);
+                await handleFailedPaymentWebhook({
+                    metadata: {
+                        internalId: order._id.toString(),
+                        purpose: 'shop_order',
+                        userId: order.customerId.toString()
+                    },
+                    status: 'FAILED',
+                    transactionId: order.payment.gatewayOrderId
+                }, `cron_recon_${order.payment.gatewayOrderId}`);
+            }
+        } catch (err) {
+            logger.error(`[Cron] Reconcile error for ShopOrder ${order._id}: ${err.message}`);
+        }
+    }
+};
+
+module.exports = { startCronEngine, sweepBroadcastingJobs, reconcilePendingUpiPayments };

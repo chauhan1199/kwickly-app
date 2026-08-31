@@ -13,8 +13,8 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToAll } = require('../../helpers/socket.helper');
 const { getCache, delCache, setCache } = require('../../helpers/redis.helper');
 const mongoose = require('mongoose');
-const { isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
+const { registerPaymentIntent } = require('../../services/upiProvider.service');
 
 /**
  * Helper: atomically deduct amount from user/shop wallet.
@@ -99,29 +99,18 @@ exports.getWallet = catchAsync(async (req, res) => {
     }, 'Wallet fetched');
 });
 
-// ─── POST /api/v1/wallet/topup ──────────────────────────────────────────────
-// Direct UPI flow: creates a PENDING transaction that an Admin must verify
-// against the platform bank statement before the wallet is credited.
-// No instant credit — prevents fake-UTR wallet minting.
+// ─── POST /api/v1/wallet/topup ───────────────────────────────────────────────
+// Automated UPI flow:
+//   1. Creates a PENDING WalletTxn with a real MongoDB _id
+//   2. Registers a payment intent with the provider (or falls back to deeplink)
+//   3. Returns the UPI intent URI to the mobile client — no UTR entry needed
+//   4. Webhook auto-credits the wallet when money lands at the platform VPA
 exports.topupWallet = catchAsync(async (req, res) => {
-    let { amount, paymentDetails, planId, razorpayPaymentId, utrNumber, upiTransactionId } = req.body;
+    let { amount, planId } = req.body;
     if (!amount || Number(amount) <= 0) {
         return errorResponse(res, 'Invalid top-up amount', StatusCodes.BAD_REQUEST);
     }
     amount = Number(amount);
-
-    const upiTxnRef = (utrNumber || upiTransactionId || paymentDetails?.txnId || razorpayPaymentId || '').toString().trim();
-
-    if (!upiTxnRef || !isValidUtr(upiTxnRef)) {
-        return errorResponse(res, 'A valid 12-digit UPI Reference / UTR Number from your bank payment receipt is required', StatusCodes.BAD_REQUEST);
-    }
-
-    // Direct UPI Replay / duplicate UTR check across ALL flows
-    // (wallet topup, job/order payment, subscription)
-    const utrUsage = await findUtrUsage(upiTxnRef);
-    if (utrUsage) {
-        return errorResponse(res, 'This UPI transaction reference has already been submitted or credited', StatusCodes.CONFLICT);
-    }
 
     const user = await Customer.findById(req.user._id).lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
@@ -142,35 +131,51 @@ exports.topupWallet = catchAsync(async (req, res) => {
         }
     }
 
-    // Queue for admin verification — nothing is credited yet
+    // Create a PENDING WalletTxn immediately so we have a real MongoDB _id
+    // to embed as the webhook back-reference (internalId in provider metadata).
     const txn = await WalletTxn.create({
-        userId: req.user._id,
-        type: 'TOPUP',
+        userId:      req.user._id,
+        type:        'TOPUP',
         amount,
-        balance: user.wallet?.balance || 0,
-        status: 'PENDING',
-        razorpayPaymentId: upiTxnRef,
-        planId: plan ? planId : undefined,
+        balance:     user.wallet?.balance || 0,
+        status:      'PENDING',
+        planId:      plan ? planId : undefined,
         description: plan
-            ? `Subscription Plan Purchase: ${plan.label || planId} (Pending Admin Verification - UTR: ${upiTxnRef})`
-            : `Wallet Top-up (Pending Admin Verification - UTR: ${upiTxnRef})`
+            ? `Subscription Plan Purchase: ${plan.label || planId} (Awaiting UPI Payment)`
+            : `Wallet Top-up (Awaiting UPI Payment)`
     });
 
+    // Register with provider — get a deeplink the client can open directly
+    const { gatewayOrderId, upiIntentUri } = await registerPaymentIntent({
+        amount,
+        internalId: txn._id,
+        purpose:    plan ? 'worker_subscription' : 'wallet_topup',
+        userId:     req.user._id,
+        planId:     plan ? planId : undefined
+    });
+
+    // Persist the gateway session reference so the reconciliation cron can
+    // query the provider's status API if the webhook never fires.
+    if (gatewayOrderId) {
+        await WalletTxn.findByIdAndUpdate(txn._id, { $set: { gatewayTransactionId: gatewayOrderId } });
+    }
+
     emitToAll('DASHBOARD_UPDATE', {
-        type: 'PENDING_WALLET_TOPUP',
+        type:   'PENDING_WALLET_TOPUP',
         userId: req.user._id,
         userName: user.name,
         amount,
-        utr: upiTxnRef,
         planId: plan ? planId : null
     });
 
     return successResponse(res, {
+        txnId:        txn._id,
         txn,
-        status: 'PENDING_VERIFICATION',
-        utr: upiTxnRef,
+        status:       'PENDING',
+        gatewayOrderId,
+        upiIntentUri,
         amount
-    }, `Top-up request for ₹${amount} submitted! It will be credited after admin verification of your UPI payment.`, StatusCodes.CREATED);
+    }, `Please complete the UPI payment of ₹${amount}. Your wallet will be credited automatically once the payment is confirmed.`, StatusCodes.CREATED);
 });
 
 // â”€â”€â”€ POST /api/v1/wallet/withdraw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -390,16 +395,22 @@ exports.adminAdjust = catchAsync(async (req, res) => {
 });
 
 // ─── GET /api/v1/wallet/pending-topups (Admin) ───
+// NOTE: The automated webhook flow no longer requires manual admin verification
+// for new topups. This endpoint is kept as a read-only fallback to surface any
+// legacy PENDING records created before the webhook migration. New topups are
+// auto-resolved by the UPI provider webhook or the reconciliation cron.
 exports.getPendingTopups = catchAsync(async (req, res) => {
     const txns = await WalletTxn.find({ type: 'TOPUP', status: 'PENDING' })
         .populate('userId', 'name phone email role')
         .sort('-createdAt')
         .lean();
 
-    return successResponse(res, { txns, count: txns.length }, 'Pending top-up requests fetched');
+    return successResponse(res, { txns, count: txns.length }, 'Pending top-up requests fetched (legacy view — new topups are auto-resolved by webhook)');
 });
 
 // ─── POST /api/v1/wallet/pending-topups/:id/approve (Admin) ───
+// Legacy endpoint — kept for manually resolving any PENDING records that
+// pre-date the webhook migration (e.g., UTR-era submissions).
 exports.approvePendingTopup = catchAsync(async (req, res) => {
     const { id } = req.params;
     const txn = await WalletTxn.findById(id);
@@ -413,8 +424,7 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
     );
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
-    // If this pending top-up was a subscription plan purchase, apply the plan
-    // extension instead of crediting the user's wallet balance.
+    // If this pending top-up was a subscription plan purchase, apply the plan.
     if (txn.planId && user.role === 'WORKER') {
         const AppSettings = require('../settings/settings.model');
         const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
@@ -430,20 +440,19 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
         const updatedUser = await Customer.findByIdAndUpdate(
             txn.userId,
             {
-                'subscription.planId': txn.planId,
+                'subscription.planId':     txn.planId,
                 'subscription.expiryDate': newExpiry,
-                'subscription.isTrial': false,
-                'subscription.isActive': true
+                'subscription.isTrial':    false,
+                'subscription.isActive':   true
             },
             { returnDocument: 'after' }
         );
 
-        txn.status = 'COMPLETED';
-        txn.balance = updatedUser?.wallet?.balance || user.wallet?.balance || 0;
-        txn.description = `Subscription Plan "${txn.planId}" Verified & Activated (UTR: ${txn.razorpayPaymentId || 'UPI'})`;
+        txn.status      = 'COMPLETED';
+        txn.balance     = updatedUser?.wallet?.balance || user.wallet?.balance || 0;
+        txn.description = `Subscription Plan "${txn.planId}" Verified & Activated (manual admin approval)`;
         await txn.save();
 
-        // Credit Admin Platform Wallet — this is subscription revenue, not wallet balance
         const adminW = await AdminWallet.findOneAndUpdate(
             {},
             { $inc: { balance: txn.amount, totalCollected: txn.amount } },
@@ -451,11 +460,9 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
         );
         if (adminW) {
             await AdminWalletTxn.create([{
-                type: 'TOPUP',
-                amount: txn.amount,
-                balance: adminW.balance,
+                type: 'TOPUP', amount: txn.amount, balance: adminW.balance,
                 refId: String(txn._id),
-                description: `Worker ${updatedUser?.name || 'User'} subscription plan "${txn.planId}" verified (UTR: ${txn.razorpayPaymentId})`
+                description: `Worker ${updatedUser?.name || 'User'} subscription "${txn.planId}" manually approved`
             }]);
         }
 
@@ -464,24 +471,21 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
 
         await notifyUser({
             userId: user._id,
-            title: 'Subscription Activated! 🎉',
+            title:  'Subscription Activated! 🎉',
             message: `Your ${plan?.label || txn.planId} plan payment of ₹${txn.amount} was verified and your subscription is now active until ${newExpiry.toDateString()}.`,
-            type: 'WALLET_CREDIT',
-            referenceId: txn._id,
-            referenceModel: 'WalletTxn'
+            type:   'WALLET_CREDIT',
+            referenceId: txn._id, referenceModel: 'WalletTxn'
         });
 
         emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_APPROVED', txnId: txn._id, userId: user._id });
-
         return successResponse(res, { txn, newExpiry }, `Plan "${txn.planId}" verified and activated for ${updatedUser?.name || 'user'}!`);
     }
 
-    txn.status = 'COMPLETED';
-    txn.balance = user.wallet?.balance || 0;
-    txn.description = `Wallet Top-up Verified & Credited (UTR: ${txn.razorpayPaymentId || 'UPI'})`;
+    txn.status      = 'COMPLETED';
+    txn.balance     = user.wallet?.balance || 0;
+    txn.description = `Wallet Top-up Verified & Credited (manual admin approval)`;
     await txn.save();
 
-    // Credit Admin Platform Wallet
     const adminW = await AdminWallet.findOneAndUpdate(
         {},
         { $inc: { balance: txn.amount, totalCollected: txn.amount } },
@@ -489,57 +493,50 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
     );
     if (adminW) {
         await AdminWalletTxn.create([{
-            type: 'TOPUP',
-            amount: txn.amount,
-            balance: adminW.balance,
+            type: 'TOPUP', amount: txn.amount, balance: adminW.balance,
             refId: String(txn._id),
-            description: `Customer ${user.name || 'User'} wallet top-up verified (UTR: ${txn.razorpayPaymentId})`
+            description: `Customer ${user.name || 'User'} wallet top-up manually approved`
         }]);
     }
 
     await delCache(`session:${user._id}`);
     await delCache('admin_dashboard_stats');
-    // In-app notification to the user
+
     await notifyUser({
         userId: user._id,
-        title: 'Wallet Top-up Approved! 🎉',
-        message: `₹${txn.amount} has been verified and added to your Kwickly Wallet (UTR: ${txn.razorpayPaymentId}).`,
-        type: 'WALLET_CREDIT',
-        referenceId: txn._id,
-        referenceModel: 'WalletTxn'
+        title:   'Wallet Top-up Approved! 🎉',
+        message: `₹${txn.amount} has been verified and added to your Kwickly Wallet.`,
+        type:    'WALLET_CREDIT',
+        referenceId: txn._id, referenceModel: 'WalletTxn'
     });
 
     emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_APPROVED', txnId: txn._id, userId: user._id });
-
     return successResponse(res, { txn, newBalance: user.wallet?.balance || 0 }, `Top-up of ₹${txn.amount} approved and credited to ${user.name || 'user'}!`);
 });
 
 // ─── POST /api/v1/wallet/pending-topups/:id/reject (Admin) ───
+// Legacy endpoint for rejecting UTR-era pending topups.
 exports.rejectPendingTopup = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const { reason = 'Payment not found / invalid UTR in admin bank account' } = req.body;
+    const { reason = 'Payment not found in admin bank account' } = req.body;
     const txn = await WalletTxn.findById(id);
     if (!txn) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
     if (txn.status !== 'PENDING') return errorResponse(res, `Transaction is already ${txn.status}`, StatusCodes.BAD_REQUEST);
 
-    txn.status = 'FAILED';
-    txn.description = `Wallet Top-up Rejected (UTR: ${txn.razorpayPaymentId} - ${reason})`;
+    txn.status      = 'FAILED';
+    txn.description = `Wallet Top-up Rejected (${reason})`;
     await txn.save();
 
     await delCache(`session:${txn.userId}`);
 
-    // In-app notification to the user
     await notifyUser({
         userId: txn.userId,
-        title: 'Top-up Verification Failed ❌',
-        message: `Your top-up request for ₹${txn.amount} (UTR: ${txn.razorpayPaymentId}) was rejected: ${reason}`,
-        type: 'WALLET_REJECTED',
-        referenceId: txn._id,
-        referenceModel: 'WalletTxn'
+        title:   'Top-up Verification Failed ❌',
+        message: `Your top-up request for ₹${txn.amount} was rejected: ${reason}`,
+        type:    'WALLET_REJECTED',
+        referenceId: txn._id, referenceModel: 'WalletTxn'
     });
 
     emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_REJECTED', txnId: txn._id, userId: txn.userId });
-
     return successResponse(res, { txn }, `Top-up request for ₹${txn.amount} rejected.`);
 });
-

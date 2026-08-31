@@ -36,7 +36,8 @@ const CustomerSchema = new mongoose.Schema({
         planId: { type: String },
         expiryDate: { type: Date },
         isTrial: { type: Boolean, default: true },
-        trialEndDate: { type: Date }   // ← registration date + trialDurationDays
+        trialEndDate: { type: Date },   // ← registration date + trialDurationDays
+        isActive: { type: Boolean, default: true }
     },
     activeLocation: {
         type: { type: String, enum: ['Point'] },

@@ -31,24 +31,38 @@ const WalletTxnSchema = new mongoose.Schema({
         default: 'COMPLETED'
     },
 
-    refId:      { type: String },    // jobId / orderId / subscriptionId
-    planId:     { type: String },    // subscription plan being purchased (top-up verification applies it)
-    description:{ type: String },
-    invoiceUrl: { type: String },
-    razorpayPaymentId: { type: String }  // dedup key for wallet top-ups
+    refId:       { type: String },    // jobId / orderId / subscriptionId
+    planId:      { type: String },    // subscription plan being purchased
+    description: { type: String },
+    invoiceUrl:  { type: String },
+
+    // ── Automated UPI webhook fields ─────────────────────────────────
+    gatewayTransactionId: { type: String }, // provider's txn ID from webhook
+    webhookEventId:       { type: String }, // idempotency key (unique sparse index below)
+    verifiedAt:           { type: Date },   // when webhook confirmed the payment
+
+    // Legacy field — kept for backward-compat with in-flight manual-UTR records
+    razorpayPaymentId: { type: String }     // stored the manually-entered UTR; now read-only
 }, { timestamps: true });
 
 WalletTxnSchema.index({ userId: 1, createdAt: -1 });     // User transaction history
 WalletTxnSchema.index({ userId: 1, type: 1 });           // Filter by user+type
 WalletTxnSchema.index({ type: 1, createdAt: -1 });       // Admin ledger filter
 WalletTxnSchema.index({ status: 1 });                    // Pending/failed lookup
-
 WalletTxnSchema.index({ refId: 1 });
 
-// Prevent the same Razorpay payment from crediting the wallet more than once
+// Automated webhook idempotency — prevents the same provider event from
+// crediting the wallet more than once.
+WalletTxnSchema.index(
+    { webhookEventId: 1 },
+    { unique: true, sparse: true }
+);
+
+// Legacy dedup index for manually-submitted UTRs (kept until all PENDING records
+// are resolved; can be dropped once the UTR flow is fully retired).
 WalletTxnSchema.index(
     { type: 1, razorpayPaymentId: 1 },
-    { unique: true, partialFilterExpression: { type: 'TOPUP', razorpayPaymentId: { $type: 'string' } } }
+    { unique: true, sparse: true, partialFilterExpression: { type: 'TOPUP', razorpayPaymentId: { $type: 'string' } } }
 );
 
 module.exports = mongoose.model('WalletTxn', WalletTxnSchema);

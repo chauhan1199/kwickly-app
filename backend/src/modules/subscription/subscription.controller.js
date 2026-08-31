@@ -9,9 +9,9 @@ const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const Shop = require('../shop/shop.model');
 const Notification = require('../notification/notification.model');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
-const { isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
+const { registerPaymentIntent } = require('../../services/upiProvider.service');
 
 /* ─── Shared helpers ─────────────────────────────────────────────────── */
 
@@ -232,20 +232,7 @@ exports.subscribe = catchAsync(async (req, res) => {
             }
         }
 
-        // ── DIRECT UPI: hold for admin verification — nothing is activated yet ──
-        const upiRef = (utrNumber || razorpayPaymentId || paymentId || '').toString().trim();
-
-        if (!upiRef || !isValidUtr(upiRef)) {
-            throw Object.assign(new Error('A valid 12-digit UPI Reference / UTR Number from your payment receipt is required.'), { statusCode: StatusCodes.BAD_REQUEST });
-        }
-
-        // Anti-replay: same UTR must never be reused across ANY flow
-        // (subscription, wallet topup, or job/order payment)
-        const utrUsage = await findUtrUsage(upiRef);
-        if (utrUsage) {
-            throw Object.assign(new Error('This UPI transaction reference has already been submitted or used'), { statusCode: StatusCodes.CONFLICT });
-        }
-
+        // ── AUTOMATED DIRECT UPI: Register payment intent & return UPI link ──
         const holdDate = new Date();
         let sub;
         if (isShop) {
@@ -258,9 +245,9 @@ exports.subscribe = catchAsync(async (req, res) => {
                 planName: activePlan.label || activePlan.id,
                 amount: activePlan.price,
                 startDate: holdDate,
-                endDate: holdDate, // placeholder until admin verifies
+                endDate: holdDate, // placeholder until webhook activates
                 isTrial: false,
-                payment: { status: 'PENDING', razorpayPaymentId: upiRef }
+                payment: { status: 'PENDING' }
             }], { session });
         } else {
             [sub] = await WorkerSubscription.create([{
@@ -269,10 +256,24 @@ exports.subscribe = catchAsync(async (req, res) => {
                 planName: activePlan.label || activePlan.id,
                 amount: activePlan.price,
                 startDate: holdDate,
-                endDate: holdDate, // placeholder until admin verifies
+                endDate: holdDate, // placeholder until webhook activates
                 isTrial: false,
-                payment: { status: 'PENDING', razorpayPaymentId: upiRef }
+                payment: { status: 'PENDING' }
             }], { session });
+        }
+
+        // Register intent with the provider overlay
+        const { gatewayOrderId, upiIntentUri } = await registerPaymentIntent({
+            amount: activePlan.price,
+            internalId: sub._id,
+            purpose: isShop ? 'shop_subscription' : 'worker_subscription',
+            userId,
+            planId: activePlan.id
+        });
+
+        if (gatewayOrderId) {
+            sub.payment.gatewayOrderId = gatewayOrderId;
+            await sub.save({ session });
         }
 
         if (useTransaction) await session.commitTransaction();
@@ -285,24 +286,16 @@ exports.subscribe = catchAsync(async (req, res) => {
             targetRole,
             planId: activePlan.id,
             amount: activePlan.price,
-            utr: upiRef
-        });
-
-        notifyUser({
-            userId,
-            title: 'Payment Submitted for Verification',
-            message: `Your UPI payment of ₹${activePlan.price} for the ${activePlan.label || activePlan.id} plan (UTR: ${upiRef}) is being verified. Your plan will activate shortly.`,
-            action: 'UPDATE',
-            entityType: isShop ? 'SHOP' : 'WORKER',
-            entityId: sub._id,
-            targetRole
+            gatewayOrderId
         });
 
         return successResponse(res, {
             subscription: sub,
-            status: 'PENDING_VERIFICATION',
-            utr: upiRef
-        }, 'Payment submitted! Your subscription will be activated once your UPI payment is verified.', StatusCodes.CREATED);
+            status: 'PENDING',
+            gatewayOrderId,
+            upiIntentUri,
+            amount: activePlan.price
+        }, `Please complete the UPI payment of ₹${activePlan.price}. Your subscription will activate automatically upon payment confirmation.`, StatusCodes.CREATED);
 
     } catch (error) {
         if (useTransaction && session) await session.abortTransaction();
