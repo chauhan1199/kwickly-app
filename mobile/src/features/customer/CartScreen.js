@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView,
-  TouchableOpacity, StatusBar, FlatList, Alert, TextInput,
+  TouchableOpacity, StatusBar, FlatList, TextInput,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal, Image, Linking
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -10,6 +10,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
+import CustomAlert from '../../components/ui/CustomAlert';
 import { shopService } from '../../services/shopService';
 import { walletService } from '../../services/walletService';
 import {
@@ -40,6 +41,48 @@ const CartScreen = ({ route, navigation }) => {
   const [slots, setSlots] = useState([]);
   const [showSlotModal, setShowSlotModal] = useState(false);
   const [orderSuccessModal, setOrderSuccessModal] = useState(null);
+
+  // CustomAlert Modal State
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancel: false,
+    onConfirm: () => setAlertConfig(prev => ({ ...prev, visible: false })),
+    onCancel: () => setAlertConfig(prev => ({ ...prev, visible: false })),
+  });
+
+  const showAlert = ({
+    type = 'info',
+    title = '',
+    message = '',
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    showCancel = false,
+    onConfirm = null,
+    onCancel = null
+  }) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      }
+    });
+  };
 
   // UPI Modal State
   const [showUpiModal, setShowUpiModal] = useState(false);
@@ -145,10 +188,18 @@ const CartScreen = ({ route, navigation }) => {
     const result = await validatePromo(promoInput.trim(), subtotal);
     setPromoLoading(false);
     if (result.success) {
-      Alert.alert('Promo Applied! 🎉', `You saved ₹${result.discount}`);
+      showAlert({
+        type: 'success',
+        title: 'Promo Applied! 🎉',
+        message: `You saved ₹${result.discount} with coupon code ${promoInput.trim().toUpperCase()}.`
+      });
       setPromoInput('');
     } else {
-      Alert.alert('Invalid Promo', result.message);
+      showAlert({
+        type: 'error',
+        title: 'Invalid Promo',
+        message: result.message || 'The promo code entered is invalid or expired.'
+      });
     }
   };
 
@@ -157,32 +208,57 @@ const CartScreen = ({ route, navigation }) => {
     const shopId = typeof cart.shopId === 'object' ? (cart.shopId._id || cart.shopId.id) : cart.shopId;
 
     if (total < 1) {
-      return Alert.alert('Minimum Order', 'Your order must be at least ₹1.');
+      return showAlert({
+        type: 'warning',
+        title: 'Minimum Order',
+        message: 'Your order must be at least ₹1.'
+      });
     }
 
     if (minOrderAmount > 0 && subtotal < minOrderAmount) {
-      return Alert.alert(
-        'Minimum Order Required',
-        `The minimum order amount for this shop is ₹${minOrderAmount}. Please add items worth ₹${minOrderAmount - subtotal} more to checkout.`
-      );
+      return showAlert({
+        type: 'warning',
+        title: 'Minimum Order Required',
+        message: `The minimum order amount for this shop is ₹${minOrderAmount}. Please add items worth ₹${minOrderAmount - subtotal} more to checkout.`,
+        confirmText: 'Add More Items',
+        onConfirm: () => navigation?.navigate('Shop', { screen: 'ShopMain' })
+      });
     }
 
     const defaultAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
     if (!defaultAddress) {
-      return Alert.alert('No Address', 'Please save a delivery address first.', [
-        { text: 'Add Address', onPress: () => navigation.navigate('SavedAddresses') }
-      ]);
+      return showAlert({
+        type: 'warning',
+        title: 'Delivery Address Required',
+        message: 'Please add or select a delivery address to place your order.',
+        confirmText: 'Add Address',
+        showCancel: true,
+        cancelText: 'Cancel',
+        onConfirm: () => navigation.navigate('SavedAddresses')
+      });
     }
 
     if (paymentMethod === 'WALLET' && (user?.wallet?.balance || 0) < total) {
-      return Alert.alert('Insufficient Balance', `Your wallet balance is ₹${user?.wallet?.balance || 0}. Please top up or pay via UPI.`);
+      return showAlert({
+        type: 'warning',
+        title: 'Insufficient Balance',
+        message: `Your wallet balance is ₹${user?.wallet?.balance || 0}. Please top up your wallet or pay via UPI.`,
+        confirmText: 'Top Up Wallet',
+        showCancel: true,
+        cancelText: 'Pay via UPI',
+        onConfirm: () => navigation.navigate('WalletTopup'),
+        onCancel: () => setPaymentMethod('UPI')
+      });
     }
 
     if (selectedSlot && isSlotPassed(selectedSlot, selectedDate)) {
-      return Alert.alert(
-        'Slot Unavailable',
-        `The slot "${selectedSlot.label}" has already passed for today. Please select an upcoming slot or choose Tomorrow.`
-      );
+      return showAlert({
+        type: 'warning',
+        title: 'Slot Unavailable',
+        message: `The slot "${selectedSlot.label}" has already passed for today. Please select an upcoming slot or choose Tomorrow.`,
+        confirmText: 'Select Slot',
+        onConfirm: () => setShowSlotModal(true)
+      });
     }
 
     setIsProcessing(true);
@@ -268,7 +344,11 @@ const CartScreen = ({ route, navigation }) => {
       }
 
     } catch (e) {
-      Alert.alert('Error', e?.response?.data?.message || e.message || 'Failed to place order');
+      showAlert({
+        type: 'error',
+        title: 'Order Error',
+        message: e?.response?.data?.message || e.message || 'Failed to place order. Please check your connection and try again.'
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -294,13 +374,21 @@ const CartScreen = ({ route, navigation }) => {
         await Linking.openURL(targetUri);
       } else {
         await Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-          Alert.alert('UPI App', `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "I Have Paid" below.`);
+          showAlert({
+            type: 'info',
+            title: 'UPI Payment',
+            message: `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment & Verify UTR" below.`
+          });
         });
       }
     } catch (err) {
       setPaymentInitiated(true);
       Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-        Alert.alert('UPI App', `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "I Have Paid" below.`);
+        showAlert({
+          type: 'info',
+          title: 'UPI Payment',
+          message: `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment & Verify UTR" below.`
+        });
       });
     }
   };
@@ -318,10 +406,11 @@ const CartScreen = ({ route, navigation }) => {
     if (!currentOrder) return;
     const cleanUtr = upiTxnId.trim();
     if (!cleanUtr || cleanUtr.length < 4) {
-      return Alert.alert(
-        'UTR Required',
-        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.'
-      );
+      return showAlert({
+        type: 'warning',
+        title: 'UTR Number Required',
+        message: 'Please enter the 12-digit UPI Reference / UTR Number from your payment confirmation screen.'
+      });
     }
 
     setUpiVerifying(true);
@@ -350,10 +439,11 @@ const CartScreen = ({ route, navigation }) => {
         slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
       });
     } catch (err) {
-      Alert.alert(
-        'Verification Failed',
-        err.response?.data?.message || err.message || 'Failed to verify UPI payment. Please check your UTR and try again.'
-      );
+      showAlert({
+        type: 'error',
+        title: 'Verification Failed',
+        message: err.response?.data?.message || err.message || 'Failed to verify UPI payment. Please check your UTR number and try again.'
+      });
     } finally {
       setUpiVerifying(false);
     }
@@ -944,6 +1034,20 @@ const CartScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Rich CustomAlert Dialog */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancel={alertConfig.showCancel}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={alertConfig.onCancel}
+        onRequestClose={alertConfig.onCancel}
+      />
     </SafeAreaView>
   );
 };
