@@ -23,6 +23,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { ChevronLeft, ChevronRight, Clock, IndianRupee } from 'lucide-react-native';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { getImageUrl } from '../../utils/helpers';
+import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryTheme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PURPLE = '#6C47FF';
@@ -57,9 +58,12 @@ const SubCategoriesScreen = ({ route, navigation }) => {
     subs = []
   } = route.params || {};
 
+  const displayIcon = getCategoryIcon(name, icon);
+  const localHeroImg = getCategoryLocalImage(name);
   const [categoryImageUrl, setCategoryImageUrl] = useState(imageUrl);
   const heroGradient = ['#6C47FF', '#8B6FFF'];
   const resolvedHeroImage = getImageUrl(categoryImageUrl || imageUrl);
+  const finalHeroImage = resolvedHeroImage ? { uri: resolvedHeroImage } : localHeroImg;
 
   const [localSubs, setLocalSubs] = useState(subs || []);
   const [refreshing, setRefreshing] = useState(false);
@@ -123,7 +127,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
         <View style={styles.heroContentRow}>
           <View style={styles.heroTextCol}>
             <View style={styles.heroIconBadge}>
-              <Text style={styles.heroIcon}>{icon}</Text>
+              <Text style={styles.heroIcon}>{displayIcon}</Text>
             </View>
             <Text style={styles.heroTitle} numberOfLines={2}>{name}</Text>
             <View style={styles.servicesBadge}>
@@ -132,13 +136,13 @@ const SubCategoriesScreen = ({ route, navigation }) => {
             </View>
           </View>
 
-          {resolvedHeroImage ? (
+          {finalHeroImage ? (
             <View style={styles.heroImageCardWrapper}>
-              <Image source={{ uri: resolvedHeroImage }} style={styles.heroFramedImage} resizeMode="cover" />
+              <Image source={finalHeroImage} style={styles.heroFramedImage} resizeMode="cover" />
             </View>
           ) : (
             <View style={styles.heroIconCardWrapper}>
-              <Text style={{ fontSize: 40 }}>{icon}</Text>
+              <Text style={{ fontSize: 40 }}>{displayIcon}</Text>
             </View>
           )}
         </View>
@@ -170,6 +174,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
           .filter(sub => !searchQuery || sub.name.toLowerCase().includes(searchQuery.toLowerCase()))
           .map((sub, index) => {
             const resolvedSubImage = getImageUrl(sub.imageUrl);
+            const cardImg = resolvedSubImage ? { uri: resolvedSubImage } : localHeroImg;
 
             return (
               <TouchableOpacity
@@ -178,7 +183,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
                 activeOpacity={0.8}
                 onPress={() =>
                   navigation.navigate('DescribeJob', {
-                    category: route.params,
+                    category: { ...route.params, id, name, icon: displayIcon, imageUrl: categoryImageUrl },
                     subcategory: sub.name,
                   })
                 }
@@ -186,11 +191,11 @@ const SubCategoriesScreen = ({ route, navigation }) => {
                 {/* Left accent strip */}
                 <View style={[styles.cardAccent, { backgroundColor: PURPLE }]} />
 
-                <View style={[styles.cardIconBox, resolvedSubImage && { backgroundColor: 'transparent', padding: 0 }]}>
-                  {resolvedSubImage ? (
-                    <Image source={{ uri: resolvedSubImage }} style={{ width: '100%', height: '100%', borderRadius: 14 }} resizeMode="cover" />
+                <View style={[styles.cardIconBox, cardImg && { backgroundColor: 'transparent', padding: 0 }]}>
+                  {cardImg ? (
+                    <Image source={cardImg} style={{ width: '100%', height: '100%', borderRadius: 14 }} resizeMode="cover" />
                   ) : (
-                    <Text style={styles.cardIcon}>{icon}</Text>
+                    <Text style={styles.cardIcon}>{displayIcon}</Text>
                   )}
                 </View>
 

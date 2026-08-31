@@ -15,6 +15,7 @@ import {
   Platform,
   PermissionsAndroid,
   DeviceEventEmitter,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';

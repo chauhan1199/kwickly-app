@@ -33,10 +33,11 @@ import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
 import { customerService } from '../../services/customerService';
 import AppBar from '../../components/AppBar';
-import api from '../../services/api';
 import BannerCarousel from '../../components/ui/BannerCarousel';
 import GlassCard from '../../components/ui/GlassCard';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryTheme';
+import { getImageUrl } from '../../utils/helpers';
 
 const { width } = Dimensions.get('window');
 
@@ -107,7 +108,7 @@ const BookServiceScreen = ({ navigation, route }) => {
         const mappedCats = catRes.data.data.map(c => ({
           id: c._id,
           _id: c._id,
-          icon: c.icon || '⚡',
+          icon: getCategoryIcon(c.name, c.icon),
           name: c.name,
           label: c.name,
           imageUrl: c.imageUrl || null,
@@ -142,14 +143,14 @@ const BookServiceScreen = ({ navigation, route }) => {
             .filter(s => s && s.isActive !== false)
             .map(s => {
               const catName = s.categoryName || s.category?.name || (typeof s === 'string' ? s : 'General');
-              const catIcon = s.category?.icon || '⚡';
+              const catIcon = getCategoryIcon(catName, s.category?.icon);
               const subs = Array.isArray(s.subcategories) ? s.subcategories : [];
               const basePrice = s.category?.basePrice || 199;
               return { catName, catIcon, subs, basePrice };
             });
 
           const primaryCategory = servicesList[0]?.catName || 'General Expert';
-          const primaryIcon = servicesList[0]?.catIcon || '🛠️';
+          const primaryIcon = servicesList[0]?.catIcon || getCategoryIcon(primaryCategory, '🛠️');
           const allSubs = servicesList.flatMap(s => s.subs);
           const startingPrice = servicesList.length > 0
             ? Math.min(...servicesList.map(s => s.basePrice))
@@ -306,26 +307,37 @@ const BookServiceScreen = ({ navigation, route }) => {
           ) : (
             categories
               .filter(cat => !searchQuery || (cat.label || cat.name).toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((cat, index) => (
-                <TouchableOpacity
-                  key={cat.id || index}
-                  style={styles.categoryCard}
-                  activeOpacity={0.8}
-                  onPress={() => navigation.navigate('SubCategories', cat)}
-                >
-                  <View style={styles.categoryIconCircle}>
-                    <Text style={styles.categoryIconText}>{cat.icon || '⚡'}</Text>
-                  </View>
-                  <Text style={styles.categoryName} numberOfLines={2}>
-                    {cat.name}
-                  </Text>
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryBadgeText}>
-                      {cat.subs?.length || 1} {cat.subs?.length === 1 ? 'Service' : 'Services'}
+              .map((cat, index) => {
+                const localImg = getCategoryLocalImage(cat.name);
+                const resolvedNetworkImg = getImageUrl(cat.imageUrl);
+                const cardImg = localImg || (resolvedNetworkImg ? { uri: resolvedNetworkImg } : null);
+                const displayIcon = getCategoryIcon(cat.name, cat.icon);
+
+                return (
+                  <TouchableOpacity
+                    key={cat.id || index}
+                    style={styles.categoryCard}
+                    activeOpacity={0.8}
+                    onPress={() => navigation.navigate('SubCategories', { ...cat, icon: displayIcon })}
+                  >
+                    <View style={styles.categoryIconCircle}>
+                      {cardImg ? (
+                        <Image source={cardImg} style={styles.categoryCardImg} resizeMode="cover" />
+                      ) : (
+                        <Text style={styles.categoryIconText}>{displayIcon}</Text>
+                      )}
+                    </View>
+                    <Text style={styles.categoryName} numberOfLines={2}>
+                      {cat.name}
                     </Text>
-                  </View>
-                </TouchableOpacity>
-              ))
+                    <View style={styles.categoryBadge}>
+                      <Text style={styles.categoryBadgeText}>
+                        {cat.subs?.length || 1} {cat.subs?.length === 1 ? 'Service' : 'Services'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
           )}
         </View>
 
@@ -644,6 +656,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
+    overflow: 'hidden',
+  },
+  categoryCardImg: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
   },
   categoryIconText: {
     fontSize: 22,
