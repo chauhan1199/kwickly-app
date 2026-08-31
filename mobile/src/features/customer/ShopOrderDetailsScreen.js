@@ -92,15 +92,16 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
     <body>
       <div id="map"></div>
       <script>
-        const lat = 19.0760;
-        const lng = 72.8777;
-        const sLat = 19.0800;
-        const sLng = 72.8800;
+        const lat = ${Number(order.deliveryLocation?.coordinates?.[1]) || 23.0225};
+        const lng = ${Number(order.deliveryLocation?.coordinates?.[0]) || 72.5714};
+        const sLat = ${Number(order.shopId?.location?.coordinates?.[1]) || ((Number(order.deliveryLocation?.coordinates?.[1]) || 23.0225) + 0.005)};
+        const sLng = ${Number(order.shopId?.location?.coordinates?.[0]) || ((Number(order.deliveryLocation?.coordinates?.[0]) || 72.5714) + 0.005)};
 
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 14);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            maxZoom: 20
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            subdomains: 'abc'
         }).addTo(map);
 
         const homeIcon = L.divIcon({

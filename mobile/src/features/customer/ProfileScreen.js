@@ -22,8 +22,11 @@ const ProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
   let pmCount = 0;
-  if (user?.wallet?.upiId) pmCount++;
-  if (user?.wallet?.bankDetails) pmCount++;
+  if (user?.wallet?.upiId && String(user.wallet.upiId).trim().length > 0) pmCount++;
+  if (user?.wallet?.bankDetails?.accountNumber && String(user.wallet.bankDetails.accountNumber).trim().length > 0) pmCount++;
+  if (Array.isArray(user?.savedPaymentMethods)) {
+    pmCount += user.savedPaymentMethods.length;
+  }
 
   const styles = createStyles(theme, isDarkMode);
 
@@ -38,7 +41,7 @@ const ProfileScreen = ({ navigation }) => {
   const menuItems = [
     { id: 7, title: 'Order History', sub: 'Track all orders', icon: '📋', color: '#0ea5e9' },
     { id: 1, title: 'Saved Addresses', sub: `${user?.addresses?.length || 0} saved`, icon: '📍', color: '#ef4444' },
-    { id: 2, title: 'Payment Methods', sub: `${pmCount} method${pmCount === 1 ? '' : 's'}`, icon: '💳', color: '#3b82f6' },
+    { id: 2, title: 'Payment Methods', sub: `${pmCount} saved`, icon: '💳', color: '#3b82f6' },
     { id: 6, title: 'My Shop Orders', sub: 'View past orders', icon: '📦', color: '#10b981' },
     { id: 3, title: 'Share App', sub: 'Invite friends & family', icon: '📢', color: '#f5b300' },
     { id: 4, title: 'Help & Support', sub: '24/7 available', icon: '💬', color: '#ec4899' },

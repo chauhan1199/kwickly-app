@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Geolocation from '@react-native-community/geolocation';
+import CustomAlert from './ui/CustomAlert';
 import {
   MapPin,
   Search,
@@ -73,6 +74,48 @@ export const AddressMapModal = ({
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // CustomAlert Modal State
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancel: false,
+    onConfirm: () => setAlertConfig(prev => ({ ...prev, visible: false })),
+    onCancel: () => setAlertConfig(prev => ({ ...prev, visible: false })),
+  });
+
+  const showAlert = ({
+    type = 'info',
+    title = '',
+    message = '',
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    showCancel = false,
+    onConfirm = null,
+    onCancel = null
+  }) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      }
+    });
+  };
 
   const geocodeTimeoutRef = useRef(null);
 
@@ -347,9 +390,9 @@ export const AddressMapModal = ({
       <script>
         var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${region.latitude}, ${region.longitude}], 16);
         
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          maxZoom: 20,
-          subdomains: 'abcd'
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          subdomains: 'abc'
         }).addTo(map);
 
         map.on('movestart', function() {
@@ -472,11 +515,12 @@ export const AddressMapModal = ({
     if (!hasPermission && Platform.OS === 'android') {
       setIsLocatingGPS(false);
       if (manualClick) {
-        Alert.alert(
-          'Location Permission Required',
-          'Please grant location permission to detect your current position on the map.',
-          [{ text: 'OK' }]
-        );
+        showAlert({
+          type: 'warning',
+          title: 'Location Permission Required',
+          message: 'Please grant location permission to detect your current position on the map.',
+          confirmText: 'OK'
+        });
       }
       return;
     }
@@ -507,11 +551,12 @@ export const AddressMapModal = ({
         (err2) => {
           setIsLocatingGPS(false);
           if (manualClick) {
-            Alert.alert(
-              'Location Notice',
-              'Please ensure GPS is enabled in device settings. You can also search your society / landmark above or move the map pin.',
-              [{ text: 'OK' }]
-            );
+            showAlert({
+              type: 'info',
+              title: 'Location Notice',
+              message: 'Please ensure GPS is enabled in device settings. You can also search your society / landmark above or move the map pin.',
+              confirmText: 'OK'
+            });
           }
         },
         { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
@@ -534,20 +579,38 @@ export const AddressMapModal = ({
     const finalPincode = pincode.replace(/\D/g, '').trim();
 
     if (!finalFlat || finalFlat.length < 2) {
-      return Alert.alert('Missing Field', 'Please enter your House / Flat / Building number.');
+      return showAlert({
+        type: 'warning',
+        title: 'Missing Field',
+        message: 'Please enter your House / Flat / Building number.'
+      });
     }
     if (!finalArea && !finalFlat) {
-      return Alert.alert('Missing Field', 'Please enter your Street / Area / Landmark.');
+      return showAlert({
+        type: 'warning',
+        title: 'Missing Field',
+        message: 'Please enter your Street / Area / Landmark.'
+      });
     }
     if (!finalCity || finalCity.length < 2) {
-      return Alert.alert('Missing Field', 'Please enter your City name.');
+      return showAlert({
+        type: 'warning',
+        title: 'Missing Field',
+        message: 'Please enter your City name.'
+      });
     }
     if (!finalPincode || finalPincode.length !== 6) {
-      return Alert.alert('Invalid Pincode', 'Please enter a valid 6-digit postal pincode.');
+      return showAlert({
+        type: 'warning',
+        title: 'Invalid Pincode',
+        message: 'Please enter a valid 6-digit postal pincode.'
+      });
     }
 
     const streetCombined = finalFlat;
     const areaCombined = finalArea;
+    const finalLat = Number(region.latitude) || DEFAULT_LAT;
+    const finalLng = Number(region.longitude) || DEFAULT_LNG;
 
     setIsSaving(true);
     try {
@@ -559,12 +622,16 @@ export const AddressMapModal = ({
         pincode: finalPincode,
         location: {
           type: 'Point',
-          coordinates: [region.longitude, region.latitude]
+          coordinates: [finalLng, finalLat]
         }
       });
       onClose();
     } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to save address');
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: e.message || 'Failed to save address'
+      });
     } finally {
       setIsSaving(false);
     }
@@ -827,6 +894,19 @@ export const AddressMapModal = ({
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
+
+        {/* Custom Alert Modal */}
+        <CustomAlert
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          cancelText={alertConfig.cancelText}
+          showCancel={alertConfig.showCancel}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={alertConfig.onCancel}
+        />
       </View>
     </Modal>
   );

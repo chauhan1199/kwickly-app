@@ -61,8 +61,9 @@ const LiveTrackingScreen = ({ route, navigation }) => {
 
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 14);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            maxZoom: 20
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            subdomains: 'abc'
         }).addTo(map);
 
         // Job Pin

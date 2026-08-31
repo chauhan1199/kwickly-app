@@ -51,7 +51,7 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
       <div id="map"></div>
       <script>
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${jobLat}, ${jobLng}], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', { maxZoom: 19, subdomains: 'abc' }).addTo(map);
 
         const jobIcon = L.divIcon({
           html: '<div style="background-color: #ef4444; width: 16px; height: 16px; border-radius: 8px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',

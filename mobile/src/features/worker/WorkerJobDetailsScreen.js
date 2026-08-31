@@ -80,7 +80,7 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
         let wLng = ${initialWorkerLng};
 
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', { maxZoom: 19, subdomains: 'abc' }).addTo(map);
 
         // Job Pin
         const jobIcon = L.divIcon({
