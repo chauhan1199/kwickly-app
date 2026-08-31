@@ -9,17 +9,21 @@ import {
   StatusBar,
   Alert,
   Image,
-  ActivityIndicator
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+  Dimensions
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { customerService } from '../../services/customerService';
 import LinearGradient from 'react-native-linear-gradient';
-import AppBar from '../../components/AppBar';
+import { ChevronLeft, Camera, User, Phone, Mail, Lock, CheckCircle2, ShieldCheck } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 
-const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?name=User&background=6C47FF&color=fff';
+const { width } = Dimensions.get('window');
 
 const EditProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -31,12 +35,13 @@ const EditProfileScreen = ({ navigation }) => {
   const [imageUri, setImageUri] = useState(user?.profileImage ? getImageUrl(user.profileImage) : null);
   const [imageFile, setImageFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
   const styles = createStyles(theme, isDarkMode);
 
   // Generate initials
   const getInitials = (n) => {
-    if (!n) return 'C';
+    if (!n) return 'U';
     const parts = n.trim().split(' ');
     if (parts.length > 1) return (parts[0][0] + parts[1][0]).toUpperCase();
     return n.substring(0, 2).toUpperCase();
@@ -44,32 +49,52 @@ const EditProfileScreen = ({ navigation }) => {
 
   const handleEditAvatar = () => {
     Alert.alert(
-      "Upload Photo",
-      "Choose an option",
+      "Update Profile Photo",
+      "Choose a source for your photo",
       [
         {
-          text: "Camera",
+          text: "Take Photo",
           onPress: async () => {
             try {
-              const result = await launchCamera({ mediaType: 'photo', quality: 0.8, includeBase64: true });
+              const result = await launchCamera({ 
+                mediaType: 'photo', 
+                quality: 0.8, 
+                includeBase64: true,
+                maxWidth: 1024,
+                maxHeight: 1024
+              });
               if (result.didCancel) return;
-              if (result.errorCode || !result.assets) throw new Error();
+              if (result.errorCode || !result.assets || result.assets.length === 0) throw new Error();
               setImageUri(result.assets[0].uri);
-              setImageFile({ base64: result.assets[0].base64, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
+              setImageFile({ 
+                base64: result.assets[0].base64, 
+                type: result.assets[0].type || 'image/jpeg', 
+                name: result.assets[0].fileName || 'profile.jpg' 
+              });
             } catch (e) {
               Alert.alert('Camera Error', 'Could not open camera. Please check camera permissions.');
             }
           }
         },
         {
-          text: "Gallery",
+          text: "Choose from Gallery",
           onPress: async () => {
             try {
-              const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8, includeBase64: true });
+              const result = await launchImageLibrary({ 
+                mediaType: 'photo', 
+                quality: 0.8, 
+                includeBase64: true,
+                maxWidth: 1024,
+                maxHeight: 1024
+              });
               if (result.didCancel) return;
-              if (result.errorCode || !result.assets) throw new Error();
+              if (result.errorCode || !result.assets || result.assets.length === 0) throw new Error();
               setImageUri(result.assets[0].uri);
-              setImageFile({ base64: result.assets[0].base64, type: result.assets[0].type || 'image/jpeg', name: result.assets[0].fileName || 'profile.jpg' });
+              setImageFile({ 
+                base64: result.assets[0].base64, 
+                type: result.assets[0].type || 'image/jpeg', 
+                name: result.assets[0].fileName || 'profile.jpg' 
+              });
             } catch (e) {
               Alert.alert('Gallery Error', 'Could not open gallery. Please check storage permissions.');
             }
@@ -81,114 +106,198 @@ const EditProfileScreen = ({ navigation }) => {
   };
 
   const handleSave = async () => {
+    if (!name.trim()) {
+      Alert.alert('Validation Error', 'Please enter your full name.');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const payload = { name };
-      if (email) payload.email = email;
+      const payload = { name: name.trim() };
+      if (email.trim()) payload.email = email.trim().toLowerCase();
       if (imageFile && imageFile.base64) {
         payload.profileImageBase64 = `data:${imageFile.type || 'image/jpeg'};base64,${imageFile.base64}`;
       }
       await customerService.updateProfile(payload);
       await fetchUser();
-      Alert.alert('Success', 'Profile updated successfully!');
-      navigation.goBack();
+      Alert.alert('Success', 'Your profile details have been saved successfully!', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
     } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to update profile');
+      Alert.alert('Update Failed', e.message || 'Could not update profile. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
-      
-      {/* Unified App Bar inside a purple gradient */}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent={true} backgroundColor="transparent" />
+
+      {/* Notch-Safe Gradient Header */}
       <LinearGradient
-        colors={['#6C47FF', '#8B6FFF']}
+        colors={['#5535d4', '#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingBottom: 30, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+        style={styles.gradientHeader}
       >
-        {/* Dynamic background shapes */}
-        <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-        <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+        <View style={styles.ambientShape1} />
+        <View style={styles.ambientShape2} />
 
-        <AppBar 
-          title="Edit Profile" 
-          showBack={true}
-          transparent={true} 
-          showLogo={false}
-          showProfile={false}
-          showCart={false}
-          onBackPress={() => navigation.goBack()}
-        />
+        <SafeAreaView style={styles.safeHeaderArea}>
+          <View style={styles.appBar}>
+            <TouchableOpacity 
+              style={styles.backBtn} 
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <ChevronLeft size={22} color="#ffffff" />
+            </TouchableOpacity>
+
+            <Text style={styles.headerTitle}>Edit Profile</Text>
+
+            <View style={{ width: 38 }} />
+          </View>
+        </SafeAreaView>
       </LinearGradient>
 
-      <View style={styles.content}>
-        
-        {/* Profile Image */}
-        <View style={styles.imageContainer}>
-          {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitials(name)}</Text>
+      {/* Keyboard Avoiding Container */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Profile Avatar Card */}
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarWrapper}>
+              {imageUri ? (
+                <Image source={{ uri: imageUri }} style={styles.avatarImg} />
+              ) : (
+                <LinearGradient
+                  colors={['#8B6FFF', '#6C47FF']}
+                  style={styles.avatarPlaceholder}
+                >
+                  <Text style={styles.avatarInitial}>{getInitials(name)}</Text>
+                </LinearGradient>
+              )}
+              
+              <TouchableOpacity 
+                style={styles.cameraBadge}
+                activeOpacity={0.8}
+                onPress={handleEditAvatar}
+              >
+                <Camera size={16} color="#ffffff" />
+              </TouchableOpacity>
             </View>
-          )}
+
+            <Text style={styles.changePhotoText}>Tap camera to change photo</Text>
+          </View>
+
+          {/* Form Fields Card */}
+          <View style={styles.card}>
+            {/* Full Name */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Full Name <Text style={styles.reqStar}>*</Text></Text>
+              <View style={[
+                styles.inputWrapper,
+                focusedField === 'name' && styles.inputWrapperFocused
+              ]}>
+                <User size={18} color={focusedField === 'name' ? '#6C47FF' : theme.colors.textDim} style={styles.inputIcon} />
+                <TextInput 
+                  style={styles.textInput}
+                  value={name}
+                  onChangeText={setName}
+                  onFocus={() => setFocusedField('name')}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder="Enter your full name"
+                  placeholderTextColor={theme.colors.textDim}
+                  autoCapitalize="words"
+                />
+              </View>
+            </View>
+
+            {/* Phone Number (Verified / Read-Only) */}
+            <View style={styles.formGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Phone Number</Text>
+                <View style={styles.verifiedTag}>
+                  <ShieldCheck size={11} color="#10b981" />
+                  <Text style={styles.verifiedTagText}>Verified</Text>
+                </View>
+              </View>
+              <View style={[styles.inputWrapper, styles.inputWrapperDisabled]}>
+                <Phone size={18} color={theme.colors.textDim} style={styles.inputIcon} />
+                <TextInput 
+                  style={[styles.textInput, styles.textInputDisabled]}
+                  value={phone}
+                  editable={false}
+                  keyboardType="phone-pad"
+                  placeholderTextColor={theme.colors.textDim}
+                />
+                <Lock size={15} color={theme.colors.textDim} style={{ marginRight: 12 }} />
+              </View>
+              <Text style={styles.helperText}>Mobile number is linked to your account identity.</Text>
+            </View>
+
+            {/* Email Address */}
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Email Address (Optional)</Text>
+              <View style={[
+                styles.inputWrapper,
+                focusedField === 'email' && styles.inputWrapperFocused
+              ]}>
+                <Mail size={18} color={focusedField === 'email' ? '#6C47FF' : theme.colors.textDim} style={styles.inputIcon} />
+                <TextInput 
+                  style={styles.textInput}
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField(null)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholder="name@example.com"
+                  placeholderTextColor={theme.colors.textDim}
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* Action Save Button */}
           <TouchableOpacity 
-            style={styles.cameraBtn}
-            onPress={handleEditAvatar}
+            style={styles.saveButton} 
+            activeOpacity={0.88}
+            onPress={handleSave} 
+            disabled={isLoading}
           >
-            <Text style={{fontSize: 14}}>📷</Text>
+            <LinearGradient
+              colors={['#6C47FF', '#5535d4']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.saveGradient}
+            >
+              {isLoading ? (
+                <View style={styles.btnRow}>
+                  <ActivityIndicator color="#ffffff" size="small" />
+                  <Text style={styles.saveBtnText}>Saving Changes…</Text>
+                </View>
+              ) : (
+                <View style={styles.btnRow}>
+                  <CheckCircle2 size={18} color="#ffffff" />
+                  <Text style={styles.saveBtnText}>Save Changes</Text>
+                </View>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
-        </View>
 
-        {/* Form Fields */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput 
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholderTextColor={theme.colors.textDim}
-          />
-        </View>
-
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput 
-            style={[styles.input, { opacity: 0.6 }]}
-            value={phone}
-            editable={false}
-            keyboardType="phone-pad"
-            placeholderTextColor={theme.colors.textDim}
-          />
-        </View>
-
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Email Address</Text>
-          <TextInput 
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            placeholderTextColor={theme.colors.textDim}
-          />
-        </View>
-
-      </View>
-
-      <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isLoading}>
-          {isLoading ? (
-            <ActivityIndicator color="#001016" />
-          ) : (
-            <Text style={styles.saveBtnText}>Save Changes</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+          <View style={{ height: 60 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -197,107 +306,216 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  gradientHeader: {
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 10,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  ambientShape1: {
+    position: 'absolute',
+    top: -50,
+    right: -30,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  ambientShape2: {
+    position: 'absolute',
+    bottom: -50,
+    left: -30,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  safeHeaderArea: {
+    paddingHorizontal: 16,
+  },
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 14,
+    justifyContent: 'space-between',
   },
   backBtn: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: isDarkMode ? theme.colors.surface : '#f1f5f9',
   },
-  backBtnText: {
-    fontSize: 24,
-    color: theme.colors.text,
-    lineHeight: 28,
-  },
-  appBarTitle: {
+  headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: theme.colors.text,
-    marginLeft: 12,
+    color: '#ffffff',
+    letterSpacing: 0.2,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
+  scrollContent: {
+    paddingHorizontal: 16,
     paddingTop: 20,
+    paddingBottom: 40,
   },
-  imageContainer: {
-    alignSelf: 'center',
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  avatarWrapper: {
     position: 'relative',
-    marginBottom: 40,
+    marginBottom: 8,
   },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#86efac',
+  avatarImg: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
+    borderColor: '#6C47FF',
+  },
+  avatarPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#6C47FF',
   },
-  avatarText: {
+  avatarInitial: {
     fontSize: 36,
-    fontWeight: '800',
-    color: '#064e3b',
+    fontWeight: '900',
+    color: '#ffffff',
   },
-  cameraBtn: {
+  cameraBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    bottom: 2,
+    right: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#6C47FF',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: theme.colors.surface,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 3,
+  },
+  changePhotoText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textDim,
+  },
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: 24,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: 18,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   label: {
     fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.textDim,
+    fontWeight: '700',
+    color: theme.colors.text,
     marginBottom: 8,
   },
-  input: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: theme.colors.text,
+  reqStar: {
+    color: '#ef4444',
   },
-  bottomBar: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  saveBtn: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 16,
-    borderRadius: 12,
+  verifiedTag: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  verifiedTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+  },
+  inputWrapperFocused: {
+    borderColor: '#6C47FF',
+    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.06)' : '#FAF8FF',
+  },
+  inputWrapperDisabled: {
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#F1F5F9',
+    borderColor: theme.colors.border,
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  textInput: {
+    flex: 1,
+    paddingVertical: 13,
+    fontSize: 14,
+    color: theme.colors.text,
+    fontWeight: '600',
+  },
+  textInputDisabled: {
+    color: theme.colors.textDim,
+  },
+  helperText: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  saveButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  saveGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   saveBtnText: {
-    color: '#001016',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '800',
+    letterSpacing: 0.2,
   }
 });
 

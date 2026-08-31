@@ -15,23 +15,23 @@ import {
   Alert,
   Modal,
   Pressable,
+  Keyboard,
+  Dimensions
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { chatService } from '../../services/chatService';
 import api from '../../services/api';
-import { Send, ChevronLeft, Image as ImageIcon, X } from 'lucide-react-native';
+import { Send, ChevronLeft, Image as ImageIcon, X, ShieldCheck } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import io from 'socket.io-client';
 import { SOCKET_URL, API_BASE_URL } from '../../config/env';
 import { getImageUrl } from '../../utils/helpers';
 
-const BACKEND_URL = API_BASE_URL.replace('/api/v1', '');
-const API_URL = API_BASE_URL;
+const { width } = Dimensions.get('window');
 
-// ─── Upload helper — base64 JSON (most reliable in React Native) ──────────────
+// ─── Upload helper — base64 JSON ─────────────────────────────────────────────
 const uploadImageBase64 = async (imageAsset, apiInstance) => {
   if (!imageAsset.base64) {
     throw new Error('No base64 data on image asset. Make sure includeBase64: true is set.');
@@ -46,7 +46,6 @@ const uploadImageBase64 = async (imageAsset, apiInstance) => {
   return res.data.data.url;
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
 const ChatScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { userToken: token, user } = useAuth();
@@ -63,7 +62,7 @@ const ChatScreen = ({ route, navigation }) => {
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [sending, setSending] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(null); // null | 0-100
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [imageFile, setImageFile] = useState(null);
 
   const flatListRef = useRef(null);
@@ -76,13 +75,13 @@ const ChatScreen = ({ route, navigation }) => {
       const res = await chatService.getChatHistory({ partnerId, jobId });
       setMessages(res.data?.data || []);
       
-      // Mark as read
       try {
         await chatService.markRead(partnerId);
       } catch (e) {
         // Non-critical, silently ignore
       }
     } catch (err) {
+      console.log('[ChatScreen] Load error:', err?.message);
     } finally {
       setLoading(false);
     }
@@ -98,7 +97,6 @@ const ChatScreen = ({ route, navigation }) => {
 
     socket.on('connect', () => {});
 
-    // Admin reply lands here
     socket.on('NEW_MESSAGE', (message) => {
       const fromAdmin = !message.senderId;
       const fromPartner =
@@ -121,8 +119,15 @@ const ChatScreen = ({ route, navigation }) => {
   useEffect(() => {
     fetchHistory();
     const socket = setupSocket();
+
+    // Auto-scroll when mobile keyboard pops up
+    const kbSub = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+
     return () => {
       socket?.disconnect();
+      kbSub.remove();
     };
   }, [fetchHistory, setupSocket]);
 
@@ -130,10 +135,10 @@ const ChatScreen = ({ route, navigation }) => {
   const selectImage = async () => {
     const result = await launchImageLibrary({
       mediaType: 'photo',
-      quality: 0.7,
-      includeBase64: true, // Required for base64 upload
-      maxWidth: 1024,
-      maxHeight: 1024,
+      quality: 0.8,
+      includeBase64: true,
+      maxWidth: 1200,
+      maxHeight: 1200,
     });
     if (!result.didCancel && result.assets?.length > 0) {
       setImageFile(result.assets[0]);
@@ -151,7 +156,6 @@ const ChatScreen = ({ route, navigation }) => {
     try {
       let mediaUrl = null;
 
-      // Step 1: Upload image if selected
       if (imageFile) {
         setUploadProgress(0);
         try {
@@ -166,7 +170,6 @@ const ChatScreen = ({ route, navigation }) => {
         setImageFile(null);
       }
 
-      // Step 2: Send message (text + optional mediaUrl)
       const payload = {
         receiverId: partnerId,
         jobId: jobId || undefined,
@@ -193,7 +196,6 @@ const ChatScreen = ({ route, navigation }) => {
     }
   };
 
-  // ─── Render a single message bubble ─────────────────────────────────────────
   const renderMessage = ({ item }) => {
     const myId = user?._id;
     const senderId = item.senderId?._id || item.senderId;
@@ -203,7 +205,10 @@ const ChatScreen = ({ route, navigation }) => {
       <View style={[styles.msgWrapper, isMine ? styles.wrapMine : styles.wrapOther]}>
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleOther]}>
           {item.mediaUrl ? (
-            <Pressable onPress={() => setSelectedImage(getImageUrl(item.mediaUrl))}>
+            <Pressable 
+              onPress={() => setSelectedImage(getImageUrl(item.mediaUrl))}
+              style={styles.imageBubblePressable}
+            >
               <Image
                 source={{ uri: getImageUrl(item.mediaUrl) }}
                 style={styles.msgImage}
@@ -230,34 +235,44 @@ const ChatScreen = ({ route, navigation }) => {
   const styles = createStyles(theme, isDarkMode);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent={true} backgroundColor="transparent" />
 
-      {/* Header */}
+      {/* Notch-Safe Gradient Header */}
       <LinearGradient 
-        colors={['#6C47FF', '#8B6FFF']} 
+        colors={['#5535d4', '#6C47FF', '#8B6FFF']} 
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ChevronLeft color="#fff" size={28} />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{partnerName}</Text>
-          <Text style={styles.headerSub}>{partnerRole}</Text>
-        </View>
+        <SafeAreaView style={styles.safeHeaderRow}>
+          <TouchableOpacity 
+            style={styles.backBtn} 
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft color="#fff" size={24} />
+          </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={styles.headerTitle} numberOfLines={1}>{partnerName}</Text>
+              <ShieldCheck size={14} color="#a7f3d0" />
+            </View>
+            <Text style={styles.headerSub} numberOfLines={1}>{partnerRole}</Text>
+          </View>
+        </SafeAreaView>
       </LinearGradient>
 
+      {/* Keyboard Avoiding Area */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* Messages */}
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator color={theme.colors.primary} size="large" />
+            <ActivityIndicator color="#6C47FF" size="large" />
           </View>
         ) : (
           <FlatList
@@ -266,12 +281,13 @@ const ChatScreen = ({ route, navigation }) => {
             keyExtractor={(item, i) => item._id || String(i)}
             renderItem={renderMessage}
             contentContainerStyle={styles.chatList}
+            keyboardShouldPersistTaps="handled"
             onContentSizeChange={() =>
               flatListRef.current?.scrollToEnd({ animated: true })
             }
             ListEmptyComponent={
               <View style={styles.center}>
-                <Text style={styles.emptyText}>No messages yet. Say hello! 👋</Text>
+                <Text style={styles.emptyText}>No messages yet. Send a message to get assistance! 👋</Text>
               </View>
             }
           />
@@ -286,6 +302,7 @@ const ChatScreen = ({ route, navigation }) => {
               <TouchableOpacity
                 style={styles.removeImg}
                 onPress={() => setImageFile(null)}
+                activeOpacity={0.8}
               >
                 <X color="#fff" size={14} />
               </TouchableOpacity>
@@ -298,7 +315,11 @@ const ChatScreen = ({ route, navigation }) => {
           ) : null}
 
           <View style={styles.inputRow}>
-            <TouchableOpacity style={styles.attachBtn} onPress={selectImage}>
+            <TouchableOpacity 
+              style={styles.attachBtn} 
+              onPress={selectImage}
+              activeOpacity={0.7}
+            >
               <ImageIcon color={theme.colors.textDim} size={24} />
             </TouchableOpacity>
 
@@ -319,6 +340,7 @@ const ChatScreen = ({ route, navigation }) => {
               ]}
               onPress={handleSend}
               disabled={(!inputText.trim() && !imageFile) || sending}
+              activeOpacity={0.85}
             >
               {sending ? (
                 <ActivityIndicator color="#fff" size="small" />
@@ -338,42 +360,51 @@ const ChatScreen = ({ route, navigation }) => {
           <Image source={{ uri: selectedImage }} style={styles.modalImage} resizeMode="contain" />
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const createStyles = (theme, isDarkMode) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
     header: {
+      paddingHorizontal: 16,
+      paddingBottom: 14,
+      paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 10,
+      borderBottomLeftRadius: 20,
+      borderBottomRightRadius: 20,
+    },
+    safeHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingBottom: 16,
-      paddingTop:
-        Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 10,
     },
-    backBtn: { marginRight: 12 },
+    backBtn: { 
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(255, 255, 255, 0.18)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12 
+    },
     headerInfo: { flex: 1 },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: '#fff' },
-    headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 2 },
+    headerTitle: { fontSize: 17, fontWeight: '800', color: '#fff' },
+    headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
     emptyText: { color: theme.colors.textDim, textAlign: 'center', fontSize: 14 },
-    chatList: { padding: 16, flexGrow: 1, paddingBottom: 8 },
+    chatList: { padding: 16, flexGrow: 1, paddingBottom: 12 },
 
-    // message bubbles
     msgWrapper: { width: '100%', marginBottom: 12 },
     wrapMine: { alignItems: 'flex-end' },
     wrapOther: { alignItems: 'flex-start' },
     bubble: {
-      maxWidth: '80%',
+      maxWidth: '82%',
       paddingHorizontal: 14,
       paddingVertical: 10,
-      borderRadius: 20,
+      borderRadius: 18,
     },
     bubbleMine: {
-      backgroundColor: theme.colors.primary,
+      backgroundColor: '#6C47FF',
       borderBottomRightRadius: 4,
     },
     bubbleOther: {
@@ -382,29 +413,42 @@ const createStyles = (theme, isDarkMode) =>
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
-    msgImage: { width: 200, height: 150, borderRadius: 10, marginBottom: 6 },
+    imageBubblePressable: {
+      borderRadius: 12,
+      overflow: 'hidden',
+      marginBottom: 6,
+    },
+    msgImage: { 
+      width: Math.min(240, width * 0.65), 
+      height: 160, 
+      borderRadius: 12 
+    },
     msgText: { fontSize: 15, lineHeight: 21 },
     textMine: { color: '#fff' },
     textOther: { color: theme.colors.text },
     msgTime: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
-    timeMine: { color: 'rgba(255,255,255,0.6)' },
+    timeMine: { color: 'rgba(255,255,255,0.7)' },
     timeOther: { color: theme.colors.textDim },
 
-    // input
     inputArea: {
       backgroundColor: theme.colors.surface,
       borderTopWidth: 1,
       borderTopColor: theme.colors.border,
       paddingHorizontal: 12,
       paddingTop: 10,
-      paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+      paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+      elevation: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
     },
     previewWrap: {
       position: 'relative',
       marginBottom: 10,
       alignSelf: 'flex-start',
     },
-    preview: { width: 72, height: 72, borderRadius: 10, borderWidth: 2, borderColor: theme.colors.primary },
+    preview: { width: 72, height: 72, borderRadius: 10, borderWidth: 2, borderColor: '#6C47FF' },
     removeImg: {
       position: 'absolute',
       top: -6,
@@ -428,11 +472,11 @@ const createStyles = (theme, isDarkMode) =>
       flex: 1,
       minHeight: 42,
       maxHeight: 120,
-      backgroundColor: isDarkMode ? '#1a1a24' : '#f0f2f5',
+      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#f0f2f5',
       borderRadius: 21,
       paddingHorizontal: 16,
-      paddingTop: 11,
-      paddingBottom: 11,
+      paddingTop: 10,
+      paddingBottom: 10,
       fontSize: 15,
       color: theme.colors.text,
       marginHorizontal: 8,
@@ -443,31 +487,37 @@ const createStyles = (theme, isDarkMode) =>
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: theme.colors.primary,
+      backgroundColor: '#6C47FF',
       justifyContent: 'center',
       alignItems: 'center',
     },
     sendBtnDisabled: { opacity: 0.45 },
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.9)',
+      backgroundColor: 'rgba(0,0,0,0.92)',
       justifyContent: 'center',
       alignItems: 'center',
     },
     modalCloseBtn: {
       position: 'absolute',
-      top: Platform.OS === 'ios' ? 50 : 20,
+      top: Platform.OS === 'ios' ? 50 : 25,
       right: 20,
       zIndex: 10,
       padding: 10,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      borderRadius: 20,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     modalCloseText: {
       color: '#fff',
-      fontSize: 28,
+      fontSize: 18,
       fontWeight: 'bold',
     },
     modalImage: {
-      width: '100%',
+      width: '94%',
       height: '80%',
     },
   });

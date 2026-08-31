@@ -537,8 +537,8 @@ const DescribeJobScreen = ({ route, navigation }) => {
   const remainingSlots = MAX_MEDIA - media.length;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={PURPLE_DARK} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent={true} backgroundColor="transparent" />
 
       {/* ── Purple Gradient Header ── */}
       <LinearGradient
@@ -547,30 +547,37 @@ const DescribeJobScreen = ({ route, navigation }) => {
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <ChevronLeft size={22} color="#fff" />
-        </TouchableOpacity>
+        <SafeAreaView style={styles.safeHeaderRow}>
+          <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+            <ChevronLeft size={22} color="#fff" />
+          </TouchableOpacity>
 
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>Describe your job</Text>
-          <Text style={styles.headerSub} numberOfLines={1}>{category.name} · {subcategory}</Text>
-        </View>
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>Describe your job</Text>
+            <Text style={styles.headerSub} numberOfLines={1}>{category.name} · {subcategory}</Text>
+          </View>
 
-        <TouchableOpacity
-          style={styles.headerIcon}
-          onPress={() => navigation.navigate('Notifications')}
-          activeOpacity={0.8}
-        >
-          <Bell size={20} color="#fff" />
-          <View style={styles.badge} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerIcon}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+          >
+            <Bell size={20} color="#fff" />
+            <View style={styles.badge} />
+          </TouchableOpacity>
+        </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.content, { paddingBottom: 100 }]}
+          keyboardShouldPersistTaps="handled"
+        >
 
         {/* ── Description ── */}
         <Text style={styles.label}>Describe the issue <Text style={styles.required}>*</Text></Text>
@@ -832,6 +839,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* ══════════════════════════════════════
           MEDIA SOURCE ACTION SHEET
@@ -957,10 +965,10 @@ const DescribeJobScreen = ({ route, navigation }) => {
                     onPress={() => { setPreferredDate(date); setShowDatePicker(false); }}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.dateDay, isSelected && { color: '#fff' }]}>
-                      {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                    <Text style={[styles.dateCardDay, isSelected && { color: PURPLE }]}>
+                      {idx === 0 ? 'Today' : idx === 1 ? 'Tmrw' : date.toLocaleDateString('en-US', { weekday: 'short' })}
                     </Text>
-                    <Text style={[styles.dateNum, isSelected && { color: '#fff' }]}>
+                    <Text style={[styles.dateCardNum, isSelected && { color: PURPLE }]}>
                       {date.getDate()}
                     </Text>
                     <Text style={[styles.dateMon, isSelected && { color: 'rgba(255,255,255,0.8)' }]}>
@@ -983,7 +991,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
           </View>
         </TouchableOpacity>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -995,11 +1003,16 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
 
   /* Header */
   header: {
+    paddingHorizontal: 14,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 14,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  safeHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 14,
-    paddingBottom: 16,
+    width: '100%',
   },
   headerBack: {
     width: 36,
