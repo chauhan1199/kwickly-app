@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
+import { nativeUpiService } from '../../services/nativeUpiService';
 import { 
   ArrowDown, 
   ArrowUp, 
@@ -213,7 +214,7 @@ const ShopWalletScreen = ({ navigation }) => {
     Alert.alert('UPI ID Copied 📋', `Admin UPI (${upiId}) copied to clipboard.`);
   };
 
-  const handlePayViaUpiApp = async () => {
+  const handlePayViaUpiApp = async (appKey = 'gpay') => {
     const upiId = adminUpiConfig?.upiId;
     if (!upiId) {
       return Alert.alert('Payment Unavailable', 'Admin UPI is not configured. Please contact support.');
@@ -221,28 +222,32 @@ const ShopWalletScreen = ({ navigation }) => {
     const amt = parseFloat(topUpAmount) || 100;
     const payee = adminUpiConfig?.payeeName || 'Kwickly Admin';
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
-    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payee)}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Shop Topup')}&tr=${shortTr}`;
     
     try {
-      const supported = await Linking.canOpenURL(upiUrl).catch(() => false);
-      if (supported) {
-        await Linking.openURL(upiUrl);
-      } else {
+      const result = await nativeUpiService.startUpiPayment({
+        vpa: upiId,
+        name: payee,
+        amount: amt.toFixed(2),
+        txnRef: shortTr,
+        note: `Shop Topup ₹${amt}`,
+        appKey,
+      });
+
+      if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
+        await handleVerifyUpiPayment(result.approvalRefNo || result.txnId);
+      } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
         Alert.alert(
-          'UPI App Required',
-          `Please copy UPI ID "${upiId}" and make payment of ₹${amt} from GPay, PhonePe, or Paytm.`
+          'Payment Cancelled',
+          'Payment was cancelled in the UPI app. No money was debited or added to your wallet.'
         );
       }
     } catch (e) {
-      Alert.alert(
-        'Payment Info',
-        `Transfer ₹${amt} to Admin UPI: ${upiId}\nThen enter the 12-digit UTR below.`
-      );
+      Alert.alert('UPI App', e.message || 'Could not open UPI app. Please try again.');
     }
   };
 
-  const handleVerifyUpiPayment = async (isAuto = false, isBackground = false) => {
-    const rawUtr = upiTxnId.trim();
+  const handleVerifyUpiPayment = async (capturedUtr = '') => {
+    const rawUtr = (capturedUtr || upiTxnId || '').trim();
     const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     setSubmittingAction(true);
@@ -263,9 +268,7 @@ const ShopWalletScreen = ({ navigation }) => {
         throw new Error(res.data?.message || 'Verification failed');
       }
     } catch (error) {
-      if (!isBackground) {
-        Alert.alert('Payment Issue', error.response?.data?.message || error.message || 'Failed to verify UPI transaction. Please try again.');
-      }
+      Alert.alert('Payment Issue', error.response?.data?.message || error.message || 'Failed to verify UPI transaction. Please try again.');
     } finally {
       setSubmittingAction(false);
     }

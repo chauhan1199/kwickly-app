@@ -22,6 +22,7 @@ import {
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { nativeUpiService } from '../../services/nativeUpiService';
 import { 
   ArrowDownLeft, 
   ArrowUpRight, 
@@ -213,28 +214,37 @@ const WorkerEarningsScreen = ({ navigation }) => {
     fetchWalletAndProfile();
   }, [fetchWalletAndProfile]);
 
-  // Open Direct UPI app (GPay / PhonePe / Paytm / BHIM)
-  const handleOpenUpiApp = async (amount, purposeTitle) => {
+  const handlePayViaUpiApp = async (appKey = 'gpay') => {
     const upiId = adminUpiConfig?.upiId;
     if (!upiId) {
       return Alert.alert('Payment Unavailable', 'Admin UPI is currently not configured. Please contact support.');
     }
     const cleanUpi = upiId.trim();
     const cleanPayee = (adminUpiConfig.payeeName || 'Kwickly Admin').trim().replace(/\s+/g, ' ');
-    const amtStr = Number(amount).toFixed(2);
+    const amtStr = Number(pendingPaymentContext.amount).toFixed(2);
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
-    const note = `Kwickly ${purposeTitle || 'Payment'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
-    const upiUrl = `upi://pay?pa=${cleanUpi}&pn=${encodeURIComponent(cleanPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent(note)}&tr=${shortTr}`;
+    const note = `Kwickly ${pendingPaymentContext.type || 'Payment'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
 
     try {
-      const supported = await Linking.canOpenURL(upiUrl).catch(() => false);
-      if (supported) {
-        await Linking.openURL(upiUrl);
-      } else {
-        Alert.alert('UPI Apps', `Please copy UPI ID: ${upiId} and pay ₹${amount} in Google Pay, PhonePe or Paytm, then enter your 12-digit UTR below.`);
+      const result = await nativeUpiService.startUpiPayment({
+        vpa: cleanUpi,
+        name: cleanPayee,
+        amount: amtStr,
+        txnRef: shortTr,
+        note,
+        appKey,
+      });
+
+      if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
+        await handleVerifyUpiPayment(result.approvalRefNo || result.txnId);
+      } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
+        Alert.alert(
+          'Payment Cancelled',
+          'Payment was cancelled in the UPI app. No money was debited or added to your account.'
+        );
       }
     } catch (e) {
-      Alert.alert('Payment Link', `Please copy UPI ID: ${upiId} and transfer ₹${amount} using your UPI app.`);
+      Alert.alert('UPI App', e.message || 'Could not open UPI app. Please try again.');
     }
   };
 
@@ -249,8 +259,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
   };
 
   // Submit UPI Verification
-  const handleVerifyUpiPayment = async (isAuto = false, isBackground = false) => {
-    const rawUtr = upiUtrNumber.trim();
+  const handleVerifyUpiPayment = async (capturedUtr = '') => {
+    const rawUtr = (capturedUtr || upiUtrNumber || '').trim();
     const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     try {
@@ -281,9 +291,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
         throw new Error(res.data?.message || 'Payment submission failed');
       }
     } catch (error) {
-      if (!isBackground) {
-        Alert.alert('Verification Issue', error.response?.data?.message || error.message || 'Could not verify payment. Please try again.');
-      }
+      Alert.alert('Verification Issue', error.response?.data?.message || error.message || 'Could not verify payment. Please try again.');
     } finally {
       setSubmittingAction(false);
     }

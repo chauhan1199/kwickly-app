@@ -11,6 +11,7 @@ import { walletService } from '../../services/walletService';
 import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
 import { Wallet, Zap, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon } from '../../components/ui/UpiBrandIcons';
+import { nativeUpiService } from '../../services/nativeUpiService';
 
 const PRESETS = [100, 250, 500, 1000, 2000, 5000];
 
@@ -78,35 +79,31 @@ const WalletTopupScreen = ({ navigation }) => {
     }
   };
 
-  const handleOpenUpiApp = async (appScheme = 'gpay') => {
-    if (!upiOrderData?.upiIntentUri) return;
-    setSelectedUpiApp(appScheme);
+  const handleOpenUpiApp = async (appKey = 'gpay') => {
+    if (!upiOrderData) return;
+    setSelectedUpiApp(appKey);
     setPaymentInitiated(true);
-    try {
-      let targetUri = upiOrderData.upiIntentUri;
-      if (appScheme === 'gpay') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'tez://upi/pay').replace('upi://', 'tez://upi/');
-      } else if (appScheme === 'phonepe') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'phonepe://pay').replace('upi://', 'phonepe://');
-      } else if (appScheme === 'paytm') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'paytmmp://pay').replace('upi://', 'paytmmp://');
-      }
 
-      const supported = await Linking.canOpenURL(targetUri).catch(() => false);
-      if (supported) {
-        await Linking.openURL(targetUri);
-      } else {
-        const universalSupported = await Linking.canOpenURL(upiOrderData.upiIntentUri).catch(() => false);
-        if (universalSupported) {
-          await Linking.openURL(upiOrderData.upiIntentUri);
-        } else {
-          Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID:\n\n${upiOrderData.upiVpa}\n\nThen enter the 12-digit UTR below.`);
-        }
+    try {
+      const result = await nativeUpiService.startUpiPayment({
+        vpa: upiOrderData.upiVpa,
+        name: upiOrderData.payeeName || 'Kwickly Admin',
+        amount: upiOrderData.amount,
+        txnRef: upiOrderData.razorpayOrderId,
+        note: `Kwickly Topup ₹${upiOrderData.amount}`,
+        appKey,
+      });
+
+      if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
+        await handleConfirmUpiTopup(result.approvalRefNo || result.txnId);
+      } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
+        Alert.alert(
+          'Payment Cancelled',
+          'Payment was cancelled in the UPI app. No money was debited or added to your wallet.'
+        );
       }
     } catch (err) {
-      Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-        Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
-      });
+      Alert.alert('UPI App', err.message || 'Could not open UPI app. Please try again.');
     }
   };
 
@@ -119,30 +116,22 @@ const WalletTopupScreen = ({ navigation }) => {
     }
   };
 
-  // Auto-verify when user returns from UPI app
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active' && paymentInitiated && upiOrderData && !isVerifying) {
-        handleConfirmUpiTopup(true, true);
-      }
-    });
-    return () => subscription.remove();
-  }, [paymentInitiated, upiOrderData, isVerifying]);
-
-  const handleConfirmUpiTopup = async (isAuto = false, isBackground = false) => {
+  const handleConfirmUpiTopup = async (capturedUtr = '') => {
     if (!upiOrderData || isVerifying) return;
 
     setIsVerifying(true);
     try {
+      const cleanUtr = (capturedUtr || upiTxnId || '').trim();
       const verifyRes = await walletService.verifyPayment({
         razorpayOrderId: upiOrderData.razorpayOrderId,
+        upiTransactionId: cleanUtr || undefined,
+        utrNumber: cleanUtr || undefined,
         isAutoConfirmed: true,
         purpose: 'wallet_topup',
         amount: upiOrderData.amount
       });
 
       if (verifyRes?.data?.status === 'success') {
-        const verifyData = verifyRes.data.data;
         setUpiCheckoutModal(false);
         setUpiTxnId('');
         setPaymentInitiated(false);
@@ -156,12 +145,10 @@ const WalletTopupScreen = ({ navigation }) => {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }
     } catch (e) {
-      if (!isBackground) {
-        Alert.alert(
-          'Verification Issue',
-          e?.response?.data?.message || e?.message || 'Failed to verify payment. Please try again.'
-        );
-      }
+      Alert.alert(
+        'Verification Issue',
+        e?.response?.data?.message || e?.message || 'Failed to verify payment. Please try again.'
+      );
     } finally {
       setIsVerifying(false);
     }
