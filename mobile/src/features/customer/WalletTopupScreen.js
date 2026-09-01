@@ -123,13 +123,13 @@ const WalletTopupScreen = ({ navigation }) => {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active' && paymentInitiated && upiOrderData && !isVerifying) {
-        handleConfirmUpiTopup(true);
+        handleConfirmUpiTopup(true, true);
       }
     });
     return () => subscription.remove();
   }, [paymentInitiated, upiOrderData, isVerifying]);
 
-  const handleConfirmUpiTopup = async (isAuto = false) => {
+  const handleConfirmUpiTopup = async (isAuto = false, isBackground = false) => {
     if (!upiOrderData || isVerifying) return;
     const cleanUtr = upiTxnId.trim();
 
@@ -163,10 +163,10 @@ const WalletTopupScreen = ({ navigation }) => {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }
     } catch (e) {
-      if (!isAuto) {
+      if (!isBackground) {
         Alert.alert(
-          'Verification Failed',
-          e?.response?.data?.message || e?.message || 'Failed to verify payment. Please try again.'
+          'Verification Issue',
+          e?.response?.data?.message || e?.message || 'Failed to verify payment. Please try again or enter the 12-digit UTR manually.'
         );
       }
     } finally {

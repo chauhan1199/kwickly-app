@@ -282,15 +282,28 @@ exports.verifyPayment = catchAsync(async (req, res) => {
             let newBalance = req.user.wallet?.balance || 0;
 
             if (!existingTxn) {
-                const User = require('../user/user.model');
-                const user = await User.findById(req.user._id).session(session);
-                const currentBalance = user?.wallet?.balance || 0;
-                newBalance = currentBalance + Number(creditAmount);
+                const Customer = require('../customer/customer.model');
+                const Shop = require('../shop/shop.model');
 
-                if (user) {
-                    user.wallet = user.wallet || {};
-                    user.wallet.balance = newBalance;
-                    await user.save(sessOpts);
+                let currentBalance = 0;
+                if (req.user.role === 'SHOP') {
+                    const shop = await Shop.findOne({ ownerId: req.user._id }).session(session);
+                    currentBalance = shop?.wallet?.balance || 0;
+                    newBalance = currentBalance + Number(creditAmount);
+                    if (shop) {
+                        shop.wallet = shop.wallet || {};
+                        shop.wallet.balance = newBalance;
+                        await shop.save(sessOpts);
+                    }
+                } else {
+                    const customer = await Customer.findById(req.user._id).session(session);
+                    currentBalance = customer?.wallet?.balance || 0;
+                    newBalance = currentBalance + Number(creditAmount);
+                    if (customer) {
+                        customer.wallet = customer.wallet || {};
+                        customer.wallet.balance = newBalance;
+                        await customer.save(sessOpts);
+                    }
                 }
 
                 existingTxn = await WalletTxn.create([{

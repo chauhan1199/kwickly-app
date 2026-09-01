@@ -109,7 +109,7 @@ const CartScreen = ({ route, navigation }) => {
   useEffect(() => {
     const sub = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active' && paymentInitiated && currentOrder && !upiVerifying) {
-        handleConfirmUpiPayment(true);
+        handleConfirmUpiPayment(true, true);
       }
     });
     return () => sub.remove();
@@ -410,7 +410,7 @@ const CartScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleConfirmUpiPayment = async (isAuto = false) => {
+  const handleConfirmUpiPayment = async (isAuto = false, isBackground = false) => {
     if (!currentOrder || upiVerifying) return;
     const cleanUtr = upiTxnId.trim();
 
@@ -449,11 +449,11 @@ const CartScreen = ({ route, navigation }) => {
         slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
       });
     } catch (err) {
-      if (!isAuto) {
+      if (!isBackground) {
         showAlert({
           type: 'error',
-          title: 'Verification Failed',
-          message: err.response?.data?.message || err.message || 'Failed to verify UPI payment. Please try again.'
+          title: 'Verification Issue',
+          message: err.response?.data?.message || err.message || 'Failed to verify UPI payment. Please try again or submit the 12-digit UTR manually.'
         });
       }
     } finally {

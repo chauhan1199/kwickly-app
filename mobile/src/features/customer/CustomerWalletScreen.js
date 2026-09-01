@@ -227,13 +227,13 @@ const CustomerWalletScreen = ({ navigation }) => {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active' && paymentInitiated && upiOrderData && !isVerifying) {
-        handleConfirmUpiTopup(true);
+        handleConfirmUpiTopup(true, true);
       }
     });
     return () => subscription.remove();
   }, [paymentInitiated, upiOrderData, isVerifying]);
 
-  const handleConfirmUpiTopup = async (isAuto = false) => {
+  const handleConfirmUpiTopup = async (isAuto = false, isBackground = false) => {
     if (!upiOrderData || isVerifying) return;
     const cleanUtr = upiTxnId.trim();
 
@@ -277,10 +277,10 @@ const CustomerWalletScreen = ({ navigation }) => {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }
     } catch (error) {
-      if (!isAuto) {
+      if (!isBackground) {
         showAlert({
-          title: 'Verification Failed',
-          message: error.response?.data?.message || error.message || 'Failed to verify payment. Please try again.',
+          title: 'Verification Issue',
+          message: error.response?.data?.message || error.message || 'Could not verify payment. Please try again or submit the 12-digit UTR manually.',
           type: 'error',
           confirmText: 'Try Again'
         });

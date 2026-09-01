@@ -97,7 +97,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
   useEffect(() => {
     const sub = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active' && upiPaymentModalVisible && !submittingAction) {
-        handleVerifyUpiPayment(true);
+        handleVerifyUpiPayment(true, true);
       }
     });
     return () => sub.remove();
@@ -249,7 +249,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
   };
 
   // Submit UPI UTR / Auto verification
-  const handleVerifyUpiPayment = async (isAuto = false) => {
+  const handleVerifyUpiPayment = async (isAuto = false, isBackground = false) => {
     const rawUtr = upiUtrNumber.trim();
     if (!isAuto && showManualUtr && (!rawUtr || rawUtr.length < 4)) {
       Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
@@ -285,8 +285,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
         throw new Error(res.data?.message || 'Payment submission failed');
       }
     } catch (error) {
-      if (!isAuto) {
-        Alert.alert('Verification Error', error.response?.data?.message || error.message || 'Could not verify payment.');
+      if (!isBackground) {
+        Alert.alert('Verification Issue', error.response?.data?.message || error.message || 'Could not verify payment. Please try again or submit 12-digit UTR manually.');
       }
     } finally {
       setSubmittingAction(false);

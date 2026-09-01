@@ -96,9 +96,9 @@ const ShopWalletScreen = ({ navigation }) => {
     const sub = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active') {
         if (upiPaymentModalVisible && !submittingAction) {
-          handleVerifyUpiPayment(true);
+          handleVerifyUpiPayment(true, true);
         } else if (subscriptionModalVisible && subPaymentStep && !submittingAction) {
-          handleSubmitSubscriptionUtr(true);
+          handleSubmitSubscriptionUtr(true, true);
         }
       }
     });
@@ -241,7 +241,7 @@ const ShopWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handleVerifyUpiPayment = async (isAuto = false) => {
+  const handleVerifyUpiPayment = async (isAuto = false, isBackground = false) => {
     const rawUtr = upiTxnId.trim();
     if (!isAuto && showManualUtr && (!rawUtr || rawUtr.length < 4)) {
       Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
@@ -269,8 +269,8 @@ const ShopWalletScreen = ({ navigation }) => {
         fetchWallet();
       }
     } catch (error) {
-      if (!isAuto) {
-        Alert.alert('Payment Error', error.response?.data?.message || 'Failed to verify UPI transaction.');
+      if (!isBackground) {
+        Alert.alert('Payment Issue', error.response?.data?.message || error.message || 'Failed to verify UPI transaction. Please try again or submit 12-digit UTR manually.');
       }
     } finally {
       setSubmittingAction(false);
@@ -464,7 +464,7 @@ const ShopWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handleSubmitSubscriptionUtr = async (isAuto = false) => {
+  const handleSubmitSubscriptionUtr = async (isAuto = false, isBackground = false) => {
     const rawUtr = subUtr.trim();
     if (!isAuto && showSubManualUtr && (!rawUtr || rawUtr.length < 4)) {
       Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
@@ -491,8 +491,8 @@ const ShopWalletScreen = ({ navigation }) => {
       Alert.alert('Subscription Active 🎉', `Your plan "${planConfig?.title || 'Active'}" has been activated!`);
       fetchWallet();
     } catch (e) {
-      if (!isAuto) {
-        Alert.alert('Error', e?.response?.data?.message || 'Failed to subscribe. Please try again.');
+      if (!isBackground) {
+        Alert.alert('Subscription Error', e?.response?.data?.message || e?.message || 'Failed to subscribe. Please try again or submit 12-digit UTR manually.');
       }
     } finally {
       setSubmittingAction(false);
