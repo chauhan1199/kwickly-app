@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, Modal, TextInput,
-  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator, Linking, AppState
+  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator, Linking, AppState, Share
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
-import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield, Zap, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react-native';
+import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield, Zap, ChevronDown, ChevronUp, RefreshCw, Share2, FileText, Receipt } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import CustomAlert from '../../components/ui/CustomAlert';
@@ -226,21 +226,22 @@ const CustomerWalletScreen = ({ navigation }) => {
   // Automatic return detection from UPI App
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active' && paymentInitiated && upiOrderData && !isVerifying) {
-        handleConfirmUpiTopup(true, true);
+      if (nextAppState === 'active' && paymentInitiated && upiOrderData) {
+        setShowManualUtr(true);
       }
     });
     return () => subscription.remove();
-  }, [paymentInitiated, upiOrderData, isVerifying]);
+  }, [paymentInitiated, upiOrderData]);
 
   const handleConfirmUpiTopup = async (isAuto = false, isBackground = false) => {
     if (!upiOrderData || isVerifying) return;
     const cleanUtr = upiTxnId.trim();
 
-    if (!isAuto && showManualUtr && (!cleanUtr || cleanUtr.length < 4)) {
+    if (!cleanUtr || cleanUtr.length < 4) {
+      setShowManualUtr(true);
       return showAlert({
         title: 'UTR Required',
-        message: 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.',
+        message: 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt (e.g. 661022357358) so Admin can verify and credit your wallet.',
         type: 'warning',
         confirmText: 'OK'
       });
@@ -252,13 +253,15 @@ const CustomerWalletScreen = ({ navigation }) => {
         razorpayOrderId: upiOrderData.razorpayOrderId,
         upiTransactionId: cleanUtr || undefined,
         utrNumber: cleanUtr || undefined,
-        isAutoConfirmed: isAuto || !cleanUtr,
+        isAutoConfirmed: false,
         purpose: 'wallet_topup',
         amount: upiOrderData.amount
       });
 
       if (verifyRes?.data?.status === 'success') {
         const verifyData = verifyRes.data.data;
+        const isCompleted = verifyData?.status === 'COMPLETED';
+
         setUpiCheckoutModal(false);
         setTopupAmount('');
         setUpiTxnId('');
@@ -267,12 +270,21 @@ const CustomerWalletScreen = ({ navigation }) => {
         if (fetchUser) await fetchUser();
         await fetchWallet();
 
-        showAlert({
-          title: 'Top-up Successful! 🎉',
-          message: `₹${upiOrderData.amount} has been verified and securely credited to your Kwickly Wallet.`,
-          type: 'success',
-          confirmText: 'Awesome!'
-        });
+        if (isCompleted) {
+          showAlert({
+            title: 'Top-up Successful! 🎉',
+            message: `₹${upiOrderData.amount} has been verified and credited to your Kwickly Wallet.`,
+            type: 'success',
+            confirmText: 'Awesome!'
+          });
+        } else {
+          showAlert({
+            title: 'Payment Submitted ⏳',
+            message: `₹${upiOrderData.amount} (UTR: ${cleanUtr}) has been submitted for Admin Verification.\n\nYour wallet balance will be credited as soon as Admin confirms the deposit in the platform account.`,
+            type: 'info',
+            confirmText: 'Got It'
+          });
+        }
       } else {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }
@@ -290,8 +302,60 @@ const CustomerWalletScreen = ({ navigation }) => {
     }
   };
 
-
   const openTxn = (t) => { setSelectedTxn(t); setTxnModal(true); };
+
+  const handleDownloadReceipt = async (txn) => {
+    if (!txn) return;
+    const isCr = isCredit(txn);
+    const dateStr = new Date(txn.createdAt || txn.txnDate).toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+    const receiptId = `KWIK-RCPT-${(txn._id || '').slice(-8).toUpperCase()}`;
+    const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || 'N/A';
+
+    const receiptMessage = `
+========================================
+       KWICKLY OFFICIAL PAYMENT RECEIPT
+========================================
+Receipt ID    : ${receiptId}
+Date & Time   : ${dateStr}
+Status        : ${txn.status || 'COMPLETED'}
+----------------------------------------
+Payer Details:
+Name          : ${user?.name || 'Customer'}
+Phone         : ${user?.phone || 'Registered User'}
+----------------------------------------
+Transaction Details:
+Description   : ${txn.description || 'Wallet Transaction'}
+Type          : ${txn.type || 'TOPUP'}
+Payment Mode  : UPI / Direct Bank Transfer
+Reference/UTR : ${refId}
+----------------------------------------
+Amount Paid   : ${isCr ? '+' : '-'}₹${txn.amount}
+Wallet Balance: ₹${txn.balance || txn.balanceAfter || balance || 0}
+========================================
+Thank you for using Kwickly!
+Support: support@kwickly.in
+Website: https://kwickly-app.vercel.app
+========================================
+`.trim();
+
+    try {
+      await Share.share({
+        title: `Kwickly Receipt - ${receiptId}`,
+        message: receiptMessage,
+      });
+    } catch (err) {
+      Clipboard.setString(receiptMessage);
+      showAlert({
+        title: 'Receipt Copied 📄',
+        message: 'Receipt details have been copied to your clipboard.',
+        type: 'success',
+        confirmText: 'OK'
+      });
+    }
+  };
 
   const renderTxn = ({ item }) => (
     <TouchableOpacity style={styles.txCard} onPress={() => openTxn(item)} activeOpacity={0.8}>
@@ -619,31 +683,103 @@ const CustomerWalletScreen = ({ navigation }) => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Transaction Details Modal */}
+      {/* Professional Transaction Receipt Modal */}
       <Modal visible={txnModal} transparent animationType="fade" onRequestClose={() => setTxnModal(false)}>
         <TouchableOpacity style={styles.centerOverlay} activeOpacity={1} onPress={() => setTxnModal(false)}>
           <TouchableWithoutFeedback>
-            <View style={styles.centerModal}>
+            <View style={styles.receiptCard}>
               {selectedTxn && (
                 <>
-                  <View style={[styles.txIconLarge, { backgroundColor: isCredit(selectedTxn) ? '#d1fae5' : '#fee2e2' }]}>
-                    {isCredit(selectedTxn) ? <ArrowDown size={32} color="#059669" /> : <ArrowUp size={32} color="#dc2626" />}
+                  {/* Top Receipt Header */}
+                  <View style={styles.receiptTopHeader}>
+                    <View style={styles.receiptLogoBadge}>
+                      <ShieldCheck size={18} color="#10B981" />
+                      <Text style={styles.receiptLogoText}>KWICKLY VERIFIED RECEIPT</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setTxnModal(false)} style={styles.receiptCloseBtn}>
+                      <X size={18} color={theme.colors.textDim} />
+                    </TouchableOpacity>
                   </View>
-                  <Text style={styles.txDetailTitle}>{selectedTxn.description}</Text>
-                  <Text style={[styles.txDetailAmt, { color: isCredit(selectedTxn) ? '#059669' : '#dc2626' }]}>
-                    {isCredit(selectedTxn) ? '+' : '-'}₹{selectedTxn.amount}
-                  </Text>
-                  <View style={styles.txInfoBox}>
-                    {[['Type', selectedTxn.type], ['Date', new Date(selectedTxn.createdAt || selectedTxn.txnDate).toLocaleString()], ['ID', (selectedTxn._id || '').slice(-8)]].map(([k, v]) => (
-                      <View key={k} style={styles.txInfoRow}>
-                        <Text style={styles.txInfoKey}>{k}</Text>
-                        <Text style={[styles.txInfoVal]}>{v}</Text>
-                      </View>
-                    ))}
+
+                  {/* Main Amount & Status */}
+                  <View style={styles.receiptAmtSection}>
+                    <View style={[styles.txIconLarge, { backgroundColor: isCredit(selectedTxn) ? '#d1fae5' : '#fee2e2' }]}>
+                      {isCredit(selectedTxn) ? <ArrowDown size={28} color="#059669" /> : <ArrowUp size={28} color="#dc2626" />}
+                    </View>
+                    <Text style={styles.receiptDescText}>{selectedTxn.description || 'Wallet Transaction'}</Text>
+                    <Text style={[styles.receiptAmtValue, { color: isCredit(selectedTxn) ? '#059669' : '#dc2626' }]}>
+                      {isCredit(selectedTxn) ? '+' : '-'}₹{selectedTxn.amount}
+                    </Text>
+                    
+                    <View style={[
+                      styles.receiptStatusBadge,
+                      { backgroundColor: selectedTxn.status === 'PENDING' ? '#FEF3C7' : selectedTxn.status === 'FAILED' ? '#FEE2E2' : '#D1FAE5' }
+                    ]}>
+                      <Text style={[
+                        styles.receiptStatusText,
+                        { color: selectedTxn.status === 'PENDING' ? '#D97706' : selectedTxn.status === 'FAILED' ? '#DC2626' : '#059669' }
+                      ]}>
+                        ● {selectedTxn.status === 'PENDING' ? 'PENDING VERIFICATION' : selectedTxn.status === 'FAILED' ? 'FAILED' : 'SUCCESSFUL • CREDITED'}
+                      </Text>
+                    </View>
                   </View>
-                  <TouchableOpacity style={styles.downloadBtn} onPress={() => { setTxnModal(false); Alert.alert('Receipt downloaded! 📄'); }}>
-                    <Text style={styles.downloadBtnText}>Download Receipt</Text>
-                  </TouchableOpacity>
+
+                  {/* Itemized Receipt Details Box */}
+                  <View style={styles.receiptDetailsBox}>
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptKey}>Receipt No</Text>
+                      <Text style={styles.receiptValHighlight}>KWIK-RCPT-{(selectedTxn._id || '').slice(-8).toUpperCase()}</Text>
+                    </View>
+
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptKey}>Date & Time</Text>
+                      <Text style={styles.receiptVal}>
+                        {new Date(selectedTxn.createdAt || selectedTxn.txnDate).toLocaleString('en-IN', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short'
+                        })}
+                      </Text>
+                    </View>
+
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptKey}>Customer</Text>
+                      <Text style={styles.receiptVal}>{user?.name || 'Registered User'} ({user?.phone || '—'})</Text>
+                    </View>
+
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptKey}>Transaction Type</Text>
+                      <Text style={styles.receiptVal}>{selectedTxn.type || 'TOPUP'}</Text>
+                    </View>
+
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptKey}>Payment Method</Text>
+                      <Text style={styles.receiptVal}>Direct UPI Transfer</Text>
+                    </View>
+
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptKey}>Bank UTR / Ref</Text>
+                      <Text style={[styles.receiptVal, { color: '#6C47FF', fontWeight: '800' }]}>
+                        {selectedTxn.razorpayPaymentId || selectedTxn.gatewayTransactionId || selectedTxn.refId || 'AUTO_VERIFIED'}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.receiptRow, styles.receiptTotalRow]}>
+                      <Text style={styles.receiptTotalKey}>Wallet Balance</Text>
+                      <Text style={styles.receiptTotalVal}>₹{selectedTxn.balance || selectedTxn.balanceAfter || balance || 0}</Text>
+                    </View>
+                  </View>
+
+                  {/* Actions */}
+                  <View style={styles.receiptActionRow}>
+                    <TouchableOpacity
+                      style={styles.receiptShareBtn}
+                      onPress={() => handleDownloadReceipt(selectedTxn)}
+                      activeOpacity={0.85}
+                    >
+                      <Share2 size={16} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.receiptShareBtnText}>Share / Download Receipt</Text>
+                    </TouchableOpacity>
+                  </View>
                 </>
               )}
             </View>
@@ -731,17 +867,33 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   bankVal:        { fontWeight: '800', color: theme.colors.text },
   confirmPayBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6C47FF', paddingVertical: 16, borderRadius: 16, shadowColor: '#6C47FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   confirmPayBtnText:{ fontSize: 15, fontWeight: '800', color: '#fff' },
-  centerOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  centerModal:    { backgroundColor: theme.colors.surface, borderRadius: 24, padding: 24, width: '100%', alignItems: 'center' },
-  txIconLarge:    { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  txDetailTitle:  { fontSize: 18, fontWeight: '800', color: theme.colors.text, marginBottom: 8, textAlign: 'center' },
-  txDetailAmt:    { fontSize: 32, fontWeight: '900', marginBottom: 20 },
-  txInfoBox:      { width: '100%', backgroundColor: theme.colors.background, borderRadius: 16, padding: 16, gap: 12, marginBottom: 20 },
-  txInfoRow:      { flexDirection: 'row', justifyContent: 'space-between' },
-  txInfoKey:      { fontSize: 13, color: theme.colors.textDim, fontWeight: '600' },
-  txInfoVal:      { fontSize: 13, color: theme.colors.text, fontWeight: '700' },
-  downloadBtn:    { backgroundColor: theme.colors.primary, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
-  downloadBtnText:{ fontSize: 14, fontWeight: '800', color: '#fff' },
+  centerOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  
+  /* ── Professional Receipt Card Styles ── */
+  receiptCard:    { backgroundColor: theme.colors.surface, borderRadius: 28, padding: 22, width: '100%', maxWidth: 400, borderWidth: 1, borderColor: theme.colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 8 },
+  receiptTopHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingBottom: 12 },
+  receiptLogoBadge:{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#10B98115', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  receiptLogoText:{ fontSize: 11, fontWeight: '800', color: '#10B981', letterSpacing: 0.5 },
+  receiptCloseBtn:{ width: 28, height: 28, borderRadius: 14, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' },
+  receiptAmtSection:{ alignItems: 'center', marginBottom: 18 },
+  txIconLarge:    { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  receiptDescText:{ fontSize: 14, fontWeight: '700', color: theme.colors.textDim, textAlign: 'center', marginBottom: 4 },
+  receiptAmtValue:{ fontSize: 32, fontWeight: '900', letterSpacing: -0.5, marginBottom: 8 },
+  receiptStatusBadge:{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  receiptStatusText:{ fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
+  
+  receiptDetailsBox:{ backgroundColor: theme.colors.background, borderRadius: 18, padding: 16, gap: 10, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 18 },
+  receiptRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  receiptKey:     { fontSize: 12.5, color: theme.colors.textDim, fontWeight: '600' },
+  receiptVal:     { fontSize: 12.5, color: theme.colors.text, fontWeight: '700', textAlign: 'right', flexShrink: 1, marginLeft: 10 },
+  receiptValHighlight:{ fontSize: 12.5, color: '#6C47FF', fontWeight: '800', letterSpacing: 0.5 },
+  receiptTotalRow:{ borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 10, marginTop: 4 },
+  receiptTotalKey:{ fontSize: 13, fontWeight: '800', color: theme.colors.text },
+  receiptTotalVal:{ fontSize: 15, fontWeight: '900', color: '#10B981' },
+  
+  receiptActionRow:{ width: '100%' },
+  receiptShareBtn:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6C47FF', paddingVertical: 14, borderRadius: 16, shadowColor: '#6C47FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
+  receiptShareBtnText:{ fontSize: 14, fontWeight: '800', color: '#fff' },
 });
 
 

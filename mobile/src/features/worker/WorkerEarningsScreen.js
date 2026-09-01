@@ -93,15 +93,15 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [pendingPaymentContext, setPendingPaymentContext] = useState({ amount: 100, type: 'WALLET', planId: null });
 
-  // Auto-verify when user returns from UPI app
+  // Auto-prompt UTR when user returns from UPI app
   useEffect(() => {
     const sub = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active' && upiPaymentModalVisible && !submittingAction) {
-        handleVerifyUpiPayment(true, true);
+      if (nextAppState === 'active' && upiPaymentModalVisible) {
+        setShowManualUtr(true);
       }
     });
     return () => sub.remove();
-  }, [upiPaymentModalVisible, submittingAction, pendingPaymentContext]);
+  }, [upiPaymentModalVisible]);
 
   // Trial / Plan Calculation
   let daysLeft = 0;
@@ -248,15 +248,14 @@ const WorkerEarningsScreen = ({ navigation }) => {
     setTimeout(() => setCopiedUpi(false), 2500);
   };
 
-  // Submit UPI UTR / Auto verification
+  // Submit UPI UTR / Verification
   const handleVerifyUpiPayment = async (isAuto = false, isBackground = false) => {
     const rawUtr = upiUtrNumber.trim();
-    if (!isAuto && showManualUtr && (!rawUtr || rawUtr.length < 4)) {
-      Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
+    if (!rawUtr || rawUtr.length < 4) {
+      setShowManualUtr(true);
+      Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt (e.g. 661022357358) so Admin can verify and activate your wallet/plan.');
       return;
     }
-
-    const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     try {
       setSubmittingAction(true);
@@ -264,21 +263,32 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
       const res = await walletService.topupWallet(
         Number(amount),
-        { method: 'UPI', txnId: utr, isAutoConfirmed: isAuto || !rawUtr },
+        { method: 'UPI', txnId: rawUtr, isAutoConfirmed: false },
         planId || undefined,
-        utr
+        rawUtr
       );
 
       if (res.data?.status === 'success' || res.data?.data) {
+        const isCompleted = res.data.data?.status === 'COMPLETED';
         setUpiPaymentModalVisible(false);
         setUpiUtrNumber('');
         setShowManualUtr(false);
-        Alert.alert(
-          'Payment Success 🎉',
-          type === 'PLAN'
-            ? 'Your subscription plan has been activated successfully!'
-            : `₹${amount} has been successfully added to your wallet balance.`
-        );
+
+        if (isCompleted) {
+          Alert.alert(
+            'Payment Success 🎉',
+            type === 'PLAN'
+              ? 'Your subscription plan has been activated successfully!'
+              : `₹${amount} has been successfully added to your wallet balance.`
+          );
+        } else {
+          Alert.alert(
+            'Payment Submitted ⏳',
+            type === 'PLAN'
+              ? `Your subscription payment (UTR: ${rawUtr}) has been submitted for Admin Verification. Your plan will be activated once confirmed.`
+              : `₹${amount} (UTR: ${rawUtr}) has been submitted for Admin Verification. Your wallet will be credited once confirmed.`
+          );
+        }
         fetchWalletAndProfile();
         if (fetchUser) fetchUser('WORKER');
       } else {

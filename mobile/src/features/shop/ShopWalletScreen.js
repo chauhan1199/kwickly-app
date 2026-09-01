@@ -91,19 +91,19 @@ const ShopWalletScreen = ({ navigation }) => {
   const [subUtr, setSubUtr] = useState('');
   const [showSubManualUtr, setShowSubManualUtr] = useState(false);
 
-  // Auto-verify when user returns from UPI app
+  // Auto-prompt UTR when user returns from UPI app
   useEffect(() => {
     const sub = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active') {
-        if (upiPaymentModalVisible && !submittingAction) {
-          handleVerifyUpiPayment(true, true);
-        } else if (subscriptionModalVisible && subPaymentStep && !submittingAction) {
-          handleSubmitSubscriptionUtr(true, true);
+        if (upiPaymentModalVisible) {
+          setShowManualUtr(true);
+        } else if (subscriptionModalVisible && subPaymentStep) {
+          setShowSubManualUtr(true);
         }
       }
     });
     return () => sub.remove();
-  }, [upiPaymentModalVisible, subscriptionModalVisible, subPaymentStep, submittingAction]);
+  }, [upiPaymentModalVisible, subscriptionModalVisible, subPaymentStep]);
 
   // Add Account form
   const [newAccountType, setNewAccountType] = useState('BANK'); // 'BANK' or 'UPI'
@@ -243,30 +243,36 @@ const ShopWalletScreen = ({ navigation }) => {
 
   const handleVerifyUpiPayment = async (isAuto = false, isBackground = false) => {
     const rawUtr = upiTxnId.trim();
-    if (!isAuto && showManualUtr && (!rawUtr || rawUtr.length < 4)) {
-      Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
+    if (!rawUtr || rawUtr.length < 4) {
+      setShowManualUtr(true);
+      Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt (e.g. 661022357358) so Admin can verify and credit your wallet.');
       return;
     }
-
-    const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     setSubmittingAction(true);
     try {
       const amt = parseFloat(topUpAmount);
-      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: utr, isAutoConfirmed: isAuto || !rawUtr }, null, utr);
+      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: rawUtr, isAutoConfirmed: false }, null, rawUtr);
       if (res.data?.status === 'success') {
+        const isCompleted = res.data.data?.status === 'COMPLETED';
         setUpiPaymentModalVisible(false);
         setUpiTxnId('');
         setTopUpAmount('');
         setShowManualUtr(false);
-        Alert.alert(
-          'Top-up Successful! 🎉',
-          `₹${amt} has been verified and securely credited to your Shop Wallet.`
-        );
+        if (isCompleted) {
+          Alert.alert(
+            'Top-up Successful! 🎉',
+            `₹${amt} has been verified and securely credited to your Shop Wallet.`
+          );
+        } else {
+          Alert.alert(
+            'Payment Submitted ⏳',
+            `₹${amt} (UTR: ${rawUtr}) has been submitted for Admin Verification.\n\nYour Shop Wallet will be credited once confirmed by Admin.`
+          );
+        }
         fetchWallet();
       } else {
-        Alert.alert('Top-up Successful! 🎉', `₹${amt} credited to your Shop Wallet.`);
-        fetchWallet();
+        throw new Error(res.data?.message || 'Verification failed');
       }
     } catch (error) {
       if (!isBackground) {

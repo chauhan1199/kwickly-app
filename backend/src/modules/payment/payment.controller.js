@@ -279,37 +279,35 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         if (payment.metadata?.notes?.purpose === 'wallet_topup' || req.body.purpose === 'wallet_topup') {
             const creditAmount = Number(payment.amount || req.body.amount);
 
-            // Check if already credited for this order
+            // Check if already submitted or credited for this order/UTR
             let existingTxn = await WalletTxn.findOne({
                 userId: req.user._id,
                 type: 'TOPUP',
                 $or: [{ razorpayOrderId: orderRef }, { razorpayPaymentId: finalPaymentId }]
             }).session(session);
 
-            let newBalance = req.user.wallet?.balance || 0;
+            const Customer = require('../customer/customer.model');
+            const Shop = require('../shop/shop.model');
+
+            let currentBalance = 0;
+            if (req.user.role === 'SHOP') {
+                const shop = await Shop.findOne({ ownerId: req.user._id }).session(session);
+                currentBalance = shop?.wallet?.balance || 0;
+            } else {
+                const customer = await Customer.findById(req.user._id).session(session);
+                currentBalance = customer?.wallet?.balance || 0;
+            }
+
+            const isAutoApproved = Boolean(req.body.isWebhookVerified || req.body.isServerApproved);
 
             if (!existingTxn) {
-                const Customer = require('../customer/customer.model');
-                const Shop = require('../shop/shop.model');
-
-                let currentBalance = 0;
-                if (req.user.role === 'SHOP') {
-                    const shop = await Shop.findOne({ ownerId: req.user._id }).session(session);
-                    currentBalance = shop?.wallet?.balance || 0;
+                let newBalance = currentBalance;
+                if (isAutoApproved) {
                     newBalance = currentBalance + Number(creditAmount);
-                    if (shop) {
-                        shop.wallet = shop.wallet || {};
-                        shop.wallet.balance = newBalance;
-                        await shop.save(sessOpts);
-                    }
-                } else {
-                    const customer = await Customer.findById(req.user._id).session(session);
-                    currentBalance = customer?.wallet?.balance || 0;
-                    newBalance = currentBalance + Number(creditAmount);
-                    if (customer) {
-                        customer.wallet = customer.wallet || {};
-                        customer.wallet.balance = newBalance;
-                        await customer.save(sessOpts);
+                    if (req.user.role === 'SHOP') {
+                        await Shop.findOneAndUpdate({ ownerId: req.user._id }, { $set: { 'wallet.balance': newBalance } }).session(session);
+                    } else {
+                        await Customer.findByIdAndUpdate(req.user._id, { $set: { 'wallet.balance': newBalance } }).session(session);
                     }
                 }
 
@@ -317,50 +315,72 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     userId: req.user._id,
                     type: 'TOPUP',
                     amount: Number(creditAmount),
-                    balance: Number(newBalance),
-                    status: 'COMPLETED',
+                    balance: isAutoApproved ? Number(newBalance) : Number(currentBalance),
+                    status: isAutoApproved ? 'COMPLETED' : 'PENDING',
                     razorpayOrderId: orderRef,
                     razorpayPaymentId: finalPaymentId,
-                    description: `Wallet Top-up via Direct UPI (Verified)`
+                    description: isAutoApproved
+                        ? `Wallet Top-up via Direct UPI (Verified)`
+                        : `Wallet Top-up via Direct UPI (Pending Admin Verification)`
                 }], sessOpts).then(arr => arr[0]);
 
-                // Emit to User and Admin Dashboard
-                const { emitToUser } = require('../../helpers/socket.helper');
-                emitToUser(req.user._id, 'WALLET_UPDATE', {
-                    balance: newBalance,
-                    amount: creditAmount,
-                    type: 'TOPUP'
-                });
-                emitToAll('DASHBOARD_UPDATE', {
-                    type: 'WALLET_TOPUP',
-                    userId: req.user._id,
-                    userName: req.user.name,
-                    amount: creditAmount,
-                    utr: finalPaymentId
-                });
+                if (isAutoApproved) {
+                    const { emitToUser } = require('../../helpers/socket.helper');
+                    emitToUser(req.user._id, 'WALLET_UPDATE', {
+                        balance: newBalance,
+                        amount: creditAmount,
+                        type: 'TOPUP'
+                    });
+                    emitToAll('DASHBOARD_UPDATE', {
+                        type: 'WALLET_TOPUP',
+                        userId: req.user._id,
+                        userName: req.user.name,
+                        amount: creditAmount,
+                        utr: finalPaymentId
+                    });
 
-                // Send instant notification
-                const { notifyUser } = require('../../helpers/notifyUser.helper');
-                notifyUser({
-                    userId: req.user._id,
-                    title: 'Wallet Credited 🎉',
-                    message: `₹${creditAmount} has been credited to your Kwickly Wallet. New Balance: ₹${newBalance}`,
-                    action: 'WALLET_CREDIT',
-                    entityType: 'WALLET',
-                    targetRole: req.user.role || 'CUSTOMER'
-                });
+                    const { notifyUser } = require('../../helpers/notifyUser.helper');
+                    notifyUser({
+                        userId: req.user._id,
+                        title: 'Wallet Credited 🎉',
+                        message: `₹${creditAmount} has been credited to your Kwickly Wallet. New Balance: ₹${newBalance}`,
+                        action: 'WALLET_CREDIT',
+                        entityType: 'WALLET',
+                        targetRole: req.user.role || 'CUSTOMER'
+                    });
+                } else {
+                    // Alert Admin Dashboard about the new pending UTR topup request
+                    emitToAll('DASHBOARD_UPDATE', {
+                        type: 'PENDING_TOPUP_SUBMISSION',
+                        txnId: existingTxn._id,
+                        userId: req.user._id,
+                        userName: req.user.name,
+                        amount: creditAmount,
+                        utr: finalPaymentId
+                    });
+                }
             }
 
             if (useTransaction) await session.commitTransaction();
             if (useTransaction) session.endSession();
 
-            return successResponse(res, {
-                paymentId: payment._id,
-                status: 'COMPLETED',
-                utr: finalPaymentId,
-                amount: creditAmount,
-                newBalance
-            }, `Top-up of ₹${creditAmount} successful! Securely credited to your wallet.`);
+            if (isAutoApproved || existingTxn.status === 'COMPLETED') {
+                return successResponse(res, {
+                    paymentId: payment._id,
+                    status: 'COMPLETED',
+                    utr: finalPaymentId,
+                    amount: creditAmount,
+                    newBalance: currentBalance + creditAmount
+                }, `Top-up of ₹${creditAmount} successful! Securely credited to your wallet.`);
+            } else {
+                return successResponse(res, {
+                    paymentId: payment._id,
+                    status: 'PENDING',
+                    utr: finalPaymentId,
+                    amount: creditAmount,
+                    currentBalance
+                }, `Payment of ₹${creditAmount} (UTR: ${finalPaymentId}) submitted for verification! Your wallet will be credited once confirmed by Admin.`);
+            }
         }
 
         if (useTransaction) await session.commitTransaction();

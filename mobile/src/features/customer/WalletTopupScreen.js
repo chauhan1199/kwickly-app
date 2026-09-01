@@ -119,22 +119,26 @@ const WalletTopupScreen = ({ navigation }) => {
     }
   };
 
-  // Auto-verify when user returns from UPI app
+  // Auto-prompt UTR entry when user returns from UPI app
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active' && paymentInitiated && upiOrderData && !isVerifying) {
-        handleConfirmUpiTopup(true, true);
+      if (nextAppState === 'active' && paymentInitiated && upiOrderData) {
+        setShowManualUtr(true);
       }
     });
     return () => subscription.remove();
-  }, [paymentInitiated, upiOrderData, isVerifying]);
+  }, [paymentInitiated, upiOrderData]);
 
   const handleConfirmUpiTopup = async (isAuto = false, isBackground = false) => {
     if (!upiOrderData || isVerifying) return;
     const cleanUtr = upiTxnId.trim();
 
-    if (!isAuto && showManualUtr && (!cleanUtr || cleanUtr.length < 4)) {
-      return Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
+    if (!cleanUtr || cleanUtr.length < 4) {
+      setShowManualUtr(true);
+      return Alert.alert(
+        'UTR Required',
+        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt (e.g. 661022357358) so Admin can verify and credit your wallet.'
+      );
     }
 
     setIsVerifying(true);
@@ -143,22 +147,32 @@ const WalletTopupScreen = ({ navigation }) => {
         razorpayOrderId: upiOrderData.razorpayOrderId,
         upiTransactionId: cleanUtr || undefined,
         utrNumber: cleanUtr || undefined,
-        isAutoConfirmed: isAuto || !cleanUtr,
+        isAutoConfirmed: false,
         purpose: 'wallet_topup',
         amount: upiOrderData.amount
       });
 
       if (verifyRes?.data?.status === 'success') {
         const verifyData = verifyRes.data.data;
+        const isCompleted = verifyData?.status === 'COMPLETED';
+
         setUpiCheckoutModal(false);
         setUpiTxnId('');
         setPaymentInitiated(false);
         setShowManualUtr(false);
         if (fetchUser) await fetchUser();
 
-        Alert.alert('Topup Successful! 🎉', `₹${upiOrderData.amount} has been verified and securely added to your wallet.`, [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]);
+        if (isCompleted) {
+          Alert.alert('Top-up Successful! 🎉', `₹${upiOrderData.amount} has been verified and securely added to your wallet.`, [
+            { text: 'OK', onPress: () => navigation.goBack() }
+          ]);
+        } else {
+          Alert.alert(
+            'Payment Submitted ⏳',
+            `₹${upiOrderData.amount} (UTR: ${cleanUtr}) has been submitted for Admin Verification.\n\nYour wallet balance will be credited as soon as Admin confirms the deposit in the platform account.`,
+            [{ text: 'Got It', onPress: () => navigation.goBack() }]
+          );
+        }
       } else {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }
