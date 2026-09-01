@@ -683,34 +683,55 @@ In accordance with Information Technology Rules, contact our Grievance Officer a
 
             {/* Dynamic FAQs Section */}
             <div className="card" style={{ padding: 20, background: 'var(--surface-card, #1e293b)', borderRadius: 16, border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main, #fff)' }}>❓ Frequently Asked Questions (FAQ)</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main, #fff)' }}>❓ Frequently Asked Questions (FAQ) ({(settings.faqs || []).length})</div>
                   <div style={{ fontSize: 12, color: 'var(--mid, #94a3b8)', marginTop: 2 }}>Manage dynamic questions and answers shown in the mobile Help & Support screen.</div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button
                     className="btn btn-outline"
                     style={{ fontSize: 12, padding: '6px 12px' }}
                     onClick={() => {
                       const defaultFaqs = [
-                        { question: 'How do I book a local service worker (e.g. Electrician, Plumber)?', answer: 'Tap "Book" on the home screen, specify your requirements and location, and post the job. Nearby verified workers will submit quotes for you to compare and accept.', targetRole: 'CUSTOMER', order: 1 },
-                        { question: 'What are the Arrival OTP and Completion OTP?', answer: 'For your protection: 1) Share the Arrival OTP when the worker arrives on-site. 2) Share the Completion OTP ONLY after the task is finished and you have inspected and approved the work.', targetRole: 'CUSTOMER', order: 2 },
-                        { question: 'How do I pay for my shop order or service?', answer: 'You can pay instantly using your Kwickly Wallet, 1-Click Direct UPI (Google Pay, PhonePe, Paytm, BHIM, CRED), or Cash upon service completion. All UPI payments are 0% surcharge-free.', targetRole: 'CUSTOMER', order: 3 },
-                        { question: 'How do refunds work for cancelled orders?', answer: 'If you or the merchant cancels a prepaid order before arrival/dispatch, 100% of the amount is instantly credited back to your Kwickly Wallet balance with zero deductions.', targetRole: 'CUSTOMER', order: 4 },
-                        { question: 'How do I receive customer job alerts?', answer: 'Ensure your KYC is approved, your subscription/free trial is active, your GPS is enabled, and your toggle is set to "Online". You will receive instant notifications for nearby jobs.', targetRole: 'WORKER', order: 5 },
-                        { question: 'When and how do I receive payment for completed jobs?', answer: 'Upon completing the job, enter the customer’s 4-digit Completion OTP. Earnings are credited directly to your Worker Wallet immediately.', targetRole: 'WORKER', order: 6 },
-                        { question: 'How do I withdraw my earnings to my bank account?', answer: 'Navigate to the Earnings screen, tap "Withdraw", enter the amount, and choose your verified Bank Account (via IFSC) or UPI ID.', targetRole: 'WORKER', order: 7 },
-                        { question: 'How do shop orders and settlements work?', answer: 'When customers order, you receive a real-time alert. Once packed and delivered with the Delivery OTP, net product earnings are credited to your Merchant Wallet.', targetRole: 'SHOP', order: 8 },
-                        { question: 'What is the 30-minute auto-cancellation rule for shops?', answer: 'Shops have 30 minutes to accept incoming orders. Unaccepted orders auto-cancel with full refund to ensure great customer experience.', targetRole: 'SHOP', order: 9 },
-                        { question: 'How do I manage product catalog and inventory?', answer: 'Go to your Shop Dashboard -> Products tab to add items with photos, update prices, apply discounts, or toggle out-of-stock items.', targetRole: 'SHOP', order: 10 }
+                        // Customer FAQs (8)
+                        { question: 'How do I book a local service worker (e.g., Electrician, Plumber, Cleaner)?', answer: 'Tap "Book" or select a category on the home screen, specify your task details, preferred time, and location, and post your request. Nearby verified professionals will send you quotes with their rates and ratings. You can compare quotes and accept the best worker in one tap.', targetRole: 'CUSTOMER', order: 1 },
+                        { question: 'What are the Arrival OTP and Completion OTP?', answer: 'For your security, Kwickly uses dual OTP verification: 1) The Arrival OTP is shared with the worker when they arrive at your location to confirm arrival. 2) The Completion OTP should ONLY be shared after the worker finishes the task and you have inspected and approved the work.', targetRole: 'CUSTOMER', order: 2 },
+                        { question: 'How do I order groceries or products from nearby shops?', answer: 'Browse local stores in your area, add items to your cart, choose your delivery slot or instant delivery, and proceed to checkout. You will be able to track your order preparation and live delivery on the interactive map.', targetRole: 'CUSTOMER', order: 3 },
+                        { question: 'What payment methods are supported on Kwickly?', answer: 'You can pay using your Kwickly In-App Wallet, 1-Click Direct UPI Intent (Google Pay, PhonePe, Paytm, BHIM, CRED), or Cash on Delivery / Pay after Service. All online UPI payments are 0% MDR surcharge-free and verified in real-time.', targetRole: 'CUSTOMER', order: 4 },
+                        { question: 'How do I add money to my Kwickly Wallet and what are the benefits?', answer: 'Go to "My Wallet" from your profile or side drawer, select or enter the top-up amount, and pay seamlessly via UPI. Wallet payments offer instant 1-tap checkout, zero transaction failures, and immediate automatic refunds for any cancelled orders.', targetRole: 'CUSTOMER', order: 5 },
+                        { question: 'What is the cancellation and refund policy?', answer: 'You can cancel any service booking or shop order before the worker arrives or before the store dispatches your items without any cancellation fee. If you paid online or via wallet, 100% of the amount is immediately credited back to your Kwickly Wallet.', targetRole: 'CUSTOMER', order: 6 },
+                        { question: 'Are Kwickly service professionals verified and safe?', answer: 'Yes. Every service partner on Kwickly must complete mandatory Know-Your-Customer (KYC) verification with government ID proof (Aadhaar/PAN/Driving License) and trade validation before they can receive job broadcasts.', targetRole: 'CUSTOMER', order: 7 },
+                        { question: 'Can I track my service worker or delivery partner in real-time?', answer: 'Yes! Once a worker accepts your booking or an order is dispatched, you can view their real-time GPS location and estimated time of arrival (ETA) live on the map in your booking details screen.', targetRole: 'CUSTOMER', order: 8 },
+
+                        // Worker FAQs (7)
+                        { question: 'How do I register as a Service Partner and start receiving jobs?', answer: 'Download the Kwickly app, register with your mobile number, select "Worker/Service Partner", choose your service skills, and upload your government ID proof for KYC. Once approved (usually within 24 hours), turn your toggle "Online" to receive nearby job alerts.', targetRole: 'WORKER', order: 9 },
+                        { question: 'How do I get notified of customer jobs and submit quotes?', answer: 'Ensure your app is Online and location permissions are set to "Always" or "While Using App". When a customer posts a job in your service radius, you will receive an instant audio/push alert. Review the task details and submit your competitive price quote.', targetRole: 'WORKER', order: 10 },
+                        { question: 'When and how do I receive payment for completed jobs?', answer: 'Upon finishing the work, ask the customer for their 4-digit Completion OTP and enter it in your app. The earnings (minus any platform convenience fee) are instantly credited to your Kwickly Worker Wallet balance.', targetRole: 'WORKER', order: 11 },
+                        { question: 'How do I withdraw my earnings to my bank account or UPI?', answer: 'Navigate to the "Earnings / Wallet" section in your app, tap "Withdraw", enter the amount, and select your verified Bank Account (via IFSC) or UPI ID. Withdrawal requests are processed quickly into your bank account.', targetRole: 'WORKER', order: 12 },
+                        { question: 'How does the Partner Free Trial and Subscription work?', answer: 'New service partners receive a complimentary 14-Day Free Trial. After the trial, you can subscribe to affordable Monthly or Annual plans to enjoy unlimited bidding, verified badge, priority job matching, and reduced commission rates.', targetRole: 'WORKER', order: 13 },
+                        { question: 'What happens if a customer cancels after I arrive?', answer: 'If the customer cancels after you have arrived and entered the Arrival OTP, you may be eligible for a doorstep travel compensation credited directly to your wallet.', targetRole: 'WORKER', order: 14 },
+                        { question: 'How do customer ratings affect my earnings?', answer: 'Partners with high ratings (4.5 stars and above) receive priority lead dispatches and higher placement on customer quote comparisons, leading to significantly higher monthly earnings.', targetRole: 'WORKER', order: 15 },
+
+                        // Shop FAQs (5)
+                        { question: 'How do I list my store and products on Kwickly?', answer: 'Register as a Shop Merchant, complete your store profile (store name, category, opening hours, address), and start adding products with photos, prices, unit weights, and stock levels from the "Product Catalog" tab.', targetRole: 'SHOP', order: 16 },
+                        { question: 'How do I process incoming shop orders?', answer: 'When a nearby customer places an order, you will receive a loud real-time order notification. Tap to accept the order, pack the requested items, and mark "Ready for Pickup". Provide the package to the delivery partner upon verifying the Delivery OTP.', targetRole: 'SHOP', order: 17 },
+                        { question: 'What is the 30-minute auto-cancellation rule for shops?', answer: 'To guarantee fast fulfillment for customers, shops have 30 minutes to accept incoming orders. Unaccepted orders are automatically cancelled and refunded to the customer. Keep your store notifications active during business hours.', targetRole: 'SHOP', order: 18 },
+                        { question: 'How do merchant settlements and payouts work?', answer: 'The net value of completed orders is automatically credited to your Merchant Wallet upon delivery. You can initiate payouts directly to your registered business bank account at any time.', targetRole: 'SHOP', order: 19 },
+                        { question: 'Can I manage product inventory, discounts, and out-of-stock items?', answer: 'Yes! From your Merchant Dashboard, you can toggle item availability on/off instantly, update prices, add promotional discounts, and edit inventory with zero delay.', targetRole: 'SHOP', order: 20 },
+
+                        // General FAQs (4)
+                        { question: 'How does the Kwickly Referral Program work?', answer: 'Share your unique referral code or link with friends and family from the "Refer & Earn" screen. When they sign up and complete their first verified booking or order, both of you receive bonus wallet cash.', targetRole: 'ALL', order: 21 },
+                        { question: 'Is my personal information and payment data safe?', answer: 'Absolutely. Kwickly uses bank-grade 256-bit TLS encryption. We adhere strictly to Indian IT laws and the Digital Personal Data Protection Act. We never store your UPI PINs, NetBanking passwords, or card CVVs.', targetRole: 'ALL', order: 22 },
+                        { question: 'How do I contact Kwickly Support if I need help with an order or booking?', answer: 'You can reach our 24/7 Customer Care team directly through the in-app "Help & Support" chat, by tapping "Need Help" on any active booking screen, or by emailing support@kwickly.com.', targetRole: 'ALL', order: 23 },
+                        { question: 'What should I do if I change my mobile phone number?', answer: 'You can log into your account using your registered number and update your mobile number under Profile Settings. An OTP verification on both your old and new number will ensure secure migration.', targetRole: 'ALL', order: 24 }
                       ];
                       setSettings(prev => ({ ...prev, faqs: defaultFaqs }));
                       save('faqs', defaultFaqs);
-                      showToast('Default project FAQs restored and saved!');
+                      showToast('All 24 comprehensive default FAQs loaded and saved!');
                     }}
                   >
-                    🔄 Reset Default FAQs
+                    🔄 Reset Default FAQs (24)
                   </button>
                   <button
                     className="btn btn-primary"
@@ -718,7 +739,7 @@ In accordance with Information Technology Rules, contact our Grievance Officer a
                     onClick={() => {
                       const currentFaqs = Array.isArray(settings.faqs) ? [...settings.faqs] : [];
                       const newFaq = {
-                        question: 'New Question?',
+                        question: 'Enter new question here...',
                         answer: 'Provide a helpful answer here...',
                         targetRole: 'CUSTOMER',
                         order: currentFaqs.length + 1
@@ -734,87 +755,115 @@ In accordance with Information Technology Rules, contact our Grievance Officer a
                 </div>
               </div>
 
+              {/* Role filter buttons */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                {[
+                  { key: 'ALL_FILTER', label: `All (${(settings.faqs || []).length})` },
+                  { key: 'CUSTOMER', label: `👥 Customer (${(settings.faqs || []).filter(f => f.targetRole === 'CUSTOMER').length})` },
+                  { key: 'WORKER', label: `🛠️ Worker (${(settings.faqs || []).filter(f => f.targetRole === 'WORKER').length})` },
+                  { key: 'SHOP', label: `🏪 Shop (${(settings.faqs || []).filter(f => f.targetRole === 'SHOP').length})` },
+                  { key: 'ALL', label: `🌐 General (${(settings.faqs || []).filter(f => f.targetRole === 'ALL').length})` }
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    className={`btn ${(!settings._faqFilter && tab.key === 'ALL_FILTER') || settings._faqFilter === tab.key ? 'btn-primary' : 'btn-outline'}`}
+                    style={{ fontSize: 12, padding: '4px 12px' }}
+                    onClick={() => setSettings(prev => ({ ...prev, _faqFilter: tab.key }))}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
               {(!settings.faqs || settings.faqs.length === 0) ? (
                 <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--mid)' }}>
                   No custom FAQs configured yet. Click "Reset Default FAQs" to load standard FAQs.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {settings.faqs.map((faq, idx) => (
-                    <div 
-                      key={idx} 
-                      style={{ 
-                        padding: 16, 
-                        background: 'rgba(255,255,255,0.03)', 
-                        borderRadius: 12, 
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary, #6366f1)', minWidth: 24 }}>#{idx + 1}</span>
-                          <input
-                            type="text"
+                  {settings.faqs
+                    .map((faq, originalIndex) => ({ ...faq, originalIndex }))
+                    .filter(faq => !settings._faqFilter || settings._faqFilter === 'ALL_FILTER' || faq.targetRole === settings._faqFilter)
+                    .map((faq) => {
+                      const idx = faq.originalIndex;
+                      return (
+                        <div 
+                          key={idx} 
+                          style={{ 
+                            padding: 16, 
+                            background: 'rgba(255,255,255,0.03)', 
+                            borderRadius: 12, 
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 10
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 260 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary, #6366f1)', minWidth: 24 }}>#{idx + 1}</span>
+                              <input
+                                type="text"
+                                className="form-control"
+                                style={{ flex: 1, fontWeight: 700 }}
+                                value={faq.question || ''}
+                                placeholder="Question..."
+                                onChange={e => {
+                                  const updated = [...settings.faqs];
+                                  updated[idx] = { ...updated[idx], question: e.target.value };
+                                  setLocal('faqs', updated);
+                                }}
+                                onBlur={() => save('faqs', settings.faqs)}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <select
+                                className="form-control"
+                                style={{ width: 130, fontSize: 12 }}
+                                value={faq.targetRole || 'CUSTOMER'}
+                                onChange={e => {
+                                  const updated = [...settings.faqs];
+                                  updated[idx] = { ...updated[idx], targetRole: e.target.value };
+                                  setSettings(prev => ({ ...prev, faqs: updated }));
+                                  save('faqs', updated);
+                                }}
+                              >
+                                <option value="CUSTOMER">👥 Customer</option>
+                                <option value="WORKER">🛠️ Worker</option>
+                                <option value="SHOP">🏪 Shop</option>
+                                <option value="ALL">🌐 All Users</option>
+                              </select>
+                              <button
+                                className="btn btn-outline"
+                                style={{ color: '#ef4444', borderColor: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                title="Delete FAQ"
+                                onClick={() => {
+                                  const updated = settings.faqs.filter((_, i) => i !== idx);
+                                  setSettings(prev => ({ ...prev, faqs: updated }));
+                                  save('faqs', updated);
+                                  showToast('FAQ deleted');
+                                }}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                          <textarea
                             className="form-control"
-                            style={{ flex: 1, fontWeight: 700 }}
-                            value={faq.question || ''}
-                            placeholder="Question..."
+                            rows={2}
+                            placeholder="Answer..."
+                            value={faq.answer || ''}
                             onChange={e => {
                               const updated = [...settings.faqs];
-                              updated[idx] = { ...updated[idx], question: e.target.value };
+                              updated[idx] = { ...updated[idx], answer: e.target.value };
                               setLocal('faqs', updated);
                             }}
                             onBlur={() => save('faqs', settings.faqs)}
+                            style={{ fontSize: 13, color: 'var(--mid, #cbd5e1)' }}
                           />
                         </div>
-                        <select
-                          className="form-control"
-                          style={{ width: 130, fontSize: 12 }}
-                          value={faq.targetRole || 'CUSTOMER'}
-                          onChange={e => {
-                            const updated = [...settings.faqs];
-                            updated[idx] = { ...updated[idx], targetRole: e.target.value };
-                            setSettings(prev => ({ ...prev, faqs: updated }));
-                            save('faqs', updated);
-                          }}
-                        >
-                          <option value="CUSTOMER">👥 Customer</option>
-                          <option value="WORKER">🛠️ Worker</option>
-                          <option value="SHOP">🏪 Shop</option>
-                          <option value="ALL">🌐 All Users</option>
-                        </select>
-                        <button
-                          className="btn btn-outline"
-                          style={{ color: '#ef4444', borderColor: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                          title="Delete FAQ"
-                          onClick={() => {
-                            const updated = settings.faqs.filter((_, i) => i !== idx);
-                            setSettings(prev => ({ ...prev, faqs: updated }));
-                            save('faqs', updated);
-                            showToast('FAQ deleted');
-                          }}
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                      <textarea
-                        className="form-control"
-                        rows={2}
-                        placeholder="Answer..."
-                        value={faq.answer || ''}
-                        onChange={e => {
-                          const updated = [...settings.faqs];
-                          updated[idx] = { ...updated[idx], answer: e.target.value };
-                          setLocal('faqs', updated);
-                        }}
-                        onBlur={() => save('faqs', settings.faqs)}
-                        style={{ fontSize: 13, color: 'var(--mid, #cbd5e1)' }}
-                      />
-                    </div>
-                  ))}
+                      );
+                    })}
                 </div>
               )}
             </div>

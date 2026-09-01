@@ -67,6 +67,13 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
     }
 ];
 
+// Helper to check if FAQs are valid or just empty/dummy placeholder
+const isFaqListValid = (faqs) => {
+    if (!Array.isArray(faqs) || faqs.length === 0) return false;
+    if (faqs.length === 1 && (faqs[0].question === 'New Question?' || !faqs[0].question)) return false;
+    return true;
+};
+
 // Helper to flatten nested settings for frontend
 const flattenSettings = (s) => ({
     feeAmount: s.fees?.amount || 50,
@@ -91,7 +98,7 @@ const flattenSettings = (s) => ({
     subscriptionPlans: (s.subscriptionPlans && s.subscriptionPlans.length > 0) ? s.subscriptionPlans : DEFAULT_SUBSCRIPTION_PLANS,
     termsOfService: s.legal?.termsOfService || DEFAULT_TERMS_OF_SERVICE,
     privacyPolicy: s.legal?.privacyPolicy || DEFAULT_PRIVACY_POLICY,
-    faqs: (s.faqs && s.faqs.length > 0) ? s.faqs : DEFAULT_FAQS,
+    faqs: isFaqListValid(s.faqs) ? s.faqs : DEFAULT_FAQS,
     ...s.toObject() // Keep original nested for fallback
 });
 
@@ -156,10 +163,24 @@ exports.getSettings = catchAsync(async (req, res) => {
     const flat = await fetchWithCache(CACHE_KEY, 86400, async () => {
         let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
         if (!settings) {
-            settings = await AppSettings.create({ isSingleton: 'CONFIG', subscriptionPlans: DEFAULT_SUBSCRIPTION_PLANS });
-        } else if (!settings.subscriptionPlans || settings.subscriptionPlans.length === 0) {
-            settings.subscriptionPlans = DEFAULT_SUBSCRIPTION_PLANS;
-            await settings.save();
+            settings = await AppSettings.create({ 
+                isSingleton: 'CONFIG', 
+                subscriptionPlans: DEFAULT_SUBSCRIPTION_PLANS,
+                faqs: DEFAULT_FAQS
+            });
+        } else {
+            let modified = false;
+            if (!settings.subscriptionPlans || settings.subscriptionPlans.length === 0) {
+                settings.subscriptionPlans = DEFAULT_SUBSCRIPTION_PLANS;
+                modified = true;
+            }
+            if (!isFaqListValid(settings.faqs)) {
+                settings.faqs = DEFAULT_FAQS;
+                modified = true;
+            }
+            if (modified) {
+                await settings.save();
+            }
         }
         return flattenSettings(settings);
     });
@@ -169,14 +190,30 @@ exports.getSettings = catchAsync(async (req, res) => {
 
 exports.getPublicSettings = catchAsync(async (req, res) => {
     const cachedData = await getCache('public_settings');
-    if (cachedData) return successResponse(res, cachedData, 'Public settings from cache');
+    if (cachedData && isFaqListValid(cachedData.faqs)) {
+        return successResponse(res, cachedData, 'Public settings from cache');
+    }
 
     let settings = await AppSettings.findOne({ isSingleton: 'CONFIG' });
     if (!settings) {
-        settings = await AppSettings.create({ isSingleton: 'CONFIG', subscriptionPlans: DEFAULT_SUBSCRIPTION_PLANS });
-    } else if (!settings.subscriptionPlans || settings.subscriptionPlans.length === 0) {
-        settings.subscriptionPlans = DEFAULT_SUBSCRIPTION_PLANS;
-        await settings.save();
+        settings = await AppSettings.create({ 
+            isSingleton: 'CONFIG', 
+            subscriptionPlans: DEFAULT_SUBSCRIPTION_PLANS,
+            faqs: DEFAULT_FAQS
+        });
+    } else {
+        let modified = false;
+        if (!settings.subscriptionPlans || settings.subscriptionPlans.length === 0) {
+            settings.subscriptionPlans = DEFAULT_SUBSCRIPTION_PLANS;
+            modified = true;
+        }
+        if (!isFaqListValid(settings.faqs)) {
+            settings.faqs = DEFAULT_FAQS;
+            modified = true;
+        }
+        if (modified) {
+            await settings.save();
+        }
     }
 
     const publicSettings = {
@@ -191,7 +228,7 @@ exports.getPublicSettings = catchAsync(async (req, res) => {
         freeTrialDays: settings.subscription?.freeTrialDays || 14,
         termsOfService: settings.legal?.termsOfService || DEFAULT_TERMS_OF_SERVICE,
         privacyPolicy: settings.legal?.privacyPolicy || DEFAULT_PRIVACY_POLICY,
-        faqs: (settings.faqs && settings.faqs.length > 0) ? settings.faqs : DEFAULT_FAQS
+        faqs: isFaqListValid(settings.faqs) ? settings.faqs : DEFAULT_FAQS
     };
 
     await setCache('public_settings', publicSettings, 86400);
