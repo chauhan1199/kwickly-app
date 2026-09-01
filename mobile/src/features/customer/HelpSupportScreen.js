@@ -19,21 +19,25 @@ import { MessageSquare, PhoneCall, Mail, ChevronRight, ChevronDown, ChevronUp } 
 
 const FALLBACK_FAQS = {
   CUSTOMER: [
-    { question: 'How do I book a service worker?', answer: 'Tap "Book" on the home screen, select your service category, describe your requirements, and post the job. Nearby verified workers will submit quotes within minutes for you to compare and accept.' },
-    { question: 'How do I pay for my shop order or service?', answer: 'You can pay instantly using your Kwickly Wallet, 1-Click Direct UPI (Google Pay, PhonePe, Paytm, BHIM), or Cash upon service completion. All online payments are securely verified in real-time.' },
-    { question: 'How do refunds work for cancelled orders?', answer: 'If you or the store cancels a prepaid order, the entire amount is instantly refunded to your Kwickly Wallet balance with zero deduction.' },
-    { question: 'What is the Security / Completion OTP?', answer: 'When a worker arrives and completes your job, they will request the 4-digit OTP shown on your booking screen. This ensures work is inspected and approved before the job is marked complete.' }
+    { question: 'How do I book a local service worker (e.g. Electrician, Plumber)?', answer: 'Tap "Book" on the home screen, specify your requirements and location, and post the job. Nearby verified workers will submit quotes for you to compare and accept.' },
+    { question: 'What are the Arrival OTP and Completion OTP?', answer: 'For your protection: 1) Share the Arrival OTP when the worker arrives on-site. 2) Share the Completion OTP ONLY after the task is finished and you have inspected and approved the work.' },
+    { question: 'How do I pay for my shop order or service?', answer: 'You can pay instantly using your Kwickly Wallet, 1-Click Direct UPI (Google Pay, PhonePe, Paytm, BHIM, CRED), or Cash upon service completion. All UPI payments are 0% surcharge-free.' },
+    { question: 'How do refunds work for cancelled orders?', answer: 'If you or the merchant cancels a prepaid order before arrival/dispatch, 100% of the amount is instantly credited back to your Kwickly Wallet balance with zero deductions.' },
+    { question: 'Can I track my worker or delivery partner in real-time?', answer: 'Yes! Once assigned or dispatched, you can view their live GPS location and arrival ETA on the booking details screen.' },
+    { question: 'How do I add balance to my Kwickly Wallet?', answer: 'Go to "My Wallet" from your profile, select an amount, and pay seamlessly via Direct UPI. Wallet balance allows instant 1-tap checkout.' }
   ],
   WORKER: [
-    { question: 'How do I receive customer job alerts?', answer: 'Ensure your KYC is approved, your subscription/free trial is active, your GPS location is enabled, and your toggle is set to "Online". You will receive instant notifications whenever a customer posts a job in your area.' },
-    { question: 'How do I withdraw my earnings to my bank account?', answer: 'Navigate to the Earnings screen, tap "Withdraw", enter the amount, and choose your saved Bank Account or UPI ID. Payouts are processed by the admin team to your bank.' },
-    { question: 'How does the subscription plan work?', answer: 'New workers receive a free trial period. After the trial, you can choose a monthly or annual priority subscription plan to continue bidding on unlimited jobs with lowest platform fees.' },
-    { question: 'How do I contact a customer?', answer: 'You can contact a customer directly from the Active Job details screen by clicking the Chat or Call button.' }
+    { question: 'How do I receive customer job alerts?', answer: 'Ensure your KYC is approved, your subscription/free trial is active, your GPS is enabled, and your toggle is set to "Online". You will receive instant notifications for nearby jobs.' },
+    { question: 'When and how do I receive payment for completed jobs?', answer: 'Upon completing the job, enter the customer’s 4-digit Completion OTP. Earnings are credited directly to your Worker Wallet immediately.' },
+    { question: 'How do I withdraw my earnings to my bank account?', answer: 'Navigate to the Earnings screen, tap "Withdraw", enter the amount, and choose your verified Bank Account (via IFSC) or UPI ID.' },
+    { question: 'How does the Partner Free Trial & Subscription work?', answer: 'New workers receive a 14-day Free Trial. Afterward, choose a Monthly or Annual plan for unlimited job bidding, verified pro badge, and lowest commission rates.' },
+    { question: 'What happens if a customer cancels after I arrive?', answer: 'If the customer cancels after you verify the Arrival OTP at their doorstep, you may be eligible for a travel compensation fee.' }
   ],
   SHOP: [
-    { question: 'How do shop orders and settlements work?', answer: 'When customers place orders from your store, you receive a real-time order alert. Once packed and delivered, the net product sales amount is credited to your Shop Wallet and settled per the payout schedule.' },
-    { question: 'How do I add or update products in my shop?', answer: 'Go to your Shop Dashboard -> Products tab. You can add new products with images, set pricing, adjust stock, or toggle availability if an item is temporarily sold out.' },
-    { question: 'How do I update my business hours?', answer: 'Go to Settings -> Business Hours. Changes will reflect instantly on your store profile.' }
+    { question: 'How do shop orders and settlements work?', answer: 'When customers order, you receive a real-time alert. Once packed and delivered with the Delivery OTP, net product earnings are credited to your Merchant Wallet.' },
+    { question: 'What is the 30-minute auto-cancellation rule for shops?', answer: 'Shops have 30 minutes to accept incoming orders. Unaccepted orders auto-cancel with full refund to ensure great customer experience.' },
+    { question: 'How do I manage product catalog and inventory?', answer: 'Go to your Shop Dashboard -> Products tab to add items with photos, update prices, apply discounts, or toggle out-of-stock items.' },
+    { question: 'How do I withdraw store earnings?', answer: 'Navigate to your Merchant Wallet and request a payout directly to your registered business bank account.' }
   ]
 };
 

@@ -552,10 +552,45 @@ export default function Settings() {
                   className="btn btn-outline"
                   style={{ fontSize: 12, padding: '6px 12px' }}
                   onClick={() => {
-                    const defaultTos = `Welcome to Kwickly. By downloading, accessing, or using the Kwickly platform ("App", "Website", or "Services"), you agree to be bound by these Terms and Conditions ("Terms").\n\n1. PLATFORM OVERVIEW\nKwickly is a technology aggregator platform connecting customers with independent service professionals ("Workers") and local retail merchants ("Shops").\n\n2. USER ACCOUNTS & VERIFICATION\n• Users must provide accurate mobile numbers and verify via OTP.\n• Workers and Shops must complete mandatory KYC verification.\n\n3. SERVICE BOOKINGS & PRICING\n• Workers submit quotes based on customer job descriptions.\n• Service jobs utilize an Arrival OTP and Completion OTP to guarantee work completion.\n• Platform convenience fees and applicable GST apply on completed jobs.\n\n4. SHOP ORDERS & FAST DELIVERY\n• Customers can browse local stores, place orders, and verify Delivery OTP.\n• Unconfirmed orders auto-cancel after 30 mins with 100% wallet refund.\n\n5. PAYMENTS, DIRECT UPI & WALLET\n• Payments supported via Kwickly Wallet, 1-Click NPCI Direct UPI, or Cash.\n• 0% MDR Direct UPI transfers directly with zero gateway processing markups.\n\n6. CANCELLATION & REFUNDS\n• Cancelled prepaid orders are refunded instantly to your Kwickly Wallet.\n• Workers and Shops can request payouts to their verified Bank/UPI accounts.\n\n7. CONTACT & GRIEVANCE\nContact Kwickly Support at support@kwickly.com.`;
+                    const defaultTos = `Welcome to Kwickly. By downloading, accessing, browsing, or using the Kwickly mobile application, website, or associated services (collectively, the "Platform" or "Services"), you agree to be bound by these Terms and Conditions ("Terms").
+
+1. PLATFORM OVERVIEW & CONTRACTUAL RELATIONSHIP
+Kwickly Technologies Private Limited ("Kwickly") operates an on-demand hyperlocal technology aggregator connecting Customers with independent verified Service Professionals ("Workers") and local retail merchants ("Shops"). Kwickly provides software matching, digital communication, route optimization, quote bidding, and payment settlement facilitation.
+
+2. USER ACCOUNTS, ELIGIBILITY & KYC VERIFICATION
+• Eligibility: You must be at least 18 years of age and legally competent under Indian law.
+• Authentication: Account access is authenticated via mobile number and secure OTP / MPIN.
+• Partner KYC: All Workers and Merchants must undergo mandatory Know-Your-Customer (KYC) verification with government ID proof (Aadhaar, PAN, Driving License) before receiving job broadcasts or listing products.
+
+3. ON-DEMAND SERVICE BOOKINGS & DUAL-OTP SECURITY
+• Job Posting & Quotes: Customers submit service requests; nearby verified Workers submit competitive quotes.
+• Arrival OTP: The Worker must verify the 4-digit Arrival OTP upon reaching the customer location to confirm on-site presence.
+• Completion OTP: The customer must inspect the completed work and share the 4-digit Completion OTP ONLY when fully satisfied. Entering the Completion OTP confirms delivery and triggers payment release.
+
+4. HYPERLOCAL SHOPPING & DELIVERY
+• Product Listings: Merchants are responsible for accurate pricing, freshness, and inventory.
+• 30-Minute Acceptance SLA: If a merchant does not accept an order within 30 minutes, it is automatically cancelled with 100% instant refund to your Kwickly Wallet.
+• Delivery OTP: The customer must verify the Delivery OTP upon physical handoff of items.
+
+5. PAYMENTS, 0% MDR DIRECT UPI & WALLET SYSTEM
+• Payment Modes: Kwickly In-App Wallet, 1-Click Direct NPCI UPI Intent (Google Pay, PhonePe, Paytm, BHIM, CRED), or Cash on Delivery.
+• 0% MDR Direct UPI: Direct peer-to-platform UPI payments with zero payment gateway processing surcharges.
+• Real-Time Webhooks: Online transactions are cryptographically verified in real-time via HMAC SHA-256 webhooks for fraud-proof settlements.
+• Wallet Withdrawals: Partners can withdraw earned wallet balances directly to their verified Bank Accounts or UPI IDs.
+
+6. CANCELLATION & REFUND POLICY
+• Free Cancellations: Cancel anytime before worker arrival or shop order dispatch with zero cancellation penalty.
+• Instant Wallet Refunds: Cancelled prepaid orders and overpayments are credited immediately (100% without deductions) to your Kwickly Wallet.
+
+7. PARTNER SUBSCRIPTIONS & FREE TRIALS
+• New verified Service Partners receive an introductory 14-day Free Trial.
+• Partners may subscribe to Monthly or Annual tiers for unlimited bidding, priority dispatch, and reduced commission.
+
+8. CONTACT & GRIEVANCE
+For support or inquiries, contact us via in-app 24/7 Support Chat or email support@kwickly.com.`;
                     setSettings(prev => ({ ...prev, termsOfService: defaultTos }));
                     set('termsOfService', defaultTos);
-                    showToast('Standard Terms of Service template loaded and saved!');
+                    showToast('Comprehensive Terms of Service template loaded and saved!');
                   }}
                 >
                   📋 Reset Default T&C
@@ -564,10 +599,31 @@ export default function Settings() {
                   className="btn btn-outline"
                   style={{ fontSize: 12, padding: '6px 12px' }}
                   onClick={() => {
-                    const defaultPp = `Kwickly ("we", "our", or "us") values your trust and is committed to protecting your personal information.\n\n1. INFORMATION WE COLLECT\n• Account Data: Name, phone number, profile image, email.\n• Location Data: Background and foreground GPS location for matching and live order tracking.\n• KYC Documents: Government identity cards for background verification.\n• Transaction Data: Transaction IDs, order history, and wallet records (no bank passwords stored).\n\n2. HOW WE USE YOUR INFORMATION\n• To match customers with nearby service workers and shops.\n• To calculate ETAs, routes, and process cryptographically verified UPI payments.\n• To prevent fraud and send essential job/order notifications.\n\n3. DATA SECURITY & RETENTION\nAll data in transit is protected using TLS encryption. Passwords and MPINs are hashed using bcrypt.\n\n4. CONTACT & GRIEVANCE\nContact our Grievance Officer at grievance@kwickly.com.`;
+                    const defaultPp = `Kwickly Technologies Private Limited is dedicated to safeguarding your personal privacy and protecting the confidentiality of your data.
+
+1. INFORMATION WE COLLECT
+• Personal Identification: Name, mobile phone number, email address, profile photo, and delivery addresses.
+• Precision Location Data: Foreground and background GPS location to discover nearby verified workers/shops, calculate accurate ETAs, and enable live map tracking.
+• Partner KYC Documents: Government IDs (Aadhaar, PAN, Driving License) collected strictly for identity verification and platform safety.
+• Financial & Transaction Data: Transaction logs, order invoices, and wallet balances. We do NOT store UPI PINs, NetBanking passwords, or card CVVs.
+
+2. HOW WE USE YOUR INFORMATION
+• To connect customers with nearby verified service workers and local retail shops.
+• To calculate travel distances, live delivery routes, and dynamic search radiuses.
+• To process payments, verify cryptographic webhook signatures, and manage wallet ledgers.
+• To send critical transactional notifications, OTPs, job alerts, and order status updates.
+• To prevent fraud, detect unauthorized access, and enforce safety policies.
+
+3. DATA SECURITY & RETENTION
+• All transmissions are encrypted using industry-standard TLS 1.3 encryption.
+• Passwords and MPINs are hashed using bcrypt.
+• We never sell, rent, or trade your personal information to third-party advertisers.
+
+4. GRIEVANCE OFFICER
+In accordance with Information Technology Rules, contact our Grievance Officer at legal@kwickly.com / support@kwickly.com.`;
                     setSettings(prev => ({ ...prev, privacyPolicy: defaultPp }));
                     set('privacyPolicy', defaultPp);
-                    showToast('Standard Privacy Policy template loaded and saved!');
+                    showToast('Comprehensive Privacy Policy template loaded and saved!');
                   }}
                 >
                   📋 Reset Default Privacy
@@ -638,17 +694,20 @@ export default function Settings() {
                     style={{ fontSize: 12, padding: '6px 12px' }}
                     onClick={() => {
                       const defaultFaqs = [
-                        { question: 'How do I book a service worker?', answer: 'Tap "Book" on the home screen, select your service category, describe your requirements, and post the job. Nearby verified workers will submit quotes within minutes.', targetRole: 'CUSTOMER', order: 1 },
-                        { question: 'How do I pay for my shop order or service?', answer: 'You can pay instantly using your Kwickly Wallet, 1-Click Direct UPI (Google Pay, PhonePe, Paytm, BHIM), or Cash upon completion.', targetRole: 'CUSTOMER', order: 2 },
-                        { question: 'How do refunds work for cancelled orders?', answer: 'If an order is cancelled, 100% of the amount is refunded immediately to your Kwickly Wallet balance.', targetRole: 'CUSTOMER', order: 3 },
-                        { question: 'What is the Security / Completion OTP?', answer: 'When a worker completes your job, share the 4-digit Completion OTP shown on your screen to authorize job completion.', targetRole: 'CUSTOMER', order: 4 },
-                        { question: 'How do I receive customer job alerts?', answer: 'Ensure your KYC is approved, your subscription is active, GPS is enabled, and your toggle is Online.', targetRole: 'WORKER', order: 5 },
-                        { question: 'How do I withdraw my earnings?', answer: 'Go to the Earnings screen, tap "Withdraw", enter the amount, and choose your verified Bank Account or UPI ID.', targetRole: 'WORKER', order: 6 },
-                        { question: 'How do shop orders and settlements work?', answer: 'Receive real-time order alerts, pack and deliver items. Delivered orders are credited to your Shop Wallet and settled per schedule.', targetRole: 'SHOP', order: 7 }
+                        { question: 'How do I book a local service worker (e.g. Electrician, Plumber)?', answer: 'Tap "Book" on the home screen, specify your requirements and location, and post the job. Nearby verified workers will submit quotes for you to compare and accept.', targetRole: 'CUSTOMER', order: 1 },
+                        { question: 'What are the Arrival OTP and Completion OTP?', answer: 'For your protection: 1) Share the Arrival OTP when the worker arrives on-site. 2) Share the Completion OTP ONLY after the task is finished and you have inspected and approved the work.', targetRole: 'CUSTOMER', order: 2 },
+                        { question: 'How do I pay for my shop order or service?', answer: 'You can pay instantly using your Kwickly Wallet, 1-Click Direct UPI (Google Pay, PhonePe, Paytm, BHIM, CRED), or Cash upon service completion. All UPI payments are 0% surcharge-free.', targetRole: 'CUSTOMER', order: 3 },
+                        { question: 'How do refunds work for cancelled orders?', answer: 'If you or the merchant cancels a prepaid order before arrival/dispatch, 100% of the amount is instantly credited back to your Kwickly Wallet balance with zero deductions.', targetRole: 'CUSTOMER', order: 4 },
+                        { question: 'How do I receive customer job alerts?', answer: 'Ensure your KYC is approved, your subscription/free trial is active, your GPS is enabled, and your toggle is set to "Online". You will receive instant notifications for nearby jobs.', targetRole: 'WORKER', order: 5 },
+                        { question: 'When and how do I receive payment for completed jobs?', answer: 'Upon completing the job, enter the customer’s 4-digit Completion OTP. Earnings are credited directly to your Worker Wallet immediately.', targetRole: 'WORKER', order: 6 },
+                        { question: 'How do I withdraw my earnings to my bank account?', answer: 'Navigate to the Earnings screen, tap "Withdraw", enter the amount, and choose your verified Bank Account (via IFSC) or UPI ID.', targetRole: 'WORKER', order: 7 },
+                        { question: 'How do shop orders and settlements work?', answer: 'When customers order, you receive a real-time alert. Once packed and delivered with the Delivery OTP, net product earnings are credited to your Merchant Wallet.', targetRole: 'SHOP', order: 8 },
+                        { question: 'What is the 30-minute auto-cancellation rule for shops?', answer: 'Shops have 30 minutes to accept incoming orders. Unaccepted orders auto-cancel with full refund to ensure great customer experience.', targetRole: 'SHOP', order: 9 },
+                        { question: 'How do I manage product catalog and inventory?', answer: 'Go to your Shop Dashboard -> Products tab to add items with photos, update prices, apply discounts, or toggle out-of-stock items.', targetRole: 'SHOP', order: 10 }
                       ];
                       setSettings(prev => ({ ...prev, faqs: defaultFaqs }));
                       save('faqs', defaultFaqs);
-                      showToast('Default FAQs restored and saved!');
+                      showToast('Default project FAQs restored and saved!');
                     }}
                   >
                     🔄 Reset Default FAQs
