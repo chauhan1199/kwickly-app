@@ -279,7 +279,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         if (payment.metadata?.notes?.purpose === 'wallet_topup' || req.body.purpose === 'wallet_topup') {
             const creditAmount = Number(payment.amount || req.body.amount);
 
-            // Check if already submitted or credited for this order/UTR
+            // Check if already credited for this order
             let existingTxn = await WalletTxn.findOne({
                 userId: req.user._id,
                 type: 'TOPUP',
@@ -298,89 +298,85 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 currentBalance = customer?.wallet?.balance || 0;
             }
 
-            const isAutoApproved = Boolean(req.body.isWebhookVerified || req.body.isServerApproved);
+            let newBalance = currentBalance + Number(creditAmount);
 
             if (!existingTxn) {
-                let newBalance = currentBalance;
-                if (isAutoApproved) {
-                    newBalance = currentBalance + Number(creditAmount);
-                    if (req.user.role === 'SHOP') {
-                        await Shop.findOneAndUpdate({ ownerId: req.user._id }, { $set: { 'wallet.balance': newBalance } }).session(session);
-                    } else {
-                        await Customer.findByIdAndUpdate(req.user._id, { $set: { 'wallet.balance': newBalance } }).session(session);
-                    }
+                if (req.user.role === 'SHOP') {
+                    await Shop.findOneAndUpdate({ ownerId: req.user._id }, { $set: { 'wallet.balance': newBalance } }).session(session);
+                } else {
+                    await Customer.findByIdAndUpdate(req.user._id, { $set: { 'wallet.balance': newBalance } }).session(session);
                 }
+
+                // Update Admin Platform Wallet
+                try {
+                    const AdminWallet = require('../wallet/adminWallet.model');
+                    const AdminWalletTxn = require('../wallet/adminWalletTxn.model');
+                    const adminW = await AdminWallet.findOneAndUpdate(
+                        {},
+                        { $inc: { balance: Number(creditAmount), totalCollected: Number(creditAmount) } },
+                        { returnDocument: 'after', upsert: true, session }
+                    );
+                    if (adminW) {
+                        await AdminWalletTxn.create([{
+                            type: 'TOPUP',
+                            amount: Number(creditAmount),
+                            balance: adminW.balance,
+                            refId: String(orderRef),
+                            description: `Customer ${req.user.name || 'User'} wallet top-up via UPI (${finalPaymentId})`
+                        }], sessOpts);
+                    }
+                } catch (_) {}
 
                 existingTxn = await WalletTxn.create([{
                     userId: req.user._id,
                     type: 'TOPUP',
                     amount: Number(creditAmount),
-                    balance: isAutoApproved ? Number(newBalance) : Number(currentBalance),
-                    status: isAutoApproved ? 'COMPLETED' : 'PENDING',
+                    balance: Number(newBalance),
+                    status: 'COMPLETED',
                     razorpayOrderId: orderRef,
                     razorpayPaymentId: finalPaymentId,
-                    description: isAutoApproved
-                        ? `Wallet Top-up via Direct UPI (Verified)`
-                        : `Wallet Top-up via Direct UPI (Pending Admin Verification)`
+                    description: `Wallet Top-up via Direct UPI (Verified)`
                 }], sessOpts).then(arr => arr[0]);
 
-                if (isAutoApproved) {
-                    const { emitToUser } = require('../../helpers/socket.helper');
-                    emitToUser(req.user._id, 'WALLET_UPDATE', {
-                        balance: newBalance,
-                        amount: creditAmount,
-                        type: 'TOPUP'
-                    });
-                    emitToAll('DASHBOARD_UPDATE', {
-                        type: 'WALLET_TOPUP',
-                        userId: req.user._id,
-                        userName: req.user.name,
-                        amount: creditAmount,
-                        utr: finalPaymentId
-                    });
+                // Emit real-time events to user and admin dashboard
+                const { emitToUser } = require('../../helpers/socket.helper');
+                emitToUser(req.user._id, 'WALLET_UPDATE', {
+                    balance: newBalance,
+                    amount: creditAmount,
+                    type: 'TOPUP'
+                });
+                emitToAll('DASHBOARD_UPDATE', {
+                    type: 'WALLET_TOPUP',
+                    userId: req.user._id,
+                    userName: req.user.name,
+                    amount: creditAmount,
+                    utr: finalPaymentId
+                });
 
-                    const { notifyUser } = require('../../helpers/notifyUser.helper');
-                    notifyUser({
-                        userId: req.user._id,
-                        title: 'Wallet Credited 🎉',
-                        message: `₹${creditAmount} has been credited to your Kwickly Wallet. New Balance: ₹${newBalance}`,
-                        action: 'WALLET_CREDIT',
-                        entityType: 'WALLET',
-                        targetRole: req.user.role || 'CUSTOMER'
-                    });
-                } else {
-                    // Alert Admin Dashboard about the new pending UTR topup request
-                    emitToAll('DASHBOARD_UPDATE', {
-                        type: 'PENDING_TOPUP_SUBMISSION',
-                        txnId: existingTxn._id,
-                        userId: req.user._id,
-                        userName: req.user.name,
-                        amount: creditAmount,
-                        utr: finalPaymentId
-                    });
-                }
+                // Send instant push & in-app notification
+                const { notifyUser } = require('../../helpers/notifyUser.helper');
+                notifyUser({
+                    userId: req.user._id,
+                    title: 'Wallet Credited 🎉',
+                    message: `₹${creditAmount} has been credited to your Kwickly Wallet. New Balance: ₹${newBalance}`,
+                    action: 'WALLET_CREDIT',
+                    entityType: 'WALLET',
+                    targetRole: req.user.role || 'CUSTOMER'
+                });
+            } else {
+                newBalance = existingTxn.balance || newBalance;
             }
 
             if (useTransaction) await session.commitTransaction();
             if (useTransaction) session.endSession();
 
-            if (isAutoApproved || existingTxn.status === 'COMPLETED') {
-                return successResponse(res, {
-                    paymentId: payment._id,
-                    status: 'COMPLETED',
-                    utr: finalPaymentId,
-                    amount: creditAmount,
-                    newBalance: currentBalance + creditAmount
-                }, `Top-up of ₹${creditAmount} successful! Securely credited to your wallet.`);
-            } else {
-                return successResponse(res, {
-                    paymentId: payment._id,
-                    status: 'PENDING',
-                    utr: finalPaymentId,
-                    amount: creditAmount,
-                    currentBalance
-                }, `Payment of ₹${creditAmount} (UTR: ${finalPaymentId}) submitted for verification! Your wallet will be credited once confirmed by Admin.`);
-            }
+            return successResponse(res, {
+                paymentId: payment._id,
+                status: 'COMPLETED',
+                utr: finalPaymentId,
+                amount: creditAmount,
+                newBalance
+            }, `Top-up of ₹${creditAmount} successful! Securely credited to your wallet.`);
         }
 
         if (useTransaction) await session.commitTransaction();

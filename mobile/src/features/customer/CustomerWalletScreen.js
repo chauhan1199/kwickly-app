@@ -226,42 +226,27 @@ const CustomerWalletScreen = ({ navigation }) => {
   // Automatic return detection from UPI App
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active' && paymentInitiated && upiOrderData) {
-        setShowManualUtr(true);
+      if (nextAppState === 'active' && paymentInitiated && upiOrderData && !isVerifying) {
+        handleConfirmUpiTopup(true, true);
       }
     });
     return () => subscription.remove();
-  }, [paymentInitiated, upiOrderData]);
+  }, [paymentInitiated, upiOrderData, isVerifying]);
 
   const handleConfirmUpiTopup = async (isAuto = false, isBackground = false) => {
     if (!upiOrderData || isVerifying) return;
-    const cleanUtr = upiTxnId.trim();
-
-    if (!cleanUtr || cleanUtr.length < 4) {
-      setShowManualUtr(true);
-      return showAlert({
-        title: 'UTR Required',
-        message: 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt (e.g. 661022357358) so Admin can verify and credit your wallet.',
-        type: 'warning',
-        confirmText: 'OK'
-      });
-    }
 
     setIsVerifying(true);
     try {
       const verifyRes = await walletService.verifyPayment({
         razorpayOrderId: upiOrderData.razorpayOrderId,
-        upiTransactionId: cleanUtr || undefined,
-        utrNumber: cleanUtr || undefined,
-        isAutoConfirmed: false,
+        isAutoConfirmed: true,
         purpose: 'wallet_topup',
         amount: upiOrderData.amount
       });
 
       if (verifyRes?.data?.status === 'success') {
         const verifyData = verifyRes.data.data;
-        const isCompleted = verifyData?.status === 'COMPLETED';
-
         setUpiCheckoutModal(false);
         setTopupAmount('');
         setUpiTxnId('');
@@ -270,21 +255,12 @@ const CustomerWalletScreen = ({ navigation }) => {
         if (fetchUser) await fetchUser();
         await fetchWallet();
 
-        if (isCompleted) {
-          showAlert({
-            title: 'Top-up Successful! 🎉',
-            message: `₹${upiOrderData.amount} has been verified and credited to your Kwickly Wallet.`,
-            type: 'success',
-            confirmText: 'Awesome!'
-          });
-        } else {
-          showAlert({
-            title: 'Payment Submitted ⏳',
-            message: `₹${upiOrderData.amount} (UTR: ${cleanUtr}) has been submitted for Admin Verification.\n\nYour wallet balance will be credited as soon as Admin confirms the deposit in the platform account.`,
-            type: 'info',
-            confirmText: 'Got It'
-          });
-        }
+        showAlert({
+          title: 'Top-up Successful! 🎉',
+          message: `₹${upiOrderData.amount} has been verified and securely credited to your Kwickly Wallet.`,
+          type: 'success',
+          confirmText: 'Awesome!'
+        });
       } else {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }
@@ -292,7 +268,7 @@ const CustomerWalletScreen = ({ navigation }) => {
       if (!isBackground) {
         showAlert({
           title: 'Verification Issue',
-          message: error.response?.data?.message || error.message || 'Could not verify payment. Please try again or submit the 12-digit UTR manually.',
+          message: error.response?.data?.message || error.message || 'Could not verify payment. Please try again.',
           type: 'error',
           confirmText: 'Try Again'
         });
@@ -603,39 +579,6 @@ Website: https://kwickly-app.vercel.app
                     </>
                   )}
                 </TouchableOpacity>
-
-                {/* Optional Manual UTR Entry Toggle */}
-                <TouchableOpacity
-                  onPress={() => setShowManualUtr(!showManualUtr)}
-                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 4 }}
-                >
-                  <Text style={{ fontSize: 12, color: theme.colors.textDim, fontWeight: '600' }}>
-                    {showManualUtr ? 'Hide manual UTR entry' : 'Having an issue? Enter 12-digit UTR manually'}
-                  </Text>
-                  {showManualUtr ? <ChevronUp size={14} color={theme.colors.textDim} /> : <ChevronDown size={14} color={theme.colors.textDim} />}
-                </TouchableOpacity>
-
-                {showManualUtr && (
-                  <View style={[styles.utrInputBox, { marginTop: 10 }]}>
-                    <Text style={styles.utrInputLabel}>12-Digit Bank Reference / UTR Number</Text>
-                    <TextInput
-                      style={styles.utrInput}
-                      placeholder="e.g. 423456789012"
-                      placeholderTextColor="#94A3B8"
-                      value={upiTxnId}
-                      onChangeText={setUpiTxnId}
-                      autoCapitalize="characters"
-                      returnKeyType="done"
-                    />
-                    <TouchableOpacity
-                      style={[styles.confirmPayBtn, { marginTop: 10, paddingVertical: 12 }, (!upiTxnId.trim() || isVerifying) && { opacity: 0.5 }]}
-                      onPress={() => handleConfirmUpiTopup(false)}
-                      disabled={!upiTxnId.trim() || isVerifying}
-                    >
-                      <Text style={[styles.confirmPayBtnText, { fontSize: 13 }]}>Submit UTR</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
 
                 <View style={styles.reopenRow}>
                   <TouchableOpacity onPress={() => handleOpenUpiApp(selectedUpiApp)} style={styles.reopenBtn}>

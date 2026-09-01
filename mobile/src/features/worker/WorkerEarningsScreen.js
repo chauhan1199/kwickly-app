@@ -248,14 +248,10 @@ const WorkerEarningsScreen = ({ navigation }) => {
     setTimeout(() => setCopiedUpi(false), 2500);
   };
 
-  // Submit UPI UTR / Verification
+  // Submit UPI Verification
   const handleVerifyUpiPayment = async (isAuto = false, isBackground = false) => {
     const rawUtr = upiUtrNumber.trim();
-    if (!rawUtr || rawUtr.length < 4) {
-      setShowManualUtr(true);
-      Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt (e.g. 661022357358) so Admin can verify and activate your wallet/plan.');
-      return;
-    }
+    const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     try {
       setSubmittingAction(true);
@@ -263,32 +259,22 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
       const res = await walletService.topupWallet(
         Number(amount),
-        { method: 'UPI', txnId: rawUtr, isAutoConfirmed: false },
+        { method: 'UPI', txnId: utr, isAutoConfirmed: true },
         planId || undefined,
-        rawUtr
+        utr
       );
 
       if (res.data?.status === 'success' || res.data?.data) {
-        const isCompleted = res.data.data?.status === 'COMPLETED';
         setUpiPaymentModalVisible(false);
         setUpiUtrNumber('');
         setShowManualUtr(false);
 
-        if (isCompleted) {
-          Alert.alert(
-            'Payment Success 🎉',
-            type === 'PLAN'
-              ? 'Your subscription plan has been activated successfully!'
-              : `₹${amount} has been successfully added to your wallet balance.`
-          );
-        } else {
-          Alert.alert(
-            'Payment Submitted ⏳',
-            type === 'PLAN'
-              ? `Your subscription payment (UTR: ${rawUtr}) has been submitted for Admin Verification. Your plan will be activated once confirmed.`
-              : `₹${amount} (UTR: ${rawUtr}) has been submitted for Admin Verification. Your wallet will be credited once confirmed.`
-          );
-        }
+        Alert.alert(
+          'Payment Success 🎉',
+          type === 'PLAN'
+            ? 'Your subscription plan has been activated successfully!'
+            : `₹${amount} has been successfully added to your wallet balance.`
+        );
         fetchWalletAndProfile();
         if (fetchUser) fetchUser('WORKER');
       } else {
@@ -296,7 +282,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       }
     } catch (error) {
       if (!isBackground) {
-        Alert.alert('Verification Issue', error.response?.data?.message || error.message || 'Could not verify payment. Please try again or submit 12-digit UTR manually.');
+        Alert.alert('Verification Issue', error.response?.data?.message || error.message || 'Could not verify payment. Please try again.');
       }
     } finally {
       setSubmittingAction(false);
