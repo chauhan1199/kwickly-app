@@ -29,16 +29,36 @@ const isProviderConfigured = () => Boolean(PROVIDER_KEY);
  */
 const getPlatformUpiConfig = async () => {
     try {
-        const { AdminWallet } = require('../modules/adminWallet/adminWallet.model');
-        const adminWallet = await AdminWallet.findOne().lean();
+        const mongoose = require('mongoose');
+        if (mongoose.connection.readyState === 1) {
+            const { AdminWallet } = require('../modules/adminWallet/adminWallet.model');
+            const AppSettings = require('../modules/settings/settings.model');
+            const [adminWallet, appSettings] = await Promise.all([
+                AdminWallet.findOne().lean(),
+                AppSettings.findOne({ isSingleton: 'CONFIG' }).lean()
+            ]);
+            
+            const upiId = adminWallet?.upiId || appSettings?.wallet?.upiId || process.env.PLATFORM_UPI_ID || '';
+            const payeeName = adminWallet?.bankDetails?.accountHolder || appSettings?.wallet?.accountHolder || process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD';
+
+            return {
+                vpa: (upiId || '').trim(),
+                payeeName: (payeeName || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' '),
+                bankDetails: adminWallet?.bankDetails || {}
+            };
+        }
+
         return {
-            vpa: adminWallet?.upiId || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi',
-            payeeName: adminWallet?.bankDetails?.accountHolder || process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD'
+            vpa: (process.env.PLATFORM_UPI_ID || 'kwickly@upi').trim(),
+            payeeName: (process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD').trim(),
+            bankDetails: {}
         };
-    } catch {
+    } catch (err) {
+        logger.error('[UpiProvider] Error fetching platform UPI config:', err);
         return {
-            vpa: process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi',
-            payeeName: process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD'
+            vpa: (process.env.PLATFORM_UPI_ID || '').trim(),
+            payeeName: (process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD').trim(),
+            bankDetails: {}
         };
     }
 };
@@ -52,7 +72,11 @@ const buildUpiDeeplink = async ({ amount, internalId, purpose, vpa: customVpa, p
         ? { vpa: customVpa, payeeName: customPayee }
         : await getPlatformUpiConfig();
 
-    const cleanVpa = (config.vpa || 'ganshyam.tech-1@oksbi').trim();
+    if (!config.vpa) {
+        throw new Error('Admin UPI ID is not configured. Please configure your UPI ID in Admin Panel -> Admin Wallet -> Edit Bank Details.');
+    }
+
+    const cleanVpa = config.vpa.trim();
     const cleanPayee = (config.payeeName || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
     const amtStr = Number(amount).toFixed(2);
     const idSuffix = String(internalId || Date.now()).slice(-8);

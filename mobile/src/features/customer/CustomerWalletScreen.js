@@ -125,55 +125,32 @@ const CustomerWalletScreen = ({ navigation }) => {
     
     setIsProcessing(true);
     try {
-      let orderPayload = null;
-      try {
-        const payRes = await walletService.createPaymentOrder({
-          amount,
-          purpose: 'wallet_topup',
-          paymentMethod: 'UPI'
-        });
+      const payRes = await walletService.createPaymentOrder({
+        amount,
+        purpose: 'wallet_topup',
+        paymentMethod: 'UPI'
+      });
 
-        const payData = payRes?.data?.data || {};
-        const platformUpi = (payData.upiVpa || 'ganshyam.tech-1@oksbi').trim();
-        const platformPayee = (payData.payeeName || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
-        const orderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
-        const amtStr = Number(amount).toFixed(2);
-        const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
+      const payData = payRes?.data?.data || {};
+      const platformUpi = (payData.upiVpa || '').trim();
+      const platformPayee = (payData.payeeName || 'Kwickly Admin').trim().replace(/\s+/g, ' ');
+      const orderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
+      const amtStr = Number(amount).toFixed(2);
+      const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
 
-        orderPayload = {
-          razorpayOrderId: orderId,
-          upiOrderId: orderId,
-          upiVpa: platformUpi,
-          payeeName: platformPayee,
-          bankDetails: payData.bankDetails || {
-            accountHolder: platformPayee,
-            accountNumber: '1234567890',
-            ifscCode: 'SBIN0001234',
-            bankName: 'SBI'
-          },
-          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${platformUpi}&pn=${encodeURIComponent(platformPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Kwickly Topup')}&tr=${shortTr}`,
-          amount
-        };
-      } catch (apiErr) {
-        console.warn('[Wallet] Backend create-order fallback:', apiErr);
-        const fallbackId = `upi_${Date.now()}`;
-        const amtStr = Number(amount).toFixed(2);
-        const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
-        orderPayload = {
-          razorpayOrderId: fallbackId,
-          upiOrderId: fallbackId,
-          upiVpa: 'ganshyam.tech-1@oksbi',
-          payeeName: 'Kwickly PVT LTD',
-          bankDetails: {
-            accountHolder: 'Kwickly PVT LTD',
-            accountNumber: '1234567890',
-            ifscCode: 'SBIN0001234',
-            bankName: 'SBI'
-          },
-          upiIntentUri: `upi://pay?pa=ganshyam.tech-1@oksbi&pn=${encodeURIComponent('Kwickly PVT LTD')}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Kwickly Topup')}&tr=${shortTr}`,
-          amount
-        };
+      if (!platformUpi) {
+        throw new Error('Admin UPI ID is currently not configured. Please contact support.');
       }
+
+      const orderPayload = {
+        razorpayOrderId: orderId,
+        upiOrderId: orderId,
+        upiVpa: platformUpi,
+        payeeName: platformPayee,
+        bankDetails: payData.bankDetails || {},
+        upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${platformUpi}&pn=${encodeURIComponent(platformPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Kwickly Topup')}&tr=${shortTr}`,
+        amount
+      };
 
       setUpiOrderData(orderPayload);
       setPaymentInitiated(false);
@@ -182,9 +159,9 @@ const CustomerWalletScreen = ({ navigation }) => {
       setAddMoneyModal(false);
       setUpiCheckoutModal(true);
     } catch (error) {
-      const errMsg = error?.message || error?.response?.data?.message || 'Failed to initialize payment. Please try again.';
+      const errMsg = error?.response?.data?.message || error?.message || 'Failed to initialize payment. Please try again.';
       showAlert({
-        title: 'Topup Failed',
+        title: 'Topup Unavailable',
         message: errMsg,
         type: 'error',
         confirmText: 'OK'
@@ -477,8 +454,8 @@ const CustomerWalletScreen = ({ navigation }) => {
             {/* Admin Payee Info Card */}
             <View style={styles.payeeCard}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.payeeNameLabel}>Admin Payee: {upiOrderData?.payeeName || 'Kwickly PVT LTD'}</Text>
-                <Text style={styles.payeeUpiText}>{upiOrderData?.upiVpa || 'ganshyam.tech-1@oksbi'}</Text>
+                <Text style={styles.payeeNameLabel}>Admin Payee: {upiOrderData?.payeeName || 'Kwickly Admin'}</Text>
+                <Text style={styles.payeeUpiText}>{upiOrderData?.upiVpa || 'UPI Payment'}</Text>
               </View>
               <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpiId}>
                 {copiedUpi ? (

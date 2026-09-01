@@ -136,8 +136,12 @@ exports.createRazorpayOrder = catchAsync(async (req, res) => {
 
     const upiOrderId = `upi_admin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const adminWallet = await AdminWallet.findOne().lean();
-    const platformVpa = adminWallet?.upiId || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi';
-    const payeeName = adminWallet?.bankDetails?.accountHolder || 'Kwickly Admin Treasury';
+    const platformVpa = (adminWallet?.upiId || process.env.PLATFORM_UPI_ID || '').trim();
+    const payeeName = (adminWallet?.bankDetails?.accountHolder || 'Kwickly Admin Treasury').trim();
+
+    if (!platformVpa) {
+        return errorResponse(res, 'Admin UPI ID is not configured. Please set your UPI ID in Admin Wallet settings.', StatusCodes.BAD_REQUEST);
+    }
 
     const { uri: upiIntentUri } = generateUpiIntentUri({
         vpa: platformVpa,

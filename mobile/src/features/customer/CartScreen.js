@@ -319,43 +319,32 @@ const CartScreen = ({ route, navigation }) => {
       }
 
       // Step 3: If UPI payment -> create payment session and open UPI modal
-      try {
-        const payRes = await walletService.createPaymentOrder({
-          amount: total,
-          orderId: order._id,
-          purpose: 'order_payment',
-          paymentMethod: 'UPI'
-        });
-        const payData = payRes?.data?.data || {};
-        const platformUpi = (payData.upiVpa || 'ganshyam.tech-1@oksbi').trim();
-        const platformPayee = (payData.payeeName || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
-        const orderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
-        const amtStr = Number(total).toFixed(2);
-        const shortTr = `KWIK${String(order._id || Date.now()).slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
-        setUpiOrderData({
-          razorpayOrderId: orderId,
-          upiOrderId: orderId,
-          upiVpa: platformUpi,
-          payeeName: platformPayee,
-          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${platformUpi}&pn=${encodeURIComponent(platformPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Order Payment')}&tr=${shortTr}`,
-          amount: total
-        });
-        setShowUpiModal(true);
-      } catch (payErr) {
-        // Fallback UPI payload
-        const fallbackId = `upi_${Date.now()}`;
-        const amtStr = Number(total).toFixed(2);
-        const shortTr = `KWIK${String(order._id || Date.now()).slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
-        setUpiOrderData({
-          razorpayOrderId: fallbackId,
-          upiOrderId: fallbackId,
-          upiVpa: 'ganshyam.tech-1@oksbi',
-          payeeName: 'Kwickly PVT LTD',
-          upiIntentUri: `upi://pay?pa=ganshyam.tech-1@oksbi&pn=${encodeURIComponent('Kwickly PVT LTD')}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Order Payment')}&tr=${shortTr}`,
-          amount: total
-        });
-        setShowUpiModal(true);
+      const payRes = await walletService.createPaymentOrder({
+        amount: total,
+        orderId: order._id,
+        purpose: 'order_payment',
+        paymentMethod: 'UPI'
+      });
+      const payData = payRes?.data?.data || {};
+      const platformUpi = (payData.upiVpa || '').trim();
+      const platformPayee = (payData.payeeName || 'Kwickly Admin').trim().replace(/\s+/g, ' ');
+      const orderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
+      const amtStr = Number(total).toFixed(2);
+      const shortTr = `KWIK${String(order._id || Date.now()).slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
+
+      if (!platformUpi) {
+        throw new Error('Admin UPI ID is currently not configured. Please choose Cash on Delivery or contact support.');
       }
+
+      setUpiOrderData({
+        razorpayOrderId: orderId,
+        upiOrderId: orderId,
+        upiVpa: platformUpi,
+        payeeName: platformPayee,
+        upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${platformUpi}&pn=${encodeURIComponent(platformPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Order Payment')}&tr=${shortTr}`,
+        amount: total
+      });
+      setShowUpiModal(true);
 
     } catch (e) {
       showAlert({
@@ -840,7 +829,7 @@ const CartScreen = ({ route, navigation }) => {
               <View style={styles.vpaBox}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.vpaLabel}>UPI ID / VPA</Text>
-                  <Text style={styles.vpaValue}>{upiOrderData?.upiVpa || 'ganshyam.tech-1@oksbi'}</Text>
+                  <Text style={styles.vpaValue}>{upiOrderData?.upiVpa || 'UPI Payment'}</Text>
                 </View>
                 <TouchableOpacity style={styles.copyVpaBtn} onPress={handleCopyVpa}>
                   {copiedVpa ? <CheckCircle2 size={16} color="#10B981" /> : <Copy size={16} color="#6C47FF" />}

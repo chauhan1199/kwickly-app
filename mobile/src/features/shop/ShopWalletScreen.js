@@ -48,7 +48,6 @@ import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
 import { walletService } from '../../services/walletService';
 import LinearGradient from 'react-native-linear-gradient';
 
-const ADMIN_UPI_ID = 'ganshyam.tech-1@oksbi';
 const TOP_UP_PRESETS = [100, 200, 500, 1000];
 const MIN_SAFETY_FREEZE = 100; // ₹100 safety balance
 
@@ -57,6 +56,9 @@ const ShopWalletScreen = ({ navigation }) => {
   const { unreadCount } = useNotifications();
   const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
+
+  // Dynamic Admin UPI state
+  const [adminUpiConfig, setAdminUpiConfig] = useState({ upiId: '', payeeName: 'Kwickly Admin', bankDetails: {} });
 
   // Modals state
   const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
@@ -94,11 +96,16 @@ const ShopWalletScreen = ({ navigation }) => {
   const fetchWallet = useCallback(async () => {
     try {
       setLoading(true);
-      const [shopRes, settingsRes, balanceRes] = await Promise.all([
+      const [shopRes, settingsRes, balanceRes, upiRes] = await Promise.all([
         shopService.getMyShop().catch(() => null),
         shopService.getPublicSettings().catch(() => null),
-        shopService.getWalletBalance().catch(() => null)
+        shopService.getWalletBalance().catch(() => null),
+        walletService.getAdminUpiConfig().catch(() => null)
       ]);
+
+      if (upiRes?.data?.status === 'success' && upiRes.data.data?.upiId) {
+        setAdminUpiConfig(upiRes.data.data);
+      }
 
       if (settingsRes?.data?.status === 'success') {
         const plans = (settingsRes.data.data.subscriptionPlans || [])
@@ -179,14 +186,23 @@ const ShopWalletScreen = ({ navigation }) => {
   };
 
   const handleCopyUpi = () => {
-    Clipboard.setString(ADMIN_UPI_ID);
-    Alert.alert('UPI ID Copied 📋', `Admin UPI (${ADMIN_UPI_ID}) copied to clipboard.`);
+    const upiId = adminUpiConfig?.upiId;
+    if (!upiId) {
+      return Alert.alert('Admin UPI', 'Admin UPI ID is currently not configured. Please contact support.');
+    }
+    Clipboard.setString(upiId);
+    Alert.alert('UPI ID Copied 📋', `Admin UPI (${upiId}) copied to clipboard.`);
   };
 
   const handlePayViaUpiApp = async () => {
+    const upiId = adminUpiConfig?.upiId;
+    if (!upiId) {
+      return Alert.alert('Payment Unavailable', 'Admin UPI is not configured. Please contact support.');
+    }
     const amt = parseFloat(topUpAmount) || 100;
+    const payee = adminUpiConfig?.payeeName || 'Kwickly Admin';
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
-    const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=${encodeURIComponent('Kwickly Admin')}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Shop Topup')}&tr=${shortTr}`;
+    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payee)}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Shop Topup')}&tr=${shortTr}`;
     
     try {
       const supported = await Linking.canOpenURL(upiUrl).catch(() => false);
@@ -195,13 +211,13 @@ const ShopWalletScreen = ({ navigation }) => {
       } else {
         Alert.alert(
           'UPI App Required',
-          `Please copy UPI ID "${ADMIN_UPI_ID}" and make payment of ₹${amt} from GPay, PhonePe, or Paytm.`
+          `Please copy UPI ID "${upiId}" and make payment of ₹${amt} from GPay, PhonePe, or Paytm.`
         );
       }
     } catch (e) {
       Alert.alert(
         'Payment Info',
-        `Transfer ₹${amt} to Admin UPI: ${ADMIN_UPI_ID}\nThen enter the 12-digit UTR below.`
+        `Transfer ₹${amt} to Admin UPI: ${upiId}\nThen enter the 12-digit UTR below.`
       );
     }
   };
@@ -405,19 +421,24 @@ const ShopWalletScreen = ({ navigation }) => {
   };
 
   const handlePaySubscriptionUpi = async () => {
+    const upiId = adminUpiConfig?.upiId;
+    if (!upiId) {
+      return Alert.alert('Payment Unavailable', 'Admin UPI is not configured. Please contact support.');
+    }
     const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
     const amt = planConfig?.priceNum || 0;
+    const payee = adminUpiConfig?.payeeName || 'Kwickly Admin';
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
-    const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=${encodeURIComponent('Kwickly Admin')}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Shop Subscription')}&tr=${shortTr}`;
+    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payee)}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Shop Subscription')}&tr=${shortTr}`;
     try {
       const supported = await Linking.canOpenURL(upiUrl).catch(() => false);
       if (supported) {
         await Linking.openURL(upiUrl);
       } else {
-        Alert.alert('UPI App Required', `Please copy UPI ID "${ADMIN_UPI_ID}" and pay ₹${amt} from GPay, PhonePe, or Paytm.`);
+        Alert.alert('UPI App Required', `Please copy UPI ID "${upiId}" and pay ₹${amt} from GPay, PhonePe, or Paytm.`);
       }
     } catch (e) {
-      Alert.alert('Payment Info', `Transfer ₹${amt} to Admin UPI: ${ADMIN_UPI_ID}\nThen enter the 12-digit UTR below.`);
+      Alert.alert('Payment Info', `Transfer ₹${amt} to Admin UPI: ${upiId}\nThen enter the 12-digit UTR below.`);
     }
   };
 
@@ -728,7 +749,7 @@ const ShopWalletScreen = ({ navigation }) => {
                 <Text style={styles.upiCardTitle}>Official Admin UPI ID</Text>
               </View>
               <View style={styles.upiIdRow}>
-                <Text style={styles.upiIdText}>{ADMIN_UPI_ID}</Text>
+                <Text style={styles.upiIdText}>{adminUpiConfig?.upiId || 'Admin UPI'}</Text>
                 <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpi}>
                   <Copy size={14} color="#6C47FF" />
                   <Text style={styles.copyBtnText}>Copy</Text>
@@ -990,8 +1011,8 @@ const ShopWalletScreen = ({ navigation }) => {
                     to the Kwickly Admin UPI ID below, then enter the 12-digit UPI Reference / UTR Number from your payment receipt.
                   </Text>
                   <View style={styles.upiPayIdRow}>
-                    <Text style={styles.upiPayIdText}>{ADMIN_UPI_ID}</Text>
-                    <TouchableOpacity style={styles.upiPayCopyBtn} onPress={() => { Clipboard.setString(ADMIN_UPI_ID); Alert.alert('Copied 📋', 'Admin UPI ID copied to clipboard.'); }}>
+                    <Text style={styles.upiPayIdText}>{adminUpiConfig?.upiId || 'Admin UPI'}</Text>
+                    <TouchableOpacity style={styles.upiPayCopyBtn} onPress={handleCopyUpi}>
                       <Copy size={14} color="#6C47FF" />
                     </TouchableOpacity>
                   </View>

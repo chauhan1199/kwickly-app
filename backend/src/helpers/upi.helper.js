@@ -10,8 +10,11 @@ const logger = require('./logger.helper');
  * Works across Google Pay, PhonePe, Paytm, BHIM, and all Indian banking apps
  */
 const generateUpiIntentUri = ({ vpa, payeeName, amount, purpose, orderId, txnId }) => {
-    const cleanVpa = (vpa || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi').trim();
-    const cleanPayee = (payeeName || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
+    const cleanVpa = (vpa || process.env.PLATFORM_UPI_ID || '').trim();
+    if (!cleanVpa) {
+        throw new Error('Admin UPI ID is not configured. Please configure your UPI ID in the Admin Panel.');
+    }
+    const cleanPayee = (payeeName || process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
     const cleanTxnId = (txnId || `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`).replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     const note = `Kwickly ${purpose || 'Topup'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
     const amtStr = Number(amount).toFixed(2);

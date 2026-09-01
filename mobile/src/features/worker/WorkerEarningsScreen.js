@@ -66,8 +66,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [accounts, setAccounts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [adminUpiConfig, setAdminUpiConfig] = useState({
-    upiId: 'ganshyam.tech-1@oksbi',
-    payeeName: 'Kwickly PVT LTD'
+    upiId: '',
+    payeeName: 'Kwickly Admin'
   });
 
   // Modals state
@@ -200,15 +200,19 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
   // Open Direct UPI app (GPay / PhonePe / Paytm / BHIM)
   const handleOpenUpiApp = async (amount, purposeTitle) => {
-    const cleanUpi = (upiId || 'ganshyam.tech-1@oksbi').trim();
-    const cleanPayee = (payee || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
+    const upiId = adminUpiConfig?.upiId;
+    if (!upiId) {
+      return Alert.alert('Payment Unavailable', 'Admin UPI is currently not configured. Please contact support.');
+    }
+    const cleanUpi = upiId.trim();
+    const cleanPayee = (adminUpiConfig.payeeName || 'Kwickly Admin').trim().replace(/\s+/g, ' ');
     const amtStr = Number(amount).toFixed(2);
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     const note = `Kwickly ${purposeTitle || 'Payment'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
     const upiUrl = `upi://pay?pa=${cleanUpi}&pn=${encodeURIComponent(cleanPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent(note)}&tr=${shortTr}`;
 
     try {
-      const supported = await Linking.canOpenURL(upiUrl);
+      const supported = await Linking.canOpenURL(upiUrl).catch(() => false);
       if (supported) {
         await Linking.openURL(upiUrl);
       } else {
@@ -220,7 +224,10 @@ const WorkerEarningsScreen = ({ navigation }) => {
   };
 
   const handleCopyUpiId = () => {
-    const upiId = adminUpiConfig.upiId || 'ganshyam.tech-1@oksbi';
+    const upiId = adminUpiConfig?.upiId;
+    if (!upiId) {
+      return Alert.alert('Admin UPI', 'Admin UPI ID is not configured.');
+    }
     Clipboard.setString(upiId);
     setCopiedUpi(true);
     setTimeout(() => setCopiedUpi(false), 2500);
@@ -706,8 +713,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
               {/* Admin UPI ID Box */}
               <View style={styles.adminUpiBox}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.adminUpiLabel}>Admin UPI ID (Payee: {adminUpiConfig.payeeName || 'Kwickly'})</Text>
-                  <Text style={styles.adminUpiVal}>{adminUpiConfig.upiId || 'ganshyam.tech-1@oksbi'}</Text>
+                  <Text style={styles.adminUpiLabel}>Admin UPI ID (Payee: {adminUpiConfig.payeeName || 'Kwickly Admin'})</Text>
+                  <Text style={styles.adminUpiVal}>{adminUpiConfig.upiId || 'Admin UPI'}</Text>
                 </View>
                 <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpiId} activeOpacity={0.8}>
                   {copiedUpi ? (

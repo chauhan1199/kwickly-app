@@ -44,16 +44,18 @@ const safeCompare = (a, b) => {
  * Fetches admin-configured UPI ID and Bank Details for public/authenticated payments
  */
 exports.getAdminUpiConfig = catchAsync(async (req, res) => {
-    const adminWallet = await AdminWallet.findOne().lean();
+    const [adminWallet, appSettings] = await Promise.all([
+        AdminWallet.findOne().lean(),
+        AppSettings.findOne({ isSingleton: 'CONFIG' }).lean()
+    ]);
+
+    const upiId = (adminWallet?.upiId || appSettings?.wallet?.upiId || process.env.PLATFORM_UPI_ID || '').trim();
+    const payeeName = (adminWallet?.bankDetails?.accountHolder || appSettings?.wallet?.accountHolder || process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD').trim();
+
     return successResponse(res, {
-        upiId: adminWallet?.upiId || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi',
-        payeeName: adminWallet?.bankDetails?.accountHolder || 'Kwickly PVT LTD',
-        bankDetails: adminWallet?.bankDetails || {
-            accountHolder: 'Kwickly PVT LTD',
-            accountNumber: '1234567890',
-            ifscCode: 'SBIN0001234',
-            bankName: 'SBI'
-        }
+        upiId,
+        payeeName,
+        bankDetails: adminWallet?.bankDetails || {}
     }, 'Admin UPI configuration fetched');
 });
 
@@ -72,9 +74,17 @@ exports.createOrder = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid amount', StatusCodes.BAD_REQUEST);
     }
 
-    const adminWallet = await AdminWallet.findOne().lean();
-    const platformVpa = adminWallet?.upiId || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi';
-    const payeeName   = adminWallet?.bankDetails?.accountHolder || 'Kwickly PVT LTD';
+    const [adminWallet, appSettings] = await Promise.all([
+        AdminWallet.findOne().lean(),
+        AppSettings.findOne({ isSingleton: 'CONFIG' }).lean()
+    ]);
+
+    const platformVpa = (adminWallet?.upiId || appSettings?.wallet?.upiId || process.env.PLATFORM_UPI_ID || '').trim();
+    const payeeName   = (adminWallet?.bankDetails?.accountHolder || appSettings?.wallet?.accountHolder || process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD').trim();
+
+    if (!platformVpa) {
+        return errorResponse(res, 'Admin UPI ID is not configured. Please set your UPI ID in Admin Panel -> Admin Wallet -> Edit Bank Details.', StatusCodes.BAD_REQUEST);
+    }
 
     const validOrderId = (orderId && mongoose.isValidObjectId(orderId)) ? orderId : undefined;
     const paymentId    = new mongoose.Types.ObjectId();
