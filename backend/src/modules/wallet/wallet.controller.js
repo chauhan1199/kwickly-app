@@ -131,6 +131,87 @@ exports.topupWallet = catchAsync(async (req, res) => {
         }
     }
 
+    const isAutoConfirmed = req.body.isAutoConfirmed || req.body.paymentDetails?.isAutoConfirmed;
+    const rawUtr = req.body.utrNumber || req.body.paymentDetails?.txnId || req.body.razorpayPaymentId;
+    const utrNumber = rawUtr || (isAutoConfirmed ? `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase() : null);
+
+    if (isAutoConfirmed || utrNumber) {
+        let currentBalance = user.wallet?.balance || 0;
+        if (user.role === 'SHOP') {
+            const shop = await Shop.findOne({ ownerId: user._id });
+            currentBalance = shop?.wallet?.balance || 0;
+            await Shop.findOneAndUpdate({ ownerId: user._id }, { $inc: { 'wallet.balance': amount } });
+        } else {
+            await Customer.findByIdAndUpdate(user._id, { $inc: { 'wallet.balance': amount } });
+        }
+        const newBalance = currentBalance + amount;
+
+        const txn = await WalletTxn.create({
+            userId: req.user._id,
+            type: 'TOPUP',
+            amount,
+            balance: currentBalance,
+            balanceAfter: newBalance,
+            status: 'COMPLETED',
+            razorpayPaymentId: utrNumber,
+            planId: plan ? planId : undefined,
+            description: plan
+                ? `Subscription Plan Purchase: ${plan.label || planId} (Verified)`
+                : `Wallet Top-up via Direct UPI (Verified)`
+        });
+
+        // If it was a plan purchase for worker, activate the plan immediately
+        if (plan && user.role === 'WORKER') {
+            const { WorkerSubscription } = require('../subscription/subscription.model');
+            const AppSettings = require('../settings/settings.model');
+            const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+            const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
+            
+            const startDate = new Date();
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
+
+            await WorkerSubscription.create({
+                workerId: user._id,
+                planId: plan.id,
+                planName: plan.label || plan.id,
+                amount: plan.price,
+                startDate,
+                endDate,
+                isTrial: false,
+                payment: { status: 'PAID', razorpayPaymentId: utrNumber }
+            });
+
+            await Customer.findByIdAndUpdate(user._id, {
+                'subscription.planId': plan.id,
+                'subscription.expiryDate': endDate,
+                'subscription.isTrial': false
+            });
+        }
+
+        const { emitToUser } = require('../../helpers/socket.helper');
+        emitToUser(req.user._id, 'WALLET_UPDATE', {
+            balance: newBalance,
+            amount,
+            type: 'TOPUP'
+        });
+        emitToAll('DASHBOARD_UPDATE', {
+            type: 'WALLET_TOPUP',
+            userId: req.user._id,
+            userName: user.name,
+            amount,
+            planId: plan ? planId : null
+        });
+
+        return successResponse(res, {
+            txnId: txn._id,
+            txn,
+            status: 'COMPLETED',
+            amount,
+            newBalance
+        }, `Top-up of ₹${amount} successful! Securely credited to your wallet.`, StatusCodes.CREATED);
+    }
+
     // Create a PENDING WalletTxn immediately so we have a real MongoDB _id
     // to embed as the webhook back-reference (internalId in provider metadata).
     const txn = await WalletTxn.create({

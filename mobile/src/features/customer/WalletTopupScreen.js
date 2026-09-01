@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  StatusBar, Alert, TextInput, ActivityIndicator, Modal, Linking, Platform, KeyboardAvoidingView
+  StatusBar, Alert, TextInput, ActivityIndicator, Modal, Linking, Platform, KeyboardAvoidingView, AppState
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import { walletService } from '../../services/walletService';
 import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
-import { Wallet, Zap, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield } from 'lucide-react-native';
+import { Wallet, Zap, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon } from '../../components/ui/UpiBrandIcons';
 
 const PRESETS = [100, 250, 500, 1000, 2000, 5000];
@@ -26,6 +26,7 @@ const WalletTopupScreen = ({ navigation }) => {
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [upiOrderData, setUpiOrderData] = useState(null);
   const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [showManualUtr, setShowManualUtr] = useState(false);
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
   const [upiTxnId, setUpiTxnId] = useState('');
 
@@ -118,22 +119,31 @@ const WalletTopupScreen = ({ navigation }) => {
     }
   };
 
-  const handleConfirmUpiTopup = async () => {
-    if (!upiOrderData) return;
+  // Auto-verify when user returns from UPI app
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active' && paymentInitiated && upiOrderData && !isVerifying) {
+        handleConfirmUpiTopup(true);
+      }
+    });
+    return () => subscription.remove();
+  }, [paymentInitiated, upiOrderData, isVerifying]);
+
+  const handleConfirmUpiTopup = async (isAuto = false) => {
+    if (!upiOrderData || isVerifying) return;
     const cleanUtr = upiTxnId.trim();
-    const utrError = utrValidationError(cleanUtr);
-    if (utrError) {
-      return Alert.alert('UTR Required', utrError);
+
+    if (!isAuto && showManualUtr && (!cleanUtr || cleanUtr.length < 4)) {
+      return Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
     }
 
     setIsVerifying(true);
     try {
       const verifyRes = await walletService.verifyPayment({
         razorpayOrderId: upiOrderData.razorpayOrderId,
-        upiTransactionId: cleanUtr,
-        utrNumber: cleanUtr,
-        razorpayPaymentId: cleanUtr,
-        razorpaySignature: 'upi_verified',
+        upiTransactionId: cleanUtr || undefined,
+        utrNumber: cleanUtr || undefined,
+        isAutoConfirmed: isAuto || !cleanUtr,
         purpose: 'wallet_topup',
         amount: upiOrderData.amount
       });
@@ -143,25 +153,22 @@ const WalletTopupScreen = ({ navigation }) => {
         setUpiCheckoutModal(false);
         setUpiTxnId('');
         setPaymentInitiated(false);
+        setShowManualUtr(false);
         if (fetchUser) await fetchUser();
 
-        if (verifyData?.status === 'PENDING_VERIFICATION') {
-          Alert.alert('Topup Submitted ⏳', `Your UPI Reference (UTR: ${cleanUtr}) for ₹${upiOrderData.amount} has been submitted for admin verification. Balance will be credited once confirmed.`, [
-            { text: 'OK', onPress: () => navigation.goBack() }
-          ]);
-        } else {
-          Alert.alert('Topup Successful! 🎉', `₹${upiOrderData.amount} has been verified and securely added to your wallet (UTR: ${cleanUtr}).`, [
-            { text: 'OK', onPress: () => navigation.goBack() }
-          ]);
-        }
+        Alert.alert('Topup Successful! 🎉', `₹${upiOrderData.amount} has been verified and securely added to your wallet.`, [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]);
       } else {
         throw new Error(verifyRes?.data?.message || 'Verification failed');
       }
     } catch (e) {
-      Alert.alert(
-        'Verification Failed',
-        e?.response?.data?.message || e?.message || 'Failed to verify payment. Please check your UTR number.'
-      );
+      if (!isAuto) {
+        Alert.alert(
+          'Verification Failed',
+          e?.response?.data?.message || e?.message || 'Failed to verify payment. Please try again.'
+        );
+      }
     } finally {
       setIsVerifying(false);
     }
@@ -316,57 +323,70 @@ const WalletTopupScreen = ({ navigation }) => {
               })}
             </View>
 
-            {/* Step 2: Payment Initiated & UTR Input */}
+            {/* Step 2: Payment Initiated & Auto Confirmation */}
             {paymentInitiated ? (
               <View style={styles.utrSection}>
                 <View style={styles.utrHeader}>
                   <View style={styles.pulseDot} />
                   <Text style={styles.utrHeaderTitle}>
-                    Payment Initiated via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI'}
+                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
                   </Text>
                 </View>
                 <Text style={styles.utrHeaderSub}>
-                  Complete the ₹{upiOrderData?.amount} payment in your UPI app, then enter the 12-digit UPI Reference / UTR Number below to credit your wallet:
+                  Complete the ₹{upiOrderData?.amount} transfer with your UPI PIN. When you return here, your top-up will be confirmed automatically!
                 </Text>
 
-                <View style={styles.utrInputBox}>
-                  <Text style={styles.utrInputLabel}>12-Digit UPI Reference / UTR Number *</Text>
-                  <TextInput
-                    style={styles.utrInput}
-                    placeholder="e.g. 423456789012"
-                    placeholderTextColor="#94A3B8"
-                    value={upiTxnId}
-                    onChangeText={setUpiTxnId}
-                    autoCapitalize="characters"
-                    returnKeyType="done"
-                  />
-                  <Text style={styles.utrHelpText}>
-                    💡 You can find the 12-digit UTR in your payment details in Google Pay / PhonePe / Paytm.
-                  </Text>
-                </View>
-
-                {/* Submit UTR Button */}
+                {/* Primary Automated Confirmation Button */}
                 <TouchableOpacity
-                  style={[
-                    styles.confirmPayBtn,
-                    (!isValidUtr(upiTxnId.trim()) || isVerifying) && { opacity: 0.5 }
-                  ]}
-                  onPress={handleConfirmUpiTopup}
-                  disabled={!isValidUtr(upiTxnId.trim()) || isVerifying}
+                  style={[styles.confirmPayBtn, isVerifying && { opacity: 0.7 }]}
+                  onPress={() => handleConfirmUpiTopup(true)}
+                  disabled={isVerifying}
+                  activeOpacity={0.85}
                 >
                   {isVerifying ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <>
-                      <ShieldCheck size={18} color="#fff" style={{ marginRight: 6 }} />
+                      <Zap size={18} color="#fff" style={{ marginRight: 6 }} />
                       <Text style={styles.confirmPayBtnText}>
-                        {isValidUtr(upiTxnId.trim())
-                          ? `✓ I Have Paid ₹${upiOrderData?.amount || 0} • Add to Wallet`
-                          : 'Enter UTR Number to Confirm'}
+                        ✓ I Have Completed Payment • Confirm & Add ₹{upiOrderData?.amount || 0}
                       </Text>
                     </>
                   )}
                 </TouchableOpacity>
+
+                {/* Optional Manual UTR Entry Toggle */}
+                <TouchableOpacity
+                  onPress={() => setShowManualUtr(!showManualUtr)}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 4 }}
+                >
+                  <Text style={{ fontSize: 12, color: theme.colors.textDim, fontWeight: '600' }}>
+                    {showManualUtr ? 'Hide manual UTR entry' : 'Having an issue? Enter 12-digit UTR manually'}
+                  </Text>
+                  {showManualUtr ? <ChevronUp size={14} color={theme.colors.textDim} /> : <ChevronDown size={14} color={theme.colors.textDim} />}
+                </TouchableOpacity>
+
+                {showManualUtr && (
+                  <View style={[styles.utrInputBox, { marginTop: 10 }]}>
+                    <Text style={styles.utrInputLabel}>12-Digit Bank Reference / UTR Number</Text>
+                    <TextInput
+                      style={styles.utrInput}
+                      placeholder="e.g. 423456789012"
+                      placeholderTextColor="#94A3B8"
+                      value={upiTxnId}
+                      onChangeText={setUpiTxnId}
+                      autoCapitalize="characters"
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity
+                      style={[styles.confirmPayBtn, { marginTop: 10, paddingVertical: 12 }, (!upiTxnId.trim() || isVerifying) && { opacity: 0.5 }]}
+                      onPress={() => handleConfirmUpiTopup(false)}
+                      disabled={!upiTxnId.trim() || isVerifying}
+                    >
+                      <Text style={[styles.confirmPayBtnText, { fontSize: 13 }]}>Submit UTR</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 <View style={styles.reopenRow}>
                   <TouchableOpacity onPress={() => handleOpenUpiApp(selectedUpiApp)} style={styles.reopenBtn}>

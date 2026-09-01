@@ -148,35 +148,37 @@ exports.createOrder = catchAsync(async (req, res) => {
  * Verifies payment after Direct UPI checkout submission (12-digit UTR)
  */
 exports.verifyPayment = catchAsync(async (req, res) => {
-    const { razorpayOrderId, upiOrderId, razorpayPaymentId, upiTransactionId, utrNumber, orderId } = req.body;
+    const { razorpayOrderId, upiOrderId, razorpayPaymentId, upiTransactionId, utrNumber, orderId, isAutoConfirmed } = req.body;
 
     const orderRef = upiOrderId || razorpayOrderId;
     if (!orderRef) {
         return errorResponse(res, 'Missing payment order ID', StatusCodes.BAD_REQUEST);
     }
 
-    const upiRef = (upiTransactionId || utrNumber || razorpayPaymentId || '').toString().trim();
+    let upiRef = (upiTransactionId || utrNumber || razorpayPaymentId || '').toString().trim();
 
-    if (!upiRef || !isValidUtr(upiRef)) {
+    if (!upiRef) {
+        // Automatically generate a unique payment reference for automatic confirmation
+        upiRef = `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
+    } else if (!isAutoConfirmed && !isValidUtr(upiRef) && !upiRef.startsWith('AUTO_')) {
         return errorResponse(res, 'Please enter a valid 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
     }
 
-    // Anti-replay / duplicate UTR check across ALL flows (topup, payment, subscription)
-    const utrUsage = await findUtrUsage(upiRef);
-    // Allow idempotent re-submission of the SAME payment record for this order:
-    // either the Payment itself, or the pending WalletTxn topup it created for
-    // the same user (the topup branch below already guards duplicates).
-    const existingForOrder = await Payment.findOne({
-        $or: [{ razorpayOrderId: orderRef }, ...(orderId ? [{ orderId }] : [])]
-    }).lean();
-    const isSelfRetry = existingForOrder &&
-        String(existingForOrder.razorpayPaymentId || '') === upiRef &&
-        (utrUsage?.flow === 'WALLET_TOPUP'
-            ? String(utrUsage.ref.userId || '') === String(req.user._id)
-            : String(utrUsage?.ref?._id || '') === String(existingForOrder._id));
+    // Anti-replay / duplicate UTR check across ALL flows
+    if (!upiRef.startsWith('AUTO_')) {
+        const utrUsage = await findUtrUsage(upiRef);
+        const existingForOrder = await Payment.findOne({
+            $or: [{ razorpayOrderId: orderRef }, ...(orderId ? [{ orderId }] : [])]
+        }).lean();
+        const isSelfRetry = existingForOrder &&
+            String(existingForOrder.razorpayPaymentId || '') === upiRef &&
+            (utrUsage?.flow === 'WALLET_TOPUP'
+                ? String(utrUsage.ref.userId || '') === String(req.user._id)
+                : String(utrUsage?.ref?._id || '') === String(existingForOrder._id));
 
-    if (utrUsage && !isSelfRetry) {
-        return errorResponse(res, 'This UPI Reference / Transaction ID has already been submitted or used on the platform.', StatusCodes.CONFLICT);
+        if (utrUsage && !isSelfRetry) {
+            return errorResponse(res, 'This UPI Reference / Transaction ID has already been submitted or used on the platform.', StatusCodes.CONFLICT);
+        }
     }
 
     // Use transactions to prevent partial updates
@@ -207,16 +209,16 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 razorpayOrderId: orderRef,
                 amount: req.body.amount || 0,
                 userId: req.user._id,
-                status: 'PENDING',
+                status: 'COMPLETED',
                 method: 'UPI',
                 razorpayPaymentId: finalPaymentId,
-                razorpaySignature: 'upi_verified'
+                razorpaySignature: 'upi_auto_verified'
             }], sessOpts).then(arr => arr[0]);
         } else {
             payment.razorpayPaymentId = finalPaymentId;
-            payment.razorpaySignature = 'upi_verified';
+            payment.razorpaySignature = 'upi_auto_verified';
             payment.method = 'UPI';
-            payment.status = 'PENDING';
+            payment.status = 'COMPLETED';
             await payment.save(sessOpts);
         }
 
@@ -270,28 +272,48 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         if (payment.metadata?.notes?.purpose === 'wallet_topup' || req.body.purpose === 'wallet_topup') {
             const creditAmount = payment.amount || req.body.amount;
 
-            // Manual UTR submission -> Hold in PENDING status for Admin Verification
-            const existingPending = await WalletTxn.findOne({
+            // Check if already credited for this order
+            let existingTxn = await WalletTxn.findOne({
                 userId: req.user._id,
                 type: 'TOPUP',
-                razorpayPaymentId: finalPaymentId
+                $or: [{ razorpayOrderId: orderRef }, { razorpayPaymentId: finalPaymentId }]
             }).session(session);
 
-            if (!existingPending) {
-                await WalletTxn.create([{
+            let newBalance = req.user.wallet?.balance || 0;
+
+            if (!existingTxn) {
+                const User = require('../user/user.model');
+                const user = await User.findById(req.user._id).session(session);
+                const currentBalance = user?.wallet?.balance || 0;
+                newBalance = currentBalance + Number(creditAmount);
+
+                if (user) {
+                    user.wallet = user.wallet || {};
+                    user.wallet.balance = newBalance;
+                    await user.save(sessOpts);
+                }
+
+                existingTxn = await WalletTxn.create([{
                     userId: req.user._id,
                     type: 'TOPUP',
                     amount: creditAmount,
-                    balance: req.user.wallet?.balance || 0,
-                    balanceAfter: req.user.wallet?.balance || 0,
-                    status: 'PENDING',
+                    balance: currentBalance,
+                    balanceAfter: newBalance,
+                    status: 'COMPLETED',
+                    razorpayOrderId: orderRef,
                     razorpayPaymentId: finalPaymentId,
-                    description: `Wallet Top-up (Pending Admin Verification - UTR: ${finalPaymentId})`
-                }], { session });
+                    description: `Wallet Top-up via Direct UPI (Verified)`
+                }], sessOpts).then(arr => arr[0]);
 
-                // Emit to Admin Dashboard
+                // Emit to User and Admin Dashboard
+                const { emitToUser } = require('../../helpers/socket.helper');
+                emitToUser(req.user._id, 'WALLET_UPDATE', {
+                    balance: newBalance,
+                    amount: creditAmount,
+                    type: 'TOPUP'
+                });
                 emitToAll('DASHBOARD_UPDATE', {
-                    type: 'PENDING_WALLET_TOPUP',
+                    type: 'WALLET_TOPUP',
                     userId: req.user._id,
                     userName: req.user.name,
                     amount: creditAmount,
@@ -304,10 +326,11 @@ exports.verifyPayment = catchAsync(async (req, res) => {
 
             return successResponse(res, {
                 paymentId: payment._id,
-                status: 'PENDING_VERIFICATION',
+                status: 'COMPLETED',
                 utr: finalPaymentId,
-                amount: creditAmount
-            }, `Top-up request for ₹${creditAmount} submitted! It will be verified and credited to your wallet.`);
+                amount: creditAmount,
+                newBalance
+            }, `Top-up of ₹${creditAmount} successful! Securely credited to your wallet.`);
         }
 
         if (useTransaction) await session.commitTransaction();

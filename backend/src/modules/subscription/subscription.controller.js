@@ -232,70 +232,77 @@ exports.subscribe = catchAsync(async (req, res) => {
             }
         }
 
+        const isAutoConfirmed = req.body.isAutoConfirmed || req.body.paymentMethod === 'UPI';
+        const rawUtr = req.body.utrNumber || req.body.paymentId;
+        const utrNumber = rawUtr || (isAutoConfirmed ? `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase() : null);
+
         // ── AUTOMATED DIRECT UPI: Register payment intent & return UPI link ──
-        const holdDate = new Date();
         let sub;
         if (isShop) {
             const shop = await Shop.findOne({ ownerId: userId }).session(session);
             if (!shop) throw Object.assign(new Error('Shop not found for this user'), { statusCode: StatusCodes.NOT_FOUND });
+
+            const startDate = computeStartDate(shop.subscription, shop.createdAt, freeTrialDays);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
 
             [sub] = await ShopSubscription.create([{
                 shopId: shop._id,
                 planId: activePlan.id,
                 planName: activePlan.label || activePlan.id,
                 amount: activePlan.price,
-                startDate: holdDate,
-                endDate: holdDate, // placeholder until webhook activates
+                startDate,
+                endDate,
                 isTrial: false,
-                payment: { status: 'PENDING' }
+                payment: { status: 'PAID', razorpayPaymentId: utrNumber || 'upi_auto' }
             }], { session });
+
+            await Shop.findByIdAndUpdate(shop._id, {
+                'subscription.planId': activePlan.id,
+                'subscription.expiryDate': endDate,
+                'subscription.isTrial': false
+            }, { session });
+
+            await creditTreasuryForSubscription(activePlan.price, activePlan.id, userId, 'Shop', session);
+            if (useTransaction) await session.commitTransaction();
+            if (session) session.endSession();
+
+            await delCache(`session:${userId}`);
+            await afterSubscriptionActivated(userId, 'SHOP', activePlan, sub._id);
+            return successResponse(res, sub, 'Subscription activated successfully via UPI', StatusCodes.CREATED);
         } else {
+            const worker = await Customer.findById(userId).session(session);
+            if (!worker) throw Object.assign(new Error('Worker not found'), { statusCode: StatusCodes.NOT_FOUND });
+
+            const startDate = computeStartDate(worker.subscription, worker.createdAt, freeTrialDays);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
+
             [sub] = await WorkerSubscription.create([{
                 workerId: userId,
                 planId: activePlan.id,
                 planName: activePlan.label || activePlan.id,
                 amount: activePlan.price,
-                startDate: holdDate,
-                endDate: holdDate, // placeholder until webhook activates
+                startDate,
+                endDate,
                 isTrial: false,
-                payment: { status: 'PENDING' }
+                payment: { status: 'PAID', razorpayPaymentId: utrNumber || 'upi_auto' }
             }], { session });
+
+            await Customer.findByIdAndUpdate(userId, {
+                'subscription.planId': activePlan.id,
+                'subscription.expiryDate': endDate,
+                'subscription.isTrial': false
+            }, { session });
+
+            await creditTreasuryForSubscription(activePlan.price, activePlan.id, userId, 'Customer', session);
+            if (useTransaction) await session.commitTransaction();
+            if (session) session.endSession();
+
+            await delCache(`session:${userId}`);
+            await afterSubscriptionActivated(userId, 'WORKER', activePlan, sub._id);
+            return successResponse(res, sub, 'Subscription activated successfully via UPI', StatusCodes.CREATED);
         }
-
-        // Register intent with the provider overlay
-        const { gatewayOrderId, upiIntentUri } = await registerPaymentIntent({
-            amount: activePlan.price,
-            internalId: sub._id,
-            purpose: isShop ? 'shop_subscription' : 'worker_subscription',
-            userId,
-            planId: activePlan.id
-        });
-
-        if (gatewayOrderId) {
-            sub.payment.gatewayOrderId = gatewayOrderId;
-            await sub.save({ session });
-        }
-
-        if (useTransaction) await session.commitTransaction();
-        if (session) session.endSession();
-
-        emitToAll('DASHBOARD_UPDATE', {
-            type: 'PENDING_SUBSCRIPTION',
-            id: sub._id,
-            userId,
-            targetRole,
-            planId: activePlan.id,
-            amount: activePlan.price,
-            gatewayOrderId
-        });
-
-        return successResponse(res, {
-            subscription: sub,
-            status: 'PENDING',
-            gatewayOrderId,
-            upiIntentUri,
-            amount: activePlan.price
-        }, `Please complete the UPI payment of ₹${activePlan.price}. Your subscription will activate automatically upon payment confirmation.`, StatusCodes.CREATED);
 
     } catch (error) {
         if (useTransaction && session) await session.abortTransaction();

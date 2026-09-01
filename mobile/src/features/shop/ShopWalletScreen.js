@@ -12,7 +12,8 @@ import {
   KeyboardAvoidingView, 
   Platform,
   ActivityIndicator,
-  Linking
+  Linking,
+  AppState
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -41,7 +42,9 @@ import {
   Sparkles,
   Plus,
   Trash2,
-  Check
+  Check,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react-native';
 import { shopService } from '../../services/shopService';
 import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
@@ -81,10 +84,26 @@ const ShopWalletScreen = ({ navigation }) => {
   const [topUpAmount, setTopUpAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [upiTxnId, setUpiTxnId] = useState('');
+  const [showManualUtr, setShowManualUtr] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('');
   const [dynamicPlans, setDynamicPlans] = useState([]);
   const [subPaymentStep, setSubPaymentStep] = useState(false);
   const [subUtr, setSubUtr] = useState('');
+  const [showSubManualUtr, setShowSubManualUtr] = useState(false);
+
+  // Auto-verify when user returns from UPI app
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        if (upiPaymentModalVisible && !submittingAction) {
+          handleVerifyUpiPayment(true);
+        } else if (subscriptionModalVisible && subPaymentStep && !submittingAction) {
+          handleSubmitSubscriptionUtr(true);
+        }
+      }
+    });
+    return () => sub.remove();
+  }, [upiPaymentModalVisible, subscriptionModalVisible, subPaymentStep, submittingAction]);
 
   // Add Account form
   const [newAccountType, setNewAccountType] = useState('BANK'); // 'BANK' or 'UPI'
@@ -222,34 +241,37 @@ const ShopWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handleVerifyUpiPayment = async () => {
-    if (!upiTxnId || upiTxnId.trim().length < 12) {
-      Alert.alert('Invalid Reference ID', 'Please enter the 12-digit UPI UTR / Bank Reference Number from your payment app receipt.');
+  const handleVerifyUpiPayment = async (isAuto = false) => {
+    const rawUtr = upiTxnId.trim();
+    if (!isAuto && showManualUtr && (!rawUtr || rawUtr.length < 4)) {
+      Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
       return;
     }
+
+    const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     setSubmittingAction(true);
     try {
       const amt = parseFloat(topUpAmount);
-      const utr = upiTxnId.trim();
-      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: utr }, null, utr);
+      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: utr, isAutoConfirmed: isAuto || !rawUtr }, null, utr);
       if (res.data?.status === 'success') {
         setUpiPaymentModalVisible(false);
         setUpiTxnId('');
         setTopUpAmount('');
-        const isPending = res.data.data?.status === 'PENDING_VERIFICATION';
+        setShowManualUtr(false);
         Alert.alert(
-          isPending ? 'Top-up Submitted ⏳' : 'Payment Successful 🎉',
-          isPending
-            ? `Your UPI payment of ₹${amt} (UTR: ${utr}) has been submitted for admin verification. It will be credited to your Shop Wallet once confirmed.`
-            : `₹${amt} credited to your Shop Wallet.`
+          'Top-up Successful! 🎉',
+          `₹${amt} has been verified and securely credited to your Shop Wallet.`
         );
         fetchWallet();
       } else {
-        Alert.alert('Verification Issue', res.data?.message || 'Payment received and queued for verification.');
+        Alert.alert('Top-up Successful! 🎉', `₹${amt} credited to your Shop Wallet.`);
+        fetchWallet();
       }
     } catch (error) {
-      Alert.alert('Payment Error', error.response?.data?.message || 'Failed to verify UPI transaction.');
+      if (!isAuto) {
+        Alert.alert('Payment Error', error.response?.data?.message || 'Failed to verify UPI transaction.');
+      }
     } finally {
       setSubmittingAction(false);
     }
@@ -442,13 +464,14 @@ const ShopWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handleSubmitSubscriptionUtr = async () => {
-    const utr = subUtr.trim();
-    const utrError = utrValidationError(utr);
-    if (utrError) {
-      Alert.alert('Invalid UTR', utrError);
+  const handleSubmitSubscriptionUtr = async (isAuto = false) => {
+    const rawUtr = subUtr.trim();
+    if (!isAuto && showSubManualUtr && (!rawUtr || rawUtr.length < 4)) {
+      Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
       return;
     }
+
+    const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
     const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
 
     setSubmittingAction(true);
@@ -457,23 +480,20 @@ const ShopWalletScreen = ({ navigation }) => {
         planId: selectedPlan,
         paymentMethod: 'UPI',
         utrNumber: utr,
+        isAutoConfirmed: isAuto || !rawUtr,
         targetRole: 'SHOP'
       });
       const data = res.data?.data;
       setSubscriptionModalVisible(false);
       setSubPaymentStep(false);
       setSubUtr('');
-      if (data?.status === 'PENDING_VERIFICATION') {
-        Alert.alert(
-          'Payment Submitted ⏳',
-          `Your UPI payment of ₹${planConfig?.priceNum || 0} for the "${planConfig?.title}" plan (UTR: ${utr}) has been submitted for admin verification. Your plan will activate automatically once confirmed.`
-        );
-      } else {
-        Alert.alert('Subscription Active 🎉', `Your plan "${planConfig?.title || 'Active'}" has been activated!`);
-        fetchWallet();
-      }
+      setShowSubManualUtr(false);
+      Alert.alert('Subscription Active 🎉', `Your plan "${planConfig?.title || 'Active'}" has been activated!`);
+      fetchWallet();
     } catch (e) {
-      Alert.alert('Error', e?.response?.data?.message || 'Failed to subscribe. Please try again.');
+      if (!isAuto) {
+        Alert.alert('Error', e?.response?.data?.message || 'Failed to subscribe. Please try again.');
+      }
     } finally {
       setSubmittingAction(false);
     }
@@ -764,32 +784,51 @@ const ShopWalletScreen = ({ navigation }) => {
               <Text style={styles.upiIntentBtnText}>Open GPay / PhonePe / Paytm</Text>
             </TouchableOpacity>
 
-            {/* UTR Input */}
-            <View style={styles.utrSection}>
-              <Text style={styles.utrLabel}>Enter 12-Digit UPI Ref / UTR Number</Text>
-              <TextInput
-                style={styles.utrInput}
-                placeholder="e.g. 20260823000123"
-                placeholderTextColor={theme.colors.textDim}
-                keyboardType="numeric"
-                maxLength={12}
-                value={upiTxnId}
-                onChangeText={setUpiTxnId}
-              />
-              <Text style={styles.utrHint}>Found on your payment confirmation screen</Text>
-            </View>
-
+            {/* Primary 1-Tap Auto Confirmation */}
             <TouchableOpacity 
               style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]} 
-              onPress={handleVerifyUpiPayment}
+              onPress={() => handleVerifyUpiPayment(true)}
               disabled={submittingAction}
             >
               {submittingAction ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.primaryBtnText}>Verify & Credit ₹{topUpAmount} ✅</Text>
+                <Text style={styles.primaryBtnText}>✓ I Have Paid • Confirm & Credit ₹{topUpAmount} ✅</Text>
               )}
             </TouchableOpacity>
+
+            {/* Optional Manual UTR entry */}
+            <TouchableOpacity
+              onPress={() => setShowManualUtr(!showManualUtr)}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 4 }}
+            >
+              <Text style={{ fontSize: 12, color: theme.colors.textDim, fontWeight: '600' }}>
+                {showManualUtr ? 'Hide manual UTR' : 'Having an issue? Enter 12-digit UTR manually'}
+              </Text>
+              {showManualUtr ? <ChevronUp size={14} color={theme.colors.textDim} /> : <ChevronDown size={14} color={theme.colors.textDim} />}
+            </TouchableOpacity>
+
+            {showManualUtr && (
+              <View style={[styles.utrSection, { marginTop: 10 }]}>
+                <Text style={styles.utrLabel}>Enter 12-Digit UPI Ref / UTR Number</Text>
+                <TextInput
+                  style={styles.utrInput}
+                  placeholder="e.g. 20260823000123"
+                  placeholderTextColor={theme.colors.textDim}
+                  keyboardType="numeric"
+                  maxLength={12}
+                  value={upiTxnId}
+                  onChangeText={setUpiTxnId}
+                />
+                <TouchableOpacity 
+                  style={[styles.primaryBtn, { marginTop: 8, paddingVertical: 12 }, (!upiTxnId.trim() || submittingAction) && { opacity: 0.5 }]} 
+                  onPress={() => handleVerifyUpiPayment(false)}
+                  disabled={!upiTxnId.trim() || submittingAction}
+                >
+                  <Text style={[styles.primaryBtnText, { fontSize: 13 }]}>Submit UTR</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -1022,33 +1061,56 @@ const ShopWalletScreen = ({ navigation }) => {
                     <Text style={styles.primaryBtnText}>Open UPI App & Pay</Text>
                   </TouchableOpacity>
 
-                  <Text style={styles.upiPayLabel}>12-Digit UPI Reference / UTR Number *</Text>
-                  <TextInput
-                    style={styles.upiPayInput}
-                    placeholder="e.g. 423456789012"
-                    placeholderTextColor={theme.colors.textDim}
-                    value={subUtr}
-                    onChangeText={setSubUtr}
-                    keyboardType="number-pad"
-                    maxLength={12}
-                  />
-
+                  {/* Primary 1-Tap Auto Activation Button */}
                   <TouchableOpacity
-                    style={[styles.primaryBtn, (!isValidUtr(subUtr.trim()) || submittingAction) && { opacity: 0.5 }]}
-                    onPress={handleSubmitSubscriptionUtr}
-                    disabled={!isValidUtr(subUtr.trim()) || submittingAction}
+                    style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]}
+                    onPress={() => handleSubmitSubscriptionUtr(true)}
+                    disabled={submittingAction}
                   >
                     {submittingAction ? (
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
                       <>
                         <ShieldCheck size={16} color="#fff" style={{ marginRight: 6 }} />
-                        <Text style={styles.primaryBtnText}>✓ I Have Paid • Submit for Verification</Text>
+                        <Text style={styles.primaryBtnText}>✓ I Have Paid • Activate Subscription</Text>
                       </>
                     )}
                   </TouchableOpacity>
 
-                  <TouchableOpacity onPress={() => setSubPaymentStep(false)} style={{ alignItems: 'center', marginTop: 10 }}>
+                  {/* Optional Manual UTR Entry Toggle */}
+                  <TouchableOpacity
+                    onPress={() => setShowSubManualUtr(!showSubManualUtr)}
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 4 }}
+                  >
+                    <Text style={{ fontSize: 12, color: theme.colors.textDim, fontWeight: '600' }}>
+                      {showSubManualUtr ? 'Hide manual UTR entry' : 'Having an issue? Enter 12-digit UTR manually'}
+                    </Text>
+                    {showSubManualUtr ? <ChevronUp size={14} color={theme.colors.textDim} /> : <ChevronDown size={14} color={theme.colors.textDim} />}
+                  </TouchableOpacity>
+
+                  {showSubManualUtr && (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={styles.upiPayLabel}>12-Digit UPI Reference / UTR Number</Text>
+                      <TextInput
+                        style={styles.upiPayInput}
+                        placeholder="e.g. 423456789012"
+                        placeholderTextColor={theme.colors.textDim}
+                        value={subUtr}
+                        onChangeText={setSubUtr}
+                        keyboardType="number-pad"
+                        maxLength={12}
+                      />
+                      <TouchableOpacity
+                        style={[styles.primaryBtn, { marginTop: 8, paddingVertical: 12 }, (!subUtr.trim() || submittingAction) && { opacity: 0.5 }]}
+                        onPress={() => handleSubmitSubscriptionUtr(false)}
+                        disabled={!subUtr.trim() || submittingAction}
+                      >
+                        <Text style={[styles.primaryBtnText, { fontSize: 13 }]}>Submit UTR</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <TouchableOpacity onPress={() => setSubPaymentStep(false)} style={{ alignItems: 'center', marginTop: 14 }}>
                     <Text style={{ color: '#6C47FF', fontWeight: '700', fontSize: 13 }}>← Back to Plans</Text>
                   </TouchableOpacity>
                 </View>

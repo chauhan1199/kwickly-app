@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView,
   TouchableOpacity, StatusBar, FlatList, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal, Image, Linking
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal, Image, Linking, AppState
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -18,7 +18,7 @@ import {
 } from '../../components/ui/UpiBrandIcons';
 import {
   ShoppingCart, Minus, Plus, Trash2, MapPin, CreditCard,
-  Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone, QrCode, ArrowRight, ExternalLink, Copy, CheckCircle2
+  Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone, QrCode, ArrowRight, ExternalLink, Copy, CheckCircle2, ChevronDown, ChevronUp
 } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
 import { isValidUtr, utrValidationError } from '../../utils/upiValidation';
@@ -93,6 +93,7 @@ const CartScreen = ({ route, navigation }) => {
   const [upiVerifying, setUpiVerifying] = useState(false);
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
   const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [showManualUtr, setShowManualUtr] = useState(false);
   const [copiedVpa, setCopiedVpa] = useState(false);
   const [upiTxnId, setUpiTxnId] = useState('');
 
@@ -103,6 +104,16 @@ const CartScreen = ({ route, navigation }) => {
       loadDeliverySlots();
     }
   }, [cart?.shopId, loadDeliverySlots]);
+
+  // Auto-verify when user returns from UPI app
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active' && paymentInitiated && currentOrder && !upiVerifying) {
+        handleConfirmUpiPayment(true);
+      }
+    });
+    return () => sub.remove();
+  }, [paymentInitiated, currentOrder, upiVerifying]);
 
   const [selectedDate, setSelectedDate] = useState(0); // 0 = Today, 1 = Tomorrow, 2 = Day After
 
@@ -399,10 +410,11 @@ const CartScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleConfirmUpiPayment = async () => {
-    if (!currentOrder) return;
+  const handleConfirmUpiPayment = async (isAuto = false) => {
+    if (!currentOrder || upiVerifying) return;
     const cleanUtr = upiTxnId.trim();
-    if (!cleanUtr) {
+
+    if (!isAuto && showManualUtr && (!cleanUtr || cleanUtr.length < 4)) {
       return showAlert({
         type: 'warning',
         title: 'UTR Number Required',
@@ -410,28 +422,19 @@ const CartScreen = ({ route, navigation }) => {
       });
     }
 
-    if (!isValidUtr(cleanUtr)) {
-      const err = utrValidationError(cleanUtr);
-      return showAlert({
-        type: 'warning',
-        title: 'Invalid UTR Number',
-        message: err || 'Please enter the genuine 12-digit UPI Reference / UTR Number from your bank receipt. Fake, sequential, or dummy numbers are rejected.'
-      });
-    }
-
     setUpiVerifying(true);
     try {
       const verifyRes = await walletService.verifyPayment({
         razorpayOrderId: upiOrderData?.razorpayOrderId || `upi_${Date.now()}`,
-        upiTransactionId: cleanUtr,
-        utrNumber: cleanUtr,
-        razorpayPaymentId: cleanUtr,
-        razorpaySignature: 'upi_verified',
+        upiTransactionId: cleanUtr || undefined,
+        utrNumber: cleanUtr || undefined,
+        isAutoConfirmed: isAuto || !cleanUtr,
         orderId: currentOrder._id
       });
 
       setShowUpiModal(false);
       setPaymentInitiated(false);
+      setShowManualUtr(false);
       setUpiTxnId('');
       await clearCart();
       if (fetchUser) await fetchUser();
@@ -441,16 +444,18 @@ const CartScreen = ({ route, navigation }) => {
         orderId: currentOrder._id,
         total: Number(total).toFixed(2),
         method: 'UPI',
-        isPaid: false,
-        utr: cleanUtr,
+        isPaid: true,
+        utr: cleanUtr || 'Auto Verified',
         slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
       });
     } catch (err) {
-      showAlert({
-        type: 'error',
-        title: 'Verification Failed',
-        message: err.response?.data?.message || err.message || 'Failed to verify UPI payment. Please check your UTR number and try again.'
-      });
+      if (!isAuto) {
+        showAlert({
+          type: 'error',
+          title: 'Verification Failed',
+          message: err.response?.data?.message || err.message || 'Failed to verify UPI payment. Please try again.'
+        });
+      }
     } finally {
       setUpiVerifying(false);
     }
@@ -802,28 +807,64 @@ const CartScreen = ({ route, navigation }) => {
                 <View style={styles.paymentActiveHeader}>
                   <View style={styles.pulseDot} />
                   <Text style={styles.paymentActiveTitle}>
-                    Payment Initiated via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
                   </Text>
                 </View>
                 <Text style={styles.paymentActiveText}>
-                  Please complete the payment of ₹{total} in your UPI app, then enter the 12-digit UPI Reference / UTR Number below to confirm your order:
+                  Complete the ₹{total} payment in your UPI app. When you return here, your order will confirm automatically!
                 </Text>
 
-                <View style={styles.utrInputBox}>
-                  <Text style={styles.utrInputLabel}>12-Digit UPI Reference / UTR Number *</Text>
-                  <TextInput
-                    style={styles.utrInput}
-                    placeholder="e.g. 423456789012"
-                    placeholderTextColor="#94A3B8"
-                    value={upiTxnId}
-                    onChangeText={setUpiTxnId}
-                    autoCapitalize="characters"
-                    returnKeyType="done"
-                  />
-                  <Text style={styles.utrHelpText}>
-                    💡 You can find the 12-digit UTR in your payment details in Google Pay / PhonePe / Paytm.
+                {/* Primary Automated Order Confirmation Button */}
+                <TouchableOpacity
+                  style={[styles.confirmUpiBtn, upiVerifying && { opacity: 0.7 }]}
+                  onPress={() => handleConfirmUpiPayment(true)}
+                  disabled={upiVerifying}
+                  activeOpacity={0.85}
+                >
+                  {upiVerifying ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Zap size={18} color="#FFFFFF" />
+                      <Text style={styles.confirmUpiBtnText}>
+                        ✓ I Have Completed Payment • Confirm Order (₹{total})
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* Optional Manual UTR Entry Toggle */}
+                <TouchableOpacity
+                  onPress={() => setShowManualUtr(!showManualUtr)}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 4 }}
+                >
+                  <Text style={{ fontSize: 12, color: theme.colors.textDim, fontWeight: '600' }}>
+                    {showManualUtr ? 'Hide manual UTR entry' : 'Having an issue? Enter 12-digit UTR manually'}
                   </Text>
-                </View>
+                  {showManualUtr ? <ChevronUp size={14} color={theme.colors.textDim} /> : <ChevronDown size={14} color={theme.colors.textDim} />}
+                </TouchableOpacity>
+
+                {showManualUtr && (
+                  <View style={[styles.utrInputBox, { marginTop: 10 }]}>
+                    <Text style={styles.utrInputLabel}>12-Digit Bank Reference / UTR Number</Text>
+                    <TextInput
+                      style={styles.utrInput}
+                      placeholder="e.g. 423456789012"
+                      placeholderTextColor="#94A3B8"
+                      value={upiTxnId}
+                      onChangeText={setUpiTxnId}
+                      autoCapitalize="characters"
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity
+                      style={[styles.confirmUpiBtn, { marginTop: 10, paddingVertical: 12 }, (!upiTxnId.trim() || upiVerifying) && { opacity: 0.5 }]}
+                      onPress={() => handleConfirmUpiPayment(false)}
+                      disabled={!upiTxnId.trim() || upiVerifying}
+                    >
+                      <Text style={[styles.confirmUpiBtnText, { fontSize: 13 }]}>Submit UTR</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             ) : (
               <View style={styles.vpaBox}>
@@ -841,7 +882,7 @@ const CartScreen = ({ route, navigation }) => {
             )}
 
             {/* Primary Action Button */}
-            {!paymentInitiated ? (
+            {!paymentInitiated && (
               <TouchableOpacity
                 style={styles.openAppPrimaryBtn}
                 onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
@@ -852,28 +893,6 @@ const CartScreen = ({ route, navigation }) => {
                   Pay ₹{total} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
                 </Text>
                 <ArrowRight size={18} color="#001016" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[
-                  styles.confirmUpiBtn,
-                  (!upiTxnId.trim() || upiTxnId.trim().length < 4 || upiVerifying) && { opacity: 0.5 }
-                ]}
-                onPress={handleConfirmUpiPayment}
-                disabled={!upiTxnId.trim() || upiTxnId.trim().length < 4 || upiVerifying}
-              >
-                {upiVerifying ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Check size={20} color="#FFFFFF" />
-                    <Text style={styles.confirmUpiBtnText}>
-                      {upiTxnId.trim().length >= 4
-                        ? `✓ I Have Paid ₹${total} • Confirm Order`
-                        : 'Enter UTR Number to Confirm'}
-                    </Text>
-                  </>
-                )}
               </TouchableOpacity>
             )}
 
