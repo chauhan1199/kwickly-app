@@ -37,26 +37,51 @@ const WalletTopupScreen = ({ navigation }) => {
 
     setProcessing(true);
     try {
-      const payRes = await walletService.createPaymentOrder({
-        amount: topupAmount,
-        purpose: 'wallet_topup',
-        paymentMethod: 'UPI'
-      });
+      let orderPayload = null;
+      try {
+        const payRes = await walletService.createPaymentOrder({
+          amount: topupAmount,
+          purpose: 'wallet_topup',
+          paymentMethod: 'UPI'
+        });
 
-      const payData = payRes?.data?.data || {};
-      const orderPayload = {
-        razorpayOrderId: payData.razorpayOrderId || `upi_${Date.now()}`,
-        upiVpa: payData.upiVpa || 'ganshyam.tech-1@oksbi',
-        payeeName: payData.payeeName || 'Kwickly PVT LTD',
-        bankDetails: payData.bankDetails || {
-          accountHolder: 'Kwickly PVT LTD',
-          accountNumber: '1234567890',
-          ifscCode: 'SBIN0001234',
-          bankName: 'SBI'
-        },
-        upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${payData.upiVpa || 'ganshyam.tech-1@oksbi'}&pn=${encodeURIComponent(payData.payeeName || 'Kwickly')}&am=${topupAmount}&cu=INR&tn=Kwickly_wallet_topup_${Date.now()}&tr=${payData.razorpayOrderId || Date.now()}`,
-        amount: topupAmount
-      };
+        const payData = payRes?.data?.data || {};
+        const platformUpi = payData.upiVpa || 'ganshyam.tech-1@oksbi';
+        const platformPayee = payData.payeeName || 'Kwickly PVT LTD';
+        const orderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
+
+        orderPayload = {
+          razorpayOrderId: orderId,
+          upiOrderId: orderId,
+          upiVpa: platformUpi,
+          payeeName: platformPayee,
+          bankDetails: payData.bankDetails || {
+            accountHolder: platformPayee,
+            accountNumber: '1234567890',
+            ifscCode: 'SBIN0001234',
+            bankName: 'SBI'
+          },
+          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${encodeURIComponent(platformUpi)}&pn=${encodeURIComponent(platformPayee)}&am=${topupAmount}&cu=INR&tn=Kwickly_wallet_topup_${orderId}&tr=KWIK_TOPUP_${orderId}`,
+          amount: topupAmount
+        };
+      } catch (apiErr) {
+        console.warn('[Wallet] Backend create-order fallback:', apiErr);
+        const fallbackId = `upi_${Date.now()}`;
+        orderPayload = {
+          razorpayOrderId: fallbackId,
+          upiOrderId: fallbackId,
+          upiVpa: 'ganshyam.tech-1@oksbi',
+          payeeName: 'Kwickly PVT LTD',
+          bankDetails: {
+            accountHolder: 'Kwickly PVT LTD',
+            accountNumber: '1234567890',
+            ifscCode: 'SBIN0001234',
+            bankName: 'SBI'
+          },
+          upiIntentUri: `upi://pay?pa=ganshyam.tech-1%40oksbi&pn=Kwickly%20PVT%20LTD&am=${topupAmount}&cu=INR&tn=Kwickly_wallet_topup_${fallbackId}&tr=KWIK_TOPUP_${fallbackId}`,
+          amount: topupAmount
+        };
+      }
 
       setUpiOrderData(orderPayload);
       setPaymentInitiated(false);
@@ -64,7 +89,8 @@ const WalletTopupScreen = ({ navigation }) => {
       setUpiTxnId('');
       setUpiCheckoutModal(true);
     } catch (e) {
-      Alert.alert('Error', e?.response?.data?.message || 'Failed to initialize topup');
+      const errMsg = e?.message || e?.response?.data?.message || 'Failed to initialize topup';
+      Alert.alert('Error', errMsg);
     } finally {
       setProcessing(false);
     }
@@ -77,20 +103,23 @@ const WalletTopupScreen = ({ navigation }) => {
     try {
       let targetUri = upiOrderData.upiIntentUri;
       if (appScheme === 'gpay') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'tez://upi/');
+        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'tez://upi/pay').replace('upi://', 'tez://upi/');
       } else if (appScheme === 'phonepe') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'phonepe://');
+        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'phonepe://pay').replace('upi://', 'phonepe://');
       } else if (appScheme === 'paytm') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'paytmmp://');
+        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'paytmmp://pay').replace('upi://', 'paytmmp://');
       }
 
       const supported = await Linking.canOpenURL(targetUri).catch(() => false);
       if (supported) {
         await Linking.openURL(targetUri);
       } else {
-        await Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-          Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
-        });
+        const universalSupported = await Linking.canOpenURL(upiOrderData.upiIntentUri).catch(() => false);
+        if (universalSupported) {
+          await Linking.openURL(upiOrderData.upiIntentUri);
+        } else {
+          Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID:\n\n${upiOrderData.upiVpa}\n\nThen enter the 12-digit UTR below.`);
+        }
       }
     } catch (err) {
       Linking.openURL(upiOrderData.upiIntentUri).catch(() => {

@@ -326,21 +326,28 @@ const CartScreen = ({ route, navigation }) => {
           purpose: 'order_payment',
           paymentMethod: 'UPI'
         });
-
         const payData = payRes?.data?.data || {};
+        const platformUpi = payData.upiVpa || 'ganshyam.tech-1@oksbi';
+        const platformPayee = payData.payeeName || 'Kwickly PVT LTD';
+        const orderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
         setUpiOrderData({
-          razorpayOrderId: payData.razorpayOrderId || `upi_${Date.now()}`,
-          upiVpa: payData.upiVpa || 'kwickly@upi',
-          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=kwickly@upi&pn=Kwickly&am=${total}&cu=INR&tn=Order_${order.orderNumber || order._id}`,
+          razorpayOrderId: orderId,
+          upiOrderId: orderId,
+          upiVpa: platformUpi,
+          payeeName: platformPayee,
+          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${encodeURIComponent(platformUpi)}&pn=${encodeURIComponent(platformPayee)}&am=${total}&cu=INR&tn=Order_${order.orderNumber || order._id}&tr=KWIK_ORDER_${order._id}`,
           amount: total
         });
         setShowUpiModal(true);
       } catch (payErr) {
         // Fallback UPI payload
+        const fallbackId = `upi_${Date.now()}`;
         setUpiOrderData({
-          razorpayOrderId: `upi_${Date.now()}`,
-          upiVpa: 'kwickly@upi',
-          upiIntentUri: `upi://pay?pa=kwickly@upi&pn=Kwickly&am=${total}&cu=INR&tn=Order_${order.orderNumber || order._id}`,
+          razorpayOrderId: fallbackId,
+          upiOrderId: fallbackId,
+          upiVpa: 'ganshyam.tech-1@oksbi',
+          payeeName: 'Kwickly PVT LTD',
+          upiIntentUri: `upi://pay?pa=ganshyam.tech-1%40oksbi&pn=Kwickly%20PVT%20LTD&am=${total}&cu=INR&tn=Order_${order.orderNumber || order._id}&tr=KWIK_ORDER_${order._id}`,
           amount: total
         });
         setShowUpiModal(true);
@@ -360,38 +367,32 @@ const CartScreen = ({ route, navigation }) => {
   const handleOpenUpiApp = async (appScheme = null) => {
     const chosen = appScheme || selectedUpiApp || 'generic';
     setSelectedUpiApp(chosen);
+    setPaymentInitiated(true);
     if (!upiOrderData?.upiIntentUri) return;
     try {
       let targetUri = upiOrderData.upiIntentUri;
       if (chosen === 'gpay') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'tez://upi/');
+        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'tez://upi/pay').replace('upi://', 'tez://upi/');
       } else if (chosen === 'phonepe') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'phonepe://');
+        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'phonepe://pay').replace('upi://', 'phonepe://');
       } else if (chosen === 'paytm') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://', 'paytmmp://');
+        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'paytmmp://pay').replace('upi://', 'paytmmp://');
       }
 
-      setPaymentInitiated(true);
       const supported = await Linking.canOpenURL(targetUri).catch(() => false);
       if (supported) {
         await Linking.openURL(targetUri);
       } else {
-        await Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-          showAlert({
-            type: 'info',
-            title: 'UPI Payment',
-            message: `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment & Verify UTR" below.`
-          });
-        });
+        const universalSupported = await Linking.canOpenURL(upiOrderData.upiIntentUri).catch(() => false);
+        if (universalSupported) {
+          await Linking.openURL(upiOrderData.upiIntentUri);
+        } else {
+          Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
+        }
       }
     } catch (err) {
-      setPaymentInitiated(true);
       Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-        showAlert({
-          type: 'info',
-          title: 'UPI Payment',
-          message: `Please pay ₹${total} to UPI ID: ${upiOrderData.upiVpa} and tap "Confirm Payment & Verify UTR" below.`
-        });
+        Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
       });
     }
   };

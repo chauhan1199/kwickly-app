@@ -37,7 +37,7 @@ const PaymentSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 PaymentSchema.index({ razorpayPaymentId: 1 });
-PaymentSchema.index({ razorpayOrderId:   1 });    // legacy lookup
+PaymentSchema.index({ razorpayOrderId: 1 }, { sparse: true }); // sparse index for unique/optional lookups
 PaymentSchema.index({ gatewayOrderId:    1 });
 PaymentSchema.index({ userId: 1, createdAt: -1 });
 PaymentSchema.index({ status: 1 });

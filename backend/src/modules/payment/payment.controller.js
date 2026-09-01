@@ -13,8 +13,8 @@ const { successResponse, errorResponse } = require('../../helpers/response.helpe
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache }  = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
-const { generateUpiIntentUri } = require('../../helpers/upi.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
+const { generateUpiIntentUri, isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
 const {
@@ -77,15 +77,18 @@ exports.createOrder = catchAsync(async (req, res) => {
     const payeeName   = adminWallet?.bankDetails?.accountHolder || 'Kwickly PVT LTD';
 
     const validOrderId = (orderId && mongoose.isValidObjectId(orderId)) ? orderId : undefined;
+    const paymentId    = new mongoose.Types.ObjectId();
 
     // Create a Payment record first so we have a real MongoDB _id to embed
     // as the webhook back-reference (internalId in provider metadata).
     const payment = await Payment.create({
-        orderId:  validOrderId,
+        _id:             paymentId,
+        razorpayOrderId: paymentId.toString(),
+        orderId:         validOrderId,
         amount,
-        userId:   req.user._id,
-        status:   'CREATED',
-        method:   'UPI',
+        userId:          req.user._id,
+        status:          'CREATED',
+        method:          'UPI',
         metadata: {
             notes: {
                 userId:  req.user._id.toString(),
@@ -97,8 +100,6 @@ exports.createOrder = catchAsync(async (req, res) => {
             platformVpa
         }
     });
-
-    payment.razorpayOrderId = payment._id.toString();
 
     // Register with provider (falls back to plain deeplink if not configured)
     const { gatewayOrderId, upiIntentUri } = await registerPaymentIntent({
