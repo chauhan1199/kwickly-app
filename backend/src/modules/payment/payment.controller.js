@@ -202,15 +202,17 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         }
 
         const finalPaymentId = upiRef;
+        const validOrderId = orderId && mongoose.Types.ObjectId.isValid(orderId) ? orderId : undefined;
 
         if (!payment) {
             payment = await Payment.create([{
-                orderId: orderId || null,
+                orderId: validOrderId,
                 razorpayOrderId: orderRef,
-                amount: req.body.amount || 0,
+                amount: Number(req.body.amount) || 0,
                 userId: req.user._id,
                 status: 'COMPLETED',
                 method: 'UPI',
+                metadata: { notes: { purpose: req.body.purpose || 'wallet_topup' } },
                 razorpayPaymentId: finalPaymentId,
                 razorpaySignature: 'upi_auto_verified'
             }], sessOpts).then(arr => arr[0]);
@@ -219,12 +221,17 @@ exports.verifyPayment = catchAsync(async (req, res) => {
             payment.razorpaySignature = 'upi_auto_verified';
             payment.method = 'UPI';
             payment.status = 'COMPLETED';
+            if (req.body.purpose && !payment.metadata?.notes?.purpose) {
+                payment.metadata = payment.metadata || {};
+                payment.metadata.notes = payment.metadata.notes || {};
+                payment.metadata.notes.purpose = req.body.purpose;
+            }
             await payment.save(sessOpts);
         }
 
         // If linked to an order, update the order
-        const targetOrderId = payment.orderId || orderId;
-        if (targetOrderId) {
+        const targetOrderId = (payment?.orderId || validOrderId) ? String(payment?.orderId || validOrderId) : null;
+        if (targetOrderId && mongoose.Types.ObjectId.isValid(targetOrderId)) {
             const order = await ShopOrder.findById(targetOrderId).session(session);
             if (order) {
                 order.payment.status = 'PENDING_VERIFICATION';
@@ -270,7 +277,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
 
         // Wallet top-up flow (purpose: 'wallet_topup')
         if (payment.metadata?.notes?.purpose === 'wallet_topup' || req.body.purpose === 'wallet_topup') {
-            const creditAmount = payment.amount || req.body.amount;
+            const creditAmount = Number(payment.amount || req.body.amount);
 
             // Check if already credited for this order
             let existingTxn = await WalletTxn.findOne({
@@ -309,9 +316,8 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 existingTxn = await WalletTxn.create([{
                     userId: req.user._id,
                     type: 'TOPUP',
-                    amount: creditAmount,
-                    balance: currentBalance,
-                    balanceAfter: newBalance,
+                    amount: Number(creditAmount),
+                    balance: Number(newBalance),
                     status: 'COMPLETED',
                     razorpayOrderId: orderRef,
                     razorpayPaymentId: finalPaymentId,
@@ -331,6 +337,17 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     userName: req.user.name,
                     amount: creditAmount,
                     utr: finalPaymentId
+                });
+
+                // Send instant notification
+                const { notifyUser } = require('../../helpers/notifyUser.helper');
+                notifyUser({
+                    userId: req.user._id,
+                    title: 'Wallet Credited 🎉',
+                    message: `₹${creditAmount} has been credited to your Kwickly Wallet. New Balance: ₹${newBalance}`,
+                    action: 'WALLET_CREDIT',
+                    entityType: 'WALLET',
+                    targetRole: req.user.role || 'CUSTOMER'
                 });
             }
 

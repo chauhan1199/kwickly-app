@@ -40,6 +40,9 @@ export const NotificationProvider = ({ children }) => {
           data.title || 'New Notification', 
           data.message || 'You have a new notification.'
         );
+      } else if (event === 'WALLET_UPDATE') {
+        setUnreadCount(prev => prev + 1);
+        refreshUnread();
       }
     }
   });

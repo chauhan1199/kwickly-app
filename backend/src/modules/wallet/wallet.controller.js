@@ -149,9 +149,8 @@ exports.topupWallet = catchAsync(async (req, res) => {
         const txn = await WalletTxn.create({
             userId: req.user._id,
             type: 'TOPUP',
-            amount,
-            balance: currentBalance,
-            balanceAfter: newBalance,
+            amount: Number(amount),
+            balance: Number(newBalance),
             status: 'COMPLETED',
             razorpayPaymentId: utrNumber,
             planId: plan ? planId : undefined,
@@ -201,6 +200,19 @@ exports.topupWallet = catchAsync(async (req, res) => {
             userName: user.name,
             amount,
             planId: plan ? planId : null
+        });
+
+        // Send instant notification
+        const { notifyUser } = require('../../helpers/notifyUser.helper');
+        notifyUser({
+            userId: req.user._id,
+            title: plan ? 'Plan Activated 🎉' : 'Wallet Credited 🎉',
+            message: plan
+                ? `Your subscription "${plan.label || planId}" has been activated successfully!`
+                : `₹${amount} has been credited to your wallet. New Balance: ₹${newBalance}`,
+            action: 'WALLET_CREDIT',
+            entityType: 'WALLET',
+            targetRole: user.role || 'CUSTOMER'
         });
 
         return successResponse(res, {

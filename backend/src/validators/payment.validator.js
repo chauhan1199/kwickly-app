@@ -13,7 +13,8 @@ const createOrderSchema = Joi.object({
 
 // Verify payment schema
 const verifyPaymentSchema = Joi.object({
-  razorpayOrderId: Joi.string().required(),
+  razorpayOrderId: Joi.string().optional().allow('', null),
+  upiOrderId: Joi.string().optional().allow('', null),
   razorpayPaymentId: Joi.string().optional().allow('', null),
   upiTransactionId: Joi.string().optional().allow('', null),
   utrNumber: Joi.string().optional().allow('', null),
@@ -22,6 +23,8 @@ const verifyPaymentSchema = Joi.object({
   paymentType: Joi.string().optional().allow('', null),
   purpose: Joi.string().optional().allow('', null),
   amount: Joi.number().optional().allow(null),
+  isAutoConfirmed: Joi.boolean().optional().allow(null),
+  method: Joi.string().optional().allow('', null),
 }).unknown(true);
 
 // Refund payment schema — matches refundPayment controller contract

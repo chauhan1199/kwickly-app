@@ -16,7 +16,24 @@
 const Notification = require('../modules/notification/notification.model');
 const logger = require('./logger.helper');
 
-const notifyUser = async ({ userId, title, message, action, entityType, entityId, targetRole = 'CUSTOMER' }) => {
+const notifyUser = async (params = {}) => {
+    let {
+        userId,
+        title,
+        message,
+        action,
+        type,
+        entityType,
+        entityId,
+        referenceId,
+        targetRole = 'CUSTOMER'
+    } = params;
+
+    // Harmonize legacy parameter aliases
+    action = action || type || 'WALLET_CREDIT';
+    entityType = entityType || (String(action).startsWith('JOB') ? 'JOB' : String(action).startsWith('ORDER') ? 'ORDER' : 'WALLET');
+    entityId = entityId || referenceId || undefined;
+
     let notification = null;
 
     // ── 1. Persist to Database ────────────────────────────────────────────────
@@ -32,9 +49,20 @@ const notifyUser = async ({ userId, title, message, action, entityType, entityId
             targetRole
         });
     } catch (err) {
-        // Never throw from notification helper — don't break the main flow
-        logger.error('[notifyUser] Failed to create DB notification:', err.message);
-        return;
+        // Fallback with generic entityType if specific enum failed
+        try {
+            notification = await Notification.create({
+                userId,
+                title,
+                message,
+                type: 'DIRECT',
+                action: 'OTHER',
+                entityType: 'OTHER',
+                targetRole
+            });
+        } catch (innerErr) {
+            logger.error('[notifyUser] Failed to create DB notification:', innerErr.message);
+        }
     }
 
     // ── 2. Real-time Socket Push ──────────────────────────────────────────────
@@ -47,6 +75,7 @@ const notifyUser = async ({ userId, title, message, action, entityType, entityId
             action,
             entityType,
             entityId,
+            targetRole,
             createdAt: new Date()
         });
     } catch (err) {
