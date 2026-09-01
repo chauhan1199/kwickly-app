@@ -52,9 +52,14 @@ const buildUpiDeeplink = async ({ amount, internalId, purpose, vpa: customVpa, p
         ? { vpa: customVpa, payeeName: customPayee }
         : await getPlatformUpiConfig();
 
-    const txnRef = `KWIK_${purpose?.toUpperCase() || 'PAY'}_${internalId || Date.now()}`;
-    const note   = `Kwickly_${purpose || 'Payment'}_${internalId || ''}`.replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 50);
-    return `upi://pay?pa=${encodeURIComponent(config.vpa)}&pn=${encodeURIComponent(config.payeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}&tr=${txnRef}`;
+    const cleanVpa = (config.vpa || 'ganshyam.tech-1@oksbi').trim();
+    const cleanPayee = (config.payeeName || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
+    const amtStr = Number(amount).toFixed(2);
+    const idSuffix = String(internalId || Date.now()).slice(-8);
+    const txnRef = `KWIK${idSuffix}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
+    const note = `Kwickly ${purpose || 'Payment'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
+
+    return `upi://pay?pa=${cleanVpa}&pn=${encodeURIComponent(cleanPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent(note)}&tr=${txnRef}`;
 };
 
 /**

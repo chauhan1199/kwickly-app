@@ -185,10 +185,11 @@ const ShopWalletScreen = ({ navigation }) => {
 
   const handlePayViaUpiApp = async () => {
     const amt = parseFloat(topUpAmount) || 100;
-    const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=Kwickly_Admin&am=${amt.toFixed(2)}&cu=INR&tn=Shop_Wallet_Topup`;
+    const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
+    const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=${encodeURIComponent('Kwickly Admin')}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Shop Topup')}&tr=${shortTr}`;
     
     try {
-      const supported = await Linking.canOpenURL(upiUrl);
+      const supported = await Linking.canOpenURL(upiUrl).catch(() => false);
       if (supported) {
         await Linking.openURL(upiUrl);
       } else {
@@ -406,9 +407,10 @@ const ShopWalletScreen = ({ navigation }) => {
   const handlePaySubscriptionUpi = async () => {
     const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
     const amt = planConfig?.priceNum || 0;
-    const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=Kwickly_Admin&am=${amt.toFixed(2)}&cu=INR&tn=Shop_Subscription_${selectedPlan}`;
+    const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
+    const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=${encodeURIComponent('Kwickly Admin')}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Shop Subscription')}&tr=${shortTr}`;
     try {
-      const supported = await Linking.canOpenURL(upiUrl);
+      const supported = await Linking.canOpenURL(upiUrl).catch(() => false);
       if (supported) {
         await Linking.openURL(upiUrl);
       } else {

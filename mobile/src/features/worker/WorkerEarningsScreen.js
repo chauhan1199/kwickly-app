@@ -200,10 +200,12 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
   // Open Direct UPI app (GPay / PhonePe / Paytm / BHIM)
   const handleOpenUpiApp = async (amount, purposeTitle) => {
-    const upiId = adminUpiConfig.upiId || 'ganshyam.tech-1@oksbi';
-    const payee = adminUpiConfig.payeeName || 'Kwickly PVT LTD';
-    const note = `Kwickly_${purposeTitle || 'Payment'}_${Date.now()}`;
-    const upiUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payee)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
+    const cleanUpi = (upiId || 'ganshyam.tech-1@oksbi').trim();
+    const cleanPayee = (payee || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
+    const amtStr = Number(amount).toFixed(2);
+    const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
+    const note = `Kwickly ${purposeTitle || 'Payment'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
+    const upiUrl = `upi://pay?pa=${cleanUpi}&pn=${encodeURIComponent(cleanPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent(note)}&tr=${shortTr}`;
 
     try {
       const supported = await Linking.canOpenURL(upiUrl);

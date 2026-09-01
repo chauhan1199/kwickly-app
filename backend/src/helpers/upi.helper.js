@@ -11,13 +11,14 @@ const logger = require('./logger.helper');
  */
 const generateUpiIntentUri = ({ vpa, payeeName, amount, purpose, orderId, txnId }) => {
     const cleanVpa = (vpa || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi').trim();
-    const cleanPayee = (payeeName || 'Kwickly PVT LTD').trim();
-    const cleanTxnId = txnId || `upi_ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const note = `Kwickly_${purpose || 'Payment'}_${orderId || Date.now()}`.replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 50);
+    const cleanPayee = (payeeName || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
+    const cleanTxnId = (txnId || `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`).replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
+    const note = `Kwickly ${purpose || 'Topup'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
+    const amtStr = Number(amount).toFixed(2);
 
     return {
         txnId: cleanTxnId,
-        uri: `upi://pay?pa=${encodeURIComponent(cleanVpa)}&pn=${encodeURIComponent(cleanPayee)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}&tr=${cleanTxnId}`
+        uri: `upi://pay?pa=${cleanVpa}&pn=${encodeURIComponent(cleanPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent(note)}&tr=${cleanTxnId}`
     };
 };
 

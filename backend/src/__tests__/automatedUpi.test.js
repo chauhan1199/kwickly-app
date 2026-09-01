@@ -27,7 +27,8 @@ describe('Automated P2P UPI Hook-Verification System', () => {
             expect(link).toContain('upi://pay');
             expect(link).toContain('am=250');
             expect(link).toContain('cu=INR');
-            expect(link).toContain('KWIK_WALLET_TOPUP_66a1234567890abcdef12345');
+            expect(link).toContain('pa=');
+            expect(link).toContain('tr=KWIK');
         });
 
         test('gracefully falls back to deeplink mode when no provider key is configured', async () => {

@@ -327,27 +327,31 @@ const CartScreen = ({ route, navigation }) => {
           paymentMethod: 'UPI'
         });
         const payData = payRes?.data?.data || {};
-        const platformUpi = payData.upiVpa || 'ganshyam.tech-1@oksbi';
-        const platformPayee = payData.payeeName || 'Kwickly PVT LTD';
+        const platformUpi = (payData.upiVpa || 'ganshyam.tech-1@oksbi').trim();
+        const platformPayee = (payData.payeeName || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
         const orderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
+        const amtStr = Number(total).toFixed(2);
+        const shortTr = `KWIK${String(order._id || Date.now()).slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
         setUpiOrderData({
           razorpayOrderId: orderId,
           upiOrderId: orderId,
           upiVpa: platformUpi,
           payeeName: platformPayee,
-          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${encodeURIComponent(platformUpi)}&pn=${encodeURIComponent(platformPayee)}&am=${total}&cu=INR&tn=Order_${order.orderNumber || order._id}&tr=KWIK_ORDER_${order._id}`,
+          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${platformUpi}&pn=${encodeURIComponent(platformPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Order Payment')}&tr=${shortTr}`,
           amount: total
         });
         setShowUpiModal(true);
       } catch (payErr) {
         // Fallback UPI payload
         const fallbackId = `upi_${Date.now()}`;
+        const amtStr = Number(total).toFixed(2);
+        const shortTr = `KWIK${String(order._id || Date.now()).slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
         setUpiOrderData({
           razorpayOrderId: fallbackId,
           upiOrderId: fallbackId,
           upiVpa: 'ganshyam.tech-1@oksbi',
           payeeName: 'Kwickly PVT LTD',
-          upiIntentUri: `upi://pay?pa=ganshyam.tech-1%40oksbi&pn=Kwickly%20PVT%20LTD&am=${total}&cu=INR&tn=Order_${order.orderNumber || order._id}&tr=KWIK_ORDER_${order._id}`,
+          upiIntentUri: `upi://pay?pa=ganshyam.tech-1@oksbi&pn=${encodeURIComponent('Kwickly PVT LTD')}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Order Payment')}&tr=${shortTr}`,
           amount: total
         });
         setShowUpiModal(true);

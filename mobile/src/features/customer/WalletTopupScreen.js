@@ -46,9 +46,11 @@ const WalletTopupScreen = ({ navigation }) => {
         });
 
         const payData = payRes?.data?.data || {};
-        const platformUpi = payData.upiVpa || 'ganshyam.tech-1@oksbi';
-        const platformPayee = payData.payeeName || 'Kwickly PVT LTD';
+        const platformUpi = (payData.upiVpa || 'ganshyam.tech-1@oksbi').trim();
+        const platformPayee = (payData.payeeName || 'Kwickly PVT LTD').trim().replace(/\s+/g, ' ');
         const orderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
+        const amtStr = Number(topupAmount).toFixed(2);
+        const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
 
         orderPayload = {
           razorpayOrderId: orderId,
@@ -61,12 +63,14 @@ const WalletTopupScreen = ({ navigation }) => {
             ifscCode: 'SBIN0001234',
             bankName: 'SBI'
           },
-          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${encodeURIComponent(platformUpi)}&pn=${encodeURIComponent(platformPayee)}&am=${topupAmount}&cu=INR&tn=Kwickly_wallet_topup_${orderId}&tr=KWIK_TOPUP_${orderId}`,
+          upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${platformUpi}&pn=${encodeURIComponent(platformPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Kwickly Topup')}&tr=${shortTr}`,
           amount: topupAmount
         };
       } catch (apiErr) {
         console.warn('[Wallet] Backend create-order fallback:', apiErr);
         const fallbackId = `upi_${Date.now()}`;
+        const amtStr = Number(topupAmount).toFixed(2);
+        const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
         orderPayload = {
           razorpayOrderId: fallbackId,
           upiOrderId: fallbackId,
@@ -78,7 +82,7 @@ const WalletTopupScreen = ({ navigation }) => {
             ifscCode: 'SBIN0001234',
             bankName: 'SBI'
           },
-          upiIntentUri: `upi://pay?pa=ganshyam.tech-1%40oksbi&pn=Kwickly%20PVT%20LTD&am=${topupAmount}&cu=INR&tn=Kwickly_wallet_topup_${fallbackId}&tr=KWIK_TOPUP_${fallbackId}`,
+          upiIntentUri: `upi://pay?pa=ganshyam.tech-1@oksbi&pn=${encodeURIComponent('Kwickly PVT LTD')}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Kwickly Topup')}&tr=${shortTr}`,
           amount: topupAmount
         };
       }
