@@ -5,22 +5,22 @@ import android.content.Intent
 import android.net.Uri
 import com.facebook.react.bridge.*
 
-class NativeUpiPaymentModule(reactContext: ReactApplicationContext) :
-    ReactContextBaseJavaModule(reactContext), ActivityEventListener {
+class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
+    ReactContextBaseJavaModule(reactCtx), ActivityEventListener {
 
     private var pendingPromise: Promise? = null
     private val UPI_PAYMENT_REQUEST_CODE = 4852
 
     init {
-        reactContext.addActivityEventListener(this)
+        reactCtx.addActivityEventListener(this)
     }
 
     override fun getName(): String = "NativeUpiPayment"
 
     @ReactMethod
     fun startPayment(params: ReadableMap, promise: Promise) {
-        val currentActivity = currentActivity
-        if (currentActivity == null) {
+        val activity = reactCtx.currentActivity
+        if (activity == null) {
             promise.reject("ACTIVITY_NULL", "Current Activity is null")
             return
         }
@@ -56,17 +56,17 @@ class NativeUpiPaymentModule(reactContext: ReactApplicationContext) :
                 intent.setPackage(appPackage)
             }
 
-            if (intent.resolveActivity(currentActivity.packageManager) == null) {
-                // If specific app not found, try fallback to any UPI handler
+            if (intent.resolveActivity(activity.packageManager) == null) {
+                // Fallback to generic chooser if specific app not found
                 intent.setPackage(null)
-                if (intent.resolveActivity(currentActivity.packageManager) == null) {
+                if (intent.resolveActivity(activity.packageManager) == null) {
                     promise.reject("NO_UPI_APP", "No supported UPI app found on this device")
                     return
                 }
             }
 
             pendingPromise = promise
-            currentActivity.startActivityForResult(intent, UPI_PAYMENT_REQUEST_CODE)
+            activity.startActivityForResult(intent, UPI_PAYMENT_REQUEST_CODE)
         } catch (e: Exception) {
             pendingPromise = null
             promise.reject("INTENT_ERROR", e.message, e)
@@ -74,7 +74,7 @@ class NativeUpiPaymentModule(reactContext: ReactApplicationContext) :
     }
 
     override fun onActivityResult(
-        activity: Activity?,
+        activity: Activity,
         requestCode: Int,
         resultCode: Int,
         data: Intent?
@@ -138,7 +138,7 @@ class NativeUpiPaymentModule(reactContext: ReactApplicationContext) :
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {}
+    override fun onNewIntent(intent: Intent) {}
 
     private fun parseUpiResponse(response: String): Map<String, String> {
         val map = mutableMapOf<String, String>()
