@@ -6,6 +6,11 @@ const { getCache, setCache, delCache, fetchWithCache } = require('../../helpers/
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 const Notification = require('../notification/notification.model');
+const {
+    DEFAULT_TERMS_OF_SERVICE,
+    DEFAULT_PRIVACY_POLICY,
+    DEFAULT_FAQS
+} = require('../../constants/legal');
 
 const CACHE_KEY = 'app_settings';
 
@@ -84,8 +89,9 @@ const flattenSettings = (s) => ({
     semiPlan: s.subscriptionPlans?.find(p => p.id === 'semi')?.price || 2499,
     annualPlan: s.subscriptionPlans?.find(p => p.id === 'worker_annual' || p.id === 'annual')?.price || 4499,
     subscriptionPlans: (s.subscriptionPlans && s.subscriptionPlans.length > 0) ? s.subscriptionPlans : DEFAULT_SUBSCRIPTION_PLANS,
-    termsOfService: s.legal?.termsOfService || '',
-    privacyPolicy: s.legal?.privacyPolicy || '',
+    termsOfService: s.legal?.termsOfService || DEFAULT_TERMS_OF_SERVICE,
+    privacyPolicy: s.legal?.privacyPolicy || DEFAULT_PRIVACY_POLICY,
+    faqs: (s.faqs && s.faqs.length > 0) ? s.faqs : DEFAULT_FAQS,
     ...s.toObject() // Keep original nested for fallback
 });
 
@@ -183,8 +189,9 @@ exports.getPublicSettings = catchAsync(async (req, res) => {
         maxRadius: settings.radius?.maxKm || 25,
         searchRadius: settings.radius?.maxKm || 25,
         freeTrialDays: settings.subscription?.freeTrialDays || 14,
-        termsOfService: settings.legal?.termsOfService || '',
-        privacyPolicy: settings.legal?.privacyPolicy || ''
+        termsOfService: settings.legal?.termsOfService || DEFAULT_TERMS_OF_SERVICE,
+        privacyPolicy: settings.legal?.privacyPolicy || DEFAULT_PRIVACY_POLICY,
+        faqs: (settings.faqs && settings.faqs.length > 0) ? settings.faqs : DEFAULT_FAQS
     };
 
     await setCache('public_settings', publicSettings, 86400);
@@ -216,6 +223,9 @@ exports.updateSettings = catchAsync(async (req, res) => {
     // Explicitly pass through complex arrays that shouldn't be flattened
     if (req.body.subscriptionPlans) {
         updatePaths.subscriptionPlans = req.body.subscriptionPlans;
+    }
+    if (req.body.faqs) {
+        updatePaths.faqs = req.body.faqs;
     }
     
     const settings = await AppSettings.findOneAndUpdate(

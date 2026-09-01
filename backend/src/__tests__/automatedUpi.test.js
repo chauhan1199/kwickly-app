@@ -17,8 +17,8 @@ const {
 
 describe('Automated P2P UPI Hook-Verification System', () => {
     describe('UPI Provider Service', () => {
-        test('builds valid NPCI UPI deeplink', () => {
-            const link = buildUpiDeeplink({
+        test('builds valid NPCI UPI deeplink', async () => {
+            const link = await buildUpiDeeplink({
                 amount: 250,
                 internalId: '66a1234567890abcdef12345',
                 purpose: 'wallet_topup'

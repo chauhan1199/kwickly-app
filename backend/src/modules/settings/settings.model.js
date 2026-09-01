@@ -71,6 +71,12 @@ const AppSettingsSchema = new mongoose.Schema({
         termsOfService: { type: String, default: '' },
         privacyPolicy: { type: String, default: '' }
     },
+    faqs: [{
+        question: { type: String, required: true },
+        answer: { type: String, required: true },
+        targetRole: { type: String, enum: ['ALL', 'CUSTOMER', 'WORKER', 'SHOP'], default: 'ALL' },
+        order: { type: Number, default: 0 }
+    }],
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' }
 }, { timestamps: true });
 

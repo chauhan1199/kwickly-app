@@ -545,33 +545,219 @@ export default function Settings() {
         {/* LEGAL & POLICIES */}
         {activeTab === 'legal' && (
           <div>
-            <div className="settings-section-title">Legal & Policies</div>
-            <div className="alert alert-info" style={{ marginBottom: 16 }}>
-              ℹ️ These documents are shown to users during registration.
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div className="settings-section-title" style={{ marginBottom: 0 }}>📜 Legal, Policies & FAQs</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  className="btn btn-outline"
+                  style={{ fontSize: 12, padding: '6px 12px' }}
+                  onClick={() => {
+                    const defaultTos = `Welcome to Kwickly. By downloading, accessing, or using the Kwickly platform ("App", "Website", or "Services"), you agree to be bound by these Terms and Conditions ("Terms").\n\n1. PLATFORM OVERVIEW\nKwickly is a technology aggregator platform connecting customers with independent service professionals ("Workers") and local retail merchants ("Shops").\n\n2. USER ACCOUNTS & VERIFICATION\n• Users must provide accurate mobile numbers and verify via OTP.\n• Workers and Shops must complete mandatory KYC verification.\n\n3. SERVICE BOOKINGS & PRICING\n• Workers submit quotes based on customer job descriptions.\n• Service jobs utilize an Arrival OTP and Completion OTP to guarantee work completion.\n• Platform convenience fees and applicable GST apply on completed jobs.\n\n4. SHOP ORDERS & FAST DELIVERY\n• Customers can browse local stores, place orders, and verify Delivery OTP.\n• Unconfirmed orders auto-cancel after 30 mins with 100% wallet refund.\n\n5. PAYMENTS, DIRECT UPI & WALLET\n• Payments supported via Kwickly Wallet, 1-Click NPCI Direct UPI, or Cash.\n• 0% MDR Direct UPI transfers directly with zero gateway processing markups.\n\n6. CANCELLATION & REFUNDS\n• Cancelled prepaid orders are refunded instantly to your Kwickly Wallet.\n• Workers and Shops can request payouts to their verified Bank/UPI accounts.\n\n7. CONTACT & GRIEVANCE\nContact Kwickly Support at support@kwickly.com.`;
+                    setSettings(prev => ({ ...prev, termsOfService: defaultTos }));
+                    set('termsOfService', defaultTos);
+                    showToast('Standard Terms of Service template loaded and saved!');
+                  }}
+                >
+                  📋 Reset Default T&C
+                </button>
+                <button
+                  className="btn btn-outline"
+                  style={{ fontSize: 12, padding: '6px 12px' }}
+                  onClick={() => {
+                    const defaultPp = `Kwickly ("we", "our", or "us") values your trust and is committed to protecting your personal information.\n\n1. INFORMATION WE COLLECT\n• Account Data: Name, phone number, profile image, email.\n• Location Data: Background and foreground GPS location for matching and live order tracking.\n• KYC Documents: Government identity cards for background verification.\n• Transaction Data: Transaction IDs, order history, and wallet records (no bank passwords stored).\n\n2. HOW WE USE YOUR INFORMATION\n• To match customers with nearby service workers and shops.\n• To calculate ETAs, routes, and process cryptographically verified UPI payments.\n• To prevent fraud and send essential job/order notifications.\n\n3. DATA SECURITY & RETENTION\nAll data in transit is protected using TLS encryption. Passwords and MPINs are hashed using bcrypt.\n\n4. CONTACT & GRIEVANCE\nContact our Grievance Officer at grievance@kwickly.com.`;
+                    setSettings(prev => ({ ...prev, privacyPolicy: defaultPp }));
+                    set('privacyPolicy', defaultPp);
+                    showToast('Standard Privacy Policy template loaded and saved!');
+                  }}
+                >
+                  📋 Reset Default Privacy
+                </button>
+              </div>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Terms of Service</label>
+            <div className="alert alert-info" style={{ marginBottom: 20 }}>
+              ℹ️ These legal documents and FAQs are dynamically delivered to the mobile app and displayed in the Registration, T&C / Privacy, and Help & Support screens.
+            </div>
+
+            {/* Terms of Service */}
+            <div className="card" style={{ padding: 20, marginBottom: 24, background: 'var(--surface-card, #1e293b)', borderRadius: 16, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <label className="form-label" style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Terms of Service</label>
+                <button 
+                  className="btn btn-primary" 
+                  style={{ fontSize: 12, padding: '6px 16px' }}
+                  onClick={() => save('termsOfService', settings.termsOfService)}
+                >
+                  💾 Save T&C
+                </button>
+              </div>
               <textarea 
                 className="form-control" 
                 value={settings.termsOfService || ''} 
-                onChange={e => setSettings({...settings, termsOfService: e.target.value})} 
-                onBlur={e => set('termsOfService', e.target.value)}
+                onChange={e => setLocal('termsOfService', e.target.value)} 
+                onBlur={e => save('termsOfService', e.target.value)}
                 placeholder="Enter Terms of Service here..."
-                rows={10}
+                rows={9}
+                style={{ width: '100%', fontFamily: 'inherit', lineHeight: 1.5 }}
               />
             </div>
 
-            <div className="form-group" style={{ marginTop: 24 }}>
-              <label className="form-label">Privacy Policy</label>
+            {/* Privacy Policy */}
+            <div className="card" style={{ padding: 20, marginBottom: 28, background: 'var(--surface-card, #1e293b)', borderRadius: 16, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <label className="form-label" style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Privacy Policy</label>
+                <button 
+                  className="btn btn-primary" 
+                  style={{ fontSize: 12, padding: '6px 16px' }}
+                  onClick={() => save('privacyPolicy', settings.privacyPolicy)}
+                >
+                  💾 Save Privacy Policy
+                </button>
+              </div>
               <textarea 
                 className="form-control" 
                 value={settings.privacyPolicy || ''} 
-                onChange={e => setSettings({...settings, privacyPolicy: e.target.value})} 
-                onBlur={e => set('privacyPolicy', e.target.value)}
+                onChange={e => setLocal('privacyPolicy', e.target.value)} 
+                onBlur={e => save('privacyPolicy', e.target.value)}
                 placeholder="Enter Privacy Policy here..."
-                rows={10}
+                rows={9}
+                style={{ width: '100%', fontFamily: 'inherit', lineHeight: 1.5 }}
               />
+            </div>
+
+            {/* Dynamic FAQs Section */}
+            <div className="card" style={{ padding: 20, background: 'var(--surface-card, #1e293b)', borderRadius: 16, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main, #fff)' }}>❓ Frequently Asked Questions (FAQ)</div>
+                  <div style={{ fontSize: 12, color: 'var(--mid, #94a3b8)', marginTop: 2 }}>Manage dynamic questions and answers shown in the mobile Help & Support screen.</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-outline"
+                    style={{ fontSize: 12, padding: '6px 12px' }}
+                    onClick={() => {
+                      const defaultFaqs = [
+                        { question: 'How do I book a service worker?', answer: 'Tap "Book" on the home screen, select your service category, describe your requirements, and post the job. Nearby verified workers will submit quotes within minutes.', targetRole: 'CUSTOMER', order: 1 },
+                        { question: 'How do I pay for my shop order or service?', answer: 'You can pay instantly using your Kwickly Wallet, 1-Click Direct UPI (Google Pay, PhonePe, Paytm, BHIM), or Cash upon completion.', targetRole: 'CUSTOMER', order: 2 },
+                        { question: 'How do refunds work for cancelled orders?', answer: 'If an order is cancelled, 100% of the amount is refunded immediately to your Kwickly Wallet balance.', targetRole: 'CUSTOMER', order: 3 },
+                        { question: 'What is the Security / Completion OTP?', answer: 'When a worker completes your job, share the 4-digit Completion OTP shown on your screen to authorize job completion.', targetRole: 'CUSTOMER', order: 4 },
+                        { question: 'How do I receive customer job alerts?', answer: 'Ensure your KYC is approved, your subscription is active, GPS is enabled, and your toggle is Online.', targetRole: 'WORKER', order: 5 },
+                        { question: 'How do I withdraw my earnings?', answer: 'Go to the Earnings screen, tap "Withdraw", enter the amount, and choose your verified Bank Account or UPI ID.', targetRole: 'WORKER', order: 6 },
+                        { question: 'How do shop orders and settlements work?', answer: 'Receive real-time order alerts, pack and deliver items. Delivered orders are credited to your Shop Wallet and settled per schedule.', targetRole: 'SHOP', order: 7 }
+                      ];
+                      setSettings(prev => ({ ...prev, faqs: defaultFaqs }));
+                      save('faqs', defaultFaqs);
+                      showToast('Default FAQs restored and saved!');
+                    }}
+                  >
+                    🔄 Reset Default FAQs
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    style={{ fontSize: 12, padding: '6px 14px' }}
+                    onClick={() => {
+                      const currentFaqs = Array.isArray(settings.faqs) ? [...settings.faqs] : [];
+                      const newFaq = {
+                        question: 'New Question?',
+                        answer: 'Provide a helpful answer here...',
+                        targetRole: 'CUSTOMER',
+                        order: currentFaqs.length + 1
+                      };
+                      const updated = [newFaq, ...currentFaqs];
+                      setSettings(prev => ({ ...prev, faqs: updated }));
+                      save('faqs', updated);
+                      showToast('New FAQ added! You can edit its text below.');
+                    }}
+                  >
+                    ➕ Add FAQ
+                  </button>
+                </div>
+              </div>
+
+              {(!settings.faqs || settings.faqs.length === 0) ? (
+                <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--mid)' }}>
+                  No custom FAQs configured yet. Click "Reset Default FAQs" to load standard FAQs.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {settings.faqs.map((faq, idx) => (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        padding: 16, 
+                        background: 'rgba(255,255,255,0.03)', 
+                        borderRadius: 12, 
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary, #6366f1)', minWidth: 24 }}>#{idx + 1}</span>
+                          <input
+                            type="text"
+                            className="form-control"
+                            style={{ flex: 1, fontWeight: 700 }}
+                            value={faq.question || ''}
+                            placeholder="Question..."
+                            onChange={e => {
+                              const updated = [...settings.faqs];
+                              updated[idx] = { ...updated[idx], question: e.target.value };
+                              setLocal('faqs', updated);
+                            }}
+                            onBlur={() => save('faqs', settings.faqs)}
+                          />
+                        </div>
+                        <select
+                          className="form-control"
+                          style={{ width: 130, fontSize: 12 }}
+                          value={faq.targetRole || 'CUSTOMER'}
+                          onChange={e => {
+                            const updated = [...settings.faqs];
+                            updated[idx] = { ...updated[idx], targetRole: e.target.value };
+                            setSettings(prev => ({ ...prev, faqs: updated }));
+                            save('faqs', updated);
+                          }}
+                        >
+                          <option value="CUSTOMER">👥 Customer</option>
+                          <option value="WORKER">🛠️ Worker</option>
+                          <option value="SHOP">🏪 Shop</option>
+                          <option value="ALL">🌐 All Users</option>
+                        </select>
+                        <button
+                          className="btn btn-outline"
+                          style={{ color: '#ef4444', borderColor: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                          title="Delete FAQ"
+                          onClick={() => {
+                            const updated = settings.faqs.filter((_, i) => i !== idx);
+                            setSettings(prev => ({ ...prev, faqs: updated }));
+                            save('faqs', updated);
+                            showToast('FAQ deleted');
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      <textarea
+                        className="form-control"
+                        rows={2}
+                        placeholder="Answer..."
+                        value={faq.answer || ''}
+                        onChange={e => {
+                          const updated = [...settings.faqs];
+                          updated[idx] = { ...updated[idx], answer: e.target.value };
+                          setLocal('faqs', updated);
+                        }}
+                        onBlur={() => save('faqs', settings.faqs)}
+                        style={{ fontSize: 13, color: 'var(--mid, #cbd5e1)' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

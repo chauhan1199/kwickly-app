@@ -76,10 +76,12 @@ exports.createOrder = catchAsync(async (req, res) => {
     const platformVpa = adminWallet?.upiId || process.env.PLATFORM_UPI_ID || 'ganshyam.tech-1@oksbi';
     const payeeName   = adminWallet?.bankDetails?.accountHolder || 'Kwickly PVT LTD';
 
+    const validOrderId = (orderId && mongoose.isValidObjectId(orderId)) ? orderId : undefined;
+
     // Create a Payment record first so we have a real MongoDB _id to embed
     // as the webhook back-reference (internalId in provider metadata).
     const payment = await Payment.create({
-        orderId:  orderId || null,
+        orderId:  validOrderId,
         amount,
         userId:   req.user._id,
         status:   'CREATED',
@@ -87,8 +89,8 @@ exports.createOrder = catchAsync(async (req, res) => {
         metadata: {
             notes: {
                 userId:  req.user._id.toString(),
-                purpose: purpose || 'order_payment',
-                orderId: orderId || null
+                purpose: purpose || 'wallet_topup',
+                orderId: validOrderId ? String(validOrderId) : null
             },
             isUpiDirect: true,
             payeeName,
@@ -96,18 +98,23 @@ exports.createOrder = catchAsync(async (req, res) => {
         }
     });
 
+    payment.razorpayOrderId = payment._id.toString();
+
     // Register with provider (falls back to plain deeplink if not configured)
     const { gatewayOrderId, upiIntentUri } = await registerPaymentIntent({
         amount,
         internalId: payment._id,
-        purpose:    purpose || 'order_payment',
+        purpose:    purpose || 'wallet_topup',
         userId:     req.user._id
     });
 
     // Persist gateway session ref and deeplink on the payment record
     payment.gatewayOrderId = gatewayOrderId;
-    payment.metadata.upiIntentUri = upiIntentUri;
-    payment.metadata.gatewayOrderId = gatewayOrderId;
+    if (payment.metadata) {
+        payment.metadata.upiIntentUri = upiIntentUri;
+        payment.metadata.gatewayOrderId = gatewayOrderId;
+        payment.markModified('metadata');
+    }
     await payment.save();
 
     return successResponse(res, {
