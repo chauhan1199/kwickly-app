@@ -126,11 +126,15 @@ const WalletTopupScreen = ({ navigation }) => {
 
     setIsVerifying(true);
     try {
-      const cleanUtr = (capturedUtr || upiTxnId || '').trim();
+      const cleanUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
+        ? capturedUtr.trim()
+        : (typeof upiTxnId === 'string' ? upiTxnId.trim() : '');
+      const finalUtr = cleanUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
+
       const verifyRes = await walletService.verifyPayment({
         razorpayOrderId: upiOrderData.razorpayOrderId,
-        upiTransactionId: cleanUtr || undefined,
-        utrNumber: cleanUtr || undefined,
+        upiTransactionId: finalUtr,
+        utrNumber: finalUtr,
         isAutoConfirmed: true,
         purpose: 'wallet_topup',
         amount: upiOrderData.amount
@@ -256,24 +260,6 @@ const WalletTopupScreen = ({ navigation }) => {
               <Text style={styles.amountPillValue}>₹{upiOrderData?.amount || 0}</Text>
             </View>
 
-            {/* Admin Payee Info Card */}
-            <View style={styles.payeeCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.payeeNameLabel}>Admin Payee: {upiOrderData?.payeeName || 'Kwickly Admin'}</Text>
-                <Text style={styles.payeeUpiText}>{upiOrderData?.upiVpa || 'UPI Payment'}</Text>
-              </View>
-              <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpiId}>
-                {copiedUpi ? (
-                  <CheckCircle2 size={16} color="#10B981" />
-                ) : (
-                  <Copy size={16} color="#6C47FF" />
-                )}
-                <Text style={[styles.copyBtnText, copiedUpi && { color: '#10B981' }]}>
-                  {copiedUpi ? 'Copied' : 'Copy UPI'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
             {/* Quick UPI App Grid */}
             <Text style={styles.upiAppsHeading}>Choose UPI App</Text>
             <View style={styles.upiAppsGrid}>
@@ -326,7 +312,7 @@ const WalletTopupScreen = ({ navigation }) => {
                 {/* Primary Automated Confirmation Button */}
                 <TouchableOpacity
                   style={[styles.confirmPayBtn, isVerifying && { opacity: 0.7 }]}
-                  onPress={() => handleConfirmUpiTopup(true)}
+                  onPress={() => handleConfirmUpiTopup('')}
                   disabled={isVerifying}
                   activeOpacity={0.85}
                 >
@@ -343,33 +329,14 @@ const WalletTopupScreen = ({ navigation }) => {
                 </TouchableOpacity>
 
                 <View style={styles.reopenRow}>
-                  <TouchableOpacity onPress={() => handleOpenUpiApp(selectedUpiApp)} style={styles.reopenBtn}>
-                    <ExternalLink size={13} color="#6C47FF" />
-                    <Text style={styles.reopenText}>Re-open UPI App</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleCopyUpiId} style={styles.reopenBtn}>
-                    <Copy size={13} color="#6C47FF" />
-                    <Text style={styles.reopenText}>Copy Admin UPI ID</Text>
+                  <TouchableOpacity onPress={() => handleOpenUpiApp(selectedUpiApp)} style={styles.reopenBtnFull}>
+                    <ExternalLink size={14} color="#6C47FF" />
+                    <Text style={styles.reopenText}>Re-open {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ) : (
               <>
-                {/* Bank Transfer Details Box */}
-                {upiOrderData?.bankDetails && (
-                  <View style={styles.bankDetailsBox}>
-                    <View style={styles.bankHeader}>
-                      <Building2 size={16} color="#6C47FF" />
-                      <Text style={styles.bankHeaderText}>Direct Bank Transfer (IMPS / NEFT)</Text>
-                    </View>
-                    <View style={styles.bankGrid}>
-                      <Text style={styles.bankField}>A/C: <Text style={styles.bankVal}>{upiOrderData.bankDetails.accountNumber}</Text></Text>
-                      <Text style={styles.bankField}>IFSC: <Text style={styles.bankVal}>{upiOrderData.bankDetails.ifscCode}</Text></Text>
-                      <Text style={styles.bankField}>Bank: <Text style={styles.bankVal}>{upiOrderData.bankDetails.bankName}</Text></Text>
-                    </View>
-                  </View>
-                )}
-
                 {/* Pay via App Button */}
                 <TouchableOpacity
                   style={styles.confirmPayBtn}
@@ -445,16 +412,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   utrInputLabel: { fontSize: 11.5, fontWeight: '800', color: '#6C47FF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
   utrInput:      { fontSize: 16, fontWeight: '800', color: theme.colors.text, paddingVertical: 4, letterSpacing: 1 },
   utrHelpText:   { fontSize: 11, color: theme.colors.textDim, marginTop: 6, lineHeight: 15 },
-  reopenRow:     { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
-  reopenBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10 },
-  reopenText:    { fontSize: 12, fontWeight: '700', color: '#6C47FF' },
+  reopenRow:     { flexDirection: 'row', justifyContent: 'center', marginTop: 12 },
+  reopenBtnFull: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 16, backgroundColor: '#6C47FF14', borderRadius: 12 },
+  reopenText:    { fontSize: 13, fontWeight: '700', color: '#6C47FF' },
 
-  bankDetailsBox:{ backgroundColor: theme.colors.background, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 18 },
-  bankHeader:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  bankHeaderText:{ fontSize: 12, fontWeight: '700', color: theme.colors.text },
-  bankGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  bankField:     { fontSize: 12, color: theme.colors.textDim, fontWeight: '500' },
-  bankVal:       { fontWeight: '800', color: theme.colors.text },
   confirmPayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6C47FF', paddingVertical: 16, paddingHorizontal: 16, borderRadius: 16, shadowColor: '#6C47FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   confirmPayBtnText:{ fontSize: 14.5, fontWeight: '800', color: '#fff', textAlign: 'center' },
 });

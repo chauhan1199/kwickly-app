@@ -265,7 +265,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
   // Submit UPI Verification
   const handleVerifyUpiPayment = async (capturedUtr = '') => {
-    const rawUtr = (capturedUtr || upiUtrNumber || '').trim();
+    const rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
+      ? capturedUtr.trim()
+      : (typeof upiUtrNumber === 'string' ? upiUtrNumber.trim() : '');
     const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     try {

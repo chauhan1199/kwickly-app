@@ -252,7 +252,9 @@ const ShopWalletScreen = ({ navigation }) => {
   };
 
   const handleVerifyUpiPayment = async (capturedUtr = '') => {
-    const rawUtr = (capturedUtr || upiTxnId || '').trim();
+    const rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
+      ? capturedUtr.trim()
+      : (typeof upiTxnId === 'string' ? upiTxnId.trim() : '');
     const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     setSubmittingAction(true);
