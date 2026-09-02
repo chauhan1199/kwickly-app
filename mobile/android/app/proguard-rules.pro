@@ -2,23 +2,42 @@
 -keep class com.facebook.react.** { *; }
 -keep class com.facebook.hermes.** { *; }
 -keep class com.facebook.jni.** { *; }
+-keep class com.facebook.fbreact.** { *; }
+-keep class com.facebook.react.turbomodule.** { *; }
+
 -keepclassmembers class * {
     @com.facebook.react.uimanager.annotations.ReactProp <methods>;
     @com.facebook.react.uimanager.annotations.ReactPropGroup <methods>;
 }
 
-# Keep native modules & TurboModules
+# Keep native modules & TurboModules & App Code
 -keep class * extends com.facebook.react.bridge.NativeModule { *; }
 -keep class * extends com.facebook.react.bridge.JavaScriptModule { *; }
+-keep class * extends com.facebook.react.bridge.ReactContextBaseJavaModule { *; }
+-keep class com.kwicklymobile.** { *; }
 
-# React Native Maps
+# React Native Community & Third Party Packages
 -keep class com.airbnb.android.react.maps.** { *; }
-
-# React Native SVG & Screens
+-keep class com.google.android.gms.maps.** { *; }
+-keep class com.google.android.gms.location.** { *; }
 -keep class com.horcrux.svg.** { *; }
 -keep class com.swmansion.rnscreens.** { *; }
 -keep class com.swmansion.gesturehandler.** { *; }
+-keep class com.BV.LinearGradient.** { *; }
+-keep class com.imagepicker.** { *; }
+-keep class com.reactnativecommunity.webview.** { *; }
+-keep class com.reactnativecommunity.asyncstorage.** { *; }
+-keep class com.reactnativecommunity.clipboard.** { *; }
+-keep class com.reactnativecommunity.geolocation.** { *; }
+-keep class com.reactnativecommunity.netinfo.** { *; }
 
 # Network & WebSockets
 -dontwarn okio.**
 -dontwarn okhttp3.**
+-dontwarn javax.annotation.**
+-dontwarn org.conscrypt.**
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+
+# Kotlin
+-dontwarn kotlin.**
+-dontwarn kotlinx.**
