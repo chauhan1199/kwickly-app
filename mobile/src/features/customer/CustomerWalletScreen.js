@@ -10,7 +10,8 @@ import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Build
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import CustomAlert from '../../components/ui/CustomAlert';
-import { GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon } from '../../components/ui/UpiBrandIcons';
+import { GooglePayIcon, PhonePeIcon, PaytmIcon, CredIcon, BhimIcon, AnyUpiIcon } from '../../components/ui/UpiBrandIcons';
+import { shareOfficialReceipt } from '../../utils/receiptGenerator';
 
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useFocusEffect } from '@react-navigation/native';
@@ -192,16 +193,26 @@ const CustomerWalletScreen = ({ navigation }) => {
         // Auto-captured real UTR from Google Pay / PhonePe!
         await handleConfirmUpiTopup(result.approvalRefNo || result.txnId);
       } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
+        const appTitle = appKey === 'gpay' ? 'Google Pay' : appKey === 'phonepe' ? 'PhonePe' : appKey === 'paytm' ? 'Paytm' : appKey === 'cred' ? 'CRED' : appKey === 'bhim' ? 'BHIM' : 'UPI App';
         showAlert({
           title: 'Payment Cancelled',
-          message: 'Payment was cancelled in the UPI app. No money was debited or added to your wallet.',
-          type: 'info',
-          confirmText: 'OK'
+          message: `The transaction was cancelled in ${appTitle}. No money was deducted from your bank account.`,
+          type: 'cancelled',
+          confirmText: 'Try Again',
+          showCancel: true,
+          cancelText: 'Close',
+          onConfirm: () => {
+            setAlertConfig(prev => ({ ...prev, visible: false }));
+            handleOpenUpiApp(appKey);
+          },
+          onCancel: () => {
+            setAlertConfig(prev => ({ ...prev, visible: false }));
+          }
         });
       }
     } catch (err) {
       showAlert({
-        title: 'UPI App',
+        title: 'UPI App Error',
         message: err.message || 'Could not open UPI app. Please try again.',
         type: 'error',
         confirmText: 'OK'
@@ -267,52 +278,21 @@ const CustomerWalletScreen = ({ navigation }) => {
 
   const handleDownloadReceipt = async (txn) => {
     if (!txn) return;
-    const isCr = isCredit(txn);
-    const dateStr = new Date(txn.createdAt || txn.txnDate).toLocaleString('en-IN', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    });
-    const receiptId = `KWIK-RCPT-${(txn._id || '').slice(-8).toUpperCase()}`;
-    const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || 'N/A';
-
-    const receiptMessage = `
-========================================
-       KWICKLY OFFICIAL PAYMENT RECEIPT
-========================================
-Receipt ID    : ${receiptId}
-Date & Time   : ${dateStr}
-Status        : ${txn.status || 'COMPLETED'}
-----------------------------------------
-Payer Details:
-Name          : ${user?.name || 'Customer'}
-Phone         : ${user?.phone || 'Registered User'}
-----------------------------------------
-Transaction Details:
-Description   : ${txn.description || 'Wallet Transaction'}
-Type          : ${txn.type || 'TOPUP'}
-Payment Mode  : UPI / Direct Bank Transfer
-Reference/UTR : ${refId}
-----------------------------------------
-Amount Paid   : ${isCr ? '+' : '-'}₹${txn.amount}
-Wallet Balance: ₹${txn.balance || txn.balanceAfter || balance || 0}
-========================================
-Thank you for using Kwickly!
-Support: support@kwickly.in
-Website: https://kwickly-app.vercel.app
-========================================
-`.trim();
-
     try {
-      await Share.share({
-        title: `Kwickly Receipt - ${receiptId}`,
-        message: receiptMessage,
-      });
+      const res = await shareOfficialReceipt(txn);
+      if (res?.action === 'COPIED') {
+        showAlert({
+          title: 'Receipt Copied 📄',
+          message: 'Official receipt details have been copied to your clipboard.',
+          type: 'success',
+          confirmText: 'OK'
+        });
+      }
     } catch (err) {
-      Clipboard.setString(receiptMessage);
       showAlert({
-        title: 'Receipt Copied 📄',
-        message: 'Receipt details have been copied to your clipboard.',
-        type: 'success',
+        title: 'Receipt Export',
+        message: 'Could not export receipt at this time.',
+        type: 'error',
         confirmText: 'OK'
       });
     }
@@ -506,7 +486,9 @@ Website: https://kwickly-app.vercel.app
                 { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
                 { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
                 { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
-                { key: 'generic', name: 'Any UPI', icon: BhimUpiIcon },
+                { key: 'cred', name: 'CRED', icon: CredIcon },
+                { key: 'bhim', name: 'BHIM', icon: BhimIcon },
+                { key: 'generic', name: 'Any UPI', icon: AnyUpiIcon },
               ].map((app) => {
                 const IconComponent = app.icon;
                 const isSelected = selectedUpiApp === app.key;
@@ -518,9 +500,9 @@ Website: https://kwickly-app.vercel.app
                     activeOpacity={0.8}
                   >
                     <View style={{ marginBottom: 4 }}>
-                      <IconComponent size={34} />
+                      <IconComponent size={32} />
                     </View>
-                    <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]}>
+                    <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]} numberOfLines={1}>
                       {app.name}
                     </Text>
                     {isSelected && (
@@ -539,7 +521,7 @@ Website: https://kwickly-app.vercel.app
                 <View style={styles.utrHeader}>
                   <View style={styles.pulseDot} />
                   <Text style={styles.utrHeaderTitle}>
-                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
                   </Text>
                 </View>
                 <Text style={styles.utrHeaderSub}>
@@ -557,9 +539,9 @@ Website: https://kwickly-app.vercel.app
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <>
-                      <Zap size={18} color="#fff" style={{ marginRight: 6 }} />
+                      <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
                       <Text style={styles.confirmPayBtnText}>
-                        ✓ I Have Completed Payment • Confirm & Add ₹{upiOrderData?.amount || 0}
+                        I Have Completed Payment • Add ₹{upiOrderData?.amount || 0}
                       </Text>
                     </>
                   )}
@@ -599,9 +581,9 @@ Website: https://kwickly-app.vercel.app
                   onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
                   activeOpacity={0.85}
                 >
-                  <Zap size={18} color="#fff" style={{ marginRight: 6 }} />
+                  <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
                   <Text style={styles.confirmPayBtnText}>
-                    Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+                    Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
                   </Text>
                   <ArrowRight size={18} color="#fff" style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
@@ -634,7 +616,7 @@ Website: https://kwickly-app.vercel.app
                     <View style={[styles.txIconLarge, { backgroundColor: isCredit(selectedTxn) ? '#d1fae5' : '#fee2e2' }]}>
                       {isCredit(selectedTxn) ? <ArrowDown size={28} color="#059669" /> : <ArrowUp size={28} color="#dc2626" />}
                     </View>
-                    <Text style={styles.receiptDescText}>{selectedTxn.description || 'Wallet Transaction'}</Text>
+                    <Text style={styles.receiptDescText}>{selectedTxn.description || 'Wallet Top-up via Direct UPI (Verified)'}</Text>
                     <Text style={[styles.receiptAmtValue, { color: isCredit(selectedTxn) ? '#059669' : '#dc2626' }]}>
                       {isCredit(selectedTxn) ? '+' : '-'}₹{selectedTxn.amount}
                     </Text>
@@ -647,7 +629,7 @@ Website: https://kwickly-app.vercel.app
                         styles.receiptStatusText,
                         { color: selectedTxn.status === 'PENDING' ? '#D97706' : selectedTxn.status === 'FAILED' ? '#DC2626' : '#059669' }
                       ]}>
-                        ● {selectedTxn.status === 'PENDING' ? 'PENDING VERIFICATION' : selectedTxn.status === 'FAILED' ? 'FAILED' : 'SUCCESSFUL • CREDITED'}
+                        ● {selectedTxn.status === 'PENDING' ? 'PENDING VERIFICATION' : selectedTxn.status === 'FAILED' ? 'FAILED' : 'COMPLETED'}
                       </Text>
                     </View>
                   </View>
@@ -655,7 +637,7 @@ Website: https://kwickly-app.vercel.app
                   {/* Itemized Receipt Details Box */}
                   <View style={styles.receiptDetailsBox}>
                     <View style={styles.receiptRow}>
-                      <Text style={styles.receiptKey}>Receipt No</Text>
+                      <Text style={styles.receiptKey}>Receipt ID</Text>
                       <Text style={styles.receiptValHighlight}>KWIK-RCPT-{(selectedTxn._id || '').slice(-8).toUpperCase()}</Text>
                     </View>
 
@@ -670,24 +652,19 @@ Website: https://kwickly-app.vercel.app
                     </View>
 
                     <View style={styles.receiptRow}>
-                      <Text style={styles.receiptKey}>Customer</Text>
-                      <Text style={styles.receiptVal}>{user?.name || 'Registered User'} ({user?.phone || '—'})</Text>
-                    </View>
-
-                    <View style={styles.receiptRow}>
                       <Text style={styles.receiptKey}>Transaction Type</Text>
                       <Text style={styles.receiptVal}>{selectedTxn.type || 'TOPUP'}</Text>
                     </View>
 
                     <View style={styles.receiptRow}>
-                      <Text style={styles.receiptKey}>Payment Method</Text>
-                      <Text style={styles.receiptVal}>Direct UPI Transfer</Text>
+                      <Text style={styles.receiptKey}>Payment Mode</Text>
+                      <Text style={styles.receiptVal}>UPI / Direct Bank Transfer</Text>
                     </View>
 
                     <View style={styles.receiptRow}>
-                      <Text style={styles.receiptKey}>Bank UTR / Ref</Text>
+                      <Text style={styles.receiptKey}>Reference / UTR</Text>
                       <Text style={[styles.receiptVal, { color: '#6C47FF', fontWeight: '800' }]}>
-                        {selectedTxn.razorpayPaymentId || selectedTxn.gatewayTransactionId || selectedTxn.refId || 'AUTO_VERIFIED'}
+                        {selectedTxn.razorpayPaymentId || selectedTxn.gatewayTransactionId || selectedTxn.refId || selectedTxn.utrNumber || 'AUTO_VERIFIED'}
                       </Text>
                     </View>
 
@@ -767,12 +744,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   copyBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#6C47FF18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
   copyBtnText:    { fontSize: 12, fontWeight: '800', color: '#6C47FF' },
   upiAppsHeading: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
-  upiAppsGrid:    { flexDirection: 'row', gap: 10, marginBottom: 18 },
-  upiAppBtn:      { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: theme.colors.background, borderWidth: 1.5, borderColor: theme.colors.border, position: 'relative' },
+  upiAppsGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 },
+  upiAppBtn:      { width: '31%', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: theme.colors.background, borderWidth: 1.5, borderColor: theme.colors.border, position: 'relative' },
   upiAppBtnSelected: { borderColor: '#6C47FF', backgroundColor: '#6C47FF0D' },
   upiAppEmoji:    { fontSize: 20, marginBottom: 4 },
-  upiAppLabel:    { fontSize: 11, fontWeight: '700', color: theme.colors.text },
-  appCheckBadge:  { position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: 8, backgroundColor: '#6C47FF', justifyContent: 'center', alignItems: 'center' },
+  upiAppLabel:    { fontSize: 11, fontWeight: '700', color: theme.colors.text, textAlign: 'center' },
+  appCheckBadge:  { position: 'absolute', top: 5, right: 5, width: 16, height: 16, borderRadius: 8, backgroundColor: '#6C47FF', justifyContent: 'center', alignItems: 'center' },
   
   utrSection:     { marginBottom: 8 },
   utrHeader:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
@@ -793,8 +770,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   bankGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   bankField:      { fontSize: 12, color: theme.colors.textDim, fontWeight: '500' },
   bankVal:        { fontWeight: '800', color: theme.colors.text },
-  confirmPayBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6C47FF', paddingVertical: 16, borderRadius: 16, shadowColor: '#6C47FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-  confirmPayBtnText:{ fontSize: 15, fontWeight: '800', color: '#fff' },
+  confirmPayBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6C47FF', paddingVertical: 16, paddingHorizontal: 16, borderRadius: 16, shadowColor: '#6C47FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  confirmPayBtnText:{ fontSize: 14.5, fontWeight: '800', color: '#fff', textAlign: 'center' },
   centerOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   
   /* ── Professional Receipt Card Styles ── */

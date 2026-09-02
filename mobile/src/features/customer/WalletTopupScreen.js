@@ -10,7 +10,7 @@ import AppBar from '../../components/AppBar';
 import { walletService } from '../../services/walletService';
 import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
 import { Wallet, Zap, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield, ChevronDown, ChevronUp } from 'lucide-react-native';
-import { GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon } from '../../components/ui/UpiBrandIcons';
+import { GooglePayIcon, PhonePeIcon, PaytmIcon, CredIcon, BhimIcon, AnyUpiIcon } from '../../components/ui/UpiBrandIcons';
 import { nativeUpiService } from '../../services/nativeUpiService';
 
 const PRESETS = [100, 250, 500, 1000, 2000, 5000];
@@ -97,9 +97,14 @@ const WalletTopupScreen = ({ navigation }) => {
       if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
         await handleConfirmUpiTopup(result.approvalRefNo || result.txnId);
       } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
+        const appTitle = appKey === 'gpay' ? 'Google Pay' : appKey === 'phonepe' ? 'PhonePe' : appKey === 'paytm' ? 'Paytm' : appKey === 'cred' ? 'CRED' : appKey === 'bhim' ? 'BHIM' : 'UPI App';
         Alert.alert(
           'Payment Cancelled',
-          'Payment was cancelled in the UPI app. No money was debited or added to your wallet.'
+          `The transaction was cancelled in ${appTitle}. No money was deducted from your bank account.`,
+          [
+            { text: 'Close', style: 'cancel' },
+            { text: 'Try Again', onPress: () => handleOpenUpiApp(appKey) }
+          ]
         );
       }
     } catch (err) {
@@ -276,7 +281,9 @@ const WalletTopupScreen = ({ navigation }) => {
                 { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
                 { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
                 { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
-                { key: 'generic', name: 'Any UPI', icon: BhimUpiIcon },
+                { key: 'cred', name: 'CRED', icon: CredIcon },
+                { key: 'bhim', name: 'BHIM', icon: BhimIcon },
+                { key: 'generic', name: 'Any UPI', icon: AnyUpiIcon },
               ].map((app) => {
                 const IconComponent = app.icon;
                 const isSelected = selectedUpiApp === app.key;
@@ -288,9 +295,9 @@ const WalletTopupScreen = ({ navigation }) => {
                     activeOpacity={0.8}
                   >
                     <View style={{ marginBottom: 4 }}>
-                      <IconComponent size={34} />
+                      <IconComponent size={32} />
                     </View>
-                    <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]}>
+                    <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]} numberOfLines={1}>
                       {app.name}
                     </Text>
                     {isSelected && (
@@ -309,7 +316,7 @@ const WalletTopupScreen = ({ navigation }) => {
                 <View style={styles.utrHeader}>
                   <View style={styles.pulseDot} />
                   <Text style={styles.utrHeaderTitle}>
-                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
                   </Text>
                 </View>
                 <Text style={styles.utrHeaderSub}>
@@ -327,9 +334,9 @@ const WalletTopupScreen = ({ navigation }) => {
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <>
-                      <Zap size={18} color="#fff" style={{ marginRight: 6 }} />
+                      <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
                       <Text style={styles.confirmPayBtnText}>
-                        ✓ I Have Completed Payment • Confirm & Add ₹{upiOrderData?.amount || 0}
+                        I Have Completed Payment • Add ₹{upiOrderData?.amount || 0}
                       </Text>
                     </>
                   )}
@@ -369,9 +376,9 @@ const WalletTopupScreen = ({ navigation }) => {
                   onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
                   activeOpacity={0.85}
                 >
-                  <Zap size={18} color="#fff" style={{ marginRight: 6 }} />
+                  <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
                   <Text style={styles.confirmPayBtnText}>
-                    Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+                    Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
                   </Text>
                   <ArrowRight size={18} color="#fff" style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
@@ -422,12 +429,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   copyBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#6C47FF18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
   copyBtnText:   { fontSize: 12, fontWeight: '800', color: '#6C47FF' },
   upiAppsHeading:{ fontSize: 13, fontWeight: '700', color: theme.colors.textDim, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
-  upiAppsGrid:   { flexDirection: 'row', gap: 10, marginBottom: 18 },
-  upiAppBtn:     { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: theme.colors.background, borderWidth: 1.5, borderColor: theme.colors.border, position: 'relative' },
+  upiAppsGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 },
+  upiAppBtn:     { width: '31%', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: theme.colors.background, borderWidth: 1.5, borderColor: theme.colors.border, position: 'relative' },
   upiAppBtnSelected: { borderColor: '#6C47FF', backgroundColor: '#6C47FF0D' },
   upiAppEmoji:   { fontSize: 20, marginBottom: 4 },
-  upiAppLabel:   { fontSize: 11, fontWeight: '700', color: theme.colors.text },
-  appCheckBadge: { position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: 8, backgroundColor: '#6C47FF', justifyContent: 'center', alignItems: 'center' },
+  upiAppLabel:   { fontSize: 11, fontWeight: '700', color: theme.colors.text, textAlign: 'center' },
+  appCheckBadge: { position: 'absolute', top: 5, right: 5, width: 16, height: 16, borderRadius: 8, backgroundColor: '#6C47FF', justifyContent: 'center', alignItems: 'center' },
 
   utrSection:    { marginBottom: 8 },
   utrHeader:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
@@ -448,8 +455,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   bankGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   bankField:     { fontSize: 12, color: theme.colors.textDim, fontWeight: '500' },
   bankVal:       { fontWeight: '800', color: theme.colors.text },
-  confirmPayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6C47FF', paddingVertical: 16, borderRadius: 16, shadowColor: '#6C47FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-  confirmPayBtnText:{ fontSize: 15, fontWeight: '800', color: '#fff' },
+  confirmPayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6C47FF', paddingVertical: 16, paddingHorizontal: 16, borderRadius: 16, shadowColor: '#6C47FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  confirmPayBtnText:{ fontSize: 14.5, fontWeight: '800', color: '#fff', textAlign: 'center' },
 });
 
 export default WalletTopupScreen;

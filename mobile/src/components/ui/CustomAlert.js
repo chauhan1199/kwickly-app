@@ -9,7 +9,8 @@ import {
   Trash2,
   Info,
   Sparkles,
-  X
+  X,
+  XCircle
 } from 'lucide-react-native';
 
 /**
@@ -61,6 +62,14 @@ const CustomAlert = ({
           borderBadge: '#F59E0B33',
           gradientColors: ['#F59E0B', '#D97706'],
           defaultTitle: 'Confirm Action',
+        };
+      case 'cancelled':
+        return {
+          icon: <XCircle size={36} color="#F43F5E" />,
+          bgBadge: '#F43F5E18',
+          borderBadge: '#F43F5E33',
+          gradientColors: ['#6C47FF', '#5028E0'],
+          defaultTitle: 'Payment Cancelled',
         };
       case 'info':
       default:

@@ -238,9 +238,14 @@ const WorkerEarningsScreen = ({ navigation }) => {
       if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
         await handleVerifyUpiPayment(result.approvalRefNo || result.txnId);
       } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
+        const appTitle = appKey === 'gpay' ? 'Google Pay' : appKey === 'phonepe' ? 'PhonePe' : appKey === 'paytm' ? 'Paytm' : appKey === 'cred' ? 'CRED' : appKey === 'bhim' ? 'BHIM' : 'UPI App';
         Alert.alert(
           'Payment Cancelled',
-          'Payment was cancelled in the UPI app. No money was debited or added to your account.'
+          `The transaction was cancelled in ${appTitle}. No money was deducted from your bank account.`,
+          [
+            { text: 'Close', style: 'cancel' },
+            { text: 'Try Again', onPress: () => handlePayViaUpiApp(appKey) }
+          ]
         );
       }
     } catch (e) {
