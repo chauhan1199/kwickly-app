@@ -163,7 +163,7 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             val dateStr = if (params.hasKey("dateStr")) params.getString("dateStr") ?: "" else ""
             val status = if (params.hasKey("status")) params.getString("status") ?: "COMPLETED" else "COMPLETED"
             val description = if (params.hasKey("description")) params.getString("description") ?: "Wallet Top-up via Direct UPI (Verified)" else "Wallet Top-up via Direct UPI (Verified)"
-            val type = if (params.hasKey("type")) params.getString("type") ?: "TOPUP" else "TOPUP"
+            val txnType = if (params.hasKey("type")) params.getString("type") ?: "TOPUP" else "TOPUP"
             val paymentMode = if (params.hasKey("paymentMode")) params.getString("paymentMode") ?: "UPI / Direct Bank Transfer" else "UPI / Direct Bank Transfer"
             val refId = if (params.hasKey("refId")) params.getString("refId") ?: "AUTO_VERIFIED" else "AUTO_VERIFIED"
             val amountStr = if (params.hasKey("amountStr")) params.getString("amountStr") ?: "+₹0" else "+₹0"
@@ -294,7 +294,7 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             val rows = listOf(
                 Pair("Receipt ID", receiptId),
                 Pair("Date & Time", dateStr),
-                Pair("Transaction Type", type),
+                Pair("Transaction Type", txnType),
                 Pair("Payment Mode", paymentMode),
                 Pair("Reference / UTR", refId),
                 Pair("Wallet Balance", balanceStr)
@@ -344,7 +344,7 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             // Share the PDF file via FileProvider
             val contentUri = FileProvider.getUriForFile(reactCtx, "${reactCtx.packageName}.fileprovider", file)
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "application/pdf"
+                setType("application/pdf")
                 putExtra(Intent.EXTRA_STREAM, contentUri)
                 putExtra(Intent.EXTRA_SUBJECT, "Kwickly Payment Receipt - $receiptId")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
