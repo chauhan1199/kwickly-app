@@ -1,10 +1,10 @@
 const { StatusCodes } = require('http-status-codes');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
-const WalletTxn  = require('./wallet.model');
-const Payment    = require('../payment/payment.model');
-const Customer   = require('../customer/customer.model');
-const Shop       = require('../shop/shop.model');
-const Payout     = require('../payout/payout.model');
+const WalletTxn = require('./wallet.model');
+const Payment = require('../payment/payment.model');
+const Customer = require('../customer/customer.model');
+const Shop = require('../shop/shop.model');
+const Payout = require('../payout/payout.model');
 const Notification = require('../notification/notification.model');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
@@ -69,15 +69,16 @@ const atomicCredit = async (userId, role, amount, session) => {
 };
 
 // â”€â”€â”€ GET /api/v1/wallet/balance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/wallet/balance ──────────────────────────────────────────────
 exports.getWallet = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, type } = req.query;
     const user = await Customer.findById(req.user._id).select('wallet name role').lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
     let balance = user.wallet?.balance || 0;
-    if (user.role === 'SHOP') {
+    if (user.role === 'SHOP' || user.role === 'SHOP_OWNER') {
         const shop = await Shop.findOne({ ownerId: req.user._id }).select('wallet').lean();
-        if (shop) balance = shop.wallet.balance;
+        if (shop) balance = shop.wallet?.balance || 0;
     }
 
     const query = { userId: req.user._id };
@@ -100,11 +101,9 @@ exports.getWallet = catchAsync(async (req, res) => {
 });
 
 // ─── POST /api/v1/wallet/topup ───────────────────────────────────────────────
-// Automated UPI flow:
-//   1. Creates a PENDING WalletTxn with a real MongoDB _id
-//   2. Registers a payment intent with the provider (or falls back to deeplink)
-//   3. Returns the UPI intent URI to the mobile client — no UTR entry needed
-//   4. Webhook auto-credits the wallet when money lands at the platform VPA
+// Dual-Mode Top-up:
+// 1. Direct verified UTR redemption (mobile app submits 12-digit UTR from payment receipt)
+// 2. Intent registration (mobile app requests deeplink intent URI for 1-tap app launch)
 exports.topupWallet = catchAsync(async (req, res) => {
     let { amount, planId } = req.body;
     if (!amount || Number(amount) <= 0) {
@@ -137,21 +136,19 @@ exports.topupWallet = catchAsync(async (req, res) => {
     const { isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
     const rawUtr = (req.body.utrNumber || req.body.paymentDetails?.txnId || req.body.razorpayPaymentId || '').toString().trim();
 
-    if (!rawUtr) {
-        return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.', StatusCodes.BAD_REQUEST);
-    }
+    // Mode 1: Direct 12-digit UTR Verification & Instant Credit
+    if (rawUtr) {
+        if (!isValidUtr(rawUtr) && !rawUtr.startsWith('AUTO_TEST_')) {
+            return errorResponse(res, 'Invalid UTR format. Please enter the exact 12-digit UPI Reference Number from your bank receipt.', StatusCodes.BAD_REQUEST);
+        }
 
-    if (!isValidUtr(rawUtr) && !rawUtr.startsWith('AUTO_TEST_')) {
-        return errorResponse(res, 'Invalid UTR format. Please enter the exact 12-digit UPI Reference Number from your bank receipt.', StatusCodes.BAD_REQUEST);
-    }
+        // Cross-flow duplicate UTR check
+        const utrUsage = await findUtrUsage(rawUtr);
+        if (utrUsage) {
+            return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
+        }
 
-    // Cross-flow duplicate UTR check
-    const utrUsage = await findUtrUsage(rawUtr);
-    if (utrUsage) {
-        return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
-    }
-
-    const utrNumber = rawUtr;
+        const utrNumber = rawUtr;
         let currentBalance = user.wallet?.balance || 0;
         if (user.role === 'SHOP' || user.role === 'SHOP_OWNER') {
             const shop = await Shop.findOne({ ownerId: user._id });
@@ -242,7 +239,6 @@ exports.topupWallet = catchAsync(async (req, res) => {
         });
 
         // Send instant notification
-        const { notifyUser } = require('../../helpers/notifyUser.helper');
         notifyUser({
             userId: req.user._id,
             title: plan ? 'Plan Activated 🎉' : 'Wallet Credited 🎉',
@@ -263,37 +259,34 @@ exports.topupWallet = catchAsync(async (req, res) => {
         }, `Top-up of ₹${amount} successful! Securely credited to your wallet.`, StatusCodes.CREATED);
     }
 
-    // Create a PENDING WalletTxn immediately so we have a real MongoDB _id
-    // to embed as the webhook back-reference (internalId in provider metadata).
+    // Mode 2: Payment Intent Registration (for direct deeplink opening)
     const txn = await WalletTxn.create({
-        userId:      req.user._id,
-        type:        'TOPUP',
+        userId: req.user._id,
+        type: 'TOPUP',
         amount,
-        balance:     user.wallet?.balance || 0,
-        status:      'PENDING',
-        planId:      plan ? planId : undefined,
+        balance: user.wallet?.balance || 0,
+        status: 'PENDING',
+        planId: plan ? planId : undefined,
         description: plan
             ? `Subscription Plan Purchase: ${plan.label || planId} (Awaiting UPI Payment)`
             : `Wallet Top-up (Awaiting UPI Payment)`
     });
 
-    // Register with provider — get a deeplink the client can open directly
+    const isShopOwner = (user.role === 'SHOP' || user.role === 'SHOP_OWNER');
     const { gatewayOrderId, upiIntentUri } = await registerPaymentIntent({
         amount,
         internalId: txn._id,
-        purpose:    plan ? 'worker_subscription' : 'wallet_topup',
-        userId:     req.user._id,
-        planId:     plan ? planId : undefined
+        purpose: plan ? (isShopOwner ? 'shop_subscription' : 'worker_subscription') : 'wallet_topup',
+        userId: req.user._id,
+        planId: plan ? planId : undefined
     });
 
-    // Persist the gateway session reference so the reconciliation cron can
-    // query the provider's status API if the webhook never fires.
     if (gatewayOrderId) {
         await WalletTxn.findByIdAndUpdate(txn._id, { $set: { gatewayTransactionId: gatewayOrderId } });
     }
 
     emitToAll('DASHBOARD_UPDATE', {
-        type:   'PENDING_WALLET_TOPUP',
+        type: 'PENDING_WALLET_TOPUP',
         userId: req.user._id,
         userName: user.name,
         amount,
@@ -301,9 +294,9 @@ exports.topupWallet = catchAsync(async (req, res) => {
     });
 
     return successResponse(res, {
-        txnId:        txn._id,
+        txnId: txn._id,
         txn,
-        status:       'PENDING',
+        status: 'PENDING',
         gatewayOrderId,
         upiIntentUri,
         amount
@@ -348,18 +341,18 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
 
         const createOpts = useTransaction ? { session } : {};
         const txn = await WalletTxn.create([{
-            userId:      req.user._id,
-            type:        'WITHDRAWAL',
+            userId: req.user._id,
+            type: 'WITHDRAWAL',
             amount,
-            balance:     result.newBalance,
-            status:      'PENDING',
+            balance: result.newBalance,
+            status: 'PENDING',
             description: `Withdrawal to ${payoutMethod}`
         }], createOpts);
 
         const paymentMethodType = payoutMethod.toLowerCase().includes('upi') ? 'UPI' : 'BANK';
         const payout = await Payout.create([{
             workerId: (user.role !== 'SHOP' && user.role !== 'SHOP_OWNER') ? req.user._id : undefined,
-            shopId:   (user.role === 'SHOP' || user.role === 'SHOP_OWNER') ? result.entityId : undefined,
+            shopId: (user.role === 'SHOP' || user.role === 'SHOP_OWNER') ? result.entityId : undefined,
             amount,
             paymentMethod: paymentMethodType,
             paymentDetails: payoutMethod,
@@ -397,11 +390,11 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
 exports.getAllTransactions = catchAsync(async (req, res) => {
     const { type, userId, page = 1, limit = 50 } = req.query;
     const query = {};
-    if (type)   query.type   = type.toUpperCase();
+    if (type) query.type = type.toUpperCase();
     if (userId) query.userId = userId;
 
     const total = await WalletTxn.countDocuments(query);
-    const txns  = await WalletTxn.find(query)
+    const txns = await WalletTxn.find(query)
         .populate('userId', 'name phone role')
         .sort('-createdAt')
         .limit(Number(limit))
@@ -419,7 +412,7 @@ exports.getMyTransactions = catchAsync(async (req, res) => {
     if (type) query.type = type.toUpperCase();
 
     const total = await WalletTxn.countDocuments(query);
-    const txns  = await WalletTxn.find(query)
+    const txns = await WalletTxn.find(query)
         .sort('-createdAt')
         .limit(Math.min(Number(limit), 100))
         .skip((Number(page) - 1) * Number(limit))
@@ -485,10 +478,10 @@ exports.adminAdjust = catchAsync(async (req, res) => {
 
     const txn = await WalletTxn.create({
         userId,
-        type:        'ADJUSTMENT',
-        amount:      Math.abs(amount),
-        balance:     newBalance,
-        status:      'COMPLETED',
+        type: 'ADJUSTMENT',
+        amount: Math.abs(amount),
+        balance: newBalance,
+        status: 'COMPLETED',
         description: description || `Admin ${debit ? 'debit' : 'credit'} adjustment`
     });
 
@@ -520,8 +513,8 @@ exports.adminAdjust = catchAsync(async (req, res) => {
             const { getIO } = require('../../helpers/socket.helper');
             const io = getIO();
             if (io) io.to('admin_dashboard').emit('NEW_NOTIFICATION', notif);
-        } catch (_) {}
-    } catch (_) {}
+        } catch (_) { }
+    } catch (_) { }
 
     return successResponse(res, { txn, adminBalance: adminWallet.balance }, 'Wallet adjusted successfully');
 });
@@ -572,16 +565,16 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
         const updatedUser = await Customer.findByIdAndUpdate(
             txn.userId,
             {
-                'subscription.planId':     txn.planId,
+                'subscription.planId': txn.planId,
                 'subscription.expiryDate': newExpiry,
-                'subscription.isTrial':    false,
-                'subscription.isActive':   true
+                'subscription.isTrial': false,
+                'subscription.isActive': true
             },
             { returnDocument: 'after' }
         );
 
-        txn.status      = 'COMPLETED';
-        txn.balance     = updatedUser?.wallet?.balance || user.wallet?.balance || 0;
+        txn.status = 'COMPLETED';
+        txn.balance = updatedUser?.wallet?.balance || user.wallet?.balance || 0;
         txn.description = `Subscription Plan "${txn.planId}" Verified & Activated (manual admin approval)`;
         await txn.save();
 
@@ -603,9 +596,9 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
 
         await notifyUser({
             userId: user._id,
-            title:  'Subscription Activated! 🎉',
+            title: 'Subscription Activated! 🎉',
             message: `Your ${plan?.label || txn.planId} plan payment of ₹${txn.amount} was verified and your subscription is now active until ${newExpiry.toDateString()}.`,
-            type:   'WALLET_CREDIT',
+            type: 'WALLET_CREDIT',
             referenceId: txn._id, referenceModel: 'WalletTxn'
         });
 
@@ -613,8 +606,8 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
         return successResponse(res, { txn, newExpiry }, `Plan "${txn.planId}" verified and activated for ${updatedUser?.name || 'user'}!`);
     }
 
-    txn.status      = 'COMPLETED';
-    txn.balance     = user.wallet?.balance || 0;
+    txn.status = 'COMPLETED';
+    txn.balance = user.wallet?.balance || 0;
     txn.description = `Wallet Top-up Verified & Credited (manual admin approval)`;
     await txn.save();
 
@@ -636,9 +629,9 @@ exports.approvePendingTopup = catchAsync(async (req, res) => {
 
     await notifyUser({
         userId: user._id,
-        title:   'Wallet Top-up Approved! 🎉',
+        title: 'Wallet Top-up Approved! 🎉',
         message: `₹${txn.amount} has been verified and added to your Kwickly Wallet.`,
-        type:    'WALLET_CREDIT',
+        type: 'WALLET_CREDIT',
         referenceId: txn._id, referenceModel: 'WalletTxn'
     });
 
@@ -655,7 +648,7 @@ exports.rejectPendingTopup = catchAsync(async (req, res) => {
     if (!txn) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
     if (txn.status !== 'PENDING') return errorResponse(res, `Transaction is already ${txn.status}`, StatusCodes.BAD_REQUEST);
 
-    txn.status      = 'FAILED';
+    txn.status = 'FAILED';
     txn.description = `Wallet Top-up Rejected (${reason})`;
     await txn.save();
 
@@ -663,9 +656,9 @@ exports.rejectPendingTopup = catchAsync(async (req, res) => {
 
     await notifyUser({
         userId: txn.userId,
-        title:   'Top-up Verification Failed ❌',
+        title: 'Top-up Verification Failed ❌',
         message: `Your top-up request for ₹${txn.amount} was rejected: ${reason}`,
-        type:    'WALLET_REJECTED',
+        type: 'WALLET_REJECTED',
         referenceId: txn._id, referenceModel: 'WalletTxn'
     });
 

@@ -38,7 +38,7 @@ const getPlatformUpiConfig = async () => {
                 AppSettings.findOne({ isSingleton: 'CONFIG' }).lean()
             ]);
             
-            const upiId = adminWallet?.upiId || appSettings?.wallet?.upiId || process.env.PLATFORM_UPI_ID || '';
+            const upiId = adminWallet?.upiId || appSettings?.wallet?.upiId || process.env.PLATFORM_UPI_ID || process.env.ADMIN_UPI_ID || 'kwickly@upi';
             const payeeName = adminWallet?.bankDetails?.accountHolder || appSettings?.wallet?.accountHolder || process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD';
 
             return {

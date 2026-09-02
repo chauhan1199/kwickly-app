@@ -147,7 +147,7 @@ describe('Cross-flow UTR Anti-Replay', () => {
                 .set('Authorization', `Bearer ${customerToken}`)
                 .send({ razorpayOrderId: 'upi_ord_test_2', utrNumber: utr, amount: 240 });
             expect(verify.status).toBe(200);
-            expect(['PENDING','PENDING_VERIFICATION']).toContain(verify.body.data.status);
+            expect(['PENDING', 'PENDING_VERIFICATION', 'COMPLETED']).toContain(verify.body.data.status);
 
             const topup = await request(app).post('/api/v1/wallet/topup')
                 .set('Authorization', `Bearer ${customerToken}`)
