@@ -278,12 +278,25 @@ const ShopWalletScreen = ({ navigation }) => {
     const rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
       ? capturedUtr.trim()
       : (typeof upiTxnId === 'string' ? upiTxnId.trim() : '');
-    const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
+
+    if (!rawUtr) {
+      return Alert.alert(
+        'Enter UPI Reference (UTR)',
+        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt to verify.'
+      );
+    }
+
+    if (!isValidUtr(rawUtr)) {
+      return Alert.alert(
+        'Invalid UTR Number',
+        'Please enter a valid 12-digit UPI Reference Number from your bank receipt (e.g. 423456789012).'
+      );
+    }
 
     setSubmittingAction(true);
     try {
       const amt = parseFloat(topUpAmount);
-      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: utr, isAutoConfirmed: true }, null, utr);
+      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: rawUtr }, null, rawUtr);
       if (res.data?.status === 'success' || res.data?.data) {
         setUpiPaymentModalVisible(false);
         setUpiTxnId('');
@@ -564,7 +577,21 @@ const ShopWalletScreen = ({ navigation }) => {
     const rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
       ? capturedUtr.trim()
       : (typeof subUtr === 'string' ? subUtr.trim() : '');
-    const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
+
+    if (!rawUtr) {
+      return Alert.alert(
+        'Enter UPI Reference (UTR)',
+        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt to activate your plan.'
+      );
+    }
+
+    if (!isValidUtr(rawUtr)) {
+      return Alert.alert(
+        'Invalid UTR Number',
+        'Please enter a valid 12-digit UPI Reference Number from your bank receipt (e.g. 423456789012).'
+      );
+    }
+
     const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
 
     setSubmittingAction(true);
@@ -572,8 +599,7 @@ const ShopWalletScreen = ({ navigation }) => {
       const res = await shopService.subscribePlan({
         planId: selectedPlan,
         paymentMethod: 'UPI',
-        utrNumber: utr,
-        isAutoConfirmed: true,
+        utrNumber: rawUtr,
         targetRole: 'SHOP'
       });
       setSubscriptionModalVisible(false);
@@ -895,7 +921,7 @@ const ShopWalletScreen = ({ navigation }) => {
               })}
             </View>
 
-            {/* Step 2: Payment Initiated & Auto Confirmation */}
+            {/* Step 2: Payment Initiated & 12-Digit UTR Verification */}
             {paymentInitiated ? (
               <View style={styles.utrSection}>
                 <View style={styles.utrHeader}>
@@ -905,12 +931,34 @@ const ShopWalletScreen = ({ navigation }) => {
                   </Text>
                 </View>
                 <Text style={styles.utrHeaderSub}>
-                  Complete the ₹{topUpAmount} transfer with your UPI PIN. When you return here, your top-up will be confirmed automatically!
+                  Complete the ₹{topUpAmount} payment in your UPI app. Then enter the 12-digit UPI Reference / UTR Number from your receipt below to verify and credit your wallet.
                 </Text>
 
+                {/* 12-Digit UTR Input Box */}
+                <View style={styles.utrInputBox}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={styles.utrInputLabel}>12-Digit UPI Ref / UTR No.</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: upiTxnId.trim().length === 12 ? '#10B981' : theme.colors.textDim }}>
+                      {upiTxnId.trim().length}/12 Digits
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={styles.utrInput}
+                    value={upiTxnId}
+                    onChangeText={(txt) => setUpiTxnId(txt.replace(/\D/g, '').slice(0, 12))}
+                    placeholder="e.g. 423456789012"
+                    placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
+                    keyboardType="numeric"
+                    maxLength={12}
+                  />
+                  <Text style={styles.utrHelpText}>
+                    💡 Found on your payment success receipt in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'your UPI App'}.
+                  </Text>
+                </View>
+
                 <TouchableOpacity
-                  style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
-                  onPress={() => handleVerifyUpiPayment('')}
+                  style={[styles.confirmPayBtn, (submittingAction || upiTxnId.trim().length !== 12) && { opacity: 0.85 }]}
+                  onPress={() => handleVerifyUpiPayment(upiTxnId)}
                   disabled={submittingAction}
                   activeOpacity={0.85}
                 >
@@ -920,7 +968,7 @@ const ShopWalletScreen = ({ navigation }) => {
                     <>
                       <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
                       <Text style={styles.confirmPayBtnText}>
-                        I Have Completed Payment • Add ₹{topUpAmount}
+                        Verify & Add ₹{topUpAmount} to Wallet
                       </Text>
                     </>
                   )}
@@ -1203,7 +1251,7 @@ const ShopWalletScreen = ({ navigation }) => {
                   })}
                 </View>
 
-                {/* Step 2: Payment Initiated & Auto Confirmation */}
+                {/* Step 2: Payment Initiated & 12-Digit UTR Verification */}
                 {subPaymentInitiated ? (
                   <View style={styles.utrSection}>
                     <View style={styles.utrHeader}>
@@ -1213,12 +1261,34 @@ const ShopWalletScreen = ({ navigation }) => {
                       </Text>
                     </View>
                     <Text style={styles.utrHeaderSub}>
-                      Complete the payment of ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} in your UPI app. When you return, tap below to activate your plan!
+                      Complete the payment of ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} in your UPI app. Then enter the 12-digit UPI Reference / UTR Number from your receipt below to activate your plan.
                     </Text>
 
+                    {/* 12-Digit UTR Input Box */}
+                    <View style={styles.utrInputBox}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <Text style={styles.utrInputLabel}>12-Digit UPI Ref / UTR No.</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: subUtr.trim().length === 12 ? '#10B981' : theme.colors.textDim }}>
+                          {subUtr.trim().length}/12 Digits
+                        </Text>
+                      </View>
+                      <TextInput
+                        style={styles.utrInput}
+                        value={subUtr}
+                        onChangeText={(txt) => setSubUtr(txt.replace(/\D/g, '').slice(0, 12))}
+                        placeholder="e.g. 423456789012"
+                        placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
+                        keyboardType="numeric"
+                        maxLength={12}
+                      />
+                      <Text style={styles.utrHelpText}>
+                        💡 Found on your payment receipt in {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'your UPI App'}.
+                      </Text>
+                    </View>
+
                     <TouchableOpacity
-                      style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
-                      onPress={() => handleSubmitSubscriptionUtr('')}
+                      style={[styles.confirmPayBtn, (submittingAction || subUtr.trim().length !== 12) && { opacity: 0.85 }]}
+                      onPress={() => handleSubmitSubscriptionUtr(subUtr)}
                       disabled={submittingAction}
                       activeOpacity={0.85}
                     >
@@ -1228,7 +1298,7 @@ const ShopWalletScreen = ({ navigation }) => {
                         <>
                           <ShieldCheck size={18} color="#fff" style={{ marginRight: 8 }} />
                           <Text style={styles.confirmPayBtnText}>
-                            ✓ I Have Paid • Activate Subscription
+                            Verify & Activate Subscription
                           </Text>
                         </>
                       )}
@@ -2546,6 +2616,81 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: theme.colors.text,
+  },
+
+  // UTR & Flow Styles
+  utrSection: {
+    marginTop: 14,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  },
+  utrHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+    marginRight: 8,
+  },
+  utrHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  utrHeaderSub: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  utrInputBox: {
+    marginBottom: 14,
+  },
+  utrInputLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.colors.text,
+    letterSpacing: 0.3,
+  },
+  utrInput: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#6C47FF50',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontWeight: '800',
+    color: theme.colors.text,
+    letterSpacing: 2,
+  },
+  utrHelpText: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 6,
+    lineHeight: 15,
+  },
+  reopenRow: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  reopenBtnFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+  },
+  reopenText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6C47FF',
   }
 });
 

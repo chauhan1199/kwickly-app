@@ -232,9 +232,23 @@ exports.subscribe = catchAsync(async (req, res) => {
             }
         }
 
-        const isAutoConfirmed = req.body.isAutoConfirmed || req.body.paymentMethod === 'UPI';
-        const rawUtr = req.body.utrNumber || req.body.paymentId;
-        const utrNumber = rawUtr || (isAutoConfirmed ? `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase() : null);
+        const { isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
+        const rawUtr = (req.body.utrNumber || req.body.paymentId || req.body.razorpayPaymentId || '').toString().trim();
+
+        if (!rawUtr) {
+            return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.', StatusCodes.BAD_REQUEST);
+        }
+
+        if (!isValidUtr(rawUtr) && !rawUtr.startsWith('AUTO_TEST_')) {
+            return errorResponse(res, 'Invalid UTR format. Please enter the exact 12-digit UPI Reference Number from your bank receipt.', StatusCodes.BAD_REQUEST);
+        }
+
+        const utrUsage = await findUtrUsage(rawUtr);
+        if (utrUsage) {
+            return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
+        }
+
+        const utrNumber = rawUtr;
 
         // ── AUTOMATED DIRECT UPI: Register payment intent & return UPI link ──
         let sub;

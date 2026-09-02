@@ -158,9 +158,10 @@ exports.verifyPayment = catchAsync(async (req, res) => {
     let upiRef = (upiTransactionId || utrNumber || razorpayPaymentId || '').toString().trim();
 
     if (!upiRef) {
-        // Automatically generate a unique payment reference for automatic confirmation
-        upiRef = `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
-    } else if (!isAutoConfirmed && !isValidUtr(upiRef) && !upiRef.startsWith('AUTO_')) {
+        return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
+    }
+
+    if (!isValidUtr(upiRef) && !upiRef.startsWith('AUTO_TEST_')) {
         return errorResponse(res, 'Please enter a valid 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
     }
 

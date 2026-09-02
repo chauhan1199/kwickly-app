@@ -292,12 +292,35 @@ const WorkerEarningsScreen = ({ navigation }) => {
     setTimeout(() => setCopiedUpi(false), 2500);
   };
 
+  const isValidUtr = (val) => {
+    if (!val || typeof val !== 'string') return false;
+    const clean = val.trim();
+    if (clean.length !== 12) return false;
+    if (!/^\d{12}$/.test(clean)) return false;
+    if (/^(\d)\1{11}$/.test(clean)) return false;
+    if (['123456789012', '000000000000', '111111111111', '999999999999', '123456789000'].includes(clean)) return false;
+    return true;
+  };
+
   // Submit UPI Verification
   const handleVerifyUpiPayment = async (capturedUtr = '') => {
     const rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
       ? capturedUtr.trim()
       : (typeof upiUtrNumber === 'string' ? upiUtrNumber.trim() : '');
-    const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
+
+    if (!rawUtr) {
+      return Alert.alert(
+        'Enter UPI Reference (UTR)',
+        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt to complete verification.'
+      );
+    }
+
+    if (!isValidUtr(rawUtr)) {
+      return Alert.alert(
+        'Invalid UTR Number',
+        'Please enter a valid 12-digit UPI Reference Number from your bank receipt (e.g. 423456789012).'
+      );
+    }
 
     try {
       setSubmittingAction(true);
@@ -305,9 +328,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
       const res = await walletService.topupWallet(
         Number(amount),
-        { method: 'UPI', txnId: utr, isAutoConfirmed: true },
+        { method: 'UPI', txnId: rawUtr },
         planId || undefined,
-        utr
+        rawUtr
       );
 
       if (res.data?.status === 'success' || res.data?.data) {
@@ -837,7 +860,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
               })}
             </View>
 
-            {/* Step 2: Payment Initiated & Auto Confirmation */}
+            {/* Step 2: Payment Initiated & 12-Digit UTR Verification */}
             {paymentInitiated ? (
               <View style={styles.utrSection}>
                 <View style={styles.utrHeader}>
@@ -847,12 +870,34 @@ const WorkerEarningsScreen = ({ navigation }) => {
                   </Text>
                 </View>
                 <Text style={styles.utrHeaderSub}>
-                  Complete the ₹{pendingPaymentContext.amount} transfer in your UPI app. When you return here, tap below to confirm automatically!
+                  Complete the ₹{pendingPaymentContext.amount} payment in your UPI app. Then enter the 12-digit UPI Reference / UTR Number from your receipt below to {pendingPaymentContext.type === 'PLAN' ? 'activate your subscription' : 'add funds to your wallet'}.
                 </Text>
 
+                {/* 12-Digit UTR Input Box */}
+                <View style={styles.utrInputBox}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={styles.utrInputLabel}>12-Digit UPI Ref / UTR No.</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: upiUtrNumber.trim().length === 12 ? '#10B981' : theme.colors.textDim }}>
+                      {upiUtrNumber.trim().length}/12 Digits
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={styles.utrInput}
+                    value={upiUtrNumber}
+                    onChangeText={(txt) => setUpiUtrNumber(txt.replace(/\D/g, '').slice(0, 12))}
+                    placeholder="e.g. 423456789012"
+                    placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
+                    keyboardType="numeric"
+                    maxLength={12}
+                  />
+                  <Text style={styles.utrHelpText}>
+                    💡 Found on your payment receipt in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'your UPI App'}.
+                  </Text>
+                </View>
+
                 <TouchableOpacity
-                  style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
-                  onPress={() => handleVerifyUpiPayment('')}
+                  style={[styles.confirmPayBtn, (submittingAction || upiUtrNumber.trim().length !== 12) && { opacity: 0.85 }]}
+                  onPress={() => handleVerifyUpiPayment(upiUtrNumber)}
                   disabled={submittingAction}
                   activeOpacity={0.85}
                 >
@@ -862,7 +907,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
                     <>
                       <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
                       <Text style={styles.confirmPayBtnText}>
-                        I Have Completed Payment • Confirm & Credit ₹{pendingPaymentContext.amount}
+                        {pendingPaymentContext.type === 'PLAN'
+                          ? 'Verify & Activate Subscription'
+                          : `Verify & Add ₹${pendingPaymentContext.amount} to Wallet`}
                       </Text>
                     </>
                   )}
@@ -2022,6 +2069,35 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
+
+  // UTR Input Styles
+  utrInputBox: {
+    marginBottom: 14,
+  },
+  utrInputLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.colors.text,
+    letterSpacing: 0.3,
+  },
+  utrInput: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#6C47FF50',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontWeight: '800',
+    color: theme.colors.text,
+    letterSpacing: 2,
+  },
+  utrHelpText: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 6,
+    lineHeight: 15,
+  }
 });
 
 export default WorkerEarningsScreen;

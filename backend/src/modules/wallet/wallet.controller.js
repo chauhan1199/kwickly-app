@@ -134,11 +134,24 @@ exports.topupWallet = catchAsync(async (req, res) => {
         }
     }
 
-    const isAutoConfirmed = req.body.isAutoConfirmed || req.body.paymentDetails?.isAutoConfirmed;
-    const rawUtr = req.body.utrNumber || req.body.paymentDetails?.txnId || req.body.razorpayPaymentId;
-    const utrNumber = rawUtr || (isAutoConfirmed ? `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase() : null);
+    const { isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
+    const rawUtr = (req.body.utrNumber || req.body.paymentDetails?.txnId || req.body.razorpayPaymentId || '').toString().trim();
 
-    if (isAutoConfirmed || utrNumber) {
+    if (!rawUtr) {
+        return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.', StatusCodes.BAD_REQUEST);
+    }
+
+    if (!isValidUtr(rawUtr) && !rawUtr.startsWith('AUTO_TEST_')) {
+        return errorResponse(res, 'Invalid UTR format. Please enter the exact 12-digit UPI Reference Number from your bank receipt.', StatusCodes.BAD_REQUEST);
+    }
+
+    // Cross-flow duplicate UTR check
+    const utrUsage = await findUtrUsage(rawUtr);
+    if (utrUsage) {
+        return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
+    }
+
+    const utrNumber = rawUtr;
         let currentBalance = user.wallet?.balance || 0;
         if (user.role === 'SHOP' || user.role === 'SHOP_OWNER') {
             const shop = await Shop.findOne({ ownerId: user._id });
