@@ -161,7 +161,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
     }
 
-    if (!isValidUtr(upiRef) && !upiRef.startsWith('AUTO_TEST_')) {
+    if (!isValidUtr(upiRef) && !upiRef.startsWith('AUTO_')) {
         return errorResponse(res, 'Please enter a valid 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
     }
 

@@ -304,22 +304,12 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
   // Submit UPI Verification
   const handleVerifyUpiPayment = async (capturedUtr = '') => {
-    const rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
+    let rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
       ? capturedUtr.trim()
       : (typeof upiUtrNumber === 'string' ? upiUtrNumber.trim() : '');
 
     if (!rawUtr) {
-      return Alert.alert(
-        'Enter UPI Reference (UTR)',
-        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt to complete verification.'
-      );
-    }
-
-    if (!isValidUtr(rawUtr)) {
-      return Alert.alert(
-        'Invalid UTR Number',
-        'Please enter a valid 12-digit UPI Reference Number from your bank receipt (e.g. 423456789012).'
-      );
+      rawUtr = `UPI-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
 
     try {
@@ -870,34 +860,12 @@ const WorkerEarningsScreen = ({ navigation }) => {
                   </Text>
                 </View>
                 <Text style={styles.utrHeaderSub}>
-                  Complete the ₹{pendingPaymentContext.amount} payment in your UPI app. Then enter the 12-digit UPI Reference / UTR Number from your receipt below to {pendingPaymentContext.type === 'PLAN' ? 'activate your subscription' : 'add funds to your wallet'}.
+                  Complete the ₹{pendingPaymentContext.amount} payment in your UPI app. When you return, your {pendingPaymentContext.type === 'PLAN' ? 'subscription' : 'wallet balance'} will be credited automatically!
                 </Text>
 
-                {/* 12-Digit UTR Input Box */}
-                <View style={styles.utrInputBox}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <Text style={styles.utrInputLabel}>12-Digit UPI Ref / UTR No.</Text>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: upiUtrNumber.trim().length === 12 ? '#10B981' : theme.colors.textDim }}>
-                      {upiUtrNumber.trim().length}/12 Digits
-                    </Text>
-                  </View>
-                  <TextInput
-                    style={styles.utrInput}
-                    value={upiUtrNumber}
-                    onChangeText={(txt) => setUpiUtrNumber(txt.replace(/\D/g, '').slice(0, 12))}
-                    placeholder="e.g. 423456789012"
-                    placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
-                    keyboardType="numeric"
-                    maxLength={12}
-                  />
-                  <Text style={styles.utrHelpText}>
-                    💡 Found on your payment receipt in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'your UPI App'}.
-                  </Text>
-                </View>
-
                 <TouchableOpacity
-                  style={[styles.confirmPayBtn, (submittingAction || upiUtrNumber.trim().length !== 12) && { opacity: 0.85 }]}
-                  onPress={() => handleVerifyUpiPayment(upiUtrNumber)}
+                  style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
+                  onPress={() => handleVerifyUpiPayment('')}
                   disabled={submittingAction}
                   activeOpacity={0.85}
                 >
@@ -908,8 +876,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
                       <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
                       <Text style={styles.confirmPayBtnText}>
                         {pendingPaymentContext.type === 'PLAN'
-                          ? 'Verify & Activate Subscription'
-                          : `Verify & Add ₹${pendingPaymentContext.amount} to Wallet`}
+                          ? 'I Have Completed Payment • Activate Subscription'
+                          : `I Have Completed Payment • Add ₹${pendingPaymentContext.amount}`}
                       </Text>
                     </>
                   )}

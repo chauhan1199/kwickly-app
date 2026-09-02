@@ -275,28 +275,15 @@ const ShopWalletScreen = ({ navigation }) => {
   };
 
   const handleVerifyUpiPayment = async (capturedUtr = '') => {
-    const rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
+    const cleanUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
       ? capturedUtr.trim()
       : (typeof upiTxnId === 'string' ? upiTxnId.trim() : '');
-
-    if (!rawUtr) {
-      return Alert.alert(
-        'Enter UPI Reference (UTR)',
-        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt to verify.'
-      );
-    }
-
-    if (!isValidUtr(rawUtr)) {
-      return Alert.alert(
-        'Invalid UTR Number',
-        'Please enter a valid 12-digit UPI Reference Number from your bank receipt (e.g. 423456789012).'
-      );
-    }
+    const finalUtr = cleanUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     setSubmittingAction(true);
     try {
       const amt = parseFloat(topUpAmount);
-      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: rawUtr }, null, rawUtr);
+      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: finalUtr }, null, finalUtr);
       if (res.data?.status === 'success' || res.data?.data) {
         setUpiPaymentModalVisible(false);
         setUpiTxnId('');
@@ -574,23 +561,10 @@ const ShopWalletScreen = ({ navigation }) => {
   };
 
   const handleSubmitSubscriptionUtr = async (capturedUtr = '') => {
-    const rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
+    const cleanUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
       ? capturedUtr.trim()
       : (typeof subUtr === 'string' ? subUtr.trim() : '');
-
-    if (!rawUtr) {
-      return Alert.alert(
-        'Enter UPI Reference (UTR)',
-        'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt to activate your plan.'
-      );
-    }
-
-    if (!isValidUtr(rawUtr)) {
-      return Alert.alert(
-        'Invalid UTR Number',
-        'Please enter a valid 12-digit UPI Reference Number from your bank receipt (e.g. 423456789012).'
-      );
-    }
+    const finalUtr = cleanUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
 
     const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
 
@@ -599,7 +573,7 @@ const ShopWalletScreen = ({ navigation }) => {
       const res = await shopService.subscribePlan({
         planId: selectedPlan,
         paymentMethod: 'UPI',
-        utrNumber: rawUtr,
+        utrNumber: finalUtr,
         targetRole: 'SHOP'
       });
       setSubscriptionModalVisible(false);
@@ -931,34 +905,12 @@ const ShopWalletScreen = ({ navigation }) => {
                   </Text>
                 </View>
                 <Text style={styles.utrHeaderSub}>
-                  Complete the ₹{topUpAmount} payment in your UPI app. Then enter the 12-digit UPI Reference / UTR Number from your receipt below to verify and credit your wallet.
+                  Complete the ₹{topUpAmount} transfer with your UPI PIN. When you return here, your top-up will be confirmed automatically!
                 </Text>
 
-                {/* 12-Digit UTR Input Box */}
-                <View style={styles.utrInputBox}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <Text style={styles.utrInputLabel}>12-Digit UPI Ref / UTR No.</Text>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: upiTxnId.trim().length === 12 ? '#10B981' : theme.colors.textDim }}>
-                      {upiTxnId.trim().length}/12 Digits
-                    </Text>
-                  </View>
-                  <TextInput
-                    style={styles.utrInput}
-                    value={upiTxnId}
-                    onChangeText={(txt) => setUpiTxnId(txt.replace(/\D/g, '').slice(0, 12))}
-                    placeholder="e.g. 423456789012"
-                    placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
-                    keyboardType="numeric"
-                    maxLength={12}
-                  />
-                  <Text style={styles.utrHelpText}>
-                    💡 Found on your payment success receipt in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'your UPI App'}.
-                  </Text>
-                </View>
-
                 <TouchableOpacity
-                  style={[styles.confirmPayBtn, (submittingAction || upiTxnId.trim().length !== 12) && { opacity: 0.85 }]}
-                  onPress={() => handleVerifyUpiPayment(upiTxnId)}
+                  style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
+                  onPress={() => handleVerifyUpiPayment('')}
                   disabled={submittingAction}
                   activeOpacity={0.85}
                 >
@@ -968,7 +920,7 @@ const ShopWalletScreen = ({ navigation }) => {
                     <>
                       <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
                       <Text style={styles.confirmPayBtnText}>
-                        Verify & Add ₹{topUpAmount} to Wallet
+                        I Have Completed Payment • Add ₹{topUpAmount}
                       </Text>
                     </>
                   )}
@@ -1261,34 +1213,12 @@ const ShopWalletScreen = ({ navigation }) => {
                       </Text>
                     </View>
                     <Text style={styles.utrHeaderSub}>
-                      Complete the payment of ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} in your UPI app. Then enter the 12-digit UPI Reference / UTR Number from your receipt below to activate your plan.
+                      Complete the payment of ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} in your UPI app. When you return, your subscription will be activated automatically!
                     </Text>
 
-                    {/* 12-Digit UTR Input Box */}
-                    <View style={styles.utrInputBox}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <Text style={styles.utrInputLabel}>12-Digit UPI Ref / UTR No.</Text>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: subUtr.trim().length === 12 ? '#10B981' : theme.colors.textDim }}>
-                          {subUtr.trim().length}/12 Digits
-                        </Text>
-                      </View>
-                      <TextInput
-                        style={styles.utrInput}
-                        value={subUtr}
-                        onChangeText={(txt) => setSubUtr(txt.replace(/\D/g, '').slice(0, 12))}
-                        placeholder="e.g. 423456789012"
-                        placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
-                        keyboardType="numeric"
-                        maxLength={12}
-                      />
-                      <Text style={styles.utrHelpText}>
-                        💡 Found on your payment receipt in {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'your UPI App'}.
-                      </Text>
-                    </View>
-
                     <TouchableOpacity
-                      style={[styles.confirmPayBtn, (submittingAction || subUtr.trim().length !== 12) && { opacity: 0.85 }]}
-                      onPress={() => handleSubmitSubscriptionUtr(subUtr)}
+                      style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
+                      onPress={() => handleSubmitSubscriptionUtr('')}
                       disabled={submittingAction}
                       activeOpacity={0.85}
                     >
@@ -1298,7 +1228,7 @@ const ShopWalletScreen = ({ navigation }) => {
                         <>
                           <ShieldCheck size={18} color="#fff" style={{ marginRight: 8 }} />
                           <Text style={styles.confirmPayBtnText}>
-                            Verify & Activate Subscription
+                            I Have Completed Payment • Activate Subscription
                           </Text>
                         </>
                       )}

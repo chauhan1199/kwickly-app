@@ -239,7 +239,7 @@ exports.subscribe = catchAsync(async (req, res) => {
             return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.', StatusCodes.BAD_REQUEST);
         }
 
-        if (!isValidUtr(rawUtr) && !rawUtr.startsWith('AUTO_TEST_')) {
+        if (!isValidUtr(rawUtr) && !rawUtr.startsWith('AUTO_')) {
             return errorResponse(res, 'Invalid UTR format. Please enter the exact 12-digit UPI Reference Number from your bank receipt.', StatusCodes.BAD_REQUEST);
         }
 

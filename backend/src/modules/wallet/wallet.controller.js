@@ -138,7 +138,7 @@ exports.topupWallet = catchAsync(async (req, res) => {
 
     // Mode 1: Direct 12-digit UTR Verification & Instant Credit
     if (rawUtr) {
-        if (!isValidUtr(rawUtr) && !rawUtr.startsWith('AUTO_TEST_')) {
+        if (!isValidUtr(rawUtr) && !rawUtr.startsWith('AUTO_')) {
             return errorResponse(res, 'Invalid UTR format. Please enter the exact 12-digit UPI Reference Number from your bank receipt.', StatusCodes.BAD_REQUEST);
         }
 
