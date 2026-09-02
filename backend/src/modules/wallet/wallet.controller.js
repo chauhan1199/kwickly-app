@@ -117,11 +117,14 @@ exports.topupWallet = catchAsync(async (req, res) => {
 
     // Verify the subscription plan (if this is a plan purchase) BEFORE queuing it
     let plan = null;
-    if (planId && user.role === 'WORKER') {
+    if (planId && (user.role === 'WORKER' || user.role === 'SHOP' || user.role === 'SHOP_OWNER')) {
         const AppSettings = require('../settings/settings.model');
         const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
         const configuredPlans = settings?.subscriptionPlans || [];
-        plan = configuredPlans.find(p => p.id === planId) || null;
+        const isShop = (user.role === 'SHOP' || user.role === 'SHOP_OWNER');
+        plan = configuredPlans.find(p => p.id === planId && (isShop ? p.targetRole === 'SHOP' : p.targetRole === 'WORKER'))
+            || configuredPlans.find(p => p.id === planId)
+            || null;
 
         if (!plan) {
             return errorResponse(res, 'Subscription plan not found', StatusCodes.NOT_FOUND);
@@ -137,7 +140,7 @@ exports.topupWallet = catchAsync(async (req, res) => {
 
     if (isAutoConfirmed || utrNumber) {
         let currentBalance = user.wallet?.balance || 0;
-        if (user.role === 'SHOP') {
+        if (user.role === 'SHOP' || user.role === 'SHOP_OWNER') {
             const shop = await Shop.findOne({ ownerId: user._id });
             currentBalance = shop?.wallet?.balance || 0;
             await Shop.findOneAndUpdate({ ownerId: user._id }, { $inc: { 'wallet.balance': amount } });
@@ -159,33 +162,56 @@ exports.topupWallet = catchAsync(async (req, res) => {
                 : `Wallet Top-up via Direct UPI (Verified)`
         });
 
-        // If it was a plan purchase for worker, activate the plan immediately
-        if (plan && user.role === 'WORKER') {
-            const { WorkerSubscription } = require('../subscription/subscription.model');
-            const AppSettings = require('../settings/settings.model');
-            const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-            const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
-            
-            const startDate = new Date();
-            const endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
+        // If it was a plan purchase for worker or shop, activate the plan immediately
+        if (plan) {
+            if (user.role === 'WORKER') {
+                const { WorkerSubscription } = require('../subscription/subscription.model');
+                const startDate = new Date();
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
 
-            await WorkerSubscription.create({
-                workerId: user._id,
-                planId: plan.id,
-                planName: plan.label || plan.id,
-                amount: plan.price,
-                startDate,
-                endDate,
-                isTrial: false,
-                payment: { status: 'PAID', razorpayPaymentId: utrNumber }
-            });
+                await WorkerSubscription.create({
+                    workerId: user._id,
+                    planId: plan.id,
+                    planName: plan.label || plan.id,
+                    amount: plan.price,
+                    startDate,
+                    endDate,
+                    isTrial: false,
+                    payment: { status: 'PAID', razorpayPaymentId: utrNumber }
+                });
 
-            await Customer.findByIdAndUpdate(user._id, {
-                'subscription.planId': plan.id,
-                'subscription.expiryDate': endDate,
-                'subscription.isTrial': false
-            });
+                await Customer.findByIdAndUpdate(user._id, {
+                    'subscription.planId': plan.id,
+                    'subscription.expiryDate': endDate,
+                    'subscription.isTrial': false
+                });
+            } else if (user.role === 'SHOP' || user.role === 'SHOP_OWNER') {
+                const { ShopSubscription } = require('../subscription/subscription.model');
+                const shop = await Shop.findOne({ ownerId: user._id });
+                if (shop) {
+                    const startDate = new Date();
+                    const endDate = new Date(startDate);
+                    endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
+
+                    await ShopSubscription.create({
+                        shopId: shop._id,
+                        planId: plan.id,
+                        planName: plan.label || plan.id,
+                        amount: plan.price,
+                        startDate,
+                        endDate,
+                        isTrial: false,
+                        payment: { status: 'PAID', razorpayPaymentId: utrNumber }
+                    });
+
+                    await Shop.findByIdAndUpdate(shop._id, {
+                        'subscription.planId': plan.id,
+                        'subscription.expiryDate': endDate,
+                        'subscription.isTrial': false
+                    });
+                }
+            }
         }
 
         const { emitToUser } = require('../../helpers/socket.helper');

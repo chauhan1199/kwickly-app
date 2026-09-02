@@ -43,11 +43,30 @@ import {
   ExternalLink,
   Zap,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ArrowDown,
+  ArrowUp,
+  ShieldCheck,
+  Share2,
+  Printer
 } from 'lucide-react-native';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import WorkerBalanceCard from '../../components/WorkerBalanceCard';
 import LinearGradient from 'react-native-linear-gradient';
+
+import { 
+  GooglePayIcon, 
+  PhonePeIcon, 
+  PaytmIcon, 
+  CredIcon, 
+  BhimIcon, 
+  AnyUpiIcon 
+} from '../../components/ui/UpiBrandIcons';
+import { 
+  generateAndSharePdfReceipt, 
+  printReceiptPdf, 
+  formatReceiptData 
+} from '../../utils/receiptGenerator';
 
 import { walletService } from '../../services/walletService';
 import { utrValidationError } from '../../utils/upiValidation';
@@ -93,6 +112,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [showManualUtr, setShowManualUtr] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [pendingPaymentContext, setPendingPaymentContext] = useState({ amount: 100, type: 'WALLET', planId: null });
+  const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [sharingReceipt, setSharingReceipt] = useState(false);
 
   // Auto-prompt UTR when user returns from UPI app
   useEffect(() => {
@@ -164,6 +186,10 @@ const WorkerEarningsScreen = ({ navigation }) => {
           title: t.description || 'Transaction',
           time: new Date(t.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
           amount: t.amount,
+          amountNum: t.amount,
+          rawDate: t.createdAt,
+          rawType: t.type,
+          refId: t.razorpayPaymentId || t._id.slice(-8).toUpperCase(),
           type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT', 'JOB_CREDIT', 'REFERRAL_BONUS'].includes(t.type) ? 'credit' : 'debit',
           status: t.status
         }));
@@ -215,6 +241,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
   }, [fetchWalletAndProfile]);
 
   const handlePayViaUpiApp = async (appKey = 'gpay') => {
+    setSelectedUpiApp(appKey);
     const upiId = adminUpiConfig?.upiId;
     if (!upiId) {
       return Alert.alert('Payment Unavailable', 'Admin UPI is currently not configured. Please contact support.');
@@ -224,6 +251,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
     const amtStr = Number(pendingPaymentContext.amount).toFixed(2);
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     const note = `Kwickly ${pendingPaymentContext.type || 'Payment'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
+
+    setPaymentInitiated(true);
 
     try {
       const result = await nativeUpiService.startUpiPayment({
@@ -284,6 +313,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       if (res.data?.status === 'success' || res.data?.data) {
         setUpiPaymentModalVisible(false);
         setUpiUtrNumber('');
+        setPaymentInitiated(false);
         setShowManualUtr(false);
 
         Alert.alert(
@@ -304,6 +334,29 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
   };
 
+  const handleShareReceiptPdf = async (txn) => {
+    if (!txn) return;
+    try {
+      setSharingReceipt(true);
+      const receiptData = formatReceiptData(txn, user, wallet.balance);
+      await generateAndSharePdfReceipt(receiptData);
+    } catch (e) {
+      Alert.alert('Receipt Error', e.message || 'Could not share PDF receipt.');
+    } finally {
+      setSharingReceipt(false);
+    }
+  };
+
+  const handlePrintReceiptPdf = async (txn) => {
+    if (!txn) return;
+    try {
+      const receiptData = formatReceiptData(txn, user, wallet.balance);
+      await printReceiptPdf(receiptData);
+    } catch (e) {
+      Alert.alert('Print Error', e.message || 'Could not print receipt.');
+    }
+  };
+
   // Direct UPI Payment flow
   const processRazorpayPayment = async (amount, context, extraData) => {
     setPendingPaymentContext({
@@ -311,6 +364,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
       type: context,
       planId: extraData?.planId || null
     });
+    setPaymentInitiated(false);
+    setSelectedUpiApp('gpay');
     setUpiPaymentModalVisible(true);
   };
 
@@ -322,6 +377,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
     const plan = dynamicPlans.find(p => p.id === selectedPlan);
     const amt = plan ? (plan.rawPrice || parseFloat(plan.price.replace('₹',''))) : 0;
     setPlanModalVisible(false);
+    setPaymentInitiated(false);
+    setSelectedUpiApp('gpay');
     setPendingPaymentContext({ amount: amt, type: 'PLAN', planId: selectedPlan });
     setUpiPaymentModalVisible(true);
   };
@@ -333,6 +390,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
       return;
     }
     setTopUpModalVisible(false);
+    setPaymentInitiated(false);
+    setSelectedUpiApp('gpay');
     setPendingPaymentContext({ amount: amt, type: 'WALLET', planId: null });
     setUpiPaymentModalVisible(true);
   };
@@ -717,7 +776,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       </Modal>
 
       {/* ═══════════════════════════════════════
-          MODAL 3: UPI PAYMENT CHECKOUT SHEET (GPay/PhonePe/Paytm/BHIM & UTR)
+          MODAL 3: UPI PAYMENT CHECKOUT SHEET (6-App Grid)
       ═══════════════════════════════════════ */}
       <Modal visible={upiPaymentModalVisible} transparent animationType="slide" onRequestClose={() => setUpiPaymentModalVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -726,113 +785,109 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>UPI Payment Checkout</Text>
-                <Text style={styles.modalSub}>Pay ₹{pendingPaymentContext.amount} to Admin UPI Account</Text>
+                <Text style={styles.modalTitle}>Complete UPI Payment</Text>
+                <Text style={styles.modalSub}>
+                  {pendingPaymentContext.type === 'PLAN' ? 'Activate subscription plan' : 'Instant balance credit to Worker Wallet'}
+                </Text>
               </View>
               <TouchableOpacity onPress={() => setUpiPaymentModalVisible(false)} style={styles.closeBtn}>
                 <X size={20} color={theme.colors.textDim} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Admin UPI ID Box */}
-              <View style={styles.adminUpiBox}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.adminUpiLabel}>Admin UPI ID (Payee: {adminUpiConfig.payeeName || 'Kwickly Admin'})</Text>
-                  <Text style={styles.adminUpiVal}>{adminUpiConfig.upiId || 'Admin UPI'}</Text>
-                </View>
-                <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpiId} activeOpacity={0.8}>
-                  {copiedUpi ? (
-                    <Check size={16} color="#10B981" />
-                  ) : (
-                    <Copy size={16} color="#6C47FF" />
-                  )}
-                  <Text style={[styles.copyBtnText, copiedUpi && { color: '#10B981' }]}>
-                    {copiedUpi ? 'Copied' : 'Copy'}
+            {/* Amount Pill */}
+            <View style={styles.amountPill}>
+              <Text style={styles.amountPillLabel}>Amount to Pay</Text>
+              <Text style={styles.amountPillValue}>₹{pendingPaymentContext.amount || 0}</Text>
+            </View>
+
+            {/* Quick UPI App Grid */}
+            <Text style={styles.upiAppsHeading}>Choose UPI App</Text>
+            <View style={styles.upiAppsGrid}>
+              {[
+                { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
+                { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
+                { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
+                { key: 'cred', name: 'CRED', icon: CredIcon },
+                { key: 'bhim', name: 'BHIM', icon: BhimIcon },
+                { key: 'generic', name: 'Any UPI', icon: AnyUpiIcon },
+              ].map((app) => {
+                const IconComponent = app.icon;
+                const isSelected = selectedUpiApp === app.key;
+                return (
+                  <TouchableOpacity
+                    key={app.key}
+                    style={[styles.upiAppBtn, isSelected && styles.upiAppBtnSelected]}
+                    onPress={() => handlePayViaUpiApp(app.key)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ marginBottom: 4 }}>
+                      <IconComponent size={32} />
+                    </View>
+                    <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]} numberOfLines={1}>
+                      {app.name}
+                    </Text>
+                    {isSelected && (
+                      <View style={styles.appCheckBadge}>
+                        <Check size={10} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Step 2: Payment Initiated & Auto Confirmation */}
+            {paymentInitiated ? (
+              <View style={styles.utrSection}>
+                <View style={styles.utrHeader}>
+                  <View style={styles.pulseDot} />
+                  <Text style={styles.utrHeaderTitle}>
+                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
                   </Text>
-                </TouchableOpacity>
-              </View>
+                </View>
+                <Text style={styles.utrHeaderSub}>
+                  Complete the ₹{pendingPaymentContext.amount} transfer in your UPI app. When you return here, tap below to confirm automatically!
+                </Text>
 
-              {/* Option 1: Direct 1-Tap Open in UPI App */}
-              <TouchableOpacity 
-                style={styles.openUpiBtn} 
-                onPress={() => handleOpenUpiApp(pendingPaymentContext.amount, pendingPaymentContext.type)}
-                activeOpacity={0.85}
-              >
-                <LinearGradient
-                  colors={['#10B981', '#059669']}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={styles.openUpiGradient}
-                >
-                  <Smartphone size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.openUpiBtnText}>Pay ₹{pendingPaymentContext.amount} via UPI App</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              {/* Primary Automated Confirmation Button */}
-              <TouchableOpacity 
-                style={[styles.modalPrimaryBtn, submittingAction && { opacity: 0.7 }]} 
-                onPress={() => handleVerifyUpiPayment(true)}
-                disabled={submittingAction}
-                activeOpacity={0.88}
-              >
-                <LinearGradient
-                  colors={['#6C47FF', '#8B6FFF']}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={styles.modalPrimaryGradient}
+                <TouchableOpacity
+                  style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
+                  onPress={() => handleVerifyUpiPayment('')}
+                  disabled={submittingAction}
+                  activeOpacity={0.85}
                 >
                   {submittingAction ? (
-                    <ActivityIndicator color="#fff" size="small" />
+                    <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <>
-                      <Zap size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.modalPrimaryBtnText}>✓ I Have Paid • Confirm & Activate ₹{pendingPaymentContext.amount}</Text>
+                      <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.confirmPayBtnText}>
+                        I Have Completed Payment • Confirm & Credit ₹{pendingPaymentContext.amount}
+                      </Text>
                     </>
                   )}
-                </LinearGradient>
-              </TouchableOpacity>
+                </TouchableOpacity>
 
-              {/* Optional Manual UTR Toggle */}
-              <TouchableOpacity
-                onPress={() => setShowManualUtr(!showManualUtr)}
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 4 }}
-              >
-                <Text style={{ fontSize: 12, color: theme.colors.textDim, fontWeight: '600' }}>
-                  {showManualUtr ? 'Hide manual UTR entry' : 'Having an issue? Enter 12-digit UTR manually'}
-                </Text>
-                {showManualUtr ? <ChevronUp size={14} color={theme.colors.textDim} /> : <ChevronDown size={14} color={theme.colors.textDim} />}
-              </TouchableOpacity>
-
-              {showManualUtr && (
-                <View style={{ marginTop: 10 }}>
-                  <View style={styles.utrInputBox}>
-                    <Text style={styles.inputSectionLabel}>12-Digit UPI Transaction / UTR Ref Number</Text>
-                    <TextInput
-                      style={styles.utrInput}
-                      placeholder="e.g. 423819204812"
-                      placeholderTextColor="#94A3B8"
-                      keyboardType="numeric"
-                      value={upiUtrNumber}
-                      onChangeText={setUpiUtrNumber}
-                    />
-                  </View>
-                  <TouchableOpacity 
-                    style={[styles.modalPrimaryBtn, { marginTop: 8 }, (!upiUtrNumber.trim() || submittingAction) && { opacity: 0.7 }]} 
-                    onPress={() => handleVerifyUpiPayment(false)}
-                    disabled={submittingAction || !upiUtrNumber.trim()}
-                    activeOpacity={0.88}
-                  >
-                    <LinearGradient
-                      colors={['#6C47FF', '#8B6FFF']}
-                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                      style={[styles.modalPrimaryGradient, { paddingVertical: 12 }]}
-                    >
-                      <Text style={[styles.modalPrimaryBtnText, { fontSize: 13 }]}>Submit UTR</Text>
-                    </LinearGradient>
+                <View style={styles.reopenRow}>
+                  <TouchableOpacity onPress={() => handlePayViaUpiApp(selectedUpiApp)} style={styles.reopenBtnFull}>
+                    <ExternalLink size={14} color="#6C47FF" />
+                    <Text style={styles.reopenText}>Re-open {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}</Text>
                   </TouchableOpacity>
                 </View>
-              )}
-            </ScrollView>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.confirmPayBtn}
+                onPress={() => handlePayViaUpiApp(selectedUpiApp || 'gpay')}
+                activeOpacity={0.85}
+              >
+                <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.confirmPayBtnText}>
+                  Pay ₹{pendingPaymentContext.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                </Text>
+                <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -858,63 +913,28 @@ const WorkerEarningsScreen = ({ navigation }) => {
             {/* Balance Breakdown with Reserve Freeze */}
             <View style={styles.withdrawBalanceSummaryBox}>
               <View style={styles.withdrawBalanceRow}>
-                <Text style={styles.withdrawBalanceLabel}>Total Wallet Balance:</Text>
-                <Text style={styles.withdrawBalanceVal}>₹{(wallet.balance || 0).toFixed(2)}</Text>
+                <Text style={styles.withdrawBalanceLabel}>Total Wallet Balance</Text>
+                <Text style={styles.withdrawBalanceValue}>₹{(wallet.balance || 0).toFixed(2)}</Text>
               </View>
-              <View style={styles.withdrawBalanceSubRow}>
-                <Text style={styles.withdrawBalanceSubLabel}>Safety Reserve (Freeze Balance):</Text>
-                <Text style={styles.withdrawBalanceSubVal}>- ₹100.00</Text>
-              </View>
-              <View style={styles.withdrawBalanceDivider} />
               <View style={styles.withdrawBalanceRow}>
-                <Text style={[styles.withdrawBalanceLabel, { fontWeight: '800', color: '#10B981' }]}>Max Withdrawable:</Text>
-                <Text style={[styles.withdrawBalanceVal, { color: '#10B981', fontSize: 16 }]}>
+                <Text style={styles.withdrawBalanceLabel}>Safety Balance Reserve</Text>
+                <Text style={[styles.withdrawBalanceValue, { color: '#EF4444' }]}>- ₹100.00</Text>
+              </View>
+              <View style={styles.withdrawDivider} />
+              <View style={styles.withdrawBalanceRow}>
+                <Text style={[styles.withdrawBalanceLabel, { fontWeight: '800', color: theme.colors.text }]}>Maximum Withdrawable</Text>
+                <Text style={[styles.withdrawBalanceValue, { color: '#10B981', fontSize: 16 }]}>
                   ₹{Math.max(0, (wallet.balance || 0) - 100).toFixed(2)}
                 </Text>
               </View>
             </View>
-
-            {/* Quick Amount Suggestion Chips */}
-            {Math.max(0, (wallet.balance || 0) - 100) > 0 && (
-              <View style={styles.quickWithdrawRow}>
-                <Text style={styles.quickWithdrawHint}>Quick:</Text>
-                {Math.max(0, (wallet.balance || 0) - 100) >= 10 && (
-                  <TouchableOpacity
-                    style={[styles.quickWithdrawChip, withdrawAmount === '10' && styles.quickWithdrawChipActive]}
-                    onPress={() => setWithdrawAmount('10')}
-                  >
-                    <Text style={[styles.quickWithdrawChipText, withdrawAmount === '10' && styles.quickWithdrawChipTextActive]}>
-                      ₹10
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {Math.max(0, (wallet.balance || 0) - 100) >= 20 && (
-                  <TouchableOpacity
-                    style={[styles.quickWithdrawChip, withdrawAmount === '20' && styles.quickWithdrawChipActive]}
-                    onPress={() => setWithdrawAmount('20')}
-                  >
-                    <Text style={[styles.quickWithdrawChipText, withdrawAmount === '20' && styles.quickWithdrawChipTextActive]}>
-                      ₹20
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={[styles.quickWithdrawChip, withdrawAmount === String(Math.floor(Math.max(0, (wallet.balance || 0) - 100))) && styles.quickWithdrawChipActive]}
-                  onPress={() => setWithdrawAmount(String(Math.floor(Math.max(0, (wallet.balance || 0) - 100))))}
-                >
-                  <Text style={[styles.quickWithdrawChipText, withdrawAmount === String(Math.floor(Math.max(0, (wallet.balance || 0) - 100))) && styles.quickWithdrawChipTextActive]}>
-                    Max (₹{Math.floor(Math.max(0, (wallet.balance || 0) - 100))})
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
 
             {/* Amount Input */}
             <View style={styles.amountInputBox}>
               <Text style={styles.rupeeSymbol}>₹</Text>
               <TextInput
                 style={styles.amountInput}
-                placeholder={Math.max(0, (wallet.balance || 0) - 100) > 0 ? `Enter amount (max ₹${Math.max(0, (wallet.balance || 0) - 100).toFixed(0)})` : "Min ₹100 required"}
+                placeholder="Amount (Min ₹10)"
                 placeholderTextColor="#94A3B8"
                 keyboardType="numeric"
                 value={withdrawAmount}
@@ -984,40 +1004,100 @@ const WorkerEarningsScreen = ({ navigation }) => {
       </Modal>
 
       {/* ═══════════════════════════════════════
-          MODAL 5: TRANSACTION DETAILS MODAL
+          MODAL 5: TRANSACTION DETAILS & OFFICIAL RECEIPT
       ═══════════════════════════════════════ */}
       <Modal visible={transactionModalVisible} transparent animationType="fade" onRequestClose={() => setTransactionModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: 24 }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Transaction Details</Text>
-              <TouchableOpacity onPress={() => setTransactionModalVisible(false)} style={styles.closeBtn}>
-                <X size={20} color={theme.colors.textDim} />
+        <View style={styles.centerOverlay}>
+          <View style={styles.receiptCard}>
+            {/* Header with verified badge */}
+            <View style={styles.receiptTopHeader}>
+              <View style={styles.receiptLogoBadge}>
+                <ShieldCheck size={14} color="#10B981" />
+                <Text style={styles.receiptLogoText}>KWICKLY VERIFIED RECEIPT</Text>
+              </View>
+              <TouchableOpacity onPress={() => setTransactionModalVisible(false)} style={styles.receiptCloseBtn}>
+                <X size={16} color={theme.colors.textDim} />
               </TouchableOpacity>
             </View>
 
             {selectedTransaction && (
-              <View style={styles.txDetailBox}>
-                <Text style={styles.txDetailAmount}>
-                  {selectedTransaction.type === 'credit' ? '+' : '-'}₹{selectedTransaction.amount}
-                </Text>
-                <Text style={styles.txDetailTitle}>{selectedTransaction.title}</Text>
-                <View style={styles.txDetailRow}>
-                  <Text style={styles.txDetailLabel}>Transaction ID</Text>
-                  <Text style={styles.txDetailVal}>#{selectedTransaction.txnId}</Text>
-                </View>
-                <View style={styles.txDetailRow}>
-                  <Text style={styles.txDetailLabel}>Date & Time</Text>
-                  <Text style={styles.txDetailVal}>{selectedTransaction.time}</Text>
-                </View>
-                <View style={styles.txDetailRow}>
-                  <Text style={styles.txDetailLabel}>Status</Text>
-                  <Text style={[styles.txDetailVal, { color: '#10B981', fontWeight: '800' }]}>
-                    {selectedTransaction.status || 'COMPLETED'}
+              <>
+                {/* Amount Header */}
+                <View style={styles.receiptAmtSection}>
+                  <View style={[styles.txIconLarge, { backgroundColor: selectedTransaction.type === 'credit' ? '#10B98118' : '#EF444418' }]}>
+                    {selectedTransaction.type === 'credit' ? (
+                      <ArrowDown size={28} color="#10B981" />
+                    ) : (
+                      <ArrowUp size={28} color="#EF4444" />
+                    )}
+                  </View>
+                  <Text style={styles.receiptDescText}>{selectedTransaction.title}</Text>
+                  <Text style={[styles.receiptAmtValue, { color: selectedTransaction.type === 'credit' ? '#10B981' : theme.colors.text }]}>
+                    {selectedTransaction.type === 'credit' ? '+' : '-'}₹{selectedTransaction.amount}
                   </Text>
+                  <View style={[styles.receiptStatusBadge, { backgroundColor: selectedTransaction.status === 'COMPLETED' ? '#10B98120' : '#F59E0B20' }]}>
+                    <Text style={[styles.receiptStatusText, { color: selectedTransaction.status === 'COMPLETED' ? '#10B981' : '#F59E0B' }]}>
+                      {selectedTransaction.status === 'COMPLETED' ? 'SUCCESSFUL' : (selectedTransaction.status || 'COMPLETED')}
+                    </Text>
+                  </View>
                 </View>
-              </View>
+
+                {/* Details Breakdown */}
+                <View style={styles.receiptDetailsBox}>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Receipt ID</Text>
+                    <Text style={[styles.receiptVal, styles.receiptValHighlight]}>#{selectedTransaction.txnId}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Date & Time</Text>
+                    <Text style={styles.receiptVal}>{selectedTransaction.time}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Transaction Type</Text>
+                    <Text style={styles.receiptVal}>{selectedTransaction.rawType || (selectedTransaction.type === 'credit' ? 'TOPUP / CREDIT' : 'WITHDRAWAL')}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Payment Mode</Text>
+                    <Text style={styles.receiptVal}>Direct UPI / Bank</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Reference / UTR</Text>
+                    <Text style={styles.receiptVal}>{selectedTransaction.refId || selectedTransaction.txnId}</Text>
+                  </View>
+                  <View style={[styles.receiptRow, styles.receiptTotalRow]}>
+                    <Text style={styles.receiptTotalKey}>Wallet Balance</Text>
+                    <Text style={styles.receiptTotalVal}>₹{(wallet.balance || 0).toFixed(2)}</Text>
+                  </View>
+                </View>
+
+                {/* PDF Receipt Sharing / Printing Actions */}
+                <View style={styles.receiptActionRow}>
+                  <TouchableOpacity 
+                    style={styles.receiptShareBtn} 
+                    onPress={() => handleShareReceiptPdf(selectedTransaction)}
+                    disabled={sharingReceipt}
+                    activeOpacity={0.85}
+                  >
+                    {sharingReceipt ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Share2 size={16} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.receiptShareBtnText}>Share PDF Receipt</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.receiptPrintBtn} 
+                    onPress={() => handlePrintReceiptPdf(selectedTransaction)}
+                    activeOpacity={0.85}
+                  >
+                    <Printer size={16} color="#6C47FF" style={{ marginRight: 8 }} />
+                    <Text style={styles.receiptPrintBtnText}>Save / Print PDF</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
             )}
           </View>
         </View>
@@ -1657,63 +1737,290 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontWeight: '800',
     color: isDarkMode ? '#64748B' : '#94A3B8',
     textAlign: 'center',
-    marginVertical: 10,
-    letterSpacing: 0.5,
   },
-  utrInputBox: {
-    marginBottom: 12,
-  },
-  inputSectionLabel: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: isDarkMode ? '#F8FAFC' : '#1E293B',
-    marginBottom: 6,
-  },
-  utrInput: {
-    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+  // UPI App Grid & Checkout styles
+  amountPill: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#EEF2FF',
     borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14.5,
-    fontWeight: '700',
-    color: isDarkMode ? '#F8FAFC' : '#1E293B',
-  },
-
-  // Transaction Detail View
-  txDetailBox: {
-    alignItems: 'center',
     paddingVertical: 10,
-  },
-  txDetailAmount: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: isDarkMode ? '#F8FAFC' : '#1E293B',
-    marginBottom: 6,
-  },
-  txDetailTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: isDarkMode ? '#94A3B8' : '#64748B',
-    marginBottom: 20,
-  },
-  txDetailRow: {
+    paddingHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: isDarkMode ? '#334155' : '#F1F5F9',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E0E7FF',
   },
-  txDetailLabel: {
-    fontSize: 13,
-    color: isDarkMode ? '#94A3B8' : '#64748B',
-  },
-  txDetailVal: {
+  amountPillLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+  },
+  amountPillValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#6C47FF',
+  },
+  upiAppsHeading: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  upiAppsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  upiAppBtn: {
+    width: (SCREEN_WIDTH - 64 - 16) / 3,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    position: 'relative',
+  },
+  upiAppBtnSelected: {
+    borderColor: '#6C47FF',
+    backgroundColor: isDarkMode ? '#2D1B69' : '#F5F3FF',
+  },
+  upiAppLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: isDarkMode ? '#CBD5E1' : '#475569',
+  },
+  appCheckBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#6C47FF',
+    borderRadius: 10,
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  utrSection: {
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    marginBottom: 8,
+  },
+  utrHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+    marginRight: 8,
+  },
+  utrHeaderTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: isDarkMode ? '#F1F5F9' : '#0F172A',
+  },
+  utrHeaderSub: {
+    fontSize: 11.5,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  confirmPayBtn: {
+    backgroundColor: '#6C47FF',
+    borderRadius: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  confirmPayBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  reopenRow: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  reopenBtnFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  reopenText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+
+  // Official Receipt Card Modal styles
+  centerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  receiptCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  receiptTopHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  receiptLogoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  receiptLogoText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#10B981',
+    letterSpacing: 0.8,
+  },
+  receiptCloseBtn: {
+    padding: 4,
+  },
+  receiptAmtSection: {
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? '#334155' : '#F1F5F9',
+    marginBottom: 14,
+  },
+  txIconLarge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  receiptDescText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    marginBottom: 4,
+  },
+  receiptAmtValue: {
+    fontSize: 30,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  receiptStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  receiptStatusText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  receiptDetailsBox: {
+    gap: 10,
+    marginBottom: 18,
+  },
+  receiptRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  receiptKey: {
+    fontSize: 12.5,
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+    fontWeight: '600',
+  },
+  receiptVal: {
+    fontSize: 12.5,
+    color: isDarkMode ? '#F1F5F9' : '#0F172A',
+    fontWeight: '700',
+  },
+  receiptValHighlight: {
+    color: '#6C47FF',
+    fontWeight: '800',
+  },
+  receiptTotalRow: {
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? '#334155' : '#F1F5F9',
+  },
+  receiptTotalKey: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: isDarkMode ? '#F1F5F9' : '#0F172A',
+  },
+  receiptTotalVal: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#10B981',
+  },
+  receiptActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  receiptShareBtn: {
+    flex: 1,
+    backgroundColor: '#6C47FF',
+    borderRadius: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  receiptShareBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  receiptPrintBtn: {
+    flex: 1,
+    backgroundColor: isDarkMode ? '#334155' : '#EEF2FF',
+    borderRadius: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  receiptPrintBtnText: {
+    color: '#6C47FF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });
 

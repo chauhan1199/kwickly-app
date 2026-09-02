@@ -44,9 +44,25 @@ import {
   Plus,
   Trash2,
   Check,
-  ChevronDown,
-  ChevronUp
+  ChevronDown, 
+  ChevronUp,
+  Share2,
+  Printer,
+  ExternalLink
 } from 'lucide-react-native';
+import { 
+  GooglePayIcon, 
+  PhonePeIcon, 
+  PaytmIcon, 
+  CredIcon, 
+  BhimIcon, 
+  AnyUpiIcon 
+} from '../../components/ui/UpiBrandIcons';
+import { 
+  generateAndSharePdfReceipt, 
+  printReceiptPdf, 
+  formatReceiptData 
+} from '../../utils/receiptGenerator';
 import { shopService } from '../../services/shopService';
 import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
 import { walletService } from '../../services/walletService';
@@ -71,6 +87,13 @@ const ShopWalletScreen = ({ navigation }) => {
   const [transactionModalVisible, setTransactionModalVisible] = useState(false);
   const [subscriptionModalVisible, setSubscriptionModalVisible] = useState(false);
   const [addAccountModalVisible, setAddAccountModalVisible] = useState(false);
+
+  // UPI App Selection state
+  const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [selectedSubUpiApp, setSelectedSubUpiApp] = useState('gpay');
+  const [subPaymentInitiated, setSubPaymentInitiated] = useState(false);
+  const [sharingReceipt, setSharingReceipt] = useState(false);
 
   // Data state
   const [loading, setLoading] = useState(true);
@@ -169,9 +192,12 @@ const ShopWalletScreen = ({ navigation }) => {
           txnId: t._id.slice(-8).toUpperCase(),
           title: t.description || (t.type === 'WITHDRAWAL' ? 'Withdrawal' : t.type === 'TOPUP' ? 'Wallet Top-Up' : 'Order Credit'),
           time: new Date(t.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          rawDate: t.createdAt,
           amount: `₹${Number(t.amount).toFixed(2)}`,
           amountNum: t.amount,
           type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT', 'REFUND'].includes(t.type) ? 'credit' : 'debit',
+          rawType: t.type,
+          refId: t.razorpayPaymentId || t._id.slice(-8).toUpperCase(),
           status: t.status || 'COMPLETED'
         }));
         setTxns(mappedTxns);
@@ -192,6 +218,8 @@ const ShopWalletScreen = ({ navigation }) => {
   // ═══════════════════════════════════════════
   const handleOpenTopUp = () => {
     setTopUpAmount('500');
+    setPaymentInitiated(false);
+    setSelectedUpiApp('gpay');
     setTopUpModalVisible(true);
   };
 
@@ -201,20 +229,13 @@ const ShopWalletScreen = ({ navigation }) => {
       Alert.alert('Invalid Amount', 'Minimum top-up amount is ₹10.');
       return;
     }
+    setPaymentInitiated(false);
     setTopUpModalVisible(false);
     setUpiPaymentModalVisible(true);
   };
 
-  const handleCopyUpi = () => {
-    const upiId = adminUpiConfig?.upiId;
-    if (!upiId) {
-      return Alert.alert('Admin UPI', 'Admin UPI ID is currently not configured. Please contact support.');
-    }
-    Clipboard.setString(upiId);
-    Alert.alert('UPI ID Copied 📋', `Admin UPI (${upiId}) copied to clipboard.`);
-  };
-
   const handlePayViaUpiApp = async (appKey = 'gpay') => {
+    setSelectedUpiApp(appKey);
     const upiId = adminUpiConfig?.upiId;
     if (!upiId) {
       return Alert.alert('Payment Unavailable', 'Admin UPI is not configured. Please contact support.');
@@ -223,6 +244,8 @@ const ShopWalletScreen = ({ navigation }) => {
     const payee = adminUpiConfig?.payeeName || 'Kwickly Admin';
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     
+    setPaymentInitiated(true);
+
     try {
       const result = await nativeUpiService.startUpiPayment({
         vpa: upiId,
@@ -265,6 +288,7 @@ const ShopWalletScreen = ({ navigation }) => {
         setUpiPaymentModalVisible(false);
         setUpiTxnId('');
         setTopUpAmount('');
+        setPaymentInitiated(false);
         setShowManualUtr(false);
         Alert.alert(
           'Top-up Successful! 🎉',
@@ -278,6 +302,53 @@ const ShopWalletScreen = ({ navigation }) => {
       Alert.alert('Payment Issue', error.response?.data?.message || error.message || 'Failed to verify UPI transaction. Please try again.');
     } finally {
       setSubmittingAction(false);
+    }
+  };
+
+  const handleShareReceiptPdf = async (txn) => {
+    if (!txn) return;
+    setSharingReceipt(true);
+    try {
+      const receiptData = formatReceiptData(
+        {
+          _id: txn.id || txn.txnId,
+          type: txn.rawType || (txn.type === 'credit' ? 'TOPUP' : 'WITHDRAWAL'),
+          amount: txn.amountNum || parseFloat(txn.amount?.replace(/[^\d.]/g, '') || 0),
+          createdAt: txn.rawDate || new Date().toISOString(),
+          description: txn.title,
+          status: txn.status || 'COMPLETED',
+          razorpayPaymentId: txn.refId || txn.txnId || 'AUTO_CONFIRMED'
+        },
+        null,
+        balance
+      );
+      await generateAndSharePdfReceipt(receiptData);
+    } catch (e) {
+      Alert.alert('PDF Sharing Error', e.message || 'Could not generate PDF receipt.');
+    } finally {
+      setSharingReceipt(false);
+    }
+  };
+
+  const handlePrintReceiptPdf = async (txn) => {
+    if (!txn) return;
+    try {
+      const receiptData = formatReceiptData(
+        {
+          _id: txn.id || txn.txnId,
+          type: txn.rawType || (txn.type === 'credit' ? 'TOPUP' : 'WITHDRAWAL'),
+          amount: txn.amountNum || parseFloat(txn.amount?.replace(/[^\d.]/g, '') || 0),
+          createdAt: txn.rawDate || new Date().toISOString(),
+          description: txn.title,
+          status: txn.status || 'COMPLETED',
+          razorpayPaymentId: txn.refId || txn.txnId || 'AUTO_CONFIRMED'
+        },
+        null,
+        balance
+      );
+      await printReceiptPdf(receiptData);
+    } catch (e) {
+      Alert.alert('Printing Error', e.message || 'Could not open print manager.');
     }
   };
 
@@ -443,10 +514,13 @@ const ShopWalletScreen = ({ navigation }) => {
       return;
     }
     setSubUtr('');
+    setSubPaymentInitiated(false);
+    setSelectedSubUpiApp('gpay');
     setSubPaymentStep(true);
   };
 
-  const handlePaySubscriptionUpi = async () => {
+  const handlePaySubscriptionUpi = async (appKey = 'gpay') => {
+    setSelectedSubUpiApp(appKey);
     const upiId = adminUpiConfig?.upiId;
     if (!upiId) {
       return Alert.alert('Payment Unavailable', 'Admin UPI is not configured. Please contact support.');
@@ -455,26 +529,41 @@ const ShopWalletScreen = ({ navigation }) => {
     const amt = planConfig?.priceNum || 0;
     const payee = adminUpiConfig?.payeeName || 'Kwickly Admin';
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
-    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payee)}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Shop Subscription')}&tr=${shortTr}`;
+    
+    setSubPaymentInitiated(true);
+
     try {
-      const supported = await Linking.canOpenURL(upiUrl).catch(() => false);
-      if (supported) {
-        await Linking.openURL(upiUrl);
-      } else {
-        Alert.alert('UPI App Required', `Please copy UPI ID "${upiId}" and pay ₹${amt} from GPay, PhonePe, or Paytm.`);
+      const result = await nativeUpiService.startUpiPayment({
+        vpa: upiId,
+        name: payee,
+        amount: amt.toFixed(2),
+        txnRef: shortTr,
+        note: `Shop Subscription ₹${amt}`,
+        appKey,
+      });
+
+      if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
+        await handleSubmitSubscriptionUtr(result.approvalRefNo || result.txnId);
+      } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
+        const appTitle = appKey === 'gpay' ? 'Google Pay' : appKey === 'phonepe' ? 'PhonePe' : appKey === 'paytm' ? 'Paytm' : appKey === 'cred' ? 'CRED' : appKey === 'bhim' ? 'BHIM' : 'UPI App';
+        Alert.alert(
+          'Payment Cancelled',
+          `The transaction was cancelled in ${appTitle}. No money was deducted from your bank account.`,
+          [
+            { text: 'Close', style: 'cancel' },
+            { text: 'Try Again', onPress: () => handlePaySubscriptionUpi(appKey) }
+          ]
+        );
       }
     } catch (e) {
-      Alert.alert('Payment Info', `Transfer ₹${amt} to Admin UPI: ${upiId}\nThen enter the 12-digit UTR below.`);
+      Alert.alert('UPI App', e.message || 'Could not open UPI app. Please try again.');
     }
   };
 
-  const handleSubmitSubscriptionUtr = async (isAuto = false, isBackground = false) => {
-    const rawUtr = subUtr.trim();
-    if (!isAuto && showSubManualUtr && (!rawUtr || rawUtr.length < 4)) {
-      Alert.alert('UTR Required', 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.');
-      return;
-    }
-
+  const handleSubmitSubscriptionUtr = async (capturedUtr = '') => {
+    const rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
+      ? capturedUtr.trim()
+      : (typeof subUtr === 'string' ? subUtr.trim() : '');
     const utr = rawUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
     const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
 
@@ -484,20 +573,18 @@ const ShopWalletScreen = ({ navigation }) => {
         planId: selectedPlan,
         paymentMethod: 'UPI',
         utrNumber: utr,
-        isAutoConfirmed: isAuto || !rawUtr,
+        isAutoConfirmed: true,
         targetRole: 'SHOP'
       });
-      const data = res.data?.data;
       setSubscriptionModalVisible(false);
       setSubPaymentStep(false);
       setSubUtr('');
+      setSubPaymentInitiated(false);
       setShowSubManualUtr(false);
       Alert.alert('Subscription Active 🎉', `Your plan "${planConfig?.title || 'Active'}" has been activated!`);
       fetchWallet();
     } catch (e) {
-      if (!isBackground) {
-        Alert.alert('Subscription Error', e?.response?.data?.message || e?.message || 'Failed to subscribe. Please try again or submit 12-digit UTR manually.');
-      }
+      Alert.alert('Subscription Error', e?.response?.data?.message || e?.message || 'Failed to subscribe. Please try again.');
     } finally {
       setSubmittingAction(false);
     }
@@ -750,7 +837,7 @@ const ShopWalletScreen = ({ navigation }) => {
       </Modal>
 
       {/* ═══════════════════════════════════════════
-          MODAL 2: UPI PAYMENT CHECKOUT & 12-DIGIT UTR
+          MODAL 2: UPI PAYMENT CHECKOUT
       ═══════════════════════════════════════════ */}
       <Modal visible={upiPaymentModalVisible} transparent animationType="slide" onRequestClose={() => setUpiPaymentModalVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -759,79 +846,105 @@ const ShopWalletScreen = ({ navigation }) => {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>Complete UPI Payment</Text>
-                <Text style={styles.modalSub}>Pay ₹{topUpAmount} to Admin account</Text>
+                <Text style={styles.modalSub}>Instant balance credit to Shop Wallet</Text>
               </View>
               <TouchableOpacity onPress={() => setUpiPaymentModalVisible(false)} style={styles.closeBtn}>
                 <X size={20} color={theme.colors.textDim} />
               </TouchableOpacity>
             </View>
 
-            {/* UPI Details Box */}
-            <View style={styles.upiInfoCard}>
-              <View style={styles.upiCardHeader}>
-                <Smartphone size={20} color="#6C47FF" />
-                <Text style={styles.upiCardTitle}>Official Admin UPI ID</Text>
-              </View>
-              <View style={styles.upiIdRow}>
-                <Text style={styles.upiIdText}>{adminUpiConfig?.upiId || 'Admin UPI'}</Text>
-                <TouchableOpacity style={styles.copyBtn} onPress={handleCopyUpi}>
-                  <Copy size={14} color="#6C47FF" />
-                  <Text style={styles.copyBtnText}>Copy</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.upiAmountHint}>Amount to Transfer: <Text style={{ fontWeight: '900', color: '#6C47FF' }}>₹{topUpAmount}</Text></Text>
+            {/* Amount Pill */}
+            <View style={styles.amountPill}>
+              <Text style={styles.amountPillLabel}>Amount to Add</Text>
+              <Text style={styles.amountPillValue}>₹{topUpAmount || 0}</Text>
             </View>
 
-            {/* Direct App Button */}
-            <TouchableOpacity style={styles.upiIntentBtn} onPress={handlePayViaUpiApp} activeOpacity={0.85}>
-              <Zap size={18} color="#FFFFFF" />
-              <Text style={styles.upiIntentBtnText}>Open GPay / PhonePe / Paytm</Text>
-            </TouchableOpacity>
+            {/* Quick UPI App Grid */}
+            <Text style={styles.upiAppsHeading}>Choose UPI App</Text>
+            <View style={styles.upiAppsGrid}>
+              {[
+                { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
+                { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
+                { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
+                { key: 'cred', name: 'CRED', icon: CredIcon },
+                { key: 'bhim', name: 'BHIM', icon: BhimIcon },
+                { key: 'generic', name: 'Any UPI', icon: AnyUpiIcon },
+              ].map((app) => {
+                const IconComponent = app.icon;
+                const isSelected = selectedUpiApp === app.key;
+                return (
+                  <TouchableOpacity
+                    key={app.key}
+                    style={[styles.upiAppBtn, isSelected && styles.upiAppBtnSelected]}
+                    onPress={() => handlePayViaUpiApp(app.key)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ marginBottom: 4 }}>
+                      <IconComponent size={32} />
+                    </View>
+                    <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]} numberOfLines={1}>
+                      {app.name}
+                    </Text>
+                    {isSelected && (
+                      <View style={styles.appCheckBadge}>
+                        <Check size={10} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-            {/* Primary 1-Tap Auto Confirmation */}
-            <TouchableOpacity 
-              style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]} 
-              onPress={() => handleVerifyUpiPayment(true)}
-              disabled={submittingAction}
-            >
-              {submittingAction ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.primaryBtnText}>✓ I Have Paid • Confirm & Credit ₹{topUpAmount} ✅</Text>
-              )}
-            </TouchableOpacity>
+            {/* Step 2: Payment Initiated & Auto Confirmation */}
+            {paymentInitiated ? (
+              <View style={styles.utrSection}>
+                <View style={styles.utrHeader}>
+                  <View style={styles.pulseDot} />
+                  <Text style={styles.utrHeaderTitle}>
+                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                  </Text>
+                </View>
+                <Text style={styles.utrHeaderSub}>
+                  Complete the ₹{topUpAmount} transfer with your UPI PIN. When you return here, your top-up will be confirmed automatically!
+                </Text>
 
-            {/* Optional Manual UTR entry */}
-            <TouchableOpacity
-              onPress={() => setShowManualUtr(!showManualUtr)}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 4 }}
-            >
-              <Text style={{ fontSize: 12, color: theme.colors.textDim, fontWeight: '600' }}>
-                {showManualUtr ? 'Hide manual UTR' : 'Having an issue? Enter 12-digit UTR manually'}
-              </Text>
-              {showManualUtr ? <ChevronUp size={14} color={theme.colors.textDim} /> : <ChevronDown size={14} color={theme.colors.textDim} />}
-            </TouchableOpacity>
-
-            {showManualUtr && (
-              <View style={[styles.utrSection, { marginTop: 10 }]}>
-                <Text style={styles.utrLabel}>Enter 12-Digit UPI Ref / UTR Number</Text>
-                <TextInput
-                  style={styles.utrInput}
-                  placeholder="e.g. 20260823000123"
-                  placeholderTextColor={theme.colors.textDim}
-                  keyboardType="numeric"
-                  maxLength={12}
-                  value={upiTxnId}
-                  onChangeText={setUpiTxnId}
-                />
-                <TouchableOpacity 
-                  style={[styles.primaryBtn, { marginTop: 8, paddingVertical: 12 }, (!upiTxnId.trim() || submittingAction) && { opacity: 0.5 }]} 
-                  onPress={() => handleVerifyUpiPayment(false)}
-                  disabled={!upiTxnId.trim() || submittingAction}
+                <TouchableOpacity
+                  style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
+                  onPress={() => handleVerifyUpiPayment('')}
+                  disabled={submittingAction}
+                  activeOpacity={0.85}
                 >
-                  <Text style={[styles.primaryBtnText, { fontSize: 13 }]}>Submit UTR</Text>
+                  {submittingAction ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.confirmPayBtnText}>
+                        I Have Completed Payment • Add ₹{topUpAmount}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
+
+                <View style={styles.reopenRow}>
+                  <TouchableOpacity onPress={() => handlePayViaUpiApp(selectedUpiApp)} style={styles.reopenBtnFull}>
+                    <ExternalLink size={14} color="#6C47FF" />
+                    <Text style={styles.reopenText}>Re-open {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.confirmPayBtn}
+                onPress={() => handlePayViaUpiApp(selectedUpiApp || 'gpay')}
+                activeOpacity={0.85}
+              >
+                <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.confirmPayBtnText}>
+                  Pay ₹{topUpAmount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                </Text>
+                <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -1034,12 +1147,12 @@ const ShopWalletScreen = ({ navigation }) => {
       ═══════════════════════════════════════════ */}
       <Modal visible={subscriptionModalVisible} transparent animationType="slide" onRequestClose={() => { setSubPaymentStep(false); setSubscriptionModalVisible(false); }}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+          <View style={[styles.modalContent, { maxHeight: '88%' }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>Shop Subscriptions</Text>
-                <Text style={styles.modalSub}>{subPaymentStep ? 'Complete your UPI payment & enter UTR' : 'Select a plan for unlimited orders & delivery'}</Text>
+                <Text style={styles.modalSub}>{subPaymentStep ? 'Choose UPI App to Activate Plan' : 'Select a plan for unlimited orders & delivery'}</Text>
               </View>
               <TouchableOpacity onPress={() => { setSubPaymentStep(false); setSubscriptionModalVisible(false); }} style={styles.closeBtn}>
                 <X size={20} color={theme.colors.textDim} />
@@ -1048,76 +1161,103 @@ const ShopWalletScreen = ({ navigation }) => {
 
             {subPaymentStep ? (
               <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.upiPayBox}>
-                  <Text style={styles.upiPayAmount}>Pay ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0}</Text>
-                  <Text style={styles.upiPayNote}>
-                    to the Kwickly Admin UPI ID below, then enter the 12-digit UPI Reference / UTR Number from your payment receipt.
-                  </Text>
-                  <View style={styles.upiPayIdRow}>
-                    <Text style={styles.upiPayIdText}>{adminUpiConfig?.upiId || 'Admin UPI'}</Text>
-                    <TouchableOpacity style={styles.upiPayCopyBtn} onPress={handleCopyUpi}>
-                      <Copy size={14} color="#6C47FF" />
-                    </TouchableOpacity>
-                  </View>
+                {/* Plan Amount Pill */}
+                <View style={styles.amountPill}>
+                  <Text style={styles.amountPillLabel}>Subscription Plan</Text>
+                  <Text style={styles.amountPillValue}>₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0}</Text>
+                </View>
 
-                  <TouchableOpacity style={styles.primaryBtn} onPress={handlePaySubscriptionUpi}>
-                    <Zap size={16} color="#fff" style={{ marginRight: 6 }} />
-                    <Text style={styles.primaryBtnText}>Open UPI App & Pay</Text>
-                  </TouchableOpacity>
-
-                  {/* Primary 1-Tap Auto Activation Button */}
-                  <TouchableOpacity
-                    style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]}
-                    onPress={() => handleSubmitSubscriptionUtr(true)}
-                    disabled={submittingAction}
-                  >
-                    {submittingAction ? (
-                      <ActivityIndicator color="#fff" size="small" />
-                    ) : (
-                      <>
-                        <ShieldCheck size={16} color="#fff" style={{ marginRight: 6 }} />
-                        <Text style={styles.primaryBtnText}>✓ I Have Paid • Activate Subscription</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Optional Manual UTR Entry Toggle */}
-                  <TouchableOpacity
-                    onPress={() => setShowSubManualUtr(!showSubManualUtr)}
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 4 }}
-                  >
-                    <Text style={{ fontSize: 12, color: theme.colors.textDim, fontWeight: '600' }}>
-                      {showSubManualUtr ? 'Hide manual UTR entry' : 'Having an issue? Enter 12-digit UTR manually'}
-                    </Text>
-                    {showSubManualUtr ? <ChevronUp size={14} color={theme.colors.textDim} /> : <ChevronDown size={14} color={theme.colors.textDim} />}
-                  </TouchableOpacity>
-
-                  {showSubManualUtr && (
-                    <View style={{ marginTop: 8 }}>
-                      <Text style={styles.upiPayLabel}>12-Digit UPI Reference / UTR Number</Text>
-                      <TextInput
-                        style={styles.upiPayInput}
-                        placeholder="e.g. 423456789012"
-                        placeholderTextColor={theme.colors.textDim}
-                        value={subUtr}
-                        onChangeText={setSubUtr}
-                        keyboardType="number-pad"
-                        maxLength={12}
-                      />
+                {/* Quick UPI App Grid */}
+                <Text style={styles.upiAppsHeading}>Choose UPI App</Text>
+                <View style={styles.upiAppsGrid}>
+                  {[
+                    { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
+                    { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
+                    { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
+                    { key: 'cred', name: 'CRED', icon: CredIcon },
+                    { key: 'bhim', name: 'BHIM', icon: BhimIcon },
+                    { key: 'generic', name: 'Any UPI', icon: AnyUpiIcon },
+                  ].map((app) => {
+                    const IconComponent = app.icon;
+                    const isSelected = selectedSubUpiApp === app.key;
+                    return (
                       <TouchableOpacity
-                        style={[styles.primaryBtn, { marginTop: 8, paddingVertical: 12 }, (!subUtr.trim() || submittingAction) && { opacity: 0.5 }]}
-                        onPress={() => handleSubmitSubscriptionUtr(false)}
-                        disabled={!subUtr.trim() || submittingAction}
+                        key={app.key}
+                        style={[styles.upiAppBtn, isSelected && styles.upiAppBtnSelected]}
+                        onPress={() => handlePaySubscriptionUpi(app.key)}
+                        activeOpacity={0.8}
                       >
-                        <Text style={[styles.primaryBtnText, { fontSize: 13 }]}>Submit UTR</Text>
+                        <View style={{ marginBottom: 4 }}>
+                          <IconComponent size={32} />
+                        </View>
+                        <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]} numberOfLines={1}>
+                          {app.name}
+                        </Text>
+                        {isSelected && (
+                          <View style={styles.appCheckBadge}>
+                            <Check size={10} color="#fff" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Step 2: Payment Initiated & Auto Confirmation */}
+                {subPaymentInitiated ? (
+                  <View style={styles.utrSection}>
+                    <View style={styles.utrHeader}>
+                      <View style={styles.pulseDot} />
+                      <Text style={styles.utrHeaderTitle}>
+                        Payment Opened in {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                      </Text>
+                    </View>
+                    <Text style={styles.utrHeaderSub}>
+                      Complete the payment of ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} in your UPI app. When you return, tap below to activate your plan!
+                    </Text>
+
+                    <TouchableOpacity
+                      style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
+                      onPress={() => handleSubmitSubscriptionUtr('')}
+                      disabled={submittingAction}
+                      activeOpacity={0.85}
+                    >
+                      {submittingAction ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <ShieldCheck size={18} color="#fff" style={{ marginRight: 8 }} />
+                          <Text style={styles.confirmPayBtnText}>
+                            ✓ I Have Paid • Activate Subscription
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    <View style={styles.reopenRow}>
+                      <TouchableOpacity onPress={() => handlePaySubscriptionUpi(selectedSubUpiApp)} style={styles.reopenBtnFull}>
+                        <ExternalLink size={14} color="#6C47FF" />
+                        <Text style={styles.reopenText}>Re-open {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}</Text>
                       </TouchableOpacity>
                     </View>
-                  )}
-
-                  <TouchableOpacity onPress={() => setSubPaymentStep(false)} style={{ alignItems: 'center', marginTop: 14 }}>
-                    <Text style={{ color: '#6C47FF', fontWeight: '700', fontSize: 13 }}>← Back to Plans</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.confirmPayBtn}
+                    onPress={() => handlePaySubscriptionUpi(selectedSubUpiApp || 'gpay')}
+                    activeOpacity={0.85}
+                  >
+                    <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.confirmPayBtnText}>
+                      Pay ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} via {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                    </Text>
+                    <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
                   </TouchableOpacity>
-                </View>
+                )}
+
+                <TouchableOpacity onPress={() => setSubPaymentStep(false)} style={{ alignItems: 'center', marginTop: 14, paddingVertical: 6 }}>
+                  <Text style={{ color: '#6C47FF', fontWeight: '700', fontSize: 13 }}>← Back to Plans</Text>
+                </TouchableOpacity>
               </ScrollView>
             ) : (
               <>
@@ -1141,14 +1281,14 @@ const ShopWalletScreen = ({ navigation }) => {
                 </ScrollView>
 
                 <TouchableOpacity
-                  style={[styles.primaryBtn, submittingAction && { opacity: 0.7 }]}
+                  style={[styles.primaryBtn, (submittingAction || !selectedPlan) && { opacity: 0.7 }]}
                   onPress={handleConfirmSubscription}
                   disabled={submittingAction || !selectedPlan}
                 >
                   {submittingAction ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
-                    <Text style={styles.primaryBtnText}>Pay via UPI & Activate →</Text>
+                    <Text style={styles.primaryBtnText}>Proceed to Pay via UPI →</Text>
                   )}
                 </TouchableOpacity>
               </>
@@ -1158,41 +1298,100 @@ const ShopWalletScreen = ({ navigation }) => {
       </Modal>
 
       {/* ═══════════════════════════════════════════
-          MODAL 6: TRANSACTION DETAILS
+          MODAL 6: TRANSACTION DETAILS & OFFICIAL RECEIPT
       ═══════════════════════════════════════════ */}
       <Modal visible={transactionModalVisible} transparent animationType="fade" onRequestClose={() => setTransactionModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: 24 }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Transaction Details</Text>
-              <TouchableOpacity onPress={() => setTransactionModalVisible(false)} style={styles.closeBtn}>
-                <X size={20} color={theme.colors.textDim} />
+        <View style={styles.centerOverlay}>
+          <View style={styles.receiptCard}>
+            {/* Header with verified badge */}
+            <View style={styles.receiptTopHeader}>
+              <View style={styles.receiptLogoBadge}>
+                <ShieldCheck size={14} color="#10B981" />
+                <Text style={styles.receiptLogoText}>KWICKLY VERIFIED RECEIPT</Text>
+              </View>
+              <TouchableOpacity onPress={() => setTransactionModalVisible(false)} style={styles.receiptCloseBtn}>
+                <X size={16} color={theme.colors.textDim} />
               </TouchableOpacity>
             </View>
 
             {selectedTransaction && (
-              <View style={styles.txDetailBox}>
-                <Text style={[styles.txDetailAmount, { color: selectedTransaction.type === 'credit' ? '#10B981' : '#EF4444' }]}>
-                  {selectedTransaction.type === 'credit' ? '+' : '-'}{selectedTransaction.amount}
-                </Text>
-                <Text style={styles.txDetailTitle}>{selectedTransaction.title}</Text>
-                
-                <View style={styles.txDetailRow}>
-                  <Text style={styles.txDetailLabel}>Transaction ID</Text>
-                  <Text style={styles.txDetailVal}>#{selectedTransaction.txnId}</Text>
-                </View>
-                <View style={styles.txDetailRow}>
-                  <Text style={styles.txDetailLabel}>Date & Time</Text>
-                  <Text style={styles.txDetailVal}>{selectedTransaction.time}</Text>
-                </View>
-                <View style={styles.txDetailRow}>
-                  <Text style={styles.txDetailLabel}>Status</Text>
-                  <Text style={[styles.txDetailVal, { color: selectedTransaction.status === 'COMPLETED' ? '#10B981' : '#F59E0B', fontWeight: '800' }]}>
-                    {selectedTransaction.status || 'COMPLETED'}
+              <>
+                {/* Amount Header */}
+                <View style={styles.receiptAmtSection}>
+                  <View style={[styles.txIconLarge, { backgroundColor: selectedTransaction.type === 'credit' ? '#10B98118' : '#EF444418' }]}>
+                    {selectedTransaction.type === 'credit' ? (
+                      <ArrowDown size={28} color="#10B981" />
+                    ) : (
+                      <ArrowUp size={28} color="#EF4444" />
+                    )}
+                  </View>
+                  <Text style={styles.receiptDescText}>{selectedTransaction.title}</Text>
+                  <Text style={[styles.receiptAmtValue, { color: selectedTransaction.type === 'credit' ? '#10B981' : theme.colors.text }]}>
+                    {selectedTransaction.type === 'credit' ? '+' : '-'}{selectedTransaction.amount}
                   </Text>
+                  <View style={[styles.receiptStatusBadge, { backgroundColor: selectedTransaction.status === 'COMPLETED' ? '#10B98120' : '#F59E0B20' }]}>
+                    <Text style={[styles.receiptStatusText, { color: selectedTransaction.status === 'COMPLETED' ? '#10B981' : '#F59E0B' }]}>
+                      {selectedTransaction.status === 'COMPLETED' ? 'SUCCESSFUL' : (selectedTransaction.status || 'COMPLETED')}
+                    </Text>
+                  </View>
                 </View>
-              </View>
+
+                {/* Details Breakdown */}
+                <View style={styles.receiptDetailsBox}>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Receipt ID</Text>
+                    <Text style={[styles.receiptVal, styles.receiptValHighlight]}>#{selectedTransaction.txnId}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Date & Time</Text>
+                    <Text style={styles.receiptVal}>{selectedTransaction.time}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Transaction Type</Text>
+                    <Text style={styles.receiptVal}>{selectedTransaction.rawType || (selectedTransaction.type === 'credit' ? 'TOPUP / CREDIT' : 'WITHDRAWAL')}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Payment Mode</Text>
+                    <Text style={styles.receiptVal}>Direct UPI / Bank</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptKey}>Reference / UTR</Text>
+                    <Text style={styles.receiptVal}>{selectedTransaction.refId || selectedTransaction.txnId}</Text>
+                  </View>
+                  <View style={[styles.receiptRow, styles.receiptTotalRow]}>
+                    <Text style={styles.receiptTotalKey}>Wallet Balance</Text>
+                    <Text style={styles.receiptTotalVal}>₹{balance.toFixed(2)}</Text>
+                  </View>
+                </View>
+
+                {/* PDF Receipt Sharing / Printing Actions */}
+                <View style={styles.receiptActionRow}>
+                  <TouchableOpacity 
+                    style={styles.receiptShareBtn} 
+                    onPress={() => handleShareReceiptPdf(selectedTransaction)}
+                    disabled={sharingReceipt}
+                    activeOpacity={0.85}
+                  >
+                    {sharingReceipt ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Share2 size={16} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.receiptShareBtnText}>Share PDF Receipt</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.receiptPrintBtn} 
+                    onPress={() => handlePrintReceiptPdf(selectedTransaction)}
+                    activeOpacity={0.85}
+                  >
+                    <Printer size={16} color="#6C47FF" style={{ marginRight: 8 }} />
+                    <Text style={styles.receiptPrintBtnText}>Save / Print PDF</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
             )}
           </View>
         </View>
@@ -2001,6 +2200,318 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: '#6C47FF',
+  },
+
+  // Modern UPI & Receipt Card Styles
+  amountPill: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    backgroundColor: '#6C47FF12', 
+    borderWidth: 1, 
+    borderColor: '#6C47FF30', 
+    borderRadius: 16, 
+    paddingHorizontal: 18, 
+    paddingVertical: 12, 
+    marginBottom: 16 
+  },
+  amountPillLabel: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: theme.colors.text 
+  },
+  amountPillValue: { 
+    fontSize: 22, 
+    fontWeight: '900', 
+    color: '#6C47FF' 
+  },
+  upiAppsHeading: { 
+    fontSize: 13, 
+    fontWeight: '700', 
+    color: theme.colors.textDim, 
+    textTransform: 'uppercase', 
+    letterSpacing: 0.8, 
+    marginBottom: 10 
+  },
+  upiAppsGrid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    gap: 10, 
+    marginBottom: 18 
+  },
+  upiAppBtn: { 
+    width: '31%', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingVertical: 12, 
+    borderRadius: 16, 
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC', 
+    borderWidth: 1.5, 
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0', 
+    position: 'relative' 
+  },
+  upiAppBtnSelected: { 
+    borderColor: '#6C47FF', 
+    backgroundColor: '#6C47FF0D' 
+  },
+  upiAppLabel: { 
+    fontSize: 11, 
+    fontWeight: '700', 
+    color: theme.colors.text, 
+    textAlign: 'center' 
+  },
+  appCheckBadge: { 
+    position: 'absolute', 
+    top: 5, 
+    right: 5, 
+    width: 16, 
+    height: 16, 
+    borderRadius: 8, 
+    backgroundColor: '#6C47FF', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  utrSection: { 
+    marginBottom: 8 
+  },
+  utrHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    marginBottom: 4 
+  },
+  pulseDot: { 
+    width: 8, 
+    height: 8, 
+    borderRadius: 4, 
+    backgroundColor: '#10B981' 
+  },
+  utrHeaderTitle: { 
+    fontSize: 13.5, 
+    fontWeight: '800', 
+    color: theme.colors.text 
+  },
+  utrHeaderSub: { 
+    fontSize: 12, 
+    color: theme.colors.textDim, 
+    lineHeight: 17, 
+    marginBottom: 12 
+  },
+  confirmPayBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: '#6C47FF', 
+    paddingVertical: 16, 
+    paddingHorizontal: 16, 
+    borderRadius: 16, 
+    shadowColor: '#6C47FF', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.3, 
+    shadowRadius: 8, 
+    elevation: 5 
+  },
+  confirmPayBtnText: { 
+    fontSize: 14.5, 
+    fontWeight: '800', 
+    color: '#fff', 
+    textAlign: 'center' 
+  },
+  reopenRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    marginTop: 12 
+  },
+  reopenBtnFull: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 6, 
+    paddingVertical: 8, 
+    paddingHorizontal: 16, 
+    backgroundColor: '#6C47FF14', 
+    borderRadius: 12 
+  },
+  reopenText: { 
+    fontSize: 13, 
+    fontWeight: '700', 
+    color: '#6C47FF' 
+  },
+  centerOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.65)', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 20 
+  },
+  
+  /* ── Professional Receipt Card Styles ── */
+  receiptCard: { 
+    backgroundColor: theme.colors.surface, 
+    borderRadius: 28, 
+    padding: 22, 
+    width: '100%', 
+    maxWidth: 400, 
+    borderWidth: 1, 
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0', 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 8 }, 
+    shadowOpacity: 0.15, 
+    shadowRadius: 16, 
+    elevation: 8 
+  },
+  receiptTopHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 16, 
+    borderBottomWidth: 1, 
+    borderBottomColor: isDarkMode ? '#334155' : '#E2E8F0', 
+    paddingBottom: 12 
+  },
+  receiptLogoBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6, 
+    backgroundColor: '#10B98115', 
+    paddingHorizontal: 10, 
+    paddingVertical: 4, 
+    borderRadius: 10 
+  },
+  receiptLogoText: { 
+    fontSize: 11, 
+    fontWeight: '800', 
+    color: '#10B981', 
+    letterSpacing: 0.5 
+  },
+  receiptCloseBtn: { 
+    width: 28, 
+    height: 28, 
+    borderRadius: 14, 
+    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  receiptAmtSection: { 
+    alignItems: 'center', 
+    marginBottom: 18 
+  },
+  txIconLarge: { 
+    width: 56, 
+    height: 56, 
+    borderRadius: 28, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginBottom: 10 
+  },
+  receiptDescText: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: theme.colors.textDim, 
+    textAlign: 'center', 
+    marginBottom: 4 
+  },
+  receiptAmtValue: { 
+    fontSize: 32, 
+    fontWeight: '900', 
+    letterSpacing: -0.5, 
+    marginBottom: 8 
+  },
+  receiptStatusBadge: { 
+    paddingHorizontal: 12, 
+    paddingVertical: 4, 
+    borderRadius: 20 
+  },
+  receiptStatusText: { 
+    fontSize: 11, 
+    fontWeight: '800', 
+    letterSpacing: 0.4 
+  },
+  receiptDetailsBox: { 
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC', 
+    borderRadius: 18, 
+    padding: 16, 
+    gap: 10, 
+    borderWidth: 1, 
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0', 
+    marginBottom: 18 
+  },
+  receiptRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center' 
+  },
+  receiptKey: { 
+    fontSize: 12.5, 
+    color: theme.colors.textDim, 
+    fontWeight: '600' 
+  },
+  receiptVal: { 
+    fontSize: 12.5, 
+    color: theme.colors.text, 
+    fontWeight: '700', 
+    textAlign: 'right', 
+    flexShrink: 1, 
+    marginLeft: 10 
+  },
+  receiptValHighlight: { 
+    fontSize: 12.5, 
+    color: '#6C47FF', 
+    fontWeight: '800', 
+    letterSpacing: 0.5 
+  },
+  receiptTotalRow: { 
+    borderTopWidth: 1, 
+    borderTopColor: isDarkMode ? '#334155' : '#E2E8F0', 
+    paddingTop: 10, 
+    marginTop: 4 
+  },
+  receiptTotalKey: { 
+    fontSize: 13, 
+    fontWeight: '800', 
+    color: theme.colors.text 
+  },
+  receiptTotalVal: { 
+    fontSize: 15, 
+    fontWeight: '900', 
+    color: '#10B981' 
+  },
+  receiptActionRow: { 
+    width: '100%', 
+    gap: 10 
+  },
+  receiptShareBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: '#6C47FF', 
+    paddingVertical: 14, 
+    borderRadius: 16, 
+    shadowColor: '#6C47FF', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.25, 
+    shadowRadius: 8, 
+    elevation: 4 
+  },
+  receiptShareBtnText: { 
+    fontSize: 14, 
+    fontWeight: '800', 
+    color: '#fff' 
+  },
+  receiptPrintBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: '#6C47FF12', 
+    borderWidth: 1, 
+    borderColor: '#6C47FF30', 
+    paddingVertical: 13, 
+    borderRadius: 16 
+  },
+  receiptPrintBtnText: { 
+    fontSize: 14, 
+    fontWeight: '800', 
+    color: '#6C47FF' 
   },
 
   // Tx details modal
