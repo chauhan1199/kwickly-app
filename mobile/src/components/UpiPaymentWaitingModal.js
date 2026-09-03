@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
   ActivityIndicator, TextInput, Animated, Easing, Platform,
-  KeyboardAvoidingView, Alert
+  KeyboardAvoidingView, Alert, DeviceEventEmitter
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import useSocket, { useSocket as useSocketNamed } from '../hooks/useSocket';
@@ -150,6 +150,47 @@ const UpiPaymentWaitingModal = ({
 
   resolveUseSocket({ onEvent: handleSocketEvent });
 
+  // Real-time Bank SMS Interception Listener
+  useEffect(() => {
+    if (!visible || status !== 'WAITING') return;
+
+    const sub = DeviceEventEmitter.addListener('onBankSmsReceived', async (event) => {
+      console.log('[WaitingModal] onBankSmsReceived caught:', JSON.stringify(event));
+      if (event?.utr && /^\d{12}$/.test(event.utr)) {
+        setStatusNote(`Bank SMS detected (Ref: ${event.utr}) • Verifying...`);
+        setUtrInput(event.utr);
+        setSubmittingUtr(true);
+        try {
+          if (onSubmitManualUtr) {
+            const res = await onSubmitManualUtr(event.utr);
+            if (res?.verified === true || res?.status === 'COMPLETED') {
+              handleTriggerSuccess(res);
+            }
+          }
+        } catch (err) {
+          console.warn('[WaitingModal] Auto-verify with SMS UTR failed:', err?.message);
+        } finally {
+          setSubmittingUtr(false);
+        }
+      }
+    });
+
+    return () => {
+      sub.remove();
+    };
+  }, [visible, status, onSubmitManualUtr, handleTriggerSuccess]);
+
+  const handleCancelAndClose = async () => {
+    if (orderId) {
+      try {
+        await walletService.cancelPayment({
+          razorpayOrderId: orderId,
+          reason: 'Cancelled by user in app'
+        });
+      } catch (e) {}
+    }
+    if (onClose) onClose();
+  };
 
   const handleManualUtrSubmit = async () => {
     const clean = utrInput.trim();
@@ -344,7 +385,7 @@ const UpiPaymentWaitingModal = ({
 
                   <TouchableOpacity
                     style={{ alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 16 }}
-                    onPress={onClose}
+                    onPress={handleCancelAndClose}
                     activeOpacity={0.7}
                   >
                     <Text style={{ fontSize: 13, color: '#9CA3AF', fontWeight: '700' }}>

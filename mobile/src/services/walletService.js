@@ -59,6 +59,9 @@ export const walletService = {
   checkPaymentStatus: (orderId) =>
     withErrorHandling(() => api.get(`/payments/status/${orderId}`)),
 
+  cancelPayment: (data) =>
+    withErrorHandling(() => api.post('/payments/cancel', data)),
+
   getAdminUpiConfig: () =>
     withErrorHandling(() => api.get('/payments/admin-upi')),
 };

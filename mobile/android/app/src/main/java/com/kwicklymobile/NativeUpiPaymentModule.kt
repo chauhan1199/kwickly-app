@@ -18,17 +18,63 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
+import com.facebook.react.modules.core.DeviceEventManagerModule
+
 class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactCtx), ActivityEventListener {
 
     private var pendingPromise: Promise? = null
     private val UPI_PAYMENT_REQUEST_CODE = 4852
 
+    companion object {
+        private var instance: NativeUpiPaymentModule? = null
+
+        fun sendSmsEvent(utr: String, amount: String?, sender: String, body: String) {
+            val module = instance ?: return
+            try {
+                val eventData = Arguments.createMap().apply {
+                    putString("utr", utr)
+                    putString("amount", amount ?: "")
+                    putString("sender", sender)
+                    putString("body", body)
+                    putDouble("timestamp", System.currentTimeMillis().toDouble())
+                }
+                module.reactCtx
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                    .emit("onBankSmsReceived", eventData)
+            } catch (e: Exception) {
+                // Ignore if bridge not ready
+            }
+        }
+    }
+
     init {
         reactCtx.addActivityEventListener(this)
+        instance = this
     }
 
     override fun getName(): String = "NativeUpiPayment"
+
+    @ReactMethod
+    fun getLatestSmsUtr(promise: Promise) {
+        val utr = SmsReceiver.latestUtr
+        val amount = SmsReceiver.latestAmount
+        val timestamp = SmsReceiver.latestTimestamp
+
+        val map = Arguments.createMap().apply {
+            putString("utr", utr ?: "")
+            putString("amount", amount ?: "")
+            putDouble("timestamp", timestamp.toDouble())
+            putBoolean("hasUtr", !utr.isNullOrEmpty())
+        }
+        promise.resolve(map)
+    }
+
+    @ReactMethod
+    fun clearSmsCache(promise: Promise) {
+        SmsReceiver.clearCache()
+        promise.resolve(true)
+    }
 
     @ReactMethod
     fun startPayment(params: ReadableMap, promise: Promise) {

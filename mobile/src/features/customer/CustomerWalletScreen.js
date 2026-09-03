@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, Modal, TextInput,
-  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator, Linking, AppState, Share
+  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator, Linking, AppState, Share,
+  DeviceEventEmitter, PermissionsAndroid
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
@@ -85,7 +86,51 @@ const CustomerWalletScreen = ({ navigation }) => {
     });
   };
 
-  const QUICK_AMOUNTS = ['100', '250', '500', '1000'];
+  const waitingModalVisibleRef = useRef(waitingModalVisible);
+  const upiOrderDataRef = useRef(upiOrderData);
+
+  useEffect(() => {
+    waitingModalVisibleRef.current = waitingModalVisible;
+  }, [waitingModalVisible]);
+
+  useEffect(() => {
+    upiOrderDataRef.current = upiOrderData;
+  }, [upiOrderData]);
+
+  // Request SMS permission so app can automatically read incoming bank SMS for UTR
+  const requestSmsPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+          PermissionsAndroid.PERMISSIONS.READ_SMS,
+        ]);
+      } catch (err) {
+        console.warn('[Wallet] SMS permission error:', err);
+      }
+    }
+  };
+
+  // Automated Bank SMS Interception Listener
+  useEffect(() => {
+    const smsSub = DeviceEventEmitter.addListener('onBankSmsReceived', async (event) => {
+      console.log('[Wallet] onBankSmsReceived caught in CustomerWalletScreen:', JSON.stringify(event));
+      if (event?.utr && /^\d{12}$/.test(event.utr)) {
+        if (waitingModalVisibleRef.current && upiOrderDataRef.current) {
+          try {
+            console.log('[Wallet] Auto-verifying from incoming Bank SMS:', event.utr);
+            await handleManualUtrVerification(event.utr);
+          } catch (e) {
+            console.warn('[Wallet] Auto-verify from SMS event failed:', e?.message);
+          }
+        }
+      }
+    });
+
+    return () => {
+      smsSub.remove();
+    };
+  }, []);
 
   const fetchWallet = async (isManual = false) => {
     try {
@@ -128,6 +173,9 @@ const CustomerWalletScreen = ({ navigation }) => {
     
     setIsProcessing(true);
     try {
+      // Request SMS permission so auto-detection works seamlessly
+      await requestSmsPermission();
+
       const payRes = await walletService.createPaymentOrder({
         amount,
         purpose: 'wallet_topup',
@@ -177,6 +225,9 @@ const CustomerWalletScreen = ({ navigation }) => {
     if (!upiOrderData) return;
     setSelectedUpiApp(appKey);
 
+    // Clear old SMS cache before opening new payment
+    await nativeUpiService.clearSmsCache();
+
     // Close app selection sheet and immediately open the real-time "Verifying with Bank..." waiting modal!
     setUpiCheckoutModal(false);
     setWaitingModalVisible(true);
@@ -193,17 +244,59 @@ const CustomerWalletScreen = ({ navigation }) => {
 
       console.log('[UPI] Native module result:', JSON.stringify(result));
 
-      // Only auto-verify if the UPI app returned a real 12-digit bank RRN / UTR
+      // 1. If user cancelled / closed UPI app without paying
+      if (result?.status === 'CANCELLED') {
+        console.log('[UPI] Payment was cancelled / closed in UPI app');
+        setWaitingModalVisible(false);
+        try {
+          await walletService.cancelPayment({
+            razorpayOrderId: upiOrderData.razorpayOrderId,
+            reason: 'Returned from UPI app without paying'
+          });
+        } catch (cancelErr) {
+          console.warn('[UPI] Cancel recording error:', cancelErr?.message);
+        }
+        showAlert({
+          title: 'Payment Incomplete',
+          message: 'You returned without completing the payment. No amount was added to your wallet.',
+          type: 'info',
+          confirmText: 'OK'
+        });
+        await fetchWallet(true);
+        return;
+      }
+
+      // 2. If the UPI app returned a real 12-digit bank RRN / UTR
       const utr = (result?.approvalRefNo || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
         try {
           await handleManualUtrVerification(utr);
+          return;
         } catch (verifyErr) {
           console.warn('[UPI] Auto-verify with UTR failed:', verifyErr?.message);
         }
       }
+
+      // 3. Check if SMS arrived and cached while UPI app was in foreground
+      const smsData = await nativeUpiService.getLatestSmsUtr();
+      if (smsData?.hasUtr && smsData.utr && /^\d{12}$/.test(smsData.utr)) {
+        try {
+          console.log('[UPI] Auto-verifying cached SMS UTR:', smsData.utr);
+          await handleManualUtrVerification(smsData.utr);
+          return;
+        } catch (smsErr) {
+          console.warn('[UPI] Auto-verify from cached SMS failed:', smsErr?.message);
+        }
+      }
     } catch (err) {
       console.warn('[UPI] App launch warning:', err.message);
+      setWaitingModalVisible(false);
+      showAlert({
+        title: 'UPI App Notice',
+        message: err?.message || 'Could not launch UPI application',
+        type: 'warning',
+        confirmText: 'OK'
+      });
     }
   };
 
@@ -284,22 +377,62 @@ const CustomerWalletScreen = ({ navigation }) => {
     }
   };
 
-  const renderTxn = ({ item }) => (
-    <TouchableOpacity style={styles.txCard} onPress={() => openTxn(item)} activeOpacity={0.8}>
-      <View style={[styles.txIcon, { backgroundColor: isCredit(item) ? '#d1fae5' : '#fee2e2' }]}>
-        {isCredit(item)
-          ? <ArrowDown size={18} color="#059669" />
-          : <ArrowUp size={18} color="#dc2626" />}
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.txTitle}>{item.description}</Text>
-        <Text style={styles.txDesc}>{new Date(item.createdAt || item.txnDate).toLocaleDateString()}</Text>
-      </View>
-      <Text style={[styles.txAmount, { color: isCredit(item) ? '#059669' : '#dc2626' }]}>
-        {isCredit(item) ? '+' : '-'}₹{item.amount}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderTxn = ({ item }) => {
+    const isFailedOrCancelled = item.status === 'FAILED' || item.status === 'CANCELLED';
+    const isPending = item.status === 'PENDING';
+    const isCred = isCredit(item) && !isFailedOrCancelled;
+
+    return (
+      <TouchableOpacity style={styles.txCard} onPress={() => openTxn(item)} activeOpacity={0.8}>
+        <View style={[
+          styles.txIcon,
+          {
+            backgroundColor: isFailedOrCancelled ? '#f1f5f9' : (isCred ? '#d1fae5' : '#fee2e2')
+          }
+        ]}>
+          {isFailedOrCancelled ? (
+            <X size={18} color="#64748b" />
+          ) : isPending ? (
+            <RefreshCw size={18} color="#f59e0b" />
+          ) : isCred ? (
+            <ArrowDown size={18} color="#059669" />
+          ) : (
+            <ArrowUp size={18} color="#dc2626" />
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.txTitle}>{item.description}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <Text style={styles.txDesc}>{new Date(item.createdAt || item.txnDate).toLocaleDateString()}</Text>
+            {isFailedOrCancelled && (
+              <View style={{ backgroundColor: '#fef2f2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#fecaca' }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#dc2626' }}>CANCELLED</Text>
+              </View>
+            )}
+            {isPending && (
+              <View style={{ backgroundColor: '#fffbeb', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#fde68a' }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#d97706' }}>PENDING</Text>
+              </View>
+            )}
+            {item.status === 'COMPLETED' && (
+              <View style={{ backgroundColor: '#ecfdf5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#a7f3d0' }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#059669' }}>SUCCESS</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        <Text style={[
+          styles.txAmount,
+          {
+            color: isFailedOrCancelled ? '#94a3b8' : (isCred ? '#059669' : '#dc2626'),
+            textDecorationLine: isFailedOrCancelled ? 'line-through' : 'none'
+          }
+        ]}>
+          {isFailedOrCancelled ? '' : (isCred ? '+' : '-')}₹{item.amount}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
