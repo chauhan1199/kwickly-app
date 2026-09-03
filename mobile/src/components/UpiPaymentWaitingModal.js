@@ -101,7 +101,7 @@ const UpiPaymentWaitingModal = ({
         if (!isMounted) return;
 
         const data = res?.data?.data;
-        if (data?.status === 'COMPLETED' || data?.verified === true) {
+        if (data?.status === 'COMPLETED' && data?.verified === true) {
           clearInterval(pollInterval);
           handleTriggerSuccess(data);
         }
@@ -159,7 +159,7 @@ const UpiPaymentWaitingModal = ({
     try {
       if (onSubmitManualUtr) {
         const res = await onSubmitManualUtr(clean);
-        if (res?.verified || res?.status === 'COMPLETED') {
+        if (res?.verified === true && res?.status === 'COMPLETED') {
           handleTriggerSuccess(res);
           return;
         }
@@ -168,7 +168,7 @@ const UpiPaymentWaitingModal = ({
       // Check status immediately
       if (orderId) {
         const checkRes = await walletService.checkPaymentStatus(orderId);
-        if (checkRes?.data?.data?.status === 'COMPLETED') {
+        if (checkRes?.data?.data?.status === 'COMPLETED' && checkRes?.data?.data?.verified === true) {
           handleTriggerSuccess(checkRes.data.data);
           return;
         }

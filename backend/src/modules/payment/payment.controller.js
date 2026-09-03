@@ -314,6 +314,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     userId: req.user._id,
                     type: 'TOPUP',
                     amount: creditAmount,
+                    balance: (req.user?.wallet?.balance || 0),
                     status: 'PENDING',
                     razorpayOrderId: orderRef,
                     razorpayPaymentId: finalPaymentId,
@@ -571,15 +572,32 @@ exports.checkPaymentStatus = catchAsync(async (req, res) => {
     // Check linked WalletTxn if available
     let walletTxn = null;
     if (payment) {
-        walletTxn = await WalletTxn.findOne({
-            $or: [{ _id: payment._id }, { razorpayOrderId: payment.razorpayOrderId }, { razorpayPaymentId: payment.razorpayPaymentId }]
-        }).lean();
+        const txnFilters = [];
+        if (payment.razorpayOrderId) {
+            txnFilters.push({ razorpayOrderId: String(payment.razorpayOrderId) });
+        }
+        if (payment.razorpayPaymentId) {
+            txnFilters.push({ razorpayPaymentId: String(payment.razorpayPaymentId) });
+        }
+        if (mongoose.isValidObjectId(payment._id)) {
+            txnFilters.push({ _id: payment._id });
+        }
+
+        if (txnFilters.length > 0) {
+            walletTxn = await WalletTxn.findOne({
+                userId: payment.userId || req.user._id,
+                $or: txnFilters
+            }).lean();
+        }
     } else if (mongoose.isValidObjectId(orderRef)) {
-        walletTxn = await WalletTxn.findById(orderRef).lean();
+        walletTxn = await WalletTxn.findOne({
+            _id: orderRef,
+            userId: req.user._id
+        }).lean();
     }
 
-    const isCompleted = payment?.status === 'COMPLETED' || walletTxn?.status === 'COMPLETED';
-    const isFailed = payment?.status === 'FAILED' || walletTxn?.status === 'FAILED';
+    const isCompleted = Boolean(payment?.status === 'COMPLETED' || walletTxn?.status === 'COMPLETED');
+    const isFailed = Boolean(payment?.status === 'FAILED' || walletTxn?.status === 'FAILED');
     const status = isCompleted ? 'COMPLETED' : (isFailed ? 'FAILED' : 'PENDING');
 
     let currentBalance = 0;
