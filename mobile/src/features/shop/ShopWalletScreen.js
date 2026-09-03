@@ -67,6 +67,7 @@ import { shopService } from '../../services/shopService';
 import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
 import { walletService } from '../../services/walletService';
 import LinearGradient from 'react-native-linear-gradient';
+import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
 
 const TOP_UP_PRESETS = [100, 200, 500, 1000];
 const MIN_SAFETY_FREEZE = 100; // ₹100 safety balance
@@ -80,6 +81,17 @@ const ShopWalletScreen = ({ navigation }) => {
   // Dynamic Admin UPI state
   const [adminUpiConfig, setAdminUpiConfig] = useState({ upiId: '', payeeName: 'Kwickly Admin', bankDetails: {} });
 
+  // Real-time Bank Verification Waiting Modal state
+  const [waitingModalVisible, setWaitingModalVisible] = useState(false);
+  const [waitingContext, setWaitingContext] = useState({
+    amount: 0,
+    orderId: '',
+    purpose: 'wallet_topup',
+    planTitle: '',
+    payeeName: 'Kwickly Admin',
+    upiVpa: ''
+  });
+
   // Modals state
   const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
   const [topUpModalVisible, setTopUpModalVisible] = useState(false);
@@ -90,13 +102,12 @@ const ShopWalletScreen = ({ navigation }) => {
 
   // UPI App Selection state
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
-  const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [selectedSubUpiApp, setSelectedSubUpiApp] = useState('gpay');
-  const [subPaymentInitiated, setSubPaymentInitiated] = useState(false);
   const [sharingReceipt, setSharingReceipt] = useState(false);
 
   // Data state
   const [loading, setLoading] = useState(true);
+
   const [submittingAction, setSubmittingAction] = useState(false);
   const [balance, setBalance] = useState(0);
   const [txns, setTxns] = useState([]);
@@ -242,9 +253,20 @@ const ShopWalletScreen = ({ navigation }) => {
     }
     const amt = parseFloat(topUpAmount) || 100;
     const payee = adminUpiConfig?.payeeName || 'Kwickly Admin';
+    const orderId = `shop_topup_${Date.now()}`;
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     
-    setPaymentInitiated(true);
+    // Close modal & open real-time waiting modal
+    setUpiPaymentModalVisible(false);
+    setWaitingContext({
+      amount: amt,
+      orderId,
+      purpose: 'wallet_topup',
+      planTitle: '',
+      payeeName: payee,
+      upiVpa: upiId
+    });
+    setWaitingModalVisible(true);
 
     try {
       const result = await nativeUpiService.startUpiPayment({
@@ -256,54 +278,34 @@ const ShopWalletScreen = ({ navigation }) => {
         appKey,
       });
 
-      if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
-        await handleVerifyUpiPayment(result.approvalRefNo || result.txnId);
-      } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
-        const appTitle = appKey === 'gpay' ? 'Google Pay' : appKey === 'phonepe' ? 'PhonePe' : appKey === 'paytm' ? 'Paytm' : appKey === 'cred' ? 'CRED' : appKey === 'bhim' ? 'BHIM' : 'UPI App';
-        Alert.alert(
-          'Payment Cancelled',
-          `The transaction was cancelled in ${appTitle}. No money was deducted from your bank account.`,
-          [
-            { text: 'Close', style: 'cancel' },
-            { text: 'Try Again', onPress: () => handlePayViaUpiApp(appKey) }
-          ]
-        );
+      if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
+        await handleManualUtrSubmission(result.approvalRefNo || result.txnId);
       }
     } catch (e) {
-      Alert.alert('UPI App', e.message || 'Could not open UPI app. Please try again.');
+      console.warn('[Shop UPI] App launch:', e.message);
     }
   };
 
-  const handleVerifyUpiPayment = async (capturedUtr = '') => {
-    const cleanUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
-      ? capturedUtr.trim()
-      : (typeof upiTxnId === 'string' ? upiTxnId.trim() : '');
-    const finalUtr = cleanUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
-
-    setSubmittingAction(true);
-    try {
-      const amt = parseFloat(topUpAmount);
-      const res = await walletService.topupWallet(amt, { method: 'UPI', txnId: finalUtr }, null, finalUtr);
-      if (res.data?.status === 'success' || res.data?.data) {
-        setUpiPaymentModalVisible(false);
-        setUpiTxnId('');
-        setTopUpAmount('');
-        setPaymentInitiated(false);
-        setShowManualUtr(false);
-        Alert.alert(
-          'Top-up Successful! 🎉',
-          `₹${amt} has been verified and securely credited to your Shop Wallet.`
-        );
-        fetchWallet();
-      } else {
-        throw new Error(res.data?.message || 'Verification failed');
-      }
-    } catch (error) {
-      Alert.alert('Payment Issue', error.response?.data?.message || error.message || 'Failed to verify UPI transaction. Please try again.');
-    } finally {
-      setSubmittingAction(false);
+  const handleManualUtrSubmission = async (utr) => {
+    if (waitingContext.purpose === 'subscription') {
+      const res = await shopService.subscribePlan({
+        planId: selectedPlan,
+        paymentMethod: 'UPI',
+        utrNumber: utr,
+        targetRole: 'SHOP'
+      });
+      return res?.data?.data;
+    } else {
+      const res = await walletService.topupWallet(
+        waitingContext.amount,
+        { method: 'UPI', txnId: utr },
+        null,
+        utr
+      );
+      return res?.data?.data;
     }
   };
+
 
   const handleShareReceiptPdf = async (txn) => {
     if (!txn) return;
@@ -528,9 +530,21 @@ const ShopWalletScreen = ({ navigation }) => {
     const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
     const amt = planConfig?.priceNum || 0;
     const payee = adminUpiConfig?.payeeName || 'Kwickly Admin';
+    const orderId = `shop_sub_${Date.now()}`;
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     
-    setSubPaymentInitiated(true);
+    // Close subscription modal & open real-time waiting modal
+    setSubscriptionModalVisible(false);
+    setSubPaymentStep(false);
+    setWaitingContext({
+      amount: amt,
+      orderId,
+      purpose: 'subscription',
+      planTitle: planConfig?.title || 'Shop Subscription',
+      payeeName: payee,
+      upiVpa: upiId
+    });
+    setWaitingModalVisible(true);
 
     try {
       const result = await nativeUpiService.startUpiPayment({
@@ -542,53 +556,14 @@ const ShopWalletScreen = ({ navigation }) => {
         appKey,
       });
 
-      if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
-        await handleSubmitSubscriptionUtr(result.approvalRefNo || result.txnId);
-      } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
-        const appTitle = appKey === 'gpay' ? 'Google Pay' : appKey === 'phonepe' ? 'PhonePe' : appKey === 'paytm' ? 'Paytm' : appKey === 'cred' ? 'CRED' : appKey === 'bhim' ? 'BHIM' : 'UPI App';
-        Alert.alert(
-          'Payment Cancelled',
-          `The transaction was cancelled in ${appTitle}. No money was deducted from your bank account.`,
-          [
-            { text: 'Close', style: 'cancel' },
-            { text: 'Try Again', onPress: () => handlePaySubscriptionUpi(appKey) }
-          ]
-        );
+      if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
+        await handleManualUtrSubmission(result.approvalRefNo || result.txnId);
       }
     } catch (e) {
-      Alert.alert('UPI App', e.message || 'Could not open UPI app. Please try again.');
+      console.warn('[Shop Sub UPI] App launch:', e.message);
     }
   };
 
-  const handleSubmitSubscriptionUtr = async (capturedUtr = '') => {
-    const cleanUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
-      ? capturedUtr.trim()
-      : (typeof subUtr === 'string' ? subUtr.trim() : '');
-    const finalUtr = cleanUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
-
-    const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
-
-    setSubmittingAction(true);
-    try {
-      const res = await shopService.subscribePlan({
-        planId: selectedPlan,
-        paymentMethod: 'UPI',
-        utrNumber: finalUtr,
-        targetRole: 'SHOP'
-      });
-      setSubscriptionModalVisible(false);
-      setSubPaymentStep(false);
-      setSubUtr('');
-      setSubPaymentInitiated(false);
-      setShowSubManualUtr(false);
-      Alert.alert('Subscription Active 🎉', `Your plan "${planConfig?.title || 'Active'}" has been activated!`);
-      fetchWallet();
-    } catch (e) {
-      Alert.alert('Subscription Error', e?.response?.data?.message || e?.message || 'Failed to subscribe. Please try again.');
-    } finally {
-      setSubmittingAction(false);
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1397,6 +1372,22 @@ const ShopWalletScreen = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* Real-time Bank Verification Waiting Modal */}
+      <UpiPaymentWaitingModal
+        visible={waitingModalVisible}
+        onClose={() => setWaitingModalVisible(false)}
+        onSuccess={() => {
+          setWaitingModalVisible(false);
+          fetchWallet();
+        }}
+        amount={waitingContext.amount}
+        orderId={waitingContext.orderId}
+        payeeName={waitingContext.payeeName}
+        upiVpa={waitingContext.upiVpa}
+        purpose={waitingContext.purpose}
+        planTitle={waitingContext.planTitle}
+        onSubmitManualUtr={handleManualUtrSubmission}
+      />
     </SafeAreaView>
   );
 };

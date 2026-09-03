@@ -1,17 +1,17 @@
 const { StatusCodes } = require('http-status-codes');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const Payment   = require('./payment.model');
+const Payment = require('./payment.model');
 const ShopOrder = require('../shoporder/shoporder.model');
-const Shop      = require('../shop/shop.model');
-const Customer  = require('../customer/customer.model');
-const Product   = require('../product/product.model');
+const Shop = require('../shop/shop.model');
+const Customer = require('../customer/customer.model');
+const Product = require('../product/product.model');
 const WalletTxn = require('../wallet/wallet.model');
 const AppSettings = require('../settings/settings.model');
-const catchAsync  = require('../../helpers/async.helper');
+const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
-const { delCache }  = require('../../helpers/redis.helper');
+const { delCache } = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { generateUpiIntentUri, isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
@@ -80,28 +80,28 @@ exports.createOrder = catchAsync(async (req, res) => {
     ]);
 
     const platformVpa = (adminWallet?.upiId || appSettings?.wallet?.upiId || process.env.PLATFORM_UPI_ID || '').trim();
-    const payeeName   = (adminWallet?.bankDetails?.accountHolder || appSettings?.wallet?.accountHolder || process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD').trim();
+    const payeeName = (adminWallet?.bankDetails?.accountHolder || appSettings?.wallet?.accountHolder || process.env.PLATFORM_PAYEE_NAME || 'Kwickly PVT LTD').trim();
 
     if (!platformVpa) {
         return errorResponse(res, 'Admin UPI ID is not configured. Please set your UPI ID in Admin Panel -> Admin Wallet -> Edit Bank Details.', StatusCodes.BAD_REQUEST);
     }
 
     const validOrderId = (orderId && mongoose.isValidObjectId(orderId)) ? orderId : undefined;
-    const paymentId    = new mongoose.Types.ObjectId();
+    const paymentId = new mongoose.Types.ObjectId();
 
     // Create a Payment record first so we have a real MongoDB _id to embed
     // as the webhook back-reference (internalId in provider metadata).
     const payment = await Payment.create({
-        _id:             paymentId,
+        _id: paymentId,
         razorpayOrderId: paymentId.toString(),
-        orderId:         validOrderId,
+        orderId: validOrderId,
         amount,
-        userId:          req.user._id,
-        status:          'CREATED',
-        method:          'UPI',
+        userId: req.user._id,
+        status: 'CREATED',
+        method: 'UPI',
         metadata: {
             notes: {
-                userId:  req.user._id.toString(),
+                userId: req.user._id.toString(),
                 purpose: purpose || 'wallet_topup',
                 orderId: validOrderId ? String(validOrderId) : null
             },
@@ -115,8 +115,8 @@ exports.createOrder = catchAsync(async (req, res) => {
     const { gatewayOrderId, upiIntentUri } = await registerPaymentIntent({
         amount,
         internalId: payment._id,
-        purpose:    purpose || 'wallet_topup',
-        userId:     req.user._id
+        purpose: purpose || 'wallet_topup',
+        userId: req.user._id
     });
 
     // Persist gateway session ref and deeplink on the payment record
@@ -130,16 +130,16 @@ exports.createOrder = catchAsync(async (req, res) => {
 
     return successResponse(res, {
         razorpayOrderId: payment._id.toString(), // legacy key for existing clients
-        upiOrderId:      payment._id.toString(),
-        paymentId:       payment._id,
+        upiOrderId: payment._id.toString(),
+        paymentId: payment._id,
         gatewayOrderId,
-        amount:          Math.round(amount * 100),
-        currency:        'INR',
-        upiVpa:          platformVpa,
+        amount: Math.round(amount * 100),
+        currency: 'INR',
+        upiVpa: platformVpa,
         payeeName,
-        bankDetails:     adminWallet?.bankDetails || null,
+        bankDetails: adminWallet?.bankDetails || null,
         upiIntentUri,
-        isUpiDirect:     true
+        isUpiDirect: true
     }, 'Direct UPI payment order created successfully', StatusCodes.CREATED);
 });
 
@@ -148,7 +148,7 @@ exports.createOrder = catchAsync(async (req, res) => {
  * Verifies payment after Direct UPI checkout submission (12-digit UTR)
  */
 exports.verifyPayment = catchAsync(async (req, res) => {
-    const { razorpayOrderId, upiOrderId, razorpayPaymentId, upiTransactionId, utrNumber, orderId, isAutoConfirmed } = req.body;
+    const { razorpayOrderId, upiOrderId, razorpayPaymentId, upiTransactionId, utrNumber, orderId } = req.body;
 
     const orderRef = upiOrderId || razorpayOrderId;
     if (!orderRef) {
@@ -161,25 +161,24 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
     }
 
-    if (!isValidUtr(upiRef) && !upiRef.startsWith('AUTO_')) {
+    // Strict 12-digit NPCI UTR validation — No AUTO_ bypass allowed
+    if (!isValidUtr(upiRef)) {
         return errorResponse(res, 'Please enter a valid 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
     }
 
     // Anti-replay / duplicate UTR check across ALL flows
-    if (!upiRef.startsWith('AUTO_')) {
-        const utrUsage = await findUtrUsage(upiRef);
-        const existingForOrder = await Payment.findOne({
-            $or: [{ razorpayOrderId: orderRef }, ...(orderId ? [{ orderId }] : [])]
-        }).lean();
-        const isSelfRetry = existingForOrder &&
-            String(existingForOrder.razorpayPaymentId || '') === upiRef &&
-            (utrUsage?.flow === 'WALLET_TOPUP'
-                ? String(utrUsage.ref.userId || '') === String(req.user._id)
-                : String(utrUsage?.ref?._id || '') === String(existingForOrder._id));
+    const utrUsage = await findUtrUsage(upiRef);
+    const existingForOrder = await Payment.findOne({
+        $or: [{ razorpayOrderId: orderRef }, ...(orderId ? [{ orderId }] : [])]
+    }).lean();
+    const isSelfRetry = existingForOrder &&
+        String(existingForOrder.razorpayPaymentId || '') === upiRef &&
+        (utrUsage?.flow === 'WALLET_TOPUP'
+            ? String(utrUsage.ref.userId || '') === String(req.user._id)
+            : String(utrUsage?.ref?._id || '') === String(existingForOrder._id));
 
-        if (utrUsage && !isSelfRetry) {
-            return errorResponse(res, 'This UPI Reference / Transaction ID has already been submitted or used on the platform.', StatusCodes.CONFLICT);
-        }
+    if (utrUsage && !isSelfRetry) {
+        return errorResponse(res, 'This UPI Reference / Transaction ID has already been submitted or used on the platform.', StatusCodes.CONFLICT);
     }
 
     // Use transactions to prevent partial updates
@@ -195,7 +194,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
 
     try {
         const sessOpts = useTransaction ? { session } : {};
-        
+
         // Update our payment record
         let payment = await Payment.findOne({ razorpayOrderId: orderRef }).session(session);
         if (!payment && orderId) {
@@ -211,17 +210,14 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 razorpayOrderId: orderRef,
                 amount: Number(req.body.amount) || 0,
                 userId: req.user._id,
-                status: 'COMPLETED',
+                status: 'PENDING',
                 method: 'UPI',
                 metadata: { notes: { purpose: req.body.purpose || 'wallet_topup' } },
-                razorpayPaymentId: finalPaymentId,
-                razorpaySignature: 'upi_auto_verified'
+                razorpayPaymentId: finalPaymentId
             }], sessOpts).then(arr => arr[0]);
         } else {
             payment.razorpayPaymentId = finalPaymentId;
-            payment.razorpaySignature = 'upi_auto_verified';
             payment.method = 'UPI';
-            payment.status = 'COMPLETED';
             if (req.body.purpose && !payment.metadata?.notes?.purpose) {
                 payment.metadata = payment.metadata || {};
                 payment.metadata.notes = payment.metadata.notes || {};
@@ -230,7 +226,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
             await payment.save(sessOpts);
         }
 
-        // If linked to an order, update the order
+        // If linked to an order, update the order to PENDING_VERIFICATION
         const targetOrderId = (payment?.orderId || validOrderId) ? String(payment?.orderId || validOrderId) : null;
         if (targetOrderId && mongoose.Types.ObjectId.isValid(targetOrderId)) {
             const order = await ShopOrder.findById(targetOrderId).session(session);
@@ -280,104 +276,69 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         if (payment.metadata?.notes?.purpose === 'wallet_topup' || req.body.purpose === 'wallet_topup') {
             const creditAmount = Number(payment.amount || req.body.amount);
 
-            // Check if already credited for this order
-            let existingTxn = await WalletTxn.findOne({
+            // Check if already credited by bank webhook for this order or UTR
+            let existingCompletedTxn = await WalletTxn.findOne({
                 userId: req.user._id,
                 type: 'TOPUP',
+                status: 'COMPLETED',
                 $or: [{ razorpayOrderId: orderRef }, { razorpayPaymentId: finalPaymentId }]
             }).session(session);
 
-            const Customer = require('../customer/customer.model');
-            const Shop = require('../shop/shop.model');
+            if (existingCompletedTxn) {
+                if (useTransaction) await session.commitTransaction();
+                if (useTransaction) session.endSession();
 
-            let currentBalance = 0;
-            if (req.user.role === 'SHOP') {
-                const shop = await Shop.findOne({ ownerId: req.user._id }).session(session);
-                currentBalance = shop?.wallet?.balance || 0;
-            } else {
-                const customer = await Customer.findById(req.user._id).session(session);
-                currentBalance = customer?.wallet?.balance || 0;
+                return successResponse(res, {
+                    paymentId: payment._id,
+                    status: 'COMPLETED',
+                    verified: true,
+                    utr: finalPaymentId,
+                    amount: creditAmount,
+                    newBalance: existingCompletedTxn.balance
+                }, `Top-up of ₹${creditAmount} verified and credited to your wallet.`);
             }
 
-            let newBalance = currentBalance + Number(creditAmount);
+            // If not yet credited by webhook, record as PENDING with UTR attached
+            let pendingTxn = await WalletTxn.findOne({
+                userId: req.user._id,
+                type: 'TOPUP',
+                $or: [{ _id: payment._id }, { razorpayOrderId: orderRef }]
+            }).session(session);
 
-            if (!existingTxn) {
-                if (req.user.role === 'SHOP') {
-                    await Shop.findOneAndUpdate({ ownerId: req.user._id }, { $set: { 'wallet.balance': newBalance } }).session(session);
-                } else {
-                    await Customer.findByIdAndUpdate(req.user._id, { $set: { 'wallet.balance': newBalance } }).session(session);
-                }
-
-                // Update Admin Platform Wallet
-                try {
-                    const AdminWallet = require('../wallet/adminWallet.model');
-                    const AdminWalletTxn = require('../wallet/adminWalletTxn.model');
-                    const adminW = await AdminWallet.findOneAndUpdate(
-                        {},
-                        { $inc: { balance: Number(creditAmount), totalCollected: Number(creditAmount) } },
-                        { returnDocument: 'after', upsert: true, session }
-                    );
-                    if (adminW) {
-                        await AdminWalletTxn.create([{
-                            type: 'TOPUP',
-                            amount: Number(creditAmount),
-                            balance: adminW.balance,
-                            refId: String(orderRef),
-                            description: `Customer ${req.user.name || 'User'} wallet top-up via UPI (${finalPaymentId})`
-                        }], sessOpts);
-                    }
-                } catch (_) {}
-
-                existingTxn = await WalletTxn.create([{
+            if (pendingTxn) {
+                pendingTxn.razorpayPaymentId = finalPaymentId;
+                pendingTxn.status = 'PENDING';
+                await pendingTxn.save(sessOpts);
+            } else {
+                pendingTxn = await WalletTxn.create([{
                     userId: req.user._id,
                     type: 'TOPUP',
-                    amount: Number(creditAmount),
-                    balance: Number(newBalance),
-                    status: 'COMPLETED',
+                    amount: creditAmount,
+                    status: 'PENDING',
                     razorpayOrderId: orderRef,
                     razorpayPaymentId: finalPaymentId,
-                    description: `Wallet Top-up via Direct UPI (Verified)`
+                    description: `Wallet Top-up via Direct UPI (UTR: ${finalPaymentId} - Awaiting Bank Confirmation)`
                 }], sessOpts).then(arr => arr[0]);
-
-                // Emit real-time events to user and admin dashboard
-                const { emitToUser } = require('../../helpers/socket.helper');
-                emitToUser(req.user._id, 'WALLET_UPDATE', {
-                    balance: newBalance,
-                    amount: creditAmount,
-                    type: 'TOPUP'
-                });
-                emitToAll('DASHBOARD_UPDATE', {
-                    type: 'WALLET_TOPUP',
-                    userId: req.user._id,
-                    userName: req.user.name,
-                    amount: creditAmount,
-                    utr: finalPaymentId
-                });
-
-                // Send instant push & in-app notification
-                const { notifyUser } = require('../../helpers/notifyUser.helper');
-                notifyUser({
-                    userId: req.user._id,
-                    title: 'Wallet Credited 🎉',
-                    message: `₹${creditAmount} has been credited to your Kwickly Wallet. New Balance: ₹${newBalance}`,
-                    action: 'WALLET_CREDIT',
-                    entityType: 'WALLET',
-                    targetRole: req.user.role || 'CUSTOMER'
-                });
-            } else {
-                newBalance = existingTxn.balance || newBalance;
             }
+
+            emitToAll('DASHBOARD_UPDATE', {
+                type: 'PENDING_WALLET_TOPUP',
+                userId: req.user._id,
+                userName: req.user.name,
+                amount: creditAmount,
+                utr: finalPaymentId
+            });
 
             if (useTransaction) await session.commitTransaction();
             if (useTransaction) session.endSession();
 
             return successResponse(res, {
                 paymentId: payment._id,
-                status: 'COMPLETED',
+                status: 'PENDING_VERIFICATION',
+                verified: false,
                 utr: finalPaymentId,
-                amount: creditAmount,
-                newBalance
-            }, `Top-up of ₹${creditAmount} successful! Securely credited to your wallet.`);
+                amount: creditAmount
+            }, `UPI Reference (UTR: ${finalPaymentId}) recorded. Waiting for bank settlement.`);
         }
 
         if (useTransaction) await session.commitTransaction();
@@ -412,25 +373,35 @@ exports.verifyPayment = catchAsync(async (req, res) => {
  * body buffer is available for signature verification.
  */
 exports.handleWebhook = async (req, res) => {
-    const WEBHOOK_SECRET = process.env.UPI_PROVIDER_WEBHOOK_SECRET || '';
+    const WEBHOOK_SECRET = process.env.UPI_PROVIDER_WEBHOOK_SECRET || 'kwickly_p2p_webhook_secret_2026';
 
-    // ── Step 1: HMAC SHA256 Signature Verification ──────────────────────────────
-    if (WEBHOOK_SECRET) {
-        const rawBody     = req.body; // Buffer from express.raw()
-        const receivedSig = (req.headers['x-upi-signature'] || req.headers['x-kwikupi-hmac'] || req.headers['x-webhook-signature'] || '').toString().toLowerCase();
+    // ── Step 1: Authentication & Signature Verification ──────────────────────────────
+    const rawBody = req.body; // Buffer from express.raw()
+    const receivedSig = (
+        req.headers['x-upi-signature'] ||
+        req.headers['x-kwikupi-hmac'] ||
+        req.headers['x-webhook-signature'] ||
+        req.headers['x-webhook-secret'] ||
+        req.headers['authorization'] ||
+        ''
+    ).toString().trim();
 
-        const expectedSig = crypto
-            .createHmac('sha256', WEBHOOK_SECRET)
-            .update(rawBody)
-            .digest('hex')
-            .toLowerCase();
+    const expectedHmac = crypto
+        .createHmac('sha256', WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex')
+        .toLowerCase();
 
-        if (!receivedSig || !safeCompare(receivedSig, expectedSig)) {
-            logger.warn(`[Webhook] Signature mismatch from IP: ${req.ip} — header: ${req.headers['x-upi-signature'] || 'absent'}`);
-            return res.status(401).json({ error: 'Invalid webhook signature' });
-        }
-    } else {
-        logger.warn('[Webhook] UPI_PROVIDER_WEBHOOK_SECRET not set — running in unsigned mode (dev/test only)');
+    const isHmacValid = safeCompare(receivedSig.toLowerCase(), expectedHmac);
+    const isDirectSecretValid = (
+        receivedSig === WEBHOOK_SECRET ||
+        receivedSig === `Bearer ${WEBHOOK_SECRET}` ||
+        receivedSig.toLowerCase() === WEBHOOK_SECRET.toLowerCase()
+    );
+
+    if (!isHmacValid && !isDirectSecretValid) {
+        logger.warn(`[Webhook] Unauthorized webhook from IP: ${req.ip} — header: ${req.headers['x-webhook-signature'] || req.headers['x-webhook-secret'] || 'absent'}`);
+        return res.status(401).json({ error: 'Unauthorized: Invalid or missing webhook signature' });
     }
 
     // ── Step 2: Parse Payload ─────────────────────────────────────────────────────
@@ -443,7 +414,7 @@ exports.handleWebhook = async (req, res) => {
         return res.status(400).json({ error: 'Invalid JSON payload' });
     }
 
-    // Validate timestamp (reject replays older than 5 minutes)
+    // Validate timestamp (reject replays older than 5 minutes if timestamp is provided)
     if (payload.timestamp) {
         const tsMs = new Date(payload.timestamp).getTime();
         if (!isNaN(tsMs) && Math.abs(Date.now() - tsMs) > 5 * 60 * 1000) {
@@ -452,11 +423,11 @@ exports.handleWebhook = async (req, res) => {
         }
     }
 
-    const eventId  = payload.transactionId || payload.eventId || payload.id || `evt_${Date.now()}`;
-    const purpose  = payload.metadata?.purpose;
-    const isSuccess = (payload.status || '').toUpperCase() === 'SUCCESS';
+    const eventId = payload.transactionId || payload.utr || payload.eventId || payload.id || `evt_${Date.now()}`;
+    const purpose = payload.metadata?.purpose || payload.purpose || 'wallet_topup';
+    const isSuccess = (payload.status || '').toUpperCase() === 'SUCCESS' || payload.isSuccess === true;
 
-    logger.info(`[Webhook] Received event=${payload.event}, purpose=${purpose}, eventId=${eventId}, status=${payload.status}`);
+    logger.info(`[Webhook] Verified event=${payload.event || 'payment.success'}, purpose=${purpose}, eventId=${eventId}, status=${payload.status}`);
 
     // ── Step 3: Acknowledge immediately (provider must get 200 ASAP) ──────────────
     res.status(200).json({ received: true });
@@ -469,12 +440,14 @@ exports.handleWebhook = async (req, res) => {
                 return;
             }
 
-            // Only process recognised payment success events
-            const successEvents = ['payment.success', 'payment.captured', 'payment.paid', 'transaction.success'];
-            if (!successEvents.includes((payload.event || '').toLowerCase())) {
+            // Accept recognized payment success events or direct status confirmation
+            const eventName = (payload.event || 'payment.success').toLowerCase();
+            const successEvents = ['payment.success', 'payment.captured', 'payment.paid', 'transaction.success', 'upi.credit'];
+            if (!successEvents.includes(eventName)) {
                 logger.info(`[Webhook] Ignoring non-payment event: ${payload.event}`);
                 return;
             }
+
 
             switch (purpose) {
                 case 'wallet_topup':
@@ -574,3 +547,57 @@ exports.refundPayment = catchAsync(async (req, res) => {
 
     return successResponse(res, payment, `Refund of ₹${refundAmount} credited to customer wallet`);
 });
+
+/**
+ * GET /api/v1/payments/status/:orderId
+ * Real-time payment verification check for mobile and web clients waiting on loading screen
+ */
+exports.checkPaymentStatus = catchAsync(async (req, res) => {
+    const orderRef = req.params.orderId;
+    if (!orderRef) {
+        return errorResponse(res, 'Order ID is required', StatusCodes.BAD_REQUEST);
+    }
+
+    let payment = null;
+    if (mongoose.isValidObjectId(orderRef)) {
+        payment = await Payment.findById(orderRef).lean();
+    }
+    if (!payment) {
+        payment = await Payment.findOne({
+            $or: [{ razorpayOrderId: orderRef }, { gatewayOrderId: orderRef }, { orderId: orderRef }]
+        }).lean();
+    }
+
+    // Check linked WalletTxn if available
+    let walletTxn = null;
+    if (payment) {
+        walletTxn = await WalletTxn.findOne({
+            $or: [{ _id: payment._id }, { razorpayOrderId: payment.razorpayOrderId }, { razorpayPaymentId: payment.razorpayPaymentId }]
+        }).lean();
+    } else if (mongoose.isValidObjectId(orderRef)) {
+        walletTxn = await WalletTxn.findById(orderRef).lean();
+    }
+
+    const isCompleted = payment?.status === 'COMPLETED' || walletTxn?.status === 'COMPLETED';
+    const isFailed = payment?.status === 'FAILED' || walletTxn?.status === 'FAILED';
+    const status = isCompleted ? 'COMPLETED' : (isFailed ? 'FAILED' : 'PENDING');
+
+    let currentBalance = 0;
+    if (req.user?.role === 'SHOP' || req.user?.role === 'SHOP_OWNER') {
+        const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
+        currentBalance = shop?.wallet?.balance || 0;
+    } else if (req.user?._id) {
+        const customer = await Customer.findById(req.user._id).lean();
+        currentBalance = customer?.wallet?.balance || 0;
+    }
+
+    return successResponse(res, {
+        status,
+        verified: isCompleted,
+        amount: payment?.amount || walletTxn?.amount || 0,
+        utr: payment?.razorpayPaymentId || walletTxn?.razorpayPaymentId || null,
+        currentBalance,
+        planId: walletTxn?.planId || null
+    }, `Payment status: ${status}`);
+});
+

@@ -78,20 +78,72 @@ const handleWalletTopupWebhook = async (payload, eventId) => {
     }
 
     try {
-        // ATOMIC IDEMPOTENCY CLAIM
-        // Only proceed if the txn is still PENDING (not COMPLETED or FAILED)
-        const claimed = await WalletTxn.findOneAndUpdate(
-            { _id: internalId, status: { $ne: 'COMPLETED' } },
-            {
-                $set: {
-                    status:               'COMPLETED',
-                    gatewayTransactionId: eventId,
-                    webhookEventId:       eventId,
-                    verifiedAt:           new Date()
-                }
-            },
-            { returnDocument: 'after' }
-        );
+        let claimed = null;
+        if (internalId && mongoose.isValidObjectId(internalId)) {
+            claimed = await WalletTxn.findOneAndUpdate(
+                { _id: internalId, status: { $ne: 'COMPLETED' } },
+                {
+                    $set: {
+                        status:               'COMPLETED',
+                        gatewayTransactionId: eventId,
+                        webhookEventId:       eventId,
+                        verifiedAt:           new Date()
+                    }
+                },
+                { returnDocument: 'after' }
+            );
+        }
+
+        // Fallback: match by UTR or transaction ID if internalId was not in metadata
+        if (!claimed && eventId) {
+            claimed = await WalletTxn.findOneAndUpdate(
+                {
+                    status: { $ne: 'COMPLETED' },
+                    $or: [
+                        { razorpayPaymentId: eventId },
+                        { gatewayTransactionId: eventId },
+                        ...(payload.utr ? [{ razorpayPaymentId: payload.utr }] : []),
+                        ...(payload.transactionId ? [{ razorpayPaymentId: payload.transactionId }] : [])
+                    ]
+                },
+                {
+                    $set: {
+                        status:               'COMPLETED',
+                        gatewayTransactionId: eventId,
+                        webhookEventId:       eventId,
+                        verifiedAt:           new Date()
+                    }
+                },
+                { returnDocument: 'after' }
+            );
+        }
+
+        // Fallback: match by exact amount for pending topups in the last 30 minutes
+        if (!claimed && payload.amount) {
+            const expectedAmount = toRupees(payload.amount);
+            const candidate = await WalletTxn.findOne({
+                status: 'PENDING',
+                type: 'TOPUP',
+                amount: expectedAmount,
+                createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) }
+            }).sort('-createdAt');
+
+            if (candidate) {
+                claimed = await WalletTxn.findOneAndUpdate(
+                    { _id: candidate._id, status: 'PENDING' },
+                    {
+                        $set: {
+                            status:               'COMPLETED',
+                            razorpayPaymentId:    eventId,
+                            gatewayTransactionId: eventId,
+                            webhookEventId:       eventId,
+                            verifiedAt:           new Date()
+                        }
+                    },
+                    { returnDocument: 'after' }
+                );
+            }
+        }
 
         if (!claimed) {
             logger.info(`[WebhookHandlers:WalletTopup] Already processed or not found — internalId=${internalId}, eventId=${eventId}`);
@@ -101,32 +153,56 @@ const handleWalletTopupWebhook = async (payload, eventId) => {
         const userId = claimed.userId;
         const amount = claimed.amount || toRupees(payload.amount);
 
-        // Credit customer wallet
-        const updatedUser = await Customer.findByIdAndUpdate(
-            userId,
-            { $inc: { 'wallet.balance': amount } },
-            { returnDocument: 'after' }
-        );
+        const user = await Customer.findById(userId).lean();
+        const isShop = user?.role === 'SHOP' || user?.role === 'SHOP_OWNER';
+        let newBalance = 0;
+
+        if (isShop) {
+            const updatedShop = await Shop.findOneAndUpdate(
+                { ownerId: userId },
+                { $inc: { 'wallet.balance': amount } },
+                { returnDocument: 'after' }
+            );
+            newBalance = updatedShop?.wallet?.balance ?? amount;
+        } else {
+            const updatedUser = await Customer.findByIdAndUpdate(
+                userId,
+                { $inc: { 'wallet.balance': amount } },
+                { returnDocument: 'after' }
+            );
+            newBalance = updatedUser?.wallet?.balance ?? amount;
+        }
 
         // Update the txn's balance snapshot
         await WalletTxn.findByIdAndUpdate(claimed._id, {
-            $set: { balance: updatedUser?.wallet?.balance ?? amount }
+            $set: { balance: newBalance, razorpayPaymentId: claimed.razorpayPaymentId || eventId }
         });
 
         // If this topup was a subscription plan purchase, activate the plan
-        if (claimed.planId && updatedUser?.role === 'WORKER') {
-            await _activateWorkerSubscription({
-                userId,
-                planId: claimed.planId,
-                walletTxnId: claimed._id,
-                eventId
-            });
+        if (claimed.planId) {
+            if (isShop) {
+                await _activateShopSubscription({
+                    userId,
+                    planId: claimed.planId,
+                    walletTxnId: claimed._id,
+                    eventId,
+                    amount
+                });
+            } else if (user?.role === 'WORKER') {
+                await _activateWorkerSubscription({
+                    userId,
+                    planId: claimed.planId,
+                    walletTxnId: claimed._id,
+                    eventId,
+                    amount
+                });
+            }
         }
 
         // Credit admin treasury
         await creditAdminTreasury({
             amount,
-            description:    `Wallet topup verified via webhook — Customer ${updatedUser?.name || userId} (event: ${eventId})`,
+            description:    `Wallet topup verified via webhook — ${user?.role || 'User'} ${user?.name || userId} (event: ${eventId})`,
             referenceId:    claimed._id,
             referenceModel: 'WalletTxn',
             type:           'TOPUP'
@@ -138,17 +214,22 @@ const handleWalletTopupWebhook = async (payload, eventId) => {
         // In-app notification
         await notifyUser({
             userId,
-            title:   'Wallet Topped Up ✓',
-            message: `₹${amount} has been added to your Kwickly Wallet instantly.`,
+            title:   claimed.planId ? 'Subscription Plan Activated! 🎉' : 'Wallet Topped Up ✓',
+            message: claimed.planId
+                ? `Your payment of ₹${amount} was confirmed and your plan has been activated!`
+                : `₹${amount} has been added to your Kwickly Wallet instantly. New Balance: ₹${newBalance}`,
             type:    'WALLET_CREDIT',
             referenceId:    claimed._id,
-            referenceModel: 'WalletTxn'
+            referenceModel: 'WalletTxn',
+            targetRole: user?.role || 'CUSTOMER'
         });
 
-        emitToRoom(`customer_${userId}`, 'WALLET_TOPUP_APPROVED', { amount, newBalance: updatedUser?.wallet?.balance });
+        const { emitToUser } = require('./socket.helper');
+        emitToUser(userId, 'WALLET_TOPUP_APPROVED', { amount, newBalance, txnId: claimed._id });
+        emitToUser(userId, 'WALLET_UPDATE', { balance: newBalance, amount, type: 'TOPUP' });
         emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_APPROVED', txnId: claimed._id, userId });
 
-        logger.info(`[WebhookHandlers:WalletTopup] ✓ ₹${amount} credited to user ${userId} — eventId=${eventId}`);
+        logger.info(`[WebhookHandlers:WalletTopup] ✓ ₹${amount} credited to ${user?.role || 'user'} ${userId} — eventId=${eventId}`);
     } catch (err) {
         logger.error(`[WebhookHandlers:WalletTopup] Error for internalId=${internalId}: ${err.message}`);
     }
@@ -521,6 +602,8 @@ async function _activateWorkerSubscription({ userId, planId, walletTxnId, eventI
         referenceModel: 'WalletTxn'
     });
 
+    const { emitToUser } = require('./socket.helper');
+    emitToUser(userId, 'SUBSCRIPTION_ACTIVATED', { userId, planId, planName: plan?.label || planId, expiryDate: newExpiry });
     emitToAll('DASHBOARD_UPDATE', { type: 'SUBSCRIPTION_ACTIVATED', userId, planId });
 }
 
@@ -581,9 +664,12 @@ async function _activateShopSubscription({ userId, planId, walletTxnId, eventId,
         message: `Your ${plan?.label || planId} plan is active until ${newExpiry.toDateString()}.`,
         type:    'WALLET_CREDIT',
         referenceId:    walletTxnId,
-        referenceModel: 'WalletTxn'
+        referenceModel: 'WalletTxn',
+        targetRole: 'SHOP'
     });
 
+    const { emitToUser } = require('./socket.helper');
+    emitToUser(userId, 'SUBSCRIPTION_ACTIVATED', { userId, planId, planName: plan?.label || planId, shopId: shop._id, expiryDate: newExpiry });
     emitToAll('DASHBOARD_UPDATE', { type: 'SUBSCRIPTION_ACTIVATED', userId, planId, shopId: shop._id });
 }
 

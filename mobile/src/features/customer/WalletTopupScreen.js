@@ -13,6 +13,8 @@ import { Wallet, Zap, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, Exte
 import { GooglePayIcon, PhonePeIcon, PaytmIcon, CredIcon, BhimIcon, AnyUpiIcon } from '../../components/ui/UpiBrandIcons';
 import { nativeUpiService } from '../../services/nativeUpiService';
 
+import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
+
 const PRESETS = [100, 250, 500, 1000, 2000, 5000];
 
 const WalletTopupScreen = ({ navigation }) => {
@@ -22,14 +24,11 @@ const WalletTopupScreen = ({ navigation }) => {
 
   const [amount, setAmount] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [upiCheckoutModal, setUpiCheckoutModal] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [upiOrderData, setUpiOrderData] = useState(null);
-  const [paymentInitiated, setPaymentInitiated] = useState(false);
-  const [showManualUtr, setShowManualUtr] = useState(false);
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
-  const [upiTxnId, setUpiTxnId] = useState('');
+  const [waitingModalVisible, setWaitingModalVisible] = useState(false);
 
   const handleInitiateTopup = async () => {
     const topupAmount = parseInt(amount);
@@ -67,9 +66,7 @@ const WalletTopupScreen = ({ navigation }) => {
       };
 
       setUpiOrderData(orderPayload);
-      setPaymentInitiated(false);
       setSelectedUpiApp('gpay');
-      setUpiTxnId('');
       setUpiCheckoutModal(true);
     } catch (e) {
       const errMsg = e?.response?.data?.message || e?.message || 'Failed to initialize topup';
@@ -82,9 +79,12 @@ const WalletTopupScreen = ({ navigation }) => {
   const handleOpenUpiApp = async (appKey = 'gpay') => {
     if (!upiOrderData) return;
     setSelectedUpiApp(appKey);
-    setPaymentInitiated(true);
 
     try {
+      // Close checkout selector and open real-time waiting modal
+      setUpiCheckoutModal(false);
+      setWaitingModalVisible(true);
+
       const result = await nativeUpiService.startUpiPayment({
         vpa: upiOrderData.upiVpa,
         name: upiOrderData.payeeName || 'Kwickly Admin',
@@ -94,21 +94,11 @@ const WalletTopupScreen = ({ navigation }) => {
         appKey,
       });
 
-      if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
-        await handleConfirmUpiTopup(result.approvalRefNo || result.txnId);
-      } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
-        const appTitle = appKey === 'gpay' ? 'Google Pay' : appKey === 'phonepe' ? 'PhonePe' : appKey === 'paytm' ? 'Paytm' : appKey === 'cred' ? 'CRED' : appKey === 'bhim' ? 'BHIM' : 'UPI App';
-        Alert.alert(
-          'Payment Cancelled',
-          `The transaction was cancelled in ${appTitle}. No money was deducted from your bank account.`,
-          [
-            { text: 'Close', style: 'cancel' },
-            { text: 'Try Again', onPress: () => handleOpenUpiApp(appKey) }
-          ]
-        );
+      if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
+        await handleManualUtrVerification(result.approvalRefNo || result.txnId);
       }
     } catch (err) {
-      Alert.alert('UPI App', err.message || 'Could not open UPI app. Please try again.');
+      console.warn('[UPI] App launch warning:', err.message);
     }
   };
 
@@ -116,51 +106,28 @@ const WalletTopupScreen = ({ navigation }) => {
     if (upiOrderData?.upiVpa) {
       Clipboard.setString(upiOrderData.upiVpa);
       setCopiedUpi(true);
-      setPaymentInitiated(true);
       setTimeout(() => setCopiedUpi(false), 2500);
     }
   };
 
-  const handleConfirmUpiTopup = async (capturedUtr = '') => {
-    if (!upiOrderData || isVerifying) return;
+  const handleManualUtrVerification = async (utr) => {
+    if (!upiOrderData) return;
+    const res = await walletService.verifyPayment({
+      razorpayOrderId: upiOrderData.razorpayOrderId,
+      upiTransactionId: utr,
+      utrNumber: utr,
+      purpose: 'wallet_topup',
+      amount: upiOrderData.amount
+    });
+    return res?.data?.data;
+  };
 
-    setIsVerifying(true);
-    try {
-      const cleanUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
-        ? capturedUtr.trim()
-        : (typeof upiTxnId === 'string' ? upiTxnId.trim() : '');
-      const finalUtr = cleanUtr || `AUTO_${Date.now().toString().slice(-8)}_${Math.random().toString(36).slice(-4)}`.toUpperCase();
-
-      const verifyRes = await walletService.verifyPayment({
-        razorpayOrderId: upiOrderData.razorpayOrderId,
-        upiTransactionId: finalUtr,
-        utrNumber: finalUtr,
-        isAutoConfirmed: true,
-        purpose: 'wallet_topup',
-        amount: upiOrderData.amount
-      });
-
-      if (verifyRes?.data?.status === 'success') {
-        setUpiCheckoutModal(false);
-        setUpiTxnId('');
-        setPaymentInitiated(false);
-        setShowManualUtr(false);
-        if (fetchUser) await fetchUser();
-
-        Alert.alert('Top-up Successful! 🎉', `₹${upiOrderData.amount} has been verified and securely added to your wallet.`, [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]);
-      } else {
-        throw new Error(verifyRes?.data?.message || 'Verification failed');
-      }
-    } catch (e) {
-      Alert.alert(
-        'Verification Issue',
-        e?.response?.data?.message || e?.message || 'Failed to verify payment. Please try again.'
-      );
-    } finally {
-      setIsVerifying(false);
-    }
+  const handlePaymentSuccess = async () => {
+    setWaitingModalVisible(false);
+    setUpiCheckoutModal(false);
+    setAmount('');
+    if (fetchUser) await fetchUser();
+    navigation.goBack();
   };
 
   return (
@@ -296,64 +263,34 @@ const WalletTopupScreen = ({ navigation }) => {
               })}
             </View>
 
-            {/* Step 2: Payment Initiated & Auto Confirmation */}
-            {paymentInitiated ? (
-              <View style={styles.utrSection}>
-                <View style={styles.utrHeader}>
-                  <View style={styles.pulseDot} />
-                  <Text style={styles.utrHeaderTitle}>
-                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
-                  </Text>
-                </View>
-                <Text style={styles.utrHeaderSub}>
-                  Complete the ₹{upiOrderData?.amount} transfer with your UPI PIN. When you return here, your top-up will be confirmed automatically!
-                </Text>
-
-                {/* Primary Automated Confirmation Button */}
-                <TouchableOpacity
-                  style={[styles.confirmPayBtn, isVerifying && { opacity: 0.7 }]}
-                  onPress={() => handleConfirmUpiTopup('')}
-                  disabled={isVerifying}
-                  activeOpacity={0.85}
-                >
-                  {isVerifying ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={styles.confirmPayBtnText}>
-                        I Have Completed Payment • Add ₹{upiOrderData?.amount || 0}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                <View style={styles.reopenRow}>
-                  <TouchableOpacity onPress={() => handleOpenUpiApp(selectedUpiApp)} style={styles.reopenBtnFull}>
-                    <ExternalLink size={14} color="#6C47FF" />
-                    <Text style={styles.reopenText}>Re-open {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <>
-                {/* Pay via App Button */}
-                <TouchableOpacity
-                  style={styles.confirmPayBtn}
-                  onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
-                  activeOpacity={0.85}
-                >
-                  <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.confirmPayBtnText}>
-                    Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
-                  </Text>
-                  <ArrowRight size={18} color="#fff" style={{ marginLeft: 6 }} />
-                </TouchableOpacity>
-              </>
-            )}
+            {/* Pay via App Button */}
+            <TouchableOpacity
+              style={styles.confirmPayBtn}
+              onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
+              activeOpacity={0.85}
+            >
+              <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.confirmPayBtnText}>
+                Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+              </Text>
+              <ArrowRight size={18} color="#fff" style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Real-time Bank Confirmation Waiting Modal */}
+      <UpiPaymentWaitingModal
+        visible={waitingModalVisible}
+        onClose={() => setWaitingModalVisible(false)}
+        onSuccess={handlePaymentSuccess}
+        amount={upiOrderData?.amount || 0}
+        orderId={upiOrderData?.razorpayOrderId}
+        payeeName={upiOrderData?.payeeName}
+        upiVpa={upiOrderData?.upiVpa}
+        purpose="wallet_topup"
+        onSubmitManualUtr={handleManualUtrVerification}
+      />
     </SafeAreaView>
   );
 };

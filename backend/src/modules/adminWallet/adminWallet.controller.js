@@ -51,7 +51,7 @@ exports.credit = catchAsync(async (req, res) => {
         amount: Number(amount),
         balanceAfter: wallet.balance,
         description: description || 'Manual credit by admin',
-        meta: { 
+        meta: {
             performedBy: req.user._id,
             paymentMethod: paymentMethod || 'CASH'
         }
@@ -188,7 +188,7 @@ exports.verifyRazorpayPayment = catchAsync(async (req, res) => {
         amount,
         balanceAfter: wallet.balance,
         description: `Admin Treasury top-up via Direct UPI (UTR: ${upiRef})`,
-        meta: { 
+        meta: {
             performedBy: req.user._id,
             paymentMethod: 'UPI',
             utr: upiRef

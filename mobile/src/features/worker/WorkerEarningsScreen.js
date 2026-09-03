@@ -73,6 +73,7 @@ import { utrValidationError } from '../../utils/upiValidation';
 import { workerService } from '../../services/workerService';
 import settingsService from '../../services/settingsService';
 import api from '../../services/api';
+import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TOP_UP_PRESETS = [100, 500, 1000, 2000];
@@ -94,6 +95,10 @@ const WorkerEarningsScreen = ({ navigation }) => {
     payeeName: 'Kwickly Admin'
   });
 
+  // Real-time Bank Verification Waiting Modal state
+  const [waitingModalVisible, setWaitingModalVisible] = useState(false);
+  const [waitingOrderId, setWaitingOrderId] = useState('');
+
   // Modals state
   const [planModalVisible, setPlanModalVisible] = useState(false);
   const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
@@ -113,8 +118,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [pendingPaymentContext, setPendingPaymentContext] = useState({ amount: 100, type: 'WALLET', planId: null });
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
-  const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [sharingReceipt, setSharingReceipt] = useState(false);
+
 
   // Auto-prompt UTR when user returns from UPI app
   useEffect(() => {
@@ -249,10 +254,14 @@ const WorkerEarningsScreen = ({ navigation }) => {
     const cleanUpi = upiId.trim();
     const cleanPayee = (adminUpiConfig.payeeName || 'Kwickly Admin').trim().replace(/\s+/g, ' ');
     const amtStr = Number(pendingPaymentContext.amount).toFixed(2);
+    const orderId = `worker_${pendingPaymentContext.type?.toLowerCase() || 'topup'}_${Date.now()}`;
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     const note = `Kwickly ${pendingPaymentContext.type || 'Payment'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
 
-    setPaymentInitiated(true);
+    // Close app selection modal and open real-time waiting modal
+    setUpiPaymentModalVisible(false);
+    setWaitingOrderId(orderId);
+    setWaitingModalVisible(true);
 
     try {
       const result = await nativeUpiService.startUpiPayment({
@@ -264,21 +273,11 @@ const WorkerEarningsScreen = ({ navigation }) => {
         appKey,
       });
 
-      if (result?.isSuccessful && (result.approvalRefNo || result.status === 'SUCCESS')) {
-        await handleVerifyUpiPayment(result.approvalRefNo || result.txnId);
-      } else if (result?.status === 'CANCELLED' || result?.status === 'FAILURE' || result?.status === 'FAILED') {
-        const appTitle = appKey === 'gpay' ? 'Google Pay' : appKey === 'phonepe' ? 'PhonePe' : appKey === 'paytm' ? 'Paytm' : appKey === 'cred' ? 'CRED' : appKey === 'bhim' ? 'BHIM' : 'UPI App';
-        Alert.alert(
-          'Payment Cancelled',
-          `The transaction was cancelled in ${appTitle}. No money was deducted from your bank account.`,
-          [
-            { text: 'Close', style: 'cancel' },
-            { text: 'Try Again', onPress: () => handlePayViaUpiApp(appKey) }
-          ]
-        );
+      if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
+        await handleManualUtrSubmission(result.approvalRefNo || result.txnId);
       }
     } catch (e) {
-      Alert.alert('UPI App', e.message || 'Could not open UPI app. Please try again.');
+      console.warn('[Worker UPI] App launch:', e.message);
     }
   };
 
@@ -292,59 +291,15 @@ const WorkerEarningsScreen = ({ navigation }) => {
     setTimeout(() => setCopiedUpi(false), 2500);
   };
 
-  const isValidUtr = (val) => {
-    if (!val || typeof val !== 'string') return false;
-    const clean = val.trim();
-    if (clean.length !== 12) return false;
-    if (!/^\d{12}$/.test(clean)) return false;
-    if (/^(\d)\1{11}$/.test(clean)) return false;
-    if (['123456789012', '000000000000', '111111111111', '999999999999', '123456789000'].includes(clean)) return false;
-    return true;
-  };
-
-  // Submit UPI Verification
-  const handleVerifyUpiPayment = async (capturedUtr = '') => {
-    let rawUtr = (typeof capturedUtr === 'string' && capturedUtr.trim())
-      ? capturedUtr.trim()
-      : (typeof upiUtrNumber === 'string' ? upiUtrNumber.trim() : '');
-
-    if (!rawUtr) {
-      rawUtr = `UPI-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    }
-
-    try {
-      setSubmittingAction(true);
-      const { amount, type, planId } = pendingPaymentContext;
-
-      const res = await walletService.topupWallet(
-        Number(amount),
-        { method: 'UPI', txnId: rawUtr },
-        planId || undefined,
-        rawUtr
-      );
-
-      if (res.data?.status === 'success' || res.data?.data) {
-        setUpiPaymentModalVisible(false);
-        setUpiUtrNumber('');
-        setPaymentInitiated(false);
-        setShowManualUtr(false);
-
-        Alert.alert(
-          'Payment Success 🎉',
-          type === 'PLAN'
-            ? 'Your subscription plan has been activated successfully!'
-            : `₹${amount} has been successfully added to your wallet balance.`
-        );
-        fetchWalletAndProfile();
-        if (fetchUser) fetchUser('WORKER');
-      } else {
-        throw new Error(res.data?.message || 'Payment submission failed');
-      }
-    } catch (error) {
-      Alert.alert('Verification Issue', error.response?.data?.message || error.message || 'Could not verify payment. Please try again.');
-    } finally {
-      setSubmittingAction(false);
-    }
+  const handleManualUtrSubmission = async (utr) => {
+    const { amount, planId } = pendingPaymentContext;
+    const res = await walletService.topupWallet(
+      Number(amount),
+      { method: 'UPI', txnId: utr },
+      planId || undefined,
+      utr
+    );
+    return res?.data?.data;
   };
 
   const handleShareReceiptPdf = async (txn) => {
@@ -1118,6 +1073,23 @@ const WorkerEarningsScreen = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* Real-time Bank Verification Waiting Modal */}
+      <UpiPaymentWaitingModal
+        visible={waitingModalVisible}
+        onClose={() => setWaitingModalVisible(false)}
+        onSuccess={() => {
+          setWaitingModalVisible(false);
+          fetchWalletAndProfile();
+          if (fetchUser) fetchUser('WORKER');
+        }}
+        amount={pendingPaymentContext.amount}
+        orderId={waitingOrderId}
+        payeeName={adminUpiConfig.payeeName}
+        upiVpa={adminUpiConfig.upiId}
+        purpose={pendingPaymentContext.type === 'PLAN' ? 'subscription' : 'wallet_topup'}
+        planTitle={pendingPaymentContext.type === 'PLAN' ? 'Worker Subscription Plan' : ''}
+        onSubmitManualUtr={handleManualUtrSubmission}
+      />
     </SafeAreaView>
   );
 };

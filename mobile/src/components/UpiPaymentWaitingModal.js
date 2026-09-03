@@ -1,0 +1,579 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View, Text, StyleSheet, Modal, TouchableOpacity,
+  ActivityIndicator, TextInput, Animated, Easing, Platform,
+  KeyboardAvoidingView, Alert
+} from 'react-native';
+import { useTheme } from '../context/ThemeContext';
+import { useSocket } from '../hooks/useSocket';
+import { walletService } from '../services/walletService';
+import { isValidUtr } from '../utils/upiValidation';
+import { CheckCircle2, Clock, ShieldCheck, X, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react-native';
+
+const TOTAL_COUNTDOWN_SECONDS = 60;
+
+/**
+ * UpiPaymentWaitingModal
+ * Real-time bank payment verification modal.
+ * Shows an animated loading spinner, countdown timer, WebSocket listener,
+ * polling fallback, and manual 12-digit UTR submission.
+ */
+const UpiPaymentWaitingModal = ({
+  visible,
+  onClose,
+  onSuccess,
+  amount,
+  orderId,
+  payeeName = 'Kwickly Admin',
+  upiVpa = '',
+  purpose = 'wallet_topup', // 'wallet_topup' | 'subscription' | 'shop_order'
+  planTitle = '',
+  onSubmitManualUtr
+}) => {
+  const { theme, isDarkMode } = useTheme();
+  const socket = useSocket();
+
+  const [timeLeft, setTimeLeft] = useState(TOTAL_COUNTDOWN_SECONDS);
+  const [status, setStatus] = useState('WAITING'); // 'WAITING' | 'SUCCESS' | 'TIMEOUT'
+  const [showManualUtr, setShowManualUtr] = useState(false);
+  const [utrInput, setUtrInput] = useState('');
+  const [submittingUtr, setSubmittingUtr] = useState(false);
+  const [statusNote, setStatusNote] = useState('Waiting for bank settlement...');
+
+  // Pulse animation
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!visible) return;
+
+    // Reset state on open
+    setTimeLeft(TOTAL_COUNTDOWN_SECONDS);
+    setStatus('WAITING');
+    setShowManualUtr(false);
+    setUtrInput('');
+    setStatusNote('Waiting for bank settlement...');
+
+    // Start pulsing animation
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.15,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+
+    // 1-second countdown interval
+    const countdownInterval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setStatus(curr => curr === 'WAITING' ? 'TIMEOUT' : curr);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      pulse.stop();
+      clearInterval(countdownInterval);
+    };
+  }, [visible]);
+
+  // Polling fallback to /payments/status/:orderId
+  useEffect(() => {
+    if (!visible || status !== 'WAITING' || !orderId) return;
+
+    let isMounted = true;
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await walletService.checkPaymentStatus(orderId);
+        if (!isMounted) return;
+
+        const data = res?.data?.data;
+        if (data?.status === 'COMPLETED' || data?.verified === true) {
+          clearInterval(pollInterval);
+          handleTriggerSuccess(data);
+        }
+      } catch (err) {
+        // Silently retry on next poll cycle
+      }
+    }, 2500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+    };
+  }, [visible, status, orderId]);
+
+  // Real-time WebSocket listener
+  useEffect(() => {
+    if (!socket || !visible || status !== 'WAITING') return;
+
+    const handleWalletUpdate = (payload) => {
+      if (payload?.type === 'TOPUP' || payload?.amount === amount || payload?.balance !== undefined) {
+        handleTriggerSuccess(payload);
+      }
+    };
+
+    const handleTopupApproved = (payload) => {
+      handleTriggerSuccess(payload);
+    };
+
+    const handleSubscriptionActivated = (payload) => {
+      if (purpose === 'subscription') {
+        handleTriggerSuccess(payload);
+      }
+    };
+
+    const handleOrderStatus = (payload) => {
+      if (payload?.paymentStatus === 'PAID') {
+        handleTriggerSuccess(payload);
+      }
+    };
+
+    socket.on('WALLET_UPDATE', handleWalletUpdate);
+    socket.on('WALLET_TOPUP_APPROVED', handleTopupApproved);
+    socket.on('SUBSCRIPTION_ACTIVATED', handleSubscriptionActivated);
+    socket.on('ORDER_STATUS', handleOrderStatus);
+
+    return () => {
+      socket.off('WALLET_UPDATE', handleWalletUpdate);
+      socket.off('WALLET_TOPUP_APPROVED', handleTopupApproved);
+      socket.off('SUBSCRIPTION_ACTIVATED', handleSubscriptionActivated);
+      socket.off('ORDER_STATUS', handleOrderStatus);
+    };
+  }, [socket, visible, status, amount, purpose]);
+
+  const handleTriggerSuccess = (data) => {
+    setStatus('SUCCESS');
+    setStatusNote('Bank payment confirmed! Credit applied.');
+    setTimeout(() => {
+      if (onSuccess) onSuccess(data);
+    }, 1800);
+  };
+
+  const handleManualUtrSubmit = async () => {
+    const clean = utrInput.trim();
+    if (!isValidUtr(clean)) {
+      Alert.alert('Invalid UTR', 'Please enter the exact 12-digit UPI Reference / UTR Number from your bank receipt.');
+      return;
+    }
+
+    setSubmittingUtr(true);
+    try {
+      if (onSubmitManualUtr) {
+        const res = await onSubmitManualUtr(clean);
+        if (res?.verified || res?.status === 'COMPLETED') {
+          handleTriggerSuccess(res);
+          return;
+        }
+      }
+
+      // Check status immediately
+      if (orderId) {
+        const checkRes = await walletService.checkPaymentStatus(orderId);
+        if (checkRes?.data?.data?.status === 'COMPLETED') {
+          handleTriggerSuccess(checkRes.data.data);
+          return;
+        }
+      }
+
+      setStatusNote('UTR submitted. Verifying with bank settlement...');
+      setShowManualUtr(false);
+    } catch (err) {
+      Alert.alert('Verification Issue', err?.response?.data?.message || err?.message || 'Could not verify UTR. Please try again.');
+    } finally {
+      setSubmittingUtr(false);
+    }
+  };
+
+  if (!visible) return null;
+
+  const styles = createStyles(theme, isDarkMode);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
+        <View style={styles.card}>
+          {/* Header */}
+          <View style={styles.cardHeader}>
+            <View style={styles.secureBadge}>
+              <ShieldCheck size={14} color="#10B981" />
+              <Text style={styles.secureBadgeText}>Bank Direct UPI</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+              <X size={20} color={theme.colors.textSecondary || '#6B7280'} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Body based on status */}
+          {status === 'SUCCESS' ? (
+            <View style={styles.successContainer}>
+              <View style={styles.successIconCircle}>
+                <CheckCircle2 size={48} color="#10B981" />
+              </View>
+              <Text style={styles.successTitle}>Payment Verified! 🎉</Text>
+              <Text style={styles.successSub}>
+                {purpose === 'subscription'
+                  ? `Your ${planTitle || 'subscription'} is now active!`
+                  : `₹${amount} has been securely added to your wallet.`}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.waitingContainer}>
+              {/* Radar Pulse Animation */}
+              <View style={styles.radarWrapper}>
+                <Animated.View
+                  style={[
+                    styles.radarPulse,
+                    { transform: [{ scale: pulseAnim }] }
+                  ]}
+                />
+                <View style={styles.radarCenter}>
+                  <ActivityIndicator size="small" color="#6C47FF" />
+                </View>
+              </View>
+
+              <Text style={styles.waitingTitle}>
+                {status === 'TIMEOUT' ? 'Settlement in Progress' : 'Verifying with Bank...'}
+              </Text>
+              <Text style={styles.waitingSub}>
+                {status === 'TIMEOUT'
+                  ? 'Your payment was submitted. Bank settlement usually completes in 1-2 minutes. Your balance will update automatically.'
+                  : statusNote}
+              </Text>
+
+              {/* Amount and Timer Pill */}
+              <View style={styles.infoRow}>
+                <View style={styles.infoPill}>
+                  <Text style={styles.infoPillLabel}>Amount</Text>
+                  <Text style={styles.infoPillValue}>₹{amount}</Text>
+                </View>
+                {status === 'WAITING' && (
+                  <View style={[styles.infoPill, styles.timerPill]}>
+                    <Clock size={14} color="#6C47FF" />
+                    <Text style={styles.timerText}>{timeLeft}s left</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Payee Details */}
+              {Boolean(upiVpa) && (
+                <View style={styles.payeeCard}>
+                  <Text style={styles.payeeLabel}>Transfer Recipient (Admin):</Text>
+                  <Text style={styles.payeeName} numberOfLines={1}>{payeeName}</Text>
+                  <Text style={styles.payeeVpa}>{upiVpa}</Text>
+                </View>
+              )}
+
+              {/* Manual UTR Accordion */}
+              <TouchableOpacity
+                style={styles.manualAccordionBtn}
+                onPress={() => setShowManualUtr(prev => !prev)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.manualAccordionText}>
+                  {showManualUtr ? 'Hide UTR Entry' : 'Already Paid? Enter 12-digit UTR'}
+                </Text>
+                {showManualUtr ? (
+                  <ChevronUp size={16} color="#6C47FF" />
+                ) : (
+                  <ChevronDown size={16} color="#6C47FF" />
+                )}
+              </TouchableOpacity>
+
+              {showManualUtr && (
+                <View style={styles.manualUtrBox}>
+                  <Text style={styles.utrInputLabel}>12-digit UPI Ref / UTR Number:</Text>
+                  <View style={styles.utrInputRow}>
+                    <TextInput
+                      style={styles.utrInput}
+                      placeholder="e.g. 429182736152"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="number-pad"
+                      maxLength={12}
+                      value={utrInput}
+                      onChangeText={setUtrInput}
+                    />
+                    <TouchableOpacity
+                      style={[styles.submitUtrBtn, utrInput.length !== 12 && styles.submitUtrBtnDisabled]}
+                      disabled={utrInput.length !== 12 || submittingUtr}
+                      onPress={handleManualUtrSubmit}
+                      activeOpacity={0.8}
+                    >
+                      {submittingUtr ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <ArrowRight size={18} color="#FFFFFF" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {status === 'TIMEOUT' && (
+                <TouchableOpacity style={styles.doneBtn} onPress={onClose} activeOpacity={0.8}>
+                  <Text style={styles.doneBtnText}>I Have Paid (Close)</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
+const createStyles = (theme, isDarkMode) => StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: isDarkMode ? '#1E1E2E' : '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  secureBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 6,
+  },
+  secureBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  waitingContainer: {
+    alignItems: 'center',
+  },
+  radarWrapper: {
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  radarPulse: {
+    position: 'absolute',
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: 'rgba(108, 71, 255, 0.15)',
+  },
+  radarCenter: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: isDarkMode ? '#2D2B52' : '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  waitingTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text || '#111827',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  waitingSub: {
+    fontSize: 13,
+    color: theme.colors.textSecondary || '#6B7280',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+    width: '100%',
+  },
+  infoPill: {
+    flex: 1,
+    backgroundColor: isDarkMode ? '#28273D' : '#F3F4F6',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+  },
+  infoPillLabel: {
+    fontSize: 11,
+    color: theme.colors.textSecondary || '#6B7280',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  infoPillValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#10B981',
+  },
+  timerPill: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timerText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  payeeCard: {
+    width: '100%',
+    backgroundColor: isDarkMode ? '#252438' : '#F9FAFB',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#373552' : '#E5E7EB',
+    marginBottom: 14,
+  },
+  payeeLabel: {
+    fontSize: 11,
+    color: theme.colors.textSecondary || '#6B7280',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  payeeName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text || '#111827',
+  },
+  payeeVpa: {
+    fontSize: 12,
+    color: '#6C47FF',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  manualAccordionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    gap: 4,
+    marginBottom: 8,
+  },
+  manualAccordionText: {
+    fontSize: 13,
+    color: '#6C47FF',
+    fontWeight: '600',
+  },
+  manualUtrBox: {
+    width: '100%',
+    backgroundColor: isDarkMode ? '#252438' : '#F9FAFB',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#3E3C5E' : '#E5E7EB',
+    marginBottom: 10,
+  },
+  utrInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textSecondary || '#6B7280',
+    marginBottom: 8,
+  },
+  utrInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  utrInput: {
+    flex: 1,
+    backgroundColor: isDarkMode ? '#1E1E2E' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#3E3C5E' : '#D1D5DB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text || '#111827',
+    letterSpacing: 1,
+  },
+  submitUtrBtn: {
+    backgroundColor: '#6C47FF',
+    borderRadius: 10,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitUtrBtnDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  doneBtn: {
+    width: '100%',
+    backgroundColor: '#6C47FF',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  doneBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  successContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  successIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#10B981',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  successSub: {
+    fontSize: 14,
+    color: theme.colors.textSecondary || '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+});
+
+export default UpiPaymentWaitingModal;

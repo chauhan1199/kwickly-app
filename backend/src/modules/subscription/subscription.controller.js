@@ -1,7 +1,7 @@
 const { StatusCodes } = require('http-status-codes');
 const { WorkerSubscription, ShopSubscription } = require('./subscription.model');
-const Customer   = require('../customer/customer.model');
-const WalletTxn  = require('../wallet/wallet.model');
+const Customer = require('../customer/customer.model');
+const WalletTxn = require('../wallet/wallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
@@ -239,83 +239,139 @@ exports.subscribe = catchAsync(async (req, res) => {
             return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your payment receipt.', StatusCodes.BAD_REQUEST);
         }
 
-        if (!isValidUtr(rawUtr) && !rawUtr.startsWith('AUTO_')) {
+        if (!isValidUtr(rawUtr)) {
             return errorResponse(res, 'Invalid UTR format. Please enter the exact 12-digit UPI Reference Number from your bank receipt.', StatusCodes.BAD_REQUEST);
         }
 
         const utrUsage = await findUtrUsage(rawUtr);
-        if (utrUsage) {
+        if (utrUsage && String(utrUsage.ref?.userId || utrUsage.ref?.workerId || '') !== String(userId)) {
             return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
         }
 
         const utrNumber = rawUtr;
 
-        // ── AUTOMATED DIRECT UPI: Register payment intent & return UPI link ──
-        let sub;
+        // ── AUTOMATED DIRECT UPI: Reconcile with webhook or record pending intent ──
         if (isShop) {
             const shop = await Shop.findOne({ ownerId: userId }).session(session);
             if (!shop) throw Object.assign(new Error('Shop not found for this user'), { statusCode: StatusCodes.NOT_FOUND });
 
-            const startDate = computeStartDate(shop.subscription, shop.createdAt, freeTrialDays);
-            const endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
-
-            [sub] = await ShopSubscription.create([{
+            // Check if webhook already confirmed this payment
+            const alreadyActive = await ShopSubscription.findOne({
                 shopId: shop._id,
-                planId: activePlan.id,
-                planName: activePlan.label || activePlan.id,
-                amount: activePlan.price,
-                startDate,
-                endDate,
-                isTrial: false,
-                payment: { status: 'PAID', razorpayPaymentId: utrNumber || 'upi_auto' }
-            }], { session });
+                'payment.status': 'PAID',
+                $or: [{ 'payment.razorpayPaymentId': utrNumber }, { 'payment.webhookEventId': utrNumber }]
+            }).session(session);
 
-            await Shop.findByIdAndUpdate(shop._id, {
-                'subscription.planId': activePlan.id,
-                'subscription.expiryDate': endDate,
-                'subscription.isTrial': false
-            }, { session });
+            if (alreadyActive) {
+                if (useTransaction) await session.commitTransaction();
+                if (session) session.endSession();
+                return successResponse(res, alreadyActive, 'Subscription plan verified and active!', StatusCodes.OK);
+            }
 
-            await creditTreasuryForSubscription(activePlan.price, activePlan.id, userId, 'Shop', session);
+            // Record as pending subscription transaction awaiting webhook confirmation
+            let pendingTxn = await WalletTxn.findOne({
+                userId,
+                status: 'PENDING',
+                $or: [{ razorpayPaymentId: utrNumber }, { planId: activePlan.id, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }]
+            }).session(session);
+
+            if (pendingTxn) {
+                pendingTxn.razorpayPaymentId = utrNumber;
+                pendingTxn.planId = activePlan.id;
+                await pendingTxn.save({ session });
+            } else {
+                await WalletTxn.create([{
+                    userId,
+                    type: 'TOPUP',
+                    amount: activePlan.price,
+                    balance: shop.wallet?.balance || 0,
+                    status: 'PENDING',
+                    planId: activePlan.id,
+                    razorpayPaymentId: utrNumber,
+                    description: `Shop Subscription Plan Purchase: ${activePlan.label || activePlan.id} (UTR: ${utrNumber} - Awaiting Bank Confirmation)`
+                }], { session });
+            }
+
             if (useTransaction) await session.commitTransaction();
             if (session) session.endSession();
 
-            await delCache(`session:${userId}`);
-            await afterSubscriptionActivated(userId, 'SHOP', activePlan, sub._id);
-            return successResponse(res, sub, 'Subscription activated successfully via UPI', StatusCodes.CREATED);
+            emitToAll('DASHBOARD_UPDATE', {
+                type: 'PENDING_SUBSCRIPTION',
+                userId,
+                role: 'SHOP',
+                planId: activePlan.id,
+                utr: utrNumber,
+                amount: activePlan.price
+            });
+
+            return successResponse(res, {
+                planId: activePlan.id,
+                status: 'PENDING_VERIFICATION',
+                verified: false,
+                utr: utrNumber,
+                amount: activePlan.price
+            }, 'Subscription payment submitted. Awaiting bank confirmation.', StatusCodes.ACCEPTED);
+
         } else {
             const worker = await Customer.findById(userId).session(session);
             if (!worker) throw Object.assign(new Error('Worker not found'), { statusCode: StatusCodes.NOT_FOUND });
 
-            const startDate = computeStartDate(worker.subscription, worker.createdAt, freeTrialDays);
-            const endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + (activePlan.durationDays || 30));
-
-            [sub] = await WorkerSubscription.create([{
+            // Check if webhook already confirmed this payment
+            const alreadyActive = await WorkerSubscription.findOne({
                 workerId: userId,
-                planId: activePlan.id,
-                planName: activePlan.label || activePlan.id,
-                amount: activePlan.price,
-                startDate,
-                endDate,
-                isTrial: false,
-                payment: { status: 'PAID', razorpayPaymentId: utrNumber || 'upi_auto' }
-            }], { session });
+                'payment.status': 'PAID',
+                $or: [{ 'payment.razorpayPaymentId': utrNumber }, { 'payment.webhookEventId': utrNumber }]
+            }).session(session);
 
-            await Customer.findByIdAndUpdate(userId, {
-                'subscription.planId': activePlan.id,
-                'subscription.expiryDate': endDate,
-                'subscription.isTrial': false
-            }, { session });
+            if (alreadyActive) {
+                if (useTransaction) await session.commitTransaction();
+                if (session) session.endSession();
+                return successResponse(res, alreadyActive, 'Subscription plan verified and active!', StatusCodes.OK);
+            }
 
-            await creditTreasuryForSubscription(activePlan.price, activePlan.id, userId, 'Customer', session);
+            // Record as pending subscription transaction awaiting webhook confirmation
+            let pendingTxn = await WalletTxn.findOne({
+                userId,
+                status: 'PENDING',
+                $or: [{ razorpayPaymentId: utrNumber }, { planId: activePlan.id, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }]
+            }).session(session);
+
+            if (pendingTxn) {
+                pendingTxn.razorpayPaymentId = utrNumber;
+                pendingTxn.planId = activePlan.id;
+                await pendingTxn.save({ session });
+            } else {
+                await WalletTxn.create([{
+                    userId,
+                    type: 'TOPUP',
+                    amount: activePlan.price,
+                    balance: worker.wallet?.balance || 0,
+                    status: 'PENDING',
+                    planId: activePlan.id,
+                    razorpayPaymentId: utrNumber,
+                    description: `Worker Subscription Plan Purchase: ${activePlan.label || activePlan.id} (UTR: ${utrNumber} - Awaiting Bank Confirmation)`
+                }], { session });
+            }
+
             if (useTransaction) await session.commitTransaction();
             if (session) session.endSession();
 
-            await delCache(`session:${userId}`);
-            await afterSubscriptionActivated(userId, 'WORKER', activePlan, sub._id);
-            return successResponse(res, sub, 'Subscription activated successfully via UPI', StatusCodes.CREATED);
+            emitToAll('DASHBOARD_UPDATE', {
+                type: 'PENDING_SUBSCRIPTION',
+                userId,
+                role: 'WORKER',
+                planId: activePlan.id,
+                utr: utrNumber,
+                amount: activePlan.price
+            });
+
+            return successResponse(res, {
+                planId: activePlan.id,
+                status: 'PENDING_VERIFICATION',
+                verified: false,
+                utr: utrNumber,
+                amount: activePlan.price
+            }, 'Subscription payment submitted. Awaiting bank confirmation.', StatusCodes.ACCEPTED);
         }
 
     } catch (error) {
@@ -357,7 +413,7 @@ exports.getPlans = catchAsync(async (req, res) => {
 exports.getAllSubscriptions = catchAsync(async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const total = await WorkerSubscription.countDocuments();
-    const subs  = await WorkerSubscription.find()
+    const subs = await WorkerSubscription.find()
         .populate('workerId', 'name phone')
         .populate('planId', 'name price')
         .sort('-createdAt')
