@@ -49,7 +49,7 @@ const UpiPaymentWaitingModal = ({
     // Reset state on open
     setTimeLeft(TOTAL_COUNTDOWN_SECONDS);
     setStatus('WAITING');
-    setShowManualUtr(false);
+    setShowManualUtr(true);
     setUtrInput('');
     setStatusNote('Waiting for bank settlement...');
 
@@ -305,6 +305,18 @@ const UpiPaymentWaitingModal = ({
                     </TouchableOpacity>
                   </View>
                 </View>
+              )}
+
+              {status === 'WAITING' && (
+                <TouchableOpacity
+                  style={{ marginTop: 12, alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 }}
+                  onPress={onClose}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 13, color: '#9CA3AF', fontWeight: '700' }}>
+                    Cancel / Did Not Pay
+                  </Text>
+                </TouchableOpacity>
               )}
 
               {status === 'TIMEOUT' && (
