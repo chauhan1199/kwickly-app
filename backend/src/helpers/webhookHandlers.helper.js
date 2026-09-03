@@ -21,6 +21,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const Payment   = require('../modules/payment/payment.model');
 const Customer  = require('../modules/customer/customer.model');
 const Shop      = require('../modules/shop/shop.model');
 const WalletTxn = require('../modules/wallet/wallet.model');
@@ -70,10 +71,10 @@ const toRupees = (raw) => {
  * @param {string} eventId    - Provider's unique event/transaction ID (idempotency key)
  */
 const handleWalletTopupWebhook = async (payload, eventId) => {
-    const internalId = payload.metadata?.internalId;
+    const internalId = payload.metadata?.internalId || payload.internalId;
 
-    if (!internalId) {
-        logger.warn(`[WebhookHandlers:WalletTopup] Missing internalId — eventId=${eventId}`);
+    if (!internalId && !payload.utr && !eventId) {
+        logger.warn(`[WebhookHandlers:WalletTopup] Missing identifier — eventId=${eventId}`);
         return;
     }
 
@@ -81,7 +82,14 @@ const handleWalletTopupWebhook = async (payload, eventId) => {
         let claimed = null;
         if (internalId && mongoose.isValidObjectId(internalId)) {
             claimed = await WalletTxn.findOneAndUpdate(
-                { _id: internalId, status: { $ne: 'COMPLETED' } },
+                {
+                    status: { $ne: 'COMPLETED' },
+                    $or: [
+                        { _id: internalId },
+                        { razorpayOrderId: internalId.toString() },
+                        { paymentId: internalId }
+                    ]
+                },
                 {
                     $set: {
                         status:               'COMPLETED',
@@ -142,6 +150,33 @@ const handleWalletTopupWebhook = async (payload, eventId) => {
                     },
                     { returnDocument: 'after' }
                 );
+            }
+        }
+
+        // Fallback: If no WalletTxn exists yet, check Payment record and credit directly
+        if (!claimed && internalId && mongoose.isValidObjectId(internalId)) {
+            const payment = await Payment.findById(internalId);
+            if (payment && payment.metadata?.notes?.userId) {
+                const targetUserId = payment.metadata.notes.userId;
+                const creditAmt = Number(payment.amount || toRupees(payload.amount));
+                const targetUser = await Customer.findById(targetUserId).lean();
+                const currentBal = Number(targetUser?.wallet?.balance || 0);
+
+                claimed = await WalletTxn.create({
+                    userId: targetUserId,
+                    type: 'TOPUP',
+                    amount: creditAmt,
+                    balance: currentBal + creditAmt,
+                    status: 'COMPLETED',
+                    razorpayOrderId: internalId.toString(),
+                    razorpayPaymentId: payload.utr || eventId,
+                    gatewayTransactionId: eventId,
+                    webhookEventId: eventId,
+                    verifiedAt: new Date(),
+                    description: `Wallet Top-up via Direct UPI (Verified by Bank)`
+                });
+                payment.status = 'COMPLETED';
+                await payment.save();
             }
         }
 
