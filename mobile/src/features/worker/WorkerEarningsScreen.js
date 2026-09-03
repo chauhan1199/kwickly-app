@@ -1032,22 +1032,24 @@ const WorkerEarningsScreen = ({ navigation }) => {
       </Modal>
 
       {/* Real-time Bank Verification Waiting Modal */}
-      <UpiPaymentWaitingModal
-        visible={waitingModalVisible}
-        onClose={() => setWaitingModalVisible(false)}
-        onSuccess={() => {
-          setWaitingModalVisible(false);
-          fetchWalletAndProfile();
-          if (fetchUser) fetchUser('WORKER');
-        }}
-        amount={pendingPaymentContext.amount}
-        orderId={waitingOrderId}
-        payeeName={adminUpiConfig.payeeName}
-        upiVpa={adminUpiConfig.upiId}
-        purpose={pendingPaymentContext.type === 'PLAN' ? 'subscription' : 'wallet_topup'}
-        planTitle={pendingPaymentContext.type === 'PLAN' ? 'Worker Subscription Plan' : ''}
-        onSubmitManualUtr={handleManualUtrSubmission}
-      />
+      {waitingModalVisible && (
+        <UpiPaymentWaitingModal
+          visible={waitingModalVisible}
+          onClose={() => setWaitingModalVisible(false)}
+          onSuccess={() => {
+            setWaitingModalVisible(false);
+            fetchWalletAndProfile();
+            if (fetchUser) fetchUser('WORKER');
+          }}
+          amount={pendingPaymentContext.amount}
+          orderId={waitingOrderId}
+          payeeName={adminUpiConfig.payeeName}
+          upiVpa={adminUpiConfig.upiId}
+          purpose={pendingPaymentContext.type === 'PLAN' ? 'subscription' : 'wallet_topup'}
+          planTitle={pendingPaymentContext.type === 'PLAN' ? 'Worker Subscription Plan' : ''}
+          onSubmitManualUtr={handleManualUtrSubmission}
+        />
+      )}
     </SafeAreaView>
   );
 };

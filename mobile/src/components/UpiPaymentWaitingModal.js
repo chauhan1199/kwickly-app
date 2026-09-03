@@ -5,12 +5,13 @@ import {
   KeyboardAvoidingView, Alert
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { useSocket } from '../hooks/useSocket';
+import useSocket, { useSocket as useSocketNamed } from '../hooks/useSocket';
 import { walletService } from '../services/walletService';
 import { isValidUtr } from '../utils/upiValidation';
 import { CheckCircle2, Clock, ShieldCheck, X, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react-native';
 
 const TOTAL_COUNTDOWN_SECONDS = 60;
+const resolveUseSocket = useSocket || useSocketNamed;
 
 /**
  * UpiPaymentWaitingModal
@@ -31,7 +32,6 @@ const UpiPaymentWaitingModal = ({
   onSubmitManualUtr
 }) => {
   const { theme, isDarkMode } = useTheme();
-  const socket = useSocket();
 
   const [timeLeft, setTimeLeft] = useState(TOTAL_COUNTDOWN_SECONDS);
   const [status, setStatus] = useState('WAITING'); // 'WAITING' | 'SUCCESS' | 'TIMEOUT'
@@ -116,45 +116,6 @@ const UpiPaymentWaitingModal = ({
     };
   }, [visible, status, orderId]);
 
-  // Real-time WebSocket listener
-  useEffect(() => {
-    if (!socket || !visible || status !== 'WAITING') return;
-
-    const handleWalletUpdate = (payload) => {
-      if (payload?.type === 'TOPUP' && (Number(payload?.amount) === Number(amount) || !amount)) {
-        handleTriggerSuccess(payload);
-      }
-    };
-
-    const handleTopupApproved = (payload) => {
-      handleTriggerSuccess(payload);
-    };
-
-    const handleSubscriptionActivated = (payload) => {
-      if (purpose === 'subscription') {
-        handleTriggerSuccess(payload);
-      }
-    };
-
-    const handleOrderStatus = (payload) => {
-      if (payload?.paymentStatus === 'PAID') {
-        handleTriggerSuccess(payload);
-      }
-    };
-
-    socket.on('WALLET_UPDATE', handleWalletUpdate);
-    socket.on('WALLET_TOPUP_APPROVED', handleTopupApproved);
-    socket.on('SUBSCRIPTION_ACTIVATED', handleSubscriptionActivated);
-    socket.on('ORDER_STATUS', handleOrderStatus);
-
-    return () => {
-      socket.off('WALLET_UPDATE', handleWalletUpdate);
-      socket.off('WALLET_TOPUP_APPROVED', handleTopupApproved);
-      socket.off('SUBSCRIPTION_ACTIVATED', handleSubscriptionActivated);
-      socket.off('ORDER_STATUS', handleOrderStatus);
-    };
-  }, [socket, visible, status, amount, purpose]);
-
   const handleTriggerSuccess = (data) => {
     setStatus('SUCCESS');
     setStatusNote('Bank payment confirmed! Credit applied.');
@@ -162,6 +123,30 @@ const UpiPaymentWaitingModal = ({
       if (onSuccess) onSuccess(data);
     }, 1800);
   };
+
+  // Real-time WebSocket listener via useSocket onEvent
+  const handleSocketEvent = useCallback((event, payload) => {
+    if (!visible || status !== 'WAITING') return;
+
+    if (event === 'WALLET_UPDATE') {
+      if (payload?.type === 'TOPUP' && (Number(payload?.amount) === Number(amount) || !amount)) {
+        handleTriggerSuccess(payload);
+      }
+    } else if (event === 'WALLET_TOPUP_APPROVED') {
+      handleTriggerSuccess(payload);
+    } else if (event === 'SUBSCRIPTION_ACTIVATED') {
+      if (purpose === 'subscription') {
+        handleTriggerSuccess(payload);
+      }
+    } else if (event === 'ORDER_STATUS') {
+      if (payload?.paymentStatus === 'PAID') {
+        handleTriggerSuccess(payload);
+      }
+    }
+  }, [visible, status, amount, purpose]);
+
+  resolveUseSocket({ onEvent: handleSocketEvent });
+
 
   const handleManualUtrSubmit = async () => {
     const clean = utrInput.trim();

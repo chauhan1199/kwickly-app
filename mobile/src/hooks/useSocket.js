@@ -60,6 +60,7 @@ const useSocket = (options = {}) => {
       'FORCED_OFFLINE', 'JOB_RADIUS_EXPANDED',
       'JOB_DISPUTED', 'DISPUTE_RESOLVED',
       'JOB_STATUS_CHANGED',
+      'WALLET_UPDATE', 'WALLET_TOPUP_APPROVED', 'SUBSCRIPTION_ACTIVATED'
     ];
 
     EVENTS.forEach(ev => {
@@ -117,4 +118,5 @@ const useSocket = (options = {}) => {
   };
 };
 
+export { useSocket };
 export default useSocket;

@@ -595,17 +595,19 @@ const CustomerWalletScreen = ({ navigation }) => {
       <CustomAlert {...alertConfig} />
 
       {/* Real-time Bank Confirmation Waiting Modal */}
-      <UpiPaymentWaitingModal
-        visible={waitingModalVisible}
-        onClose={() => setWaitingModalVisible(false)}
-        onSuccess={handlePaymentSuccess}
-        amount={upiOrderData?.amount || 0}
-        orderId={upiOrderData?.razorpayOrderId}
-        payeeName={upiOrderData?.payeeName}
-        upiVpa={upiOrderData?.upiVpa}
-        purpose="wallet_topup"
-        onSubmitManualUtr={handleManualUtrVerification}
-      />
+      {waitingModalVisible && (
+        <UpiPaymentWaitingModal
+          visible={waitingModalVisible}
+          onClose={() => setWaitingModalVisible(false)}
+          onSuccess={handlePaymentSuccess}
+          amount={upiOrderData?.amount || 0}
+          orderId={upiOrderData?.razorpayOrderId}
+          payeeName={upiOrderData?.payeeName}
+          upiVpa={upiOrderData?.upiVpa}
+          purpose="wallet_topup"
+          onSubmitManualUtr={handleManualUtrVerification}
+        />
+      )}
     </SafeAreaView>
   );
 };

@@ -1293,21 +1293,23 @@ const ShopWalletScreen = ({ navigation }) => {
       </Modal>
 
       {/* Real-time Bank Verification Waiting Modal */}
-      <UpiPaymentWaitingModal
-        visible={waitingModalVisible}
-        onClose={() => setWaitingModalVisible(false)}
-        onSuccess={() => {
-          setWaitingModalVisible(false);
-          fetchWallet();
-        }}
-        amount={waitingContext.amount}
-        orderId={waitingContext.orderId}
-        payeeName={waitingContext.payeeName}
-        upiVpa={waitingContext.upiVpa}
-        purpose={waitingContext.purpose}
-        planTitle={waitingContext.planTitle}
-        onSubmitManualUtr={handleManualUtrSubmission}
-      />
+      {waitingModalVisible && (
+        <UpiPaymentWaitingModal
+          visible={waitingModalVisible}
+          onClose={() => setWaitingModalVisible(false)}
+          onSuccess={() => {
+            setWaitingModalVisible(false);
+            fetchWallet();
+          }}
+          amount={waitingContext.amount}
+          orderId={waitingContext.orderId}
+          payeeName={waitingContext.payeeName}
+          upiVpa={waitingContext.upiVpa}
+          purpose={waitingContext.purpose}
+          planTitle={waitingContext.planTitle}
+          onSubmitManualUtr={handleManualUtrSubmission}
+        />
+      )}
     </SafeAreaView>
   );
 };
