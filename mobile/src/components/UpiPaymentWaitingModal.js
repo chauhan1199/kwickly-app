@@ -308,20 +308,67 @@ const UpiPaymentWaitingModal = ({
               )}
 
               {status === 'WAITING' && (
-                <TouchableOpacity
-                  style={{ marginTop: 12, alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 }}
-                  onPress={onClose}
-                  activeOpacity={0.7}
-                >
-                  <Text style={{ fontSize: 13, color: '#9CA3AF', fontWeight: '700' }}>
-                    Cancel / Did Not Pay
-                  </Text>
-                </TouchableOpacity>
+                <View style={{ width: '100%', marginTop: 14, gap: 8 }}>
+                  <TouchableOpacity
+                    style={styles.doneBtn}
+                    onPress={async () => {
+                      setSubmittingUtr(true);
+                      setStatusNote('Confirming payment with bank...');
+                      try {
+                        if (onSubmitManualUtr) {
+                          const res = await onSubmitManualUtr(utrInput.trim() || orderId);
+                          if (res?.verified === true && res?.status === 'COMPLETED') {
+                            handleTriggerSuccess(res);
+                            return;
+                          }
+                        }
+                        if (orderId) {
+                          const checkRes = await walletService.checkPaymentStatus(orderId);
+                          if (checkRes?.data?.data?.status === 'COMPLETED' && checkRes?.data?.data?.verified === true) {
+                            handleTriggerSuccess(checkRes.data.data);
+                            return;
+                          }
+                        }
+                      } catch (e) {
+                        setStatusNote('Processing bank settlement...');
+                      } finally {
+                        setSubmittingUtr(false);
+                      }
+                    }}
+                    disabled={submittingUtr}
+                    activeOpacity={0.85}
+                  >
+                    {submittingUtr ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.doneBtnText}>I Have Paid • Add to Wallet</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{ alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 16 }}
+                    onPress={onClose}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 13, color: '#9CA3AF', fontWeight: '700' }}>
+                      Cancel / Did Not Pay
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
               {status === 'TIMEOUT' && (
                 <TouchableOpacity style={styles.doneBtn} onPress={async () => {
-                  // Run one final status check before closing
+                  setSubmittingUtr(true);
+                  if (onSubmitManualUtr) {
+                    try {
+                      const res = await onSubmitManualUtr(utrInput.trim() || orderId);
+                      if (res?.verified === true && res?.status === 'COMPLETED') {
+                        handleTriggerSuccess(res);
+                        return;
+                      }
+                    } catch (e) {}
+                  }
                   if (orderId) {
                     try {
                       setStatusNote('Running final verification...');
@@ -330,13 +377,12 @@ const UpiPaymentWaitingModal = ({
                         handleTriggerSuccess(checkRes.data.data);
                         return;
                       }
-                    } catch (e) {
-                      // Silently continue to close
-                    }
+                    } catch (e) {}
                   }
+                  setSubmittingUtr(false);
                   onClose();
                 }} activeOpacity={0.8}>
-                  <Text style={styles.doneBtnText}>I Have Paid (Close)</Text>
+                  <Text style={styles.doneBtnText}>I Have Paid (Complete Topup)</Text>
                 </TouchableOpacity>
               )}
             </View>

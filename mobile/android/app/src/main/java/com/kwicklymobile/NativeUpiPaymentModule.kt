@@ -98,15 +98,17 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
         pendingPromise = null
 
         val resultMap = Arguments.createMap()
+        val isResultOk = (resultCode == Activity.RESULT_OK)
         var responseString = data?.getStringExtra("response") ?: ""
 
-        if (responseString.isEmpty()) {
-            val extras = data?.extras
-            if (extras != null) {
-                val sb = StringBuilder()
-                for (key in extras.keySet()) {
-                    sb.append(key).append("=").append(extras.get(key)).append("&")
-                }
+        val extras = data?.extras
+        if (extras != null) {
+            val sb = StringBuilder()
+            for (key in extras.keySet()) {
+                val value = extras.get(key)
+                sb.append(key).append("=").append(value).append("&")
+            }
+            if (responseString.isEmpty()) {
                 responseString = sb.toString()
             }
         }
@@ -116,20 +118,35 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
         }
 
         resultMap.putString("rawResponse", responseString)
+        resultMap.putInt("resultCode", resultCode)
 
         val parsed = parseUpiResponse(responseString)
-        val status = parsed["status"] ?: parsed["Status"] ?: ""
-        val approvalRefNo = parsed["approvalrefno"] ?: parsed["ApprovalRefNo"] ?: parsed["approvalRefNo"] ?: parsed["rrn"] ?: parsed["RRN"] ?: ""
+        var status = parsed["status"] ?: parsed["Status"] ?: ""
+        var approvalRefNo = parsed["approvalrefno"] ?: parsed["ApprovalRefNo"] ?: parsed["approvalRefNo"] ?: parsed["rrn"] ?: parsed["RRN"] ?: ""
         val txnId = parsed["txnid"] ?: parsed["txnId"] ?: parsed["TxnId"] ?: ""
         val responseCode = parsed["responsecode"] ?: parsed["responseCode"] ?: ""
+
+        // If no explicit approvalRefNo, regex search responseString for any 12-digit number (bank RRN)
+        if (approvalRefNo.isEmpty() && responseString.isNotEmpty()) {
+            val rrnMatch = Regex("\\b([0-9]{12})\\b").find(responseString)
+            if (rrnMatch != null) {
+                approvalRefNo = rrnMatch.groupValues[1]
+            }
+        }
+
+        // If activity returned RESULT_OK but status was empty, treat as SUCCESS
+        if (status.isEmpty() && isResultOk) {
+            status = "SUCCESS"
+        }
 
         resultMap.putString("status", status.uppercase())
         resultMap.putString("approvalRefNo", approvalRefNo)
         resultMap.putString("txnId", txnId)
         resultMap.putString("responseCode", responseCode)
 
-        if (status.equals("SUCCESS", ignoreCase = true)) {
+        if (status.equals("SUCCESS", ignoreCase = true) || (isResultOk && !status.equals("FAILURE", ignoreCase = true) && !status.equals("FAILED", ignoreCase = true))) {
             resultMap.putBoolean("isSuccessful", true)
+            resultMap.putString("status", "SUCCESS")
             promise.resolve(resultMap)
         } else if (status.equals("SUBMITTED", ignoreCase = true)) {
             resultMap.putBoolean("isSuccessful", false)
@@ -137,12 +154,12 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             promise.resolve(resultMap)
         } else if (status.equals("FAILURE", ignoreCase = true) || status.equals("FAILED", ignoreCase = true)) {
             resultMap.putBoolean("isSuccessful", false)
-            resultMap.putString("message", "Payment failed or was cancelled in UPI app.")
+            resultMap.putString("message", "Payment failed in UPI app.")
             promise.resolve(resultMap)
-        } else if (responseString.isEmpty()) {
+        } else if (resultCode == Activity.RESULT_CANCELED && responseString.isEmpty()) {
             resultMap.putString("status", "CANCELLED")
             resultMap.putBoolean("isSuccessful", false)
-            resultMap.putString("message", "User cancelled or closed UPI app without completing payment.")
+            resultMap.putString("message", "User returned from UPI app.")
             promise.resolve(resultMap)
         } else {
             resultMap.putBoolean("isSuccessful", false)
