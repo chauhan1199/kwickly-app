@@ -193,23 +193,13 @@ const CustomerWalletScreen = ({ navigation }) => {
 
       console.log('[UPI] Native module result:', JSON.stringify(result));
 
-      // Handle different UPI app responses
-      if (result?.isSuccessful || result?.status === 'SUCCESS') {
-        const utr = (result.approvalRefNo || '').trim();
-        const txnId = (result.txnId || '').trim();
-        const refToSubmit = utr || txnId || upiOrderData.razorpayOrderId;
-
+      // Only auto-verify if the UPI app returned a real 12-digit bank RRN / UTR
+      const utr = (result?.approvalRefNo || '').trim();
+      if (utr && /^\d{12}$/.test(utr)) {
         try {
-          await handleManualUtrVerification(refToSubmit);
+          await handleManualUtrVerification(utr);
         } catch (verifyErr) {
-          console.warn('[UPI] Auto-verify failed:', verifyErr?.message);
-        }
-      } else if (result?.status === 'SUBMITTED') {
-        const txnId = (result.txnId || result.approvalRefNo || upiOrderData.razorpayOrderId || '').trim();
-        try {
-          await handleManualUtrVerification(txnId);
-        } catch (verifyErr) {
-          console.warn('[UPI] Submitted status verify failed:', verifyErr?.message);
+          console.warn('[UPI] Auto-verify with UTR failed:', verifyErr?.message);
         }
       }
     } catch (err) {
@@ -228,12 +218,13 @@ const CustomerWalletScreen = ({ navigation }) => {
   const handleManualUtrVerification = async (utr) => {
     if (!upiOrderData) return;
     const cleanUtr = (utr || '').toString().trim();
+    if (!cleanUtr || !/^\d{12}$/.test(cleanUtr)) {
+      throw new Error('Please enter a valid 12-digit UPI Reference (UTR) Number.');
+    }
     const res = await walletService.verifyPayment({
       razorpayOrderId: upiOrderData.razorpayOrderId,
-      upiTransactionId: cleanUtr || upiOrderData.razorpayOrderId,
-      utrNumber: cleanUtr && /^\d{12}$/.test(cleanUtr) ? cleanUtr : undefined,
-      isIntentSuccess: true,
-      status: 'SUCCESS',
+      upiTransactionId: cleanUtr,
+      utrNumber: cleanUtr,
       purpose: 'wallet_topup',
       amount: upiOrderData.amount
     });
@@ -246,8 +237,12 @@ const CustomerWalletScreen = ({ navigation }) => {
     setUpiCheckoutModal(false);
     setTopupAmount('');
     setUpiTxnId('');
-    if (fetchUser) await fetchUser();
-    await fetchWallet(true);
+    try {
+      if (fetchUser) await fetchUser();
+    } catch (e) {}
+    try {
+      await fetchWallet(true);
+    } catch (e) {}
   };
 
 

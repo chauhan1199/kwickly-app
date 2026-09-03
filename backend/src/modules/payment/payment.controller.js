@@ -156,25 +156,17 @@ exports.verifyPayment = catchAsync(async (req, res) => {
     }
 
     let upiRef = (upiTransactionId || utrNumber || razorpayPaymentId || '').toString().trim();
-    const isIntentVerified = Boolean(
-        req.body.isIntentSuccess === true ||
-        upiRef.startsWith('KWIK') ||
-        upiRef === orderRef ||
-        (req.body.status === 'SUCCESS')
-    );
 
-    if (!upiRef && !isIntentVerified) {
-        return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
+    if (!upiRef) {
+        return errorResponse(res, 'Please enter the 12-digit UPI Reference / UTR Number from your actual bank receipt or SMS.', StatusCodes.BAD_REQUEST);
     }
 
-    if (!isValidUtr(upiRef) && !isIntentVerified) {
-        return errorResponse(res, 'Please enter a valid 12-digit UPI Reference / UTR Number from your actual bank receipt.', StatusCodes.BAD_REQUEST);
+    // Strict 12-digit NPCI UTR validation — Zero bypass allowed
+    if (!isValidUtr(upiRef)) {
+        return errorResponse(res, 'Please enter a valid 12-digit UPI Reference / UTR Number from your actual bank receipt or SMS.', StatusCodes.BAD_REQUEST);
     }
 
-    // Determine final payment identifier
-    const finalPaymentId = isValidUtr(upiRef)
-        ? upiRef
-        : `UPI_${orderRef.toString().slice(-8).toUpperCase()}_${Date.now().toString().slice(-4)}`;
+    const finalPaymentId = upiRef;
 
     // Anti-replay / duplicate UTR check across ALL flows
     const utrUsage = await findUtrUsage(finalPaymentId);

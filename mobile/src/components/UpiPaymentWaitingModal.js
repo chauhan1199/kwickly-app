@@ -119,10 +119,13 @@ const UpiPaymentWaitingModal = ({
   const handleTriggerSuccess = useCallback((data) => {
     setStatus('SUCCESS');
     setStatusNote('Bank payment confirmed! Credit applied.');
+    if (onSuccess) {
+      try { onSuccess(data); } catch (e) { console.warn(e); }
+    }
     setTimeout(() => {
-      if (onSuccess) onSuccess(data);
-    }, 1800);
-  }, [onSuccess]);
+      if (onClose) onClose();
+    }, 2000);
+  }, [onSuccess, onClose]);
 
   // Real-time WebSocket listener via useSocket onEvent
   const handleSocketEvent = useCallback((event, payload) => {
@@ -151,7 +154,7 @@ const UpiPaymentWaitingModal = ({
   const handleManualUtrSubmit = async () => {
     const clean = utrInput.trim();
     if (!isValidUtr(clean)) {
-      Alert.alert('Invalid UTR', 'Please enter the exact 12-digit UPI Reference / UTR Number from your bank receipt.');
+      Alert.alert('Invalid UTR', 'Please enter the exact 12-digit UPI Reference / UTR Number from your bank receipt or SMS.');
       return;
     }
 
@@ -177,7 +180,7 @@ const UpiPaymentWaitingModal = ({
       setStatusNote('UTR submitted. Verifying with bank settlement...');
       setShowManualUtr(false);
     } catch (err) {
-      Alert.alert('Verification Issue', err?.response?.data?.message || err?.message || 'Could not verify UTR. Please try again.');
+      Alert.alert('Verification Issue', err?.response?.data?.message || err?.message || 'Could not verify UTR. Please check the 12 digits.');
     } finally {
       setSubmittingUtr(false);
     }
@@ -214,6 +217,13 @@ const UpiPaymentWaitingModal = ({
                   ? `Your ${planTitle || 'subscription'} is now active!`
                   : `₹${amount} has been securely added to your wallet.`}
               </Text>
+              <TouchableOpacity
+                style={[styles.doneBtn, { marginTop: 18, width: '100%' }]}
+                onPress={onClose}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.doneBtnText}>Done • View Wallet</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.waitingContainer}>
@@ -312,28 +322,15 @@ const UpiPaymentWaitingModal = ({
                   <TouchableOpacity
                     style={styles.doneBtn}
                     onPress={async () => {
-                      setSubmittingUtr(true);
-                      setStatusNote('Confirming payment with bank...');
-                      try {
-                        if (onSubmitManualUtr) {
-                          const res = await onSubmitManualUtr(utrInput.trim() || orderId);
-                          if (res?.verified === true && res?.status === 'COMPLETED') {
-                            handleTriggerSuccess(res);
-                            return;
-                          }
-                        }
-                        if (orderId) {
-                          const checkRes = await walletService.checkPaymentStatus(orderId);
-                          if (checkRes?.data?.data?.status === 'COMPLETED' && checkRes?.data?.data?.verified === true) {
-                            handleTriggerSuccess(checkRes.data.data);
-                            return;
-                          }
-                        }
-                      } catch (e) {
-                        setStatusNote('Processing bank settlement...');
-                      } finally {
-                        setSubmittingUtr(false);
+                      const cleanUtr = utrInput.trim();
+                      if (!cleanUtr) {
+                        Alert.alert(
+                          'UTR Required',
+                          'Please enter the 12-digit UPI Reference (UTR) Number from your bank SMS or payment receipt to verify.'
+                        );
+                        return;
                       }
+                      handleManualUtrSubmit();
                     }}
                     disabled={submittingUtr}
                     activeOpacity={0.85}
@@ -341,7 +338,7 @@ const UpiPaymentWaitingModal = ({
                     {submittingUtr ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <Text style={styles.doneBtnText}>I Have Paid • Add to Wallet</Text>
+                      <Text style={styles.doneBtnText}>Verify UTR & Credit Wallet</Text>
                     )}
                   </TouchableOpacity>
 
@@ -358,32 +355,40 @@ const UpiPaymentWaitingModal = ({
               )}
 
               {status === 'TIMEOUT' && (
-                <TouchableOpacity style={styles.doneBtn} onPress={async () => {
-                  setSubmittingUtr(true);
-                  if (onSubmitManualUtr) {
-                    try {
-                      const res = await onSubmitManualUtr(utrInput.trim() || orderId);
-                      if (res?.verified === true && res?.status === 'COMPLETED') {
-                        handleTriggerSuccess(res);
+                <View style={{ width: '100%', marginTop: 14, gap: 8 }}>
+                  <TouchableOpacity
+                    style={styles.doneBtn}
+                    onPress={async () => {
+                      const cleanUtr = utrInput.trim();
+                      if (!cleanUtr) {
+                        Alert.alert(
+                          'UTR Required',
+                          'Please enter the 12-digit UPI Reference (UTR) Number from your bank SMS or payment receipt to verify.'
+                        );
                         return;
                       }
-                    } catch (e) {}
-                  }
-                  if (orderId) {
-                    try {
-                      setStatusNote('Running final verification...');
-                      const checkRes = await walletService.checkPaymentStatus(orderId);
-                      if (checkRes?.data?.data?.status === 'COMPLETED' && checkRes?.data?.data?.verified === true) {
-                        handleTriggerSuccess(checkRes.data.data);
-                        return;
-                      }
-                    } catch (e) {}
-                  }
-                  setSubmittingUtr(false);
-                  onClose();
-                }} activeOpacity={0.8}>
-                  <Text style={styles.doneBtnText}>I Have Paid (Complete Topup)</Text>
-                </TouchableOpacity>
+                      handleManualUtrSubmit();
+                    }}
+                    disabled={submittingUtr}
+                    activeOpacity={0.85}
+                  >
+                    {submittingUtr ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.doneBtnText}>Verify UTR & Credit Wallet</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{ alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 16 }}
+                    onPress={onClose}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 13, color: '#9CA3AF', fontWeight: '700' }}>
+                      Close
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           )}
