@@ -150,6 +150,38 @@ const handleWalletTopupWebhook = async (payload, eventId) => {
                     },
                     { returnDocument: 'after' }
                 );
+            } else {
+                // Check recent Payment intents created via createOrder
+                const candidatePayment = await Payment.findOne({
+                    status: 'CREATED',
+                    amount: expectedAmount,
+                    createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) }
+                }).sort('-createdAt');
+
+                if (candidatePayment && candidatePayment.userId) {
+                    const targetUserId = candidatePayment.userId;
+                    const targetUser = await Customer.findById(targetUserId).lean();
+                    const currentBal = Number(targetUser?.wallet?.balance || 0);
+
+                    claimed = await WalletTxn.create({
+                        userId: targetUserId,
+                        type: 'TOPUP',
+                        amount: expectedAmount,
+                        balance: currentBal + expectedAmount,
+                        status: 'COMPLETED',
+                        razorpayOrderId: candidatePayment._id.toString(),
+                        razorpayPaymentId: payload.utr || eventId,
+                        gatewayTransactionId: eventId,
+                        webhookEventId: eventId,
+                        verifiedAt: new Date(),
+                        description: `Wallet Top-up via Direct UPI (Verified by Bank)`
+                    });
+
+                    candidatePayment.status = 'COMPLETED';
+                    candidatePayment.razorpayPaymentId = payload.utr || eventId;
+                    await candidatePayment.save();
+                    logger.info(`[WebhookHandlers:WalletTopup] Matched Payment intent ${candidatePayment._id} for user ${targetUserId}`);
+                }
             }
         }
 

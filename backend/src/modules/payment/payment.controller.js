@@ -493,6 +493,8 @@ exports.handleWebhook = async (req, res) => {
         req.headers['x-webhook-signature'] ||
         req.headers['x-webhook-secret'] ||
         req.headers['authorization'] ||
+        req.query?.secret ||
+        req.query?.token ||
         ''
     ).toString().trim();
 
@@ -502,26 +504,54 @@ exports.handleWebhook = async (req, res) => {
         .digest('hex')
         .toLowerCase();
 
-    const isHmacValid = safeCompare(receivedSig.toLowerCase(), expectedHmac);
-    const isDirectSecretValid = (
-        receivedSig === WEBHOOK_SECRET ||
-        receivedSig === `Bearer ${WEBHOOK_SECRET}` ||
-        receivedSig.toLowerCase() === WEBHOOK_SECRET.toLowerCase()
-    );
-
-    if (!isHmacValid && !isDirectSecretValid) {
-        logger.warn(`[Webhook] Unauthorized webhook from IP: ${req.ip} — header: ${req.headers['x-webhook-signature'] || req.headers['x-webhook-secret'] || 'absent'}`);
-        return res.status(401).json({ error: 'Unauthorized: Invalid or missing webhook signature' });
-    }
-
     // ── Step 2: Parse Payload ─────────────────────────────────────────────────────
-    let payload;
+    let payload = {};
     try {
         const raw = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : JSON.stringify(req.body);
         payload = JSON.parse(raw);
     } catch (parseErr) {
-        logger.warn(`[Webhook] JSON parse failed: ${parseErr.message}`);
-        return res.status(400).json({ error: 'Invalid JSON payload' });
+        // If body is plain text SMS
+        const rawStr = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
+        if (rawStr && (rawStr.includes('credited') || rawStr.includes('Ref No') || rawStr.includes('UPI'))) {
+            payload = { message: rawStr };
+        } else {
+            logger.warn(`[Webhook] JSON parse failed: ${parseErr.message}`);
+            return res.status(400).json({ error: 'Invalid JSON payload' });
+        }
+    }
+
+    const isHmacValid = safeCompare(receivedSig.toLowerCase(), expectedHmac);
+    const isDirectSecretValid = (
+        receivedSig === WEBHOOK_SECRET ||
+        receivedSig === `Bearer ${WEBHOOK_SECRET}` ||
+        receivedSig.toLowerCase() === WEBHOOK_SECRET.toLowerCase() ||
+        payload.secret === WEBHOOK_SECRET ||
+        payload.token === WEBHOOK_SECRET
+    );
+
+    if (!isHmacValid && !isDirectSecretValid) {
+        logger.warn(`[Webhook] Unauthorized webhook from IP: ${req.ip}`);
+        return res.status(401).json({ error: 'Unauthorized: Invalid or missing webhook secret' });
+    }
+
+    // ── Step 2.1: Intelligent SMS Parsing for Android SMS Forwarders ──────────
+    const smsText = (payload.message || payload.text || payload.sms || payload.smsContent || payload.body || payload.content || '').toString();
+    if (smsText) {
+        const amtMatch = smsText.match(/(?:credited\s*(?:by|with)?\s*(?:Rs\.?|INR)?\s*|Rs\.?\s*|INR\s*)([0-9]+(?:\.[0-9]{1,2})?)/i);
+        const utrMatch = smsText.match(/(?:Ref\s*No\.?|UTR|RRN|UPI\s*Ref(?:\s*No)?\.?|Txn(?:\s*Id)?|UPI\/)\s*[:\-]?\s*([0-9]{12})/i) || smsText.match(/\b([0-9]{12})\b/);
+
+        if (amtMatch && !payload.amount) {
+            payload.amount = parseFloat(amtMatch[1]);
+        }
+        if (utrMatch && !payload.utr) {
+            payload.utr = utrMatch[1];
+        }
+        if (payload.amount && (payload.utr || smsText.toLowerCase().includes('credited'))) {
+            payload.status = 'SUCCESS';
+            payload.isSuccess = true;
+            payload.purpose = payload.purpose || 'wallet_topup';
+            logger.info(`[Webhook] Auto-parsed SMS: Amount=₹${payload.amount}, UTR=${payload.utr}`);
+        }
     }
 
     // Validate timestamp (reject replays older than 5 minutes if timestamp is provided)
@@ -540,7 +570,7 @@ exports.handleWebhook = async (req, res) => {
     logger.info(`[Webhook] Verified event=${payload.event || 'payment.success'}, purpose=${purpose}, eventId=${eventId}, status=${payload.status}`);
 
     // ── Step 3: Acknowledge immediately (provider must get 200 ASAP) ──────────────
-    res.status(200).json({ received: true });
+    res.status(200).json({ received: true, amount: payload.amount, utr: payload.utr });
 
     // ── Step 4: Route to purpose handler asynchronously ───────────────────────────
     setImmediate(async () => {
