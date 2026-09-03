@@ -229,7 +229,6 @@ const ShopWalletScreen = ({ navigation }) => {
   // ═══════════════════════════════════════════
   const handleOpenTopUp = () => {
     setTopUpAmount('500');
-    setPaymentInitiated(false);
     setSelectedUpiApp('gpay');
     setTopUpModalVisible(true);
   };
@@ -240,7 +239,6 @@ const ShopWalletScreen = ({ navigation }) => {
       Alert.alert('Invalid Amount', 'Minimum top-up amount is ₹10.');
       return;
     }
-    setPaymentInitiated(false);
     setTopUpModalVisible(false);
     setUpiPaymentModalVisible(true);
   };
@@ -516,7 +514,6 @@ const ShopWalletScreen = ({ navigation }) => {
       return;
     }
     setSubUtr('');
-    setSubPaymentInitiated(false);
     setSelectedSubUpiApp('gpay');
     setSubPaymentStep(true);
   };

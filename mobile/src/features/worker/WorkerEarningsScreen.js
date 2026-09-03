@@ -332,7 +332,6 @@ const WorkerEarningsScreen = ({ navigation }) => {
       type: context,
       planId: extraData?.planId || null
     });
-    setPaymentInitiated(false);
     setSelectedUpiApp('gpay');
     setUpiPaymentModalVisible(true);
   };
@@ -345,7 +344,6 @@ const WorkerEarningsScreen = ({ navigation }) => {
     const plan = dynamicPlans.find(p => p.id === selectedPlan);
     const amt = plan ? (plan.rawPrice || parseFloat(plan.price.replace('₹',''))) : 0;
     setPlanModalVisible(false);
-    setPaymentInitiated(false);
     setSelectedUpiApp('gpay');
     setPendingPaymentContext({ amount: amt, type: 'PLAN', planId: selectedPlan });
     setUpiPaymentModalVisible(true);
@@ -358,7 +356,6 @@ const WorkerEarningsScreen = ({ navigation }) => {
       return;
     }
     setTopUpModalVisible(false);
-    setPaymentInitiated(false);
     setSelectedUpiApp('gpay');
     setPendingPaymentContext({ amount: amt, type: 'WALLET', planId: null });
     setUpiPaymentModalVisible(true);

@@ -156,7 +156,6 @@ const CustomerWalletScreen = ({ navigation }) => {
       };
 
       setUpiOrderData(orderPayload);
-      setPaymentInitiated(false);
       setSelectedUpiApp('gpay');
       setUpiTxnId('');
       setAddMoneyModal(false);
