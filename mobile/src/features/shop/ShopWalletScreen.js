@@ -870,57 +870,17 @@ const ShopWalletScreen = ({ navigation }) => {
               })}
             </View>
 
-            {/* Step 2: Payment Initiated & 12-Digit UTR Verification */}
-            {paymentInitiated ? (
-              <View style={styles.utrSection}>
-                <View style={styles.utrHeader}>
-                  <View style={styles.pulseDot} />
-                  <Text style={styles.utrHeaderTitle}>
-                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
-                  </Text>
-                </View>
-                <Text style={styles.utrHeaderSub}>
-                  Complete the ₹{topUpAmount} transfer with your UPI PIN. When you return here, your top-up will be confirmed automatically!
-                </Text>
-
-                <TouchableOpacity
-                  style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
-                  onPress={() => handleVerifyUpiPayment('')}
-                  disabled={submittingAction}
-                  activeOpacity={0.85}
-                >
-                  {submittingAction ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={styles.confirmPayBtnText}>
-                        I Have Completed Payment • Add ₹{topUpAmount}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                <View style={styles.reopenRow}>
-                  <TouchableOpacity onPress={() => handlePayViaUpiApp(selectedUpiApp)} style={styles.reopenBtnFull}>
-                    <ExternalLink size={14} color="#6C47FF" />
-                    <Text style={styles.reopenText}>Re-open {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.confirmPayBtn}
-                onPress={() => handlePayViaUpiApp(selectedUpiApp || 'gpay')}
-                activeOpacity={0.85}
-              >
-                <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.confirmPayBtnText}>
-                  Pay ₹{topUpAmount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
-                </Text>
-                <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.confirmPayBtn}
+              onPress={() => handlePayViaUpiApp(selectedUpiApp || 'gpay')}
+              activeOpacity={0.85}
+            >
+              <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.confirmPayBtnText}>
+                Pay ₹{topUpAmount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+              </Text>
+              <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1178,57 +1138,17 @@ const ShopWalletScreen = ({ navigation }) => {
                   })}
                 </View>
 
-                {/* Step 2: Payment Initiated & 12-Digit UTR Verification */}
-                {subPaymentInitiated ? (
-                  <View style={styles.utrSection}>
-                    <View style={styles.utrHeader}>
-                      <View style={styles.pulseDot} />
-                      <Text style={styles.utrHeaderTitle}>
-                        Payment Opened in {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
-                      </Text>
-                    </View>
-                    <Text style={styles.utrHeaderSub}>
-                      Complete the payment of ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} in your UPI app. When you return, your subscription will be activated automatically!
-                    </Text>
-
-                    <TouchableOpacity
-                      style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
-                      onPress={() => handleSubmitSubscriptionUtr('')}
-                      disabled={submittingAction}
-                      activeOpacity={0.85}
-                    >
-                      {submittingAction ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <ShieldCheck size={18} color="#fff" style={{ marginRight: 8 }} />
-                          <Text style={styles.confirmPayBtnText}>
-                            I Have Completed Payment • Activate Subscription
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-
-                    <View style={styles.reopenRow}>
-                      <TouchableOpacity onPress={() => handlePaySubscriptionUpi(selectedSubUpiApp)} style={styles.reopenBtnFull}>
-                        <ExternalLink size={14} color="#6C47FF" />
-                        <Text style={styles.reopenText}>Re-open {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.confirmPayBtn}
-                    onPress={() => handlePaySubscriptionUpi(selectedSubUpiApp || 'gpay')}
-                    activeOpacity={0.85}
-                  >
-                    <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
-                    <Text style={styles.confirmPayBtnText}>
-                      Pay ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} via {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
-                    </Text>
-                    <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={styles.confirmPayBtn}
+                  onPress={() => handlePaySubscriptionUpi(selectedSubUpiApp || 'gpay')}
+                  activeOpacity={0.85}
+                >
+                  <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={styles.confirmPayBtnText}>
+                    Pay ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} via {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                  </Text>
+                  <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
+                </TouchableOpacity>
 
                 <TouchableOpacity onPress={() => setSubPaymentStep(false)} style={{ alignItems: 'center', marginTop: 14, paddingVertical: 6 }}>
                   <Text style={{ color: '#6C47FF', fontWeight: '700', fontSize: 13 }}>← Back to Plans</Text>

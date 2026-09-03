@@ -345,7 +345,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         if (session) session.endSession();
 
         return successResponse(res, {
-            verified: true,
+            verified: payment.status === 'COMPLETED',
             orderId: targetOrderId,
             paymentId: payment._id,
             status: payment.status || 'PENDING',

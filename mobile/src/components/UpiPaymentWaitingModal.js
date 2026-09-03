@@ -121,7 +121,7 @@ const UpiPaymentWaitingModal = ({
     if (!socket || !visible || status !== 'WAITING') return;
 
     const handleWalletUpdate = (payload) => {
-      if (payload?.type === 'TOPUP' || payload?.amount === amount || payload?.balance !== undefined) {
+      if (payload?.type === 'TOPUP' && (Number(payload?.amount) === Number(amount) || !amount)) {
         handleTriggerSuccess(payload);
       }
     };

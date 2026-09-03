@@ -805,59 +805,17 @@ const WorkerEarningsScreen = ({ navigation }) => {
               })}
             </View>
 
-            {/* Step 2: Payment Initiated & 12-Digit UTR Verification */}
-            {paymentInitiated ? (
-              <View style={styles.utrSection}>
-                <View style={styles.utrHeader}>
-                  <View style={styles.pulseDot} />
-                  <Text style={styles.utrHeaderTitle}>
-                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
-                  </Text>
-                </View>
-                <Text style={styles.utrHeaderSub}>
-                  Complete the ₹{pendingPaymentContext.amount} payment in your UPI app. When you return, your {pendingPaymentContext.type === 'PLAN' ? 'subscription' : 'wallet balance'} will be credited automatically!
-                </Text>
-
-                <TouchableOpacity
-                  style={[styles.confirmPayBtn, submittingAction && { opacity: 0.7 }]}
-                  onPress={() => handleVerifyUpiPayment('')}
-                  disabled={submittingAction}
-                  activeOpacity={0.85}
-                >
-                  {submittingAction ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <CheckCircle2 size={18} color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={styles.confirmPayBtnText}>
-                        {pendingPaymentContext.type === 'PLAN'
-                          ? 'I Have Completed Payment • Activate Subscription'
-                          : `I Have Completed Payment • Add ₹${pendingPaymentContext.amount}`}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                <View style={styles.reopenRow}>
-                  <TouchableOpacity onPress={() => handlePayViaUpiApp(selectedUpiApp)} style={styles.reopenBtnFull}>
-                    <ExternalLink size={14} color="#6C47FF" />
-                    <Text style={styles.reopenText}>Re-open {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.confirmPayBtn}
-                onPress={() => handlePayViaUpiApp(selectedUpiApp || 'gpay')}
-                activeOpacity={0.85}
-              >
-                <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.confirmPayBtnText}>
-                  Pay ₹{pendingPaymentContext.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
-                </Text>
-                <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.confirmPayBtn}
+              onPress={() => handlePayViaUpiApp(selectedUpiApp || 'gpay')}
+              activeOpacity={0.85}
+            >
+              <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.confirmPayBtnText}>
+                Pay ₹{pendingPaymentContext.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+              </Text>
+              <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
