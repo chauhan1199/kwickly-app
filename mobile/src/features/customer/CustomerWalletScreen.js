@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, Modal, TextInput,
-  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator, Linking, AppState, Share,
-  DeviceEventEmitter, PermissionsAndroid
+  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator, Linking, AppState, Share
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
@@ -97,41 +96,6 @@ const CustomerWalletScreen = ({ navigation }) => {
     upiOrderDataRef.current = upiOrderData;
   }, [upiOrderData]);
 
-  // Request SMS permission so app can automatically read incoming bank SMS for UTR
-  const requestSmsPermission = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-          PermissionsAndroid.PERMISSIONS.READ_SMS,
-        ]);
-      } catch (err) {
-        console.warn('[Wallet] SMS permission error:', err);
-      }
-    }
-  };
-
-  // Automated Bank SMS Interception Listener
-  useEffect(() => {
-    const smsSub = DeviceEventEmitter.addListener('onBankSmsReceived', async (event) => {
-      console.log('[Wallet] onBankSmsReceived caught in CustomerWalletScreen:', JSON.stringify(event));
-      if (event?.utr && /^\d{12}$/.test(event.utr)) {
-        if (waitingModalVisibleRef.current && upiOrderDataRef.current) {
-          try {
-            console.log('[Wallet] Auto-verifying from incoming Bank SMS:', event.utr);
-            await handleManualUtrVerification(event.utr);
-          } catch (e) {
-            console.warn('[Wallet] Auto-verify from SMS event failed:', e?.message);
-          }
-        }
-      }
-    });
-
-    return () => {
-      smsSub.remove();
-    };
-  }, []);
-
   const fetchWallet = async (isManual = false) => {
     try {
       if (isManual) setLoading(true);
@@ -173,9 +137,6 @@ const CustomerWalletScreen = ({ navigation }) => {
     
     setIsProcessing(true);
     try {
-      // Request SMS permission so auto-detection works seamlessly
-      await requestSmsPermission();
-
       const payRes = await walletService.createPaymentOrder({
         amount,
         purpose: 'wallet_topup',
@@ -277,17 +238,17 @@ const CustomerWalletScreen = ({ navigation }) => {
         }
       }
 
-      // 3. Check if SMS arrived and cached while UPI app was in foreground
-      const smsData = await nativeUpiService.getLatestSmsUtr();
-      if (smsData?.hasUtr && smsData.utr && /^\d{12}$/.test(smsData.utr)) {
-        try {
-          console.log('[UPI] Auto-verifying cached SMS UTR:', smsData.utr);
-          await handleManualUtrVerification(smsData.utr);
+      // 3. Auto-detect 12-digit UTR from Clipboard (if user copied it from bank app / receipt)
+      try {
+        const clipContent = await Clipboard.getString();
+        const cleanClip = (clipContent || '').trim();
+        const utrMatch = cleanClip.match(/\b(\d{12})\b/);
+        if (utrMatch && utrMatch[1]) {
+          console.log('[UPI] Auto-detected UTR from clipboard:', utrMatch[1]);
+          await handleManualUtrVerification(utrMatch[1]);
           return;
-        } catch (smsErr) {
-          console.warn('[UPI] Auto-verify from cached SMS failed:', smsErr?.message);
         }
-      }
+      } catch (clipErr) {}
     } catch (err) {
       console.warn('[UPI] App launch warning:', err.message);
       setWaitingModalVisible(false);

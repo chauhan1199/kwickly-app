@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
   ActivityIndicator, TextInput, Animated, Easing, Platform,
-  KeyboardAvoidingView, Alert, DeviceEventEmitter
+  KeyboardAvoidingView, Alert
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../context/ThemeContext';
 import useSocket, { useSocket as useSocketNamed } from '../hooks/useSocket';
 import { walletService } from '../services/walletService';
@@ -150,35 +151,26 @@ const UpiPaymentWaitingModal = ({
 
   resolveUseSocket({ onEvent: handleSocketEvent });
 
-  // Real-time Bank SMS Interception Listener
+  // Auto-detect 12-digit UTR from Clipboard when modal is open
   useEffect(() => {
     if (!visible || status !== 'WAITING') return;
 
-    const sub = DeviceEventEmitter.addListener('onBankSmsReceived', async (event) => {
-      console.log('[WaitingModal] onBankSmsReceived caught:', JSON.stringify(event));
-      if (event?.utr && /^\d{12}$/.test(event.utr)) {
-        setStatusNote(`Bank SMS detected (Ref: ${event.utr}) • Verifying...`);
-        setUtrInput(event.utr);
-        setSubmittingUtr(true);
-        try {
-          if (onSubmitManualUtr) {
-            const res = await onSubmitManualUtr(event.utr);
-            if (res?.verified === true || res?.status === 'COMPLETED') {
-              handleTriggerSuccess(res);
-            }
-          }
-        } catch (err) {
-          console.warn('[WaitingModal] Auto-verify with SMS UTR failed:', err?.message);
-        } finally {
-          setSubmittingUtr(false);
+    const checkClipboard = async () => {
+      try {
+        const text = await Clipboard.getString();
+        const clean = (text || '').trim();
+        const match = clean.match(/\b(\d{12})\b/);
+        if (match && match[1] && isValidUtr(match[1]) && !utrInput) {
+          setUtrInput(match[1]);
+          setStatusNote(`Detected UTR ${match[1]} from clipboard`);
         }
-      }
-    });
-
-    return () => {
-      sub.remove();
+      } catch (e) {}
     };
-  }, [visible, status, onSubmitManualUtr, handleTriggerSuccess]);
+
+    checkClipboard();
+    const interval = setInterval(checkClipboard, 3000);
+    return () => clearInterval(interval);
+  }, [visible, status, utrInput]);
 
   const handleCancelAndClose = async () => {
     if (orderId) {

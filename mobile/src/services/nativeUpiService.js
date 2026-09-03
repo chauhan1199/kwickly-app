@@ -51,24 +51,5 @@ export const nativeUpiService = {
       }
       throw new Error('No UPI application found on this device');
     }
-  },
-
-  async getLatestSmsUtr() {
-    if (Platform.OS === 'android' && NativeUpiPayment?.getLatestSmsUtr) {
-      try {
-        return await NativeUpiPayment.getLatestSmsUtr();
-      } catch (e) {
-        return { hasUtr: false, utr: '' };
-      }
-    }
-    return { hasUtr: false, utr: '' };
-  },
-
-  async clearSmsCache() {
-    if (Platform.OS === 'android' && NativeUpiPayment?.clearSmsCache) {
-      try {
-        await NativeUpiPayment.clearSmsCache();
-      } catch (e) {}
-    }
   }
 };
