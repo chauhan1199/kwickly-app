@@ -16,17 +16,25 @@ echo Running gradle assembleRelease...
 call gradlew.bat assembleRelease --no-daemon
 
 cd /d "d:\kwickly\11-4-26\mobile"
-if exist "android\app\build\outputs\apk\release\app-release.apk" (
-    copy /Y "android\app\build\outputs\apk\release\app-release.apk" "kwickly-app.apk"
+set "APK_SRC="
+if exist "android\app\build\outputs\apk\release\app-universal-release.apk" set "APK_SRC=android\app\build\outputs\apk\release\app-universal-release.apk"
+if not defined APK_SRC if exist "android\app\build\outputs\apk\release\app-release.apk" set "APK_SRC=android\app\build\outputs\apk\release\app-release.apk"
+if not defined APK_SRC if exist "android\app\build\outputs\apk\release\app-arm64-v8a-release.apk" set "APK_SRC=android\app\build\outputs\apk\release\app-arm64-v8a-release.apk"
+
+if defined APK_SRC (
+    copy /Y "%APK_SRC%" "kwickly-app.apk"
+    copy /Y "%APK_SRC%" "..\kwickly-app.apk"
     echo.
     echo ========================================================
     echo  SUCCESS: Standalone APK Created Successfully!
-    echo  Location: d:\kwickly\11-4-26\mobile\kwickly-app.apk
+    echo  Source: %APK_SRC%
+    echo  Mobile Folder: d:\kwickly\11-4-26\mobile\kwickly-app.apk
+    echo  Workspace Root: d:\kwickly\11-4-26\kwickly-app.apk
     echo ========================================================
 ) else (
     echo.
     echo Checking build outputs...
-    dir "android\app\build\outputs\apk\*"
+    dir "android\app\build\outputs\apk\release\*.apk"
 )
 
 echo Build process complete.
