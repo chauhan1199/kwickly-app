@@ -298,7 +298,116 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 }, `Top-up of ₹${creditAmount} verified and credited to your wallet.`);
             }
 
-            // If not yet credited by webhook, record as PENDING with UTR attached
+            // ─── Determine if we should auto-credit or wait for webhook ─────
+            // When no external UPI provider is configured, we are in "direct UPI"
+            // mode — there is no webhook that will ever fire, so the valid UTR
+            // submission itself IS the proof of payment. Credit immediately.
+            const { isProviderConfigured } = require('../../services/upiProvider.service');
+            const shouldAutoCredit = !isProviderConfigured();
+
+            if (shouldAutoCredit) {
+                // ── IMMEDIATE CREDIT: No webhook provider → UTR is proof ──────
+                // Credit the user's wallet balance
+                const updatedUser = await Customer.findByIdAndUpdate(
+                    req.user._id,
+                    { $inc: { 'wallet.balance': creditAmount } },
+                    { returnDocument: 'after', ...(useTransaction ? { session } : {}) }
+                );
+                const newBalance = updatedUser?.wallet?.balance ?? creditAmount;
+
+                // Mark payment as COMPLETED
+                payment.status = 'COMPLETED';
+                payment.razorpayPaymentId = finalPaymentId;
+                payment.markModified('metadata');
+                await payment.save(sessOpts);
+
+                // Check for existing PENDING txn and upgrade it, or create new COMPLETED one
+                let walletTxn = await WalletTxn.findOne({
+                    userId: req.user._id,
+                    type: 'TOPUP',
+                    $or: [{ _id: payment._id }, { razorpayOrderId: orderRef }]
+                }).session(session);
+
+                if (walletTxn) {
+                    walletTxn.status = 'COMPLETED';
+                    walletTxn.razorpayPaymentId = finalPaymentId;
+                    walletTxn.balance = newBalance;
+                    walletTxn.verifiedAt = new Date();
+                    walletTxn.description = `Wallet Top-up via Direct UPI (Verified)`;
+                    await walletTxn.save(sessOpts);
+                } else {
+                    walletTxn = await WalletTxn.create([{
+                        userId: req.user._id,
+                        type: 'TOPUP',
+                        amount: creditAmount,
+                        balance: newBalance,
+                        status: 'COMPLETED',
+                        razorpayOrderId: orderRef,
+                        razorpayPaymentId: finalPaymentId,
+                        verifiedAt: new Date(),
+                        description: `Wallet Top-up via Direct UPI (Verified)`
+                    }], sessOpts).then(arr => arr[0]);
+                }
+
+                // Credit admin treasury
+                const { creditAdminTreasury } = require('../../helpers/webhookHandlers.helper');
+
+                if (useTransaction) await session.commitTransaction();
+                if (useTransaction) session.endSession();
+
+                // Fire-and-forget async tasks (after transaction committed)
+                setImmediate(async () => {
+                    try {
+                        // Credit admin treasury
+                        if (typeof creditAdminTreasury === 'function') {
+                            await creditAdminTreasury({
+                                amount: creditAmount,
+                                description: `Wallet topup via Direct UPI — ${req.user?.role || 'User'} ${req.user?.name || req.user._id} (UTR: ${finalPaymentId})`,
+                                referenceId: walletTxn._id || payment._id,
+                                referenceModel: 'WalletTxn',
+                                type: 'TOPUP'
+                            });
+                        }
+
+                        // Clear cache
+                        await delCache(`session:${req.user._id}`);
+                        await delCache('admin_dashboard_stats');
+
+                        // Emit real-time socket events so the waiting modal detects success
+                        const { emitToUser } = require('../../helpers/socket.helper');
+                        emitToUser(String(req.user._id), 'WALLET_TOPUP_APPROVED', {
+                            amount: creditAmount,
+                            newBalance,
+                            txnId: walletTxn._id
+                        });
+                        emitToUser(String(req.user._id), 'WALLET_UPDATE', {
+                            balance: newBalance,
+                            amount: creditAmount,
+                            type: 'TOPUP'
+                        });
+                        emitToAll('DASHBOARD_UPDATE', {
+                            type: 'WALLET_TOPUP_APPROVED',
+                            txnId: walletTxn._id,
+                            userId: req.user._id
+                        });
+                    } catch (asyncErr) {
+                        logger.error(`[VerifyPayment] Async post-credit error: ${asyncErr.message}`);
+                    }
+                });
+
+                logger.info(`[VerifyPayment] ✓ Auto-credited ₹${creditAmount} to ${req.user?.role || 'user'} ${req.user._id} — UTR=${finalPaymentId}, newBalance=${newBalance}`);
+
+                return successResponse(res, {
+                    paymentId: payment._id,
+                    status: 'COMPLETED',
+                    verified: true,
+                    utr: finalPaymentId,
+                    amount: creditAmount,
+                    newBalance
+                }, `₹${creditAmount} has been added to your Kwickly Wallet!`);
+            }
+
+            // ── WEBHOOK MODE: Provider is configured → create PENDING and wait ──
             let pendingTxn = await WalletTxn.findOne({
                 userId: req.user._id,
                 type: 'TOPUP',

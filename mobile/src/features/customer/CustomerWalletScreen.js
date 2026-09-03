@@ -187,13 +187,46 @@ const CustomerWalletScreen = ({ navigation }) => {
         name: upiOrderData.payeeName || 'Kwickly Admin',
         amount: upiOrderData.amount,
         txnRef: upiOrderData.razorpayOrderId,
-        note: `Kwickly Topup ₹${upiOrderData.amount}`,
+        note: `Kwickly Topup ${upiOrderData.amount}`,
         appKey,
       });
 
-      if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
-        await handleManualUtrVerification(result.approvalRefNo || result.txnId);
+      console.log('[UPI] Native module result:', JSON.stringify(result));
+
+      // Handle different UPI app responses
+      if (result?.isSuccessful || result?.status === 'SUCCESS') {
+        // UPI app confirmed payment — extract UTR/TxnId and submit to backend
+        const utr = (result.approvalRefNo || '').trim();
+        const txnId = (result.txnId || '').trim();
+        const refToSubmit = utr || txnId;
+
+        if (refToSubmit) {
+          try {
+            await handleManualUtrVerification(refToSubmit);
+          } catch (verifyErr) {
+            console.warn('[UPI] Auto-verify with approvalRefNo failed:', verifyErr?.message);
+            // If approvalRefNo failed validation but txnId is different, try txnId
+            if (txnId && txnId !== utr) {
+              try {
+                await handleManualUtrVerification(txnId);
+              } catch (e2) {
+                console.warn('[UPI] Auto-verify with txnId also failed:', e2?.message);
+              }
+            }
+          }
+        }
+      } else if (result?.status === 'SUBMITTED') {
+        // Payment is submitted but pending bank settlement — try submitting txnId
+        const txnId = (result.txnId || result.approvalRefNo || '').trim();
+        if (txnId) {
+          try {
+            await handleManualUtrVerification(txnId);
+          } catch (verifyErr) {
+            console.warn('[UPI] Submitted status verify failed:', verifyErr?.message);
+          }
+        }
       }
+      // For FAILURE, CANCELLED, or empty — the waiting modal will handle timeout/manual UTR
     } catch (err) {
       console.warn('[UPI] App launch warning:', err.message);
     }
@@ -216,7 +249,10 @@ const CustomerWalletScreen = ({ navigation }) => {
       purpose: 'wallet_topup',
       amount: upiOrderData.amount
     });
-    return res?.data?.data;
+    const data = res?.data?.data;
+    // If verify endpoint auto-credited (no webhook provider), it returns COMPLETED+verified
+    // This triggers the waiting modal's success state via polling or direct check
+    return data;
   };
 
   const handlePaymentSuccess = async () => {

@@ -713,5 +713,6 @@ module.exports = {
     handleShopOrderWebhook,
     handleWorkerSubscriptionWebhook,
     handleShopSubscriptionWebhook,
-    handleFailedPaymentWebhook
+    handleFailedPaymentWebhook,
+    creditAdminTreasury
 };

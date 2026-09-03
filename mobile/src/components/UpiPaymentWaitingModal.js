@@ -10,7 +10,7 @@ import { walletService } from '../services/walletService';
 import { isValidUtr } from '../utils/upiValidation';
 import { CheckCircle2, Clock, ShieldCheck, X, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react-native';
 
-const TOTAL_COUNTDOWN_SECONDS = 60;
+const TOTAL_COUNTDOWN_SECONDS = 120;
 const resolveUseSocket = useSocket || useSocketNamed;
 
 /**
@@ -308,7 +308,22 @@ const UpiPaymentWaitingModal = ({
               )}
 
               {status === 'TIMEOUT' && (
-                <TouchableOpacity style={styles.doneBtn} onPress={onClose} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.doneBtn} onPress={async () => {
+                  // Run one final status check before closing
+                  if (orderId) {
+                    try {
+                      setStatusNote('Running final verification...');
+                      const checkRes = await walletService.checkPaymentStatus(orderId);
+                      if (checkRes?.data?.data?.status === 'COMPLETED' && checkRes?.data?.data?.verified === true) {
+                        handleTriggerSuccess(checkRes.data.data);
+                        return;
+                      }
+                    } catch (e) {
+                      // Silently continue to close
+                    }
+                  }
+                  onClose();
+                }} activeOpacity={0.8}>
                   <Text style={styles.doneBtnText}>I Have Paid (Close)</Text>
                 </TouchableOpacity>
               )}
