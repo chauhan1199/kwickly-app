@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
   ActivityIndicator, TextInput, Animated, Easing, Platform,
@@ -116,13 +116,13 @@ const UpiPaymentWaitingModal = ({
     };
   }, [visible, status, orderId]);
 
-  const handleTriggerSuccess = (data) => {
+  const handleTriggerSuccess = useCallback((data) => {
     setStatus('SUCCESS');
     setStatusNote('Bank payment confirmed! Credit applied.');
     setTimeout(() => {
       if (onSuccess) onSuccess(data);
     }, 1800);
-  };
+  }, [onSuccess]);
 
   // Real-time WebSocket listener via useSocket onEvent
   const handleSocketEvent = useCallback((event, payload) => {
@@ -143,7 +143,7 @@ const UpiPaymentWaitingModal = ({
         handleTriggerSuccess(payload);
       }
     }
-  }, [visible, status, amount, purpose]);
+  }, [visible, status, amount, purpose, handleTriggerSuccess]);
 
   resolveUseSocket({ onEvent: handleSocketEvent });
 
