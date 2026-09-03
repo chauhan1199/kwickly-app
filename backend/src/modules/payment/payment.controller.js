@@ -758,3 +758,60 @@ exports.checkPaymentStatus = catchAsync(async (req, res) => {
     }, `Payment status: ${status}`);
 });
 
+exports.cancelPayment = catchAsync(async (req, res) => {
+    const { razorpayOrderId, orderId, reason } = req.body;
+    const orderRef = razorpayOrderId || orderId;
+
+    if (!orderRef) {
+        return errorResponse(res, 'Missing order reference', StatusCodes.BAD_REQUEST);
+    }
+
+    const payment = await Payment.findOne({
+        razorpayOrderId: orderRef,
+        userId: req.user._id
+    });
+
+    if (!payment) {
+        return errorResponse(res, 'Payment record not found', StatusCodes.NOT_FOUND);
+    }
+
+    // If already completed, cannot cancel
+    if (payment.status === 'COMPLETED') {
+        return errorResponse(res, 'Payment has already been completed and verified.', StatusCodes.CONFLICT);
+    }
+
+    payment.status = 'CANCELLED';
+    payment.metadata = {
+        ...(payment.metadata || {}),
+        cancelledAt: new Date(),
+        cancelledReason: reason || 'Cancelled by user in UPI app'
+    };
+    await payment.save();
+
+    let currentBalance = 0;
+    if (req.user?.role === 'SHOP' || req.user?.role === 'SHOP_OWNER') {
+        const shop = await Shop.findOne({ ownerId: req.user._id }).lean();
+        currentBalance = shop?.wallet?.balance || 0;
+    } else if (req.user?._id) {
+        const customer = await Customer.findById(req.user._id).lean();
+        currentBalance = customer?.wallet?.balance || 0;
+    }
+
+    await WalletTxn.create({
+        userId: req.user._id,
+        type: 'TOPUP',
+        amount: payment.amount,
+        balance: currentBalance,
+        status: 'FAILED',
+        razorpayOrderId: orderRef,
+        verifiedAt: new Date(),
+        description: `Wallet Top-up Cancelled (${reason || 'Not Paid'})`
+    });
+
+    return successResponse(res, {
+        orderId: orderRef,
+        status: 'CANCELLED',
+        message: 'Payment cancelled and recorded in history'
+    }, 'Payment cancelled successfully');
+});
+

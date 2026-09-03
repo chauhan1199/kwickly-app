@@ -7,7 +7,7 @@ const PaymentSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: ['CREATED', 'PENDING', 'PENDING_VERIFICATION', 'WEBHOOK_RECEIVED', 'AUTHORIZED', 'CAPTURED', 'SUCCESS', 'COMPLETED', 'FAILED', 'REFUNDED', 'PARTIAL_REFUNDED'],
+        enum: ['CREATED', 'PENDING', 'PENDING_VERIFICATION', 'WEBHOOK_RECEIVED', 'AUTHORIZED', 'CAPTURED', 'SUCCESS', 'COMPLETED', 'FAILED', 'CANCELLED', 'REFUNDED', 'PARTIAL_REFUNDED'],
         default: 'CREATED'
     },
 
