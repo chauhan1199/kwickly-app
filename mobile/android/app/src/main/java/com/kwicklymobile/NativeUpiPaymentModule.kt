@@ -56,7 +56,6 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
                 .authority("pay")
                 .appendQueryParameter("pa", vpa)
                 .appendQueryParameter("pn", name)
-                .appendQueryParameter("mc", "")
                 .appendQueryParameter("tr", txnRef)
                 .appendQueryParameter("tn", note)
                 .appendQueryParameter("am", amount)
@@ -69,17 +68,20 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
                 intent.setPackage(appPackage)
             }
 
-            if (intent.resolveActivity(activity.packageManager) == null) {
-                // Fallback to generic chooser if specific app not found
-                intent.setPackage(null)
-                if (intent.resolveActivity(activity.packageManager) == null) {
-                    promise.reject("NO_UPI_APP", "No supported UPI app found on this device")
-                    return
+            pendingPromise = promise
+            try {
+                activity.startActivityForResult(intent, UPI_PAYMENT_REQUEST_CODE)
+            } catch (e: Exception) {
+                // If package-specific launch failed (e.g. app not installed), fallback to system chooser
+                try {
+                    intent.setPackage(null)
+                    val chooser = Intent.createChooser(intent, "Pay via UPI")
+                    activity.startActivityForResult(chooser, UPI_PAYMENT_REQUEST_CODE)
+                } catch (chooserEx: Exception) {
+                    pendingPromise = null
+                    promise.reject("NO_UPI_APP", "No supported UPI application found on this device", chooserEx)
                 }
             }
-
-            pendingPromise = promise
-            activity.startActivityForResult(intent, UPI_PAYMENT_REQUEST_CODE)
         } catch (e: Exception) {
             pendingPromise = null
             promise.reject("INTENT_ERROR", e.message, e)

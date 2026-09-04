@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
-import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield, Zap, ChevronDown, ChevronUp, RefreshCw, Share2, FileText, Receipt } from 'lucide-react-native';
+import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Building2, ShieldCheck, X, Check, ExternalLink, ArrowRight, Shield, Zap, ChevronDown, ChevronUp, RefreshCw, Share2, FileText, Receipt, Send, User } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import CustomAlert from '../../components/ui/CustomAlert';
@@ -21,6 +21,7 @@ import { nativeUpiService } from '../../services/nativeUpiService';
 import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
 
 const QUICK_AMOUNTS = ['100', '200', '500', '1000'];
+const QUICK_TRANSFER_AMOUNTS = ['50', '100', '200', '500'];
 
 const CustomerWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -44,6 +45,16 @@ const CustomerWalletScreen = ({ navigation }) => {
   const [txnModal, setTxnModal] = useState(false);
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [topupAmount, setTopupAmount] = useState('');
+
+  // P2P Wallet Transfer States
+  const [transferModal, setTransferModal] = useState(false);
+  const [transferPhone, setTransferPhone] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferNote, setTransferNote] = useState('');
+  const [recipientInfo, setRecipientInfo] = useState(null);
+  const [lookingUpRecipient, setLookingUpRecipient] = useState(false);
+  const [recipientLookupError, setRecipientLookupError] = useState('');
+  const [isTransferring, setIsTransferring] = useState(false);
 
   // Custom Themed Alert
   const [alertConfig, setAlertConfig] = useState({
@@ -124,7 +135,84 @@ const CustomerWalletScreen = ({ navigation }) => {
     }, [])
   );
 
-  const isCredit = (t) => ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP'].includes(t.type);
+  const isCredit = (t) => ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP', 'TRANSFER_RECEIVED'].includes(t.type);
+
+  const handlePhoneChange = async (text) => {
+    const clean = text.replace(/[^0-9]/g, '').slice(0, 10);
+    setTransferPhone(clean);
+    setRecipientLookupError('');
+    if (clean.length === 10) {
+      setLookingUpRecipient(true);
+      try {
+        const res = await walletService.lookupRecipient(clean);
+        const data = res?.data?.data;
+        if (data) {
+          setRecipientInfo(data);
+          setRecipientLookupError('');
+        }
+      } catch (err) {
+        setRecipientInfo(null);
+        setRecipientLookupError(err?.response?.data?.message || err?.message || 'User not found');
+      } finally {
+        setLookingUpRecipient(false);
+      }
+    } else {
+      setRecipientInfo(null);
+    }
+  };
+
+  const handleExecuteTransfer = async () => {
+    const amt = parseFloat(transferAmount);
+    if (isNaN(amt) || amt <= 0) {
+      showAlert({ title: 'Invalid Amount', message: 'Please enter a valid amount to transfer.', type: 'warning' });
+      return;
+    }
+    if (amt > balance) {
+      showAlert({ title: 'Insufficient Balance', message: `Your current balance is ₹${balance}. Cannot transfer ₹${amt}.`, type: 'error' });
+      return;
+    }
+    if (!transferPhone || transferPhone.length !== 10) {
+      showAlert({ title: 'Invalid Phone Number', message: 'Please enter a valid 10-digit mobile number.', type: 'warning' });
+      return;
+    }
+    if (!recipientInfo) {
+      showAlert({ title: 'Recipient Not Verified', message: 'Please verify the recipient before transferring.', type: 'warning' });
+      return;
+    }
+
+    setIsTransferring(true);
+    try {
+      const res = await walletService.transferWallet({
+        recipientPhone: transferPhone,
+        amount: amt,
+        note: transferNote
+      });
+      const data = res?.data?.data;
+      setTransferModal(false);
+      setTransferPhone('');
+      setTransferAmount('');
+      setTransferNote('');
+      setRecipientInfo(null);
+      await fetchWallet(true);
+      showAlert({
+        title: 'Transfer Successful! 💸',
+        message: `₹${amt} has been transferred to ${data?.recipientName || 'recipient'}.`,
+        type: 'success',
+        confirmText: 'View Receipt',
+        onConfirm: () => {
+          if (data?.txn) openTxn(data.txn);
+        }
+      });
+    } catch (err) {
+      showAlert({
+        title: 'Transfer Failed',
+        message: err?.response?.data?.message || err?.message || 'Could not complete wallet transfer.',
+        type: 'error'
+      });
+    } finally {
+      setIsTransferring(false);
+    }
+  };
 
   const handleInitiateTopup = async () => {
     const amount = Number(topupAmount);
@@ -188,9 +276,6 @@ const CustomerWalletScreen = ({ navigation }) => {
     if (!upiOrderData) return;
     setSelectedUpiApp(appKey);
 
-    // Clear old SMS cache before opening new payment
-    await nativeUpiService.clearSmsCache();
-
     // Close app selection sheet and immediately open the real-time "Verifying with Bank..." waiting modal!
     setUpiCheckoutModal(false);
     setWaitingModalVisible(true);
@@ -207,25 +292,9 @@ const CustomerWalletScreen = ({ navigation }) => {
 
       console.log('[UPI] Native module result:', JSON.stringify(result));
 
-      // 1. If user cancelled / closed UPI app without paying
+      // 1. If user returned from UPI app without paying or cancelled in UPI app
       if (result?.status === 'CANCELLED') {
-        console.log('[UPI] Payment was cancelled / closed in UPI app');
-        setWaitingModalVisible(false);
-        try {
-          await walletService.cancelPayment({
-            razorpayOrderId: upiOrderData.razorpayOrderId,
-            reason: 'Returned from UPI app without paying'
-          });
-        } catch (cancelErr) {
-          console.warn('[UPI] Cancel recording error:', cancelErr?.message);
-        }
-        showAlert({
-          title: 'Payment Incomplete',
-          message: 'You returned without completing the payment. No amount was added to your wallet.',
-          type: 'info',
-          confirmText: 'OK'
-        });
-        await fetchWallet(true);
+        console.log('[UPI] User returned from UPI app. Waiting modal will auto-check webhook or allow user to cancel.');
         return;
       }
 
@@ -436,10 +505,20 @@ const CustomerWalletScreen = ({ navigation }) => {
             <Text style={styles.balanceLabel}>Available Balance</Text>
           </View>
           <Text style={styles.balanceAmount}>₹{balance.toLocaleString('en-IN')}</Text>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setAddMoneyModal(true)}>
-            <Plus size={16} color="#fff" />
-            <Text style={styles.addBtnText}>Add Money</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity style={[styles.addBtn, { flex: 1 }]} onPress={() => setAddMoneyModal(true)} activeOpacity={0.85}>
+              <Plus size={16} color="#fff" />
+              <Text style={styles.addBtnText}>Add Money</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.addBtn, { flex: 1, backgroundColor: isDarkMode ? '#28273E' : '#EDE9FE', borderWidth: 1, borderColor: '#DDD6FE' }]}
+              onPress={() => setTransferModal(true)}
+              activeOpacity={0.85}
+            >
+              <Send size={16} color="#6C47FF" />
+              <Text style={[styles.addBtnText, { color: '#6C47FF' }]}>Transfer</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Stats Row */}
@@ -512,6 +591,137 @@ const CustomerWalletScreen = ({ navigation }) => {
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
                       <Text style={styles.payBtnText}>Proceed to Pay</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── P2P Wallet Transfer Modal ── */}
+      <Modal visible={transferModal} transparent animationType="slide" onRequestClose={() => !isTransferring && setTransferModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => !isTransferring && setTransferModal(false)}>
+            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+              <TouchableWithoutFeedback>
+                <View style={[styles.sheet, { backgroundColor: theme.colors.surface, maxHeight: '90%' }]}>
+                  <View style={styles.handle} />
+
+                  <View style={styles.upiHeaderRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sheetTitle}>Transfer to Wallet (P2P)</Text>
+                      <Text style={styles.upiSubtitle}>Send money instantly using mobile number</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => !isTransferring && setTransferModal(false)} style={styles.closeBtn}>
+                      <X size={20} color={theme.colors.textDim} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Available Balance Helper */}
+                  <View style={[styles.amountPill, { marginBottom: 16, backgroundColor: isDarkMode ? '#28273E' : '#F5F3FF' }]}>
+                    <Text style={[styles.amountPillLabel, { color: '#6C47FF' }]}>Available Wallet Balance</Text>
+                    <Text style={[styles.amountPillValue, { color: '#6C47FF' }]}>₹{balance.toLocaleString('en-IN')}</Text>
+                  </View>
+
+                  {/* Recipient Phone Input */}
+                  <Text style={styles.inputLabel}>Recipient Mobile Number</Text>
+                  <View style={[styles.inputBox, { flexDirection: 'row', alignItems: 'center' }]}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: theme.colors.textDim, marginRight: 8 }}>+91</Text>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="10-digit mobile number"
+                      placeholderTextColor={theme.colors.textDim}
+                      keyboardType="phone-pad"
+                      maxLength={10}
+                      value={transferPhone}
+                      onChangeText={handlePhoneChange}
+                      editable={!isTransferring}
+                    />
+                    {lookingUpRecipient && <ActivityIndicator size="small" color="#6C47FF" />}
+                  </View>
+
+                  {/* Verified Recipient Badge */}
+                  {recipientInfo && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: isDarkMode ? '#173024' : '#ECFDF5', padding: 10, borderRadius: 12, marginTop: -8, marginBottom: 14, borderWidth: 1, borderColor: '#A7F3D0' }}>
+                      <CheckCircle2 size={16} color="#059669" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#059669' }}>
+                          {recipientInfo.name} ({recipientInfo.role})
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#047857' }}>Verified Kwickly User</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {Boolean(recipientLookupError) && (
+                    <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '600', marginTop: -8, marginBottom: 14 }}>
+                      ⚠️ {recipientLookupError}
+                    </Text>
+                  )}
+
+                  {/* Transfer Amount Input */}
+                  <Text style={styles.inputLabel}>Amount to Transfer</Text>
+                  <View style={styles.inputBox}>
+                    <Text style={styles.currency}>₹</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="0"
+                      placeholderTextColor={theme.colors.textDim}
+                      keyboardType="number-pad"
+                      value={transferAmount}
+                      onChangeText={setTransferAmount}
+                      editable={!isTransferring}
+                    />
+                  </View>
+
+                  {/* Quick Chips */}
+                  <View style={[styles.chipsRow, { marginBottom: 14 }]}>
+                    {QUICK_TRANSFER_AMOUNTS.map((amt) => (
+                      <TouchableOpacity
+                        key={amt}
+                        style={[styles.chip, transferAmount === amt && styles.chipActive]}
+                        onPress={() => setTransferAmount(amt)}
+                      >
+                        <Text style={[styles.chipText, transferAmount === amt && styles.chipTextActive]}>+₹{amt}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Note Input */}
+                  <Text style={styles.inputLabel}>Note / Remark (Optional)</Text>
+                  <View style={[styles.inputBox, { marginBottom: 18 }]}>
+                    <TextInput
+                      style={[styles.input, { fontSize: 14 }]}
+                      placeholder="e.g. For groceries / split"
+                      placeholderTextColor={theme.colors.textDim}
+                      value={transferNote}
+                      onChangeText={setTransferNote}
+                      maxLength={50}
+                      editable={!isTransferring}
+                    />
+                  </View>
+
+                  {/* Transfer Submit Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.payBtn,
+                      (!recipientInfo || !transferAmount || isTransferring) && { opacity: 0.6 }
+                    ]}
+                    onPress={handleExecuteTransfer}
+                    disabled={!recipientInfo || !transferAmount || isTransferring}
+                    activeOpacity={0.85}
+                  >
+                    {isTransferring ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Send size={16} color="#fff" />
+                        <Text style={styles.payBtnText}>
+                          Send ₹{transferAmount || 0} {recipientInfo ? `to ${recipientInfo.name}` : ''}
+                        </Text>
+                      </View>
                     )}
                   </TouchableOpacity>
                 </View>

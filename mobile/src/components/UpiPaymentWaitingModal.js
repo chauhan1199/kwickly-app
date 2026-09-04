@@ -50,9 +50,9 @@ const UpiPaymentWaitingModal = ({
     // Reset state on open
     setTimeLeft(TOTAL_COUNTDOWN_SECONDS);
     setStatus('WAITING');
-    setShowManualUtr(true);
+    setShowManualUtr(false);
     setUtrInput('');
-    setStatusNote('Waiting for bank settlement...');
+    setStatusNote('Awaiting automatic bank confirmation via webhook...');
 
     // Start pulsing animation
     const pulse = Animated.loop(
@@ -350,38 +350,37 @@ const UpiPaymentWaitingModal = ({
                 </View>
               )}
 
+              {showManualUtr && (
+                <TouchableOpacity
+                  style={[styles.doneBtn, { marginTop: 4 }]}
+                  onPress={handleManualUtrSubmit}
+                  disabled={submittingUtr || utrInput.trim().length !== 12}
+                  activeOpacity={0.85}
+                >
+                  {submittingUtr ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.doneBtnText}>Submit & Verify UTR</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+
               {status === 'WAITING' && (
-                <View style={{ width: '100%', marginTop: 14, gap: 8 }}>
-                  <TouchableOpacity
-                    style={styles.doneBtn}
-                    onPress={async () => {
-                      const cleanUtr = utrInput.trim();
-                      if (!cleanUtr) {
-                        Alert.alert(
-                          'UTR Required',
-                          'Please enter the 12-digit UPI Reference (UTR) Number from your bank SMS or payment receipt to verify.'
-                        );
-                        return;
-                      }
-                      handleManualUtrSubmit();
-                    }}
-                    disabled={submittingUtr}
-                    activeOpacity={0.85}
-                  >
-                    {submittingUtr ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.doneBtnText}>Verify UTR & Credit Wallet</Text>
-                    )}
-                  </TouchableOpacity>
+                <View style={{ width: '100%', marginTop: 14, gap: 10 }}>
+                  <View style={styles.autoCheckingBadge}>
+                    <ActivityIndicator size="small" color="#6C47FF" />
+                    <Text style={styles.autoCheckingText}>
+                      Auto-checking webhook & bank settlement...
+                    </Text>
+                  </View>
 
                   <TouchableOpacity
-                    style={{ alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 16 }}
+                    style={styles.cancelPaymentBtn}
                     onPress={handleCancelAndClose}
-                    activeOpacity={0.7}
+                    activeOpacity={0.75}
                   >
-                    <Text style={{ fontSize: 13, color: '#9CA3AF', fontWeight: '700' }}>
-                      Cancel / Did Not Pay
+                    <Text style={styles.cancelPaymentBtnText}>
+                      Didn't pay? Cancel
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -669,6 +668,34 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.textSecondary || '#6B7280',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  autoCheckingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: isDarkMode ? '#28273E' : '#F5F3FF',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#4C4872' : '#DDD6FE',
+  },
+  autoCheckingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  cancelPaymentBtn: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  cancelPaymentBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.textSecondary || '#6B7280',
   },
 });
 

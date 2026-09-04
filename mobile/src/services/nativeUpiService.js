@@ -51,5 +51,12 @@ export const nativeUpiService = {
       }
       throw new Error('No UPI application found on this device');
     }
+  },
+
+  /**
+   * Safe no-op kept for backward compatibility with older callers
+   */
+  async clearSmsCache() {
+    return true;
   }
 };

@@ -279,18 +279,15 @@ const HomeScreen = ({ navigation }) => {
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={PURPLE} />}
-      >
-        {/* ═══════════════════════════════════════
-            PURPLE HERO HEADER
-        ═══════════════════════════════════════ */}
+      {/* ═══════════════════════════════════════
+          PURPLE HERO HEADER (Fixed at Top)
+      ═══════════════════════════════════════ */}
+      <View style={{ zIndex: 10 }}>
         <LinearGradient
           colors={[PURPLE, '#8B6FFF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 16) + 16 }]}
+          style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 16) + 16, paddingBottom: 36 }]}
         >
           {/* Dynamic background shapes */}
           <View style={styles.blob1} />
@@ -337,7 +334,7 @@ const HomeScreen = ({ navigation }) => {
         </LinearGradient>
 
         {/* Search bar component - overlapping the header and body */}
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], zIndex: 10 }}>
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], zIndex: 11 }}>
           <SearchBar 
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -346,9 +343,17 @@ const HomeScreen = ({ navigation }) => {
             onFilterPress={() => navigation.navigate('Book')}
             style={{ marginHorizontal: 16, marginTop: -26 }}
           />
-
         </Animated.View>
+      </View>
 
+      {/* ═══════════════════════════════════════
+          SCROLLABLE BODY (Between Header & Footer)
+      ═══════════════════════════════════════ */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={PURPLE} />}
+      >
         {/* ═══════════════════════════════════════
             BODY
         ═══════════════════════════════════════ */}

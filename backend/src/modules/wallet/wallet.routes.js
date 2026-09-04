@@ -7,10 +7,12 @@ const validate           = require('../../middleware/validate.middleware');
 const { topupSchema, withdrawSchema, adjustSchema } = require('../../validators/wallet.validator');
 
 // Any authenticated user — their own wallet
-router.get('/balance',      authMiddleware,                        ctrl.getWallet);
-router.post('/topup',       authMiddleware, validate(topupSchema), ctrl.topupWallet);
-router.post('/withdraw',    authMiddleware, validate(withdrawSchema), ctrl.requestWithdrawal);
-router.get('/my-transactions', authMiddleware,                    ctrl.getMyTransactions);
+router.get('/balance',          authMiddleware,                        ctrl.getWallet);
+router.post('/topup',           authMiddleware, validate(topupSchema), ctrl.topupWallet);
+router.post('/withdraw',        authMiddleware, validate(withdrawSchema), ctrl.requestWithdrawal);
+router.post('/lookup-recipient', authMiddleware,                       ctrl.lookupRecipient);
+router.post('/transfer',        authMiddleware,                        ctrl.transferWallet);
+router.get('/my-transactions',  authMiddleware,                        ctrl.getMyTransactions);
 
 // Admin
 router.get('/transactions', authMiddleware, authorize('ADMIN'),   ctrl.getAllTransactions);

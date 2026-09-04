@@ -17,7 +17,9 @@ const WalletTxnSchema = new mongoose.Schema({
             'ADJUSTMENT',        // admin manual adjustment
             'TOPUP',             // wallet top-up via payment gateway
             'ORDER_PAYMENT',     // customer paying for an order
-            'JOB_PAYMENT'        // customer paying for a job
+            'JOB_PAYMENT',       // customer paying for a job
+            'TRANSFER_SENT',     // P2P wallet transfer sent
+            'TRANSFER_RECEIVED'  // P2P wallet transfer received
         ],
         required: true
     },
@@ -42,7 +44,11 @@ const WalletTxnSchema = new mongoose.Schema({
     verifiedAt:           { type: Date },   // when webhook confirmed the payment
 
     // Legacy field — kept for backward-compat with in-flight manual-UTR records
-    razorpayPaymentId: { type: String }     // stored the manually-entered UTR; now read-only
+    razorpayPaymentId: { type: String },    // stored the manually-entered UTR; now read-only
+
+    // P2P Wallet Transfer fields
+    counterpartyId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+    counterpartyName: { type: String }
 }, { timestamps: true });
 
 WalletTxnSchema.index({ userId: 1, createdAt: -1 });     // User transaction history

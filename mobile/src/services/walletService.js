@@ -51,6 +51,12 @@ export const walletService = {
 
   getAdminUpiConfig: () =>
     withErrorHandling(() => api.get('/payments/admin-upi')),
+
+  lookupRecipient: (phone) =>
+    withErrorHandling(() => api.post('/wallet/lookup-recipient', { phone })),
+
+  transferWallet: ({ recipientPhone, amount, note }) =>
+    withErrorHandling(() => api.post('/wallet/transfer', { recipientPhone, amount, note })),
 };
 
 

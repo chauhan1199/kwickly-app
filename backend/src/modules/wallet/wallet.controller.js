@@ -10,8 +10,9 @@ const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.mode
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { emitToAll } = require('../../helpers/socket.helper');
+const { emitToAll, emitToRoom, emitToUser } = require('../../helpers/socket.helper');
 const { getCache, delCache, setCache } = require('../../helpers/redis.helper');
+const logger = require('../../helpers/logger.helper');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
@@ -762,3 +763,173 @@ exports.rejectPendingTopup = catchAsync(async (req, res) => {
     emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_REJECTED', txnId: txn._id, userId: txn.userId });
     return successResponse(res, { txn }, `Top-up request for ₹${txn.amount} rejected.`);
 });
+
+// ─── POST /api/v1/wallet/lookup-recipient ─────────────────────────────────────
+exports.lookupRecipient = catchAsync(async (req, res) => {
+    const { phone } = req.body;
+    if (!phone || typeof phone !== 'string') {
+        return errorResponse(res, 'Valid phone number is required', StatusCodes.BAD_REQUEST);
+    }
+    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
+    if (cleanPhone.length !== 10) {
+        return errorResponse(res, 'Please provide a 10-digit mobile number', StatusCodes.BAD_REQUEST);
+    }
+
+    if (req.user?.phone && req.user.phone.replace(/[^0-9]/g, '').slice(-10) === cleanPhone) {
+        return errorResponse(res, 'You cannot transfer money to yourself', StatusCodes.BAD_REQUEST);
+    }
+
+    const recipient = await Customer.findOne({
+        phone: new RegExp(cleanPhone + '$')
+    }).select('name phone role profileImage').lean();
+
+    if (!recipient) {
+        return errorResponse(res, 'No registered Kwickly user found with this mobile number', StatusCodes.NOT_FOUND);
+    }
+
+    if (recipient._id.toString() === req.user._id.toString()) {
+        return errorResponse(res, 'You cannot transfer money to yourself', StatusCodes.BAD_REQUEST);
+    }
+
+    return successResponse(res, {
+        recipientId: recipient._id,
+        name: recipient.name,
+        phone: recipient.phone,
+        role: recipient.role,
+        profileImage: recipient.profileImage || null
+    }, 'Recipient verified');
+});
+
+// ─── POST /api/v1/wallet/transfer (P2P Wallet Transfer) ──────────────────────
+exports.transferWallet = catchAsync(async (req, res) => {
+    const { recipientPhone, amount, note } = req.body;
+
+    const amountNum = Math.round(Number(amount) * 100) / 100;
+    if (isNaN(amountNum) || amountNum <= 0) {
+        return errorResponse(res, 'Please enter a valid transfer amount greater than 0', StatusCodes.BAD_REQUEST);
+    }
+
+    if (!recipientPhone || typeof recipientPhone !== 'string') {
+        return errorResponse(res, 'Recipient phone number is required', StatusCodes.BAD_REQUEST);
+    }
+
+    const cleanPhone = recipientPhone.replace(/[^0-9]/g, '').slice(-10);
+    if (cleanPhone.length !== 10) {
+        return errorResponse(res, 'Please provide a valid 10-digit recipient mobile number', StatusCodes.BAD_REQUEST);
+    }
+
+    // Sender details
+    const sender = await Customer.findById(req.user._id).select('name phone role wallet');
+    if (!sender) return errorResponse(res, 'Sender user not found', StatusCodes.NOT_FOUND);
+
+    if (sender.phone && sender.phone.replace(/[^0-9]/g, '').slice(-10) === cleanPhone) {
+        return errorResponse(res, 'You cannot transfer money to yourself', StatusCodes.BAD_REQUEST);
+    }
+
+    // Recipient details
+    const recipient = await Customer.findOne({
+        phone: new RegExp(cleanPhone + '$')
+    }).select('name phone role wallet');
+
+    if (!recipient) {
+        return errorResponse(res, 'Recipient user not found with this mobile number', StatusCodes.NOT_FOUND);
+    }
+
+    if (recipient._id.toString() === sender._id.toString()) {
+        return errorResponse(res, 'You cannot transfer money to yourself', StatusCodes.BAD_REQUEST);
+    }
+
+    // Atomic balance deduction from sender
+    const updatedSender = await Customer.findOneAndUpdate(
+        { _id: sender._id, 'wallet.balance': { $gte: amountNum } },
+        { $inc: { 'wallet.balance': -amountNum } },
+        { returnDocument: 'after' }
+    );
+
+    if (!updatedSender) {
+        return errorResponse(res, `Insufficient wallet balance. Your available balance is ₹${sender.wallet?.balance || 0}`, StatusCodes.PAYMENT_REQUIRED);
+    }
+
+    // Atomic credit to recipient
+    const updatedRecipient = await Customer.findByIdAndUpdate(
+        recipient._id,
+        { $inc: { 'wallet.balance': amountNum } },
+        { returnDocument: 'after' }
+    );
+
+    const senderNewBalance = updatedSender.wallet.balance;
+    const recipientNewBalance = updatedRecipient.wallet.balance;
+
+    // Create Sender Debit Transaction
+    const senderTxn = await WalletTxn.create({
+        userId: sender._id,
+        type: 'TRANSFER_SENT',
+        amount: amountNum,
+        balance: senderNewBalance,
+        status: 'COMPLETED',
+        description: `P2P Transfer to ${recipient.name} (${cleanPhone})${note ? ' • ' + note : ''}`,
+        counterpartyId: recipient._id,
+        counterpartyName: recipient.name
+    });
+
+    // Create Recipient Credit Transaction
+    const recipientTxn = await WalletTxn.create({
+        userId: recipient._id,
+        type: 'TRANSFER_RECEIVED',
+        amount: amountNum,
+        balance: recipientNewBalance,
+        status: 'COMPLETED',
+        description: `P2P Transfer from ${sender.name}${note ? ' • ' + note : ''}`,
+        counterpartyId: sender._id,
+        counterpartyName: sender.name
+    });
+
+    // Invalidate session caches
+    await delCache(`session:${sender._id}`);
+    await delCache(`session:${recipient._id}`);
+
+    // Push notification to recipient
+    try {
+        await notifyUser({
+            userId: recipient._id,
+            title: 'Money Received! 💰',
+            message: `₹${amountNum} received from ${sender.name} in your Kwickly Wallet.`,
+            type: 'WALLET_CREDIT',
+            referenceId: recipientTxn._id,
+            referenceModel: 'WalletTxn'
+        });
+    } catch (notifErr) {
+        logger.warn(`[WalletTransfer] Notification failed: ${notifErr.message}`);
+    }
+
+    // Real-time socket events to both users
+    emitToUser(sender._id, 'WALLET_UPDATE', {
+        type: 'TRANSFER_SENT',
+        amount: amountNum,
+        newBalance: senderNewBalance,
+        txn: senderTxn
+    });
+
+    emitToUser(recipient._id, 'WALLET_UPDATE', {
+        type: 'TRANSFER_RECEIVED',
+        amount: amountNum,
+        newBalance: recipientNewBalance,
+        txn: recipientTxn
+    });
+
+    emitToAll('DASHBOARD_UPDATE', {
+        type: 'P2P_TRANSFER_COMPLETED',
+        senderId: sender._id,
+        recipientId: recipient._id,
+        amount: amountNum
+    });
+
+    return successResponse(res, {
+        txn: senderTxn,
+        amount: amountNum,
+        newBalance: senderNewBalance,
+        recipientName: recipient.name,
+        recipientPhone: recipient.phone
+    }, `Successfully transferred ₹${amountNum} to ${recipient.name}!`, StatusCodes.OK);
+});
+
