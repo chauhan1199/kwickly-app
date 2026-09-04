@@ -1,8 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -78,15 +76,5 @@
           android:name="android.support.FILE_PROVIDER_PATHS"
           android:resource="@xml/file_paths" />
       </provider>
-
-      <!-- Receiver for automatic bank SMS detection & UTR extraction -->
-      <receiver
-        android:name=".SmsReceiver"
-        android:exported="true"
-        android:permission="android.permission.BROADCAST_SMS">
-        <intent-filter android:priority="999">
-          <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-        </intent-filter>
-      </receiver>
     </application>
 </manifest>

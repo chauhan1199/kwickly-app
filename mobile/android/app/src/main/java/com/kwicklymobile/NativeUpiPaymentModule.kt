@@ -66,22 +66,17 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
 
     @ReactMethod
     fun getLatestSmsUtr(promise: Promise) {
-        val utr = SmsReceiver.latestUtr
-        val amount = SmsReceiver.latestAmount
-        val timestamp = SmsReceiver.latestTimestamp
-
         val map = Arguments.createMap().apply {
-            putString("utr", utr ?: "")
-            putString("amount", amount ?: "")
-            putDouble("timestamp", timestamp.toDouble())
-            putBoolean("hasUtr", !utr.isNullOrEmpty())
+            putString("utr", "")
+            putString("amount", "")
+            putDouble("timestamp", 0.0)
+            putBoolean("hasUtr", false)
         }
         promise.resolve(map)
     }
 
     @ReactMethod
     fun clearSmsCache(promise: Promise) {
-        SmsReceiver.clearCache()
         promise.resolve(true)
     }
 
@@ -160,14 +155,15 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
 
         val extras = data?.extras
         if (extras != null) {
-            val sb = StringBuilder()
+            val sb = StringBuilder(responseString)
+            if (sb.isNotEmpty() && !sb.endsWith("&")) {
+                sb.append("&")
+            }
             for (key in extras.keySet()) {
                 val value = extras.get(key)
                 sb.append(key).append("=").append(value).append("&")
             }
-            if (responseString.isEmpty()) {
-                responseString = sb.toString()
-            }
+            responseString = sb.toString()
         }
 
         if (responseString.isEmpty() && data?.data != null) {
@@ -179,7 +175,9 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
 
         val parsed = parseUpiResponse(responseString)
         var status = parsed["status"] ?: parsed["Status"] ?: ""
-        var approvalRefNo = parsed["approvalrefno"] ?: parsed["ApprovalRefNo"] ?: parsed["approvalRefNo"] ?: parsed["rrn"] ?: parsed["RRN"] ?: ""
+        var approvalRefNo = parsed["approvalrefno"] ?: parsed["ApprovalRefNo"] ?: parsed["approvalRefNo"]
+            ?: parsed["rrn"] ?: parsed["RRN"] ?: parsed["refid"] ?: parsed["refId"] ?: parsed["bankrrn"]
+            ?: parsed["banktxnid"] ?: parsed["upirefno"] ?: ""
         val txnId = parsed["txnid"] ?: parsed["txnId"] ?: parsed["TxnId"] ?: ""
         val responseCode = parsed["responsecode"] ?: parsed["responseCode"] ?: ""
 

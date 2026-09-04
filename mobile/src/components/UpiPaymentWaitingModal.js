@@ -10,7 +10,7 @@ import useSocket, { useSocket as useSocketNamed } from '../hooks/useSocket';
 import { walletService } from '../services/walletService';
 import { nativeUpiService } from '../services/nativeUpiService';
 import { isValidUtr } from '../utils/upiValidation';
-import { CheckCircle2, Clock, ShieldCheck, X, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react-native';
+import { CheckCircle2, Clock, ShieldCheck, X, ChevronDown, ChevronUp, ArrowRight, Copy } from 'lucide-react-native';
 
 const TOTAL_COUNTDOWN_SECONDS = 120;
 const resolveUseSocket = useSocket || useSocketNamed;
@@ -152,6 +152,22 @@ const UpiPaymentWaitingModal = ({
 
   resolveUseSocket({ onEvent: handleSocketEvent });
 
+  // Intelligent helper to extract 12-digit UTR from any text or bank SMS format
+  const extractUtrFromText = useCallback((text) => {
+    if (!text || typeof text !== 'string') return null;
+    const clean = text.trim();
+    // 1. Match Indian bank SMS keywords: UPI Ref, Ref No, UTR, RRN, Txn ID, etc.
+    const keywordRegex = /(?:upi\s*(?:ref(?:erence)?|txn(?:action)?(?:\s*id)?)(?:\s*no)?|ref\s*(?:no|id)?|rrn|utr)\D*?(\d{12})/i;
+    const match = keywordRegex.exec(clean);
+    if (match && isValidUtr(match[1])) return match[1];
+
+    // 2. Standalone 12-digit number (NPCI standard RRN format)
+    const standaloneMatch = clean.match(/\b(\d{12})\b/);
+    if (standaloneMatch && isValidUtr(standaloneMatch[1])) return standaloneMatch[1];
+
+    return null;
+  }, []);
+
   // Automated UTR Verification Runner
   const autoVerifyUtr = useCallback(async (detectedUtr) => {
     if (!detectedUtr || !isValidUtr(detectedUtr) || submittingUtr) return;
@@ -180,51 +196,47 @@ const UpiPaymentWaitingModal = ({
     }
   }, [submittingUtr, onSubmitManualUtr, orderId, handleTriggerSuccess]);
 
-  // Real-time Bank SMS listener & cache polling
+  // One-tap Auto-Paste & Verify handler
+  const handlePasteAndVerify = useCallback(async () => {
+    try {
+      const text = await Clipboard.getString();
+      const detected = extractUtrFromText(text);
+      if (detected) {
+        setUtrInput(detected);
+        await autoVerifyUtr(detected);
+      } else {
+        setShowManualUtr(true);
+        Alert.alert(
+          'No UTR on Clipboard',
+          'Please copy your bank SMS or receipt containing the 12-digit UPI Reference Number, then tap Paste again, or enter it manually below.'
+        );
+      }
+    } catch (e) {
+      setShowManualUtr(true);
+    }
+  }, [extractUtrFromText, autoVerifyUtr]);
+
+  // Continuous clipboard auto-polling (Zero permissions, 100% Play Protect Safe!)
   useEffect(() => {
     if (!visible || status !== 'WAITING') return;
 
-    // 1. Live SMS Event from Native SmsReceiver
-    const unsubscribeSms = nativeUpiService.subscribeToBankSms((smsData) => {
-      console.log('[WaitingModal] Received live bank SMS event:', smsData);
-      const incomingUtr = (smsData?.utr || '').trim();
-      if (incomingUtr && isValidUtr(incomingUtr)) {
-        setUtrInput(incomingUtr);
-        autoVerifyUtr(incomingUtr);
-      }
-    });
-
-    // 2. Poll Native SMS Cache and Clipboard
-    const pollSmsAndClipboard = async () => {
+    const pollClipboard = async () => {
       try {
-        const cached = await nativeUpiService.getLatestSmsUtr();
-        if (cached?.hasUtr && cached?.utr && isValidUtr(cached.utr)) {
-          const isRecent = (Date.now() - (cached.timestamp || 0)) < 180000;
-          if (isRecent) {
-            setUtrInput(cached.utr);
-            autoVerifyUtr(cached.utr);
-            return;
-          }
-        }
-
         const clip = await Clipboard.getString();
-        const cleanClip = (clip || '').trim();
-        const clipMatch = cleanClip.match(/\b(\d{12})\b/);
-        if (clipMatch && clipMatch[1] && isValidUtr(clipMatch[1]) && !utrInput) {
-          setUtrInput(clipMatch[1]);
-          autoVerifyUtr(clipMatch[1]);
+        const detected = extractUtrFromText(clip);
+        if (detected && !utrInput && !submittingUtr) {
+          console.log('[WaitingModal] Auto-detected UTR from clipboard:', detected);
+          setUtrInput(detected);
+          autoVerifyUtr(detected);
         }
       } catch (e) {}
     };
 
-    pollSmsAndClipboard();
-    const interval = setInterval(pollSmsAndClipboard, 2500);
+    pollClipboard();
+    const interval = setInterval(pollClipboard, 1500);
 
-    return () => {
-      unsubscribeSms();
-      clearInterval(interval);
-    };
-  }, [visible, status, autoVerifyUtr, utrInput]);
+    return () => clearInterval(interval);
+  }, [visible, status, extractUtrFromText, autoVerifyUtr, utrInput, submittingUtr]);
 
   const handleCancelAndClose = async () => {
     if (orderId) {
@@ -421,6 +433,17 @@ const UpiPaymentWaitingModal = ({
 
               {status === 'WAITING' && (
                 <View style={{ width: '100%', marginTop: 14, gap: 10 }}>
+                  <TouchableOpacity
+                    style={styles.pasteUtrBtn}
+                    onPress={handlePasteAndVerify}
+                    activeOpacity={0.8}
+                  >
+                    <Copy size={16} color="#6C47FF" />
+                    <Text style={styles.pasteUtrBtnText}>
+                      Auto-Paste & Verify from SMS / Clipboard
+                    </Text>
+                  </TouchableOpacity>
+
                   <View style={styles.autoCheckingBadge}>
                     <ActivityIndicator size="small" color="#6C47FF" />
                     <Text style={styles.autoCheckingText}>
@@ -722,6 +745,24 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.textSecondary || '#6B7280',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  pasteUtrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: isDarkMode ? '#28273E' : '#F5F3FF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#6C47FF',
+    width: '100%',
+  },
+  pasteUtrBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#6C47FF',
   },
   autoCheckingBadge: {
     flexDirection: 'row',

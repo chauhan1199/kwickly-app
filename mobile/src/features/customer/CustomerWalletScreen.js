@@ -214,19 +214,6 @@ const CustomerWalletScreen = ({ navigation }) => {
     }
   };
 
-  const requestSmsPermissions = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-          PermissionsAndroid.PERMISSIONS.READ_SMS,
-        ]);
-      } catch (err) {
-        console.warn('[Permissions] SMS permission request error:', err);
-      }
-    }
-  };
-
   const handleInitiateTopup = async () => {
     const amount = Number(topupAmount);
     if (!amount || isNaN(amount) || amount < 10) {
@@ -238,9 +225,6 @@ const CustomerWalletScreen = ({ navigation }) => {
       });
     }
 
-    // Proactively request SMS permissions so incoming bank transactional SMS is auto-detected
-    await requestSmsPermissions();
-    
     setIsProcessing(true);
     try {
       const payRes = await walletService.createPaymentOrder({
