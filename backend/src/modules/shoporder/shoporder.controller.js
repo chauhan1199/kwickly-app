@@ -225,17 +225,19 @@ exports.placeOrder = catchAsync(async (req, res) => {
             };
         }
 
-        // Validate that chosen slot for today is not in the past
-        const todayStr = new Date().toISOString().split('T')[0];
+        // Validate that chosen slot for today is not in the past (using timezone-accurate IST)
+        const istNow = new Date();
+        const istDateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+        const todayStr = istDateFormatter.format(istNow);
+
         if (slotData.date === todayStr && slotData.time) {
             const timeMatch = slotData.time.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
             if (timeMatch) {
                 const endHour = parseInt(timeMatch[3], 10);
                 const endMin = parseInt(timeMatch[4], 10);
-                const now = new Date();
-                const istOffset = 5.5 * 60 * 60 * 1000;
-                const istTime = new Date(now.getTime() + (now.getTimezoneOffset() === 0 ? istOffset : 0));
-                const currentMinutes = istTime.getHours() * 60 + istTime.getMinutes();
+                const istTimeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+                const [hStr, mStr] = istTimeFormatter.format(istNow).split(':');
+                const currentMinutes = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
                 const slotEndMinutes = endHour * 60 + endMin;
 
                 if (currentMinutes >= slotEndMinutes) {

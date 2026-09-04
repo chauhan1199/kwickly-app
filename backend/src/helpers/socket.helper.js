@@ -135,7 +135,10 @@ const initSocket = (server) => {
 };
 
 const getIO = () => {
-    if (!io) throw new Error('Socket.io not initialized. Call initSocket first.');
+    if (!io) {
+        logger.warn('Socket.io not initialized. getIO() returning null.');
+        return null;
+    }
     return io;
 };
 

@@ -175,9 +175,8 @@ exports.verifyPayment = catchAsync(async (req, res) => {
     }).lean();
     const isSelfRetry = existingForOrder &&
         String(existingForOrder.razorpayPaymentId || '') === finalPaymentId &&
-        (utrUsage?.flow === 'WALLET_TOPUP'
-            ? String(utrUsage.ref.userId || '') === String(req.user._id)
-            : String(utrUsage?.ref?._id || '') === String(existingForOrder._id));
+        utrUsage?.flow === 'PAYMENT' &&
+        String(utrUsage?.ref?._id || '') === String(existingForOrder._id);
 
     if (utrUsage && !isSelfRetry) {
         return errorResponse(res, 'This UPI Reference / Transaction ID has already been submitted or used on the platform.', StatusCodes.CONFLICT);
@@ -306,14 +305,24 @@ exports.verifyPayment = catchAsync(async (req, res) => {
             const shouldAutoCredit = !isProviderConfigured();
 
             if (shouldAutoCredit) {
-                // ── IMMEDIATE CREDIT: No webhook provider → UTR is proof ──────
-                // Credit the user's wallet balance
-                const updatedUser = await Customer.findByIdAndUpdate(
-                    req.user._id,
-                    { $inc: { 'wallet.balance': creditAmount } },
-                    { returnDocument: 'after', ...(useTransaction ? { session } : {}) }
-                );
-                const newBalance = updatedUser?.wallet?.balance ?? creditAmount;
+                // Credit the user's wallet balance (role-aware: Shop vs Customer/Worker)
+                let newBalance;
+                if (req.user.role === 'SHOP') {
+                    const Shop = require('../shop/shop.model');
+                    const updatedShop = await Shop.findOneAndUpdate(
+                        { ownerId: req.user._id },
+                        { $inc: { 'wallet.balance': creditAmount } },
+                        { returnDocument: 'after', ...(useTransaction ? { session } : {}) }
+                    );
+                    newBalance = updatedShop?.wallet?.balance ?? creditAmount;
+                } else {
+                    const updatedUser = await Customer.findByIdAndUpdate(
+                        req.user._id,
+                        { $inc: { 'wallet.balance': creditAmount } },
+                        { returnDocument: 'after', ...(useTransaction ? { session } : {}) }
+                    );
+                    newBalance = updatedUser?.wallet?.balance ?? creditAmount;
+                }
 
                 // Mark payment as COMPLETED
                 payment.status = 'COMPLETED';

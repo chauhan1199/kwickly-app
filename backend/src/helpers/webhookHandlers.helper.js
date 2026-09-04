@@ -56,10 +56,11 @@ const creditAdminTreasury = async ({ amount, description, referenceId, reference
 };
 
 /* ─── Helper: Paise → Rupees ──────────────────────────────────────────────── */
-const toRupees = (raw) => {
+const toRupees = (raw, providerSendsPaise = process.env.PROVIDER_SENDS_PAISE === 'true') => {
     const n = Number(raw);
-    // Provider may send either rupees or paise; values >= 10000 are treated as paise
-    return n >= 10000 ? n / 100 : n;
+    if (isNaN(n) || n <= 0) return 0;
+    // When provider explicitly sends paise (e.g. Razorpay), convert. Otherwise amount is in Rupees.
+    return providerSendsPaise ? n / 100 : n;
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -129,12 +130,18 @@ const handleWalletTopupWebhook = async (payload, eventId) => {
         // Fallback: match by exact amount for pending topups in the last 30 minutes
         if (!claimed && payload.amount) {
             const expectedAmount = toRupees(payload.amount);
-            const candidate = await WalletTxn.findOne({
+            const userScope = payload.metadata?.userId || payload.userId;
+            const query = {
                 status: 'PENDING',
                 type: 'TOPUP',
                 amount: expectedAmount,
                 createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) }
-            }).sort('-createdAt');
+            };
+            if (userScope && mongoose.isValidObjectId(userScope)) {
+                query.userId = userScope;
+            }
+
+            const candidate = await WalletTxn.findOne(query).sort('-createdAt');
 
             if (candidate) {
                 claimed = await WalletTxn.findOneAndUpdate(
@@ -152,11 +159,16 @@ const handleWalletTopupWebhook = async (payload, eventId) => {
                 );
             } else {
                 // Check recent Payment intents created via createOrder
-                const candidatePayment = await Payment.findOne({
+                const paymentQuery = {
                     status: 'CREATED',
                     amount: expectedAmount,
                     createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) }
-                }).sort('-createdAt');
+                };
+                if (userScope && mongoose.isValidObjectId(userScope)) {
+                    paymentQuery.userId = userScope;
+                }
+
+                const candidatePayment = await Payment.findOne(paymentQuery).sort('-createdAt');
 
                 if (candidatePayment && candidatePayment.userId) {
                     const targetUserId = candidatePayment.userId;

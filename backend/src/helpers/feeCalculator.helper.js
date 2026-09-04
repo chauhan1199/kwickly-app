@@ -5,13 +5,20 @@
 
 const calculateJobFee = (workerQuoteAmount, config = {}) => {
     const quote = Math.max(0, Number(workerQuoteAmount) || 0);
-    const mode = config.mode || 'TIERED'; // 'TIERED' | 'PERCENTAGE' | 'FIXED'
+    const rawMode = String(config.mode || config.type || 'TIERED').toUpperCase();
+    const mode = (rawMode === 'PERCENT' || rawMode === 'PERCENTAGE') ? 'PERCENTAGE'
+               : (rawMode === 'FIXED' || rawMode === 'FLAT') ? 'FIXED'
+               : 'TIERED';
     const threshold = config.threshold !== undefined ? Number(config.threshold) : 500;
     const minFee = config.minFee !== undefined ? Number(config.minFee) : 50;
-    const percentAboveThreshold = config.percentAboveThreshold !== undefined ? Number(config.percentAboveThreshold) : 12;
-    const percentage = config.percentage !== undefined ? Number(config.percentage) : 12;
-    const fixedFee = config.fixedFee !== undefined ? Number(config.fixedFee) : 50;
-    const gstRate = config.gstPercent !== undefined ? Number(config.gstPercent) : 18;
+    const percentAboveThreshold = config.percentAboveThreshold !== undefined ? Number(config.percentAboveThreshold)
+        : (config.percentage !== undefined ? Number(config.percentage) : 12);
+    const percentage = config.percentage !== undefined ? Number(config.percentage)
+        : (config.percentAboveThreshold !== undefined ? Number(config.percentAboveThreshold) : 12);
+    const fixedFee = config.fixedFee !== undefined ? Number(config.fixedFee)
+        : (config.amount !== undefined ? Number(config.amount) : 50);
+    const gstRate = config.gstPercent !== undefined ? Number(config.gstPercent)
+        : (config.gstPercentage !== undefined ? Number(config.gstPercentage) : 18);
 
     let platformFee = 0;
 
@@ -54,11 +61,14 @@ const calculateJobFee = (workerQuoteAmount, config = {}) => {
 const calculateShopOrderFee = (netProductSales, deliveryCharge = 0, config = {}) => {
     const netSales = Math.max(0, Number(netProductSales) || 0);
     const delivery = Math.max(0, Number(deliveryCharge) || 0);
-    const mode = config.mode || 'PERCENTAGE';
+    const rawMode = String(config.mode || config.type || 'PERCENTAGE').toUpperCase();
+    const mode = (rawMode === 'FIXED' || rawMode === 'FLAT') ? 'FIXED' : 'PERCENTAGE';
     const percentage = config.percentage !== undefined ? Number(config.percentage) : 5;
     const minFee = config.minFee !== undefined ? Number(config.minFee) : 10;
-    const fixedFee = config.fixedFee !== undefined ? Number(config.fixedFee) : 10;
-    const gstRate = config.gstPercent !== undefined ? Number(config.gstPercent) : 18;
+    const fixedFee = config.fixedFee !== undefined ? Number(config.fixedFee)
+        : (config.amount !== undefined ? Number(config.amount) : 10);
+    const gstRate = config.gstPercent !== undefined ? Number(config.gstPercent)
+        : (config.gstPercentage !== undefined ? Number(config.gstPercentage) : 18);
 
     let platformFee = 0;
 

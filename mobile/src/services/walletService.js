@@ -28,23 +28,10 @@ export const walletService = {
   requestWithdrawal: (amount, payoutMethod) =>
     withErrorHandling(() => api.post('/wallet/withdraw', { amount, payoutMethod })),
 
-  topup: async (amount, paymentDetails, planId, utrNumber, upiOrderId) => {
-    try {
-      const response = await api.post('/wallet/topup', {
-        amount,
-        paymentDetails,
-        planId,
-        utrNumber,
-        upiOrderId,
-        razorpayPaymentId: utrNumber,
-        razorpayOrderId: upiOrderId
-      });
-      return response;
-    } catch (error) {
-      console.error('[Wallet] Topup failed:', error);
-      throw error;
-    }
-  },
+  // Alias kept for backwards compatibility
+  topup: (amount, paymentDetails, planId, utrNumber, upiOrderId, extra) =>
+    walletService.topupWallet(amount, paymentDetails, planId, utrNumber, upiOrderId, extra),
+
 
   createPaymentOrder: (data) =>
     withErrorHandling(() => api.post('/payments/create-order', data)),

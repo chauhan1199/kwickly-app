@@ -20,6 +20,8 @@ import { useAuth } from '../../context/AuthContext';
 import { nativeUpiService } from '../../services/nativeUpiService';
 import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
 
+const QUICK_AMOUNTS = ['100', '200', '500', '1000'];
+
 const CustomerWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { user, fetchUser } = useAuth();
@@ -496,7 +498,7 @@ const CustomerWalletScreen = ({ navigation }) => {
                   </View>
                   <View style={styles.quickRow}>
                     {QUICK_AMOUNTS.map(a => (
-                      <TouchableOpacity key={a} style={styles.quickBtn} onPress={() => setTopupAmount(a)}>
+                      <TouchableOpacity key={a} style={styles.quickBtn} onPress={() => setTopupAmount(String(a))}>
                         <Text style={styles.quickBtnText}>+₹{a}</Text>
                       </TouchableOpacity>
                     ))}

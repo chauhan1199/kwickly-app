@@ -16,6 +16,10 @@ const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
 
+// In-process lock against concurrent race condition UTR submissions
+const activeUtrSubmissions = new Set();
+
+
 /**
  * Helper: atomically deduct amount from user/shop wallet.
  * Returns { newBalance, entity } or throws if insufficient funds.
@@ -142,80 +146,214 @@ exports.topupWallet = catchAsync(async (req, res) => {
             return errorResponse(res, 'Invalid UTR format. Please enter the exact 12-digit UPI Reference Number from your bank receipt.', StatusCodes.BAD_REQUEST);
         }
 
-        // Cross-flow duplicate UTR check
-        const utrUsage = await findUtrUsage(rawUtr);
-        if (utrUsage && String(utrUsage.ref?.userId || '') !== String(req.user._id)) {
-            return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
+        if (activeUtrSubmissions.has(rawUtr)) {
+            return errorResponse(res, 'This UPI Reference / Transaction ID is currently being processed or has already been used.', StatusCodes.CONFLICT);
         }
+        activeUtrSubmissions.add(rawUtr);
 
-        const utrNumber = rawUtr;
+        const { acquireLock, releaseLock } = require('../../helpers/redis.helper');
+        const lockKey = `lock:utr:${rawUtr}`;
+        let lockHolder = null;
+        try {
+            lockHolder = await acquireLock(lockKey, 15);
+        } catch (e) {}
 
-        // Check if bank webhook already verified and credited this transaction
-        const alreadyCompleted = await WalletTxn.findOne({
-            userId: req.user._id,
-            status: 'COMPLETED',
-            $or: [{ razorpayPaymentId: utrNumber }, { gatewayTransactionId: utrNumber }]
-        });
+        try {
+            // Cross-flow duplicate UTR check across all models
+            const utrUsage = await findUtrUsage(rawUtr);
+            if (utrUsage) {
+                return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
+            }
 
-        let currentBalance = user.wallet?.balance || 0;
-        if (user.role === 'SHOP' || user.role === 'SHOP_OWNER') {
-            const shop = await Shop.findOne({ ownerId: user._id });
-            currentBalance = shop?.wallet?.balance || 0;
-        }
+            const utrNumber = rawUtr;
 
-        if (alreadyCompleted) {
-            return successResponse(res, {
-                txnId: alreadyCompleted._id,
-                status: 'COMPLETED',
-                verified: true,
-                amount,
-                newBalance: alreadyCompleted.balance || currentBalance
-            }, `Top-up of ₹${amount} has been verified and credited to your wallet.`);
-        }
-
-        // Check for existing pending transaction or create one awaiting webhook verification
-        let txn = await WalletTxn.findOne({
-            userId: req.user._id,
-            status: 'PENDING',
-            $or: [{ razorpayPaymentId: utrNumber }, { amount, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }]
-        });
-
-        if (txn) {
-            txn.razorpayPaymentId = utrNumber;
-            if (plan) txn.planId = planId;
-            await txn.save();
-        } else {
-            txn = await WalletTxn.create({
+            // Check if bank webhook already verified and credited this transaction
+            const alreadyCompleted = await WalletTxn.findOne({
                 userId: req.user._id,
-                type: 'TOPUP',
-                amount: Number(amount),
-                balance: Number(currentBalance),
-                status: 'PENDING',
-                razorpayPaymentId: utrNumber,
-                planId: plan ? planId : undefined,
-                description: plan
-                    ? `Subscription Plan Purchase: ${plan.label || planId} (UTR: ${utrNumber} - Awaiting Bank Confirmation)`
-                    : `Wallet Top-up (UTR: ${utrNumber} - Awaiting Bank Confirmation)`
+                status: 'COMPLETED',
+                $or: [{ razorpayPaymentId: utrNumber }, { gatewayTransactionId: utrNumber }]
             });
+
+            let currentBalance = user.wallet?.balance || 0;
+            if (user.role === 'SHOP' || user.role === 'SHOP_OWNER') {
+                const shop = await Shop.findOne({ ownerId: user._id });
+                currentBalance = shop?.wallet?.balance || 0;
+            }
+
+            if (alreadyCompleted) {
+                return successResponse(res, {
+                    txnId: alreadyCompleted._id,
+                    status: 'COMPLETED',
+                    verified: true,
+                    amount,
+                    newBalance: alreadyCompleted.balance || currentBalance
+                }, `Top-up of ₹${amount} has been verified and credited to your wallet.`, StatusCodes.CREATED);
+            }
+
+            // Check if direct UPI auto-credit mode is active for shop balance or subscription purchases
+            const { isProviderConfigured } = require('../../services/upiProvider.service');
+            const isShopOrWorkerPlan = Boolean(plan || user.role === 'SHOP' || user.role === 'SHOP_OWNER');
+            const shouldAutoCredit = !isProviderConfigured() && isShopOrWorkerPlan;
+
+            if (shouldAutoCredit) {
+                let newBalance = currentBalance;
+                if (plan) {
+                    const days = plan?.durationDays || 30;
+                    const baseDate = new Date();
+                    const newExpiry = new Date(baseDate.getTime() + days * 86400000);
+
+                    if (user.role === 'SHOP' || user.role === 'SHOP_OWNER') {
+                        const Shop = require('../shop/shop.model');
+                        const { ShopSubscription } = require('../subscription/subscription.model');
+                        const shop = await Shop.findOne({ ownerId: user._id });
+                        if (shop) {
+                            shop.subscription = {
+                                planId: plan.id,
+                                expiryDate: newExpiry,
+                                isActive: true,
+                                isTrial: false
+                            };
+                            await shop.save();
+
+                            await ShopSubscription.create({
+                                shopId: shop._id,
+                                planId: plan.id,
+                                startDate: baseDate,
+                                endDate: newExpiry,
+                                amount,
+                                payment: {
+                                    status: 'PAID',
+                                    method: 'UPI',
+                                    razorpayPaymentId: utrNumber
+                                }
+                            });
+                        }
+                    } else {
+                        const { WorkerSubscription } = require('../subscription/subscription.model');
+                        await Customer.findByIdAndUpdate(user._id, {
+                            'subscription.planId': plan.id,
+                            'subscription.expiryDate': newExpiry,
+                            'subscription.isActive': true,
+                            'subscription.isTrial': false
+                        });
+
+                        await WorkerSubscription.create({
+                            workerId: user._id,
+                            planId: plan.id,
+                            startDate: baseDate,
+                            endDate: newExpiry,
+                            amount,
+                            payment: {
+                                status: 'PAID',
+                                method: 'UPI',
+                                razorpayPaymentId: utrNumber
+                            }
+                        });
+                    }
+                } else {
+                    // Regular topup: credit balance
+                    if (user.role === 'SHOP' || user.role === 'SHOP_OWNER') {
+                        const Shop = require('../shop/shop.model');
+                        const updatedShop = await Shop.findOneAndUpdate(
+                            { ownerId: user._id },
+                            { $inc: { 'wallet.balance': Number(amount) } },
+                            { returnDocument: 'after' }
+                        );
+                        newBalance = updatedShop?.wallet?.balance ?? (currentBalance + Number(amount));
+                    } else {
+                        const updatedUser = await Customer.findByIdAndUpdate(
+                            user._id,
+                            { $inc: { 'wallet.balance': Number(amount) } },
+                            { returnDocument: 'after' }
+                        );
+                        newBalance = updatedUser?.wallet?.balance ?? (currentBalance + Number(amount));
+                    }
+                }
+
+                const txn = await WalletTxn.create({
+                    userId: req.user._id,
+                    type: plan ? 'SUBSCRIPTION' : 'TOPUP',
+                    amount: Number(amount),
+                    balance: Number(newBalance),
+                    status: 'COMPLETED',
+                    razorpayPaymentId: utrNumber,
+                    planId: plan ? planId : undefined,
+                    verifiedAt: new Date(),
+                    description: plan
+                        ? `Subscription Plan Purchase: ${plan.label || planId} (Direct UPI Verified)`
+                        : `Wallet Top-up via Direct UPI (Verified)`
+                });
+
+                emitToAll('DASHBOARD_UPDATE', {
+                    type: plan ? 'SUBSCRIPTION_PURCHASED' : 'WALLET_TOPUP_COMPLETED',
+                    userId: req.user._id,
+                    userName: user.name,
+                    amount,
+                    planId: plan ? planId : null,
+                    utr: utrNumber
+                });
+
+                return successResponse(res, {
+                    txnId: txn._id,
+                    txn,
+                    status: 'COMPLETED',
+                    verified: true,
+                    amount: Number(amount),
+                    newBalance: Number(newBalance)
+                }, plan ? `Subscription plan activated successfully!` : `Top-up of ₹${amount} has been verified and credited to your wallet.`, StatusCodes.CREATED);
+            }
+
+            // Check for existing pending transaction or create one awaiting webhook verification
+            let txn = await WalletTxn.findOne({
+                userId: req.user._id,
+                status: 'PENDING',
+                $or: [{ razorpayPaymentId: utrNumber }, { amount, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }]
+            });
+
+            if (txn) {
+                txn.razorpayPaymentId = utrNumber;
+                if (plan) txn.planId = planId;
+                await txn.save();
+            } else {
+                txn = await WalletTxn.create({
+                    userId: req.user._id,
+                    type: 'TOPUP',
+                    amount: Number(amount),
+                    balance: Number(currentBalance),
+                    status: 'PENDING',
+                    razorpayPaymentId: utrNumber,
+                    planId: plan ? planId : undefined,
+                    description: plan
+                        ? `Subscription Plan Purchase: ${plan.label || planId} (UTR: ${utrNumber} - Awaiting Bank Confirmation)`
+                        : `Wallet Top-up (UTR: ${utrNumber} - Awaiting Bank Confirmation)`
+                });
+            }
+
+            emitToAll('DASHBOARD_UPDATE', {
+                type: 'PENDING_WALLET_TOPUP',
+                userId: req.user._id,
+                userName: user.name,
+                amount,
+                planId: plan ? planId : null,
+                utr: utrNumber
+            });
+
+            return successResponse(res, {
+                txnId: txn._id,
+                txn,
+                status: 'PENDING_VERIFICATION',
+                verified: false,
+                amount,
+                utrNumber
+            }, `UPI Reference (UTR: ${utrNumber}) submitted. Awaiting bank confirmation.`, StatusCodes.CREATED);
+        } finally {
+            activeUtrSubmissions.delete(rawUtr);
+            if (lockHolder) {
+                try {
+                    await releaseLock(lockKey, lockHolder);
+                } catch (e) {}
+            }
         }
-
-        emitToAll('DASHBOARD_UPDATE', {
-            type: 'PENDING_WALLET_TOPUP',
-            userId: req.user._id,
-            userName: user.name,
-            amount,
-            planId: plan ? planId : null,
-            utr: utrNumber
-        });
-
-        return successResponse(res, {
-            txnId: txn._id,
-            txn,
-            status: 'PENDING_VERIFICATION',
-            verified: false,
-            amount,
-            utrNumber
-        }, `UPI Reference (UTR: ${utrNumber}) submitted. Awaiting bank confirmation.`);
     }
 
     // Mode 2: Payment Intent Registration (for direct deeplink opening)

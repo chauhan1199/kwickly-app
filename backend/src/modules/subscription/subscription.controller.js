@@ -82,9 +82,8 @@ async function afterSubscriptionActivated(userId, targetRole, activePlan, subId)
     });
 
     emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SUBSCRIPTION', id: subId || 'new' });
-    const { getIO } = require('../../helpers/socket.helper');
-    const io = getIO();
-    if (io) io.to('admin_dashboard').emit('NEW_NOTIFICATION', adminNotif);
+    const { emitToRoom } = require('../../helpers/socket.helper');
+    emitToRoom('admin_dashboard', 'NEW_NOTIFICATION', adminNotif);
 }
 
 /* ─── WORKER SUBSCRIPTION ────────────────────────────────────────────── */
@@ -244,7 +243,7 @@ exports.subscribe = catchAsync(async (req, res) => {
         }
 
         const utrUsage = await findUtrUsage(rawUtr);
-        if (utrUsage && String(utrUsage.ref?.userId || utrUsage.ref?.workerId || '') !== String(userId)) {
+        if (utrUsage) {
             return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
         }
 
@@ -310,7 +309,7 @@ exports.subscribe = catchAsync(async (req, res) => {
                 verified: false,
                 utr: utrNumber,
                 amount: activePlan.price
-            }, 'Subscription payment submitted. Awaiting bank confirmation.', StatusCodes.ACCEPTED);
+            }, 'Subscription payment submitted. Awaiting bank confirmation.', StatusCodes.CREATED);
 
         } else {
             const worker = await Customer.findById(userId).session(session);
@@ -371,7 +370,7 @@ exports.subscribe = catchAsync(async (req, res) => {
                 verified: false,
                 utr: utrNumber,
                 amount: activePlan.price
-            }, 'Subscription payment submitted. Awaiting bank confirmation.', StatusCodes.ACCEPTED);
+            }, 'Subscription payment submitted. Awaiting bank confirmation.', StatusCodes.CREATED);
         }
 
     } catch (error) {

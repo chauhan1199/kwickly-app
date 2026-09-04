@@ -153,6 +153,26 @@ const mapFlatToNested = (body) => {
             }
 
             update[path] = val;
+
+            // Mirror fee and GST configurations to serviceJobFee & shopOrderFee
+            if (key === 'feeMinAmount') {
+                update['serviceJobFee.minFee'] = val;
+            } else if (key === 'feeThreshold') {
+                update['serviceJobFee.threshold'] = val;
+            } else if (key === 'feePercentage') {
+                update['serviceJobFee.percentage'] = val;
+                update['serviceJobFee.percentAboveThreshold'] = val;
+                update['fees.percentAboveThreshold'] = val;
+            } else if (key === 'gstPercentage') {
+                update['serviceJobFee.gstPercent'] = val;
+                update['shopOrderFee.gstPercent'] = val;
+            } else if (key === 'feeType') {
+                const upper = String(val).toUpperCase();
+                update['serviceJobFee.mode'] = (upper === 'PERCENT' || upper === 'PERCENTAGE') ? 'PERCENTAGE'
+                    : (upper === 'FIXED' || upper === 'FLAT') ? 'FIXED' : 'TIERED';
+            } else if (key === 'feeAmount') {
+                update['serviceJobFee.fixedFee'] = val;
+            }
         }
     });
 
