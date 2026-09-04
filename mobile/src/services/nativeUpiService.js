@@ -1,6 +1,7 @@
-import { NativeModules, Platform, Linking } from 'react-native';
+import { NativeModules, Platform, Linking, NativeEventEmitter } from 'react-native';
 
 const { NativeUpiPayment } = NativeModules;
+const upiEventEmitter = NativeUpiPayment ? new NativeEventEmitter(NativeUpiPayment) : null;
 
 export const UPI_APP_PACKAGES = {
   gpay: 'com.google.android.apps.nbu.paisa.user',
@@ -54,9 +55,45 @@ export const nativeUpiService = {
   },
 
   /**
-   * Safe no-op kept for backward compatibility with older callers
+   * Retrieve the latest cached bank SMS UTR and amount from SmsReceiver
+   */
+  async getLatestSmsUtr() {
+    if (Platform.OS === 'android' && NativeUpiPayment?.getLatestSmsUtr) {
+      try {
+        return await NativeUpiPayment.getLatestSmsUtr();
+      } catch (err) {
+        console.warn('[NativeUPI] getLatestSmsUtr error:', err.message);
+        return { hasUtr: false, utr: '' };
+      }
+    }
+    return { hasUtr: false, utr: '' };
+  },
+
+  /**
+   * Clears cached SMS UTR
    */
   async clearSmsCache() {
+    if (Platform.OS === 'android' && NativeUpiPayment?.clearSmsCache) {
+      try {
+        return await NativeUpiPayment.clearSmsCache();
+      } catch (err) {}
+    }
     return true;
+  },
+
+  /**
+   * Subscribe to real-time bank SMS arrival event
+   */
+  subscribeToBankSms(callback) {
+    if (!upiEventEmitter) return () => {};
+    try {
+      const subscription = upiEventEmitter.addListener('onBankSmsReceived', callback);
+      return () => {
+        subscription.remove();
+      };
+    } catch (err) {
+      console.warn('[NativeUPI] subscribeToBankSms error:', err.message);
+      return () => {};
+    }
   }
 };

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, Modal, TextInput,
-  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator, Linking, AppState, Share
+  TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Alert, FlatList, ActivityIndicator, Linking, AppState, Share, PermissionsAndroid
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../../context/ThemeContext';
@@ -214,6 +214,19 @@ const CustomerWalletScreen = ({ navigation }) => {
     }
   };
 
+  const requestSmsPermissions = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+          PermissionsAndroid.PERMISSIONS.READ_SMS,
+        ]);
+      } catch (err) {
+        console.warn('[Permissions] SMS permission request error:', err);
+      }
+    }
+  };
+
   const handleInitiateTopup = async () => {
     const amount = Number(topupAmount);
     if (!amount || isNaN(amount) || amount < 10) {
@@ -224,6 +237,9 @@ const CustomerWalletScreen = ({ navigation }) => {
         confirmText: 'OK'
       });
     }
+
+    // Proactively request SMS permissions so incoming bank transactional SMS is auto-detected
+    await requestSmsPermissions();
     
     setIsProcessing(true);
     try {
@@ -292,13 +308,7 @@ const CustomerWalletScreen = ({ navigation }) => {
 
       console.log('[UPI] Native module result:', JSON.stringify(result));
 
-      // 1. If user returned from UPI app without paying or cancelled in UPI app
-      if (result?.status === 'CANCELLED') {
-        console.log('[UPI] User returned from UPI app. Waiting modal will auto-check webhook or allow user to cancel.');
-        return;
-      }
-
-      // 2. If the UPI app returned a real 12-digit bank RRN / UTR
+      // 1. If the UPI app returned a real 12-digit bank RRN / UTR
       const utr = (result?.approvalRefNo || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
         try {
@@ -308,6 +318,19 @@ const CustomerWalletScreen = ({ navigation }) => {
           console.warn('[UPI] Auto-verify with UTR failed:', verifyErr?.message);
         }
       }
+
+      // 2. Check native SMS cache immediately upon return
+      try {
+        const smsRes = await nativeUpiService.getLatestSmsUtr();
+        if (smsRes?.hasUtr && smsRes?.utr && /^\d{12}$/.test(smsRes.utr)) {
+          const isFresh = (Date.now() - (smsRes.timestamp || 0)) < 180000;
+          if (isFresh) {
+            console.log('[UPI] Auto-detected UTR from native SMS cache upon return:', smsRes.utr);
+            await handleManualUtrVerification(smsRes.utr);
+            return;
+          }
+        }
+      } catch (smsCacheErr) {}
 
       // 3. Auto-detect 12-digit UTR from Clipboard (if user copied it from bank app / receipt)
       try {
@@ -320,6 +343,12 @@ const CustomerWalletScreen = ({ navigation }) => {
           return;
         }
       } catch (clipErr) {}
+
+      // 4. If user returned from UPI app without paying or cancelled in UPI app
+      if (result?.status === 'CANCELLED') {
+        console.log('[UPI] User returned from UPI app. Waiting modal will auto-check webhook or allow user to cancel.');
+        return;
+      }
     } catch (err) {
       console.warn('[UPI] App launch warning:', err.message);
       setWaitingModalVisible(false);

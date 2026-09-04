@@ -8,6 +8,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../context/ThemeContext';
 import useSocket, { useSocket as useSocketNamed } from '../hooks/useSocket';
 import { walletService } from '../services/walletService';
+import { nativeUpiService } from '../services/nativeUpiService';
 import { isValidUtr } from '../utils/upiValidation';
 import { CheckCircle2, Clock, ShieldCheck, X, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react-native';
 
@@ -151,26 +152,79 @@ const UpiPaymentWaitingModal = ({
 
   resolveUseSocket({ onEvent: handleSocketEvent });
 
-  // Auto-detect 12-digit UTR from Clipboard when modal is open
+  // Automated UTR Verification Runner
+  const autoVerifyUtr = useCallback(async (detectedUtr) => {
+    if (!detectedUtr || !isValidUtr(detectedUtr) || submittingUtr) return;
+    setSubmittingUtr(true);
+    setStatusNote(`Bank UTR ${detectedUtr} detected! Auto-verifying...`);
+    try {
+      if (onSubmitManualUtr) {
+        const res = await onSubmitManualUtr(detectedUtr);
+        if (res?.verified === true && res?.status === 'COMPLETED') {
+          handleTriggerSuccess(res);
+          return;
+        }
+      }
+      if (orderId) {
+        const checkRes = await walletService.checkPaymentStatus(orderId);
+        if (checkRes?.data?.data?.status === 'COMPLETED' && checkRes?.data?.data?.verified === true) {
+          handleTriggerSuccess(checkRes.data.data);
+          return;
+        }
+      }
+      setStatusNote(`UTR ${detectedUtr} submitted. Verifying with bank...`);
+    } catch (err) {
+      console.warn('[WaitingModal] Auto-verify error:', err?.message);
+    } finally {
+      setSubmittingUtr(false);
+    }
+  }, [submittingUtr, onSubmitManualUtr, orderId, handleTriggerSuccess]);
+
+  // Real-time Bank SMS listener & cache polling
   useEffect(() => {
     if (!visible || status !== 'WAITING') return;
 
-    const checkClipboard = async () => {
+    // 1. Live SMS Event from Native SmsReceiver
+    const unsubscribeSms = nativeUpiService.subscribeToBankSms((smsData) => {
+      console.log('[WaitingModal] Received live bank SMS event:', smsData);
+      const incomingUtr = (smsData?.utr || '').trim();
+      if (incomingUtr && isValidUtr(incomingUtr)) {
+        setUtrInput(incomingUtr);
+        autoVerifyUtr(incomingUtr);
+      }
+    });
+
+    // 2. Poll Native SMS Cache and Clipboard
+    const pollSmsAndClipboard = async () => {
       try {
-        const text = await Clipboard.getString();
-        const clean = (text || '').trim();
-        const match = clean.match(/\b(\d{12})\b/);
-        if (match && match[1] && isValidUtr(match[1]) && !utrInput) {
-          setUtrInput(match[1]);
-          setStatusNote(`Detected UTR ${match[1]} from clipboard`);
+        const cached = await nativeUpiService.getLatestSmsUtr();
+        if (cached?.hasUtr && cached?.utr && isValidUtr(cached.utr)) {
+          const isRecent = (Date.now() - (cached.timestamp || 0)) < 180000;
+          if (isRecent) {
+            setUtrInput(cached.utr);
+            autoVerifyUtr(cached.utr);
+            return;
+          }
+        }
+
+        const clip = await Clipboard.getString();
+        const cleanClip = (clip || '').trim();
+        const clipMatch = cleanClip.match(/\b(\d{12})\b/);
+        if (clipMatch && clipMatch[1] && isValidUtr(clipMatch[1]) && !utrInput) {
+          setUtrInput(clipMatch[1]);
+          autoVerifyUtr(clipMatch[1]);
         }
       } catch (e) {}
     };
 
-    checkClipboard();
-    const interval = setInterval(checkClipboard, 3000);
-    return () => clearInterval(interval);
-  }, [visible, status, utrInput]);
+    pollSmsAndClipboard();
+    const interval = setInterval(pollSmsAndClipboard, 2500);
+
+    return () => {
+      unsubscribeSms();
+      clearInterval(interval);
+    };
+  }, [visible, status, autoVerifyUtr, utrInput]);
 
   const handleCancelAndClose = async () => {
     if (orderId) {
