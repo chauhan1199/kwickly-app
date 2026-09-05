@@ -212,7 +212,7 @@ const ShopScreen = ({ navigation }) => {
   const styles = createStyles(theme, isDarkMode);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
       {/* Unified App Bar inside a purple gradient */}
@@ -410,7 +410,7 @@ const ShopScreen = ({ navigation }) => {
           <View style={{ height: 40 }} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -420,7 +420,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   headerGradient: {
-    paddingBottom: 40,
+    paddingBottom: 30,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     position: 'relative',
@@ -446,11 +446,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   searchOverlapBox: {
     paddingHorizontal: 16,
-    marginTop: -24,
+    marginTop: -22,
     zIndex: 10,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 110,
     paddingTop: 16,
   },
   chipsScroll: {

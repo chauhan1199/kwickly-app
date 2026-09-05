@@ -49,15 +49,15 @@ const ProfileScreen = ({ navigation }) => {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
       {/* Unified App Bar inside a purple gradient */}
       <LinearGradient
         colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingBottom: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+        style={{ paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
       >
         {/* Dynamic background shapes */}
         <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
@@ -172,7 +172,7 @@ const ProfileScreen = ({ navigation }) => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -214,6 +214,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   content: {
     paddingHorizontal: 14,
     paddingTop: 4,
+    paddingBottom: 110,
   },
   profileCard: {
     backgroundColor: theme.colors.surface,

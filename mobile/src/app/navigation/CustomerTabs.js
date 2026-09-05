@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Home, ShoppingBag, Plus, MessageSquare, User, Wallet } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Theme from '../../constants/Theme';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -128,9 +129,28 @@ const ProfileStack = () => (
 ────────────────────────────────────────────── */
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  
+  // Safe bottom inset calculation: handles on-screen 3-button navigation, gesture bars, and custom Android ROMs
+  const windowDiff = Platform.OS === 'android' 
+    ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height)
+    : 0;
+  const bottomInset = insets.bottom > 0 
+    ? insets.bottom 
+    : (windowDiff > 20 ? windowDiff : (Platform.OS === 'android' ? 14 : 8));
 
   return (
-    <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
+    <View 
+      style={[
+        styles.tabBar, 
+        { 
+          backgroundColor: theme.colors.surface, 
+          borderTopColor: theme.colors.border,
+          paddingBottom: bottomInset,
+          height: 60 + bottomInset,
+        }
+      ]}
+    >
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
 
@@ -147,19 +167,36 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
 
         if (isCenter) {
           return (
-            <View key={index} style={styles.fabWrapper}>
-              <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
-                <LinearGradient
-                  colors={['#6C47FF', '#8B6FFF']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[styles.fab, isFocused && styles.fabActive]}
-                >
-                  <Plus size={24} color="#fff" strokeWidth={2.5} />
-                  <Text style={[styles.fabText, { color: '#fff' }]}>Book</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              key={index}
+              activeOpacity={0.85}
+              onPress={onPress}
+              style={styles.centerTabItem}
+            >
+              <LinearGradient
+                colors={['#6C47FF', '#8B6FFF']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[
+                  styles.fab,
+                  { borderColor: theme.colors.surface },
+                  isFocused && styles.fabActive,
+                ]}
+              >
+                <Plus size={24} color="#fff" strokeWidth={2.8} />
+              </LinearGradient>
+              <Text
+                style={[
+                  styles.tabLabel,
+                  {
+                    color: isFocused ? '#6C47FF' : theme.colors.textMuted,
+                    fontWeight: isFocused ? '800' : '600',
+                  },
+                ]}
+              >
+                Book
+              </Text>
+            </TouchableOpacity>
           );
         }
 
@@ -177,8 +214,16 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             onPress={onPress}
             style={[styles.tabItem, isFocused && styles.tabItemActive]}
           >
-            <Icon size={22} color={isFocused ? '#6C47FF' : theme.colors.textMuted} />
-            <Text style={[styles.tabLabel, { color: isFocused ? '#6C47FF' : theme.colors.textMuted }]}>
+            <Icon size={22} color={isFocused ? '#6C47FF' : theme.colors.textMuted} strokeWidth={isFocused ? 2.4 : 1.8} />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: isFocused ? '#6C47FF' : theme.colors.textMuted,
+                  fontWeight: isFocused ? '800' : '600',
+                },
+              ]}
+            >
               {label}
             </Text>
           </TouchableOpacity>
@@ -207,56 +252,48 @@ const CustomerTabs = () => (
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
-    height: 72,
     borderTopWidth: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    paddingTop: 6,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingVertical: 4,
+  },
+  centerTabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -16,
   },
   tabItemActive: {
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '600',
-    marginTop: 4,
-  },
-  fabWrapper: {
-    flex: 0,
-    flexBasis: 68,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    height: '100%',
-    position: 'relative',
+    marginTop: 3,
+    letterSpacing: 0.1,
   },
   fab: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 4,
-    borderColor: '#fff',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'absolute',
-    bottom: 10,
-    left: -29,
-    shadowColor: '#0e9aa7',
+    shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  fabText: {
-    color: '#001016',
-    fontSize: 9,
-    fontWeight: '800',
-    marginTop: 1,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+    marginBottom: 1,
   },
   fabActive: {
+    shadowOpacity: 0.55,
+    elevation: 9,
+    transform: [{ scale: 1.05 }],
   }
 });
 

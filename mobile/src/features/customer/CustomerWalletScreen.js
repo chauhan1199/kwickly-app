@@ -391,15 +391,15 @@ const CustomerWalletScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
       
       {/* Unified App Bar inside a purple gradient */}
       <LinearGradient
         colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+        style={{ paddingBottom: 30, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
       >
         {/* Dynamic background shapes */}
         <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
@@ -409,7 +409,7 @@ const CustomerWalletScreen = ({ navigation }) => {
       </LinearGradient>
 
       {/* Sticky Search - overlapping header */}
-      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
+      <View style={{ paddingHorizontal: 14, marginTop: -22, zIndex: 10, marginBottom: 10 }}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -418,7 +418,7 @@ const CustomerWalletScreen = ({ navigation }) => {
         />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 110 }]}>
 
         {/* Clean Balance Card */}
         <View style={styles.balanceCard}>
@@ -715,7 +715,7 @@ const CustomerWalletScreen = ({ navigation }) => {
           onSubmitManualUtr={handleManualUtrVerification}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 

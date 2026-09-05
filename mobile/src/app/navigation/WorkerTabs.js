@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, DeviceEventEmitter } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, DeviceEventEmitter, Platform, Dimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Home, MessageSquare, Wallet, Wrench, User } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -91,9 +92,27 @@ const TAB_ICONS = {
 const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  
+  const windowDiff = Platform.OS === 'android' 
+    ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height)
+    : 0;
+  const bottomInset = insets.bottom > 0 
+    ? insets.bottom 
+    : (windowDiff > 20 ? windowDiff : (Platform.OS === 'android' ? 14 : 8));
 
   return (
-    <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
+    <View 
+      style={[
+        styles.tabBar, 
+        { 
+          backgroundColor: theme.colors.surface, 
+          borderTopColor: theme.colors.border,
+          paddingBottom: bottomInset,
+          height: 60 + bottomInset,
+        }
+      ]}
+    >
       {state.routes.map((route, index) => {
         if (!MAIN_TABS.includes(route.name) && route.name !== 'Power') return null;
 
@@ -103,23 +122,26 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
         if (route.name === 'Power') {
           const isOnline = user?.isOnline || false;
           return (
-            <View key={route.key} style={styles.fabWrapper}>
-              <TouchableOpacity activeOpacity={0.8} onPress={() => {
+            <TouchableOpacity 
+              key={route.key} 
+              style={styles.centerTabItem}
+              activeOpacity={0.85} 
+              onPress={() => {
                 DeviceEventEmitter.emit('toggleDutyStatus');
-              }}>
-                <LinearGradient
-                  colors={isOnline ? ['#6C47FF', '#8B6FFF'] : ['#9CA3AF', '#D1D5DB']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[styles.fab, { borderColor: theme.colors.surface }]}
-                >
-                  <View style={{width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center'}}>
-                    <View style={{width: 2, height: 10, backgroundColor: '#fff', position: 'absolute', top: -2}} />
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
+              }}
+            >
+              <LinearGradient
+                colors={isOnline ? ['#6C47FF', '#8B6FFF'] : ['#9CA3AF', '#D1D5DB']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.fab, { borderColor: theme.colors.surface }]}
+              >
+                <View style={{width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center'}}>
+                  <View style={{width: 2, height: 8, backgroundColor: '#fff', position: 'absolute', top: -1}} />
+                </View>
+              </LinearGradient>
               <Text style={[styles.tabLabel, { color: theme.colors.textDim }]}>{isOnline ? 'Go Offline' : 'Go Online'}</Text>
-            </View>
+            </TouchableOpacity>
           );
         }
 
@@ -135,8 +157,8 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
             onPress={onPress}
             accessibilityRole="button"
           >
-            <Icon size={22} color={isFocused ? '#6C47FF' : theme.colors.textDim} strokeWidth={isFocused ? 2.5 : 2} />
-            <Text style={[styles.tabLabel, { color: isFocused ? '#6C47FF' : theme.colors.textDim }]}>
+            <Icon size={22} color={isFocused ? '#6C47FF' : theme.colors.textDim} strokeWidth={isFocused ? 2.5 : 1.8} />
+            <Text style={[styles.tabLabel, { color: isFocused ? '#6C47FF' : theme.colors.textDim, fontWeight: isFocused ? '800' : '600' }]}>
               {route.name === 'Dashboard' ? 'Home' : route.name === 'Quotes' ? 'Jobs' : route.name}
             </Text>
           </TouchableOpacity>
@@ -167,45 +189,41 @@ const WorkerTabs = () => (
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
-    height: 72,
     borderTopWidth: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    paddingTop: 6,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    position: 'relative',
+    paddingVertical: 4,
+  },
+  centerTabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -16,
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  fabWrapper: {
-    flex: 0,
-    flexBasis: 68,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    height: '100%',
-    position: 'relative',
-    marginTop: -20,
+    fontSize: 10.5,
+    fontWeight: '600',
+    marginTop: 3,
+    letterSpacing: 0.1,
   },
   fab: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 4,
-    borderColor: '#fff',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 8,
-    marginBottom: 4,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+    marginBottom: 1,
   },
 });
 

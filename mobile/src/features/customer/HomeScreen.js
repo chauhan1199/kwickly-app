@@ -287,7 +287,7 @@ const HomeScreen = ({ navigation }) => {
           colors={[PURPLE, '#8B6FFF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 16) + 16, paddingBottom: 36 }]}
+          style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 16) + 10, paddingBottom: 30 }]}
         >
           {/* Dynamic background shapes */}
           <View style={styles.blob1} />
@@ -341,7 +341,7 @@ const HomeScreen = ({ navigation }) => {
             placeholder="Search services, shops, products..."
             theme={theme}
             onFilterPress={() => navigation.navigate('Book')}
-            style={{ marginHorizontal: 16, marginTop: -26 }}
+            style={{ marginHorizontal: 16, marginTop: -22 }}
           />
         </Animated.View>
       </View>
@@ -351,7 +351,7 @@ const HomeScreen = ({ navigation }) => {
       ═══════════════════════════════════════ */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 110 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={PURPLE} />}
       >
         {/* ═══════════════════════════════════════

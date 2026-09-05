@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Home, ShoppingBag, Package, Wallet, User } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 
 // Main screens
@@ -71,8 +72,27 @@ const SettingsStack = () => (
 ────────────────────────────────────────────── */
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  
+  const windowDiff = Platform.OS === 'android' 
+    ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height)
+    : 0;
+  const bottomInset = insets.bottom > 0 
+    ? insets.bottom 
+    : (windowDiff > 20 ? windowDiff : (Platform.OS === 'android' ? 14 : 8));
+
   return (
-    <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
+    <View 
+      style={[
+        styles.tabBar, 
+        { 
+          backgroundColor: theme.colors.surface, 
+          borderTopColor: theme.colors.border,
+          paddingBottom: bottomInset,
+          height: 60 + bottomInset,
+        }
+      ]}
+    >
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label = options.tabBarLabel !== undefined ? options.tabBarLabel : route.name;
@@ -99,8 +119,16 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             onPress={onPress}
             style={[styles.tabItem, isFocused && { backgroundColor: theme.colors.primary + '10' }]}
           >
-            <Icon size={22} color={isFocused ? theme.colors.primary : theme.colors.textDim} />
-            <Text style={[styles.tabLabel, { color: isFocused ? theme.colors.primary : theme.colors.textDim }]}>
+            <Icon size={22} color={isFocused ? theme.colors.primary : theme.colors.textDim} strokeWidth={isFocused ? 2.4 : 1.8} />
+            <Text 
+              style={[
+                styles.tabLabel, 
+                { 
+                  color: isFocused ? theme.colors.primary : theme.colors.textDim,
+                  fontWeight: isFocused ? '800' : '600',
+                }
+              ]}
+            >
               {label}
             </Text>
           </TouchableOpacity>
@@ -129,21 +157,22 @@ const ShopTabs = () => (
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
-    height: 72,
     borderTopWidth: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    paddingTop: 6,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 4,
     borderRadius: 12,
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 3,
+    letterSpacing: 0.1,
   }
 });
 

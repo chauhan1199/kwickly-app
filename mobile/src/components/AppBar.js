@@ -57,7 +57,8 @@ const AppBar = ({
         styles.container,
         {
           backgroundColor: transparent ? 'transparent' : theme.colors.background,
-          paddingTop: safeTop + 8,
+          paddingTop: safeTop + 4,
+          paddingBottom: 8,
           borderBottomColor: transparent ? 'transparent' : (isDarkMode ? '#1E293B' : '#EDF2F7'),
         },
       ]}

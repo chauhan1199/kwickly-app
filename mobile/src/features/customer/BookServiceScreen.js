@@ -271,9 +271,7 @@ const BookServiceScreen = ({ navigation, route }) => {
         <View style={styles.ambientShape1} />
         <View style={styles.ambientShape2} />
 
-        <SafeAreaView style={styles.safeHeaderArea}>
-          <AppBar title="Book a Service" transparent={true} showBack={true} />
-        </SafeAreaView>
+        <AppBar title="Book a Service" transparent={true} showBack={true} />
       </LinearGradient>
 
       {/* Floating Search Bar */}
@@ -581,8 +579,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   gradientHeader: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 10,
-    paddingBottom: 38,
+    paddingBottom: 30,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     position: 'relative',
@@ -611,11 +608,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   searchBarWrapper: {
     paddingHorizontal: 14,
-    marginTop: -24,
+    marginTop: -22,
     zIndex: 10,
   },
   scrollContent: {
     paddingTop: 16,
+    paddingBottom: 110,
   },
   errorBanner: {
     marginHorizontal: 14,
