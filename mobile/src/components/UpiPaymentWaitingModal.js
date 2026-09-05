@@ -10,7 +10,7 @@ import useSocket, { useSocket as useSocketNamed } from '../hooks/useSocket';
 import { walletService } from '../services/walletService';
 import { nativeUpiService } from '../services/nativeUpiService';
 import { isValidUtr } from '../utils/upiValidation';
-import { CheckCircle2, Clock, ShieldCheck, X, ArrowRight, Copy, BellRing } from 'lucide-react-native';
+import { CheckCircle2, Clock, ShieldCheck, X, ArrowRight, Copy } from 'lucide-react-native';
 
 const TOTAL_COUNTDOWN_SECONDS = 30; // 30-second automated verification window
 const resolveUseSocket = useSocket || useSocketNamed;
@@ -45,17 +45,8 @@ const UpiPaymentWaitingModal = ({
   const [utrInput, setUtrInput] = useState('');
   const [submittingUtr, setSubmittingUtr] = useState(false);
   const [statusNote, setStatusNote] = useState('Awaiting automatic bank confirmation...');
-  const [notificationListenerEnabled, setNotificationListenerEnabled] = useState(true);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  // Check notification listener status on open
-  useEffect(() => {
-    if (!visible) return;
-    nativeUpiService.isNotificationListenerEnabled().then(enabled => {
-      setNotificationListenerEnabled(enabled);
-    }).catch(() => {});
-  }, [visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -207,22 +198,6 @@ const UpiPaymentWaitingModal = ({
     }
   }, [submittingUtr, onSubmitManualUtr, orderId, handleTriggerSuccess]);
 
-  // Subscribe to real-time bank SMS/notification events via KwicklyNotificationListener
-  useEffect(() => {
-    if (!visible || status !== 'WAITING') return;
-
-    const unsubscribe = nativeUpiService.subscribeToBankSms((event) => {
-      console.log('[WaitingModal] Received incoming bank notification:', event);
-      if (event?.utr && isValidUtr(event.utr)) {
-        setUtrInput(event.utr);
-        autoVerifyUtr(event.utr);
-      }
-    });
-
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    };
-  }, [visible, status, autoVerifyUtr]);
 
   // One-tap Auto-Paste & Verify handler
   const handlePasteAndVerify = useCallback(async () => {
@@ -410,19 +385,6 @@ const UpiPaymentWaitingModal = ({
                 )}
               </View>
 
-              {/* Optional Notification Access helper banner */}
-              {!notificationListenerEnabled && (
-                <TouchableOpacity
-                  style={styles.notifAccessBanner}
-                  onPress={() => nativeUpiService.openNotificationListenerSettings()}
-                  activeOpacity={0.8}
-                >
-                  <BellRing size={14} color="#6C47FF" />
-                  <Text style={styles.notifAccessText}>
-                    ⚡ 1-Tap Auto-Detect Bank SMS: Tap to enable
-                  </Text>
-                </TouchableOpacity>
-              )}
 
               {/* Always-Visible 12-Digit UTR Input Box */}
               <View style={styles.manualUtrBox}>
