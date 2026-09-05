@@ -382,6 +382,21 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                         await delCache(`session:${req.user._id}`);
                         await delCache('admin_dashboard_stats');
 
+                        // In-app & push notification
+                        const { notifyUser } = require('../../helpers/notifyUser.helper');
+                        await notifyUser({
+                            userId: req.user._id,
+                            title: 'Wallet Topped Up ✓',
+                            message: `₹${creditAmount} has been added to your Kwickly Wallet instantly. (UTR: ${finalPaymentId}) New Balance: ₹${newBalance}`,
+                            type: 'WALLET_CREDIT',
+                            action: 'WALLET_CREDIT',
+                            entityType: 'WALLET',
+                            entityId: walletTxn._id,
+                            referenceId: walletTxn._id,
+                            referenceModel: 'WalletTxn',
+                            targetRole: req.user?.role || 'CUSTOMER'
+                        });
+
                         // Emit real-time socket events so the waiting modal detects success
                         const { emitToUser } = require('../../helpers/socket.helper');
                         emitToUser(String(req.user._id), 'WALLET_TOPUP_APPROVED', {

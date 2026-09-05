@@ -278,9 +278,18 @@ const ShopWalletScreen = ({ navigation }) => {
 
       if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
         await handleManualUtrSubmission(result.approvalRefNo || result.txnId);
+        return;
+      }
+      if (result?.status === 'CANCELLED') {
+        console.log('[Shop UPI] User cancelled without paying. Closing modal.');
+        setWaitingModalVisible(false);
+        setUpiModalVisible(false);
+        return;
       }
     } catch (e) {
       console.warn('[Shop UPI] App launch:', e.message);
+      setWaitingModalVisible(false);
+      setUpiModalVisible(false);
     }
   };
 

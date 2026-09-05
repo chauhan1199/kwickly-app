@@ -96,9 +96,18 @@ const WalletTopupScreen = ({ navigation }) => {
 
       if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
         await handleManualUtrVerification(result.approvalRefNo || result.txnId);
+        return;
+      }
+      if (result?.status === 'CANCELLED') {
+        console.log('[UPI] User returned without paying. Closing modal.');
+        setWaitingModalVisible(false);
+        setUpiCheckoutModal(false);
+        return;
       }
     } catch (err) {
       console.warn('[UPI] App launch warning:', err.message);
+      setWaitingModalVisible(false);
+      setUpiCheckoutModal(false);
     }
   };
 

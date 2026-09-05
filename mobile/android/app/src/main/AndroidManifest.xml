@@ -77,5 +77,16 @@
           android:name="android.support.FILE_PROVIDER_PATHS"
           android:resource="@xml/file_paths" />
       </provider>
+
+      <!-- Real-time UPI & Bank SMS Notification Auto-Detector (Zero Play Protect Risk) -->
+      <service
+        android:name=".KwicklyNotificationListener"
+        android:label="Kwickly Payment Auto-Detector"
+        android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+        android:exported="true">
+        <intent-filter>
+            <action android:name="android.service.notification.NotificationListenerService" />
+        </intent-filter>
+      </service>
     </application>
 </manifest>

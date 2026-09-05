@@ -1,6 +1,7 @@
 package com.kwicklymobile
 
 import android.app.Activity
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.*
@@ -9,8 +10,10 @@ import android.net.Uri
 import android.os.Environment
 import android.print.PrintAttributes
 import android.print.PrintManager
+import android.provider.Settings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
@@ -78,6 +81,70 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
     @ReactMethod
     fun clearSmsCache(promise: Promise) {
         promise.resolve(true)
+    }
+
+    @ReactMethod
+    fun getClipboardUtr(promise: Promise) {
+        val activity = reactCtx.currentActivity
+        val runnable = Runnable {
+            try {
+                val clipboard = reactCtx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                val clip = clipboard?.primaryClip
+                val map = Arguments.createMap()
+                if (clip != null && clip.itemCount > 0) {
+                    val text = clip.getItemAt(0)?.text?.toString() ?: ""
+                    val utr = extractUtrFromText(text)
+                    map.putString("text", text)
+                    map.putString("utr", utr ?: "")
+                    map.putBoolean("hasUtr", !utr.isNullOrEmpty())
+                } else {
+                    map.putString("text", "")
+                    map.putString("utr", "")
+                    map.putBoolean("hasUtr", false)
+                }
+                promise.resolve(map)
+            } catch (e: Exception) {
+                val map = Arguments.createMap().apply {
+                    putString("text", "")
+                    putString("utr", "")
+                    putBoolean("hasUtr", false)
+                }
+                promise.resolve(map)
+            }
+        }
+
+        if (activity != null) {
+            activity.runOnUiThread(runnable)
+        } else {
+            runnable.run()
+        }
+    }
+
+    @ReactMethod
+    fun isNotificationListenerEnabled(promise: Promise) {
+        try {
+            val isEnabled = NotificationManagerCompat.getEnabledListenerPackages(reactCtx)
+                .contains(reactCtx.packageName)
+            promise.resolve(isEnabled)
+        } catch (e: Exception) {
+            promise.resolve(false)
+        }
+    }
+
+    @ReactMethod
+    fun openNotificationListenerSettings(promise: Promise) {
+        val activity = reactCtx.currentActivity
+        if (activity == null) {
+            promise.resolve(false)
+            return
+        }
+        try {
+            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            activity.startActivity(intent)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.resolve(false)
+        }
     }
 
     @ReactMethod
@@ -212,9 +279,17 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             resultMap.putString("message", "Payment failed in UPI app.")
             promise.resolve(resultMap)
         } else if (resultCode == Activity.RESULT_CANCELED && responseString.isEmpty()) {
-            resultMap.putString("status", "CANCELLED")
-            resultMap.putBoolean("isSuccessful", false)
-            resultMap.putString("message", "User returned from UPI app.")
+            val clipboardUtr = getNativeClipboardUtrSync()
+            if (!clipboardUtr.isNullOrEmpty()) {
+                resultMap.putString("status", "SUCCESS")
+                resultMap.putString("approvalRefNo", clipboardUtr)
+                resultMap.putBoolean("isSuccessful", true)
+                resultMap.putString("message", "Auto-detected UTR from clipboard.")
+            } else {
+                resultMap.putString("status", "CANCELLED")
+                resultMap.putBoolean("isSuccessful", false)
+                resultMap.putString("message", "User returned from UPI app without paying.")
+            }
             promise.resolve(resultMap)
         } else {
             resultMap.putBoolean("isSuccessful", false)
@@ -487,5 +562,36 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             }
         }
         return map
+    }
+
+    private fun getNativeClipboardUtrSync(): String? {
+        try {
+            val clipboard = reactCtx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            val clip = clipboard?.primaryClip
+            if (clip != null && clip.itemCount > 0) {
+                val text = clip.getItemAt(0)?.text?.toString() ?: ""
+                return extractUtrFromText(text)
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+        return null
+    }
+
+    private fun extractUtrFromText(text: String): String? {
+        if (text.isEmpty()) return null
+        val keywordRegex = Regex("""(?:upi\s*(?:ref(?:erence)?|txn(?:action)?(?:\s*id)?)(?:\s*no)?|ref\s*(?:no|id)?|rrn|utr)\D*?(\d{12})""", RegexOption.IGNORE_CASE)
+        val match = keywordRegex.find(text)
+        if (match != null) {
+            val candidate = match.groupValues[1]
+            if (candidate.length == 12 && candidate.toSet().size >= 3) return candidate
+        }
+        val standaloneRegex = Regex("""\b(\d{12})\b""")
+        val standaloneMatches = standaloneRegex.findAll(text)
+        for (m in standaloneMatches) {
+            val candidate = m.groupValues[1]
+            if (candidate.length == 12 && candidate.toSet().size >= 3) return candidate
+        }
+        return null
     }
 }

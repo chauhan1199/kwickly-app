@@ -95,5 +95,47 @@ export const nativeUpiService = {
       console.warn('[NativeUPI] subscribeToBankSms error:', err.message);
       return () => {};
     }
+  },
+
+  /**
+   * Native window-focus aware clipboard reader with automatic 12-digit UTR extraction
+   */
+  async getClipboardUtr() {
+    if (Platform.OS === 'android' && NativeUpiPayment?.getClipboardUtr) {
+      try {
+        return await NativeUpiPayment.getClipboardUtr();
+      } catch (err) {
+        console.warn('[NativeUPI] getClipboardUtr error:', err.message);
+      }
+    }
+    return { hasUtr: false, utr: '', text: '' };
+  },
+
+  /**
+   * Check if Kwickly notification listener service is enabled by user
+   */
+  async isNotificationListenerEnabled() {
+    if (Platform.OS === 'android' && NativeUpiPayment?.isNotificationListenerEnabled) {
+      try {
+        return await NativeUpiPayment.isNotificationListenerEnabled();
+      } catch (err) {
+        return false;
+      }
+    }
+    return false;
+  },
+
+  /**
+   * Open Android system settings to enable notification access for Kwickly
+   */
+  async openNotificationListenerSettings() {
+    if (Platform.OS === 'android' && NativeUpiPayment?.openNotificationListenerSettings) {
+      try {
+        return await NativeUpiPayment.openNotificationListenerSettings();
+      } catch (err) {
+        return false;
+      }
+    }
+    return false;
   }
 };

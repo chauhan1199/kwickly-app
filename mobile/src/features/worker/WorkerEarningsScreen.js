@@ -275,9 +275,18 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
       if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
         await handleManualUtrSubmission(result.approvalRefNo || result.txnId);
+        return;
+      }
+      if (result?.status === 'CANCELLED') {
+        console.log('[Worker UPI] User cancelled without paying. Closing modal.');
+        setWaitingModalVisible(false);
+        setUpiPaymentModalVisible(false);
+        return;
       }
     } catch (e) {
       console.warn('[Worker UPI] App launch:', e.message);
+      setWaitingModalVisible(false);
+      setUpiPaymentModalVisible(false);
     }
   };
 

@@ -318,19 +318,26 @@ const CustomerWalletScreen = ({ navigation }) => {
 
       // 3. Auto-detect 12-digit UTR from Clipboard (if user copied it from bank app / receipt)
       try {
-        const clipContent = await Clipboard.getString();
-        const cleanClip = (clipContent || '').trim();
-        const utrMatch = cleanClip.match(/\b(\d{12})\b/);
-        if (utrMatch && utrMatch[1]) {
-          console.log('[UPI] Auto-detected UTR from clipboard:', utrMatch[1]);
-          await handleManualUtrVerification(utrMatch[1]);
+        const nativeClip = await nativeUpiService.getClipboardUtr();
+        let clipUtr = (nativeClip?.hasUtr && nativeClip?.utr) ? nativeClip.utr : null;
+        if (!clipUtr) {
+          const clipContent = await Clipboard.getString();
+          const cleanClip = (clipContent || '').trim();
+          const utrMatch = cleanClip.match(/\b(\d{12})\b/);
+          if (utrMatch && utrMatch[1]) clipUtr = utrMatch[1];
+        }
+        if (clipUtr && /^\d{12}$/.test(clipUtr)) {
+          console.log('[UPI] Auto-detected UTR from clipboard upon return:', clipUtr);
+          await handleManualUtrVerification(clipUtr);
           return;
         }
       } catch (clipErr) {}
 
       // 4. If user returned from UPI app without paying or cancelled in UPI app
       if (result?.status === 'CANCELLED') {
-        console.log('[UPI] User returned from UPI app. Waiting modal will auto-check webhook or allow user to cancel.');
+        console.log('[UPI] User returned from UPI app without paying. Closing modal immediately.');
+        setWaitingModalVisible(false);
+        setUpiCheckoutModal(false);
         return;
       }
     } catch (err) {
