@@ -295,48 +295,36 @@ const CustomerWalletScreen = ({ navigation }) => {
       const utr = (result?.approvalRefNo || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
         try {
-          await handleManualUtrVerification(utr);
-          await handlePaymentSuccess();
-          showAlert({
-            title: 'Payment Successful! 🎉',
-            message: `₹${upiOrderData.amount} has been added to your wallet. UTR: ${utr}`,
-            type: 'success',
-            confirmText: 'Great!'
-          });
-          return;
+          const verifyData = await handleManualUtrVerification(utr);
+          if (verifyData?.verified === true || verifyData?.status === 'COMPLETED') {
+            await handlePaymentSuccess();
+            showAlert({
+              title: 'Payment Successful! 🎉',
+              message: `₹${upiOrderData.amount} has been added to your wallet. UTR: ${utr}`,
+              type: 'success',
+              confirmText: 'Great!'
+            });
+            return;
+          } else {
+            setWaitingModalVisible(false);
+            setUpiCheckoutModal(false);
+            showAlert({
+              title: 'Verification In Progress',
+              message: `UTR ${utr} submitted. Your wallet will update once confirmed by the bank.`,
+              type: 'info',
+              confirmText: 'OK'
+            });
+            return;
+          }
         } catch (verifyErr) {
           console.warn('[UPI] Auto-verify with UTR failed:', verifyErr?.message);
         }
       }
 
-      // 2. Auto-detect 12-digit UTR from Clipboard (if user copied it from bank app / receipt / SMS)
-      try {
-        const nativeClip = await nativeUpiService.getClipboardUtr();
-        let clipUtr = (nativeClip?.hasUtr && nativeClip?.utr) ? nativeClip.utr : null;
-        if (!clipUtr) {
-          const clipContent = await Clipboard.getString();
-          const cleanClip = (clipContent || '').trim();
-          const utrMatch = cleanClip.match(/\b(\d{12})\b/);
-          if (utrMatch && utrMatch[1]) clipUtr = utrMatch[1];
-        }
-        if (clipUtr && /^\d{12}$/.test(clipUtr)) {
-          console.log('[UPI] Auto-detected UTR from clipboard upon return:', clipUtr);
-          await handleManualUtrVerification(clipUtr);
-          await handlePaymentSuccess();
-          showAlert({
-            title: 'Payment Successful! 🎉',
-            message: `₹${upiOrderData.amount} has been added to your wallet. UTR: ${clipUtr}`,
-            type: 'success',
-            confirmText: 'Great!'
-          });
-          return;
-        }
-      } catch (clipErr) {}
-
-      // 3. User returned from UPI app without auto-detected UTR:
+      // 2. User returned from UPI app without intent UTR:
       // Open confirmation modal ("Did you complete the payment?"):
       // - "✕ No, I Cancelled / Didn't Pay": Closes immediately with zero delay & cancels order
-      // - "✓ Yes, I Completed Payment": Allows entering / auto-pasting the 12-digit UTR
+      // - "✓ Yes, I Completed Payment": Allows entering / pasting the fresh 12-digit UTR
       setWaitingModalVisible(true);
     } catch (err) {
       console.warn('[UPI] App launch notice:', err?.message);

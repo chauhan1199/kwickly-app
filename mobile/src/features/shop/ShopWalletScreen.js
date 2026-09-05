@@ -278,28 +278,17 @@ const ShopWalletScreen = ({ navigation }) => {
       // 1. If intent returned UTR
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
-        await handleManualUtrSubmission(utr);
+        const subRes = await handleManualUtrSubmission(utr);
+        if (subRes?.verified === true || subRes?.status === 'COMPLETED') {
+          Alert.alert('Payment Successful', `₹${waitingContext.amount} has been added to your wallet.`);
+        } else {
+          Alert.alert('Verification In Progress', `UTR ${utr} submitted. Your wallet will update once confirmed by the bank.`);
+        }
+        fetchWalletData();
         return;
       }
 
-      // 2. Auto-detect 12-digit UTR from Clipboard
-      try {
-        const nativeClip = await nativeUpiService.getClipboardUtr();
-        let clipUtr = (nativeClip?.hasUtr && nativeClip?.utr) ? nativeClip.utr : null;
-        if (!clipUtr) {
-          const clipContent = await Clipboard.getString();
-          const cleanClip = (clipContent || '').trim();
-          const utrMatch = cleanClip.match(/\b(\d{12})\b/);
-          if (utrMatch && utrMatch[1]) clipUtr = utrMatch[1];
-        }
-        if (clipUtr && /^\d{12}$/.test(clipUtr)) {
-          console.log('[Shop UPI] Auto-detected UTR from clipboard upon return:', clipUtr);
-          await handleManualUtrSubmission(clipUtr);
-          return;
-        }
-      } catch (clipErr) {}
-
-      // 3. Open waiting modal with confirmation step
+      // Open waiting modal with confirmation step
       setWaitingModalVisible(true);
     } catch (e) {
       console.warn('[Shop UPI] App launch:', e.message);
@@ -579,27 +568,17 @@ const ShopWalletScreen = ({ navigation }) => {
       // 1. Intent UTR check
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
-        await handleManualUtrSubmission(utr);
+        const subRes = await handleManualUtrSubmission(utr);
+        if (subRes?.status === 'ACTIVE' || subRes?.verified === true || subRes?.status === 'COMPLETED') {
+          Alert.alert('Subscription Activated', 'Your subscription has been activated successfully!');
+        } else {
+          Alert.alert('Verification In Progress', `UTR ${utr} submitted for subscription verification.`);
+        }
+        fetchSubscriptionData();
         return;
       }
 
-      // 2. Clipboard UTR check
-      try {
-        const nativeClip = await nativeUpiService.getClipboardUtr();
-        let clipUtr = (nativeClip?.hasUtr && nativeClip?.utr) ? nativeClip.utr : null;
-        if (!clipUtr) {
-          const clipContent = await Clipboard.getString();
-          const cleanClip = (clipContent || '').trim();
-          const utrMatch = cleanClip.match(/\b(\d{12})\b/);
-          if (utrMatch && utrMatch[1]) clipUtr = utrMatch[1];
-        }
-        if (clipUtr && /^\d{12}$/.test(clipUtr)) {
-          await handleManualUtrSubmission(clipUtr);
-          return;
-        }
-      } catch (clipErr) {}
-
-      // 3. Open waiting modal with confirmation step
+      // Open waiting modal with confirmation step
       setWaitingModalVisible(true);
     } catch (e) {
       console.warn('[Shop Sub UPI] App launch:', e.message);

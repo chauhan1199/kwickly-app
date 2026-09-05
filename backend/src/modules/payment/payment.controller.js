@@ -297,14 +297,23 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 }, `Top-up of ₹${creditAmount} verified and credited to your wallet.`);
             }
 
-            // ─── Determine if we should auto-credit or wait for webhook ─────
-            // When no external UPI provider is configured, we are in "direct UPI"
-            // mode — there is no webhook that will ever fire, so the valid UTR
-            // submission itself IS the proof of payment. Credit immediately.
-            const { isProviderConfigured } = require('../../services/upiProvider.service');
-            const shouldAutoCredit = !isProviderConfigured();
+            // ─── Verify against genuine Bank Credit received via SMS / Webhook ─────
+            const BankCredit = require('./bankCredit.model');
+            const bankCredit = await BankCredit.findOne({
+                utr: finalPaymentId,
+                amount: creditAmount,
+                isClaimed: false
+            }).session(session);
 
-            if (shouldAutoCredit) {
+            const isVerifiedByBank = Boolean(bankCredit);
+
+            if (isVerifiedByBank) {
+                // Real deposit confirmed by bank!
+                bankCredit.isClaimed = true;
+                bankCredit.claimedBy = req.user._id;
+                bankCredit.claimedAt = new Date();
+                await bankCredit.save(sessOpts);
+
                 // Credit the user's wallet balance (role-aware: Shop vs Customer/Worker)
                 let newBalance;
                 if (req.user.role === 'SHOP') {
@@ -342,7 +351,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     walletTxn.razorpayPaymentId = finalPaymentId;
                     walletTxn.balance = newBalance;
                     walletTxn.verifiedAt = new Date();
-                    walletTxn.description = `Wallet Top-up via Direct UPI (Verified)`;
+                    walletTxn.description = `Wallet Top-up via Direct UPI (Bank Verified)`;
                     await walletTxn.save(sessOpts);
                 } else {
                     walletTxn = await WalletTxn.create([{
@@ -354,7 +363,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                         razorpayOrderId: orderRef,
                         razorpayPaymentId: finalPaymentId,
                         verifiedAt: new Date(),
-                        description: `Wallet Top-up via Direct UPI (Verified)`
+                        description: `Wallet Top-up via Direct UPI (Bank Verified)`
                     }], sessOpts).then(arr => arr[0]);
                 }
 
@@ -367,7 +376,6 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 // Fire-and-forget async tasks (after transaction committed)
                 setImmediate(async () => {
                     try {
-                        // Credit admin treasury
                         if (typeof creditAdminTreasury === 'function') {
                             await creditAdminTreasury({
                                 amount: creditAmount,
@@ -387,7 +395,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                         await notifyUser({
                             userId: req.user._id,
                             title: 'Wallet Topped Up ✓',
-                            message: `₹${creditAmount} has been added to your Kwickly Wallet instantly. (UTR: ${finalPaymentId}) New Balance: ₹${newBalance}`,
+                            message: `₹${creditAmount} has been verified and added to your Kwickly Wallet. (UTR: ${finalPaymentId}) New Balance: ₹${newBalance}`,
                             type: 'WALLET_CREDIT',
                             action: 'WALLET_CREDIT',
                             entityType: 'WALLET',
@@ -419,7 +427,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     }
                 });
 
-                logger.info(`[VerifyPayment] ✓ Auto-credited ₹${creditAmount} to ${req.user?.role || 'user'} ${req.user._id} — UTR=${finalPaymentId}, newBalance=${newBalance}`);
+                logger.info(`[VerifyPayment] ✓ Verified by Bank and credited ₹${creditAmount} to ${req.user?.role || 'user'} ${req.user._id} — UTR=${finalPaymentId}, newBalance=${newBalance}`);
 
                 return successResponse(res, {
                     paymentId: payment._id,
@@ -428,7 +436,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     utr: finalPaymentId,
                     amount: creditAmount,
                     newBalance
-                }, `₹${creditAmount} has been added to your Kwickly Wallet!`);
+                }, `₹${creditAmount} verified by bank and credited to your Kwickly Wallet!`);
             }
 
             // ── WEBHOOK MODE: Provider is configured → create PENDING and wait ──
@@ -575,6 +583,24 @@ exports.handleWebhook = async (req, res) => {
             payload.isSuccess = true;
             payload.purpose = payload.purpose || 'wallet_topup';
             logger.info(`[Webhook] Auto-parsed SMS: Amount=₹${payload.amount}, UTR=${payload.utr}`);
+
+            if (payload.utr && payload.amount) {
+                const BankCredit = require('./bankCredit.model');
+                BankCredit.findOneAndUpdate(
+                    { utr: payload.utr },
+                    {
+                        $setOnInsert: {
+                            utr: payload.utr,
+                            amount: Number(payload.amount),
+                            rawMessage: smsText || JSON.stringify(payload),
+                            source: 'BANK_SMS',
+                            receivedAt: new Date(),
+                            isClaimed: false
+                        }
+                    },
+                    { upsert: true }
+                ).catch(err => logger.error(`[Webhook] BankCredit upsert error: ${err.message}`));
+            }
         }
     }
 

@@ -96,30 +96,22 @@ const WalletTopupScreen = ({ navigation }) => {
       // 1. If the UPI app returned a real 12-digit bank RRN / UTR
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
-        await handleManualUtrVerification(utr);
-        await handlePaymentSuccess();
-        return;
-      }
-
-      // 2. Auto-detect 12-digit UTR from Clipboard
-      try {
-        const nativeClip = await nativeUpiService.getClipboardUtr();
-        let clipUtr = (nativeClip?.hasUtr && nativeClip?.utr) ? nativeClip.utr : null;
-        if (!clipUtr) {
-          const clipContent = await Clipboard.getString();
-          const cleanClip = (clipContent || '').trim();
-          const utrMatch = cleanClip.match(/\b(\d{12})\b/);
-          if (utrMatch && utrMatch[1]) clipUtr = utrMatch[1];
-        }
-        if (clipUtr && /^\d{12}$/.test(clipUtr)) {
-          console.log('[UPI] Auto-detected UTR from clipboard upon return:', clipUtr);
-          await handleManualUtrVerification(clipUtr);
+        const verifyRes = await handleManualUtrVerification(utr);
+        if (verifyRes?.verified === true || verifyRes?.status === 'COMPLETED') {
           await handlePaymentSuccess();
           return;
+        } else {
+          Alert.alert(
+            'Verification In Progress',
+            `UTR ${utr} submitted. Your wallet will update once confirmed by the bank.`
+          );
+          setWaitingModalVisible(false);
+          setUpiCheckoutModal(false);
+          return;
         }
-      } catch (clipErr) {}
+      }
 
-      // 3. User returned from UPI app without auto-detected UTR:
+      // 2. User returned from UPI app without intent UTR:
       // Open confirmation modal ("Did you complete the payment?")
       setWaitingModalVisible(true);
     } catch (err) {

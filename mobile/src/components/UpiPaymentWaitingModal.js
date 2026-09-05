@@ -14,6 +14,9 @@ import { CheckCircle2, Clock, ShieldCheck, X, ArrowRight, Copy, MessageSquare, A
 
 const resolveUseSocket = useSocket || useSocketNamed;
 
+// Track UTRs submitted in this session to prevent re-submitting or pre-filling stale numbers
+const deviceUsedUtrs = new Set();
+
 /**
  * UpiPaymentWaitingModal
  * Professional 2-stage UPI confirmation & instant verification modal:
@@ -138,6 +141,15 @@ const UpiPaymentWaitingModal = ({
       return;
     }
 
+    if (deviceUsedUtrs.has(clean)) {
+      Alert.alert(
+        'Already Used UTR',
+        `UTR ${clean} was already submitted in this session. Please check your bank SMS for the new 12-digit reference.`
+      );
+      return;
+    }
+
+    deviceUsedUtrs.add(clean);
     setSubmittingUtr(true);
     setStatusNote(`Verifying UTR ${clean} with bank...`);
     try {
@@ -186,6 +198,13 @@ const UpiPaymentWaitingModal = ({
       }
 
       if (detected && isValidUtr(detected)) {
+        if (deviceUsedUtrs.has(detected)) {
+          Alert.alert(
+            'Already Used UTR',
+            `UTR ${detected} in your clipboard was already used for a previous transaction. Please copy the new 12-digit UTR from your bank SMS.`
+          );
+          return;
+        }
         setUtrInput(detected);
         await executeVerifyUtr(detected);
       } else {
@@ -213,34 +232,6 @@ const UpiPaymentWaitingModal = ({
       Alert.alert('SMS App', 'Please open your Messages app from your home screen and copy the 12-digit UPI Ref.');
     }
   };
-
-  // Continuous clipboard auto-polling while on ENTER_UTR step
-  useEffect(() => {
-    if (!visible || step !== 'ENTER_UTR') return;
-
-    const pollClipboard = async () => {
-      try {
-        const nativeRes = await nativeUpiService.getClipboardUtr();
-        let detected = (nativeRes?.hasUtr && nativeRes?.utr) ? nativeRes.utr : null;
-        if (!detected && nativeRes?.text) {
-          detected = extractUtrFromText(nativeRes.text);
-        }
-        if (!detected) {
-          const clip = await Clipboard.getString();
-          detected = extractUtrFromText(clip);
-        }
-        if (detected && !utrInput && !submittingUtr) {
-          console.log('[WaitingModal] Auto-detected UTR from clipboard:', detected);
-          setUtrInput(detected);
-        }
-      } catch (e) {}
-    };
-
-    pollClipboard();
-    const interval = setInterval(pollClipboard, 1500);
-
-    return () => clearInterval(interval);
-  }, [visible, step, extractUtrFromText, utrInput, submittingUtr]);
 
   // User explicitly cancels or says "No, Cancelled"
   const handleCancelAndClose = async () => {

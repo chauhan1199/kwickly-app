@@ -191,12 +191,21 @@ exports.topupWallet = catchAsync(async (req, res) => {
                 }, `Top-up of ₹${amount} has been verified and credited to your wallet.`, StatusCodes.CREATED);
             }
 
-            // Check if direct UPI auto-credit mode is active for shop balance or subscription purchases
-            const { isProviderConfigured } = require('../../services/upiProvider.service');
-            const isShopOrWorkerPlan = Boolean(plan || user.role === 'SHOP' || user.role === 'SHOP_OWNER');
-            const shouldAutoCredit = !isProviderConfigured() && isShopOrWorkerPlan;
+            // Check if verified by genuine Bank Credit received via SMS / Webhook
+            const BankCredit = require('../payment/bankCredit.model');
+            const bankCredit = await BankCredit.findOne({
+                utr: utrNumber,
+                amount,
+                isClaimed: false
+            });
+
+            const shouldAutoCredit = Boolean(bankCredit);
 
             if (shouldAutoCredit) {
+                bankCredit.isClaimed = true;
+                bankCredit.claimedBy = user._id;
+                bankCredit.claimedAt = new Date();
+                await bankCredit.save();
                 let newBalance = currentBalance;
                 if (plan) {
                     const days = plan?.durationDays || 30;
