@@ -280,12 +280,7 @@ const ShopWalletScreen = ({ navigation }) => {
         await handleManualUtrSubmission(result.approvalRefNo || result.txnId);
         return;
       }
-      if (result?.status === 'CANCELLED') {
-        console.log('[Shop UPI] User cancelled without paying. Closing modal.');
-        setWaitingModalVisible(false);
-        setUpiModalVisible(false);
-        return;
-      }
+      console.log('[Shop UPI] Returned from UPI app. Waiting modal remains active for confirmation.');
     } catch (e) {
       console.warn('[Shop UPI] App launch:', e.message);
       setWaitingModalVisible(false);

@@ -297,26 +297,14 @@ const CustomerWalletScreen = ({ navigation }) => {
       if (utr && /^\d{12}$/.test(utr)) {
         try {
           await handleManualUtrVerification(utr);
+          await handlePaymentSuccess();
           return;
         } catch (verifyErr) {
           console.warn('[UPI] Auto-verify with UTR failed:', verifyErr?.message);
         }
       }
 
-      // 2. Check native SMS cache immediately upon return
-      try {
-        const smsRes = await nativeUpiService.getLatestSmsUtr();
-        if (smsRes?.hasUtr && smsRes?.utr && /^\d{12}$/.test(smsRes.utr)) {
-          const isFresh = (Date.now() - (smsRes.timestamp || 0)) < 180000;
-          if (isFresh) {
-            console.log('[UPI] Auto-detected UTR from native SMS cache upon return:', smsRes.utr);
-            await handleManualUtrVerification(smsRes.utr);
-            return;
-          }
-        }
-      } catch (smsCacheErr) {}
-
-      // 3. Auto-detect 12-digit UTR from Clipboard (if user copied it from bank app / receipt)
+      // 2. Auto-detect 12-digit UTR from Clipboard (if user copied it from bank app / receipt / SMS)
       try {
         const nativeClip = await nativeUpiService.getClipboardUtr();
         let clipUtr = (nativeClip?.hasUtr && nativeClip?.utr) ? nativeClip.utr : null;
@@ -329,17 +317,14 @@ const CustomerWalletScreen = ({ navigation }) => {
         if (clipUtr && /^\d{12}$/.test(clipUtr)) {
           console.log('[UPI] Auto-detected UTR from clipboard upon return:', clipUtr);
           await handleManualUtrVerification(clipUtr);
+          await handlePaymentSuccess();
           return;
         }
       } catch (clipErr) {}
 
-      // 4. If user returned from UPI app without paying or cancelled in UPI app
-      if (result?.status === 'CANCELLED') {
-        console.log('[UPI] User returned from UPI app without paying. Closing modal immediately.');
-        setWaitingModalVisible(false);
-        setUpiCheckoutModal(false);
-        return;
-      }
+      // 3. Keep the waiting modal open so the user can easily verify via SMS clipboard,
+      // enter/paste the 12-digit UTR, or tap "Didn't pay? Cancel" if they cancelled.
+      console.log('[UPI] Returned from UPI app. Waiting modal remains active for confirmation.');
     } catch (err) {
       console.warn('[UPI] App launch warning:', err.message);
       setWaitingModalVisible(false);

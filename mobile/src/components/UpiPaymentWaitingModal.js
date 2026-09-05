@@ -206,7 +206,12 @@ const UpiPaymentWaitingModal = ({
       const nativeRes = await nativeUpiService.getClipboardUtr();
       let detected = (nativeRes?.hasUtr && nativeRes?.utr) ? nativeRes.utr : null;
 
-      // 2. Fallback to JS Clipboard
+      // 2. Also pass raw native text through our regex if native didn't extract directly
+      if (!detected && nativeRes?.text) {
+        detected = extractUtrFromText(nativeRes.text);
+      }
+
+      // 3. Fallback to JS Clipboard
       if (!detected) {
         const text = await Clipboard.getString();
         detected = extractUtrFromText(text);
@@ -218,7 +223,7 @@ const UpiPaymentWaitingModal = ({
       } else {
         Alert.alert(
           'No 12-digit UTR on Clipboard',
-          'Please copy the 12-digit UPI Reference / UTR Number from your bank SMS or payment app notification, then tap Paste again, or enter the 12 digits directly below.'
+          'Please copy your bank SMS or the 12-digit UPI Reference / UTR Number, then tap Paste again, or enter the 12 digits directly below.'
         );
       }
     } catch (e) {
@@ -234,6 +239,9 @@ const UpiPaymentWaitingModal = ({
       try {
         const nativeRes = await nativeUpiService.getClipboardUtr();
         let detected = (nativeRes?.hasUtr && nativeRes?.utr) ? nativeRes.utr : null;
+        if (!detected && nativeRes?.text) {
+          detected = extractUtrFromText(nativeRes.text);
+        }
         if (!detected) {
           const clip = await Clipboard.getString();
           detected = extractUtrFromText(clip);

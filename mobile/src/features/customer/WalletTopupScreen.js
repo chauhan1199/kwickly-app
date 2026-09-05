@@ -96,14 +96,10 @@ const WalletTopupScreen = ({ navigation }) => {
 
       if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
         await handleManualUtrVerification(result.approvalRefNo || result.txnId);
+        await handlePaymentSuccess();
         return;
       }
-      if (result?.status === 'CANCELLED') {
-        console.log('[UPI] User returned without paying. Closing modal.');
-        setWaitingModalVisible(false);
-        setUpiCheckoutModal(false);
-        return;
-      }
+      console.log('[UPI] Returned from UPI app. Waiting modal remains active for confirmation.');
     } catch (err) {
       console.warn('[UPI] App launch warning:', err.message);
       setWaitingModalVisible(false);
@@ -121,10 +117,14 @@ const WalletTopupScreen = ({ navigation }) => {
 
   const handleManualUtrVerification = async (utr) => {
     if (!upiOrderData) return;
+    const cleanUtr = (utr || '').toString().trim();
+    if (!cleanUtr || !/^\d{12}$/.test(cleanUtr)) {
+      throw new Error('Please enter a valid 12-digit UPI Reference (UTR) Number.');
+    }
     const res = await walletService.verifyPayment({
       razorpayOrderId: upiOrderData.razorpayOrderId,
-      upiTransactionId: utr,
-      utrNumber: utr,
+      upiTransactionId: cleanUtr,
+      utrNumber: cleanUtr,
       purpose: 'wallet_topup',
       amount: upiOrderData.amount
     });

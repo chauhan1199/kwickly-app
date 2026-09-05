@@ -277,12 +277,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
         await handleManualUtrSubmission(result.approvalRefNo || result.txnId);
         return;
       }
-      if (result?.status === 'CANCELLED') {
-        console.log('[Worker UPI] User cancelled without paying. Closing modal.');
-        setWaitingModalVisible(false);
-        setUpiPaymentModalVisible(false);
-        return;
-      }
+      console.log('[Worker UPI] Returned from UPI app. Waiting modal remains active for confirmation.');
     } catch (e) {
       console.warn('[Worker UPI] App launch:', e.message);
       setWaitingModalVisible(false);
