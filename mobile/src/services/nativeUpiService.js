@@ -17,24 +17,8 @@ export const nativeUpiService = {
    * Starts a native UPI Payment intent using Android startActivityForResult
    * Automatically captures the official NPCI response (Status, ApprovalRefNo/UTR, txnId)
    */
-  async requestSmsPermission() {
-    if (Platform.OS === 'android') {
-      try {
-        const { PermissionsAndroid } = require('react-native');
-        await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.READ_SMS,
-          PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-        ]);
-      } catch (e) {}
-    }
-  },
-
   async startUpiPayment({ vpa, name, amount, txnRef, note, appKey = 'gpay' }) {
     const appPackage = UPI_APP_PACKAGES[appKey] || null;
-
-    if (Platform.OS === 'android') {
-      await this.requestSmsPermission();
-    }
 
     if (Platform.OS === 'android' && NativeUpiPayment) {
       try {
