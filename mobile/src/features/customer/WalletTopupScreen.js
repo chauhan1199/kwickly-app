@@ -81,9 +81,8 @@ const WalletTopupScreen = ({ navigation }) => {
     setSelectedUpiApp(appKey);
 
     try {
-      // Close checkout selector and open real-time waiting modal
+      // Close checkout selector
       setUpiCheckoutModal(false);
-      setWaitingModalVisible(true);
 
       const result = await nativeUpiService.startUpiPayment({
         vpa: upiOrderData.upiVpa,
@@ -94,12 +93,35 @@ const WalletTopupScreen = ({ navigation }) => {
         appKey,
       });
 
-      if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
-        await handleManualUtrVerification(result.approvalRefNo || result.txnId);
+      // 1. If the UPI app returned a real 12-digit bank RRN / UTR
+      const utr = (result?.approvalRefNo || result?.txnId || '').trim();
+      if (utr && /^\d{12}$/.test(utr)) {
+        await handleManualUtrVerification(utr);
         await handlePaymentSuccess();
         return;
       }
-      console.log('[UPI] Returned from UPI app. Waiting modal remains active for confirmation.');
+
+      // 2. Auto-detect 12-digit UTR from Clipboard
+      try {
+        const nativeClip = await nativeUpiService.getClipboardUtr();
+        let clipUtr = (nativeClip?.hasUtr && nativeClip?.utr) ? nativeClip.utr : null;
+        if (!clipUtr) {
+          const clipContent = await Clipboard.getString();
+          const cleanClip = (clipContent || '').trim();
+          const utrMatch = cleanClip.match(/\b(\d{12})\b/);
+          if (utrMatch && utrMatch[1]) clipUtr = utrMatch[1];
+        }
+        if (clipUtr && /^\d{12}$/.test(clipUtr)) {
+          console.log('[UPI] Auto-detected UTR from clipboard upon return:', clipUtr);
+          await handleManualUtrVerification(clipUtr);
+          await handlePaymentSuccess();
+          return;
+        }
+      } catch (clipErr) {}
+
+      // 3. User returned from UPI app without auto-detected UTR:
+      // Open confirmation modal ("Did you complete the payment?")
+      setWaitingModalVisible(true);
     } catch (err) {
       console.warn('[UPI] App launch warning:', err.message);
       setWaitingModalVisible(false);

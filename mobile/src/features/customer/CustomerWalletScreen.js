@@ -276,9 +276,8 @@ const CustomerWalletScreen = ({ navigation }) => {
     if (!upiOrderData) return;
     setSelectedUpiApp(appKey);
 
-    // Close app selection sheet and immediately open the real-time "Verifying with Bank..." waiting modal!
+    // Close app selection sheet
     setUpiCheckoutModal(false);
-    setWaitingModalVisible(true);
 
     try {
       const result = await nativeUpiService.startUpiPayment({
@@ -298,6 +297,12 @@ const CustomerWalletScreen = ({ navigation }) => {
         try {
           await handleManualUtrVerification(utr);
           await handlePaymentSuccess();
+          showAlert({
+            title: 'Payment Successful! 🎉',
+            message: `₹${upiOrderData.amount} has been added to your wallet. UTR: ${utr}`,
+            type: 'success',
+            confirmText: 'Great!'
+          });
           return;
         } catch (verifyErr) {
           console.warn('[UPI] Auto-verify with UTR failed:', verifyErr?.message);
@@ -318,22 +323,32 @@ const CustomerWalletScreen = ({ navigation }) => {
           console.log('[UPI] Auto-detected UTR from clipboard upon return:', clipUtr);
           await handleManualUtrVerification(clipUtr);
           await handlePaymentSuccess();
+          showAlert({
+            title: 'Payment Successful! 🎉',
+            message: `₹${upiOrderData.amount} has been added to your wallet. UTR: ${clipUtr}`,
+            type: 'success',
+            confirmText: 'Great!'
+          });
           return;
         }
       } catch (clipErr) {}
 
-      // 3. Keep the waiting modal open so the user can easily verify via SMS clipboard,
-      // enter/paste the 12-digit UTR, or tap "Didn't pay? Cancel" if they cancelled.
-      console.log('[UPI] Returned from UPI app. Waiting modal remains active for confirmation.');
+      // 3. User returned from UPI app without auto-detected UTR:
+      // Open confirmation modal ("Did you complete the payment?"):
+      // - "✕ No, I Cancelled / Didn't Pay": Closes immediately with zero delay & cancels order
+      // - "✓ Yes, I Completed Payment": Allows entering / auto-pasting the 12-digit UTR
+      setWaitingModalVisible(true);
     } catch (err) {
-      console.warn('[UPI] App launch warning:', err.message);
+      console.warn('[UPI] App launch notice:', err?.message);
       setWaitingModalVisible(false);
-      showAlert({
-        title: 'UPI App Notice',
-        message: err?.message || 'Could not launch UPI application',
-        type: 'warning',
-        confirmText: 'OK'
-      });
+      if (!err?.message?.toLowerCase().includes('cancel') && !err?.message?.toLowerCase().includes('dismiss')) {
+        showAlert({
+          title: 'UPI Notice',
+          message: err?.message || 'Could not launch UPI application',
+          type: 'warning',
+          confirmText: 'OK'
+        });
+      }
     }
   };
 

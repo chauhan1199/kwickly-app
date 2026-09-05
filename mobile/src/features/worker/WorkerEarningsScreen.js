@@ -258,10 +258,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     const note = `Kwickly ${pendingPaymentContext.type || 'Payment'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
 
-    // Close app selection modal and open real-time waiting modal
+    // Close app selection modal
     setUpiPaymentModalVisible(false);
     setWaitingOrderId(orderId);
-    setWaitingModalVisible(true);
 
     try {
       const result = await nativeUpiService.startUpiPayment({
@@ -273,11 +272,32 @@ const WorkerEarningsScreen = ({ navigation }) => {
         appKey,
       });
 
-      if (result?.isSuccessful && (result.approvalRefNo || result.txnId)) {
+      // 1. If intent returned UTR
+      const utr = (result?.approvalRefNo || result?.txnId || '').trim();
+      if (utr && /^\d{12}$/.test(utr)) {
         await handleManualUtrSubmission(result.approvalRefNo || result.txnId);
         return;
       }
-      console.log('[Worker UPI] Returned from UPI app. Waiting modal remains active for confirmation.');
+
+      // 2. Auto-detect 12-digit UTR from Clipboard
+      try {
+        const nativeClip = await nativeUpiService.getClipboardUtr();
+        let clipUtr = (nativeClip?.hasUtr && nativeClip?.utr) ? nativeClip.utr : null;
+        if (!clipUtr) {
+          const clipContent = await Clipboard.getString();
+          const cleanClip = (clipContent || '').trim();
+          const utrMatch = cleanClip.match(/\b(\d{12})\b/);
+          if (utrMatch && utrMatch[1]) clipUtr = utrMatch[1];
+        }
+        if (clipUtr && /^\d{12}$/.test(clipUtr)) {
+          console.log('[Worker UPI] Auto-detected UTR from clipboard upon return:', clipUtr);
+          await handleManualUtrSubmission(clipUtr);
+          return;
+        }
+      } catch (clipErr) {}
+
+      // 3. Open waiting modal with confirmation step
+      setWaitingModalVisible(true);
     } catch (e) {
       console.warn('[Worker UPI] App launch:', e.message);
       setWaitingModalVisible(false);
