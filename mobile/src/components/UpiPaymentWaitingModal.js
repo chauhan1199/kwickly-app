@@ -286,36 +286,56 @@ const UpiPaymentWaitingModal = ({
       if (!rawText || !rawText.trim()) {
         Alert.alert(
           'Clipboard Empty',
-          'Please open your bank SMS app or payment notification, copy the message, and tap Auto-Paste again.'
+          'Please open your bank SMS app or payment notification, copy the message or 12-digit UTR, and tap Auto-Paste again.'
         );
         return;
       }
 
-      // 2. Validate SMS Payment & Amount Integrity
-      const validation = validateSmsPayment({ text: rawText, expectedAmount: amount });
-      if (!validation.isValid) {
-        Alert.alert(
-          'Payment Validation Warning',
-          validation.error || 'The copied message is invalid. Please check your bank SMS and try again.'
-        );
+      const clean = rawText.trim();
+
+      // Case A: Full Bank SMS (length > 15 characters)
+      if (clean.length > 15) {
+        const validation = validateSmsPayment({ text: clean, expectedAmount: amount });
+        if (validation.isValid) {
+          const detected = validation.utr;
+          if (deviceUsedUtrs.has(detected)) {
+            Alert.alert(
+              'Already Used UTR',
+              `UTR ${detected} was already submitted in this session. Please check your bank SMS for the new 12-digit reference.`
+            );
+            return;
+          }
+
+          setUtrInput(detected);
+          await executeVerifyUtr(detected, {
+            rawMessage: validation.rawText,
+            detectedAmount: validation.amount,
+            dateStr: validation.dateStr
+          });
+          return;
+        }
+      }
+
+      // Case B: User copied just the 12-digit UTR number
+      const utrCandidate = clean.replace(/\D/g, '');
+      if (utrCandidate.length === 12 && isValidUtr(utrCandidate)) {
+        if (deviceUsedUtrs.has(utrCandidate)) {
+          Alert.alert(
+            'Already Used UTR',
+            `UTR ${utrCandidate} was already submitted in this session.`
+          );
+          return;
+        }
+
+        setUtrInput(utrCandidate);
+        await executeVerifyUtr(utrCandidate);
         return;
       }
 
-      const detected = validation.utr;
-      if (deviceUsedUtrs.has(detected)) {
-        Alert.alert(
-          'Already Used UTR',
-          `UTR ${detected} in your clipboard was already used for a previous transaction. Please copy the new 12-digit UTR from your bank SMS.`
-        );
-        return;
-      }
-
-      setUtrInput(detected);
-      await executeVerifyUtr(detected, {
-        rawMessage: validation.rawText,
-        detectedAmount: validation.amount,
-        dateStr: validation.dateStr
-      });
+      Alert.alert(
+        'No Valid UTR Found',
+        'Could not find a valid 12-digit UPI Reference (UTR) or Bank SMS in your clipboard. Please check your bank SMS and copy the reference number.'
+      );
     } catch (e) {
       console.warn('Paste error:', e);
     }
@@ -336,8 +356,8 @@ const UpiPaymentWaitingModal = ({
     }
   };
 
-  // User explicitly cancels or says "No, Cancelled"
-  const handleCancelAndClose = async () => {
+  // User explicitly cancels by saying "No, I Cancelled / Didn't Pay" in Step 1
+  const handleExplicitCancel = async () => {
     if (orderId) {
       try {
         await walletService.cancelPayment({
@@ -349,6 +369,11 @@ const UpiPaymentWaitingModal = ({
     if (onClose) onClose();
   };
 
+  // Simply dismisses modal without cancelling the order (e.g. user minimizing to check bank SMS)
+  const handleDismissModal = () => {
+    if (onClose) onClose();
+  };
+
   const styles = createStyles(theme, isDarkMode);
 
   return (
@@ -356,7 +381,7 @@ const UpiPaymentWaitingModal = ({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={handleCancelAndClose}
+      onRequestClose={handleDismissModal}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -370,7 +395,7 @@ const UpiPaymentWaitingModal = ({
               <Text style={styles.secureBadgeText}>Bank Direct UPI</Text>
             </View>
             <TouchableOpacity
-              onPress={handleCancelAndClose}
+              onPress={handleDismissModal}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               style={styles.closeBtn}
             >
@@ -416,7 +441,7 @@ const UpiPaymentWaitingModal = ({
                 {/* NO, CANCELLED PAYMENT BUTTON - ZERO DELAY, CLOSES IMMEDIATELY */}
                 <TouchableOpacity
                   style={styles.cancelBtn}
-                  onPress={handleCancelAndClose}
+                  onPress={handleExplicitCancel}
                   activeOpacity={0.85}
                 >
                   <Text style={styles.cancelBtnText}>✕ No, I Cancelled / Didn't Pay</Text>
@@ -436,7 +461,7 @@ const UpiPaymentWaitingModal = ({
               {/* UTR INPUT BOX */}
               <View style={styles.manualUtrBox}>
                 <View style={styles.utrHeaderRow}>
-                  <Text style={styles.utrInputLabel}>12-digit Bank UPI Ref / UTR:</Text>
+                  <Text style={styles.utrInputLabel}>12-digit UPI Ref / Bank SMS:</Text>
                   <TouchableOpacity
                     style={styles.inlinePasteBtn}
                     onPress={handlePasteAndVerify}
@@ -449,7 +474,7 @@ const UpiPaymentWaitingModal = ({
                 <View style={styles.utrInputRow}>
                   <TextInput
                     style={styles.utrInput}
-                    placeholder="e.g. 661406151223"
+                    placeholder="e.g. 661513309006 or paste SMS"
                     placeholderTextColor="#9CA3AF"
                     keyboardType="default"
                     maxLength={250}
@@ -503,7 +528,7 @@ const UpiPaymentWaitingModal = ({
                 >
                   <Copy size={16} color="#6C47FF" />
                   <Text style={styles.pasteUtrBtnText}>
-                    Auto-Paste from SMS / Clipboard
+                    Auto-Paste UTR / Bank SMS
                   </Text>
                 </TouchableOpacity>
 
@@ -534,7 +559,7 @@ const UpiPaymentWaitingModal = ({
 
                 <TouchableOpacity
                   style={styles.cancelPaymentBtn}
-                  onPress={handleCancelAndClose}
+                  onPress={handleDismissModal}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.cancelPaymentBtnText}>Cancel / Close</Text>

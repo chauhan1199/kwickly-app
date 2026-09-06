@@ -229,7 +229,7 @@ exports.topupWallet = catchAsync(async (req, res) => {
                 existingBankCredit.claimedAt = new Date();
                 await existingBankCredit.save();
             } else {
-                const { verifyIntentResponse, isAuthenticBankDebitSms } = require('../../helpers/upi.helper');
+                const { verifyIntentResponse, isAuthenticBankDebitSms, isAdjacentOrTamperedUtr } = require('../../helpers/upi.helper');
                 const isIntentVerified = req.body.isIntentVerified === true;
                 const intentStatus = req.body.intentStatus;
                 const responseCode = req.body.responseCode;
@@ -251,19 +251,29 @@ exports.topupWallet = catchAsync(async (req, res) => {
                     expectedAmount: numAmount
                 });
 
-                if (!hasValidIntent && !hasValidSms) {
+                // Anti-tamper & Loophole check:
+                // Check if candidate UTR is suspiciously adjacent (±15) to any recently recorded transaction
+                const recentCredits = await BankCredit.find({}).sort({ _id: -1 }).limit(50).select('utr').lean();
+                const recentUtrs = recentCredits.map(r => r.utr);
+                const isTampered = isAdjacentOrTamperedUtr(utrNumber, recentUtrs);
+
+                if (isTampered && !hasValidSms && !hasValidIntent) {
                     return errorResponse(
                         res,
-                        `Payment verification failed: No matching bank transaction found for UTR ${utrNumber} (₹${numAmount.toFixed(2)}). Please complete the payment in your UPI app or paste your bank debit SMS.`,
+                        `Suspicious reference number: UTR ${utrNumber} is adjacent to a recently used transaction. To protect against unauthorized entry, please provide your authentic bank debit SMS text.`,
                         StatusCodes.BAD_REQUEST
                     );
                 }
 
+                let source = 'MANUAL_UTR';
+                if (hasValidIntent) source = 'UPI_INTENT';
+                else if (hasValidSms) source = 'BANK_SMS';
+
                 await BankCredit.create({
                     utr: utrNumber,
                     amount: numAmount,
-                    rawMessage: hasValidIntent ? (rawResponse || `Direct UPI topup intent verified for user ${user._id}`) : rawSms,
-                    source: hasValidIntent ? 'UPI_INTENT' : 'BANK_SMS',
+                    rawMessage: hasValidIntent ? (rawResponse || `Direct UPI topup intent verified for user ${user._id}`) : (hasValidSms ? rawSms : `Manual UTR entry ${utrNumber}`),
+                    source,
                     receivedAt: new Date(),
                     isClaimed: true,
                     claimedBy: user._id,

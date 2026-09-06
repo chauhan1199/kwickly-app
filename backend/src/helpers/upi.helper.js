@@ -204,6 +204,38 @@ const isAuthenticBankDebitSms = ({ rawMessage, utr, expectedAmount, payeeName, v
     return true;
 };
 
+/**
+ * Detects whether a candidate UTR is suspiciously adjacent (e.g. ±15 offset)
+ * to any recently recorded UTRs on the platform, which is the hallmark of
+ * a user manually changing the last digit of an existing receipt.
+ * @param {string} candidateUtr
+ * @param {string[]} recentUtrs
+ * @returns {boolean}
+ */
+const isAdjacentOrTamperedUtr = (candidateUtr, recentUtrs = []) => {
+    if (!candidateUtr) return true;
+    const cleanCand = candidateUtr.toString().trim();
+    const candNum = Number(cleanCand);
+    if (isNaN(candNum)) return true;
+
+    for (const prev of recentUtrs) {
+        if (!prev) continue;
+        const cleanPrev = prev.toString().trim();
+        const prevNum = Number(cleanPrev);
+        if (isNaN(prevNum)) continue;
+
+        // If exact match
+        if (candNum === prevNum) return true;
+
+        // If within ±15 of a recent transaction (e.g. user just modified last digit)
+        const diff = Math.abs(candNum - prevNum);
+        if (diff > 0 && diff <= 15) {
+            return true;
+        }
+    }
+    return false;
+};
+
 module.exports = {
     generateUpiIntentUri,
     isValidUtr,
@@ -211,6 +243,7 @@ module.exports = {
     extractSmsAmount,
     extractSmsDate,
     verifyIntentResponse,
-    isAuthenticBankDebitSms
+    isAuthenticBankDebitSms,
+    isAdjacentOrTamperedUtr
 };
 

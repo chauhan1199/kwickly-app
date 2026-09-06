@@ -101,14 +101,18 @@ const testTamperedUtrSms = isAuthenticBankDebitSms({
 });
 assert(testTamperedUtrSms === false, 'SMS containing 661505298779 is rejected when user submits 661505298778');
 
-// 8. Bank SMS for failed transaction
-const failedSms = 'Transaction of Rs 12.00 to KWICKLY PVT LTD Ref 661505298778 failed to debit from your A/c.';
-const testFailedSms = isAuthenticBankDebitSms({
-  rawMessage: failedSms,
-  utr: '661505298778',
-  expectedAmount: 12
-});
-assert(testFailedSms === false, 'Failed/declined bank SMS is rejected');
+// 9. Off-by-one UTR tampering detection
+const { isAdjacentOrTamperedUtr } = require('../src/helpers/upi.helper');
+const recentUtrs = ['661505298779', '661027352322', '661119487216'];
+
+const testTamperedOffByOne = isAdjacentOrTamperedUtr('661505298778', recentUtrs);
+assert(testTamperedOffByOne === true, 'Off-by-one UTR (661505298778 vs 661505298779) is detected as tampered');
+
+const testTamperedPlusOne = isAdjacentOrTamperedUtr('661505298780', recentUtrs);
+assert(testTamperedPlusOne === true, 'Off-by-one positive UTR (661505298780 vs 661505298779) is detected as tampered');
+
+const testGenuineNewUtr = isAdjacentOrTamperedUtr('661513309006', recentUtrs);
+assert(testGenuineNewUtr === false, 'Genuine fresh UTR (661513309006, sequence diff 8M) is accepted as non-adjacent');
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

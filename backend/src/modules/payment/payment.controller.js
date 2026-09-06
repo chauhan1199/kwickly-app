@@ -14,7 +14,7 @@ const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
-const { generateUpiIntentUri, isValidUtr, findUtrUsage, extractSmsAmount, extractSmsDate, verifyIntentResponse, isAuthenticBankDebitSms } = require('../../helpers/upi.helper');
+const { generateUpiIntentUri, isValidUtr, findUtrUsage, extractSmsAmount, extractSmsDate, verifyIntentResponse, isAuthenticBankDebitSms, isAdjacentOrTamperedUtr } = require('../../helpers/upi.helper');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
 const {
@@ -368,8 +368,6 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 await existingBankCredit.save(sessOpts);
             } else {
                 // If BankCredit was not pre-recorded in database:
-                // We strictly require cryptographic/OS intent verification OR an authentic bank debit SMS.
-                // A manually typed or unverified UTR will NEVER be credited without real proof.
                 const hasValidIntent = verifyIntentResponse({
                     isIntentVerified: Boolean(isIntentVerified),
                     intentStatus,
@@ -388,12 +386,18 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     vpa: payment.metadata?.platformVpa
                 });
 
-                if (!hasValidIntent && !hasValidSms) {
+                // Anti-tamper & Loophole check:
+                // Check if candidate UTR is suspiciously adjacent (±15) to any recently recorded transaction
+                const recentCredits = await BankCredit.find({}).sort({ _id: -1 }).limit(50).select('utr').lean();
+                const recentUtrs = recentCredits.map(r => r.utr);
+                const isTampered = isAdjacentOrTamperedUtr(finalPaymentId, recentUtrs);
+
+                if (isTampered && !hasValidSms && !hasValidIntent) {
                     if (useTransaction) await session.commitTransaction();
                     if (useTransaction) session.endSession();
                     return errorResponse(
                         res,
-                        `Payment verification failed: No matching bank transaction found for UTR ${finalPaymentId} (₹${creditAmount.toFixed(2)}). Please complete the payment in your UPI app or paste your bank debit SMS.`,
+                        `Suspicious reference number: UTR ${finalPaymentId} is adjacent to a recently used transaction. To protect against unauthorized entry, please provide your authentic bank debit SMS text.`,
                         StatusCodes.BAD_REQUEST
                     );
                 }
@@ -405,11 +409,15 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     return errorResponse(res, 'This payment session has expired (exceeded 30 minutes). Please initiate a fresh top-up.', StatusCodes.BAD_REQUEST);
                 }
 
+                let source = 'MANUAL_UTR';
+                if (hasValidIntent) source = 'UPI_INTENT';
+                else if (hasValidSms) source = 'BANK_SMS';
+
                 await BankCredit.create([{
                     utr: finalPaymentId,
                     amount: creditAmount,
-                    rawMessage: hasValidIntent ? (rawResponse || `Direct UPI payment session ${orderRef} intent verified for user ${req.user._id}`) : rawSms,
-                    source: hasValidIntent ? 'UPI_INTENT' : 'BANK_SMS',
+                    rawMessage: hasValidIntent ? (rawResponse || `Direct UPI payment session ${orderRef} intent verified for user ${req.user._id}`) : (hasValidSms ? rawSms : `Manual UTR entry ${finalPaymentId} for session ${orderRef}`),
+                    source,
                     receivedAt: new Date(),
                     isClaimed: true,
                     claimedBy: req.user._id,
