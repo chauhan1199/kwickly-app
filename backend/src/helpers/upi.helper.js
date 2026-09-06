@@ -103,8 +103,51 @@ const findUtrUsage = async (utr) => {
     return null;
 };
 
+/**
+ * Extracts debited transaction amount from bank SMS text, carefully ignoring account balances
+ * @param {string} text 
+ * @returns {number|null}
+ */
+const extractSmsAmount = (text) => {
+    if (!text || typeof text !== 'string') return null;
+    const clean = text.trim();
+
+    // 1. Check targeted debit / payment keywords
+    const debitRegex = /(?:debited\s*(?:by|with|for)?|paid\s*(?:to\s*[^,\n\r]+?)?|sent\s*(?:to\s*[^,\n\r]+?)?|transferred\s*|txn\s*(?:of)?)\s*(?:Rs\.?|INR|₹)?\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
+    const debitMatch = debitRegex.exec(clean);
+    if (debitMatch) {
+        const amt = parseFloat(debitMatch[1]);
+        if (!isNaN(amt) && amt > 0) return amt;
+    }
+
+    // 2. Cut off at balance keyword to avoid account balance numbers
+    const preBal = clean.split(/(?:bal(?:ance)?|avl\s*bal|total\s*bal)/i)[0];
+    const genRegex = /(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
+    const genMatch = genRegex.exec(preBal);
+    if (genMatch) {
+        const amt = parseFloat(genMatch[1]);
+        if (!isNaN(amt) && amt > 0) return amt;
+    }
+
+    return null;
+};
+
+/**
+ * Extracts transaction date from SMS text
+ * @param {string} text 
+ * @returns {string|null}
+ */
+const extractSmsDate = (text) => {
+    if (!text || typeof text !== 'string') return null;
+    const dateRegex = /\b(\d{1,2}[-\/](?:\d{1,2}|[A-Za-z]{3})[-\/]\d{2,4})\b/;
+    const m = dateRegex.exec(text);
+    return m ? m[1] : null;
+};
+
 module.exports = {
     generateUpiIntentUri,
     isValidUtr,
-    findUtrUsage
+    findUtrUsage,
+    extractSmsAmount,
+    extractSmsDate
 };

@@ -297,7 +297,7 @@ const ShopWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handleManualUtrSubmission = async (utr) => {
+  const handleManualUtrSubmission = async (utr, extraMeta = {}) => {
     if (waitingContext.purpose === 'subscription') {
       const res = await shopService.subscribePlan({
         planId: selectedPlan,
@@ -311,7 +311,9 @@ const ShopWalletScreen = ({ navigation }) => {
         waitingContext.amount,
         { method: 'UPI', txnId: utr },
         null,
-        utr
+        utr,
+        null,
+        extraMeta
       );
       return res?.data?.data;
     }

@@ -11,16 +11,21 @@ export const walletService = {
   getTransactions: (page = 1, limit = 20) =>
     withErrorHandling(() => api.get('/wallet/my-transactions', { params: { page, limit } })),
 
-  topupWallet: (amount, paymentDetails, planId, utrNumber, upiOrderId, extra) =>
-    withErrorHandling(() => api.post('/wallet/topup', {
+  topupWallet: (amount, paymentDetails, planId, utrNumber, upiOrderId, extra) => {
+    const extraObj = typeof extra === 'object' && extra !== null ? extra : {};
+    const finalUtr = utrNumber || extraObj.utrNumber || (typeof extra === 'string' ? extra : undefined);
+    return withErrorHandling(() => api.post('/wallet/topup', {
       amount,
       paymentDetails,
       planId,
-      utrNumber: utrNumber || extra,
+      utrNumber: finalUtr,
       upiOrderId,
-      razorpayPaymentId: utrNumber || extra,
-      razorpayOrderId: upiOrderId
-    })),
+      razorpayPaymentId: finalUtr,
+      razorpayOrderId: upiOrderId,
+      rawMessage: extraObj.rawMessage,
+      detectedAmount: extraObj.detectedAmount
+    }));
+  },
 
   withdraw: (amount, payoutMethod) =>
     withErrorHandling(() => api.post('/wallet/withdraw', { amount, payoutMethod })),

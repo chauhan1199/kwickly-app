@@ -14,7 +14,7 @@ const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
-const { generateUpiIntentUri, isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
+const { generateUpiIntentUri, isValidUtr, findUtrUsage, extractSmsAmount, extractSmsDate } = require('../../helpers/upi.helper');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
 const {
@@ -148,7 +148,7 @@ exports.createOrder = catchAsync(async (req, res) => {
  * Verifies payment after Direct UPI checkout submission (12-digit UTR)
  */
 exports.verifyPayment = catchAsync(async (req, res) => {
-    const { razorpayOrderId, upiOrderId, razorpayPaymentId, upiTransactionId, utrNumber, orderId } = req.body;
+    const { razorpayOrderId, upiOrderId, razorpayPaymentId, upiTransactionId, utrNumber, orderId, rawMessage, smsText, detectedAmount } = req.body;
 
     const orderRef = upiOrderId || razorpayOrderId;
     if (!orderRef) {
@@ -167,6 +167,20 @@ exports.verifyPayment = catchAsync(async (req, res) => {
     }
 
     const finalPaymentId = upiRef;
+
+    // Strict SMS Text Content Validation (if raw SMS / clipboard text was submitted)
+    const rawSms = (rawMessage || smsText || '').toString().trim();
+    if (rawSms) {
+        const parsedSmsAmt = extractSmsAmount(rawSms);
+        const expectedAmt = Number(req.body.amount || 0);
+        if (parsedSmsAmt !== null && expectedAmt > 0 && Math.abs(parsedSmsAmt - expectedAmt) > 0.5) {
+            return errorResponse(
+                res,
+                `Amount mismatch: The copied bank SMS indicates a payment of ₹${parsedSmsAmt.toFixed(2)}, but this transaction requires ₹${expectedAmt.toFixed(2)}. Only transactions made for ₹${expectedAmt.toFixed(2)} are valid.`,
+                StatusCodes.BAD_REQUEST
+            );
+        }
+    }
 
     // Anti-replay / duplicate UTR check across ALL flows
     const utrUsage = await findUtrUsage(finalPaymentId);
@@ -311,23 +325,60 @@ exports.verifyPayment = catchAsync(async (req, res) => {
 
             // ─── 2. Register & Claim Bank Credit Record ───
             const BankCredit = require('./bankCredit.model');
-            let bankCredit = await BankCredit.findOne({
-                utr: finalPaymentId,
-                amount: creditAmount,
-                isClaimed: false
+            let existingBankCredit = await BankCredit.findOne({
+                utr: finalPaymentId
             }).session(session);
 
-            if (bankCredit) {
-                bankCredit.isClaimed = true;
-                bankCredit.claimedBy = req.user._id;
-                bankCredit.claimedAt = new Date();
-                await bankCredit.save(sessOpts);
+            if (existingBankCredit) {
+                if (existingBankCredit.isClaimed) {
+                    if (useTransaction) await session.commitTransaction();
+                    if (useTransaction) session.endSession();
+                    return errorResponse(res, `This UPI Reference (UTR: ${finalPaymentId}) has already been claimed and credited.`, StatusCodes.BAD_REQUEST);
+                }
+
+                // Strict amount check: existing BankCredit amount MUST match requested top-up amount
+                if (Math.abs(existingBankCredit.amount - creditAmount) > 0.5) {
+                    if (useTransaction) await session.commitTransaction();
+                    if (useTransaction) session.endSession();
+                    return errorResponse(
+                        res,
+                        `Amount mismatch: Bank records confirm UTR ${finalPaymentId} was for ₹${existingBankCredit.amount.toFixed(2)}, but your top-up requires ₹${creditAmount.toFixed(2)}. Only the transaction made for ₹${creditAmount.toFixed(2)} is valid.`,
+                        StatusCodes.BAD_REQUEST
+                    );
+                }
+
+                existingBankCredit.isClaimed = true;
+                existingBankCredit.claimedBy = req.user._id;
+                existingBankCredit.claimedAt = new Date();
+                await existingBankCredit.save(sessOpts);
             } else {
+                // If BankCredit was not pre-recorded in database:
+                // If raw SMS text is provided, validate amount
+                if (rawSms) {
+                    const parsedSmsAmt = extractSmsAmount(rawSms);
+                    if (parsedSmsAmt !== null && Math.abs(parsedSmsAmt - creditAmount) > 0.5) {
+                        if (useTransaction) await session.commitTransaction();
+                        if (useTransaction) session.endSession();
+                        return errorResponse(
+                            res,
+                            `Amount mismatch: The copied bank SMS indicates a payment of ₹${parsedSmsAmt.toFixed(2)}, but your top-up requires ₹${creditAmount.toFixed(2)}. Only the transaction made for ₹${creditAmount.toFixed(2)} is valid.`,
+                            StatusCodes.BAD_REQUEST
+                        );
+                    }
+                }
+
+                // Check session freshness: reject orders older than 30 minutes
+                if (payment.createdAt && (Date.now() - new Date(payment.createdAt).getTime()) > 30 * 60 * 1000) {
+                    if (useTransaction) await session.commitTransaction();
+                    if (useTransaction) session.endSession();
+                    return errorResponse(res, 'This payment session has expired (exceeded 30 minutes). Please initiate a fresh top-up.', StatusCodes.BAD_REQUEST);
+                }
+
                 await BankCredit.create([{
                     utr: finalPaymentId,
                     amount: creditAmount,
-                    rawMessage: `Direct UPI payment session ${orderRef} auto-verified for user ${req.user._id}`,
-                    source: 'UPI_INTENT',
+                    rawMessage: rawSms || `Direct UPI payment session ${orderRef} auto-verified for user ${req.user._id}`,
+                    source: rawSms ? 'BANK_SMS' : 'UPI_INTENT',
                     receivedAt: new Date(),
                     isClaimed: true,
                     claimedBy: req.user._id,

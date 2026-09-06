@@ -203,23 +203,49 @@ exports.topupWallet = catchAsync(async (req, res) => {
 
             // 2. Register & Claim Bank Credit
             const BankCredit = require('../payment/bankCredit.model');
-            let bankCredit = await BankCredit.findOne({
-                utr: utrNumber,
-                amount,
-                isClaimed: false
+            const { extractSmsAmount } = require('../../helpers/upi.helper');
+            const numAmount = Number(amount);
+
+            let existingBankCredit = await BankCredit.findOne({
+                utr: utrNumber
             });
 
-            if (bankCredit) {
-                bankCredit.isClaimed = true;
-                bankCredit.claimedBy = user._id;
-                bankCredit.claimedAt = new Date();
-                await bankCredit.save();
+            if (existingBankCredit) {
+                if (existingBankCredit.isClaimed) {
+                    return errorResponse(res, `This UPI Reference (UTR: ${utrNumber}) has already been used and claimed.`, StatusCodes.BAD_REQUEST);
+                }
+
+                // Strict amount check: existing BankCredit amount MUST match requested top-up amount
+                if (Math.abs(existingBankCredit.amount - numAmount) > 0.5) {
+                    return errorResponse(
+                        res,
+                        `Amount mismatch: Bank records confirm UTR ${utrNumber} is for ₹${existingBankCredit.amount.toFixed(2)}, but your top-up requires ₹${numAmount.toFixed(2)}. Only the transaction made for ₹${numAmount.toFixed(2)} is valid.`,
+                        StatusCodes.BAD_REQUEST
+                    );
+                }
+
+                existingBankCredit.isClaimed = true;
+                existingBankCredit.claimedBy = user._id;
+                existingBankCredit.claimedAt = new Date();
+                await existingBankCredit.save();
             } else {
+                const rawSms = (req.body.rawMessage || req.body.smsText || '').toString();
+                if (rawSms) {
+                    const parsedSmsAmt = extractSmsAmount(rawSms);
+                    if (parsedSmsAmt !== null && Math.abs(parsedSmsAmt - numAmount) > 0.5) {
+                        return errorResponse(
+                            res,
+                            `Amount mismatch: The copied bank SMS indicates a payment of ₹${parsedSmsAmt.toFixed(2)}, but your top-up requires ₹${numAmount.toFixed(2)}. Only the transaction made for ₹${numAmount.toFixed(2)} is valid.`,
+                            StatusCodes.BAD_REQUEST
+                        );
+                    }
+                }
+
                 await BankCredit.create({
                     utr: utrNumber,
-                    amount: Number(amount),
-                    rawMessage: `Direct UPI topup auto-verified for user ${user._id}`,
-                    source: 'UPI_INTENT',
+                    amount: numAmount,
+                    rawMessage: rawSms || `Direct UPI topup auto-verified for user ${user._id}`,
+                    source: rawSms ? 'BANK_SMS' : 'UPI_INTENT',
                     receivedAt: new Date(),
                     isClaimed: true,
                     claimedBy: user._id,

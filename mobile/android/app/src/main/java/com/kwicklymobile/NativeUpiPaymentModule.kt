@@ -70,29 +70,22 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
     @ReactMethod
     fun getLatestSmsUtr(promise: Promise) {
         val map = Arguments.createMap()
-        val smsUtr = getLatestSmsUtrSync()
-        if (!smsUtr.isNullOrEmpty()) {
-            map.putString("utr", smsUtr)
-            map.putString("amount", "")
-            map.putDouble("timestamp", System.currentTimeMillis().toDouble())
+        val sms = getLatestSmsInfoSync()
+        if (sms != null && sms.utr.isNotEmpty()) {
+            map.putString("utr", sms.utr)
+            map.putString("amount", sms.amount)
+            map.putString("body", sms.body)
+            map.putDouble("timestamp", sms.date.toDouble())
             map.putBoolean("hasUtr", true)
             promise.resolve(map)
             return
         }
 
-        // Fallback to clipboard
-        val clipUtr = getNativeClipboardUtrSync()
-        if (!clipUtr.isNullOrEmpty()) {
-            map.putString("utr", clipUtr)
-            map.putString("amount", "")
-            map.putDouble("timestamp", System.currentTimeMillis().toDouble())
-            map.putBoolean("hasUtr", true)
-        } else {
-            map.putString("utr", "")
-            map.putString("amount", "")
-            map.putDouble("timestamp", 0.0)
-            map.putBoolean("hasUtr", false)
-        }
+        map.putString("utr", "")
+        map.putString("amount", "")
+        map.putString("body", "")
+        map.putDouble("timestamp", 0.0)
+        map.putBoolean("hasUtr", false)
         promise.resolve(map)
     }
 
@@ -297,17 +290,10 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             resultMap.putString("message", "Payment failed in UPI app.")
             promise.resolve(resultMap)
         } else if (resultCode == Activity.RESULT_CANCELED && responseString.isEmpty()) {
-            val detectedUtr = getLatestSmsUtrSync() ?: getNativeClipboardUtrSync()
-            if (!detectedUtr.isNullOrEmpty()) {
-                resultMap.putString("status", "SUCCESS")
-                resultMap.putString("approvalRefNo", detectedUtr)
-                resultMap.putBoolean("isSuccessful", true)
-                resultMap.putString("message", "Auto-detected UTR from bank SMS.")
-            } else {
-                resultMap.putString("status", "CANCELLED")
-                resultMap.putBoolean("isSuccessful", false)
-                resultMap.putString("message", "User returned from UPI app without paying.")
-            }
+            resultMap.putString("status", "CANCELLED")
+            resultMap.putString("approvalRefNo", "")
+            resultMap.putBoolean("isSuccessful", false)
+            resultMap.putString("message", "User returned from UPI app without payment confirmation.")
             promise.resolve(resultMap)
         } else {
             resultMap.putBoolean("isSuccessful", false)
@@ -582,7 +568,9 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
         return map
     }
 
-    private fun getLatestSmsUtrSync(): String? {
+    private data class SmsResult(val utr: String, val amount: String, val body: String, val date: Long)
+
+    private fun getLatestSmsInfoSync(): SmsResult? {
         try {
             val contentResolver = reactCtx.contentResolver
             val uri = Uri.parse("content://sms/inbox")
@@ -604,12 +592,13 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
                     val body = if (bodyIdx >= 0) cursor.getString(bodyIdx) ?: "" else ""
                     val date = if (dateIdx >= 0) cursor.getLong(dateIdx) else 0L
 
-                    // Look at SMS received within the last 5 minutes
+                    // Look strictly at SMS received within the last 5 minutes
                     if (now - date < 5 * 60 * 1000) {
                         val utr = extractUtrFromText(body)
                         if (!utr.isNullOrEmpty()) {
+                            val amt = extractAmountFromText(body)
                             cursor.close()
-                            return utr
+                            return SmsResult(utr, amt ?: "", body, date)
                         }
                     }
                     count++
@@ -620,6 +609,22 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             // SecurityException if READ_SMS not granted yet
         }
         return null
+    }
+
+    private fun extractAmountFromText(text: String): String? {
+        if (text.isEmpty()) return null
+        val regex = Regex("""(?:debited\s*(?:by|with|for)?|paid|sent|transferred|txn\s*(?:of)?)\s*(?:Rs\.?|INR|₹)?\s*([0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+        val match = regex.find(text)
+        if (match != null) {
+            return match.groupValues[1]
+        }
+        val genRegex = Regex("""(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+        val genMatch = genRegex.find(text)
+        return genMatch?.groupValues?.get(1)
+    }
+
+    private fun getLatestSmsUtrSync(): String? {
+        return getLatestSmsInfoSync()?.utr
     }
 
     private fun getNativeClipboardUtrSync(): String? {

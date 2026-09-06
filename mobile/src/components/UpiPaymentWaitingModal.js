@@ -9,7 +9,7 @@ import { useTheme } from '../context/ThemeContext';
 import useSocket, { useSocket as useSocketNamed } from '../hooks/useSocket';
 import { walletService } from '../services/walletService';
 import { nativeUpiService } from '../services/nativeUpiService';
-import { isValidUtr } from '../utils/upiValidation';
+import { isValidUtr, parseBankSms, validateSmsPayment } from '../utils/upiValidation';
 import { CheckCircle2, Clock, ShieldCheck, X, ArrowRight, Copy, MessageSquare, AlertCircle } from 'lucide-react-native';
 
 const resolveUseSocket = useSocket || useSocketNamed;
@@ -24,7 +24,7 @@ const deviceUsedUtrs = new Set();
  *   - "✕ No, Cancelled": Closes immediately, cancels order, returns to wallet with ZERO waiting!
  *   - "✓ Yes, I Paid": Transitions to UTR verification.
  * - Step 2: "Enter 12-Digit Bank UPI Ref (UTR)"
- *   - 1-tap Auto-Paste from Clipboard / SMS
+ *   - 1-tap Auto-Paste from Clipboard / SMS with strict amount validation
  *   - Direct 12-digit number keyboard
  *   - 1-tap "Open Messages App" button to view bank SMS
  *   - Instant verification & wallet balance credit
@@ -117,21 +117,12 @@ const UpiPaymentWaitingModal = ({
   // Intelligent helper to extract 12-digit UTR from any text or bank SMS format
   const extractUtrFromText = useCallback((text) => {
     if (!text || typeof text !== 'string') return null;
-    const clean = text.trim();
-    // 1. Match Indian bank SMS keywords: UPI Ref, Ref No, UTR, RRN, Txn ID, etc.
-    const keywordRegex = /(?:upi\s*(?:ref(?:erence)?|txn(?:action)?(?:\s*id)?)(?:\s*no)?|ref\s*(?:no|id)?|rrn|utr)\D*?(\d{12})/i;
-    const match = keywordRegex.exec(clean);
-    if (match && isValidUtr(match[1])) return match[1];
-
-    // 2. Standalone 12-digit number (NPCI standard RRN format)
-    const standaloneMatch = clean.match(/\b(\d{12})\b/);
-    if (standaloneMatch && isValidUtr(standaloneMatch[1])) return standaloneMatch[1];
-
-    return null;
+    const parsed = parseBankSms(text);
+    return parsed.utr;
   }, []);
 
   // Submit and verify a 12-digit UTR
-  const executeVerifyUtr = useCallback(async (candidateUtr) => {
+  const executeVerifyUtr = useCallback(async (candidateUtr, extraMeta = {}) => {
     const clean = (candidateUtr || utrInput || '').toString().trim();
     if (!clean || !isValidUtr(clean)) {
       Alert.alert(
@@ -154,7 +145,7 @@ const UpiPaymentWaitingModal = ({
     setStatusNote(`Verifying UTR ${clean} with bank...`);
     try {
       if (onSubmitManualUtr) {
-        const res = await onSubmitManualUtr(clean);
+        const res = await onSubmitManualUtr(clean, extraMeta);
         const isSuccess = res?.verified === true || res?.status === 'COMPLETED' || res?.data?.status === 'COMPLETED' || res?.data?.verified === true;
         if (isSuccess) {
           handleTriggerSuccess(res?.data || res);
@@ -174,7 +165,8 @@ const UpiPaymentWaitingModal = ({
       );
       if (onClose) onClose();
     } catch (err) {
-      Alert.alert('Verification Notice', err?.message || 'Could not verify UTR. Please check the number and try again.');
+      deviceUsedUtrs.delete(clean);
+      Alert.alert('Verification Failed', err?.response?.data?.message || err?.message || 'Could not verify UTR. Please check the number and try again.');
     } finally {
       setSubmittingUtr(false);
     }
@@ -196,26 +188,30 @@ const UpiPaymentWaitingModal = ({
         // 1. Check native bank SMS detection
         const smsRes = await nativeUpiService.getLatestSmsUtr();
         if (smsRes?.hasUtr && smsRes?.utr && isValidUtr(smsRes.utr)) {
-          const detected = smsRes.utr.trim();
-          if (!deviceUsedUtrs.has(detected)) {
-            console.log('[AutoUPI] Auto-detected UTR from bank SMS:', detected);
-            setStatusNote('Bank SMS detected! Verifying payment...');
-            await executeVerifyUtr(detected);
-            return;
+          const smsAmt = smsRes.amount ? parseFloat(smsRes.amount) : null;
+          if (smsAmt && amount && Math.abs(smsAmt - Number(amount)) > 0.5) {
+            console.log('[AutoUPI] Ignoring SMS UTR due to amount mismatch:', smsAmt, 'expected:', amount);
+          } else {
+            const detected = smsRes.utr.trim();
+            if (!deviceUsedUtrs.has(detected)) {
+              console.log('[AutoUPI] Auto-detected UTR from bank SMS:', detected);
+              setStatusNote('Bank SMS detected! Verifying payment...');
+              await executeVerifyUtr(detected, { rawMessage: smsRes.body || '', detectedAmount: smsAmt });
+              return;
+            }
           }
         }
 
-        // 2. Check native clipboard for fresh 12-digit UTR
+        // 2. Check native clipboard for fresh 12-digit UTR with amount validation
         const nativeClip = await nativeUpiService.getClipboardUtr();
-        let clipUtr = (nativeClip?.hasUtr && nativeClip?.utr) ? nativeClip.utr.trim() : null;
-        if (!clipUtr && nativeClip?.text) {
-          clipUtr = extractUtrFromText(nativeClip.text);
-        }
-        if (clipUtr && isValidUtr(clipUtr) && !deviceUsedUtrs.has(clipUtr)) {
-          console.log('[AutoUPI] Auto-detected UTR from clipboard:', clipUtr);
-          setStatusNote('Payment reference detected! Verifying...');
-          await executeVerifyUtr(clipUtr);
-          return;
+        if (nativeClip?.text) {
+          const validation = validateSmsPayment({ text: nativeClip.text, expectedAmount: amount });
+          if (validation.isValid && !deviceUsedUtrs.has(validation.utr)) {
+            console.log('[AutoUPI] Auto-detected valid UTR from clipboard:', validation.utr);
+            setStatusNote('Payment reference detected! Verifying...');
+            await executeVerifyUtr(validation.utr, { rawMessage: validation.rawText, detectedAmount: validation.amount });
+            return;
+          }
         }
 
         // 3. Poll backend order status
@@ -239,9 +235,14 @@ const UpiPaymentWaitingModal = ({
 
     const unsubscribeSms = nativeUpiService.subscribeToBankSms(async (event) => {
       if (event?.utr && isValidUtr(event.utr) && !deviceUsedUtrs.has(event.utr.trim())) {
+        const eventAmt = event.amount ? parseFloat(event.amount) : null;
+        if (eventAmt && amount && Math.abs(eventAmt - Number(amount)) > 0.5) {
+          console.log('[AutoUPI] Real-time SMS ignored due to amount mismatch:', eventAmt, 'expected:', amount);
+          return;
+        }
         console.log('[AutoUPI] Real-time SMS broadcast received:', event.utr);
         setStatusNote('Bank SMS received! Verifying...');
-        await executeVerifyUtr(event.utr.trim());
+        await executeVerifyUtr(event.utr.trim(), { rawMessage: event.body || '', detectedAmount: eventAmt });
       }
     });
 
@@ -250,57 +251,75 @@ const UpiPaymentWaitingModal = ({
       clearTimeout(timer);
       if (unsubscribeSms) unsubscribeSms();
     };
-  }, [visible, step, submittingUtr, orderId, executeVerifyUtr, extractUtrFromText, handleTriggerSuccess]);
+  }, [visible, step, submittingUtr, orderId, amount, executeVerifyUtr, extractUtrFromText, handleTriggerSuccess]);
 
   const handleUserConfirmedPaid = useCallback(async () => {
     setStatusNote('Detecting bank confirmation...');
     try {
       const smsRes = await nativeUpiService.getLatestSmsUtr();
-      if (smsRes?.hasUtr && smsRes?.utr && isValidUtr(smsRes.utr) && !deviceUsedUtrs.has(smsRes.utr.trim())) {
-        await executeVerifyUtr(smsRes.utr.trim());
-        return;
+      if (smsRes?.hasUtr && smsRes?.utr && isValidUtr(smsRes.utr)) {
+        const smsAmt = smsRes.amount ? parseFloat(smsRes.amount) : null;
+        if (!smsAmt || !amount || Math.abs(smsAmt - Number(amount)) <= 0.5) {
+          if (!deviceUsedUtrs.has(smsRes.utr.trim())) {
+            await executeVerifyUtr(smsRes.utr.trim(), { rawMessage: smsRes.body || '', detectedAmount: smsAmt });
+            return;
+          }
+        }
       }
     } catch (e) {}
     setStep('ENTER_UTR');
-  }, [executeVerifyUtr]);
+  }, [amount, executeVerifyUtr]);
 
   // One-tap Auto-Paste & Verify handler
   const handlePasteAndVerify = useCallback(async () => {
     try {
-      // 1. Native clipboard
+      // 1. Get raw text from native clipboard or JS clipboard
+      let rawText = '';
       const nativeRes = await nativeUpiService.getClipboardUtr();
-      let detected = (nativeRes?.hasUtr && nativeRes?.utr) ? nativeRes.utr : null;
-
-      if (!detected && nativeRes?.text) {
-        detected = extractUtrFromText(nativeRes.text);
+      if (nativeRes?.text) {
+        rawText = nativeRes.text;
+      }
+      if (!rawText) {
+        rawText = await Clipboard.getString();
       }
 
-      // 2. JS Clipboard fallback
-      if (!detected) {
-        const text = await Clipboard.getString();
-        detected = extractUtrFromText(text);
-      }
-
-      if (detected && isValidUtr(detected)) {
-        if (deviceUsedUtrs.has(detected)) {
-          Alert.alert(
-            'Already Used UTR',
-            `UTR ${detected} in your clipboard was already used for a previous transaction. Please copy the new 12-digit UTR from your bank SMS.`
-          );
-          return;
-        }
-        setUtrInput(detected);
-        await executeVerifyUtr(detected);
-      } else {
+      if (!rawText || !rawText.trim()) {
         Alert.alert(
-          'No 12-digit UTR on Clipboard',
-          'Please open your bank SMS or notification, copy the message or the 12-digit UPI Reference / UTR Number, then tap Paste again, or enter the 12 digits directly.'
+          'Clipboard Empty',
+          'Please open your bank SMS app or payment notification, copy the message, and tap Auto-Paste again.'
         );
+        return;
       }
+
+      // 2. Validate SMS Payment & Amount Integrity
+      const validation = validateSmsPayment({ text: rawText, expectedAmount: amount });
+      if (!validation.isValid) {
+        Alert.alert(
+          'Payment Validation Warning',
+          validation.error || 'The copied message is invalid. Please check your bank SMS and try again.'
+        );
+        return;
+      }
+
+      const detected = validation.utr;
+      if (deviceUsedUtrs.has(detected)) {
+        Alert.alert(
+          'Already Used UTR',
+          `UTR ${detected} in your clipboard was already used for a previous transaction. Please copy the new 12-digit UTR from your bank SMS.`
+        );
+        return;
+      }
+
+      setUtrInput(detected);
+      await executeVerifyUtr(detected, {
+        rawMessage: validation.rawText,
+        detectedAmount: validation.amount,
+        dateStr: validation.dateStr
+      });
     } catch (e) {
       console.warn('Paste error:', e);
     }
-  }, [extractUtrFromText, executeVerifyUtr]);
+  }, [amount, executeVerifyUtr]);
 
   // Launch default SMS app so user can copy UTR
   const handleOpenSmsApp = async () => {
@@ -432,12 +451,28 @@ const UpiPaymentWaitingModal = ({
                     style={styles.utrInput}
                     placeholder="e.g. 661406151223"
                     placeholderTextColor="#9CA3AF"
-                    keyboardType="number-pad"
-                    maxLength={12}
+                    keyboardType="default"
+                    maxLength={250}
                     value={utrInput}
                     onChangeText={(text) => {
-                      setUtrInput(text);
                       const clean = text.trim();
+                      if (clean.length > 12) {
+                        // User pasted full SMS message into the input field
+                        const validation = validateSmsPayment({ text: clean, expectedAmount: amount });
+                        if (!validation.isValid) {
+                          Alert.alert('Payment Validation Warning', validation.error || 'Invalid payment message.');
+                          setUtrInput('');
+                          return;
+                        }
+                        setUtrInput(validation.utr);
+                        executeVerifyUtr(validation.utr, {
+                          rawMessage: validation.rawText,
+                          detectedAmount: validation.amount,
+                          dateStr: validation.dateStr
+                        });
+                        return;
+                      }
+                      setUtrInput(clean);
                       if (clean.length === 12 && isValidUtr(clean)) {
                         executeVerifyUtr(clean);
                       }

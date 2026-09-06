@@ -264,7 +264,7 @@ const CustomerWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handleManualUtrVerification = async (utr) => {
+  const handleManualUtrVerification = async (utr, extraMeta = {}) => {
     if (!upiOrderData) return;
     const cleanUtr = (utr || '').toString().trim();
     if (!cleanUtr || !/^\d{12}$/.test(cleanUtr)) {
@@ -275,7 +275,9 @@ const CustomerWalletScreen = ({ navigation }) => {
       upiTransactionId: cleanUtr,
       utrNumber: cleanUtr,
       purpose: 'wallet_topup',
-      amount: upiOrderData.amount
+      amount: upiOrderData.amount,
+      rawMessage: extraMeta?.rawMessage || undefined,
+      detectedAmount: extraMeta?.detectedAmount || undefined
     });
     const data = res?.data?.data;
     return data;
