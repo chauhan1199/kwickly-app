@@ -278,7 +278,13 @@ const ShopWalletScreen = ({ navigation }) => {
       // 1. If intent returned UTR
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
-        const subRes = await handleManualUtrSubmission(utr);
+        const subRes = await handleManualUtrSubmission(utr, {
+          isIntentVerified: true,
+          intentStatus: result?.status || 'SUCCESS',
+          responseCode: result?.responseCode || '00',
+          rawResponse: result?.rawResponse || '',
+          txnId: result?.txnId || ''
+        });
         if (subRes?.verified === true || subRes?.status === 'COMPLETED') {
           Alert.alert('Payment Successful', `₹${waitingContext.amount} has been added to your wallet.`);
         } else {
@@ -570,7 +576,13 @@ const ShopWalletScreen = ({ navigation }) => {
       // 1. Intent UTR check
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
-        const subRes = await handleManualUtrSubmission(utr);
+        const subRes = await handleManualUtrSubmission(utr, {
+          isIntentVerified: true,
+          intentStatus: result?.status || 'SUCCESS',
+          responseCode: result?.responseCode || '00',
+          rawResponse: result?.rawResponse || '',
+          txnId: result?.txnId || ''
+        });
         if (subRes?.status === 'ACTIVE' || subRes?.verified === true || subRes?.status === 'COMPLETED') {
           Alert.alert('Subscription Activated', 'Your subscription has been activated successfully!');
         } else {

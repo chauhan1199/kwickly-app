@@ -229,23 +229,41 @@ exports.topupWallet = catchAsync(async (req, res) => {
                 existingBankCredit.claimedAt = new Date();
                 await existingBankCredit.save();
             } else {
-                const rawSms = (req.body.rawMessage || req.body.smsText || '').toString();
-                if (rawSms) {
-                    const parsedSmsAmt = extractSmsAmount(rawSms);
-                    if (parsedSmsAmt !== null && Math.abs(parsedSmsAmt - numAmount) > 0.5) {
-                        return errorResponse(
-                            res,
-                            `Amount mismatch: The copied bank SMS indicates a payment of ₹${parsedSmsAmt.toFixed(2)}, but your top-up requires ₹${numAmount.toFixed(2)}. Only the transaction made for ₹${numAmount.toFixed(2)} is valid.`,
-                            StatusCodes.BAD_REQUEST
-                        );
-                    }
+                const { verifyIntentResponse, isAuthenticBankDebitSms } = require('../../helpers/upi.helper');
+                const isIntentVerified = req.body.isIntentVerified === true;
+                const intentStatus = req.body.intentStatus;
+                const responseCode = req.body.responseCode;
+                const rawResponse = req.body.rawResponse;
+
+                const hasValidIntent = verifyIntentResponse({
+                    isIntentVerified: Boolean(isIntentVerified),
+                    intentStatus,
+                    responseCode,
+                    rawResponse,
+                    utr: utrNumber,
+                    expectedRef: req.body.upiOrderId || req.body.razorpayOrderId
+                });
+
+                const rawSms = (req.body.rawMessage || req.body.smsText || '').toString().trim();
+                const hasValidSms = isAuthenticBankDebitSms({
+                    rawMessage: rawSms,
+                    utr: utrNumber,
+                    expectedAmount: numAmount
+                });
+
+                if (!hasValidIntent && !hasValidSms) {
+                    return errorResponse(
+                        res,
+                        `Payment verification failed: No matching bank transaction found for UTR ${utrNumber} (₹${numAmount.toFixed(2)}). Please complete the payment in your UPI app or paste your bank debit SMS.`,
+                        StatusCodes.BAD_REQUEST
+                    );
                 }
 
                 await BankCredit.create({
                     utr: utrNumber,
                     amount: numAmount,
-                    rawMessage: rawSms || `Direct UPI topup auto-verified for user ${user._id}`,
-                    source: rawSms ? 'BANK_SMS' : 'UPI_INTENT',
+                    rawMessage: hasValidIntent ? (rawResponse || `Direct UPI topup intent verified for user ${user._id}`) : rawSms,
+                    source: hasValidIntent ? 'UPI_INTENT' : 'BANK_SMS',
                     receivedAt: new Date(),
                     isClaimed: true,
                     claimedBy: user._id,

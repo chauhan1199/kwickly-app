@@ -96,7 +96,13 @@ const WalletTopupScreen = ({ navigation }) => {
       // 1. If the UPI app returned a real 12-digit bank RRN / UTR
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
-        const verifyRes = await handleManualUtrVerification(utr);
+        const verifyRes = await handleManualUtrVerification(utr, {
+          isIntentVerified: true,
+          intentStatus: result?.status || 'SUCCESS',
+          responseCode: result?.responseCode || '00',
+          rawResponse: result?.rawResponse || '',
+          txnId: result?.txnId || ''
+        });
         if (verifyRes?.verified === true || verifyRes?.status === 'COMPLETED') {
           await handlePaymentSuccess();
           return;
@@ -142,7 +148,13 @@ const WalletTopupScreen = ({ navigation }) => {
       purpose: 'wallet_topup',
       amount: upiOrderData.amount,
       rawMessage: extraMeta?.rawMessage || undefined,
-      detectedAmount: extraMeta?.detectedAmount || undefined
+      smsText: extraMeta?.rawMessage || undefined,
+      detectedAmount: extraMeta?.detectedAmount || undefined,
+      isIntentVerified: Boolean(extraMeta?.isIntentVerified),
+      intentStatus: extraMeta?.intentStatus || undefined,
+      responseCode: extraMeta?.responseCode || undefined,
+      rawResponse: extraMeta?.rawResponse || undefined,
+      txnId: extraMeta?.txnId || undefined
     });
     return res?.data?.data;
   };

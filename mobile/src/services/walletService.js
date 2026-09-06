@@ -23,7 +23,13 @@ export const walletService = {
       razorpayPaymentId: finalUtr,
       razorpayOrderId: upiOrderId,
       rawMessage: extraObj.rawMessage,
-      detectedAmount: extraObj.detectedAmount
+      smsText: extraObj.rawMessage,
+      detectedAmount: extraObj.detectedAmount,
+      isIntentVerified: Boolean(extraObj.isIntentVerified),
+      intentStatus: extraObj.intentStatus,
+      responseCode: extraObj.responseCode,
+      rawResponse: extraObj.rawResponse,
+      txnId: extraObj.txnId
     }));
   },
 

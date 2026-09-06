@@ -211,7 +211,13 @@ const CustomerWalletScreen = ({ navigation }) => {
       const utr = (result?.approvalRefNo || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
         try {
-          const verifyData = await handleManualUtrVerification(utr);
+          const verifyData = await handleManualUtrVerification(utr, {
+            isIntentVerified: true,
+            intentStatus: result?.status || 'SUCCESS',
+            responseCode: result?.responseCode || '00',
+            rawResponse: result?.rawResponse || '',
+            txnId: result?.txnId || ''
+          });
           if (verifyData?.verified === true || verifyData?.status === 'COMPLETED') {
             await handlePaymentSuccess();
             showAlert({
@@ -277,7 +283,13 @@ const CustomerWalletScreen = ({ navigation }) => {
       purpose: 'wallet_topup',
       amount: upiOrderData.amount,
       rawMessage: extraMeta?.rawMessage || undefined,
-      detectedAmount: extraMeta?.detectedAmount || undefined
+      smsText: extraMeta?.rawMessage || undefined,
+      detectedAmount: extraMeta?.detectedAmount || undefined,
+      isIntentVerified: Boolean(extraMeta?.isIntentVerified),
+      intentStatus: extraMeta?.intentStatus || undefined,
+      responseCode: extraMeta?.responseCode || undefined,
+      rawResponse: extraMeta?.rawResponse || undefined,
+      txnId: extraMeta?.txnId || undefined
     });
     const data = res?.data?.data;
     return data;

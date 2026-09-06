@@ -144,10 +144,73 @@ const extractSmsDate = (text) => {
     return m ? m[1] : null;
 };
 
+/**
+ * Verifies if an intent response payload represents an authentic success callback
+ * directly from an Android UPI app (Google Pay, PhonePe, Paytm, BHIM).
+ */
+const verifyIntentResponse = ({ isIntentVerified, intentStatus, responseCode, rawResponse, utr, expectedRef }) => {
+    if (!isIntentVerified) return false;
+    const status = (intentStatus || '').toUpperCase();
+    if (status !== 'SUCCESS') return false;
+
+    // Check rawResponse from onActivityResult
+    const raw = (rawResponse || '').toString();
+    if (!raw || raw.length < 5) return false;
+
+    // Must contain Status=SUCCESS (case-insensitive)
+    if (!/status=success/i.test(raw)) return false;
+
+    // Must contain the exact UTR in raw response (ApprovalRefNo=... or rrn=... or 12 digits)
+    if (utr && !raw.includes(utr)) return false;
+
+    // Must have success responseCode '00' or empty (if status is explicitly SUCCESS)
+    const code = (responseCode || '').trim();
+    if (code && code !== '00' && code !== '0') return false;
+
+    return true;
+};
+
+/**
+ * Validates whether a raw message string represents an authentic bank debit SMS
+ * confirming payment to Kwickly.
+ */
+const isAuthenticBankDebitSms = ({ rawMessage, utr, expectedAmount, payeeName, vpa }) => {
+    if (!rawMessage || typeof rawMessage !== 'string') return false;
+    const clean = rawMessage.trim();
+    if (clean.length < 25) return false; // Genuine bank SMS is at least 25 characters
+
+    // 1. Must contain the 12-digit UTR
+    if (utr && !clean.includes(utr)) return false;
+
+    // 2. Must NOT be a failed or reversed payment
+    if (/\b(failed|declined|reversed|cancelled|unsuccessful|failed to debit)\b/i.test(clean)) {
+        return false;
+    }
+
+    // 3. Must contain bank debit / transfer terminology
+    const hasDebitTerm = /\b(debited|debit|transferred|sent|paid|transfer to|payment of)\b/i.test(clean);
+    if (!hasDebitTerm) return false;
+
+    // 4. Must match expected amount
+    const parsedAmt = extractSmsAmount(clean);
+    if (parsedAmt === null || Math.abs(parsedAmt - Number(expectedAmount)) > 0.5) {
+        return false;
+    }
+
+    // 5. Must contain standard UPI banking markers (UPI, Ref No, RRN, or merchant identifier)
+    const hasUpiMarker = /(?:UPI|Ref(?:\s*No)?|RRN|IMPS|A\/c|bank)/i.test(clean);
+    if (!hasUpiMarker) return false;
+
+    return true;
+};
+
 module.exports = {
     generateUpiIntentUri,
     isValidUtr,
     findUtrUsage,
     extractSmsAmount,
-    extractSmsDate
+    extractSmsDate,
+    verifyIntentResponse,
+    isAuthenticBankDebitSms
 };
+

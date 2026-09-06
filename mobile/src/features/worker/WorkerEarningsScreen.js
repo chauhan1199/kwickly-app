@@ -275,7 +275,13 @@ const WorkerEarningsScreen = ({ navigation }) => {
       // 1. If intent returned UTR
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
-        const subRes = await handleManualUtrSubmission(result.approvalRefNo || result.txnId);
+        const subRes = await handleManualUtrSubmission(utr, {
+          isIntentVerified: true,
+          intentStatus: result?.status || 'SUCCESS',
+          responseCode: result?.responseCode || '00',
+          rawResponse: result?.rawResponse || '',
+          txnId: result?.txnId || ''
+        });
         if (subRes?.verified === true || subRes?.status === 'COMPLETED') {
           Alert.alert('Payment Successful', `₹${pendingPaymentContext?.amount} has been added to your wallet.`);
         } else {
@@ -304,13 +310,15 @@ const WorkerEarningsScreen = ({ navigation }) => {
     setTimeout(() => setCopiedUpi(false), 2500);
   };
 
-  const handleManualUtrSubmission = async (utr) => {
+  const handleManualUtrSubmission = async (utr, extraMeta = {}) => {
     const { amount, planId } = pendingPaymentContext;
     const res = await walletService.topupWallet(
       Number(amount),
       { method: 'UPI', txnId: utr },
       planId || undefined,
-      utr
+      utr,
+      null,
+      extraMeta
     );
     return res?.data?.data;
   };

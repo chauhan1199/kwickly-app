@@ -14,7 +14,7 @@ const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
-const { generateUpiIntentUri, isValidUtr, findUtrUsage, extractSmsAmount, extractSmsDate } = require('../../helpers/upi.helper');
+const { generateUpiIntentUri, isValidUtr, findUtrUsage, extractSmsAmount, extractSmsDate, verifyIntentResponse, isAuthenticBankDebitSms } = require('../../helpers/upi.helper');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
 const {
@@ -148,7 +148,22 @@ exports.createOrder = catchAsync(async (req, res) => {
  * Verifies payment after Direct UPI checkout submission (12-digit UTR)
  */
 exports.verifyPayment = catchAsync(async (req, res) => {
-    const { razorpayOrderId, upiOrderId, razorpayPaymentId, upiTransactionId, utrNumber, orderId, rawMessage, smsText, detectedAmount } = req.body;
+    const {
+        razorpayOrderId,
+        upiOrderId,
+        razorpayPaymentId,
+        upiTransactionId,
+        utrNumber,
+        orderId,
+        rawMessage,
+        smsText,
+        detectedAmount,
+        isIntentVerified,
+        intentStatus,
+        responseCode,
+        rawResponse,
+        txnId
+    } = req.body;
 
     const orderRef = upiOrderId || razorpayOrderId;
     if (!orderRef) {
@@ -353,18 +368,34 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 await existingBankCredit.save(sessOpts);
             } else {
                 // If BankCredit was not pre-recorded in database:
-                // If raw SMS text is provided, validate amount
-                if (rawSms) {
-                    const parsedSmsAmt = extractSmsAmount(rawSms);
-                    if (parsedSmsAmt !== null && Math.abs(parsedSmsAmt - creditAmount) > 0.5) {
-                        if (useTransaction) await session.commitTransaction();
-                        if (useTransaction) session.endSession();
-                        return errorResponse(
-                            res,
-                            `Amount mismatch: The copied bank SMS indicates a payment of ₹${parsedSmsAmt.toFixed(2)}, but your top-up requires ₹${creditAmount.toFixed(2)}. Only the transaction made for ₹${creditAmount.toFixed(2)} is valid.`,
-                            StatusCodes.BAD_REQUEST
-                        );
-                    }
+                // We strictly require cryptographic/OS intent verification OR an authentic bank debit SMS.
+                // A manually typed or unverified UTR will NEVER be credited without real proof.
+                const hasValidIntent = verifyIntentResponse({
+                    isIntentVerified: Boolean(isIntentVerified),
+                    intentStatus,
+                    responseCode,
+                    rawResponse,
+                    utr: finalPaymentId,
+                    expectedRef: orderRef
+                });
+
+                const rawSms = (rawMessage || smsText || '').toString().trim();
+                const hasValidSms = isAuthenticBankDebitSms({
+                    rawMessage: rawSms,
+                    utr: finalPaymentId,
+                    expectedAmount: creditAmount,
+                    payeeName: payment.metadata?.payeeName,
+                    vpa: payment.metadata?.platformVpa
+                });
+
+                if (!hasValidIntent && !hasValidSms) {
+                    if (useTransaction) await session.commitTransaction();
+                    if (useTransaction) session.endSession();
+                    return errorResponse(
+                        res,
+                        `Payment verification failed: No matching bank transaction found for UTR ${finalPaymentId} (₹${creditAmount.toFixed(2)}). Please complete the payment in your UPI app or paste your bank debit SMS.`,
+                        StatusCodes.BAD_REQUEST
+                    );
                 }
 
                 // Check session freshness: reject orders older than 30 minutes
@@ -377,8 +408,8 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 await BankCredit.create([{
                     utr: finalPaymentId,
                     amount: creditAmount,
-                    rawMessage: rawSms || `Direct UPI payment session ${orderRef} auto-verified for user ${req.user._id}`,
-                    source: rawSms ? 'BANK_SMS' : 'UPI_INTENT',
+                    rawMessage: hasValidIntent ? (rawResponse || `Direct UPI payment session ${orderRef} intent verified for user ${req.user._id}`) : rawSms,
+                    source: hasValidIntent ? 'UPI_INTENT' : 'BANK_SMS',
                     receivedAt: new Date(),
                     isClaimed: true,
                     claimedBy: req.user._id,
