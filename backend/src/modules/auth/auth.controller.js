@@ -19,7 +19,7 @@ const generateToken = (user) => jwt.sign(
 
 const smsService = require('../../services/sms.service');
 
-const OTP_MAX_ATTEMPTS = 50;
+const OTP_MAX_ATTEMPTS = 500;
 
 const checkOtpAttempts = async (phone) => {
     const key = `otp_attempts:${phone}`;
@@ -50,12 +50,49 @@ const resetOtpAttempts = async (phone) => {
 
 exports.checkStatus = catchAsync(async (req, res) => {
     const { phone, role } = req.body;
-    const user = await Customer.findOne({ phone, role }).lean();
+    
+    // Find all accounts associated with this mobile number
+    const query = { phone };
+    if (role) {
+        query.role = role.toUpperCase();
+    }
+
+    const accounts = await Customer.find(query).select('role name password isVerified email').lean();
+
+    if (!accounts || accounts.length === 0) {
+        return successResponse(res, {
+            exists: false,
+            hasPassword: false,
+            hasMpin: false,
+            accounts: []
+        }, COMMON.SUCCESS);
+    }
+
+    // Determine default/primary account
+    let primaryUser = accounts[0];
+    if (role) {
+        primaryUser = accounts.find(a => a.role === role.toUpperCase()) || accounts[0];
+    } else if (accounts.length > 1) {
+        // If multiple, prioritize CUSTOMER -> SHOP -> WORKER
+        primaryUser = accounts.find(a => a.role === 'CUSTOMER') || accounts[0];
+    }
+
+    const accountList = accounts.map(a => ({
+        role: a.role,
+        name: a.name || 'User',
+        hasMpin: !!a.password,
+        hasPassword: !!a.password,
+        isVerified: !!a.isVerified
+    }));
 
     return successResponse(res, {
-        exists: !!user,
-        hasPassword: !!(user && user.password),
-        hasMpin: !!(user && user.password)
+        exists: true,
+        role: primaryUser.role,
+        name: primaryUser.name || 'User',
+        hasPassword: !!primaryUser.password,
+        hasMpin: !!primaryUser.password,
+        accounts: accountList,
+        singleAccount: accounts.length === 1
     }, COMMON.SUCCESS);
 });
 

@@ -9,14 +9,14 @@ export const authService = {
     withErrorHandling(() => api.post('/auth/verify-otp', { phone, code: otp, role, name })),
 
   checkStatus: (phone, role) =>
-    withErrorHandling(() => api.post('/auth/check-status', { phone, role })),
+    withErrorHandling(() => api.post('/auth/check-status', { phone, ...(role ? { role } : {}) })),
 
   login: (phone, passwordOrMpin, role) =>
     withErrorHandling(() => api.post('/auth/login', { 
       phone, 
       password: passwordOrMpin,
       mpin: passwordOrMpin, 
-      role 
+      ...(role ? { role } : {})
     })),
 
   setMpin: async (mpin, token) => {

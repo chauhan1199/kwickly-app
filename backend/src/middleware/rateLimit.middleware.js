@@ -122,43 +122,43 @@ const getStore = () => {
 
 /**
  * @desc Global limiter — applies to all routes
- * 1000 requests per 15 minutes per IP
+ * 1000 requests per 15 minutes in test, 10000 in dev/prod
  */
 const globalLimiter = rateLimit({
     store: getStore(),
     windowMs: 15 * 60 * 1000,
-    max: 1000,
+    max: process.env.NODE_ENV === 'test' ? 1000 : 10000,
     standardHeaders: true,
     legacyHeaders: false,
-    validate: { xForwardedForHeader: false },
+    validate: { xForwardedForHeader: false, default: false },
     message: { status: 'error', message: 'Too many requests. Please try again later.' }
 });
 
 /**
- * @desc Strict limiter — applies to auth routes (OTP send/verify, login)
- * 5 requests per 15 minutes per IP
+ * @desc Auth limiter — applies to auth routes (OTP send/verify, login)
+ * 500 in test, 5000 in dev/prod to prevent false positive lockouts during mobile testing
  */
 const authLimiter = rateLimit({
     store: getStore(),
     windowMs: 15 * 60 * 1000,
-    max: (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? 500 : 50,
+    max: process.env.NODE_ENV === 'test' ? 500 : 5000,
     standardHeaders: true,
     legacyHeaders: false,
-    validate: { xForwardedForHeader: false },
+    validate: { xForwardedForHeader: false, default: false },
     message: { status: 'error', message: 'Too many authentication attempts. Please wait 15 minutes.' }
 });
 
 /**
  * @desc OTP send limiter
- * 200 OTP sends per 10 minutes per IP
+ * 200 OTP sends in test, 1000 in dev/prod per 10 minutes
  */
 const otpSendLimiter = rateLimit({
     store: getStore(),
     windowMs: 10 * 60 * 1000,
-    max: 200,
+    max: process.env.NODE_ENV === 'test' ? 200 : 1000,
     standardHeaders: true,
     legacyHeaders: false,
-    validate: { xForwardedForHeader: false },
+    validate: { xForwardedForHeader: false, default: false },
     message: { status: 'error', message: 'Too many OTP requests. Please wait 10 minutes.' }
 });
 

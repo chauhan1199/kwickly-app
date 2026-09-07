@@ -118,7 +118,8 @@ const RoleSelection = ({ navigation, route }) => {
   };
 
   const headerTopPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 8;
-  const styles = createStyles(theme, isDarkMode, headerTopPad);
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 16) + 16;
+  const styles = createStyles(theme, isDarkMode, headerTopPad, bottomPad);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -408,7 +409,7 @@ const RoleSelection = ({ navigation, route }) => {
   );
 };
 
-const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -477,6 +478,7 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: bottomPad,
   },
   body: {
     padding: 20,
@@ -726,8 +728,7 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     fontWeight: '700',
   },
   bottomSpacer: {
-    flex: 1,
-    minHeight: 20,
+    height: 24,
   },
   btnShadow: {
     shadowColor: '#6C47FF',
@@ -752,7 +753,7 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
   },
   footerLink: {
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 12,
     marginBottom: 8,
   },
   footerText: {
