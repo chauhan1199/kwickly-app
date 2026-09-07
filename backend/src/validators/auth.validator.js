@@ -47,7 +47,7 @@ const forgotPasswordSchema = Joi.object({
 
 const resetPasswordSchema = Joi.object({
     phone: Joi.string().min(10).max(15).required(),
-    code: Joi.string().length(4).required(),
+    code: Joi.string().min(4).max(6).required(),
     newPassword: Joi.string().min(4).max(64).optional(),
     newMpin: Joi.string().pattern(/^\d{4,6}$/).optional(),
     role: Joi.string().valid('CUSTOMER', 'WORKER', 'SHOP').default('CUSTOMER')
@@ -55,7 +55,7 @@ const resetPasswordSchema = Joi.object({
 
 const resetMpinSchema = Joi.object({
     phone: Joi.string().min(10).max(15).required(),
-    code: Joi.string().length(4).required(),
+    code: Joi.string().min(4).max(6).required(),
     newMpin: Joi.string().pattern(/^\d{4,6}$/).required().messages({
         'string.pattern.base': 'MPIN must be 4 to 6 numeric digits'
     }),

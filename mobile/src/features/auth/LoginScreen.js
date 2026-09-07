@@ -26,6 +26,7 @@ import {
   Store,
   Wrench,
   Edit3,
+  Check,
   X
 } from 'lucide-react-native';
 import { authService } from '../../services/authService';
@@ -286,8 +287,9 @@ const LoginScreen = ({ navigation, route }) => {
    * Submit New MPIN with OTP
    */
   const handleExecuteResetMpin = async () => {
-    if (!resetOtp || resetOtp.length < 4) {
-      showAlert('Invalid OTP', 'Please enter the 6-digit OTP code sent to your phone.');
+    const cleanOtp = (resetOtp || '').trim();
+    if (!cleanOtp || cleanOtp.length !== 4) {
+      showAlert('Invalid OTP', 'Please enter the 4-digit OTP code sent to your phone (Default: 1234).');
       return;
     }
     if (!newMpin || newMpin.length !== 4) {
@@ -301,7 +303,7 @@ const LoginScreen = ({ navigation, route }) => {
 
     setLoading(true);
     try {
-      await authService.resetMpin(phone, resetOtp, newMpin, selectedRole);
+      await authService.resetMpin(phone, cleanOtp, newMpin, selectedRole);
       // Automatically log the user in with the newly set MPIN
       const loginRes = await authService.login(phone, newMpin, selectedRole);
       const { token, user } = loginRes.data.data;
@@ -309,7 +311,7 @@ const LoginScreen = ({ navigation, route }) => {
         await signIn(token, user.role, user);
       });
     } catch (error) {
-      const errorMsg = getApiErrorMessage(error, 'Failed to reset MPIN. Please verify the OTP and try again.');
+      const errorMsg = getApiErrorMessage(error, 'Failed to reset MPIN. Please verify the 4-digit OTP code and try again.');
       showAlert('Reset Failed', errorMsg);
     } finally {
       setLoading(false);
@@ -323,6 +325,9 @@ const LoginScreen = ({ navigation, route }) => {
 
   const currentRoleMeta = ROLE_META[selectedRole] || ROLE_META.CUSTOMER;
   const RoleIcon = currentRoleMeta.icon;
+
+  const isResetMatched = newMpin.length === 4 && confirmNewMpin.length === 4 && newMpin === confirmNewMpin;
+  const isResetMismatched = confirmNewMpin.length === 4 && newMpin.length === 4 && newMpin !== confirmNewMpin;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -601,43 +606,53 @@ const LoginScreen = ({ navigation, route }) => {
                 <View style={styles.titleContainer}>
                   <Text style={styles.title}>Reset Security MPIN</Text>
                   <Text style={styles.subtitle}>
-                    An OTP code has been sent to +91 {phone}. Enter it below to set your new 4-digit MPIN.
+                    Enter the 4-digit OTP sent to +91 {phone} and create your new 4-digit MPIN.
                   </Text>
+                  <View style={styles.otpDevBadge}>
+                    <ShieldCheck size={14} color="#10B981" />
+                    <Text style={styles.otpDevBadgeText}>Default Testing OTP: <Text style={{ fontWeight: '900', color: '#10B981' }}>1234</Text></Text>
+                  </View>
                 </View>
 
                 {/* Reset Form Card */}
                 <View style={styles.inputCard}>
                   {/* OTP Code */}
-                  <Text style={styles.inputLabel}>Verification OTP</Text>
+                  <Text style={styles.inputLabel}>Verification OTP (4 Digits)</Text>
                   <View style={[styles.inputWrapper, focusedInput === 'resetOtp' && styles.inputFocused, { marginBottom: 14 }]}>
                     <View style={styles.inputIcon}>
                       <MessageSquare size={18} color={focusedInput === 'resetOtp' ? '#6C47FF' : theme.colors.textDim} />
                     </View>
                     <TextInput
-                      style={[styles.textInput, { letterSpacing: 4, fontWeight: '700' }]}
-                      placeholder="6-digit OTP"
+                      style={[styles.textInput, { letterSpacing: resetOtp.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                      placeholder="Enter 4-digit OTP (e.g. 1234)"
                       placeholderTextColor={theme.colors.textDim}
                       keyboardType="number-pad"
-                      maxLength={6}
+                      maxLength={4}
                       value={resetOtp}
-                      onChangeText={(text) => setResetOtp(text.replace(/[^0-9]/g, ''))}
+                      onChangeText={(text) => setResetOtp(text.replace(/[^0-9]/g, '').slice(0, 4))}
                       onFocus={() => {
                         setFocusedInput('resetOtp');
-                        scrollToInput(60);
+                        scrollToInput(40);
                       }}
                       onBlur={() => setFocusedInput(null)}
                     />
                   </View>
 
                   {/* New MPIN */}
-                  <Text style={styles.inputLabel}>New 4-Digit MPIN</Text>
+                  <View style={styles.labelRow}>
+                    <Text style={styles.inputLabel}>New 4-Digit MPIN</Text>
+                    <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} style={styles.eyeToggleBtn}>
+                      {showNewMpin ? <EyeOff size={15} color="#6C47FF" /> : <Eye size={15} color="#6C47FF" />}
+                      <Text style={styles.eyeToggleText}>{showNewMpin ? 'Hide' : 'Show'}</Text>
+                    </TouchableOpacity>
+                  </View>
                   <View style={[styles.inputWrapper, focusedInput === 'newMpin' && styles.inputFocused, { marginBottom: 14 }]}>
                     <View style={styles.inputIcon}>
                       <Lock size={18} color={focusedInput === 'newMpin' ? '#6C47FF' : theme.colors.textDim} />
                     </View>
                     <TextInput
-                      style={[styles.textInput, { letterSpacing: showNewMpin ? 2 : 6, fontWeight: '800' }]}
-                      placeholder="New MPIN"
+                      style={[styles.textInput, { letterSpacing: newMpin.length > 0 ? (showNewMpin ? 4 : 8) : 0, fontWeight: '800' }]}
+                      placeholder="Enter new 4-digit MPIN"
                       placeholderTextColor={theme.colors.textDim}
                       keyboardType="number-pad"
                       maxLength={4}
@@ -650,20 +665,35 @@ const LoginScreen = ({ navigation, route }) => {
                       }}
                       onBlur={() => setFocusedInput(null)}
                     />
-                    <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} style={styles.eyeBtn}>
-                      {showNewMpin ? <EyeOff size={18} color={theme.colors.textDim} /> : <Eye size={18} color={theme.colors.textDim} />}
-                    </TouchableOpacity>
                   </View>
 
                   {/* Confirm New MPIN */}
-                  <Text style={styles.inputLabel}>Confirm New MPIN</Text>
-                  <View style={[styles.inputWrapper, focusedInput === 'confirmNewMpin' && styles.inputFocused]}>
+                  <View style={styles.labelRow}>
+                    <Text style={styles.inputLabel}>Confirm New MPIN</Text>
+                    {isResetMatched && (
+                      <View style={styles.matchBadgeSuccess}>
+                        <Check size={12} color="#10B981" />
+                        <Text style={styles.matchTextSuccess}>MPINs Match</Text>
+                      </View>
+                    )}
+                    {isResetMismatched && (
+                      <View style={styles.matchBadgeError}>
+                        <X size={12} color="#EF4444" />
+                        <Text style={styles.matchTextError}>Do not match</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={[
+                    styles.inputWrapper, 
+                    focusedInput === 'confirmNewMpin' && styles.inputFocused,
+                    isResetMatched && styles.inputSuccess
+                  ]}>
                     <View style={styles.inputIcon}>
-                      <ShieldCheck size={18} color={focusedInput === 'confirmNewMpin' ? '#6C47FF' : theme.colors.textDim} />
+                      <ShieldCheck size={18} color={isResetMatched ? '#10B981' : focusedInput === 'confirmNewMpin' ? '#6C47FF' : theme.colors.textDim} />
                     </View>
                     <TextInput
-                      style={[styles.textInput, { letterSpacing: showNewMpin ? 2 : 6, fontWeight: '800' }]}
-                      placeholder="Confirm New MPIN"
+                      style={[styles.textInput, { letterSpacing: confirmNewMpin.length > 0 ? (showNewMpin ? 4 : 8) : 0, fontWeight: '800' }]}
+                      placeholder="Re-enter 4-digit MPIN"
                       placeholderTextColor={theme.colors.textDim}
                       keyboardType="number-pad"
                       maxLength={4}
@@ -672,7 +702,7 @@ const LoginScreen = ({ navigation, route }) => {
                       onChangeText={(text) => setConfirmNewMpin(text.replace(/[^0-9]/g, '').slice(0, 4))}
                       onFocus={() => {
                         setFocusedInput('confirmNewMpin');
-                        scrollToInput(220);
+                        scrollToInput(200);
                       }}
                       onBlur={() => setFocusedInput(null)}
                     />
@@ -681,10 +711,10 @@ const LoginScreen = ({ navigation, route }) => {
 
                 {/* Reset & Sign In Button */}
                 <TouchableOpacity 
-                  style={[styles.btnShadow, { opacity: (resetOtp.length >= 4 && newMpin.length === 4 && confirmNewMpin.length === 4 && !loading) ? 1 : 0.6 }]} 
+                  style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.65 }]} 
                   onPress={handleExecuteResetMpin} 
                   activeOpacity={0.88} 
-                  disabled={resetOtp.length < 4 || newMpin.length !== 4 || confirmNewMpin.length !== 4 || loading}
+                  disabled={resetOtp.length !== 4 || !isResetMatched || loading}
                 >
                   <LinearGradient
                     colors={['#7C3AED', '#6C47FF']}
@@ -694,7 +724,7 @@ const LoginScreen = ({ navigation, route }) => {
                     {loading ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
-                      <Text style={styles.btnText}>Reset MPIN & Sign In</Text>
+                      <Text style={styles.btnText}>Reset MPIN & Sign In →</Text>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
@@ -702,6 +732,7 @@ const LoginScreen = ({ navigation, route }) => {
                 <TouchableOpacity 
                   style={styles.switchNumberBtn} 
                   onPress={() => setStep('MPIN')}
+                  activeOpacity={0.7}
                 >
                   <Text style={styles.switchNumberText}>Back to MPIN sign in</Text>
                 </TouchableOpacity>
@@ -913,6 +944,70 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   },
   eyeBtn: {
     padding: 8,
+  },
+  otpDevBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5',
+    borderWidth: 1,
+    borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : '#A7F3D0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  otpDevBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: isDarkMode ? '#34D399' : '#065F46',
+  },
+  eyeToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F0EDFF',
+  },
+  eyeToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  matchBadgeSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+  },
+  matchTextSuccess: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  matchBadgeError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2',
+  },
+  matchTextError: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  inputSuccess: {
+    borderColor: '#10B981',
+    backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.05)' : '#F0FDF4',
   },
   accountCard: {
     flexDirection: 'row',
