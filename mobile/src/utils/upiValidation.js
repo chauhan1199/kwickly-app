@@ -97,15 +97,28 @@ export const parseBankSms = (text) => {
 
     // 1. Extract 12-digit UTR
     let utr = null;
-    const utrRegex = /(?:upi\s*(?:ref(?:erence)?|txn(?:action)?(?:\s*id)?)(?:\s*no)?|ref\s*(?:no|id)?|rrn|utr|upi\/)\D*?(\d{12})/i;
-    const utrMatch = utrRegex.exec(clean);
+
+    // Pattern 1: Targeted UPI Reference / UTR keywords
+    // Matches: UPI:661508361033, UPI Ref: 661508361033, Ref No 661508361033, Txn ID 661508361033,
+    // UPI/P2A/661508361033, UTR: 661508361033, RRN 661508361033, UPI-RR: 661508361033, etc.
+    const keywordRegex = /(?:upi\s*(?:ref(?:erence)?|txn(?:action)?(?:\s*id)?|rrn|id|no)?[:\s/_-]*|ref\s*(?:no|id|num)?[:\s/_-]*|rrn[:\s/_-]*|utr(?:\s*no)?[:\s/_-]*|urn[:\s/_-]*|imps\s*ref[:\s/_-]*|txn\s*ref[:\s/_-]*|approval\s*ref[:\s/_-]*|upi\/(?:p2a|p2p|cr|dr)?\/?)\D*?(\d{12})/i;
+    const utrMatch = keywordRegex.exec(clean);
     if (utrMatch && isValidUtr(utrMatch[1])) {
         utr = utrMatch[1];
     } else {
+        // Pattern 2: Standalone 12-digit candidate, but explicitly ignore bank account numbers
+        // e.g. "A/c 123456789012" or "Card ending 123456789012" are NOT UTRs
+        const accountNumRegex = /(?:a\/c|acct|account|acc\s*no|card)\s*(?:no\.?)?\s*[:\s#]*[xX\*]*(\d{9,18})/gi;
+        const accountNumbers = new Set();
+        let accMatch;
+        while ((accMatch = accountNumRegex.exec(clean)) !== null) {
+            if (accMatch[1]) accountNumbers.add(accMatch[1]);
+        }
+
         const standaloneMatches = clean.match(/\b(\d{12})\b/g);
         if (standaloneMatches) {
             for (const candidate of standaloneMatches) {
-                if (isValidUtr(candidate)) {
+                if (!accountNumbers.has(candidate) && isValidUtr(candidate)) {
                     utr = candidate;
                     break;
                 }
@@ -114,20 +127,30 @@ export const parseBankSms = (text) => {
     }
 
     // 2. Extract debited / paid transaction amount
-    // We specifically target the debited amount and explicitly isolate it from any "Bal" or "Balance" figure
+    // Supports both:
+    // a) Amount BEFORE verb: "₹282.04 sent to GHANSHYAM" or "Rs. 282 debited"
+    // b) Amount AFTER verb: "sent ₹282.04 to GHANSHYAM" or "debited by Rs 282.04"
     let amount = null;
-    // Step 2a: Try targeted debit phrases first
-    const debitRegex = /(?:debited\s*(?:by|with|for)?|paid\s*(?:to\s*[^,\n\r]+?)?|sent\s*(?:to\s*[^,\n\r]+?)?|transferred\s*|txn\s*(?:of)?)\s*(?:Rs\.?|INR|₹)?\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
-    const debitMatch = debitRegex.exec(clean);
-    if (debitMatch) {
-        amount = parseFloat(debitMatch[1]);
+
+    // Step 2a: Amount before action verb (e.g. "₹282.04 sent to GHANSHYAM", "Rs 282 debited")
+    const amtBeforeRegex = /(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:debited|sent|transferred|paid)/i;
+    const beforeMatch = amtBeforeRegex.exec(clean);
+    if (beforeMatch) {
+        amount = parseFloat(beforeMatch[1]);
     } else {
-        // Step 2b: Split at "bal" / "balance" so we don't accidentally match the user's remaining bank balance
-        const preBalancePart = clean.split(/(?:bal(?:ance)?|avl\s*bal|total\s*bal)/i)[0];
-        const generalAmtRegex = /(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
-        const genMatch = generalAmtRegex.exec(preBalancePart);
-        if (genMatch) {
-            amount = parseFloat(genMatch[1]);
+        // Step 2b: Amount after action verb (e.g. "debited for Rs 282.04", "paid ₹282.04")
+        const amtAfterRegex = /(?:debited\s*(?:by|with|for)?|paid\s*(?:to\s*[^,\n\r]+?)?|sent\s*(?:to\s*[^,\n\r]+?)?|transferred\s*|txn\s*(?:of)?)\s*(?:Rs\.?|INR|₹)?\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
+        const afterMatch = amtAfterRegex.exec(clean);
+        if (afterMatch) {
+            amount = parseFloat(afterMatch[1]);
+        } else {
+            // Step 2c: General amount search strictly before any "Bal / Balance" substring
+            const preBalancePart = clean.split(/(?:bal(?:ance)?|avl\s*bal|total\s*bal)/i)[0];
+            const generalAmtRegex = /(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
+            const genMatch = generalAmtRegex.exec(preBalancePart);
+            if (genMatch) {
+                amount = parseFloat(genMatch[1]);
+            }
         }
     }
 
@@ -150,7 +173,7 @@ export const parseBankSms = (text) => {
 /**
  * Validates whether an SMS or clipboard payload matches the expected payment session:
  * - Ensures valid 12-digit UTR
- * - Ensures that if an amount was parsed from the SMS, it matches the required amount
+ * - Ensures that if an amount was parsed from the SMS, it matches the required amount (allowing for bank SMS rounding)
  * 
  * @param {Object} params
  * @param {string} params.text - Raw SMS or clipboard text
@@ -178,11 +201,15 @@ export const validateSmsPayment = ({ text, expectedAmount }) => {
         };
     }
 
-    // STRICT AMOUNT CHECK: If an amount is detected in the SMS, it MUST match expectedAmount
+    // AMOUNT CHECK: Allow up to ₹1.01 difference or matching rounded integer
+    // This accommodates bank SMS that truncate or round paise (e.g. ₹282 vs ₹282.04 or ₹282 vs ₹282.75)
     if (expectedAmount && parsed.amount !== null) {
         const expected = Number(expectedAmount);
         const actual = Number(parsed.amount);
-        if (Math.abs(actual - expected) > 0.5) {
+        const diff = Math.abs(actual - expected);
+        const roundedMatches = Math.round(actual) === Math.round(expected);
+
+        if (diff > 1.01 && !roundedMatches) {
             return {
                 isValid: false,
                 utr: parsed.utr,
@@ -201,3 +228,4 @@ export const validateSmsPayment = ({ text, expectedAmount }) => {
         error: null
     };
 };
+

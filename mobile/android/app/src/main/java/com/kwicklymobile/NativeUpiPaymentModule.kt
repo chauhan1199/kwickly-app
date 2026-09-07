@@ -30,6 +30,17 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
 
     companion object {
         private var instance: NativeUpiPaymentModule? = null
+        private var cachedUtr: String = ""
+        private var cachedAmount: String = ""
+        private var cachedBody: String = ""
+        private var cachedTimestamp: Long = 0L
+
+        fun cacheIncomingSms(utr: String, amount: String?, sender: String, body: String) {
+            cachedUtr = utr
+            cachedAmount = amount ?: ""
+            cachedBody = body
+            cachedTimestamp = System.currentTimeMillis()
+        }
 
         fun sendSmsEvent(utr: String, amount: String?, sender: String, body: String) {
             val module = instance ?: return
@@ -70,6 +81,20 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
     @ReactMethod
     fun getLatestSmsUtr(promise: Promise) {
         val map = Arguments.createMap()
+        val now = System.currentTimeMillis()
+
+        // 1. Check in-memory broadcast cache first (captured by SmsReceiver)
+        if (cachedUtr.isNotEmpty() && (now - cachedTimestamp < 5 * 60 * 1000)) {
+            map.putString("utr", cachedUtr)
+            map.putString("amount", cachedAmount)
+            map.putString("body", cachedBody)
+            map.putDouble("timestamp", cachedTimestamp.toDouble())
+            map.putBoolean("hasUtr", true)
+            promise.resolve(map)
+            return
+        }
+
+        // 2. Query content://sms/inbox directly
         val sms = getLatestSmsInfoSync()
         if (sms != null && sms.utr.isNotEmpty()) {
             map.putString("utr", sms.utr)
@@ -91,6 +116,10 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
 
     @ReactMethod
     fun clearSmsCache(promise: Promise) {
+        cachedUtr = ""
+        cachedAmount = ""
+        cachedBody = ""
+        cachedTimestamp = 0L
         promise.resolve(true)
     }
 
@@ -613,13 +642,25 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
 
     private fun extractAmountFromText(text: String): String? {
         if (text.isEmpty()) return null
-        val regex = Regex("""(?:debited\s*(?:by|with|for)?|paid|sent|transferred|txn\s*(?:of)?)\s*(?:Rs\.?|INR|₹)?\s*([0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
-        val match = regex.find(text)
-        if (match != null) {
-            return match.groupValues[1]
+
+        // 1. Amount before action verb (e.g. "₹282.04 sent to GHANSHYAM", "Rs 282 debited")
+        val beforeRegex = Regex("""(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:debited|sent|transferred|paid)""", RegexOption.IGNORE_CASE)
+        val beforeMatch = beforeRegex.find(text)
+        if (beforeMatch != null) {
+            return beforeMatch.groupValues[1]
         }
+
+        // 2. Amount after action verb
+        val afterRegex = Regex("""(?:debited\s*(?:by|with|for)?|paid\s*(?:to\s*[^,\n\r]+?)?|sent\s*(?:to\s*[^,\n\r]+?)?|transferred\s*|txn\s*(?:of)?)\s*(?:Rs\.?|INR|₹)?\s*([0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+        val afterMatch = afterRegex.find(text)
+        if (afterMatch != null) {
+            return afterMatch.groupValues[1]
+        }
+
+        // 3. General amount before balance
+        val preBal = text.split(Regex("""(?:bal(?:ance)?|avl\s*bal|total\s*bal)""", RegexOption.IGNORE_CASE))[0]
         val genRegex = Regex("""(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
-        val genMatch = genRegex.find(text)
+        val genMatch = genRegex.find(preBal)
         return genMatch?.groupValues?.get(1)
     }
 
@@ -643,17 +684,29 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
 
     private fun extractUtrFromText(text: String): String? {
         if (text.isEmpty()) return null
-        val keywordRegex = Regex("""(?:upi\s*(?:ref(?:erence)?|txn(?:action)?(?:\s*id)?)(?:\s*no)?|ref\s*(?:no|id)?|rrn|utr)\D*?(\d{12})""", RegexOption.IGNORE_CASE)
+
+        // 1. Check targeted UPI Reference / UTR keywords
+        val keywordRegex = Regex(
+            """(?:upi\s*(?:ref(?:erence)?|txn(?:action)?(?:\s*id)?|rrn|id|no)?[:\s/_-]*|ref\s*(?:no|id|num)?[:\s/_-]*|rrn[:\s/_-]*|utr(?:\s*no)?[:\s/_-]*|urn[:\s/_-]*|imps\s*ref[:\s/_-]*|txn\s*ref[:\s/_-]*|approval\s*ref[:\s/_-]*|upi/(?:p2a|p2p|cr|dr)?/?)\D*?(\d{12})""",
+            RegexOption.IGNORE_CASE
+        )
         val match = keywordRegex.find(text)
         if (match != null) {
             val candidate = match.groupValues[1]
             if (candidate.length == 12 && candidate.toSet().size >= 3) return candidate
         }
+
+        // 2. Standalone 12-digit candidate, excluding account numbers
+        val accRegex = Regex("""(?:a/c|acct|account|acc\s*no|card)\s*(?:no\.?)?\s*[:\s#]*[xX*]*(\d{9,18})""", RegexOption.IGNORE_CASE)
+        val accMatches = accRegex.findAll(text).map { it.groupValues[1] }.toSet()
+
         val standaloneRegex = Regex("""\b(\d{12})\b""")
         val standaloneMatches = standaloneRegex.findAll(text)
         for (m in standaloneMatches) {
             val candidate = m.groupValues[1]
-            if (candidate.length == 12 && candidate.toSet().size >= 3) return candidate
+            if (!accMatches.contains(candidate) && candidate.length == 12 && candidate.toSet().size >= 3) {
+                return candidate
+            }
         }
         return null
     }

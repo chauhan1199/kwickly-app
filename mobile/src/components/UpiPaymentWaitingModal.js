@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
   ActivityIndicator, TextInput, Animated, Easing, Platform,
-  KeyboardAvoidingView, Alert, Linking
+  KeyboardAvoidingView, Alert, Linking, AppState
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../context/ThemeContext';
@@ -173,75 +173,144 @@ const UpiPaymentWaitingModal = ({
   }, [utrInput, onSubmitManualUtr, orderId, handleTriggerSuccess, onClose]);
 
   // ─── Automated Bank SMS & Background Detection (Zero Manual Entry!) ───
+  const scanCountRef = useRef(0);
+
+  const checkAndVerifyCandidate = useCallback(async (candidateText, extraMeta = {}) => {
+    if (!candidateText || typeof candidateText !== 'string') return false;
+    const clean = candidateText.trim();
+    if (!clean) return false;
+
+    // Case 1: Validate as SMS / notification text
+    const validation = validateSmsPayment({ text: clean, expectedAmount: amount });
+    if (validation.isValid && !deviceUsedUtrs.has(validation.utr)) {
+      console.log('[AutoUPI] Auto-detected valid UTR from message/clipboard:', validation.utr);
+      setStatusNote('Payment reference detected! Verifying...');
+      setUtrInput(validation.utr);
+      await executeVerifyUtr(validation.utr, {
+        rawMessage: validation.rawText,
+        detectedAmount: validation.amount,
+        dateStr: validation.dateStr,
+        ...extraMeta
+      });
+      return true;
+    }
+
+    // Case 2: Standalone 12-digit UTR
+    const raw12 = clean.replace(/\D/g, '');
+    if (raw12.length === 12 && isValidUtr(raw12) && !deviceUsedUtrs.has(raw12)) {
+      console.log('[AutoUPI] Auto-detected pure 12-digit UTR:', raw12);
+      setStatusNote('Payment reference detected! Verifying...');
+      setUtrInput(raw12);
+      await executeVerifyUtr(raw12, extraMeta);
+      return true;
+    }
+
+    return false;
+  }, [amount, executeVerifyUtr]);
+
+  const triggerImmediateScan = useCallback(async () => {
+    if (!visible || step === 'SUCCESS' || submittingUtr) return;
+    try {
+      // 1. Check native bank SMS detection
+      const smsRes = await nativeUpiService.getLatestSmsUtr();
+      if (smsRes?.hasUtr && smsRes?.utr && isValidUtr(smsRes.utr)) {
+        const smsAmt = smsRes.amount ? parseFloat(smsRes.amount) : null;
+        const diff = smsAmt && amount ? Math.abs(smsAmt - Number(amount)) : 0;
+        const roundedMatch = smsAmt && amount ? Math.round(smsAmt) === Math.round(Number(amount)) : true;
+
+        if (smsAmt && amount && diff > 1.01 && !roundedMatch) {
+          console.log('[AutoUPI] Ignoring SMS UTR due to amount mismatch:', smsAmt, 'expected:', amount);
+        } else {
+          const detected = smsRes.utr.trim();
+          if (!deviceUsedUtrs.has(detected)) {
+            console.log('[AutoUPI] Auto-detected UTR from bank SMS:', detected);
+            setStatusNote('Bank SMS detected! Verifying payment...');
+            setUtrInput(detected);
+            await executeVerifyUtr(detected, { rawMessage: smsRes.body || '', detectedAmount: smsAmt });
+            return;
+          }
+        }
+      }
+
+      // 2. Check native clipboard
+      const nativeClip = await nativeUpiService.getClipboardUtr();
+      let clipText = nativeClip?.text || '';
+
+      // 3. Check React Native Clipboard directly as fallback
+      if (!clipText) {
+        try {
+          clipText = await Clipboard.getString();
+        } catch (e) {}
+      }
+
+      if (clipText) {
+        const handled = await checkAndVerifyCandidate(clipText);
+        if (handled) return;
+      }
+
+      // 4. Poll backend order status
+      if (orderId) {
+        const statusRes = await walletService.checkPaymentStatus(orderId);
+        if (statusRes?.data?.data?.status === 'COMPLETED') {
+          handleTriggerSuccess(statusRes.data.data);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[AutoUPI] Instant scan error:', err?.message);
+    }
+  }, [visible, step, submittingUtr, amount, orderId, executeVerifyUtr, checkAndVerifyCandidate, handleTriggerSuccess]);
+
+  // Restart auto-scanning immediately whenever app returns to foreground (user finishes in GPay / SMS)
+  useEffect(() => {
+    if (!visible || step === 'SUCCESS') return;
+
+    const sub = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        console.log('[AutoUPI] App became active! Triggering instant auto-scan...');
+        scanCountRef.current = 0;
+        setTimeout(() => {
+          triggerImmediateScan();
+        }, 500);
+      }
+    });
+
+    return () => sub.remove();
+  }, [visible, step, triggerImmediateScan]);
+
+  // Periodic background auto-scanner
   useEffect(() => {
     if (!visible || step === 'SUCCESS' || submittingUtr) return;
 
     let isMounted = true;
-    let scanCount = 0;
-    const maxScans = 15;
+    scanCountRef.current = 0;
+    const maxScans = 25;
 
     const performAutoScan = async () => {
       if (!isMounted || step === 'SUCCESS') return;
-      scanCount++;
+      scanCountRef.current++;
 
-      try {
-        // 1. Check native bank SMS detection
-        const smsRes = await nativeUpiService.getLatestSmsUtr();
-        if (smsRes?.hasUtr && smsRes?.utr && isValidUtr(smsRes.utr)) {
-          const smsAmt = smsRes.amount ? parseFloat(smsRes.amount) : null;
-          if (smsAmt && amount && Math.abs(smsAmt - Number(amount)) > 0.5) {
-            console.log('[AutoUPI] Ignoring SMS UTR due to amount mismatch:', smsAmt, 'expected:', amount);
-          } else {
-            const detected = smsRes.utr.trim();
-            if (!deviceUsedUtrs.has(detected)) {
-              console.log('[AutoUPI] Auto-detected UTR from bank SMS:', detected);
-              setStatusNote('Bank SMS detected! Verifying payment...');
-              await executeVerifyUtr(detected, { rawMessage: smsRes.body || '', detectedAmount: smsAmt });
-              return;
-            }
-          }
-        }
+      await triggerImmediateScan();
 
-        // 2. Check native clipboard for fresh 12-digit UTR with amount validation
-        const nativeClip = await nativeUpiService.getClipboardUtr();
-        if (nativeClip?.text) {
-          const validation = validateSmsPayment({ text: nativeClip.text, expectedAmount: amount });
-          if (validation.isValid && !deviceUsedUtrs.has(validation.utr)) {
-            console.log('[AutoUPI] Auto-detected valid UTR from clipboard:', validation.utr);
-            setStatusNote('Payment reference detected! Verifying...');
-            await executeVerifyUtr(validation.utr, { rawMessage: validation.rawText, detectedAmount: validation.amount });
-            return;
-          }
-        }
-
-        // 3. Poll backend order status
-        if (orderId) {
-          const statusRes = await walletService.checkPaymentStatus(orderId);
-          if (statusRes?.data?.data?.status === 'COMPLETED') {
-            handleTriggerSuccess(statusRes.data.data);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('[AutoUPI] Scan error:', err?.message);
-      }
-
-      if (isMounted && scanCount < maxScans && step !== 'SUCCESS') {
-        timer = setTimeout(performAutoScan, 1800);
+      if (isMounted && scanCountRef.current < maxScans && step !== 'SUCCESS') {
+        timer = setTimeout(performAutoScan, 2000);
       }
     };
 
-    let timer = setTimeout(performAutoScan, 1200);
+    let timer = setTimeout(performAutoScan, 800);
 
     const unsubscribeSms = nativeUpiService.subscribeToBankSms(async (event) => {
       if (event?.utr && isValidUtr(event.utr) && !deviceUsedUtrs.has(event.utr.trim())) {
         const eventAmt = event.amount ? parseFloat(event.amount) : null;
-        if (eventAmt && amount && Math.abs(eventAmt - Number(amount)) > 0.5) {
+        const diff = eventAmt && amount ? Math.abs(eventAmt - Number(amount)) : 0;
+        const roundedMatch = eventAmt && amount ? Math.round(eventAmt) === Math.round(Number(amount)) : true;
+        if (eventAmt && amount && diff > 1.01 && !roundedMatch) {
           console.log('[AutoUPI] Real-time SMS ignored due to amount mismatch:', eventAmt, 'expected:', amount);
           return;
         }
         console.log('[AutoUPI] Real-time SMS broadcast received:', event.utr);
         setStatusNote('Bank SMS received! Verifying...');
+        setUtrInput(event.utr.trim());
         await executeVerifyUtr(event.utr.trim(), { rawMessage: event.body || '', detectedAmount: eventAmt });
       }
     });
@@ -251,24 +320,40 @@ const UpiPaymentWaitingModal = ({
       clearTimeout(timer);
       if (unsubscribeSms) unsubscribeSms();
     };
-  }, [visible, step, submittingUtr, orderId, amount, executeVerifyUtr, extractUtrFromText, handleTriggerSuccess]);
+  }, [visible, step, submittingUtr, triggerImmediateScan, amount, executeVerifyUtr]);
 
   const handleUserConfirmedPaid = useCallback(async () => {
     setStatusNote('Detecting bank confirmation...');
     try {
+      // 1. Check SMS inbox
       const smsRes = await nativeUpiService.getLatestSmsUtr();
       if (smsRes?.hasUtr && smsRes?.utr && isValidUtr(smsRes.utr)) {
         const smsAmt = smsRes.amount ? parseFloat(smsRes.amount) : null;
-        if (!smsAmt || !amount || Math.abs(smsAmt - Number(amount)) <= 0.5) {
+        const diff = smsAmt && amount ? Math.abs(smsAmt - Number(amount)) : 0;
+        const roundedMatch = smsAmt && amount ? Math.round(smsAmt) === Math.round(Number(amount)) : true;
+        if (!smsAmt || !amount || diff <= 1.01 || roundedMatch) {
           if (!deviceUsedUtrs.has(smsRes.utr.trim())) {
+            setUtrInput(smsRes.utr.trim());
             await executeVerifyUtr(smsRes.utr.trim(), { rawMessage: smsRes.body || '', detectedAmount: smsAmt });
             return;
           }
         }
       }
-    } catch (e) {}
+
+      // 2. Check Clipboard (native or JS)
+      let clip = '';
+      const nativeClip = await nativeUpiService.getClipboardUtr();
+      if (nativeClip?.text) clip = nativeClip.text;
+      if (!clip) clip = await Clipboard.getString();
+      if (clip) {
+        const handled = await checkAndVerifyCandidate(clip);
+        if (handled) return;
+      }
+    } catch (e) {
+      console.warn('[AutoUPI] handleUserConfirmedPaid check error:', e);
+    }
     setStep('ENTER_UTR');
-  }, [amount, executeVerifyUtr]);
+  }, [amount, executeVerifyUtr, checkAndVerifyCandidate]);
 
   // One-tap Auto-Paste & Verify handler
   const handlePasteAndVerify = useCallback(async () => {

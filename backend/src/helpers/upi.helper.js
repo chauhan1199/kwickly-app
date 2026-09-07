@@ -112,7 +112,15 @@ const extractSmsAmount = (text) => {
     if (!text || typeof text !== 'string') return null;
     const clean = text.trim();
 
-    // 1. Check targeted debit / payment keywords
+    // 1. Amount before action verb (e.g. "₹282.04 sent to GHANSHYAM", "Rs 282 debited")
+    const amtBeforeRegex = /(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:debited|sent|transferred|paid)/i;
+    const beforeMatch = amtBeforeRegex.exec(clean);
+    if (beforeMatch) {
+        const amt = parseFloat(beforeMatch[1]);
+        if (!isNaN(amt) && amt > 0) return amt;
+    }
+
+    // 2. Check targeted debit / payment keywords after verb
     const debitRegex = /(?:debited\s*(?:by|with|for)?|paid\s*(?:to\s*[^,\n\r]+?)?|sent\s*(?:to\s*[^,\n\r]+?)?|transferred\s*|txn\s*(?:of)?)\s*(?:Rs\.?|INR|₹)?\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
     const debitMatch = debitRegex.exec(clean);
     if (debitMatch) {
@@ -120,7 +128,7 @@ const extractSmsAmount = (text) => {
         if (!isNaN(amt) && amt > 0) return amt;
     }
 
-    // 2. Cut off at balance keyword to avoid account balance numbers
+    // 3. Cut off at balance keyword to avoid account balance numbers
     const preBal = clean.split(/(?:bal(?:ance)?|avl\s*bal|total\s*bal)/i)[0];
     const genRegex = /(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
     const genMatch = genRegex.exec(preBal);

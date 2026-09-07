@@ -22,6 +22,8 @@ import {
 } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
 import { isValidUtr, utrValidationError } from '../../utils/upiValidation';
+import { nativeUpiService } from '../../services/nativeUpiService';
+import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
 
 const CartScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -87,33 +89,14 @@ const CartScreen = ({ route, navigation }) => {
 
   // UPI Modal State
   const [showUpiModal, setShowUpiModal] = useState(false);
+  const [showWaitingModal, setShowWaitingModal] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(null);
   const [upiOrderData, setUpiOrderData] = useState(null);
   const [customUpiId, setCustomUpiId] = useState('');
   const [upiVerifying, setUpiVerifying] = useState(false);
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
-  const [paymentInitiated, setPaymentInitiated] = useState(false);
-  const [showManualUtr, setShowManualUtr] = useState(false);
   const [copiedVpa, setCopiedVpa] = useState(false);
   const [upiTxnId, setUpiTxnId] = useState('');
-
-  useEffect(() => { fetchCart(); }, [fetchCart]);
-
-  useEffect(() => {
-    if (cart?.shopId) {
-      loadDeliverySlots();
-    }
-  }, [cart?.shopId, loadDeliverySlots]);
-
-  // Auto-verify when user returns from UPI app
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active' && paymentInitiated && currentOrder && !upiVerifying) {
-        handleConfirmUpiPayment(true, true);
-      }
-    });
-    return () => sub.remove();
-  }, [paymentInitiated, currentOrder, upiVerifying]);
 
   const [selectedDate, setSelectedDate] = useState(0); // 0 = Today, 1 = Tomorrow, 2 = Day After
 
@@ -193,6 +176,14 @@ const CartScreen = ({ route, navigation }) => {
       console.warn('Could not load delivery slots:', e);
     }
   }, [cart?.shopId, isSlotPassed]);
+
+  useEffect(() => { fetchCart(); }, [fetchCart]);
+
+  useEffect(() => {
+    if (cart?.shopId) {
+      loadDeliverySlots();
+    }
+  }, [cart?.shopId, loadDeliverySlots]);
 
   const handleApplyPromo = async () => {
     if (!promoInput.trim()) return;
@@ -368,36 +359,99 @@ const CartScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleOpenUpiApp = async (appScheme = null) => {
-    const chosen = appScheme || selectedUpiApp || 'generic';
-    setSelectedUpiApp(chosen);
-    setPaymentInitiated(true);
-    if (!upiOrderData?.upiIntentUri) return;
-    try {
-      let targetUri = upiOrderData.upiIntentUri;
-      if (chosen === 'gpay') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'tez://upi/pay').replace('upi://', 'tez://upi/');
-      } else if (chosen === 'phonepe') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'phonepe://pay').replace('upi://', 'phonepe://');
-      } else if (chosen === 'paytm') {
-        targetUri = upiOrderData.upiIntentUri.replace('upi://pay', 'paytmmp://pay').replace('upi://', 'paytmmp://');
-      }
+  const handleManualUtrVerification = async (utr, extraMeta = {}) => {
+    if (!currentOrder?._id && !upiOrderData?.razorpayOrderId) {
+      throw new Error('No active order session found');
+    }
+    const cleanUtr = (utr || '').trim();
+    if (!cleanUtr || !isValidUtr(cleanUtr)) {
+      throw new Error('Please enter the valid 12-digit UPI Reference Number.');
+    }
 
-      const supported = await Linking.canOpenURL(targetUri).catch(() => false);
-      if (supported) {
-        await Linking.openURL(targetUri);
-      } else {
-        const universalSupported = await Linking.canOpenURL(upiOrderData.upiIntentUri).catch(() => false);
-        if (universalSupported) {
-          await Linking.openURL(upiOrderData.upiIntentUri);
-        } else {
-          Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
+    setUpiVerifying(true);
+    try {
+      const verifyRes = await walletService.verifyPayment({
+        razorpayOrderId: upiOrderData?.razorpayOrderId || `upi_${Date.now()}`,
+        upiTransactionId: cleanUtr,
+        utrNumber: cleanUtr,
+        orderId: currentOrder?._id,
+        amount: total,
+        purpose: 'order_payment',
+        ...extraMeta
+      });
+
+      const isSuccess = verifyRes?.data?.status === 'success' ||
+                        verifyRes?.status === 'success' ||
+                        verifyRes?.data?.data?.status === 'PENDING_VERIFICATION' ||
+                        verifyRes?.data?.data?.status === 'COMPLETED';
+
+      if (isSuccess) {
+        await handlePaymentSuccess(cleanUtr);
+        return { verified: true, data: verifyRes?.data?.data || verifyRes?.data };
+      }
+      return verifyRes?.data || verifyRes;
+    } finally {
+      setUpiVerifying(false);
+    }
+  };
+
+  const handlePaymentSuccess = async (detectedUtr = null) => {
+    setShowUpiModal(false);
+    setShowWaitingModal(false);
+    setUpiTxnId('');
+    await clearCart();
+    if (fetchUser) await fetchUser();
+
+    setOrderSuccessModal({
+      orderNumber: currentOrder?.orderNumber || `#${currentOrder?._id?.slice(-6).toUpperCase()}`,
+      orderId: currentOrder?._id,
+      total: Number(total).toFixed(2),
+      method: 'UPI',
+      isPaid: true,
+      utr: detectedUtr || 'Auto Verified',
+      slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
+    });
+  };
+
+  const handleOpenUpiApp = async (appScheme = null) => {
+    const chosen = appScheme || selectedUpiApp || 'gpay';
+    setSelectedUpiApp(chosen);
+    setShowUpiModal(false);
+
+    try {
+      const result = await nativeUpiService.startUpiPayment({
+        vpa: upiOrderData?.upiVpa,
+        name: upiOrderData?.payeeName || 'Kwickly Admin',
+        amount: upiOrderData?.amount || total,
+        txnRef: upiOrderData?.razorpayOrderId,
+        note: `Order #${currentOrder?.orderNumber || ''}`,
+        appKey: chosen,
+      });
+
+      console.log('[CartUPI] Native result:', JSON.stringify(result));
+
+      // 1. If native intent captured UTR directly
+      const utr = (result?.approvalRefNo || '').trim();
+      if (utr && /^\d{12}$/.test(utr) && isValidUtr(utr)) {
+        try {
+          const verifyData = await handleManualUtrVerification(utr, {
+            isIntentVerified: true,
+            intentStatus: result?.status || 'SUCCESS',
+            responseCode: result?.responseCode || '00',
+            rawResponse: result?.rawResponse || '',
+            txnId: result?.txnId || ''
+          });
+          if (verifyData?.verified) return;
+        } catch (e) {
+          console.warn('[CartUPI] Direct intent verify error:', e);
         }
       }
+
+      // 2. Open Waiting Modal for automated real-time SMS / clipboard detection
+      setShowWaitingModal(true);
     } catch (err) {
-      Linking.openURL(upiOrderData.upiIntentUri).catch(() => {
-        Alert.alert('UPI App', `Please pay ₹${upiOrderData.amount} to UPI ID: ${upiOrderData.upiVpa} and enter the 12-digit UTR below.`);
-      });
+      console.warn('[CartUPI] Launch notice:', err?.message);
+      setShowWaitingModal(true);
     }
   };
 
@@ -405,59 +459,7 @@ const CartScreen = ({ route, navigation }) => {
     if (upiOrderData?.upiVpa) {
       Clipboard.setString(upiOrderData.upiVpa);
       setCopiedVpa(true);
-      setPaymentInitiated(true);
       setTimeout(() => setCopiedVpa(false), 2500);
-    }
-  };
-
-  const handleConfirmUpiPayment = async (isAuto = false, isBackground = false) => {
-    if (!currentOrder || upiVerifying) return;
-    const cleanUtr = upiTxnId.trim();
-
-    if (!isAuto && showManualUtr && (!cleanUtr || cleanUtr.length < 4)) {
-      return showAlert({
-        type: 'warning',
-        title: 'UTR Number Required',
-        message: 'Please enter the 12-digit UPI Reference / UTR Number from your payment confirmation screen.'
-      });
-    }
-
-    setUpiVerifying(true);
-    try {
-      const verifyRes = await walletService.verifyPayment({
-        razorpayOrderId: upiOrderData?.razorpayOrderId || `upi_${Date.now()}`,
-        upiTransactionId: cleanUtr || undefined,
-        utrNumber: cleanUtr || undefined,
-        isAutoConfirmed: isAuto || !cleanUtr,
-        orderId: currentOrder._id
-      });
-
-      setShowUpiModal(false);
-      setPaymentInitiated(false);
-      setShowManualUtr(false);
-      setUpiTxnId('');
-      await clearCart();
-      if (fetchUser) await fetchUser();
-
-      setOrderSuccessModal({
-        orderNumber: currentOrder.orderNumber || `#${currentOrder._id?.slice(-6).toUpperCase()}`,
-        orderId: currentOrder._id,
-        total: Number(total).toFixed(2),
-        method: 'UPI',
-        isPaid: true,
-        utr: cleanUtr || 'Auto Verified',
-        slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
-      });
-    } catch (err) {
-      if (!isBackground) {
-        showAlert({
-          type: 'error',
-          title: 'Verification Issue',
-          message: err.response?.data?.message || err.message || 'Failed to verify UPI payment. Please try again or submit the 12-digit UTR manually.'
-        });
-      }
-    } finally {
-      setUpiVerifying(false);
     }
   };
 
@@ -749,7 +751,7 @@ const CartScreen = ({ route, navigation }) => {
         </>
       )}
 
-      {/* UPI Payment Modal */}
+      {/* UPI App Selection Modal */}
       <Modal visible={showUpiModal} transparent animationType="slide" onRequestClose={() => setShowUpiModal(false)}>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowUpiModal(false)} />
@@ -759,8 +761,8 @@ const CartScreen = ({ route, navigation }) => {
                 <Zap size={22} color="#6C47FF" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.upiModalTitle}>UPI Instant Payment</Text>
-                <Text style={styles.upiModalSub}>Pay ₹{total} for Order #{currentOrder?.orderNumber || ''}</Text>
+                <Text style={styles.upiModalTitle}>Pay via Direct UPI</Text>
+                <Text style={styles.upiModalSub}>Order #{currentOrder?.orderNumber || ''} • ₹{total}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowUpiModal(false)} style={styles.modalCloseBtn}>
                 <X size={20} color={theme.colors.textDim} />
@@ -801,127 +803,64 @@ const CartScreen = ({ route, navigation }) => {
               })}
             </View>
 
-            {/* Step / Guidance State */}
-            {paymentInitiated ? (
-              <View style={styles.paymentActiveBanner}>
-                <View style={styles.paymentActiveHeader}>
-                  <View style={styles.pulseDot} />
-                  <Text style={styles.paymentActiveTitle}>
-                    Payment Opened in {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
-                  </Text>
-                </View>
-                <Text style={styles.paymentActiveText}>
-                  Complete the ₹{total} payment in your UPI app. When you return here, your order will confirm automatically!
+            {/* Payee VPA Info */}
+            <View style={styles.vpaBox}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.vpaLabel}>Admin UPI ID (Official Escrow)</Text>
+                <Text style={styles.vpaValue}>{upiOrderData?.upiVpa || 'UPI Payment'}</Text>
+              </View>
+              <TouchableOpacity style={styles.copyVpaBtn} onPress={handleCopyVpa}>
+                {copiedVpa ? <CheckCircle2 size={16} color="#10B981" /> : <Copy size={16} color="#6C47FF" />}
+                <Text style={[styles.copyVpaText, copiedVpa && { color: '#10B981' }]}>
+                  {copiedVpa ? 'Copied' : 'Copy'}
                 </Text>
-
-                {/* Primary Automated Order Confirmation Button */}
-                <TouchableOpacity
-                  style={[styles.confirmUpiBtn, upiVerifying && { opacity: 0.7 }]}
-                  onPress={() => handleConfirmUpiPayment(true)}
-                  disabled={upiVerifying}
-                  activeOpacity={0.85}
-                >
-                  {upiVerifying ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Zap size={18} color="#FFFFFF" />
-                      <Text style={styles.confirmUpiBtnText}>
-                        ✓ I Have Completed Payment • Confirm Order (₹{total})
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                {/* Optional Manual UTR Entry Toggle */}
-                <TouchableOpacity
-                  onPress={() => setShowManualUtr(!showManualUtr)}
-                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 4 }}
-                >
-                  <Text style={{ fontSize: 12, color: theme.colors.textDim, fontWeight: '600' }}>
-                    {showManualUtr ? 'Hide manual UTR entry' : 'Having an issue? Enter 12-digit UTR manually'}
-                  </Text>
-                  {showManualUtr ? <ChevronUp size={14} color={theme.colors.textDim} /> : <ChevronDown size={14} color={theme.colors.textDim} />}
-                </TouchableOpacity>
-
-                {showManualUtr && (
-                  <View style={[styles.utrInputBox, { marginTop: 10 }]}>
-                    <Text style={styles.utrInputLabel}>12-Digit Bank Reference / UTR Number</Text>
-                    <TextInput
-                      style={styles.utrInput}
-                      placeholder="e.g. 423456789012"
-                      placeholderTextColor="#94A3B8"
-                      value={upiTxnId}
-                      onChangeText={setUpiTxnId}
-                      autoCapitalize="characters"
-                      returnKeyType="done"
-                    />
-                    <TouchableOpacity
-                      style={[styles.confirmUpiBtn, { marginTop: 10, paddingVertical: 12 }, (!upiTxnId.trim() || upiVerifying) && { opacity: 0.5 }]}
-                      onPress={() => handleConfirmUpiPayment(false)}
-                      disabled={!upiTxnId.trim() || upiVerifying}
-                    >
-                      <Text style={[styles.confirmUpiBtnText, { fontSize: 13 }]}>Submit UTR</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ) : (
-              <View style={styles.vpaBox}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.vpaLabel}>UPI ID / VPA</Text>
-                  <Text style={styles.vpaValue}>{upiOrderData?.upiVpa || 'UPI Payment'}</Text>
-                </View>
-                <TouchableOpacity style={styles.copyVpaBtn} onPress={handleCopyVpa}>
-                  {copiedVpa ? <CheckCircle2 size={16} color="#10B981" /> : <Copy size={16} color="#6C47FF" />}
-                  <Text style={[styles.copyVpaText, copiedVpa && { color: '#10B981' }]}>
-                    {copiedVpa ? 'Copied' : 'Copy'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              </TouchableOpacity>
+            </View>
 
             {/* Primary Action Button */}
-            {!paymentInitiated && (
-              <TouchableOpacity
-                style={styles.openAppPrimaryBtn}
-                onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
-                activeOpacity={0.85}
-              >
-                <Zap size={18} color="#001016" />
-                <Text style={styles.openAppPrimaryText}>
-                  Pay ₹{total} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
-                </Text>
-                <ArrowRight size={18} color="#001016" />
-              </TouchableOpacity>
-            )}
-
-            {/* Secondary actions when payment is initiated */}
-            {paymentInitiated && (
-              <View style={styles.upiSecondaryRow}>
-                <TouchableOpacity onPress={() => handleOpenUpiApp(selectedUpiApp)} style={styles.upiSecondaryBtn}>
-                  <ExternalLink size={14} color="#6C47FF" />
-                  <Text style={styles.upiSecondaryText}>Re-open UPI App</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleCopyVpa} style={styles.upiSecondaryBtn}>
-                  <Copy size={14} color={copiedVpa ? '#10B981' : theme.colors.textDim} />
-                  <Text style={[styles.upiSecondaryText, copiedVpa && { color: '#10B981' }]}>
-                    {copiedVpa ? 'UPI ID Copied' : 'Copy UPI ID'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            <TouchableOpacity
+              style={styles.openAppPrimaryBtn}
+              onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
+              activeOpacity={0.85}
+            >
+              <Zap size={18} color="#001016" />
+              <Text style={styles.openAppPrimaryText}>
+                Pay ₹{total} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+              </Text>
+              <ArrowRight size={18} color="#001016" />
+            </TouchableOpacity>
 
             <TouchableOpacity style={styles.cancelUpiBtn} onPress={() => {
               setShowUpiModal(false);
-              setPaymentInitiated(false);
-              navigation.navigate('OrderTracking', { orderId: currentOrder?._id });
+              if (currentOrder?._id) {
+                navigation.navigate('OrderTracking', { orderId: currentOrder._id });
+              }
             }}>
               <Text style={styles.cancelUpiText}>Pay Later / View Pending Order</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      {/* Real-time Automated Bank Verification Waiting Modal */}
+      {showWaitingModal && (
+        <UpiPaymentWaitingModal
+          visible={showWaitingModal}
+          onClose={() => {
+            setShowWaitingModal(false);
+            if (currentOrder?._id) {
+              navigation.navigate('OrderTracking', { orderId: currentOrder._id });
+            }
+          }}
+          onSuccess={(data) => handlePaymentSuccess(data?.utr || data?.approvalRefNo)}
+          amount={total}
+          orderId={upiOrderData?.razorpayOrderId}
+          payeeName={upiOrderData?.payeeName}
+          upiVpa={upiOrderData?.upiVpa}
+          purpose="shop_order"
+          onSubmitManualUtr={handleManualUtrVerification}
+        />
+      )}
 
       {/* Delivery Slot Modal */}
       <Modal visible={showSlotModal} transparent animationType="slide" onRequestClose={() => setShowSlotModal(false)}>
