@@ -261,10 +261,28 @@ const sweepGhostOrders = async () => {
                     description: `Auto-refund for unconfirmed order #${order.orderNumber || String(order._id).slice(-6)}`
                 }], { session });
 
+                order.payment.status = 'REFUNDED';
+
                 notifyUser({
                     userId: order.customerId,
                     title: 'Order Cancelled & Refunded',
                     message: `Shop could not confirm your order #${order.orderNumber || String(order._id).slice(-6)} in time. ₹${order.total} has been refunded to your Kwickly Wallet.`,
+                    action: 'ORDER_CANCELLED',
+                    entityType: 'ORDER',
+                    entityId: order._id,
+                    targetRole: 'CUSTOMER'
+                });
+            } else if (order.payment?.status === 'PENDING_VERIFICATION') {
+                order.statusHistory.push({
+                    status: 'CANCELLED',
+                    timestamp: new Date(),
+                    note: `Auto-cancelled due to shop inactivity (30m). UPI UTR (${order.payment?.utrNumber || 'none'}) pending Admin verification for wallet refund.`
+                });
+
+                notifyUser({
+                    userId: order.customerId,
+                    title: 'Order Cancelled — Refund Verification Pending',
+                    message: `Shop could not confirm order #${order.orderNumber || String(order._id).slice(-6)} in time. If your UPI payment (UTR: ${order.payment?.utrNumber || 'N/A'}) was debited, our team will verify the credit and refund ₹${order.total} to your Kwickly Wallet.`,
                     action: 'ORDER_CANCELLED',
                     entityType: 'ORDER',
                     entityId: order._id,

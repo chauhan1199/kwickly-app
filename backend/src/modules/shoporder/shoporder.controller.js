@@ -890,6 +890,44 @@ exports.verifyShopOrderPayment = catchAsync(async (req, res) => {
             }
         }
 
+        // If the order was already CANCELLED (e.g. timed out after 30 mins or cancelled before verification),
+        // we automatically refund the verified funds into the customer's Kwickly Wallet!
+        if (order.status === 'CANCELLED' && orderAmount > 0) {
+            const customerId = order.customerId?._id || order.customerId;
+            const refundedCustomer = await Customer.findByIdAndUpdate(customerId, {
+                $inc: { 'wallet.balance': orderAmount }
+            }, { returnDocument: 'after' });
+
+            await WalletTxn.create([{
+                userId: customerId,
+                type: 'REFUND',
+                amount: orderAmount,
+                balance: refundedCustomer?.wallet?.balance || 0,
+                refId: String(order._id),
+                status: 'COMPLETED',
+                description: `Refund for cancelled order #${order.orderNumber || String(order._id).slice(-6)} (UPI payment verified by Admin)`
+            }]);
+
+            order.payment.status = 'REFUNDED';
+            await order.save();
+            await delCache(`session:${customerId}`);
+
+            notifyUser({
+                userId: customerId,
+                title: '💰 Refund Credited to Wallet',
+                message: `Your payment of ₹${orderAmount} for cancelled order #${order.orderNumber} has been verified and credited to your Kwickly Wallet.`,
+                action: 'ORDER_REFUNDED',
+                entityType: 'ORDER',
+                entityId: order._id,
+                targetRole: 'CUSTOMER'
+            });
+
+            emitToRoom(`customer_${customerId}`, 'WALLET_UPDATED', { balance: refundedCustomer?.wallet?.balance });
+            emitToRoom(`customer_${customerId}`, 'ORDER_STATUS', { orderId: order._id, status: 'CANCELLED', paymentStatus: 'REFUNDED' });
+
+            return successResponse(res, order, 'Payment approved and refunded to customer wallet because order was cancelled');
+        }
+
         // Notify customer
         notifyUser({
             userId: order.customerId?._id || order.customerId,

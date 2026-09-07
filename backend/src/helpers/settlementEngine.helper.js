@@ -149,29 +149,30 @@ const settleShopOrderDelivery = async ({ order, session = null }) => {
     const settlementId = `STL_ORD_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     const transactionId = `TXN_ORD_${order.orderNumber || order._id.toString().slice(-6)}_${Date.now()}`;
 
-    // 1. Credit Shop In-App Wallet with 100% of net product sales (0% commission!)
+    // 1. Credit Shop In-App Wallet with 100% of net product sales + delivery fee (0% commission!)
+    const shopPayout = netProductSales + deliveryFee;
     const updatedShop = await Shop.findByIdAndUpdate(
         order.shopId,
         {
             $inc: {
-                'wallet.balance': netProductSales,
-                totalRevenue: netProductSales
+                'wallet.balance': shopPayout,
+                totalRevenue: shopPayout
             }
         },
         { returnDocument: 'after', session }
     );
 
     // 1b. Record the payout in the shop owner's transaction history
-    if (updatedShop?.ownerId && netProductSales > 0) {
+    if (updatedShop?.ownerId && shopPayout > 0) {
         await WalletTxn.create([{
             userId: updatedShop.ownerId,
             type: 'ORDER_CREDIT',
-            amount: netProductSales,
-            balance: (updatedShop.wallet?.balance || 0) - netProductSales,
-            balanceAfter: updatedShop.wallet?.balance || netProductSales,
+            amount: shopPayout,
+            balance: (updatedShop.wallet?.balance || 0) - shopPayout,
+            balanceAfter: updatedShop.wallet?.balance || shopPayout,
             refId: String(order._id),
             status: 'COMPLETED',
-            description: `Order payout for #${order.orderNumber || String(order._id).slice(-6)} (100% Product Sales, 0% Commission)`
+            description: `Order payout for #${order.orderNumber || String(order._id).slice(-6)} (Product ₹${netProductSales} + Delivery ₹${deliveryFee}, 0% Commission)`
         }], { session });
     }
 
