@@ -10,7 +10,8 @@ import {
   ScrollView, 
   TextInput, 
   Modal, 
-  ActivityIndicator 
+  ActivityIndicator,
+  Keyboard
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,6 +57,31 @@ const SetMpinScreen = ({ navigation, route }) => {
   
   const [mpinError, setMpinError] = useState('');
   const [confirmMpinError, setConfirmMpinError] = useState('');
+
+  // Keyboard avoidance state
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  React.useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates?.height || 260);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const showAlert = (title, message, type = 'error') => {
     setAlertConfig({ visible: true, title, message, type });
@@ -110,7 +136,8 @@ const SetMpinScreen = ({ navigation, route }) => {
 
   const headerTopPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 8;
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 16) + 20;
-  const styles = createStyles(theme, isDarkMode, headerTopPad, bottomPad);
+  const dynamicBottomPad = bottomPad + (keyboardVisible ? keyboardHeight + 20 : 0);
+  const styles = createStyles(theme, isDarkMode, headerTopPad, dynamicBottomPad);
 
   const normalizedRole = (role || 'CUSTOMER').toUpperCase();
   const roleMeta = ROLE_META[normalizedRole] || ROLE_META.CUSTOMER;
@@ -441,7 +468,7 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   body: {
     paddingHorizontal: 20,
     paddingTop: 18,
-    flex: 1,
+    width: '100%',
   },
   userCard: {
     flexDirection: 'row',

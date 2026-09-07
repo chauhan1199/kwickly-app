@@ -10,6 +10,7 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
+  Keyboard
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -46,6 +47,31 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   
   const inputs = useRef([]);
   const timerRef = useRef(null);
+
+  // Keyboard avoidance state
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates?.height || 260);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Countdown timer for resend
   useEffect(() => {
@@ -167,7 +193,8 @@ const OTPVerifyScreen = ({ navigation, route }) => {
 
   const headerTopPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 8;
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 16) + 20;
-  const styles = createStyles(theme, isDarkMode, headerTopPad, bottomPad);
+  const dynamicBottomPad = bottomPad + (keyboardVisible ? keyboardHeight + 20 : 0);
+  const styles = createStyles(theme, isDarkMode, headerTopPad, dynamicBottomPad);
 
   const displayPhone = phone ? `${phone.substring(0, 4)}••••${phone.substring(8)}` : '••••••••••';
   const isComplete = code.every((digit) => digit.length === 1);
@@ -409,7 +436,7 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   body: {
     paddingHorizontal: 22,
     paddingTop: 24,
-    flex: 1,
+    width: '100%',
     alignItems: 'center',
   },
   iconWrapper: {

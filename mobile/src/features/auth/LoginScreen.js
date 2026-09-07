@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -10,6 +10,7 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -67,6 +68,11 @@ const LoginScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
 
+  // Keyboard avoidance state
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef(null);
+
   const [alertConfig, setAlertConfig] = useState({ 
     visible: false, 
     title: '', 
@@ -85,6 +91,33 @@ const LoginScreen = ({ navigation, route }) => {
       handleCheckNumber(prefillPhone);
     }
   }, [prefillPhone]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates?.height || 260);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const scrollToInput = (yOffset = 180) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: yOffset, animated: true });
+    }, 150);
+  };
 
   /**
    * Step 1: Auto-detect Account, Role & MPIN status from Mobile Number
@@ -108,7 +141,7 @@ const LoginScreen = ({ navigation, route }) => {
           `No Kwickly profile found for +91 ${targetPhone}. Would you like to create a new account?`,
           'info',
           () => {
-            navigation.navigate('RoleSelection', { prefillPhone: targetPhone, step: 'PHONE' });
+            navigation.navigate('RoleSelection', { prefillPhone: targetPhone });
           }
         );
         return;
@@ -284,8 +317,9 @@ const LoginScreen = ({ navigation, route }) => {
   };
 
   const headerTopPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 8;
-  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 16) + 16;
-  const styles = createStyles(theme, isDarkMode, headerTopPad, bottomPad);
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 16) + 20;
+  const dynamicBottomPad = bottomPad + (keyboardVisible ? keyboardHeight + 30 : 16);
+  const styles = createStyles(theme, isDarkMode, headerTopPad, dynamicBottomPad);
 
   const currentRoleMeta = ROLE_META[selectedRole] || ROLE_META.CUSTOMER;
   const RoleIcon = currentRoleMeta.icon;
@@ -330,6 +364,7 @@ const LoginScreen = ({ navigation, route }) => {
         style={{ flex: 1 }}
       >
         <ScrollView 
+          ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent} 
           showsVerticalScrollIndicator={false} 
           keyboardShouldPersistTaps="handled"
@@ -402,7 +437,7 @@ const LoginScreen = ({ navigation, route }) => {
                 <View style={styles.bottomLinkContainer}>
                   <TouchableOpacity 
                     style={styles.registerLink}
-                    onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone, step: 'PHONE' })}
+                    onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.registerPrompt, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
@@ -586,7 +621,10 @@ const LoginScreen = ({ navigation, route }) => {
                       maxLength={6}
                       value={resetOtp}
                       onChangeText={(text) => setResetOtp(text.replace(/[^0-9]/g, ''))}
-                      onFocus={() => setFocusedInput('resetOtp')}
+                      onFocus={() => {
+                        setFocusedInput('resetOtp');
+                        scrollToInput(60);
+                      }}
                       onBlur={() => setFocusedInput(null)}
                     />
                   </View>
@@ -606,7 +644,10 @@ const LoginScreen = ({ navigation, route }) => {
                       secureTextEntry={!showNewMpin}
                       value={newMpin}
                       onChangeText={(text) => setNewMpin(text.replace(/[^0-9]/g, '').slice(0, 4))}
-                      onFocus={() => setFocusedInput('newMpin')}
+                      onFocus={() => {
+                        setFocusedInput('newMpin');
+                        scrollToInput(120);
+                      }}
                       onBlur={() => setFocusedInput(null)}
                     />
                     <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} style={styles.eyeBtn}>
@@ -629,7 +670,10 @@ const LoginScreen = ({ navigation, route }) => {
                       secureTextEntry={!showNewMpin}
                       value={confirmNewMpin}
                       onChangeText={(text) => setConfirmNewMpin(text.replace(/[^0-9]/g, '').slice(0, 4))}
-                      onFocus={() => setFocusedInput('confirmNewMpin')}
+                      onFocus={() => {
+                        setFocusedInput('confirmNewMpin');
+                        scrollToInput(220);
+                      }}
                       onBlur={() => setFocusedInput(null)}
                     />
                   </View>
@@ -731,10 +775,10 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   },
   body: {
     padding: 20,
-    flex: 1,
+    width: '100%',
   },
   stepContainer: {
-    flex: 1,
+    width: '100%',
   },
   titleContainer: {
     marginBottom: 20,

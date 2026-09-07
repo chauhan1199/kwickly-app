@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -10,7 +10,8 @@ import {
   ScrollView,
   TextInput,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  Keyboard
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +37,32 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
   const [focusedInput, setFocusedInput] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error' });
+
+  // Keyboard avoidance state
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates?.height || 260);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const inputs = useRef([]);
 
@@ -97,7 +124,9 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
   };
 
   const headerTopPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 8;
-  const styles = createStyles(theme, isDarkMode, headerTopPad);
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 16) + 20;
+  const dynamicBottomPad = bottomPad + (keyboardVisible ? keyboardHeight + 30 : 16);
+  const styles = createStyles(theme, isDarkMode, headerTopPad, dynamicBottomPad);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -127,7 +156,12 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView 
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.body}>
             {step === 'PHONE' ? (
               <>
@@ -312,7 +346,7 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
   );
 };
 
-const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -356,10 +390,11 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: bottomPad,
   },
   body: {
     padding: 20,
-    flex: 1,
+    width: '100%',
   },
   titleContainer: {
     marginBottom: 24,
@@ -443,8 +478,7 @@ const createStyles = (theme, isDarkMode, headerTopPad) => StyleSheet.create({
     borderWidth: 2,
   },
   bottomSpacer: {
-    flex: 1,
-    minHeight: 24,
+    height: 20,
   },
   btnShadow: {
     width: '100%',
