@@ -13,7 +13,8 @@ import {
   Platform,
   ActivityIndicator,
   Linking,
-  AppState
+  AppState,
+  RefreshControl
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,9 +29,6 @@ import {
   Smartphone, 
   Bell, 
   ReceiptText, 
-  RefreshCw, 
-  Moon, 
-  Sun, 
   CreditCard,
   CheckCircle2,
   AlertCircle,
@@ -73,7 +71,7 @@ const TOP_UP_PRESETS = [100, 200, 500, 1000];
 const MIN_SAFETY_FREEZE = 100; // ₹100 safety balance
 
 const ShopWalletScreen = ({ navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const { unreadCount } = useNotifications();
   const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
@@ -600,24 +598,28 @@ const ShopWalletScreen = ({ navigation }) => {
   };
 
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchWallet();
+    setRefreshing(false);
+  }, [fetchWallet]);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
 
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Shop Wallet</Text>
           <Text style={styles.headerSub}>Manage earnings & payouts</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={toggleTheme} activeOpacity={0.7}>
-            {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={fetchWallet} activeOpacity={0.7}>
-            <RefreshCw size={20} color={theme.colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.navigate('ShopNotifications')} activeOpacity={0.7}>
+          <TouchableOpacity 
+            style={styles.headerIconBtn} 
+            onPress={() => navigation.navigate('ShopNotifications')} 
+            activeOpacity={0.7}
+          >
             <Bell size={20} color={theme.colors.text} />
             {unreadCount > 0 && (
               <View style={styles.badge}>
@@ -628,7 +630,18 @@ const ShopWalletScreen = ({ navigation }) => {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#6C47FF']}
+            tintColor="#6C47FF"
+          />
+        }
+      >
         
         {/* Wallet Hero Card */}
         <LinearGradient
@@ -1358,32 +1371,36 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 68,
     backgroundColor: theme.colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: 20,
+    fontWeight: '800',
     color: theme.colors.text,
+    letterSpacing: -0.3,
   },
   headerSub: {
-    fontSize: 13,
+    fontSize: 12.5,
+    fontWeight: '500',
     color: theme.colors.textDim,
     marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   headerIconBtn: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -1392,18 +1409,20 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     position: 'absolute',
     top: -3,
     right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#EF4444',
-    borderRadius: 10,
-    minWidth: 16,
-    height: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 3,
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: theme.colors.background,
   },
   badgeText: {
     color: '#fff',
-    fontSize: 9,
-    fontWeight: '800',
+    fontSize: 9.5,
+    fontWeight: '900',
   },
 
   // Hero Card

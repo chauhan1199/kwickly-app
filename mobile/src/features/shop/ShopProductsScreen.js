@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -11,7 +11,8 @@ import {
   Alert, 
   Image, 
   ActivityIndicator,
-  Dimensions
+  Dimensions,
+  RefreshControl
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -20,9 +21,6 @@ import {
   Search, 
   Image as ImageIcon, 
   X, 
-  RefreshCw, 
-  Moon, 
-  Sun, 
   ChevronDown, 
   Plus, 
   Edit3, 
@@ -41,12 +39,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ShopProductsScreen = ({ navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const { unreadCount } = useNotifications();
   const styles = createStyles(theme, isDarkMode);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [refreshing, setRefreshing] = useState(false);
   
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -301,6 +300,12 @@ const ShopProductsScreen = ({ navigation }) => {
     }
   };
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchProducts();
+    setRefreshing(false);
+  }, []);
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={{ flex: 1 }}>
@@ -308,20 +313,18 @@ const ShopProductsScreen = ({ navigation }) => {
       
         {/* App Bar */}
         <View style={styles.appBar}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.appBarTitle}>Store Catalog</Text>
             <Text style={styles.appBarSubtitle}>{products.length} products listed</Text>
           </View>
 
           <View style={styles.appBarActions}>
-            <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme} activeOpacity={0.7}>
-              {isDarkMode ? <Sun size={19} color={theme.colors.text} /> : <Moon size={19} color={theme.colors.text} />}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn} onPress={fetchProducts} activeOpacity={0.7}>
-              <RefreshCw size={19} color={theme.colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('ShopNotifications')} activeOpacity={0.7}>
-              <Bell size={19} color={theme.colors.text} />
+            <TouchableOpacity 
+              style={styles.iconBtn} 
+              onPress={() => navigation.navigate('ShopNotifications')} 
+              activeOpacity={0.7}
+            >
+              <Bell size={20} color={theme.colors.text} />
               {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
@@ -331,7 +334,18 @@ const ShopProductsScreen = ({ navigation }) => {
           </View>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#6C47FF']}
+              tintColor="#6C47FF"
+            />
+          }
+        >
           
           {/* Add Product Button */}
           <TouchableOpacity style={styles.addBtn} onPress={handleOpenAddModal} activeOpacity={0.88}>
@@ -680,54 +694,58 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 68,
     backgroundColor: theme.colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
   },
   appBarTitle: {
     fontSize: 20,
-    fontWeight: '900',
+    fontWeight: '800',
     color: theme.colors.text,
+    letterSpacing: -0.3,
   },
   appBarSubtitle: {
-    fontSize: 12,
+    fontSize: 12.5,
+    fontWeight: '500',
     color: theme.colors.textDim,
     marginTop: 2,
   },
   appBarActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   iconBtn: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
     borderWidth: 1,
     borderColor: isDarkMode ? '#334155' : '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative'
+    position: 'relative',
   },
   badge: {
     position: 'absolute',
     top: -3,
     right: -3,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 3,
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: theme.colors.background,
   },
   badgeText: {
     color: '#FFF',
-    fontSize: 9,
-    fontWeight: 'bold',
+    fontSize: 9.5,
+    fontWeight: '900',
   },
 
   scrollContent: {

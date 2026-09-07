@@ -10,11 +10,11 @@ import AppBar from '../../components/AppBar';
 import { shopService } from '../../services/shopService';
 import {
   Truck, DollarSign, MapPin, Clock, Tag, Save, ChevronRight, Plus, X,
-  ChevronLeft, Sun, Moon, Bell
+  ChevronLeft, Bell
 } from 'lucide-react-native';
 
 const ShopDeliveryConfigScreen = ({ navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
@@ -125,19 +125,24 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
       {/* ── App Bar ── */}
       <View style={styles.appBar}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity style={[styles.appBarIconBtn, { marginRight: 12, borderWidth: 0, backgroundColor: 'transparent' }]} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={24} color={theme.colors.text} />
+          <TouchableOpacity 
+            style={styles.backBtn} 
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft size={22} color={theme.colors.text} />
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.appBarTitle} numberOfLines={1}>Delivery Config</Text>
             <Text style={styles.appBarSubtitle}>Manage delivery settings</Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
-            {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={() => navigation.navigate('ShopNotifications')}>
+        <View style={styles.appBarActions}>
+          <TouchableOpacity 
+            style={styles.appBarIconBtn} 
+            onPress={() => navigation.navigate('ShopNotifications')}
+            activeOpacity={0.7}
+          >
             <Bell size={20} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
@@ -399,11 +404,54 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
 };
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
-  container:    { flex: 1, backgroundColor: theme.colors.background },
-  appBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: theme.colors.background },
-  appBarTitle:  { fontSize: 20, fontWeight: '800', color: theme.colors.text },
-  appBarSubtitle: { fontSize: 13, color: theme.colors.textDim, marginTop: 2 },
-  appBarIconBtn:{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, justifyContent: 'center', alignItems: 'center' },
+  container:    { flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' },
+  appBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 68,
+    backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  appBarTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: theme.colors.text,
+    letterSpacing: -0.3,
+  },
+  appBarSubtitle: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  appBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  appBarIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   content:      { padding: 16 },
   section:      { backgroundColor: theme.colors.surface, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border },
   sectionHeader:{ flexDirection: 'row', alignItems: 'center', gap: 8 },

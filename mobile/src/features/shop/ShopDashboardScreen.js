@@ -10,6 +10,7 @@ import {
   Alert,
   Dimensions,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,8 +30,6 @@ import {
   ChevronRight,
   ClipboardList,
   Plus,
-  Moon,
-  Sun,
   TrendingUp,
   ArrowUpRight,
   Sparkles,
@@ -43,11 +42,13 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ShopDashboardScreen = ({ navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const { unreadCount } = useNotifications();
 
   const [pendingOrders, setPendingOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const [shopInfo, setShopInfo] = useState({ name: 'My Shop', address: '', logoUrl: null, isOnline: true });
   const [shopExists, setShopExists] = useState(true);
   const [stats, setStats] = useState({ todayOrders: 0, revenue: 0, productsCount: 0, wallet: 0 });
@@ -142,6 +143,12 @@ const ShopDashboardScreen = ({ navigation }) => {
     }
   }, [isDarkMode]);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchDashboardData();
+    setRefreshing(false);
+  }, [fetchDashboardData]);
+
   useFocusEffect(
     React.useCallback(() => {
       fetchDashboardData();
@@ -159,16 +166,23 @@ const ShopDashboardScreen = ({ navigation }) => {
         <View style={s.appBar}>
           <View style={s.appBarLeft}>
             <View style={s.shopAvatarWrapper}>
-              {shopInfo.logoUrl ? (
-                <Image source={{ uri: getImageUrl(shopInfo.logoUrl) }} style={s.shopAvatar} />
+              {shopInfo.logoUrl && !avatarError ? (
+                <Image 
+                  source={{ uri: getImageUrl(shopInfo.logoUrl) }} 
+                  style={s.shopAvatar} 
+                  onError={() => setAvatarError(true)}
+                />
               ) : (
-                <Store size={22} color="#6C47FF" />
+                <LinearGradient
+                  colors={['#7C3AED', '#6C47FF']}
+                  style={s.shopAvatarGradient}
+                >
+                  <Store size={22} color="#FFFFFF" />
+                </LinearGradient>
               )}
             </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={s.appBarTitle} numberOfLines={1}>{shopInfo.name || 'My Shop'}</Text>
-              </View>
+            <View style={{ flex: 1, justifyContent: 'center' }}>
+              <Text style={s.appBarTitle} numberOfLines={1}>{shopInfo.name || 'My Shop'}</Text>
               <View style={s.liveStatusRow}>
                 <View style={[s.liveDot, { backgroundColor: shopInfo.isOnline ? '#10B981' : '#94A3B8' }]} />
                 <Text style={[s.liveStatusText, { color: shopInfo.isOnline ? '#10B981' : theme.colors.textDim }]}>
@@ -179,15 +193,12 @@ const ShopDashboardScreen = ({ navigation }) => {
           </View>
 
           <View style={s.appBarActions}>
-            <TouchableOpacity style={s.iconBtn} onPress={toggleTheme} activeOpacity={0.7}>
-              {isDarkMode ? <Sun size={19} color={theme.colors.text} /> : <Moon size={19} color={theme.colors.text} />}
-            </TouchableOpacity>
             <TouchableOpacity
               style={s.iconBtn}
               onPress={() => navigation.navigate('ShopNotifications')}
               activeOpacity={0.7}
             >
-              <Bell size={19} color={theme.colors.text} />
+              <Bell size={20} color={theme.colors.text} />
               {unreadCount > 0 && (
                 <View style={s.badge}>
                   <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
@@ -200,6 +211,14 @@ const ShopDashboardScreen = ({ navigation }) => {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={s.scroll}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#6C47FF']}
+              tintColor="#6C47FF"
+            />
+          }
         >
           {/* ── No shop state ── */}
           {!loading && !shopExists && (
@@ -446,22 +465,24 @@ const createStyles = (theme, isDarkMode) =>
       justifyContent: 'space-between',
       paddingHorizontal: 16,
       paddingVertical: 12,
+      minHeight: 68,
       backgroundColor: theme.colors.background,
       borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
+      borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     },
     appBarLeft: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
+      marginRight: 10,
     },
     shopAvatarWrapper: {
       width: 44,
       height: 44,
       borderRadius: 14,
       backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: isDarkMode ? '#334155' : '#E2E8F0',
       justifyContent: 'center',
       alignItems: 'center',
@@ -472,10 +493,17 @@ const createStyles = (theme, isDarkMode) =>
       height: '100%',
       resizeMode: 'cover',
     },
+    shopAvatarGradient: {
+      width: '100%',
+      height: '100%',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
     appBarTitle: {
-      fontSize: 17,
-      fontWeight: '900',
+      fontSize: 18,
+      fontWeight: '800',
       color: theme.colors.text,
+      letterSpacing: -0.2,
     },
     liveStatusRow: {
       flexDirection: 'row',
@@ -489,19 +517,18 @@ const createStyles = (theme, isDarkMode) =>
       borderRadius: 4,
     },
     liveStatusText: {
-      fontSize: 11,
+      fontSize: 11.5,
       fontWeight: '700',
     },
     appBarActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
     },
     iconBtn: {
-      width: 38,
-      height: 38,
+      width: 40,
+      height: 40,
       borderRadius: 12,
-      backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+      backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
       borderWidth: 1,
       borderColor: isDarkMode ? '#334155' : '#E2E8F0',
       justifyContent: 'center',
@@ -512,17 +539,19 @@ const createStyles = (theme, isDarkMode) =>
       position: 'absolute',
       top: -3,
       right: -3,
-      minWidth: 16,
-      height: 16,
-      borderRadius: 8,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
       backgroundColor: '#EF4444',
       justifyContent: 'center',
       alignItems: 'center',
-      paddingHorizontal: 3,
+      paddingHorizontal: 4,
+      borderWidth: 1.5,
+      borderColor: theme.colors.background,
     },
     badgeText: {
       color: '#fff',
-      fontSize: 9,
+      fontSize: 9.5,
       fontWeight: '900',
     },
 

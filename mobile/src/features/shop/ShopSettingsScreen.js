@@ -580,17 +580,18 @@ const ShopSettingsScreen = ({ navigation }) => {
 
         {/* ── App Header ── */}
         <View style={s.appBar}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={s.appBarTitle}>Shop Settings</Text>
             <Text style={s.appBarSubtitle}>{shop?.name || 'Store Management'}</Text>
           </View>
 
           <View style={s.appBarActions}>
-            <TouchableOpacity style={s.iconBtn} onPress={toggleTheme} activeOpacity={0.7}>
-              {isDarkMode ? <Sun size={19} color={c.text} /> : <Moon size={19} color={c.text} />}
-            </TouchableOpacity>
-            <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('ShopNotifications')} activeOpacity={0.7}>
-              <Bell size={19} color={c.text} />
+            <TouchableOpacity 
+              style={s.iconBtn} 
+              onPress={() => navigation.navigate('ShopNotifications')} 
+              activeOpacity={0.7}
+            >
+              <Bell size={20} color={c.text} />
               {unreadCount > 0 && (
                 <View style={s.badge}>
                   <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
@@ -1250,32 +1251,34 @@ const createStyles = (theme, isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      minHeight: 68,
       backgroundColor: theme.colors.background,
       borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
+      borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     },
     appBarTitle: {
       fontSize: 20,
-      fontWeight: '900',
+      fontWeight: '800',
       color: theme.colors.text,
+      letterSpacing: -0.3,
     },
     appBarSubtitle: {
-      fontSize: 12,
+      fontSize: 12.5,
+      fontWeight: '500',
       color: theme.colors.textDim,
       marginTop: 2,
     },
     appBarActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
     },
     iconBtn: {
-      width: 38,
-      height: 38,
+      width: 40,
+      height: 40,
       borderRadius: 12,
-      backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+      backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
       borderWidth: 1,
       borderColor: isDarkMode ? '#334155' : '#E2E8F0',
       justifyContent: 'center',
@@ -1286,18 +1289,20 @@ const createStyles = (theme, isDarkMode) =>
       position: 'absolute',
       top: -3,
       right: -3,
-      minWidth: 16,
-      height: 16,
-      borderRadius: 8,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
       backgroundColor: '#EF4444',
       justifyContent: 'center',
       alignItems: 'center',
-      paddingHorizontal: 3,
+      paddingHorizontal: 4,
+      borderWidth: 1.5,
+      borderColor: theme.colors.background,
     },
     badgeText: {
       color: '#FFF',
-      fontSize: 9,
-      fontWeight: 'bold',
+      fontSize: 9.5,
+      fontWeight: '900',
     },
 
     card: {

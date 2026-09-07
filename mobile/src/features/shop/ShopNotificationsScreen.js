@@ -1,21 +1,22 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Alert } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
-import { Bell, CheckCheck, ChevronLeft, CircleAlert, Sun, Moon } from 'lucide-react-native';
+import { Bell, CheckCheck, ChevronLeft, CircleAlert } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
 export default function ShopNotificationsScreen({ navigation }) {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const styles = createStyles(theme, isDarkMode);
   const { user } = useAuth();
   
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -80,6 +81,12 @@ export default function ShopNotificationsScreen({ navigation }) {
     );
   };
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchNotifications();
+    setRefreshing(false);
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
@@ -87,20 +94,25 @@ export default function ShopNotificationsScreen({ navigation }) {
       {/* ── App Bar ── */}
       <View style={styles.appBar}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity style={[styles.appBarIconBtn, { marginRight: 12, borderWidth: 0, backgroundColor: 'transparent' }]} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={24} color={theme.colors.text} />
+          <TouchableOpacity 
+            style={styles.backBtn} 
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft size={22} color={theme.colors.text} />
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.appBarTitle} numberOfLines={1}>Notifications</Text>
             <Text style={styles.appBarSubtitle}>Your shop alerts</Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={toggleTheme}>
-            {isDarkMode ? <Sun size={20} color={theme.colors.text} /> : <Moon size={20} color={theme.colors.text} />}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.appBarIconBtn} onPress={markAllAsRead}>
-            <CheckCheck size={20} color={theme.colors.text} />
+        <View style={styles.appBarActions}>
+          <TouchableOpacity 
+            style={styles.appBarIconBtn} 
+            onPress={markAllAsRead}
+            activeOpacity={0.7}
+          >
+            <CheckCheck size={20} color="#6C47FF" />
           </TouchableOpacity>
         </View>
       </View>
@@ -116,6 +128,14 @@ export default function ShopNotificationsScreen({ navigation }) {
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#6C47FF']}
+              tintColor="#6C47FF"
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -125,12 +145,55 @@ export default function ShopNotificationsScreen({ navigation }) {
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
-  appBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: theme.colors.background },
-  appBarTitle:  { fontSize: 20, fontWeight: '800', color: theme.colors.text },
-  appBarSubtitle: { fontSize: 13, color: theme.colors.textDim, marginTop: 2 },
-  appBarIconBtn:{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, justifyContent: 'center', alignItems: 'center' },
+  appBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 68,
+    backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  appBarTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: theme.colors.text,
+    letterSpacing: -0.3,
+  },
+  appBarSubtitle: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  appBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  appBarIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   listContent: {
     padding: 16,
   },
