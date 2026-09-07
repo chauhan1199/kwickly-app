@@ -80,46 +80,18 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
 
     @ReactMethod
     fun getLatestSmsUtr(promise: Promise) {
-        val map = Arguments.createMap()
-        val now = System.currentTimeMillis()
-
-        // 1. Check in-memory broadcast cache first (captured by SmsReceiver)
-        if (cachedUtr.isNotEmpty() && (now - cachedTimestamp < 5 * 60 * 1000)) {
-            map.putString("utr", cachedUtr)
-            map.putString("amount", cachedAmount)
-            map.putString("body", cachedBody)
-            map.putDouble("timestamp", cachedTimestamp.toDouble())
-            map.putBoolean("hasUtr", true)
-            promise.resolve(map)
-            return
+        val map = Arguments.createMap().apply {
+            putString("utr", "")
+            putString("amount", "")
+            putString("body", "")
+            putDouble("timestamp", 0.0)
+            putBoolean("hasUtr", false)
         }
-
-        // 2. Query content://sms/inbox directly
-        val sms = getLatestSmsInfoSync()
-        if (sms != null && sms.utr.isNotEmpty()) {
-            map.putString("utr", sms.utr)
-            map.putString("amount", sms.amount)
-            map.putString("body", sms.body)
-            map.putDouble("timestamp", sms.date.toDouble())
-            map.putBoolean("hasUtr", true)
-            promise.resolve(map)
-            return
-        }
-
-        map.putString("utr", "")
-        map.putString("amount", "")
-        map.putString("body", "")
-        map.putDouble("timestamp", 0.0)
-        map.putBoolean("hasUtr", false)
         promise.resolve(map)
     }
 
     @ReactMethod
     fun clearSmsCache(promise: Promise) {
-        cachedUtr = ""
-        cachedAmount = ""
-        cachedBody = ""
-        cachedTimestamp = 0L
         promise.resolve(true)
     }
 
@@ -597,49 +569,6 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
         return map
     }
 
-    private data class SmsResult(val utr: String, val amount: String, val body: String, val date: Long)
-
-    private fun getLatestSmsInfoSync(): SmsResult? {
-        try {
-            val contentResolver = reactCtx.contentResolver
-            val uri = Uri.parse("content://sms/inbox")
-            val cursor = contentResolver.query(
-                uri,
-                arrayOf("address", "body", "date"),
-                null,
-                null,
-                "date DESC"
-            ) ?: return null
-
-            val bodyIdx = cursor.getColumnIndex("body")
-            val dateIdx = cursor.getColumnIndex("date")
-            val now = System.currentTimeMillis()
-            var count = 0
-
-            if (cursor.moveToFirst()) {
-                do {
-                    val body = if (bodyIdx >= 0) cursor.getString(bodyIdx) ?: "" else ""
-                    val date = if (dateIdx >= 0) cursor.getLong(dateIdx) else 0L
-
-                    // Look strictly at SMS received within the last 5 minutes
-                    if (now - date < 5 * 60 * 1000) {
-                        val utr = extractUtrFromText(body)
-                        if (!utr.isNullOrEmpty()) {
-                            val amt = extractAmountFromText(body)
-                            cursor.close()
-                            return SmsResult(utr, amt ?: "", body, date)
-                        }
-                    }
-                    count++
-                } while (cursor.moveToNext() && count < 15)
-            }
-            cursor.close()
-        } catch (e: Exception) {
-            // SecurityException if READ_SMS not granted yet
-        }
-        return null
-    }
-
     private fun extractAmountFromText(text: String): String? {
         if (text.isEmpty()) return null
 
@@ -662,10 +591,6 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
         val genRegex = Regex("""(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
         val genMatch = genRegex.find(preBal)
         return genMatch?.groupValues?.get(1)
-    }
-
-    private fun getLatestSmsUtrSync(): String? {
-        return getLatestSmsInfoSync()?.utr
     }
 
     private fun getNativeClipboardUtrSync(): String? {
