@@ -98,16 +98,16 @@ export default function AppLayout({ onLogout }) {
     try {
       const userId = getUserId()
       const r = await api.get('/admin/notifications')
-      if (r.data.status === 'success') setNotifications(r.data.data.map(n => ({
-        _id: n._id,
-        title: n.title,
-        message: n.message,
-        time: new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        timeFull: new Date(n.createdAt).toLocaleString(),
-        action: n.action,
-        entityType: n.entityType,
-        read: userId ? (n.readBy || []).includes(userId) : false,
-        type: n.action || (n.targetRole === 'WORKER' ? 'warning' : 'info')
+      if (r.data?.status === 'success') setNotifications((r.data.data || []).filter(Boolean).map(n => ({
+        _id: n?._id || Math.random().toString(),
+        title: n?.title || '',
+        message: n?.message || '',
+        time: n?.createdAt ? new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
+        timeFull: n?.createdAt ? new Date(n.createdAt).toLocaleString() : '—',
+        action: n?.action,
+        entityType: n?.entityType,
+        read: userId ? (n?.readBy || []).includes(userId) : false,
+        type: n?.action || (n?.targetRole === 'WORKER' ? 'warning' : 'info')
       })))
     } catch (e) { /* silently ignored */ }
   }

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import useAbortableRequest from '../../hooks/useAbortableRequest';
+import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import { getImageUrl } from '../../services/api'
-import { Eye, CheckCircle, XCircle, Store, User, Search, Download, RefreshCw } from 'lucide-react'
+import { Eye, CheckCircle, XCircle, Store, User, Search, Download, RefreshCw, AlertTriangle, ExternalLink } from 'lucide-react'
 import Toast from '../../components/Toast'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
@@ -13,7 +13,7 @@ const PAGE_SIZE = 15
 const EXPORT_CHUNK = 50 // backend caps limit at 50
 
 export default function KYC() {
-  const api = useAbortableRequest();
+  const api = useAbortableRequest()
   const [pending, setPending] = useState([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -52,10 +52,11 @@ export default function KYC() {
           kycType: filter === 'all' ? undefined : filter
         }
       })
-      if (response.data.status === 'success') {
-        const data = response.data.data || {}
-        setPending(data.items || [])
-        setTotal(typeof data.total === 'number' ? data.total : (data.items || []).length)
+      if (response.data?.status === 'success') {
+        const data = response.data?.data || {}
+        const items = Array.isArray(data.items) ? data.items.filter(Boolean) : []
+        setPending(items)
+        setTotal(typeof data.total === 'number' ? data.total : items.length)
         setTotalPages(data.totalPages || Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE)))
         if (data.stats) setStats({ workers: data.stats.workers || 0, shops: data.stats.shops || 0 })
       } else {
@@ -65,30 +66,34 @@ export default function KYC() {
       if (isAbortError(error)) return
       setFetchError(true)
       showToast(extractErrorMessage(error, 'Failed to load KYC queue'), 'error')
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }, [page, searchQuery, filter])
 
-  useEffect(() => { fetchPendingKYC() }, [fetchPendingKYC])
+  useEffect(() => {
+    fetchPendingKYC()
+  }, [fetchPendingKYC])
 
-  const showToast = (msg, type='success') => setToast({message: msg, type})
+  const showToast = (msg, type = 'success') => setToast({ message: msg, type })
 
   const handleUpdateStatus = async (id, status, kycType) => {
-    if (pendingKycId) return
+    if (!id || pendingKycId) return
     setPendingKycId(id)
     try {
       const endpoint = kycType === 'SHOP' ? `/admin/shops/${id}/kyc` : `/admin/workers/${id}/kyc`
       const payload = { status }
-      if (status === 'REJECTED' && rejectReason.trim()) {
+      if (status === 'REJECTED' && rejectReason?.trim()) {
         payload.reason = rejectReason.trim()
       }
       const response = await api.patch(endpoint, payload)
-      if (response.data.status === 'success') {
+      if (response.data?.status === 'success') {
         showToast(`KYC ${status === 'APPROVED' ? 'Approved' : 'Rejected'} successfully`)
         window.dispatchEvent(new Event('admin-action'))
         // Refresh the current server-paged view (drops the reviewed row, fixes totals)
         fetchPendingKYC()
       } else {
-        showToast(response.data.message || 'Failed to update KYC', 'error')
+        showToast(response.data?.message || 'Failed to update KYC', 'error')
       }
     } catch (error) {
       showToast(extractErrorMessage(error, 'Failed to update KYC'), 'error')
@@ -118,20 +123,23 @@ export default function KYC() {
           }
         })
         const batch = res.data?.data?.items || []
-        all.push(...batch)
+        all.push(...batch.filter(Boolean))
         if (batch.length < EXPORT_CHUNK) break
         p += 1
       }
-      if (all.length === 0) { showToast('No KYC applications to export', 'info'); return }
+      if (all.length === 0) {
+        showToast('No KYC applications to export', 'info')
+        return
+      }
       const headers = ['Name', 'Type', 'Phone', 'City', 'Documents', 'Submitted On', 'KYC Status']
       const rows = all.map(item => [
-        item.name || 'Unknown',
-        item.kycType || '',
-        item.phone || '',
-        item.city || '',
-        item.kyc?.documents?.length || 0,
-        item.createdAt ? new Date(item.createdAt).toLocaleString('en-IN') : '',
-        item.kyc?.status || 'PENDING'
+        item?.name || 'Unknown',
+        item?.kycType || '',
+        item?.phone || '',
+        item?.city || '',
+        item?.kyc?.documents?.length || 0,
+        item?.createdAt ? new Date(item.createdAt).toLocaleString('en-IN') : '',
+        item?.kyc?.status || 'PENDING'
       ])
       const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
       const blob = new Blob([csv], { type: 'text/csv' })
@@ -144,7 +152,9 @@ export default function KYC() {
       showToast(`${all.length} KYC applications exported`)
     } catch (err) {
       if (!isAbortError(err)) showToast(extractErrorMessage(err, 'Failed to export KYC data'), 'error')
-    } finally { setExporting(false) }
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -183,39 +193,60 @@ export default function KYC() {
             description="The server didn't respond. Check your connection and try again."
             action={<button className="btn btn-primary" onClick={() => fetchPendingKYC()}>↻ Retry</button>}
           />
-        ) : pending.map((item, i) => (
-          <div key={item._id} className="card" style={{ padding: 20, cursor: 'pointer', border: '1px solid var(--border)', transition: 'all 0.15s' }} onClick={() => setSelected(item)}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: 'var(--mid)', flexShrink: 0 }}>
-                {(page - 1) * PAGE_SIZE + i + 1}
-              </div>
-
-              <div className="avatar avatar-md" style={{ background: item.kycType === 'SHOP' ? 'linear-gradient(135deg, #10B981, #059669)' : 'linear-gradient(135deg, var(--primary), var(--purple))', flexShrink: 0 }}>
-                {item.name ? item.name[0] : '?'}
-              </div>
-
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, fontSize: 15 }}>{item.name || 'Unknown'}</span>
-                  <span className={`badge badge-${item.kycType === 'SHOP' ? 'success' : 'info'}`} style={{ fontSize: 10 }}>
-                    {item.kycType === 'SHOP' ? <><Store size={10} /> Shop</> : <><User size={10} /> Worker</>}
-                  </span>
-                  {(!item.kyc?.documents || item.kyc.documents.length === 0) && <span className="badge badge-warning">No Docs</span>}
+        ) : (pending || []).filter(Boolean).map((item, i) => {
+          const hasDocs = Boolean(item?.kyc?.documents && item.kyc.documents.length > 0)
+          const itemId = item?._id || `kyc-item-${i}`
+          return (
+            <div
+              key={itemId}
+              className="card"
+              style={{ padding: 20, cursor: 'pointer', border: '1px solid var(--border)', transition: 'all 0.15s' }}
+              onClick={() => setSelected(item)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: 'var(--mid)', flexShrink: 0 }}>
+                  {(page - 1) * PAGE_SIZE + i + 1}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--mid)' }}>
-                  {item.phone} · {item.kyc?.documents?.length || 0} document(s) · Joined {new Date(item.createdAt).toLocaleDateString()}
-                </div>
-              </div>
 
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                <button className="btn btn-success btn-sm" disabled={pendingKycId === item._id} onClick={() => setConfirmApproval({ id: item._id, status: 'APPROVED', kycType: item.kycType, name: item.name })}>
-                  {pendingKycId === item._id ? '…' : '✓ Approve'}
-                </button>
-                <button className="btn btn-danger btn-sm" disabled={pendingKycId === item._id} onClick={() => { setSelected(item); setRejectModal(true); }}>✕ Reject</button>
+                <div className="avatar avatar-md" style={{ background: item?.kycType === 'SHOP' ? 'linear-gradient(135deg, #10B981, #059669)' : 'linear-gradient(135deg, var(--primary), var(--purple))', flexShrink: 0 }}>
+                  {item?.name ? item.name[0] : '?'}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontWeight: 700, fontSize: 15 }}>{item?.name || 'Unknown'}</span>
+                    <span className={`badge badge-${item?.kycType === 'SHOP' ? 'success' : 'info'}`} style={{ fontSize: 10 }}>
+                      {item?.kycType === 'SHOP' ? <><Store size={10} /> Shop</> : <><User size={10} /> Worker</>}
+                    </span>
+                    {!hasDocs && <span className="badge badge-warning" title="No documents uploaded yet">No Docs</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--mid)' }}>
+                    {item?.phone || 'No phone'} · {item?.kyc?.documents?.length || 0} document(s) · Joined {item?.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                  <button
+                    className="btn btn-success btn-sm"
+                    disabled={pendingKycId === item?._id || !hasDocs}
+                    title={!hasDocs ? 'Cannot approve without documents' : 'Approve KYC'}
+                    style={{ opacity: !hasDocs ? 0.5 : 1, cursor: !hasDocs ? 'not-allowed' : 'pointer' }}
+                    onClick={() => setConfirmApproval({ id: item?._id, status: 'APPROVED', kycType: item?.kycType, name: item?.name, hasDocs })}
+                  >
+                    {pendingKycId === item?._id ? '…' : '✓ Approve'}
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    disabled={pendingKycId === item?._id}
+                    onClick={() => { setSelected(item); setRejectModal(true); }}
+                  >
+                    ✕ Reject
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {!loading && !fetchError && total === 0 && (
           <div className="empty-state">
@@ -236,94 +267,144 @@ export default function KYC() {
           <div className="drawer-overlay" onClick={() => setSelected(null)} />
           <div className="drawer">
             <div className="drawer-header">
-              <div style={{ fontWeight: 800, fontSize: 16 }}>KYC Review — {selected.kycType === 'SHOP' ? 'Shop' : 'Worker'}</div>
+              <div style={{ fontWeight: 800, fontSize: 16 }}>KYC Review — {selected?.kycType === 'SHOP' ? 'Shop' : 'Worker'}</div>
               <button className="drawer-close" onClick={() => setSelected(null)}>✕</button>
             </div>
             <div className="drawer-body">
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 20 }}>
-                <div className="avatar avatar-lg" style={{ background: selected.kycType === 'SHOP' ? 'linear-gradient(135deg, #10B981, #059669)' : 'linear-gradient(135deg, var(--primary), var(--purple))' }}>
-                  {selected.name ? selected.name[0] : '?'}
+                <div className="avatar avatar-lg" style={{ background: selected?.kycType === 'SHOP' ? 'linear-gradient(135deg, #10B981, #059669)' : 'linear-gradient(135deg, var(--primary), var(--purple))' }}>
+                  {selected?.name ? selected.name[0] : '?'}
                 </div>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: 18 }}>{selected.name}</div>
-                  <div style={{ color: 'var(--mid)' }}>{selected.phone}{selected.city ? ` · ${selected.city}` : ''}</div>
+                  <div style={{ fontWeight: 800, fontSize: 18 }}>{selected?.name || 'Unknown'}</div>
+                  <div style={{ color: 'var(--mid)' }}>{selected?.phone || 'No phone'}{selected?.city ? ` · ${selected.city}` : ''}</div>
                 </div>
               </div>
 
               {/* KYC Documents */}
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-                Documents ({selected.kyc?.documents?.length || 0})
+                Documents ({selected?.kyc?.documents?.length || 0})
               </div>
 
-              {selected.kyc?.documents?.length > 0 ? (
+              {selected?.kyc?.documents?.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
                   {selected.kyc.documents.map((doc, idx) => (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-dark)', borderRadius: 10, border: '1px solid var(--border)' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 13.5, color: '#f8fafc' }}>
-                          {doc.name || `${doc.type || doc.docType || 'Identity'} Document`}
+                          {doc?.name || `${doc?.type || doc?.docType || 'Identity'} Document`}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 2 }}>
-                          <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{doc.type || doc.docType || 'ID Proof'}</span>
-                          {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString()}` : ''}
+                          <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{doc?.type || doc?.docType || 'ID Proof'}</span>
+                          {doc?.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleDateString()}` : ''}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        {doc.url && <button className="btn-icon" title="Preview" onClick={() => setPreviewDoc(doc)}><Eye size={14} /></button>}
-                        {doc.url && <a href={doc.url} target="_blank" rel="noopener noreferrer" className="btn-icon" title="Open in Tab" style={{ textDecoration: 'none' }}>↗</a>}
+                        {doc?.url && <button className="btn-icon" title="Preview" onClick={() => setPreviewDoc(doc)}><Eye size={14} /></button>}
+                        {doc?.url && (
+                          <a
+                            href={getImageUrl(doc.url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-icon"
+                            title="Open in Tab"
+                            style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            <ExternalLink size={14} />
+                          </a>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div style={{ color: 'var(--mid)', fontSize: 13, padding: 16, fontStyle: 'italic', marginBottom: 20, textAlign: 'center', background: 'var(--bg-dark)', borderRadius: 10, border: '1px solid var(--border)' }}>
-                  No documents uploaded yet
+                  <AlertTriangle size={24} style={{ display: 'block', margin: '0 auto 8px', color: '#f59e0b' }} />
+                  No documents uploaded yet. Approval requires at least one verified document.
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-success" style={{ flex: 1 }} disabled={pendingKycId === selected._id} onClick={() => setConfirmApproval({ id: selected._id, status: 'APPROVED', kycType: selected.kycType, name: selected.name })}>
-                  {pendingKycId === selected._id ? 'Processing…' : '✓ Approve KYC'}
-                </button>
-                <button className="btn btn-danger" style={{ flex: 1 }} disabled={pendingKycId === selected._id} onClick={() => setRejectModal(true)}>
-                  ✕ Reject with Reason
-                </button>
-              </div>
+              {(() => {
+                const hasDocs = Boolean(selected?.kyc?.documents && selected.kyc.documents.length > 0)
+                return (
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      className="btn btn-success"
+                      style={{ flex: 1, opacity: !hasDocs ? 0.5 : 1, cursor: !hasDocs ? 'not-allowed' : 'pointer' }}
+                      disabled={pendingKycId === selected?._id || !hasDocs}
+                      title={!hasDocs ? 'Cannot approve without documents' : 'Approve KYC'}
+                      onClick={() => setConfirmApproval({ id: selected?._id, status: 'APPROVED', kycType: selected?.kycType, name: selected?.name, hasDocs })}
+                    >
+                      {pendingKycId === selected?._id ? 'Processing…' : '✓ Approve KYC'}
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      style={{ flex: 1 }}
+                      disabled={pendingKycId === selected?._id}
+                      onClick={() => setRejectModal(true)}
+                    >
+                      ✕ Reject with Reason
+                    </button>
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </>
       )}
 
-      {/* Reject Modal */}
-      <Modal open={rejectModal} onClose={() => { setRejectModal(false); setRejectReason(''); }} title="Reject KYC Application" width="460px">
-        <p style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 16 }}>
-          Please specify a reason for rejecting this KYC application. The user will be notified to correct and re-upload their documents.
-        </p>
-        <div className="form-group" style={{ marginBottom: 16 }}>
-          <label className="form-label">Rejection Reason *</label>
-          <select className="form-control" value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ fontSize: 13 }}>
-            <option value="">Select a reason...</option>
-            <option value="Document image is blurry or unreadable">Document image is blurry or unreadable</option>
-            <option value="Document does not match provided profile details">Document does not match provided profile details</option>
-            <option value="Expired or invalid document submitted">Expired or invalid document submitted</option>
-            <option value="Incomplete or cropped document">Incomplete or cropped document</option>
-            <option value="Suspected fraudulent documents">Suspected fraudulent documents</option>
-            <option value="Other verification discrepancy">Other verification discrepancy</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-          <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => { setRejectModal(false); setRejectReason(''); }}>Cancel</button>
-          <button type="button" className="btn-danger" style={{ flex: 1 }} onClick={() => handleUpdateStatus(selected._id, 'REJECTED', selected.kycType)} disabled={!rejectReason || pendingKycId === selected._id}>
-            {pendingKycId === selected._id ? 'Processing…' : '✕ Confirm Rejection'}
-          </button>
-        </div>
-      </Modal>
+      {/* Reject Modal - Guarded against null selected */}
+      {rejectModal && selected && (
+        <Modal open={rejectModal} onClose={() => { setRejectModal(false); setRejectReason(''); }} title={`Reject KYC — ${selected?.name || 'Applicant'}`} width="460px">
+          <p style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 16 }}>
+            Please specify a reason for rejecting the KYC application for <strong style={{ color: '#f8fafc' }}>{selected?.name || 'this user'}</strong> ({selected?.kycType === 'SHOP' ? 'Shop' : 'Worker'}). The applicant will be notified to correct and re-upload their documents.
+          </p>
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label className="form-label">Rejection Reason *</label>
+            <select className="form-control" value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ fontSize: 13 }}>
+              <option value="">Select a reason...</option>
+              <option value="No documents submitted / Incomplete submission">No documents submitted / Incomplete submission</option>
+              <option value="Document image is blurry or unreadable">Document image is blurry or unreadable</option>
+              <option value="Document does not match provided profile details">Document does not match provided profile details</option>
+              <option value="Expired or invalid document submitted">Expired or invalid document submitted</option>
+              <option value="Incomplete or cropped document">Incomplete or cropped document</option>
+              <option value="Suspected fraudulent documents">Suspected fraudulent documents</option>
+              <option value="Other verification discrepancy">Other verification discrepancy</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ flex: 1 }}
+              onClick={() => { setRejectModal(false); setRejectReason(''); }}
+              disabled={pendingKycId === selected?._id}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-danger"
+              style={{ flex: 1 }}
+              onClick={() => handleUpdateStatus(selected?._id, 'REJECTED', selected?.kycType)}
+              disabled={!rejectReason || pendingKycId === selected?._id}
+            >
+              {pendingKycId === selected?._id ? 'Processing…' : '✕ Confirm Rejection'}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {/* Confirm Approval Modal */}
       {confirmApproval && (
         <ConfirmModal
           title="Approve KYC"
-          message={`Approve KYC for ${confirmApproval.name}? This will verify their identity.`}
+          danger={false}
+          message={
+            confirmApproval.hasDocs
+              ? `Approve KYC for ${confirmApproval.name || 'this applicant'}? This will verify their identity and activate their profile.`
+              : `⚠️ Warning: ${confirmApproval.name || 'This applicant'} has no documents uploaded. The system requires documents to approve KYC.`
+          }
           confirmText="Approve"
           loading={pendingKycId === confirmApproval.id}
           onConfirm={() => handleUpdateStatus(confirmApproval.id, confirmApproval.status, confirmApproval.kycType)}
@@ -334,14 +415,50 @@ export default function KYC() {
       {/* Document Preview Modal */}
       {previewDoc && (
         <div className="drawer-overlay" onClick={() => setPreviewDoc(null)} style={{ zIndex: 2000 }}>
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--bg-card, #1a1f2e)', borderRadius: 16, padding: 20, zIndex: 2001, maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+          <div
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              background: 'var(--bg-card, #1a1f2e)',
+              borderRadius: 16,
+              padding: 20,
+              zIndex: 2001,
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              border: '1px solid var(--border)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{previewDoc.name || `${previewDoc.type || 'Identity'} Document`}</div>
                 <div style={{ fontSize: 12, color: 'var(--mid)' }}>{previewDoc.type || previewDoc.docType || 'Document'}</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <a href={getImageUrl(previewDoc.url)} target="_blank" rel="noopener noreferrer" style={{ height: 32, padding: '0 12px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: 'var(--text)' }}>Open in Tab</a>
+                <a
+                  href={getImageUrl(previewDoc.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    height: 32,
+                    padding: '0 12px',
+                    fontSize: 12,
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    textDecoration: 'none',
+                    color: 'var(--text)'
+                  }}
+                >
+                  Open in Tab
+                </a>
                 <button className="btn-icon" onClick={() => setPreviewDoc(null)} title="Close">✕</button>
               </div>
             </div>

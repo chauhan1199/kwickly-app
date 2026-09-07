@@ -240,8 +240,8 @@ exports.getPendingKYC = catchAsync(async (req, res) => {
     ]);
 
     const items = [
-        ...workers.map(w => ({ ...w, kycType: 'WORKER' })),
-        ...shops.map(s => ({ ...s, kycType: 'SHOP', name: s.name, phone: s.ownerId?.phone }))
+        ...(workers || []).filter(Boolean).map(w => ({ ...w, _id: w._id?.toString() || w._id, kycType: 'WORKER' })),
+        ...(shops || []).filter(Boolean).map(s => ({ ...s, _id: s._id?.toString() || s._id, kycType: 'SHOP', name: s.name, phone: s.ownerId?.phone }))
     ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
     const total = workerTotal + shopTotal;
@@ -263,10 +263,11 @@ exports.updateKYC = catchAsync(async (req, res) => {
     const worker = await Customer.findById(id);
     if (!worker || worker.role !== 'WORKER') return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
 
-    if (status === 'APPROVED' && (!worker.kyc.documents || worker.kyc.documents.length === 0)) {
+    if (status === 'APPROVED' && (!worker.kyc?.documents || worker.kyc.documents.length === 0)) {
         return errorResponse(res, 'Cannot approve KYC. No documents uploaded.', StatusCodes.BAD_REQUEST);
     }
 
+    if (!worker.kyc) worker.kyc = { status: 'PENDING', documents: [] };
     worker.kyc.status = status;
     if (status === 'REJECTED') worker.kyc.rejectReason = (reason || '').trim() || null;
     if (status === 'APPROVED') worker.isVerified = true;
@@ -721,10 +722,11 @@ exports.updateShopKYC = catchAsync(async (req, res) => {
     const shop = await Shop.findById(id);
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
-    if (status === 'APPROVED' && (!shop.kyc.documents || shop.kyc.documents.length === 0)) {
+    if (status === 'APPROVED' && (!shop.kyc?.documents || shop.kyc.documents.length === 0)) {
         return errorResponse(res, 'Cannot approve shop KYC. No documents uploaded.', StatusCodes.BAD_REQUEST);
     }
 
+    if (!shop.kyc) shop.kyc = { status: 'PENDING', documents: [] };
     shop.kyc.status = status;
     if (status === 'REJECTED') shop.kyc.rejectReason = (reason || '').trim() || null;
     await shop.save();
