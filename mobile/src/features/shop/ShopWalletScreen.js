@@ -105,6 +105,7 @@ const ShopWalletScreen = ({ navigation }) => {
 
   // Data state
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [submittingAction, setSubmittingAction] = useState(false);
   const [balance, setBalance] = useState(0);
@@ -145,9 +146,9 @@ const ShopWalletScreen = ({ navigation }) => {
   const [newAccountIfsc, setNewAccountIfsc] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
 
-  const fetchWallet = useCallback(async () => {
+  const fetchWallet = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (!isRefresh) setLoading(true);
       const [shopRes, settingsRes, balanceRes, upiRes] = await Promise.all([
         shopService.getMyShop().catch(() => null),
         shopService.getPublicSettings().catch(() => null),
@@ -238,8 +239,14 @@ const ShopWalletScreen = ({ navigation }) => {
       console.error('Wallet fetch error:', e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchWallet(true);
+  }, [fetchWallet]);
 
   useEffect(() => {
     fetchWallet();
@@ -620,13 +627,6 @@ const ShopWalletScreen = ({ navigation }) => {
       console.warn('[Shop Sub UPI] App launch:', e.message);
     }
   };
-
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchWallet();
-    setRefreshing(false);
-  }, [fetchWallet]);
 
   return (
     <View style={styles.container}>

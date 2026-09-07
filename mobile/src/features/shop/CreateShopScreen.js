@@ -222,7 +222,15 @@ export default function CreateShopScreen({ navigation }) {
                 style={{ flex: 1 }}
                 latitude={tempLocation.lat}
                 longitude={tempLocation.lng}
-                onLocationSelect={(coords) => setTempLocation(coords)}
+                onLocationSelect={(coords, lng) => {
+                  const sLat = typeof coords === 'object' ? (coords.lat ?? coords.latitude) : coords;
+                  const sLng = typeof coords === 'object' ? (coords.lng ?? coords.longitude) : lng;
+                  const numLat = Number(sLat);
+                  const numLng = Number(sLng);
+                  if (!isNaN(numLat) && !isNaN(numLng)) {
+                    setTempLocation({ lat: numLat, lng: numLng });
+                  }
+                }}
               />
             </SafeAreaView>
           </View>

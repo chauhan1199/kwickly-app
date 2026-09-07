@@ -23,6 +23,7 @@ const ProductSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 ProductSchema.index({ shopId: 1 });
+ProductSchema.index({ shopId: 1, createdAt: -1 });
 ProductSchema.index({ isActive: 1 });
 ProductSchema.index({ shopId: 1, category: 1 });
 

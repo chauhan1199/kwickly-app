@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { useFocusEffect } from '@react-navigation/native';
 import { 
   Bell, 
   Search, 
@@ -77,13 +78,9 @@ const ShopProductsScreen = ({ navigation }) => {
     'Sheet', 'Carton', 'Bar'
   ];
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground && products.length === 0) setLoading(true);
       const res = await shopService.getShopProducts();
       if (res.data?.status === 'success') {
         const mapped = res.data.data.map((p, i) => {
@@ -114,8 +111,20 @@ const ShopProductsScreen = ({ navigation }) => {
       Alert.alert('Error', 'Failed to load products');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [products.length]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProducts(products.length > 0);
+    }, [fetchProducts, products.length])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchProducts(true);
+  }, [fetchProducts]);
 
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
 
@@ -300,12 +309,6 @@ const ShopProductsScreen = ({ navigation }) => {
       setSaving(false);
     }
   };
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchProducts();
-    setRefreshing(false);
-  }, []);
 
   return (
     <View style={styles.container}>

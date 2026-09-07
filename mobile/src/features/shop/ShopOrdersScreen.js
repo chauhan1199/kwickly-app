@@ -8,7 +8,8 @@ import {
   StatusBar, 
   Alert,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  TextInput
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -22,7 +23,9 @@ import {
   CheckCircle2, 
   XCircle,
   ShoppingBag,
-  User
+  User,
+  Search,
+  X
 } from 'lucide-react-native';
 import { shopService } from '../../services/shopService';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,6 +37,7 @@ const ShopOrdersScreen = ({ navigation }) => {
   const styles = createStyles(theme, isDarkMode);
 
   const [activeFilter, setActiveFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,13 +46,13 @@ const ShopOrdersScreen = ({ navigation }) => {
 
   useFocusEffect(
     React.useCallback(() => {
-      fetchOrders();
-    }, [])
+      fetchOrders(orders.length > 0);
+    }, [orders.length])
   );
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       const res = await shopService.getShopOrders();
       if (res.data?.status === 'success') {
         const list = res.data.data.orders || res.data.data;
@@ -117,6 +121,7 @@ const ShopOrdersScreen = ({ navigation }) => {
       Alert.alert('Error', 'Failed to load orders');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -126,13 +131,24 @@ const ShopOrdersScreen = ({ navigation }) => {
   };
 
   const filteredOrders = orders.filter(order => {
-    if (activeFilter === 'All') return true;
-    return order.filterKey.toLowerCase() === activeFilter.toLowerCase();
+    if (activeFilter !== 'All' && order.filterKey.toLowerCase() !== activeFilter.toLowerCase()) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const idMatch = (order.id || '').toLowerCase().includes(q) || (order.rawId || '').toLowerCase().includes(q);
+      const custMatch = (order.customer || '').toLowerCase().includes(q);
+      const phoneMatch = (order.phone || '').toLowerCase().includes(q);
+      const summaryMatch = (order.itemsSummary || '').toLowerCase().includes(q);
+      const itemMatch = (order.originalOrder?.items || []).some(it => (it.name || '').toLowerCase().includes(q));
+      return idMatch || custMatch || phoneMatch || summaryMatch || itemMatch;
+    }
+    return true;
   });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchOrders();
+    await fetchOrders(true);
     setRefreshing(false);
   }, []);
 
@@ -167,6 +183,31 @@ const ShopOrdersScreen = ({ navigation }) => {
       </LinearGradient>
 
       <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Search size={18} color="#6C47FF" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by Order ID (#...), Customer, Item..."
+              placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity 
+                onPress={() => setSearchQuery('')} 
+                style={styles.clearBtn}
+                activeOpacity={0.7}
+              >
+                <X size={16} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
 
         {/* Filter Chips with Count Badges */}
         <View style={styles.filtersContainer}>
@@ -206,7 +247,7 @@ const ShopOrdersScreen = ({ navigation }) => {
             />
           }
         >
-          {loading ? (
+          {loading && orders.length === 0 ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color="#6C47FF" />
             </View>
@@ -215,8 +256,23 @@ const ShopOrdersScreen = ({ navigation }) => {
               <View style={styles.emptyIconBox}>
                 <Package size={36} color="#6C47FF" />
               </View>
-              <Text style={styles.emptyTitle}>No Orders Found</Text>
-              <Text style={styles.emptyText}>There are no orders matching the "{activeFilter}" filter.</Text>
+              <Text style={styles.emptyTitle}>
+                {searchQuery.trim() ? 'No Matching Orders' : 'No Orders Found'}
+              </Text>
+              <Text style={styles.emptyText}>
+                {searchQuery.trim() 
+                  ? `No orders match "${searchQuery.trim()}". Try searching another Order ID, customer, or product.` 
+                  : `There are no orders matching the "${activeFilter}" filter.`}
+              </Text>
+              {searchQuery.trim() ? (
+                <TouchableOpacity 
+                  style={styles.clearSearchBtn} 
+                  onPress={() => setSearchQuery('')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.clearSearchBtnText}>Clear Search</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : (
             <View style={styles.ordersList}>
@@ -349,9 +405,63 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontWeight: '900',
   },
 
+  /* ── Search Bar ── */
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 6,
+    backgroundColor: theme.colors.background,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.35)' : 'rgba(108, 71, 255, 0.22)',
+    paddingHorizontal: 12,
+    height: 46,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDarkMode ? 0.2 : 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: theme.colors.text,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+  },
+  clearBtn: {
+    padding: 6,
+    borderRadius: 12,
+  },
+  clearSearchBtn: {
+    marginTop: 16,
+    backgroundColor: '#6C47FF',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  clearSearchBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
   /* ── Filter Chips ── */
   filtersContainer: {
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: theme.colors.background,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,

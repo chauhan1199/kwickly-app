@@ -351,13 +351,15 @@ exports.getShopOrders = catchAsync(async (req, res) => {
     const query = { shopId: shop._id };
     if (status && status !== 'all') query.status = status.toUpperCase();
 
-    const total = await ShopOrder.countDocuments(query);
-    const orders = await ShopOrder.find(query)
-        .populate('customerId', 'name phone')
-        .sort('-createdAt')
-        .limit(Number(limit))
-        .skip((Number(page) - 1) * Number(limit))
-        .lean();
+    const [total, orders] = await Promise.all([
+        ShopOrder.countDocuments(query),
+        ShopOrder.find(query)
+            .populate('customerId', 'name phone')
+            .sort('-createdAt')
+            .limit(Number(limit))
+            .skip((Number(page) - 1) * Number(limit))
+            .lean()
+    ]);
 
     return successResponse(res, { orders, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Shop orders fetched');
 });

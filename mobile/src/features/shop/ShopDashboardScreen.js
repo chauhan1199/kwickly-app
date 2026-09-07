@@ -52,43 +52,47 @@ const ShopDashboardScreen = ({ navigation }) => {
   const [shopInfo, setShopInfo] = useState({ name: 'My Shop', address: '', logoUrl: null, isOnline: true });
   const [shopExists, setShopExists] = useState(true);
   const [stats, setStats] = useState({ todayOrders: 0, revenue: 0, productsCount: 0, wallet: 0 });
+  const hasLoadedOnceRef = React.useRef(false);
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (isBackground = false) => {
     try {
-      setLoading(true);
-      let myShop;
-      let exists = true;
-      try {
-        const shopRes = await shopService.getMyShop();
-        if (shopRes.data?.status === 'success') {
-          myShop = shopRes.data.data;
-        }
-      } catch (e) {
-        if (e.response?.status === 404) {
-          exists = false;
-        } else throw e;
+      if (!isBackground && !hasLoadedOnceRef.current) {
+        setLoading(true);
       }
 
-      setShopExists(exists);
+      // Fetch all 3 endpoints concurrently for 3x faster loading speed
+      const [shopResult, ordersResult, productsResult] = await Promise.allSettled([
+        shopService.getMyShop(),
+        shopService.getShopOrders(),
+        shopService.getShopProducts()
+      ]);
 
+      // 1. Process Shop Details
+      let exists = true;
+      if (shopResult.status === 'fulfilled') {
+        const myShop = shopResult.value.data?.data;
+        if (myShop) {
+          setShopInfo({ 
+            name: myShop.name || 'My Shop', 
+            address: myShop.address || '', 
+            logoUrl: myShop.logoUrl,
+            isOnline: myShop.isOnline !== undefined ? myShop.isOnline : true
+          });
+          setStats(prev => ({ ...prev, wallet: myShop.wallet?.balance || 0 }));
+        }
+      } else if (shopResult.reason?.response?.status === 404) {
+        exists = false;
+      }
+      setShopExists(exists);
       if (!exists) {
         setLoading(false);
+        hasLoadedOnceRef.current = true;
         return;
       }
 
-      if (myShop) {
-        setShopInfo({ 
-          name: myShop.name, 
-          address: myShop.address || '', 
-          logoUrl: myShop.logoUrl,
-          isOnline: myShop.isOnline !== undefined ? myShop.isOnline : true
-        });
-        setStats(prev => ({ ...prev, wallet: myShop.wallet?.balance || 0 }));
-      }
-
-      const orderRes = await shopService.getShopOrders();
-      if (orderRes.data?.status === 'success') {
-        const orders = orderRes.data.data.orders || orderRes.data.data;
+      // 2. Process Orders
+      if (ordersResult.status === 'fulfilled' && ordersResult.value.data?.status === 'success') {
+        const orders = ordersResult.value.data.data.orders || ordersResult.value.data.data || [];
         const mapped = orders.map(order => {
           const st = order.status ? order.status.toUpperCase() : 'NEW';
           const isPending = ['NEW', 'PENDING', 'CONFIRMED', 'PACKING'].includes(st);
@@ -130,28 +134,29 @@ const ShopDashboardScreen = ({ navigation }) => {
         setStats(prev => ({ ...prev, todayOrders: todayOrders.length, revenue }));
       }
 
-      try {
-        const prodRes = await shopService.getShopProducts();
-        if (prodRes.data?.status === 'success') {
-          setStats(prev => ({ ...prev, productsCount: prodRes.data.data.length }));
-        }
-      } catch (e) { /* ignore */ }
+      // 3. Process Products Count
+      if (productsResult.status === 'fulfilled' && productsResult.value.data?.status === 'success') {
+        const prods = productsResult.value.data.data || [];
+        setStats(prev => ({ ...prev, productsCount: prods.length }));
+      }
+
+      hasLoadedOnceRef.current = true;
     } catch (e) {
       // silently handle
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [isDarkMode]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchDashboardData();
-    setRefreshing(false);
+    await fetchDashboardData(true);
   }, [fetchDashboardData]);
 
   useFocusEffect(
     React.useCallback(() => {
-      fetchDashboardData();
+      fetchDashboardData(hasLoadedOnceRef.current);
     }, [fetchDashboardData])
   );
 
