@@ -167,25 +167,27 @@ const ShopWalletScreen = ({ navigation }) => {
           title: p.label || p.name,
           desc: p.durationDays ? `${p.durationDays} days validity` : 'Standard plan',
           price: `₹${p.price || 0}`,
-          priceNum: p.price || 0,
+          priceNum: Number(p.price) || 0,
           days: p.durationDays || 30
         }));
         setDynamicPlans(formatted);
-        if (!formatted.find(p => p.id === selectedPlan)) {
-          setSelectedPlan(formatted[0]?.id || '');
-        }
+        setSelectedPlan(prev => {
+          if (formatted.some(p => p.id === prev)) return prev;
+          return formatted[0]?.id || '';
+        });
       }
 
       if (shopRes?.data?.status === 'success') {
         const myShop = shopRes.data.data;
-        setBalance(myShop.wallet?.balance || 0);
+        const b = parseFloat(myShop?.wallet?.balance);
+        setBalance(isNaN(b) ? 0 : b);
 
         const mappedAccs = (myShop.payoutMethods || []).map((m, i) => ({
-          id: m._id || m.id || i.toString(),
-          type: m.type === 'UPI' ? 'upi' : 'bank',
-          name: m.label || (m.type === 'UPI' ? 'UPI Account' : m.bankName || 'Bank Account'),
-          detail: m.detail,
-          isPrimary: !!m.isPrimary
+          id: String(m?._id || m?.id || i),
+          type: m?.type === 'UPI' ? 'upi' : 'bank',
+          name: m?.label || (m?.type === 'UPI' ? 'UPI Account' : m?.bankName || 'Bank Account'),
+          detail: m?.detail || '',
+          isPrimary: !!m?.isPrimary
         }));
         setAccounts(mappedAccs);
         if (mappedAccs.length > 0) {
@@ -195,20 +197,41 @@ const ShopWalletScreen = ({ navigation }) => {
       }
 
       if (balanceRes?.data?.status === 'success') {
+        if (balanceRes.data.data?.balance !== undefined) {
+          const b = parseFloat(balanceRes.data.data.balance);
+          if (!isNaN(b)) setBalance(b);
+        }
         const tlist = balanceRes.data.data.transactions || [];
-        const mappedTxns = tlist.map(t => ({
-          id: t._id,
-          txnId: t._id.slice(-8).toUpperCase(),
-          title: t.description || (t.type === 'WITHDRAWAL' ? 'Withdrawal' : t.type === 'TOPUP' ? 'Wallet Top-Up' : 'Order Credit'),
-          time: new Date(t.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          rawDate: t.createdAt,
-          amount: `₹${Number(t.amount).toFixed(2)}`,
-          amountNum: t.amount,
-          type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT', 'REFUND'].includes(t.type) ? 'credit' : 'debit',
-          rawType: t.type,
-          refId: t.razorpayPaymentId || t._id.slice(-8).toUpperCase(),
-          status: t.status || 'COMPLETED'
-        }));
+        const mappedTxns = tlist.map(t => {
+          const rawId = String(t?._id || t?.id || Math.random().toString(36).substring(2));
+          const safeRef = String(t?.razorpayPaymentId || t?.referenceId || t?.utr || rawId).slice(-8).toUpperCase();
+          let formattedDate = 'Recent';
+          try {
+            if (t?.createdAt) {
+              const d = new Date(t.createdAt);
+              if (!isNaN(d.getTime())) {
+                const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                formattedDate = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+              }
+            }
+          } catch (err) {
+            formattedDate = 'Recent';
+          }
+          const numAmt = typeof t?.amount === 'number' ? t.amount : (parseFloat(t?.amount) || 0);
+          return {
+            id: rawId,
+            txnId: rawId.slice(-8).toUpperCase(),
+            title: t?.description || (t?.type === 'WITHDRAWAL' ? 'Withdrawal' : t?.type === 'TOPUP' ? 'Wallet Top-Up' : 'Order Credit'),
+            time: formattedDate,
+            rawDate: t?.createdAt,
+            amount: `₹${numAmt.toFixed(2)}`,
+            amountNum: numAmt,
+            type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT', 'REFUND'].includes(t?.type) ? 'credit' : 'debit',
+            rawType: t?.type || 'TRANSACTION',
+            refId: safeRef,
+            status: t?.status || 'COMPLETED'
+          };
+        });
         setTxns(mappedTxns);
       }
     } catch (e) {
@@ -216,7 +239,7 @@ const ShopWalletScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedPlan]);
+  }, []);
 
   useEffect(() => {
     fetchWallet();
@@ -374,7 +397,8 @@ const ShopWalletScreen = ({ navigation }) => {
   // ═══════════════════════════════════════════
   // WITHDRAWAL FLOW
   // ═══════════════════════════════════════════
-  const maxWithdrawable = Math.max(0, balance - MIN_SAFETY_FREEZE);
+  const numBalance = typeof balance === 'number' && !isNaN(balance) ? balance : (parseFloat(balance) || 0);
+  const numMaxWithdrawable = Math.max(0, numBalance - MIN_SAFETY_FREEZE);
 
   const handleOpenWithdraw = () => {
     if (accounts.length === 0) {
@@ -388,7 +412,7 @@ const ShopWalletScreen = ({ navigation }) => {
       );
       return;
     }
-    setWithdrawAmount(maxWithdrawable > 0 ? String(Math.min(maxWithdrawable, 500)) : '');
+    setWithdrawAmount(numMaxWithdrawable > 0 ? String(Math.min(numMaxWithdrawable, 500)) : '');
     setWithdrawModalVisible(true);
   };
 
@@ -399,10 +423,10 @@ const ShopWalletScreen = ({ navigation }) => {
       return;
     }
 
-    if (amt > maxWithdrawable) {
+    if (amt > numMaxWithdrawable) {
       Alert.alert(
         'Safety Balance Protection',
-        `Your wallet balance is ₹${balance.toFixed(2)}, but ₹${MIN_SAFETY_FREEZE.toFixed(2)} is reserved as safety balance.\n\nMaximum withdrawable balance is ₹${maxWithdrawable.toFixed(2)}.`
+        `Your wallet balance is ₹${numBalance.toFixed(2)}, but ₹${MIN_SAFETY_FREEZE.toFixed(2)} is reserved as safety balance.\n\nMaximum withdrawable balance is ₹${numMaxWithdrawable.toFixed(2)}.`
       );
       return;
     }
@@ -605,90 +629,93 @@ const ShopWalletScreen = ({ navigation }) => {
   }, [fetchWallet]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
+      <LinearGradient colors={['#7C3AED', '#6C47FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
+          <View style={styles.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerTitle}>Shop Wallet</Text>
+              <Text style={styles.headerSub}>Manage earnings & payouts</Text>
+            </View>
+            <View style={styles.headerActions}>
+              <TouchableOpacity 
+                style={styles.headerIconBtn} 
+                onPress={() => navigation.navigate('ShopNotifications')} 
+                activeOpacity={0.7}
+              >
+                <Bell size={20} color="#FFFFFF" />
+                {unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Shop Wallet</Text>
-          <Text style={styles.headerSub}>Manage earnings & payouts</Text>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.headerIconBtn} 
-            onPress={() => navigation.navigate('ShopNotifications')} 
-            activeOpacity={0.7}
-          >
-            <Bell size={20} color={theme.colors.text} />
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
-        contentContainerStyle={{ paddingBottom: 100 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#6C47FF']}
-            tintColor="#6C47FF"
-          />
-        }
-      >
-        
-        {/* Wallet Hero Card */}
-        <LinearGradient
-          colors={['#6C47FF', '#8B6FFF']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
+      <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#6C47FF']}
+              tintColor="#6C47FF"
+            />
+          }
         >
-          <View style={styles.heroTop}>
-            <Text style={styles.heroLabel}>TOTAL WALLET BALANCE</Text>
-            <View style={styles.livePill}>
-              <View style={styles.liveDot} />
-              <Text style={styles.livePillText}>Instant UPI</Text>
+          
+          {/* Wallet Hero Card */}
+          <LinearGradient
+            colors={['#6C47FF', '#8B6FFF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            <View style={styles.heroTop}>
+              <Text style={styles.heroLabel}>TOTAL WALLET BALANCE</Text>
+              <View style={styles.livePill}>
+                <View style={styles.liveDot} />
+                <Text style={styles.livePillText}>Instant UPI</Text>
+              </View>
             </View>
-          </View>
 
-          <Text style={styles.heroBalance}>₹{balance.toFixed(2)}</Text>
+            <Text style={styles.heroBalance}>₹{numBalance.toFixed(2)}</Text>
 
-          {/* Reserve breakdown */}
-          <View style={styles.heroBreakdown}>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Safety Reserve</Text>
-              <Text style={styles.breakdownVal}>₹{MIN_SAFETY_FREEZE.toFixed(2)}</Text>
+            {/* Reserve breakdown */}
+            <View style={styles.heroBreakdown}>
+              <View style={styles.breakdownItem}>
+                <Text style={styles.breakdownLabel}>Safety Reserve</Text>
+                <Text style={styles.breakdownVal}>₹{MIN_SAFETY_FREEZE.toFixed(2)}</Text>
+              </View>
+              <View style={styles.breakdownDivider} />
+              <View style={styles.breakdownItem}>
+                <Text style={styles.breakdownLabel}>Max Withdrawable</Text>
+                <Text style={[styles.breakdownVal, { color: '#A7F3D0' }]}>₹{numMaxWithdrawable.toFixed(2)}</Text>
+              </View>
             </View>
-            <View style={styles.breakdownDivider} />
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Max Withdrawable</Text>
-              <Text style={[styles.breakdownVal, { color: '#A7F3D0' }]}>₹{maxWithdrawable.toFixed(2)}</Text>
-            </View>
-          </View>
 
-          {/* Action Buttons */}
-          <View style={styles.heroActionsRow}>
-            <TouchableOpacity style={styles.heroBtnTopUp} onPress={handleOpenTopUp} activeOpacity={0.85}>
-              <ArrowDown size={18} color="#6C47FF" />
-              <Text style={styles.heroBtnTopUpText}>+ Add Money</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.heroBtnWithdraw, maxWithdrawable <= 0 && { opacity: 0.6 }]} 
-              onPress={handleOpenWithdraw} 
-              activeOpacity={0.85}
-            >
-              <ArrowUp size={18} color="#FFFFFF" />
-              <Text style={styles.heroBtnWithdrawText}>Withdraw</Text>
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
+            {/* Action Buttons */}
+            <View style={styles.heroActionsRow}>
+              <TouchableOpacity style={styles.heroBtnTopUp} onPress={handleOpenTopUp} activeOpacity={0.85}>
+                <ArrowDown size={18} color="#6C47FF" />
+                <Text style={styles.heroBtnTopUpText}>+ Add Money</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.heroBtnWithdraw, numMaxWithdrawable <= 0 && { opacity: 0.6 }]} 
+                onPress={handleOpenWithdraw} 
+                activeOpacity={0.85}
+              >
+                <ArrowUp size={18} color="#FFFFFF" />
+                <Text style={styles.heroBtnWithdrawText}>Withdraw</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
 
         {/* Subscription Plan Card */}
         <TouchableOpacity 
@@ -808,6 +835,7 @@ const ShopWalletScreen = ({ navigation }) => {
         )}
 
       </ScrollView>
+      </View>
 
       {/* ═══════════════════════════════════════════
           MODAL 1: ADD MONEY (TOP UP AMOUNT)
@@ -954,7 +982,7 @@ const ShopWalletScreen = ({ navigation }) => {
             <View style={styles.withdrawBreakdownCard}>
               <View style={styles.wBreakdownRow}>
                 <Text style={styles.wBreakdownLabel}>Total Wallet Balance</Text>
-                <Text style={styles.wBreakdownVal}>₹{balance.toFixed(2)}</Text>
+                <Text style={styles.wBreakdownVal}>₹{numBalance.toFixed(2)}</Text>
               </View>
               <View style={styles.wBreakdownRow}>
                 <Text style={styles.wBreakdownLabel}>Safety Reserve (Freeze)</Text>
@@ -964,7 +992,7 @@ const ShopWalletScreen = ({ navigation }) => {
               <View style={styles.wBreakdownRow}>
                 <Text style={[styles.wBreakdownLabel, { fontWeight: '800', color: theme.colors.text }]}>Max Withdrawable</Text>
                 <Text style={[styles.wBreakdownVal, { fontWeight: '900', color: '#10B981', fontSize: 16 }]}>
-                  ₹{maxWithdrawable.toFixed(2)}
+                  ₹{numMaxWithdrawable.toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -1004,14 +1032,14 @@ const ShopWalletScreen = ({ navigation }) => {
 
             {/* Quick Chips */}
             <View style={styles.presetChipsRow}>
-              {[100, 500, maxWithdrawable].filter((v, i, a) => v > 0 && a.indexOf(v) === i).map((amt, idx) => (
+              {[100, 500, numMaxWithdrawable].filter((v, i, a) => v > 0 && a.indexOf(v) === i).map((amt, idx) => (
                 <TouchableOpacity
                   key={idx}
                   style={[styles.presetChip, withdrawAmount === String(amt) && styles.presetChipActive]}
                   onPress={() => setWithdrawAmount(String(amt))}
                 >
                   <Text style={[styles.presetChipText, withdrawAmount === String(amt) && styles.presetChipTextActive]}>
-                    {amt === maxWithdrawable ? `Max (₹${amt.toFixed(0)})` : `₹${amt}`}
+                    {amt === numMaxWithdrawable ? `Max (₹${Number(amt).toFixed(0)})` : `₹${amt}`}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1303,7 +1331,7 @@ const ShopWalletScreen = ({ navigation }) => {
                   </View>
                   <View style={[styles.receiptRow, styles.receiptTotalRow]}>
                     <Text style={styles.receiptTotalKey}>Wallet Balance</Text>
-                    <Text style={styles.receiptTotalVal}>₹{balance.toFixed(2)}</Text>
+                    <Text style={styles.receiptTotalVal}>₹{numBalance.toFixed(2)}</Text>
                   </View>
                 </View>
 
@@ -1358,7 +1386,7 @@ const ShopWalletScreen = ({ navigation }) => {
           onSubmitManualUtr={handleManualUtrSubmission}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -1373,21 +1401,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    minHeight: 68,
-    backgroundColor: theme.colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    minHeight: 64,
+    backgroundColor: 'transparent',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: theme.colors.text,
+    color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   headerSub: {
     fontSize: 12.5,
     fontWeight: '500',
-    color: theme.colors.textDim,
+    color: 'rgba(255, 255, 255, 0.85)',
     marginTop: 2,
   },
   headerActions: {
@@ -1398,9 +1424,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     borderWidth: 1,
-    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderColor: 'rgba(255, 255, 255, 0.28)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -1417,7 +1443,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: theme.colors.background,
+    borderColor: '#7C3AED',
   },
   badgeText: {
     color: '#fff',

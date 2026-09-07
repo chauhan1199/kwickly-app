@@ -35,6 +35,7 @@ import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { shopService } from '../../services/shopService';
 import { getImageUrl, requestCameraPermission } from '../../utils/helpers';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import LinearGradient from 'react-native-linear-gradient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -308,31 +309,35 @@ const ShopProductsScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      
-        {/* App Bar */}
-        <View style={styles.appBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.appBarTitle}>Store Catalog</Text>
-            <Text style={styles.appBarSubtitle}>{products.length} products listed</Text>
-          </View>
+      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
+      <LinearGradient colors={['#7C3AED', '#6C47FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
+          {/* App Bar */}
+          <View style={styles.appBar}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.appBarTitle}>Store Catalog</Text>
+              <Text style={styles.appBarSubtitle}>{products.length} products listed</Text>
+            </View>
 
-          <View style={styles.appBarActions}>
-            <TouchableOpacity 
-              style={styles.iconBtn} 
-              onPress={() => navigation.navigate('ShopNotifications')} 
-              activeOpacity={0.7}
-            >
-              <Bell size={20} color={theme.colors.text} />
-              {unreadCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            <View style={styles.appBarActions}>
+              <TouchableOpacity 
+                style={styles.iconBtn} 
+                onPress={() => navigation.navigate('ShopNotifications')} 
+                activeOpacity={0.7}
+              >
+                <Bell size={20} color="#FFFFFF" />
+                {unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </SafeAreaView>
+      </LinearGradient>
+
+      <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
 
         <ScrollView 
           showsVerticalScrollIndicator={false} 
@@ -680,7 +685,7 @@ const ShopProductsScreen = ({ navigation }) => {
           </View>
         </Modal>
 
-      </SafeAreaView>
+      </View>
     </View>
   );
 };
@@ -696,21 +701,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    minHeight: 68,
-    backgroundColor: theme.colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    minHeight: 64,
+    backgroundColor: 'transparent',
   },
   appBarTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: theme.colors.text,
+    color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   appBarSubtitle: {
     fontSize: 12.5,
     fontWeight: '500',
-    color: theme.colors.textDim,
+    color: 'rgba(255, 255, 255, 0.85)',
     marginTop: 2,
   },
   appBarActions: {
@@ -721,9 +724,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     borderWidth: 1,
-    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderColor: 'rgba(255, 255, 255, 0.28)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -740,7 +743,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: theme.colors.background,
+    borderColor: '#7C3AED',
   },
   badgeText: {
     color: '#FFF',

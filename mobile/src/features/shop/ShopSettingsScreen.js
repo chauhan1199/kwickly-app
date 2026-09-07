@@ -25,6 +25,7 @@ import { shopService } from '../../services/shopService';
 import { getImageUrl, requestCameraPermission } from '../../utils/helpers';
 import LeafletMapPicker from '../../components/LeafletMapPicker';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import LinearGradient from 'react-native-linear-gradient';
 import {
   Store,
   Clock,
@@ -575,31 +576,35 @@ const ShopSettingsScreen = ({ navigation }) => {
 
   return (
     <View style={s.container}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
+      <LinearGradient colors={['#7C3AED', '#6C47FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
+          {/* ── App Header ── */}
+          <View style={s.appBar}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.appBarTitle}>Shop Settings</Text>
+              <Text style={s.appBarSubtitle}>{shop?.name || 'Store Management'}</Text>
+            </View>
 
-        {/* ── App Header ── */}
-        <View style={s.appBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.appBarTitle}>Shop Settings</Text>
-            <Text style={s.appBarSubtitle}>{shop?.name || 'Store Management'}</Text>
+            <View style={s.appBarActions}>
+              <TouchableOpacity 
+                style={s.iconBtn} 
+                onPress={() => navigation.navigate('ShopNotifications')} 
+                activeOpacity={0.7}
+              >
+                <Bell size={20} color="#FFFFFF" />
+                {unreadCount > 0 && (
+                  <View style={s.badge}>
+                    <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
+        </SafeAreaView>
+      </LinearGradient>
 
-          <View style={s.appBarActions}>
-            <TouchableOpacity 
-              style={s.iconBtn} 
-              onPress={() => navigation.navigate('ShopNotifications')} 
-              activeOpacity={0.7}
-            >
-              <Bell size={20} color={c.text} />
-              {unreadCount > 0 && (
-                <View style={s.badge}>
-                  <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+      <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16 }}>
 
@@ -1236,7 +1241,7 @@ const ShopSettingsScreen = ({ navigation }) => {
           </SafeAreaView>
         </Modal>
 
-      </SafeAreaView>
+      </View>
     </View>
   );
 };
@@ -1253,21 +1258,19 @@ const createStyles = (theme, isDarkMode) =>
       justifyContent: 'space-between',
       paddingHorizontal: 16,
       paddingVertical: 12,
-      minHeight: 68,
-      backgroundColor: theme.colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+      minHeight: 64,
+      backgroundColor: 'transparent',
     },
     appBarTitle: {
       fontSize: 20,
       fontWeight: '800',
-      color: theme.colors.text,
+      color: '#FFFFFF',
       letterSpacing: -0.3,
     },
     appBarSubtitle: {
       fontSize: 12.5,
       fontWeight: '500',
-      color: theme.colors.textDim,
+      color: 'rgba(255, 255, 255, 0.85)',
       marginTop: 2,
     },
     appBarActions: {
@@ -1278,9 +1281,9 @@ const createStyles = (theme, isDarkMode) =>
       width: 40,
       height: 40,
       borderRadius: 12,
-      backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+      backgroundColor: 'rgba(255, 255, 255, 0.18)',
       borderWidth: 1,
-      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      borderColor: 'rgba(255, 255, 255, 0.28)',
       justifyContent: 'center',
       alignItems: 'center',
       position: 'relative',
@@ -1297,7 +1300,7 @@ const createStyles = (theme, isDarkMode) =>
       alignItems: 'center',
       paddingHorizontal: 4,
       borderWidth: 1.5,
-      borderColor: theme.colors.background,
+      borderColor: '#7C3AED',
     },
     badgeText: {
       color: '#FFF',

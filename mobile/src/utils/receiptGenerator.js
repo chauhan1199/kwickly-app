@@ -3,16 +3,25 @@ import Clipboard from '@react-native-clipboard/clipboard';
 
 const { NativeUpiPayment } = NativeModules;
 
+const formatReceiptDate = (raw) => {
+  try {
+    const d = new Date(raw || Date.now());
+    if (isNaN(d.getTime())) return 'Recent';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  } catch (e) {
+    return 'Recent';
+  }
+};
+
 /**
  * Formats a clean, official transaction receipt string without private payer data or generic website/email.
  */
 export const formatOfficialReceiptText = (txn) => {
   if (!txn) return '';
-  const receiptId = `KWIK-RCPT-${(txn._id || '').slice(-8).toUpperCase() || 'TXN'}`;
-  const dateStr = new Date(txn.createdAt || txn.txnDate || Date.now()).toLocaleString('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  });
+  const rawId = String(txn._id || txn.id || 'TXN');
+  const receiptId = `KWIK-RCPT-${rawId.slice(-8).toUpperCase() || 'TXN'}`;
+  const dateStr = formatReceiptDate(txn.createdAt || txn.txnDate);
   const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || txn.utrNumber || txn.paymentId || 'AUTO_VERIFIED';
   const isCr = txn.type === 'TOPUP' || txn.type === 'REFUND' || txn.type === 'CREDIT' || (txn.amount > 0 && !txn.type?.includes('DEBIT'));
   const amountStr = `${isCr ? '+' : '-'}₹${Math.abs(txn.amount || 0)}`;
@@ -43,11 +52,9 @@ Wallet Balance: ${balanceStr}
  */
 export const shareOfficialReceipt = async (txn) => {
   if (!txn) return;
-  const receiptId = `KWIK-RCPT-${(txn._id || '').slice(-8).toUpperCase() || 'TXN'}`;
-  const dateStr = new Date(txn.createdAt || txn.txnDate || Date.now()).toLocaleString('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  });
+  const rawId = String(txn._id || txn.id || 'TXN');
+  const receiptId = `KWIK-RCPT-${rawId.slice(-8).toUpperCase() || 'TXN'}`;
+  const dateStr = formatReceiptDate(txn.createdAt || txn.txnDate);
   const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || txn.utrNumber || txn.paymentId || 'AUTO_VERIFIED';
   const isCr = txn.type === 'TOPUP' || txn.type === 'REFUND' || txn.type === 'CREDIT' || (txn.amount > 0 && !txn.type?.includes('DEBIT'));
   const amountStr = `${isCr ? '+' : '-'}₹${Math.abs(txn.amount || 0)}`;
@@ -94,11 +101,10 @@ export const shareOfficialReceipt = async (txn) => {
  */
 export const printReceiptPdf = async (txn) => {
   if (!txn) return;
-  const receiptId = `KWIK-RCPT-${(txn._id || '').slice(-8).toUpperCase() || 'TXN'}`;
-  const dateStr = new Date(txn.createdAt || txn.txnDate || Date.now()).toLocaleString('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  });
+  const rawId = String(txn._id || txn.id || 'TXN');
+  const receiptId = `KWIK-RCPT-${rawId.slice(-8).toUpperCase() || 'TXN'}`;
+  const dateStr = formatReceiptDate(txn.createdAt || txn.txnDate);
+
   const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || txn.utrNumber || txn.paymentId || 'AUTO_VERIFIED';
   const isCr = txn.type === 'TOPUP' || txn.type === 'REFUND' || txn.type === 'CREDIT' || (txn.amount > 0 && !txn.type?.includes('DEBIT'));
   const amountStr = `${isCr ? '+' : '-'}₹${Math.abs(txn.amount || 0)}`;
@@ -178,4 +184,15 @@ export const printReceiptPdf = async (txn) => {
   }
 
   return shareOfficialReceipt(txn);
+};
+
+export const generateAndSharePdfReceipt = async (receiptData) => {
+  return shareOfficialReceipt(receiptData);
+};
+
+export const formatReceiptData = (txn, user, balance) => {
+  return {
+    ...txn,
+    balance: balance !== undefined ? balance : txn?.balance,
+  };
 };

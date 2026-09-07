@@ -159,55 +159,55 @@ const ShopDashboardScreen = ({ navigation }) => {
 
   return (
     <View style={s.container}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-
-        {/* ── App Header ── */}
-        <View style={s.appBar}>
-          <View style={s.appBarLeft}>
-            <View style={s.shopAvatarWrapper}>
-              {shopInfo.logoUrl && !avatarError ? (
-                <Image 
-                  source={{ uri: getImageUrl(shopInfo.logoUrl) }} 
-                  style={s.shopAvatar} 
-                  onError={() => setAvatarError(true)}
-                />
-              ) : (
-                <LinearGradient
-                  colors={['#7C3AED', '#6C47FF']}
-                  style={s.shopAvatarGradient}
-                >
-                  <Store size={22} color="#FFFFFF" />
-                </LinearGradient>
-              )}
-            </View>
-            <View style={{ flex: 1, justifyContent: 'center' }}>
-              <Text style={s.appBarTitle} numberOfLines={1}>{shopInfo.name || 'My Shop'}</Text>
-              <View style={s.liveStatusRow}>
-                <View style={[s.liveDot, { backgroundColor: shopInfo.isOnline ? '#10B981' : '#94A3B8' }]} />
-                <Text style={[s.liveStatusText, { color: shopInfo.isOnline ? '#10B981' : theme.colors.textDim }]}>
-                  {shopInfo.isOnline ? 'Store Online' : 'Store Offline'}
-                </Text>
+      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
+      <LinearGradient colors={['#7C3AED', '#6C47FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
+          {/* ── App Header ── */}
+          <View style={s.appBar}>
+            <View style={s.appBarLeft}>
+              <View style={s.shopAvatarWrapper}>
+                {shopInfo.logoUrl && !avatarError ? (
+                  <Image 
+                    source={{ uri: getImageUrl(shopInfo.logoUrl) }} 
+                    style={s.shopAvatar} 
+                    onError={() => setAvatarError(true)}
+                  />
+                ) : (
+                  <View style={s.shopAvatarGradient}>
+                    <Store size={22} color="#FFFFFF" />
+                  </View>
+                )}
+              </View>
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                <Text style={s.appBarTitle} numberOfLines={1}>{shopInfo.name || 'My Shop'}</Text>
+                <View style={s.liveStatusRow}>
+                  <View style={[s.liveDot, { backgroundColor: shopInfo.isOnline ? '#10B981' : '#CBD5E1' }]} />
+                  <Text style={[s.liveStatusText, { color: shopInfo.isOnline ? '#A7F3D0' : 'rgba(255,255,255,0.75)' }]}>
+                    {shopInfo.isOnline ? 'Store Online' : 'Store Offline'}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
 
-          <View style={s.appBarActions}>
-            <TouchableOpacity
-              style={s.iconBtn}
-              onPress={() => navigation.navigate('ShopNotifications')}
-              activeOpacity={0.7}
-            >
-              <Bell size={20} color={theme.colors.text} />
-              {unreadCount > 0 && (
-                <View style={s.badge}>
-                  <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            <View style={s.appBarActions}>
+              <TouchableOpacity
+                style={s.iconBtn}
+                onPress={() => navigation.navigate('ShopNotifications')}
+                activeOpacity={0.7}
+              >
+                <Bell size={20} color="#FFFFFF" />
+                {unreadCount > 0 && (
+                  <View style={s.badge}>
+                    <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </SafeAreaView>
+      </LinearGradient>
 
+      <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={s.scroll}
@@ -446,7 +446,7 @@ const ShopDashboardScreen = ({ navigation }) => {
 
           <View style={{ height: 40 }} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </View>
   );
 };
@@ -465,10 +465,8 @@ const createStyles = (theme, isDarkMode) =>
       justifyContent: 'space-between',
       paddingHorizontal: 16,
       paddingVertical: 12,
-      minHeight: 68,
-      backgroundColor: theme.colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+      minHeight: 64,
+      backgroundColor: 'transparent',
     },
     appBarLeft: {
       flex: 1,
@@ -481,9 +479,9 @@ const createStyles = (theme, isDarkMode) =>
       width: 44,
       height: 44,
       borderRadius: 14,
-      backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+      backgroundColor: 'rgba(255, 255, 255, 0.15)',
       borderWidth: 1.5,
-      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      borderColor: 'rgba(255, 255, 255, 0.4)',
       justifyContent: 'center',
       alignItems: 'center',
       overflow: 'hidden',
@@ -502,7 +500,7 @@ const createStyles = (theme, isDarkMode) =>
     appBarTitle: {
       fontSize: 18,
       fontWeight: '800',
-      color: theme.colors.text,
+      color: '#FFFFFF',
       letterSpacing: -0.2,
     },
     liveStatusRow: {
@@ -510,6 +508,13 @@ const createStyles = (theme, isDarkMode) =>
       alignItems: 'center',
       gap: 5,
       marginTop: 2,
+      backgroundColor: 'rgba(255, 255, 255, 0.18)',
+      borderColor: 'rgba(255, 255, 255, 0.25)',
+      borderWidth: 1,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 10,
+      alignSelf: 'flex-start',
     },
     liveDot: {
       width: 7,
@@ -517,7 +522,7 @@ const createStyles = (theme, isDarkMode) =>
       borderRadius: 4,
     },
     liveStatusText: {
-      fontSize: 11.5,
+      fontSize: 11,
       fontWeight: '700',
     },
     appBarActions: {
@@ -528,9 +533,9 @@ const createStyles = (theme, isDarkMode) =>
       width: 40,
       height: 40,
       borderRadius: 12,
-      backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+      backgroundColor: 'rgba(255, 255, 255, 0.18)',
       borderWidth: 1,
-      borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+      borderColor: 'rgba(255, 255, 255, 0.28)',
       justifyContent: 'center',
       alignItems: 'center',
       position: 'relative',
@@ -547,7 +552,7 @@ const createStyles = (theme, isDarkMode) =>
       alignItems: 'center',
       paddingHorizontal: 4,
       borderWidth: 1.5,
-      borderColor: theme.colors.background,
+      borderColor: '#7C3AED',
     },
     badgeText: {
       color: '#fff',

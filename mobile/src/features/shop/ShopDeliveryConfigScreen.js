@@ -4,6 +4,7 @@ import {
   Switch, TouchableOpacity, Alert, StatusBar, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
@@ -119,36 +120,40 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
-      
-      {/* ── App Bar ── */}
-      <View style={styles.appBar}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity 
-            style={styles.backBtn} 
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <ChevronLeft size={22} color={theme.colors.text} />
-          </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.appBarTitle} numberOfLines={1}>Delivery Config</Text>
-            <Text style={styles.appBarSubtitle}>Manage delivery settings</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
+      <LinearGradient colors={['#7C3AED', '#6C47FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
+          {/* ── App Bar ── */}
+          <View style={styles.appBar}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity 
+                style={styles.backBtn} 
+                onPress={() => navigation.goBack()}
+                activeOpacity={0.7}
+              >
+                <ChevronLeft size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.appBarTitle} numberOfLines={1}>Delivery Config</Text>
+                <Text style={styles.appBarSubtitle}>Manage delivery settings</Text>
+              </View>
+            </View>
+            <View style={styles.appBarActions}>
+              <TouchableOpacity 
+                style={styles.appBarIconBtn} 
+                onPress={() => navigation.navigate('ShopNotifications')}
+                activeOpacity={0.7}
+              >
+                <Bell size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-        <View style={styles.appBarActions}>
-          <TouchableOpacity 
-            style={styles.appBarIconBtn} 
-            onPress={() => navigation.navigate('ShopNotifications')}
-            activeOpacity={0.7}
-          >
-            <Bell size={20} color={theme.colors.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
+        </SafeAreaView>
+      </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Delivery Radius */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -399,7 +404,8 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
           <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Configuration'}</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+      </View>
+    </View>
   );
 };
 
@@ -411,31 +417,29 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    minHeight: 68,
-    backgroundColor: theme.colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    minHeight: 64,
+    backgroundColor: 'transparent',
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     borderWidth: 1,
-    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderColor: 'rgba(255, 255, 255, 0.28)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   appBarTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: theme.colors.text,
+    color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   appBarSubtitle: {
     fontSize: 12.5,
     fontWeight: '500',
-    color: theme.colors.textDim,
+    color: 'rgba(255, 255, 255, 0.85)',
     marginTop: 2,
   },
   appBarActions: {
@@ -446,9 +450,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     borderWidth: 1,
-    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderColor: 'rgba(255, 255, 255, 0.28)',
     justifyContent: 'center',
     alignItems: 'center',
   },
