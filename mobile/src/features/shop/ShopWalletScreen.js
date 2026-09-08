@@ -17,7 +17,7 @@ import {
   RefreshControl
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
@@ -74,6 +74,7 @@ const ShopWalletScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { unreadCount } = useNotifications();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const styles = createStyles(theme, isDarkMode);
 
   // Dynamic Admin UPI state
@@ -630,30 +631,38 @@ const ShopWalletScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
-      <LinearGradient colors={['#7C3AED', '#6C47FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-        <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>Shop Wallet</Text>
-              <Text style={styles.headerSub}>Manage earnings & payouts</Text>
-            </View>
-            <View style={styles.headerActions}>
-              <TouchableOpacity 
-                style={styles.headerIconBtn} 
-                onPress={() => navigation.navigate('ShopNotifications')} 
-                activeOpacity={0.7}
-              >
-                <Bell size={20} color="#FFFFFF" />
-                {unreadCount > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
+      <StatusBar barStyle="light-content" backgroundColor="#5830E0" translucent={false} />
+      
+      {/* ── Modern Rounded Gradient Hero Header ── */}
+      <LinearGradient 
+        colors={['#5830E0', '#7447FF', '#8F66FF']} 
+        start={{ x: 0, y: 0 }} 
+        end={{ x: 1, y: 1 }}
+        style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 12) + 6 }]}
+      >
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
+
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Shop Wallet</Text>
+            <Text style={styles.headerSub}>Manage earnings & payouts</Text>
           </View>
-        </SafeAreaView>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={styles.headerIconBtn} 
+              onPress={() => navigation.navigate('ShopNotifications')} 
+              activeOpacity={0.8}
+            >
+              <Bell size={18} color="#FFFFFF" />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </LinearGradient>
 
       <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
@@ -1395,24 +1404,48 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
+  heroGradient: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  blob1: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  blob2: {
+    position: 'absolute',
+    bottom: -40,
+    left: -30,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 64,
-    backgroundColor: 'transparent',
+    paddingVertical: 6,
+    minHeight: 52,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   headerSub: {
-    fontSize: 12.5,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.85)',
     marginTop: 2,
   },
@@ -1421,33 +1454,31 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
   },
   headerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
   badge: {
     position: 'absolute',
-    top: -3,
-    right: -3,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
     borderWidth: 1.5,
-    borderColor: '#7C3AED',
+    borderColor: '#5830E0',
   },
   badgeText: {
-    color: '#fff',
-    fontSize: 9.5,
+    color: '#FFF',
+    fontSize: 9,
     fontWeight: '900',
   },
 

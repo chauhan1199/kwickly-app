@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput,
   Switch, TouchableOpacity, Alert, StatusBar, ActivityIndicator
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +17,7 @@ import {
 const ShopDeliveryConfigScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const styles = createStyles(theme, isDarkMode);
 
   const [loading, setLoading] = useState(true);
@@ -121,35 +122,42 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
-      <LinearGradient colors={['#7C3AED', '#6C47FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-        <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
-          {/* ── App Bar ── */}
-          <View style={styles.appBar}>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity 
-                style={styles.backBtn} 
-                onPress={() => navigation.goBack()}
-                activeOpacity={0.7}
-              >
-                <ChevronLeft size={22} color="#FFFFFF" />
-              </TouchableOpacity>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.appBarTitle} numberOfLines={1}>Delivery Config</Text>
-                <Text style={styles.appBarSubtitle}>Manage delivery settings</Text>
-              </View>
-            </View>
-            <View style={styles.appBarActions}>
-              <TouchableOpacity 
-                style={styles.appBarIconBtn} 
-                onPress={() => navigation.navigate('ShopNotifications')}
-                activeOpacity={0.7}
-              >
-                <Bell size={20} color="#FFFFFF" />
-              </TouchableOpacity>
+      <StatusBar barStyle="light-content" backgroundColor="#5830E0" translucent={false} />
+      
+      {/* ── Modern Rounded Gradient Hero Header ── */}
+      <LinearGradient 
+        colors={['#5830E0', '#7447FF', '#8F66FF']} 
+        start={{ x: 0, y: 0 }} 
+        end={{ x: 1, y: 1 }}
+        style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 12) + 6 }]}
+      >
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
+
+        <View style={styles.appBar}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity 
+              style={styles.backBtn} 
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.8}
+            >
+              <ChevronLeft size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.appBarTitle} numberOfLines={1}>Delivery Config</Text>
+              <Text style={styles.appBarSubtitle}>Manage fees, radius & slots</Text>
             </View>
           </View>
-        </SafeAreaView>
+          <View style={styles.appBarActions}>
+            <TouchableOpacity 
+              style={styles.appBarIconBtn} 
+              onPress={() => navigation.navigate('ShopNotifications')}
+              activeOpacity={0.8}
+            >
+              <Bell size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
       </LinearGradient>
 
       <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
@@ -411,34 +419,56 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:    { flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' },
+  heroGradient: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  blob1: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  blob2: {
+    position: 'absolute',
+    bottom: -40,
+    left: -30,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 64,
-    backgroundColor: 'transparent',
+    paddingVertical: 6,
+    minHeight: 52,
   },
   backBtn: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   appBarTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 19,
+    fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   appBarSubtitle: {
-    fontSize: 12.5,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.85)',
     marginTop: 2,
   },
@@ -447,12 +477,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
   },
   appBarIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },

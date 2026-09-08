@@ -9,7 +9,8 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
-  TextInput
+  TextInput,
+  Platform
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -28,12 +29,13 @@ import {
   X
 } from 'lucide-react-native';
 import { shopService } from '../../services/shopService';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 
 const ShopOrdersScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { unreadCount } = useNotifications();
+  const insets = useSafeAreaInsets();
   const styles = createStyles(theme, isDarkMode);
 
   const [activeFilter, setActiveFilter] = useState('All');
@@ -154,32 +156,41 @@ const ShopOrdersScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
-      <LinearGradient colors={['#7C3AED', '#6C47FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-        <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
-          {/* App Bar */}
-          <View style={styles.appBar}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.appBarTitle}>Customer Orders</Text>
-              <Text style={styles.appBarSubtitle}>{orders.length} total orders recorded</Text>
-            </View>
+      <StatusBar barStyle="light-content" backgroundColor="#5830E0" translucent={false} />
+      
+      {/* ── Modern Rounded Gradient Hero Header ── */}
+      <LinearGradient 
+        colors={['#5830E0', '#7447FF', '#8F66FF']} 
+        start={{ x: 0, y: 0 }} 
+        end={{ x: 1, y: 1 }}
+        style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 12) + 6 }]}
+      >
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
 
-            <View style={styles.appBarActions}>
-              <TouchableOpacity 
-                style={styles.iconBtn} 
-                onPress={() => navigation.navigate('ShopNotifications')} 
-                activeOpacity={0.7}
-              >
-                <Bell size={20} color="#FFFFFF" />
-                {unreadCount > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
+        <View style={styles.appBar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.appBarTitle}>Customer Orders</Text>
+            <Text style={styles.appBarSubtitle}>
+              {orders.length} total orders · {orders.filter(o => o.filterKey === 'New' || o.filterKey === 'Packing').length} active
+            </Text>
           </View>
-        </SafeAreaView>
+
+          <View style={styles.appBarActions}>
+            <TouchableOpacity 
+              style={styles.iconBtn} 
+              onPress={() => navigation.navigate('ShopNotifications')} 
+              activeOpacity={0.8}
+            >
+              <Bell size={18} color="#FFFFFF" />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </LinearGradient>
 
       <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
@@ -220,7 +231,7 @@ const ShopOrdersScreen = ({ navigation }) => {
                   key={filter}
                   style={[styles.filterChip, isActive && styles.filterChipActive]}
                   onPress={() => setActiveFilter(filter)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.82}
                 >
                   <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
                     {filter}
@@ -281,16 +292,18 @@ const ShopOrdersScreen = ({ navigation }) => {
                   key={order.rawId} 
                   style={styles.orderCard}
                   onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order.rawId })}
-                  activeOpacity={0.8}
+                  activeOpacity={0.82}
                 >
                   {/* Card Header */}
                   <View style={styles.orderCardHeader}>
                     <View style={styles.orderIdGroup}>
                       <View style={styles.orderIconWrap}>
-                        <ShoppingBag size={16} color="#6C47FF" />
+                        <ShoppingBag size={17} color="#6C47FF" />
                       </View>
                       <View>
-                        <Text style={styles.orderId}>#{order.id}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={styles.orderId}>#{order.id}</Text>
+                        </View>
                         <Text style={styles.orderTime}>{order.time}</Text>
                       </View>
                     </View>
@@ -305,7 +318,7 @@ const ShopOrdersScreen = ({ navigation }) => {
                   <View style={styles.orderCardBody}>
                     <View style={styles.customerRow}>
                       <View style={styles.customerAvatar}>
-                        <User size={14} color="#6C47FF" />
+                        <User size={13} color="#6C47FF" />
                       </View>
                       <Text style={styles.customerName}>{order.customer}</Text>
                       <Text style={styles.itemCountText}>· {order.itemsCount} item(s)</Text>
@@ -316,8 +329,9 @@ const ShopOrdersScreen = ({ navigation }) => {
                       </Text>
                     ) : null}
                     {order.slot ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, backgroundColor: '#6C47FF12', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#6C47FF' }}>🕒 {order.slot}</Text>
+                      <View style={styles.slotBadge}>
+                        <Clock size={12} color="#6C47FF" style={{ marginRight: 4 }} />
+                        <Text style={styles.slotText}>{order.slot}</Text>
                       </View>
                     ) : null}
                   </View>
@@ -349,24 +363,48 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
+  heroGradient: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  blob1: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  blob2: {
+    position: 'absolute',
+    bottom: -40,
+    left: -30,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 64,
-    backgroundColor: 'transparent',
+    paddingVertical: 6,
+    minHeight: 52,
   },
   appBarTitle: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   appBarSubtitle: {
-    fontSize: 12.5,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.85)',
     marginTop: 2,
   },
@@ -375,33 +413,31 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
   },
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
   badge: {
     position: 'absolute',
-    top: -3,
-    right: -3,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
     borderWidth: 1.5,
-    borderColor: '#7C3AED',
+    borderColor: '#5830E0',
   },
   badgeText: {
     color: '#FFF',
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '900',
   },
 
@@ -410,19 +446,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 6,
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'transparent',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.35)' : 'rgba(108, 71, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
     paddingHorizontal: 12,
     height: 46,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: isDarkMode ? 0.2 : 0.04,
     shadowRadius: 6,
     elevation: 2,
@@ -462,9 +498,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   /* ── Filter Chips ── */
   filtersContainer: {
     paddingVertical: 8,
-    backgroundColor: theme.colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    backgroundColor: 'transparent',
   },
   filtersScroll: {
     paddingHorizontal: 16,
@@ -474,12 +508,17 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: isDarkMode ? '#334155' : '#E2E8F0',
     backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     gap: 6,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
   },
   filterChipActive: {
     backgroundColor: '#6C47FF',
@@ -487,7 +526,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   filterText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.colors.text,
   },
   filterTextActive: {
@@ -500,11 +539,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 8,
   },
   countBadgeActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
   },
   countText: {
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 10.5,
+    fontWeight: '900',
     color: theme.colors.textDim,
   },
   countTextActive: {
@@ -543,11 +582,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textDim,
     textAlign: 'center',
+    lineHeight: 18,
   },
 
   /* ── Order Card ── */
   ordersList: {
-    gap: 12,
+    gap: 14,
   },
   orderCard: {
     backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
@@ -557,7 +597,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: isDarkMode ? 0.25 : 0.04,
+    shadowOpacity: isDarkMode ? 0.25 : 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -574,7 +614,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   orderIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 11,
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : 'rgba(108, 71, 255, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -588,6 +628,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 11,
     color: theme.colors.textDim,
     marginTop: 1,
+    fontWeight: '500',
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -621,18 +662,34 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
   },
   customerName: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '800',
     color: theme.colors.text,
   },
   itemCountText: {
     fontSize: 12,
     color: theme.colors.textDim,
+    fontWeight: '600',
   },
   itemsSummary: {
     fontSize: 12,
     color: theme.colors.textDim,
     marginTop: 3,
+  },
+  slotBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    backgroundColor: 'rgba(108, 71, 255, 0.09)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  slotText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6C47FF',
   },
   orderCardFooter: {
     flexDirection: 'row',
@@ -664,12 +721,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: isDarkMode ? '#334155' : '#E2E8F0',
     gap: 4,
+    elevation: 1,
   },
   actionPillText: {
     fontSize: 12,
@@ -679,3 +737,4 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
 });
 
 export default ShopOrdersScreen;
+
