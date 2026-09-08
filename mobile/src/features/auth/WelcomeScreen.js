@@ -22,6 +22,7 @@ import {
   Users,
   Star,
   MapPin,
+  Sparkles,
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
@@ -68,6 +69,7 @@ const WelcomeScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
 
+  // Entrance animations
   const logoAnim = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.7)).current;
   const headAnim = useRef(new Animated.Value(0)).current;
@@ -90,9 +92,22 @@ const WelcomeScreen = ({ navigation }) => {
   const ctaAnim = useRef(new Animated.Value(0)).current;
   const ctaSlide = useRef(new Animated.Value(15)).current;
 
+  // Background animated ambient floating orbs
+  const bgOrb1 = useRef(new Animated.Value(0)).current;
+  const bgOrb2 = useRef(new Animated.Value(0)).current;
+  const bgOrb3 = useRef(new Animated.Value(0)).current;
+
+  // Continuous micro-floating animations for service chips
+  const chipFloatLeft = useRef(new Animated.Value(0)).current;
+  const chipFloatRight = useRef(new Animated.Value(0)).current;
+
+  // Subtle breathing scale on CTA button
+  const ctaPulse = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
     const easing = Easing.out(Easing.back(1.4));
 
+    // Staggered Entrance Animations
     Animated.parallel([
       Animated.parallel([
         Animated.timing(logoAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
@@ -147,6 +162,7 @@ const WelcomeScreen = ({ navigation }) => {
         ]),
       ]),
     ]).start(() => {
+      // Start Location Pin Pulse
       Animated.loop(
         Animated.sequence([
           Animated.parallel([
@@ -159,7 +175,52 @@ const WelcomeScreen = ({ navigation }) => {
           ]),
         ])
       ).start();
+
+      // Start CTA Breathing Pulse
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(ctaPulse, { toValue: 1.02, duration: 1200, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(ctaPulse, { toValue: 0.99, duration: 1200, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        ])
+      ).start();
     });
+
+    // ─── AMBIENT BACKGROUND ANIMATION LOOPS ───
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bgOrb1, { toValue: 1, duration: 4200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(bgOrb1, { toValue: 0, duration: 4200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bgOrb2, { toValue: 1, duration: 5200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(bgOrb2, { toValue: 0, duration: 5200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bgOrb3, { toValue: 1, duration: 3800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(bgOrb3, { toValue: 0, duration: 3800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Floating chip micro-motions
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(chipFloatLeft, { toValue: -4, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(chipFloatLeft, { toValue: 4, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(chipFloatRight, { toValue: 4, duration: 2100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(chipFloatRight, { toValue: -4, duration: 2100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ])
+    ).start();
   }, []);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
@@ -172,6 +233,13 @@ const WelcomeScreen = ({ navigation }) => {
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 8;
   const safeBottomPadding = Math.max(insets.bottom, 12);
 
+  // Background orb interpolations
+  const orb1Y = bgOrb1.interpolate({ inputRange: [0, 1], outputRange: [0, -30] });
+  const orb1X = bgOrb1.interpolate({ inputRange: [0, 1], outputRange: [0, 20] });
+  const orb2Y = bgOrb2.interpolate({ inputRange: [0, 1], outputRange: [0, 35] });
+  const orb2X = bgOrb2.interpolate({ inputRange: [0, 1], outputRange: [0, -25] });
+  const orb3Scale = bgOrb3.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.2] });
+
   return (
     <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
       <StatusBar
@@ -180,6 +248,7 @@ const WelcomeScreen = ({ navigation }) => {
         translucent={false}
       />
 
+      {/* Base Gradient Layer */}
       <LinearGradient
         colors={
           isDarkMode
@@ -188,6 +257,57 @@ const WelcomeScreen = ({ navigation }) => {
         }
         locations={[0, 0.3, 0.7, 1]}
         style={StyleSheet.absoluteFill}
+      />
+
+      {/* ─── AMBIENT BACKGROUND ANIMATED GLOW ORBS ─── */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.bgOrbTopLeft,
+          {
+            transform: [
+              { translateY: orb1Y },
+              { translateX: orb1X },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={['#8B5CF6', '#6C47FF']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.bgOrbBottomRight,
+          {
+            transform: [
+              { translateY: orb2Y },
+              { translateX: orb2X },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={['#3B82F6', '#6C47FF']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.bgOrbCenter,
+          {
+            transform: [{ scale: orb3Scale }],
+          },
+        ]}
       />
 
       {/* Main Viewport Container — Fits screen perfectly */}
@@ -249,7 +369,7 @@ const WelcomeScreen = ({ navigation }) => {
             </View>
           </Animated.View>
 
-          {/* Left Service Chips */}
+          {/* Left Service Chips with Gentle Floating Motion */}
           {LEFT_CHIPS.map((c, i) => (
             <Animated.View
               key={c.label}
@@ -259,7 +379,10 @@ const WelcomeScreen = ({ navigation }) => {
                   top: chipY[i],
                   left: 4,
                   opacity: cardAnims[i],
-                  transform: [{ scale: cardScales[i] }],
+                  transform: [
+                    { scale: cardScales[i] },
+                    { translateY: chipFloatLeft },
+                  ],
                 },
               ]}
             >
@@ -272,7 +395,7 @@ const WelcomeScreen = ({ navigation }) => {
             </Animated.View>
           ))}
 
-          {/* Right Service Chips */}
+          {/* Right Service Chips with Gentle Floating Motion */}
           {RIGHT_CHIPS.map((c, i) => (
             <Animated.View
               key={c.label}
@@ -282,7 +405,10 @@ const WelcomeScreen = ({ navigation }) => {
                   top: chipY[i],
                   right: 4,
                   opacity: cardAnims[i + 3],
-                  transform: [{ scale: cardScales[i + 3] }],
+                  transform: [
+                    { scale: cardScales[i + 3] },
+                    { translateY: chipFloatRight },
+                  ],
                 },
               ]}
             >
@@ -342,8 +468,19 @@ const WelcomeScreen = ({ navigation }) => {
           })}
         </Animated.View>
 
-        {/* CTA ACTION BUTTON */}
-        <Animated.View style={[styles.ctaBlock, { opacity: ctaAnim, transform: [{ translateY: ctaSlide }] }]}>
+        {/* CTA ACTION BUTTON WITH SUBTLE BREATHING PULSE */}
+        <Animated.View 
+          style={[
+            styles.ctaBlock, 
+            { 
+              opacity: ctaAnim, 
+              transform: [
+                { translateY: ctaSlide },
+                { scale: ctaPulse },
+              ] 
+            }
+          ]}
+        >
           <TouchableOpacity
             style={styles.btnShadow}
             onPress={() => navigation.navigate('RoleSelection')}
@@ -378,12 +515,44 @@ const WelcomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    overflow: 'hidden',
+  },
+  bgOrbTopLeft: {
+    position: 'absolute',
+    top: -60,
+    left: -60,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    opacity: 0.15,
+    overflow: 'hidden',
+  },
+  bgOrbBottomRight: {
+    position: 'absolute',
+    bottom: SH * 0.12,
+    right: -80,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    opacity: 0.13,
+    overflow: 'hidden',
+  },
+  bgOrbCenter: {
+    position: 'absolute',
+    top: SH * 0.28,
+    alignSelf: 'center',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: '#7C3AED',
+    opacity: 0.08,
   },
   mainContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    zIndex: 2,
   },
 
   /* Brand Logo */

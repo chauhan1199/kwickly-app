@@ -17,21 +17,31 @@ const { width: SW, height: SH } = Dimensions.get('window');
 
 const AppSplashScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { userToken, userRole, isLoading } = useAuth();
+  const { userToken, isLoading } = useAuth();
 
-  // Animation values
+  // Entrance animations
   const logoScale = useRef(new Animated.Value(0.6)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
-  const pulseRing = useRef(new Animated.Value(0.8)).current;
-  const pulseRingOpacity = useRef(new Animated.Value(0.6)).current;
+  const logoFloat = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
   const textTranslateY = useRef(new Animated.Value(20)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
   const footerOpacity = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
+  // Radar pulse rings
+  const pulseRing1 = useRef(new Animated.Value(0.8)).current;
+  const pulseRingOpacity1 = useRef(new Animated.Value(0.7)).current;
+  const pulseRing2 = useRef(new Animated.Value(0.8)).current;
+  const pulseRingOpacity2 = useRef(new Animated.Value(0.7)).current;
+
+  // Ambient floating background orbs
+  const orb1Anim = useRef(new Animated.Value(0)).current;
+  const orb2Anim = useRef(new Animated.Value(0)).current;
+  const orbCenterPulse = useRef(new Animated.Value(0.9)).current;
+
   useEffect(() => {
-    // 1. Logo Pop & Glow
+    // 1. Logo Pop Entrance
     Animated.parallel([
       Animated.timing(logoOpacity, {
         toValue: 1,
@@ -47,38 +57,124 @@ const AppSplashScreen = ({ navigation }) => {
       }),
     ]).start();
 
-    // 2. Pulse Ring
+    // 2. Gentle continuous logo bobbing
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(logoFloat, {
+          toValue: -6,
+          duration: 1600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoFloat, {
+          toValue: 4,
+          duration: 1600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // 3. Ambient Background Floating Orbs
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orb1Anim, {
+          toValue: 1,
+          duration: 3500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(orb1Anim, {
+          toValue: 0,
+          duration: 3500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orb2Anim, {
+          toValue: 1,
+          duration: 4200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(orb2Anim, {
+          toValue: 0,
+          duration: 4200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orbCenterPulse, {
+          toValue: 1.25,
+          duration: 2000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(orbCenterPulse, {
+          toValue: 0.95,
+          duration: 2000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // 4. Staggered Dual Radar Rings
     Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(pulseRing, {
-            toValue: 1.4,
-            duration: 1200,
+          Animated.timing(pulseRing1, {
+            toValue: 1.6,
+            duration: 1800,
             useNativeDriver: true,
             easing: Easing.out(Easing.quad),
           }),
-          Animated.timing(pulseRingOpacity, {
+          Animated.timing(pulseRingOpacity1, {
             toValue: 0,
-            duration: 1200,
+            duration: 1800,
             useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
-          Animated.timing(pulseRing, {
-            toValue: 0.8,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseRingOpacity, {
-            toValue: 0.6,
-            duration: 0,
-            useNativeDriver: true,
-          }),
+          Animated.timing(pulseRing1, { toValue: 0.8, duration: 0, useNativeDriver: true }),
+          Animated.timing(pulseRingOpacity1, { toValue: 0.7, duration: 0, useNativeDriver: true }),
         ]),
       ])
     ).start();
 
-    // 3. Text entrance
+    const ring2Timer = setTimeout(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(pulseRing2, {
+              toValue: 1.85,
+              duration: 2000,
+              useNativeDriver: true,
+              easing: Easing.out(Easing.quad),
+            }),
+            Animated.timing(pulseRingOpacity2, {
+              toValue: 0,
+              duration: 2000,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(pulseRing2, { toValue: 0.8, duration: 0, useNativeDriver: true }),
+            Animated.timing(pulseRingOpacity2, { toValue: 0.7, duration: 0, useNativeDriver: true }),
+          ]),
+        ])
+      ).start();
+    }, 700);
+
+    // 5. Text entrance
     Animated.sequence([
       Animated.delay(300),
       Animated.parallel([
@@ -106,33 +202,50 @@ const AppSplashScreen = ({ navigation }) => {
       }),
     ]).start();
 
-    // 4. Progress bar fill
+    // 6. Progress bar fill
     Animated.timing(progressAnim, {
       toValue: 1,
-      duration: 2000,
+      duration: 2200,
       useNativeDriver: false,
       easing: Easing.inOut(Easing.quad),
     }).start();
 
-    // 5. Navigate after 2.3 seconds
+    // 7. Navigation after timeout
     const timer = setTimeout(() => {
-      if (!isLoading) {
-        if (userToken) {
-          // Handled by RootNavigator if logged in
-        } else {
-          navigation.replace('Welcome');
-        }
+      if (!isLoading && userToken) {
+        // Handled by RootNavigator
       } else {
         navigation.replace('Welcome');
       }
-    }, 2300);
+    }, 2400);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(ring2Timer);
+    };
   }, [isLoading, userToken, navigation]);
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
+  });
+
+  const orb1TranslateY = orb1Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -35],
+  });
+  const orb1TranslateX = orb1Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 25],
+  });
+
+  const orb2TranslateY = orb2Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 40],
+  });
+  const orb2TranslateX = orb2Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -25],
   });
 
   return (
@@ -143,7 +256,7 @@ const AppSplashScreen = ({ navigation }) => {
         translucent={false}
       />
 
-      {/* Elegant Background Gradient */}
+      {/* Base Gradient Layer */}
       <LinearGradient
         colors={
           isDarkMode
@@ -154,23 +267,86 @@ const AppSplashScreen = ({ navigation }) => {
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Center Branding Content */}
+      {/* ─── AMBIENT BACKGROUND ANIMATED ORBS ─── */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.ambientOrb1,
+          {
+            transform: [
+              { translateY: orb1TranslateY },
+              { translateX: orb1TranslateX },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={['#8B5CF6', '#6C47FF']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.ambientOrb2,
+          {
+            transform: [
+              { translateY: orb2TranslateY },
+              { translateX: orb2TranslateX },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={['#3B82F6', '#8B5CF6']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.ambientCenterGlow,
+          {
+            transform: [{ scale: orbCenterPulse }],
+          },
+        ]}
+      />
+
+      {/* ─── CENTER BRANDING CONTENT ─── */}
       <View style={styles.centerContainer}>
-        {/* Glowing Animated Icon Container */}
+        {/* Animated Icon with Dual Pulse Rings */}
         <View style={styles.iconBox}>
-          {/* Animated Pulse Ring */}
+          {/* Outer Pulse Ring 2 */}
           <Animated.View
             style={[
               styles.pulseCircle,
               {
-                borderColor: isDarkMode ? '#6C47FF' : '#8B5CF6',
-                transform: [{ scale: pulseRing }],
-                opacity: pulseRingOpacity,
+                borderColor: isDarkMode ? '#8B5CF6' : '#C4B5FD',
+                transform: [{ scale: pulseRing2 }],
+                opacity: pulseRingOpacity2,
               },
             ]}
           />
 
-          {/* Logo Container */}
+          {/* Inner Pulse Ring 1 */}
+          <Animated.View
+            style={[
+              styles.pulseCircle,
+              {
+                borderColor: isDarkMode ? '#6C47FF' : '#7C3AED',
+                transform: [{ scale: pulseRing1 }],
+                opacity: pulseRingOpacity1,
+              },
+            ]}
+          />
+
+          {/* Logo Container with Smooth Bobbing */}
           <Animated.View
             style={[
               styles.logoBadge,
@@ -178,7 +354,10 @@ const AppSplashScreen = ({ navigation }) => {
                 backgroundColor: '#0F172A',
                 shadowColor: '#6C47FF',
                 opacity: logoOpacity,
-                transform: [{ scale: logoScale }],
+                transform: [
+                  { scale: logoScale },
+                  { translateY: logoFloat },
+                ],
               },
             ]}
           >
@@ -212,17 +391,23 @@ const AppSplashScreen = ({ navigation }) => {
           </Text>
         </Animated.View>
 
-        {/* Sleek Loading Progress Indicator */}
+        {/* Sleek Gradient Progress Indicator */}
         <Animated.View style={[styles.progressTrack, { opacity: taglineOpacity }]}>
           <Animated.View
             style={[
               styles.progressBar,
               {
                 width: progressWidth,
-                backgroundColor: '#6C47FF',
               },
             ]}
-          />
+          >
+            <LinearGradient
+              colors={['#7C3AED', '#6C47FF', '#A78BFA']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
         </Animated.View>
       </View>
 
@@ -232,7 +417,7 @@ const AppSplashScreen = ({ navigation }) => {
           Fast • Reliable • Multi-Service
         </Text>
         <Text style={[styles.versionText, { color: isDarkMode ? '#475569' : '#CBD5E1' }]}>
-          v1.0.0
+          v1.3.0
         </Text>
       </Animated.View>
     </View>
@@ -245,15 +430,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 40,
+    overflow: 'hidden',
+  },
+  ambientOrb1: {
+    position: 'absolute',
+    top: -50,
+    right: -50,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    opacity: 0.16,
+    overflow: 'hidden',
+  },
+  ambientOrb2: {
+    position: 'absolute',
+    bottom: SH * 0.15,
+    left: -80,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    opacity: 0.14,
+    overflow: 'hidden',
+  },
+  ambientCenterGlow: {
+    position: 'absolute',
+    top: SH * 0.36,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#7C3AED',
+    opacity: 0.1,
   },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   iconBox: {
-    width: 120,
-    height: 120,
+    width: 140,
+    height: 140,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -266,26 +482,26 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   logoBadge: {
-    width: 90,
-    height: 90,
+    width: 92,
+    height: 92,
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 10,
     borderWidth: 1.5,
     borderColor: '#1E293B',
     backgroundColor: '#0F172A',
   },
   splashLogoImg: {
-    width: 64,
-    height: 64,
+    width: 66,
+    height: 66,
   },
   titleWrapper: {
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 6,
   },
   brandTitle: {
     fontSize: 38,
@@ -303,20 +519,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   progressTrack: {
-    width: 140,
-    height: 4,
-    borderRadius: 2,
+    width: 150,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: 'rgba(108, 71, 255, 0.15)',
     marginTop: 36,
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
+    overflow: 'hidden',
   },
   footer: {
     alignItems: 'center',
     gap: 4,
+    zIndex: 2,
   },
   footerText: {
     fontSize: 12,
