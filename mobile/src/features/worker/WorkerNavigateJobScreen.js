@@ -12,20 +12,23 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { Phone, MessageCircle } from 'lucide-react-native';
 
 const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
-  const styles = createStyles(theme, isDarkMode);
+  const insets = useSafeAreaInsets();
+  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
+  const styles = createStyles(theme, isDarkMode, safeTop);
 
   const { jobId, job, quoteAmount } = route.params || {};
 
   const amount = quoteAmount || job?.payment?.amount || 0;
-  const commissionRate = job?.commissionRate || 0.1;
-  const commission = Math.round(amount * commissionRate);
-  const earning = amount - commission;
+  const commission = 0;
+  const earning = amount;
 
   const jobLat = job?.location?.coordinates?.[1] || 19.0760;
   const jobLng = job?.location?.coordinates?.[0] || 72.8777;
@@ -178,10 +181,10 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
   );
 };
 
-const createStyles = (theme, isDarkMode) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, safeTop = 16) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   appBar: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: safeTop + 8, paddingBottom: 14,
   },
   backBtn: {
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',

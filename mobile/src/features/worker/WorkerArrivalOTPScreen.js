@@ -11,11 +11,16 @@ import {
   Platform
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { jobService } from '../../services/jobService';
 import Geolocation from '@react-native-community/geolocation';
 
 const WorkerArrivalOTPScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
+  const styles = createStyles(theme, isDarkMode, safeTop);
   
   const [otp, setOtp] = useState(['', '', '', '']);
   const inputs = useRef([]);
@@ -65,8 +70,6 @@ const WorkerArrivalOTPScreen = ({ route, navigation }) => {
     }
   };
 
-  const styles = createStyles(theme, isDarkMode);
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
@@ -99,36 +102,35 @@ const WorkerArrivalOTPScreen = ({ route, navigation }) => {
                 key={index}
                 ref={el => inputs.current[index] = el}
                 style={styles.otpInput}
-                value={digit}
-                onChangeText={(val) => handleOtpChange(val, index)}
-                onKeyPress={(e) => handleKeyPress(e, index)}
-                keyboardType="numeric"
+                keyboardType="number-pad"
                 maxLength={1}
-                selectTextOnFocus
+                value={digit}
+                onChangeText={v => handleOtpChange(v, index)}
+                onKeyPress={e => handleKeyPress(e, index)}
+                placeholderTextColor={theme.colors.textDim}
               />
             ))}
           </View>
 
           <TouchableOpacity 
-            style={[styles.verifyBtn, (otp.join('').length < 4 || loading) && { opacity: 0.6 }]} 
+            style={[styles.verifyBtn, otp.join('').length === 4 ? styles.verifyBtnActive : null]}
+            disabled={otp.join('').length !== 4 || loading}
             onPress={handleVerify}
-            disabled={otp.join('').length < 4 || loading}
           >
-            <Text style={styles.verifyBtnText}>{loading ? 'Verifying...' : 'Verify & Start Work'}</Text>
+            <Text style={styles.verifyBtnText}>
+              {loading ? 'Verifying...' : 'Verify & Start Job'}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-
-      
-
     </SafeAreaView>
   );
 };
 
-const createStyles = (theme, isDarkMode) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, safeTop = 16) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   appBar: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: safeTop + 8, paddingBottom: 14,
   },
   backBtn: {
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
