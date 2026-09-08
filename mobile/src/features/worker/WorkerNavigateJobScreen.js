@@ -151,7 +151,7 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
           <View style={styles.priceRow}>
             <View>
               <Text style={styles.priceLabel}>Job amount</Text>
-              <Text style={styles.priceSub}>Commission ({Math.round(commissionRate * 100)}%)</Text>
+              <Text style={styles.priceSub}>0% Commission (100% Worker Payout)</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.priceValPositive}>₹{amount}</Text>

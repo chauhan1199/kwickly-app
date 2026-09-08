@@ -5,14 +5,19 @@ import {
   StyleSheet, 
   SafeAreaView, 
   Text, 
-  TouchableOpacity,
-  StatusBar
+  TouchableOpacity, 
+  StatusBar,
+  Platform
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 
 const WorkerJobCanceledScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const styles = createStyles(theme, isDarkMode);
+  const insets = useSafeAreaInsets();
+  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
+  const styles = createStyles(theme, isDarkMode, safeTop);
 
   const { cancellationReason } = route.params || {};
 
@@ -62,10 +67,10 @@ const WorkerJobCanceledScreen = ({ route, navigation }) => {
   );
 };
 
-const createStyles = (theme, isDarkMode) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, safeTop = 16) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   appBar: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: safeTop + 8, paddingBottom: 14,
   },
   backBtn: {
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',

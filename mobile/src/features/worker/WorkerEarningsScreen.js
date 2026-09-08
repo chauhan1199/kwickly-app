@@ -20,8 +20,10 @@ import {
   AppState
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { nativeUpiService } from '../../services/nativeUpiService';
 import { 
   ArrowDownLeft, 
@@ -48,7 +50,9 @@ import {
   ArrowUp,
   ShieldCheck,
   Share2,
-  Printer
+  Printer,
+  MapPin,
+  Bell
 } from 'lucide-react-native';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
 import WorkerBalanceCard from '../../components/WorkerBalanceCard';
@@ -81,7 +85,16 @@ const TOP_UP_PRESETS = [100, 500, 1000, 2000];
 const WorkerEarningsScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { user, fetchUser } = useAuth();
+  const { unreadCount } = useNotifications();
+  const insets = useSafeAreaInsets();
+  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
   const styles = createStyles(theme, isDarkMode);
+
+  const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
+  const displayLocation = primaryAddress 
+    ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || ''}`
+    : (user?.city || 'Select Location');
 
   const [wallet, setWallet] = useState({ balance: 0 });
   const [transactions, setTransactions] = useState([]);
@@ -434,22 +447,54 @@ const WorkerEarningsScreen = ({ navigation }) => {
       <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
       
       {/* Earnings Header */}
-      <LinearGradient
-        colors={['#6C47FF', '#8B6FFF']}
-        start={{ x: 0, y: 0 }} 
-        end={{ x: 1, y: 1 }}
-        style={styles.heroHeader}
-      >
-        <View style={styles.heroRow}>
-          <View>
-            <Text style={styles.heroTitle}>Earnings & Wallet</Text>
-            <Text style={styles.heroSubtitle}>Manage your balance, plans & payouts</Text>
+      <View style={{ zIndex: 10 }}>
+        <LinearGradient
+          colors={['#5830E0', '#7447FF', '#8F66FF']}
+          start={{ x: 0, y: 0 }} 
+          end={{ x: 1, y: 1 }}
+          style={[styles.heroHeader, { paddingTop: safeTop + 12 }]}
+        >
+          <View style={styles.blob1} />
+          <View style={styles.blob2} />
+
+          {/* Top row: location + bell/notifications */}
+          <View style={styles.heroTopRow}>
+            <TouchableOpacity 
+              style={styles.locationPill} 
+              activeOpacity={0.85} 
+              onPress={() => navigation.navigate('Profile')}
+            >
+              <MapPin size={13} color="#FFFFFF" />
+              <Text style={styles.locationText} numberOfLines={1}>{displayLocation}</Text>
+              <Text style={styles.locationCaret}>▾</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.bellBtn} 
+              activeOpacity={0.85} 
+              onPress={() => navigation.navigate('Notifications')}
+            >
+              <Bell size={20} color="#FFFFFF" />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
-          <View style={styles.heroIconBox}>
-            <Wallet size={24} color="#FFFFFF" />
+
+          {/* Title & Icon row */}
+          <View style={styles.heroRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.heroTitle}>Earnings & Wallet</Text>
+              <Text style={styles.heroSubtitle}>Manage your balance, plans & payouts</Text>
+            </View>
+            <View style={styles.heroIconBox}>
+              <Wallet size={24} color="#FFFFFF" />
+            </View>
           </View>
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      </View>
       
       {/* Balance Card Component */}
       <WorkerBalanceCard 
@@ -1078,34 +1123,123 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   heroHeader: {
-    paddingTop: 54,
     paddingBottom: 38,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    paddingHorizontal: 18,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  blob1: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  blob2: {
+    position: 'absolute',
+    bottom: -70,
+    left: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    zIndex: 2,
+  },
+  locationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    maxWidth: '75%',
+    gap: 6,
+  },
+  locationText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12.5,
+    flexShrink: 1,
+  },
+  locationCaret: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  bellBtn: {
+    position: 'relative',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#7447FF',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '900',
   },
   heroRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    zIndex: 2,
   },
   heroTitle: {
-    fontSize: 23,
-    fontWeight: '900',
+    fontSize: 25,
+    fontWeight: '800',
     color: '#FFFFFF',
+    marginBottom: 4,
+    letterSpacing: -0.3,
   },
   heroSubtitle: {
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.85)',
-    marginTop: 2,
+    lineHeight: 18,
   },
   heroIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   scrollContent: {
     paddingTop: 16,

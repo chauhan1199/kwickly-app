@@ -5,20 +5,22 @@ import {
   StyleSheet, 
   SafeAreaView, 
   Text, 
-  TouchableOpacity,
-  StatusBar,
-  Modal,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-  Image,
-  Switch,
-  Platform,
-  PermissionsAndroid,
-  Dimensions
+  TouchableOpacity, 
+  StatusBar, 
+  Modal, 
+  TextInput, 
+  Alert, 
+  ActivityIndicator, 
+  Image, 
+  Switch, 
+  Platform, 
+  PermissionsAndroid, 
+  Dimensions,
+  KeyboardAvoidingView
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMapPicker from '../../components/LeafletMapPicker';
 import Geolocation from '@react-native-community/geolocation';
 import { useTheme } from '../../context/ThemeContext';
@@ -32,27 +34,30 @@ import {
   Star, 
   Wrench, 
   Wallet, 
-  LifeBuoy,
-  LogOut,
-  X,
-  UploadCloud,
-  MapPin,
-  Trash2,
-  Edit2,
-  Crosshair,
-  Briefcase,
-  Smartphone,
-  Landmark,
-  CheckCircle2,
-  Plus,
-  Compass,
-  Check,
-  Eye,
-  FileText,
-  AlertCircle,
-  Clock,
-  Moon,
-  Sun
+  LifeBuoy, 
+  LogOut, 
+  X, 
+  UploadCloud, 
+  MapPin, 
+  Trash2, 
+  Edit2, 
+  Crosshair, 
+  Briefcase, 
+  Smartphone, 
+  Landmark, 
+  CheckCircle2, 
+  Plus, 
+  Compass, 
+  Check, 
+  Eye, 
+  FileText, 
+  AlertCircle, 
+  Clock, 
+  Moon, 
+  Sun,
+  User,
+  Mail,
+  Lock
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { getImageUrl } from '../../utils/helpers';
@@ -64,6 +69,9 @@ const DOC_TYPES = ['AADHAR', 'PAN', 'LICENSE', 'VOTER_ID', 'PASSPORT'];
 const WorkerProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, signOut, fetchUser } = useAuth();
+  const insets = useSafeAreaInsets();
+  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
   const styles = createStyles(theme, isDarkMode);
 
   const [activeModal, setActiveModal] = useState(null); // 'kyc', 'bank', 'editProfile', 'addresses', 'editAddress'
@@ -75,6 +83,7 @@ const WorkerProfileScreen = ({ navigation }) => {
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editCity, setEditCity] = useState('');
 
   // Form states for Bank Account & UPI
   const [bankName, setBankName] = useState('');
@@ -131,10 +140,40 @@ const WorkerProfileScreen = ({ navigation }) => {
       if (userData?.addresses) {
         setAddressList(userData.addresses);
       }
+      setEditCity(userData?.city || '');
     } catch (error) {
       // Silently handle
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      return Alert.alert('Required Field', 'Please enter your full name.');
+    }
+    if (editName.trim().length < 2) {
+      return Alert.alert('Invalid Name', 'Name must be at least 2 characters.');
+    }
+    if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) {
+      return Alert.alert('Invalid Email', 'Please enter a valid email address.');
+    }
+
+    setSaving(true);
+    try {
+      await workerService.updateProfile({
+        name: editName.trim(),
+        email: editEmail.trim() ? editEmail.trim().toLowerCase() : '',
+        city: editCity.trim() || undefined
+      });
+      Alert.alert('Profile Updated 🎉', `Your details have been saved successfully.`);
+      setActiveModal(null);
+      await fetchProfile();
+      if (fetchUser) await fetchUser('WORKER');
+    } catch (e) {
+      Alert.alert('Update Failed', e.response?.data?.message || 'Failed to update profile.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -603,18 +642,20 @@ const WorkerProfileScreen = ({ navigation }) => {
         
         {/* Top Gradient Profile Header */}
         <LinearGradient
-          colors={['#6C47FF', '#8B6FFF']}
+          colors={['#5830E0', '#7447FF', '#8F66FF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.profileHeaderGradient}
+          style={[styles.profileHeaderGradient, { paddingTop: safeTop + 14 }]}
         >
+          <View style={styles.blob1} />
+          <View style={styles.blob2} />
           <View style={styles.profileHeaderContent}>
             <View style={styles.avatarWrapperNew}>
               {profile?.profileImage ? (
                 <Image source={{ uri: getImageUrl(profile.profileImage) }} style={styles.avatarImageNew} />
               ) : (
                 <View style={[styles.avatarImageNew, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
-                  <Text style={{ fontSize: 38, fontWeight: '800', color: '#fff' }}>{profile?.name ? profile.name.charAt(0) : 'W'}</Text>
+                  <Text style={{ fontSize: 38, fontWeight: '800', color: '#fff' }}>{profile?.name ? profile.name.charAt(0).toUpperCase() : 'W'}</Text>
                 </View>
               )}
               {saving ? (
@@ -628,8 +669,20 @@ const WorkerProfileScreen = ({ navigation }) => {
               )}
             </View>
             
-            <Text style={styles.profileNameNew}>{profile?.name || 'Worker'}</Text>
+            {/* Interactive Name Row with Edit button */}
+            <TouchableOpacity 
+              style={styles.nameEditTouchable}
+              onPress={() => setActiveModal('editProfile')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.profileNameNew}>{profile?.name || 'Worker'}</Text>
+              <View style={styles.editPencilBadge}>
+                <Edit2 size={12} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+
             <Text style={styles.profilePhoneNew}>{profile?.phone || ''}</Text>
+            {profile?.email ? <Text style={styles.profileEmailNew}>{profile.email}</Text> : null}
 
             {/* Subscription & Rating Badges */}
             <View style={styles.headerBadgesRow}>
@@ -668,6 +721,17 @@ const WorkerProfileScreen = ({ navigation }) => {
         {/* Menu Cards */}
         <View style={styles.menuContainer}>
           
+          {/* Section 0: Personal Details */}
+          <Text style={styles.sectionHeading}>Personal Profile</Text>
+          <View style={styles.menuCard}>
+            {renderMenuItem(
+              <User size={20} color="#6C47FF" />,
+              'Edit Personal Details',
+              `${profile?.name || 'Worker'} · ${profile?.phone || ''}${profile?.city ? ' · ' + profile.city : ''}`,
+              () => setActiveModal('editProfile')
+            )}
+          </View>
+
           {/* Section 1: Core Payouts & Addresses */}
           <Text style={styles.sectionHeading}>Financial & Locations</Text>
           <View style={styles.menuCard}>
@@ -752,6 +816,112 @@ const WorkerProfileScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      {/* ═══════════════════════════════════════════
+          MODAL 0: EDIT PERSONAL PROFILE (NAME, EMAIL, CITY)
+      ═══════════════════════════════════════════ */}
+      <Modal visible={activeModal === 'editProfile'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHandle} />
+            
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Edit Personal Details</Text>
+                <Text style={styles.modalSub}>Update your name and operating profile</Text>
+              </View>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {/* Full Name */}
+              <Text style={styles.inputLabel}>Full Name *</Text>
+              <View style={styles.inputWithIconRow}>
+                <User size={18} color="#6C47FF" style={styles.inputLeadingIcon} />
+                <TextInput
+                  style={[styles.modalInput, styles.modalInputWithIcon]}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#94A3B8"
+                  value={editName}
+                  onChangeText={setEditName}
+                  autoCapitalize="words"
+                  maxLength={50}
+                />
+              </View>
+
+              {/* Mobile Number (Locked / Verified) */}
+              <Text style={styles.inputLabel}>Registered Mobile Number</Text>
+              <View style={[styles.inputWithIconRow, styles.inputDisabledRow]}>
+                <Smartphone size={18} color="#94A3B8" style={styles.inputLeadingIcon} />
+                <TextInput
+                  style={[styles.modalInput, styles.modalInputWithIcon, styles.inputDisabled]}
+                  value={editPhone}
+                  editable={false}
+                />
+                <View style={styles.lockBadge}>
+                  <Lock size={12} color="#64748B" />
+                  <Text style={styles.lockText}>Locked</Text>
+                </View>
+              </View>
+              <Text style={styles.inputHelperText}>Mobile number is verified via OTP and cannot be edited directly.</Text>
+
+              {/* Email Address */}
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <View style={styles.inputWithIconRow}>
+                <Mail size={18} color="#6C47FF" style={styles.inputLeadingIcon} />
+                <TextInput
+                  style={[styles.modalInput, styles.modalInputWithIcon]}
+                  placeholder="worker@example.com (optional)"
+                  placeholderTextColor="#94A3B8"
+                  value={editEmail}
+                  onChangeText={setEditEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              {/* Operating City */}
+              <Text style={styles.inputLabel}>Operating City</Text>
+              <View style={styles.inputWithIconRow}>
+                <MapPin size={18} color="#6C47FF" style={styles.inputLeadingIcon} />
+                <TextInput
+                  style={[styles.modalInput, styles.modalInputWithIcon]}
+                  placeholder="e.g. Ahmedabad, Gandhinagar"
+                  placeholderTextColor="#94A3B8"
+                  value={editCity}
+                  onChangeText={setEditCity}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              {/* Save Button */}
+              <TouchableOpacity 
+                style={[styles.modalPrimaryBtn, saving && { opacity: 0.7 }]} 
+                onPress={handleSaveProfile}
+                disabled={saving}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={['#5830E0', '#7447FF', '#8F66FF']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.modalPrimaryGradient}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.modalPrimaryBtnText}>Save Profile Changes →</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* ═══════════════════════════════════════════
           MODAL 1: BANK ACCOUNT & UPI MANAGEMENT
@@ -1316,14 +1486,34 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   profileHeaderGradient: {
-    paddingTop: 48,
     paddingBottom: 36,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  blob1: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  blob2: {
+    position: 'absolute',
+    bottom: -70,
+    left: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   profileHeaderContent: {
     alignItems: 'center',
+    zIndex: 2,
   },
   avatarWrapperNew: {
     width: 92,
@@ -1332,7 +1522,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderWidth: 3,
     borderColor: '#FFFFFF',
     position: 'relative',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   avatarImageNew: {
     width: '100%',
@@ -1355,15 +1545,93 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  nameEditTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 4,
+  },
+  editPencilBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   profileNameNew: {
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: 24,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: -0.3,
   },
   profilePhoneNew: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 2,
+    fontWeight: '600',
+  },
+  profileEmailNew: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.75)',
+    marginTop: 1,
+  },
+  inputWithIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 4,
+  },
+  inputLeadingIcon: {
+    marginRight: 8,
+  },
+  modalInputWithIcon: {
+    flex: 1,
+    borderWidth: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 11,
+    fontSize: 14,
+    fontWeight: '600',
+    color: isDarkMode ? '#F8FAFC' : '#1E293B',
+  },
+  inputDisabledRow: {
+    backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+  },
+  inputDisabled: {
+    color: isDarkMode ? '#94A3B8' : '#64748B',
+  },
+  lockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  lockText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  inputHelperText: {
+    fontSize: 11,
+    color: isDarkMode ? '#64748B' : '#94A3B8',
+    marginBottom: 10,
+    marginTop: 2,
+    marginLeft: 2,
   },
   headerBadgesRow: {
     flexDirection: 'row',
