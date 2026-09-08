@@ -7,6 +7,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import OfflineBanner from './src/components/OfflineBanner';
+import { GlobalAlertModal } from './src/components/ui/GlobalAlert';
 import { initCrashReporting } from './src/utils/crashReporter';
 import { warmUpBackend } from './src/services/api';
 
@@ -46,6 +47,7 @@ function AppContent() {
       />
       <OfflineBanner />
       <RootNavigator />
+      <GlobalAlertModal />
     </>
   );
 }
