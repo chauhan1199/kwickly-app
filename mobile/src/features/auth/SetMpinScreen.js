@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -54,6 +54,7 @@ const SetMpinScreen = ({ navigation, route }) => {
   const [authPayload, setAuthPayload] = useState(null);
   const [focusedInput, setFocusedInput] = useState(null);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error' });
+  const confirmMpinInputRef = useRef(null);
   
   const [mpinError, setMpinError] = useState('');
   const [confirmMpinError, setConfirmMpinError] = useState('');
@@ -87,21 +88,24 @@ const SetMpinScreen = ({ navigation, route }) => {
     setAlertConfig({ visible: true, title, message, type });
   };
 
-  const handleSetMpin = async () => {
+  const handleSetMpin = async (pinOverride, confirmOverride) => {
+    const activePin = pinOverride || mpin;
+    const activeConfirm = confirmOverride || confirmMpin;
+
     setMpinError('');
     setConfirmMpinError('');
 
-    if (!mpin || mpin.length !== 4 || !/^\d{4}$/.test(mpin)) {
+    if (!activePin || activePin.length !== 4 || !/^\d{4}$/.test(activePin)) {
       setMpinError('Please enter a valid 4-digit numeric MPIN');
       return;
     }
 
-    if (!confirmMpin || confirmMpin.length !== 4) {
+    if (!activeConfirm || activeConfirm.length !== 4) {
       setConfirmMpinError('Please confirm your 4-digit MPIN');
       return;
     }
 
-    if (mpin !== confirmMpin) {
+    if (activePin !== activeConfirm) {
       setConfirmMpinError('MPINs do not match. Please check and re-enter.');
       return;
     }
@@ -241,6 +245,9 @@ const SetMpinScreen = ({ navigation, route }) => {
                     const cleaned = text.replace(/[^0-9]/g, '').slice(0, 4);
                     setMpin(cleaned);
                     setMpinError('');
+                    if (cleaned.length === 4) {
+                      confirmMpinInputRef.current?.focus();
+                    }
                   }}
                   onFocus={() => setFocusedInput('mpin')}
                   onBlur={() => setFocusedInput(null)}
@@ -286,6 +293,7 @@ const SetMpinScreen = ({ navigation, route }) => {
                   <ShieldCheck size={18} color={isMatched ? '#10B981' : focusedInput === 'confirmMpin' ? '#6C47FF' : theme.colors.textDim} />
                 </View>
                 <TextInput 
+                  ref={confirmMpinInputRef}
                   style={[
                     styles.textInput, 
                     { 
@@ -303,6 +311,12 @@ const SetMpinScreen = ({ navigation, route }) => {
                     const cleaned = text.replace(/[^0-9]/g, '').slice(0, 4);
                     setConfirmMpin(cleaned);
                     setConfirmMpinError('');
+                    if (cleaned.length === 4 && mpin.length === 4) {
+                      if (cleaned === mpin) {
+                        Keyboard.dismiss();
+                        handleSetMpin(mpin, cleaned);
+                      }
+                    }
                   }}
                   onFocus={() => setFocusedInput('confirmMpin')}
                   onBlur={() => setFocusedInput(null)}

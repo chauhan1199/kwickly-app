@@ -17,7 +17,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
-import { User, Wrench, Store, CheckCircle2, ChevronLeft, MessageSquare, Smartphone, ShieldCheck } from 'lucide-react-native';
+import { User, Wrench, Store, CheckCircle2, ChevronLeft, MessageSquare, Smartphone, ShieldCheck, X } from 'lucide-react-native';
 import api, { getApiErrorMessage } from '../../services/api';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
@@ -261,7 +261,11 @@ const RoleSelection = ({ navigation, route }) => {
 
               {/* Mobile Number */}
               <Text style={[styles.inputLabel, { marginTop: 14 }]}>Mobile Number</Text>
-              <View style={[styles.inputWrapper, focusedInput === 'phone' && styles.inputFocused]}>
+              <View style={[
+                styles.inputWrapper, 
+                focusedInput === 'phone' && styles.inputFocused,
+                phoneNumber.length === 10 && validatePhone(phoneNumber) && styles.inputReady
+              ]}>
                 <View style={styles.countryCodeBadge}>
                   <Text style={styles.flagText}>🇮🇳 +91</Text>
                 </View>
@@ -273,7 +277,13 @@ const RoleSelection = ({ navigation, route }) => {
                   keyboardType="number-pad"
                   maxLength={10}
                   value={phoneNumber}
-                  onChangeText={(text) => setPhoneNumber(text.replace(/[^0-9]/g, ''))}
+                  onChangeText={(text) => {
+                    const clean = text.replace(/[^0-9]/g, '').slice(0, 10);
+                    setPhoneNumber(clean);
+                    if (clean.length === 10 && validatePhone(clean) && fullName.trim().length >= 2) {
+                      Keyboard.dismiss();
+                    }
+                  }}
                   onFocus={() => {
                     setFocusedInput('phone');
                     scrollToInput(140);
@@ -282,6 +292,15 @@ const RoleSelection = ({ navigation, route }) => {
                   returnKeyType="done"
                   onSubmitEditing={handlePhoneSubmit}
                 />
+                {phoneNumber.length === 10 && validatePhone(phoneNumber) ? (
+                  <View style={{ padding: 4 }}>
+                    <CheckCircle2 size={18} color="#10B981" />
+                  </View>
+                ) : phoneNumber.length > 0 ? (
+                  <TouchableOpacity onPress={() => setPhoneNumber('')} style={{ padding: 6 }}>
+                    <X size={16} color={theme.colors.textDim} />
+                  </TouchableOpacity>
+                ) : null}
               </View>
 
               {/* Receive OTP Via */}
@@ -554,6 +573,9 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   inputFocused: {
     borderColor: '#6C47FF',
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.06)' : '#FFFFFF',
+  },
+  inputReady: {
+    borderColor: '#10B981',
   },
   inputIcon: {
     marginRight: 10,

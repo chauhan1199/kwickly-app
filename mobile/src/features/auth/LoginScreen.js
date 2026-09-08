@@ -11,6 +11,8 @@ import {
   TextInput,
   ActivityIndicator,
   Keyboard,
+  Animated,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -27,7 +29,10 @@ import {
   Wrench,
   Edit3,
   Check,
-  X
+  X,
+  AlertCircle,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react-native';
 import { authService } from '../../services/authService';
 import { getApiErrorMessage } from '../../services/api';
@@ -59,6 +64,7 @@ const LoginScreen = ({ navigation, route }) => {
   // MPIN State
   const [mpin, setMpin] = useState('');
   const [showMpin, setShowMpin] = useState(false);
+  const [mpinError, setMpinError] = useState('');
 
   // Reset MPIN via OTP State
   const [resetOtp, setResetOtp] = useState('');
@@ -73,6 +79,23 @@ const LoginScreen = ({ navigation, route }) => {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef(null);
+  const phoneInputRef = useRef(null);
+  const mpinInputRef = useRef(null);
+  const isCheckingPhoneRef = useRef(false);
+
+  // Shake animation for MPIN failure
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  const triggerShake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 8, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -8, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 4, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 45, useNativeDriver: true }),
+    ]).start();
+  };
 
   const [alertConfig, setAlertConfig] = useState({ 
     visible: false, 
@@ -92,6 +115,18 @@ const LoginScreen = ({ navigation, route }) => {
       handleCheckNumber(prefillPhone);
     }
   }, [prefillPhone]);
+
+  // When step changes to MPIN, auto-focus the MPIN input
+  useEffect(() => {
+    if (step === 'MPIN') {
+      setMpin('');
+      setMpinError('');
+      const timer = setTimeout(() => {
+        mpinInputRef.current?.focus();
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [step]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -130,7 +165,10 @@ const LoginScreen = ({ navigation, route }) => {
       return;
     }
 
+    if (isCheckingPhoneRef.current) return;
+    isCheckingPhoneRef.current = true;
     setLoading(true);
+
     try {
       const response = await authService.checkStatus(targetPhone);
       const data = response?.data?.data || response?.data || {};
@@ -176,6 +214,22 @@ const LoginScreen = ({ navigation, route }) => {
       showAlert('Sign In Failed', errorMsg);
     } finally {
       setLoading(false);
+      isCheckingPhoneRef.current = false;
+    }
+  };
+
+  /**
+   * Auto-advance on phone number input
+   */
+  const handlePhoneChange = (text) => {
+    const clean = text.replace(/[^0-9]/g, '').slice(0, 10);
+    setPhone(clean);
+    if (mpinError) setMpinError('');
+
+    // If reaches 10 valid digits, automatically advance to check user / MPIN
+    if (clean.length === 10 && /^[6-9]\d{9}$/.test(clean)) {
+      Keyboard.dismiss();
+      handleCheckNumber(clean);
     }
   };
 
@@ -218,17 +272,22 @@ const LoginScreen = ({ navigation, route }) => {
   };
 
   /**
-   * Step 3: Sign In with 4-Digit MPIN
+   * Step 3: Auto Sign In with 4-Digit MPIN
+   * Triggered automatically upon filling the 4th digit (no button tap needed!)
    */
-  const handleMpinLogin = async () => {
-    if (!mpin || mpin.length !== 4) {
-      showAlert('Invalid MPIN', 'Please enter your 4-digit Security MPIN.');
+  const handleMpinSubmit = async (pinValue) => {
+    const targetPin = pinValue || mpin;
+    if (!targetPin || targetPin.length !== 4) {
+      setMpinError('Please enter your 4-digit Security MPIN.');
+      triggerShake();
       return;
     }
 
     setLoading(true);
+    setMpinError('');
+
     try {
-      const response = await authService.login(phone, mpin, selectedRole);
+      const response = await authService.login(phone, targetPin, selectedRole);
       const { token, user } = response.data.data;
       await signIn(token, user.role, user);
     } catch (error) {
@@ -240,11 +299,30 @@ const LoginScreen = ({ navigation, route }) => {
       if (isMpinNotSet) {
         handleAutoSendOtpForMpin(phone, selectedRole);
       } else {
-        const errorMsg = errorData?.errors?.join(', ') || errorData?.message || error.message || 'Invalid MPIN. Please check and try again.';
-        showAlert('Sign In Failed', errorMsg);
+        const errorMsg = errorData?.errors?.join(', ') || errorData?.message || error.message || 'Incorrect MPIN. Please try again.';
+        setMpinError(errorMsg);
+        triggerShake();
+        // Clear MPIN automatically so user can re-enter immediately
+        setMpin('');
+        setTimeout(() => {
+          mpinInputRef.current?.focus();
+        }, 120);
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Handle MPIN text change with instant auto-submit on 4 digits
+   */
+  const handleMpinChange = (text) => {
+    const clean = text.replace(/[^0-9]/g, '').slice(0, 4);
+    setMpin(clean);
+    if (mpinError) setMpinError('');
+
+    if (clean.length === 4) {
+      handleMpinSubmit(clean);
     }
   };
 
@@ -387,11 +465,16 @@ const LoginScreen = ({ navigation, route }) => {
                 {/* Input Card */}
                 <View style={styles.inputCard}>
                   <Text style={styles.inputLabel}>Mobile Number</Text>
-                  <View style={[styles.inputWrapper, focusedInput === 'phone' && styles.inputFocused]}>
+                  <View style={[
+                    styles.inputWrapper, 
+                    focusedInput === 'phone' && styles.inputFocused,
+                    phone.length === 10 && styles.inputReady
+                  ]}>
                     <View style={styles.countryCodeBadge}>
                       <Text style={styles.countryCodeText}>🇮🇳 +91</Text>
                     </View>
                     <TextInput
+                      ref={phoneInputRef}
                       style={styles.phoneInput}
                       placeholder="Enter 10-digit number"
                       placeholderTextColor={theme.colors.textDim}
@@ -399,20 +482,28 @@ const LoginScreen = ({ navigation, route }) => {
                       maxLength={10}
                       autoFocus={true}
                       value={phone}
-                      onChangeText={(text) => {
-                        const clean = text.replace(/[^0-9]/g, '');
-                        setPhone(clean);
-                      }}
+                      onChangeText={handlePhoneChange}
                       onFocus={() => setFocusedInput('phone')}
                       onBlur={() => setFocusedInput(null)}
+                      returnKeyType="done"
+                      onSubmitEditing={() => {
+                        if (phone.length === 10) handleCheckNumber(phone);
+                      }}
                     />
-                    {phone.length > 0 && (
+                    {phone.length === 10 ? (
+                      <View style={styles.checkPill}>
+                        <CheckCircle2 size={18} color="#10B981" />
+                      </View>
+                    ) : phone.length > 0 ? (
                       <TouchableOpacity onPress={() => setPhone('')} style={styles.clearBtn}>
                         <X size={16} color={theme.colors.textDim} />
                       </TouchableOpacity>
-                    )}
+                    ) : null}
                   </View>
-                  <Text style={styles.helperText}>We will automatically detect your account & profile.</Text>
+                  <View style={styles.helperRow}>
+                    <Sparkles size={13} color="#6C47FF" style={{ marginRight: 5 }} />
+                    <Text style={styles.helperText}>Auto-detects your account upon entering 10 digits.</Text>
+                  </View>
                 </View>
 
                 {/* Continue Action Button */}
@@ -496,7 +587,7 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
             )}
 
-            {/* ─── STEP 3: MPIN ENTRY VIEW ─── */}
+            {/* ─── STEP 3: MPIN ENTRY VIEW (Auto-submit on 4th digit) ─── */}
             {step === 'MPIN' && (
               <View style={styles.stepContainer}>
                 <View style={styles.titleContainer}>
@@ -513,10 +604,10 @@ const LoginScreen = ({ navigation, route }) => {
                       <Edit3 size={12} color="#6C47FF" style={{ marginLeft: 4 }} />
                     </TouchableOpacity>
                   </View>
-                  <Text style={styles.subtitle}>Enter your 4-digit Security MPIN to access your account</Text>
+                  <Text style={styles.subtitle}>Enter your 4-digit Security MPIN. It will sign you in automatically.</Text>
                 </View>
 
-                {/* MPIN Input Box */}
+                {/* MPIN Input Card with 4 Distinct Cells & Shake Animation */}
                 <View style={styles.inputCard}>
                   <View style={styles.labelRow}>
                     <Text style={styles.inputLabel}>4-Digit Security MPIN</Text>
@@ -525,36 +616,83 @@ const LoginScreen = ({ navigation, route }) => {
                     </TouchableOpacity>
                   </View>
 
-                  <View style={[styles.inputWrapper, focusedInput === 'mpin' && styles.inputFocused]}>
-                    <View style={styles.inputIcon}>
-                      <Lock size={18} color={focusedInput === 'mpin' ? '#6C47FF' : theme.colors.textDim} />
-                    </View>
-                    <TextInput
-                      style={[styles.textInput, { letterSpacing: showMpin ? 2 : 6, fontWeight: '800', fontSize: 20 }]}
-                      placeholder="• • • •"
-                      placeholderTextColor={theme.colors.textDim}
-                      keyboardType="number-pad"
-                      maxLength={4}
-                      autoFocus={true}
-                      secureTextEntry={!showMpin}
-                      value={mpin}
-                      onChangeText={(text) => {
-                        const clean = text.replace(/[^0-9]/g, '').slice(0, 4);
-                        setMpin(clean);
-                      }}
-                      onFocus={() => setFocusedInput('mpin')}
-                      onBlur={() => setFocusedInput(null)}
-                    />
-                    <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.eyeBtn}>
-                      {showMpin ? <EyeOff size={18} color={theme.colors.textDim} /> : <Eye size={18} color={theme.colors.textDim} />}
+                  {/* Hidden Real TextInput for robust keyboard handling */}
+                  <TextInput
+                    ref={mpinInputRef}
+                    style={styles.hiddenInput}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    value={mpin}
+                    onChangeText={handleMpinChange}
+                    onFocus={() => setFocusedInput('mpin')}
+                    onBlur={() => setFocusedInput(null)}
+                    caretHidden={true}
+                  />
+
+                  {/* 4 Sleek Visual PIN Boxes */}
+                  <Animated.View style={[styles.pinBoxesRow, { transform: [{ translateX: shakeAnim }] }]}>
+                    {[0, 1, 2, 3].map((index) => {
+                      const isFilled = mpin.length > index;
+                      const isCurrent = mpin.length === index && focusedInput === 'mpin';
+                      const digit = mpin[index] || '';
+
+                      return (
+                        <Pressable
+                          key={index}
+                          onPress={() => mpinInputRef.current?.focus()}
+                          style={[
+                            styles.pinBox,
+                            isCurrent && styles.pinBoxCurrent,
+                            isFilled && styles.pinBoxFilled,
+                            mpinError ? styles.pinBoxError : null,
+                          ]}
+                        >
+                          {isFilled ? (
+                            showMpin ? (
+                              <Text style={styles.pinDigitText}>{digit}</Text>
+                            ) : (
+                              <View style={styles.pinDot} />
+                            )
+                          ) : (
+                            <View style={styles.pinEmptyDot} />
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </Animated.View>
+
+                  {/* Eye Toggle & Feedback Row */}
+                  <View style={styles.pinControlRow}>
+                    <TouchableOpacity 
+                      onPress={() => setShowMpin(!showMpin)} 
+                      style={styles.eyeTogglePill}
+                      activeOpacity={0.7}
+                    >
+                      {showMpin ? <EyeOff size={14} color="#6C47FF" /> : <Eye size={14} color="#6C47FF" />}
+                      <Text style={styles.eyeTogglePillText}>{showMpin ? 'Hide MPIN' : 'Show MPIN'}</Text>
                     </TouchableOpacity>
+
+                    {loading && (
+                      <View style={styles.autoVerifyingPill}>
+                        <ActivityIndicator size="small" color="#6C47FF" style={{ marginRight: 6 }} />
+                        <Text style={styles.autoVerifyingText}>Verifying MPIN...</Text>
+                      </View>
+                    )}
                   </View>
+
+                  {/* Inline Error Display (Clear, High Contrast) */}
+                  {Boolean(mpinError) && (
+                    <View style={styles.inlineErrorBox}>
+                      <AlertCircle size={16} color="#EF4444" style={{ marginRight: 6 }} />
+                      <Text style={styles.inlineErrorText}>{mpinError}</Text>
+                    </View>
+                  )}
                 </View>
 
-                {/* Sign In Button */}
+                {/* Sign In Button (Available as manual click or visual feedback) */}
                 <TouchableOpacity 
                   style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.6 }]} 
-                  onPress={handleMpinLogin} 
+                  onPress={() => handleMpinSubmit(mpin)} 
                   activeOpacity={0.88} 
                   disabled={mpin.length !== 4 || loading}
                 >
@@ -592,6 +730,7 @@ const LoginScreen = ({ navigation, route }) => {
                   style={styles.switchNumberBtn} 
                   onPress={() => {
                     setMpin('');
+                    setMpinError('');
                     setStep('PHONE');
                   }}
                 >
@@ -883,7 +1022,7 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   forgotText: {
     fontSize: 13,
@@ -904,6 +1043,9 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     borderColor: '#6C47FF',
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.06)' : '#FFFFFF',
   },
+  inputReady: {
+    borderColor: '#10B981',
+  },
   countryCodeBadge: {
     paddingRight: 10,
     borderRightWidth: 1,
@@ -923,14 +1065,123 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     padding: 0,
     letterSpacing: 0.5,
   },
+  checkPill: {
+    padding: 4,
+  },
   clearBtn: {
     padding: 6,
+  },
+  helperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
   },
   helperText: {
     fontSize: 12,
     color: theme.colors.textDim,
-    marginTop: 8,
     fontWeight: '500',
+  },
+  hiddenInput: {
+    position: 'absolute',
+    opacity: 0.01,
+    width: 1,
+    height: 1,
+  },
+  pinBoxesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 10,
+    gap: 12,
+  },
+  pinBox: {
+    flex: 1,
+    height: 60,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinBoxCurrent: {
+    borderColor: '#6C47FF',
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F5F3FF',
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  pinBoxFilled: {
+    borderColor: '#8B5CF6',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+  },
+  pinBoxError: {
+    borderColor: '#EF4444',
+    backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.08)' : '#FEF2F2',
+  },
+  pinDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#6C47FF',
+  },
+  pinEmptyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: isDarkMode ? '#334155' : '#CBD5E1',
+  },
+  pinDigitText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: theme.colors.text,
+  },
+  pinControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  eyeTogglePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.12)' : '#F5F3FF',
+  },
+  eyeTogglePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  autoVerifyingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  autoVerifyingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
+  inlineErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+    borderWidth: 1,
+    borderColor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginTop: 14,
+  },
+  inlineErrorText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#EF4444',
+    flex: 1,
   },
   inputIcon: {
     marginRight: 10,
@@ -941,9 +1192,6 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     fontWeight: '600',
     color: theme.colors.text,
     padding: 0,
-  },
-  eyeBtn: {
-    padding: 8,
   },
   otpDevBadge: {
     flexDirection: 'row',
