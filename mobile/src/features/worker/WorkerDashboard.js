@@ -245,13 +245,7 @@ const WorkerDashboard = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#5830E0" />
       
-      <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
-      
-      <WorkerBalanceCard 
-        balance={walletBalance} 
-        onTopUp={() => navigation.navigate('Earnings')} 
-        onWithdraw={() => navigation.navigate('Earnings')} 
-      />
+      <WorkerHeroHeader />
 
       <ScrollView 
         showsVerticalScrollIndicator={false}
@@ -541,7 +535,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   scrollContent: {
-    paddingTop: 16,
+    paddingTop: 12,
     paddingHorizontal: 16,
   },
 

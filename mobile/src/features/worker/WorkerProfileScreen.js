@@ -645,7 +645,7 @@ const WorkerProfileScreen = ({ navigation }) => {
           colors={['#5830E0', '#7447FF', '#8F66FF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.profileHeaderGradient, { paddingTop: safeTop + 14 }]}
+          style={[styles.profileHeaderGradient, { paddingTop: safeTop + 8 }]}
         >
           <View style={styles.blob1} />
           <View style={styles.blob2} />
@@ -655,7 +655,7 @@ const WorkerProfileScreen = ({ navigation }) => {
                 <Image source={{ uri: getImageUrl(profile.profileImage) }} style={styles.avatarImageNew} />
               ) : (
                 <View style={[styles.avatarImageNew, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
-                  <Text style={{ fontSize: 38, fontWeight: '800', color: '#fff' }}>{profile?.name ? profile.name.charAt(0).toUpperCase() : 'W'}</Text>
+                  <Text style={{ fontSize: 26, fontWeight: '800', color: '#fff' }}>{profile?.name ? profile.name.charAt(0).toUpperCase() : 'W'}</Text>
                 </View>
               )}
               {saving ? (
@@ -664,7 +664,7 @@ const WorkerProfileScreen = ({ navigation }) => {
                 </View>
               ) : (
                 <TouchableOpacity style={styles.avatarEditBtnNew} onPress={handlePickPhoto} activeOpacity={0.85}>
-                  <Camera size={14} color="#6C47FF" />
+                  <Camera size={11} color="#6C47FF" />
                 </TouchableOpacity>
               )}
             </View>
@@ -677,7 +677,7 @@ const WorkerProfileScreen = ({ navigation }) => {
             >
               <Text style={styles.profileNameNew}>{profile?.name || 'Worker'}</Text>
               <View style={styles.editPencilBadge}>
-                <Edit2 size={12} color="#FFFFFF" />
+                <Edit2 size={11} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
 
@@ -1486,10 +1486,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   profileHeaderGradient: {
-    paddingBottom: 36,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -1516,26 +1516,26 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     zIndex: 2,
   },
   avatarWrapperNew: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    borderWidth: 3,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    borderWidth: 2.5,
     borderColor: '#FFFFFF',
     position: 'relative',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   avatarImageNew: {
     width: '100%',
     height: '100%',
-    borderRadius: 46,
+    borderRadius: 33,
   },
   avatarEditBtnNew: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    bottom: -1,
+    right: -1,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1549,17 +1549,17 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 3,
-    borderRadius: 20,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   editPencilBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.4)',
@@ -1567,19 +1567,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
   },
   profileNameNew: {
-    fontSize: 24,
+    fontSize: 19,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   profilePhoneNew: {
-    fontSize: 13,
+    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 2,
+    marginTop: 1,
     fontWeight: '600',
   },
   profileEmailNew: {
-    fontSize: 12,
+    fontSize: 11,
     color: 'rgba(255, 255, 255, 0.75)',
     marginTop: 1,
   },
@@ -1635,25 +1635,25 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   headerBadgesRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
+    gap: 6,
+    marginTop: 6,
   },
   badgePill: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   badgePillText: {
     color: '#FFFFFF',
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '800',
   },
 
   // Menu items
   menuContainer: {
     paddingHorizontal: 16,
-    paddingTop: 18,
+    paddingTop: 12,
   },
   sectionHeading: {
     fontSize: 13,

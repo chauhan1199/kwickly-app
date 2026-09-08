@@ -452,7 +452,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
           colors={['#5830E0', '#7447FF', '#8F66FF']}
           start={{ x: 0, y: 0 }} 
           end={{ x: 1, y: 1 }}
-          style={[styles.heroHeader, { paddingTop: safeTop + 12 }]}
+          style={[styles.heroHeader, { paddingTop: safeTop + 8 }]}
         >
           <View style={styles.blob1} />
           <View style={styles.blob2} />
@@ -464,7 +464,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
               activeOpacity={0.85} 
               onPress={() => navigation.navigate('Profile')}
             >
-              <MapPin size={13} color="#FFFFFF" />
+              <MapPin size={12} color="#FFFFFF" />
               <Text style={styles.locationText} numberOfLines={1}>{displayLocation}</Text>
               <Text style={styles.locationCaret}>▾</Text>
             </TouchableOpacity>
@@ -474,7 +474,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
               activeOpacity={0.85} 
               onPress={() => navigation.navigate('Notifications')}
             >
-              <Bell size={20} color="#FFFFFF" />
+              <Bell size={18} color="#FFFFFF" />
               {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
@@ -485,12 +485,12 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
           {/* Title & Icon row */}
           <View style={styles.heroRow}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
               <Text style={styles.heroTitle}>Earnings & Wallet</Text>
               <Text style={styles.heroSubtitle}>Manage your balance, plans & payouts</Text>
             </View>
             <View style={styles.heroIconBox}>
-              <Wallet size={24} color="#FFFFFF" />
+              <Wallet size={18} color="#FFFFFF" />
             </View>
           </View>
         </LinearGradient>
@@ -1123,10 +1123,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   heroHeader: {
-    paddingBottom: 38,
-    paddingHorizontal: 18,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingBottom: 22,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -1152,37 +1152,37 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 10,
     zIndex: 2,
   },
   locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.25)',
     maxWidth: '75%',
-    gap: 6,
+    gap: 5,
   },
   locationText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 12.5,
+    fontSize: 11.5,
     flexShrink: 1,
   },
   locationCaret: {
     color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
   },
   bellBtn: {
     position: 'relative',
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: 'rgba(255, 255, 255, 0.18)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.25)',
@@ -1194,18 +1194,18 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     top: -3,
     right: -3,
     backgroundColor: '#EF4444',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    borderRadius: 9,
+    minWidth: 16,
+    height: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: '#7447FF',
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '900',
   },
   heroRow: {
@@ -1213,23 +1213,24 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     zIndex: 2,
+    marginBottom: 2,
   },
   heroTitle: {
-    fontSize: 25,
+    fontSize: 20,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 2,
     letterSpacing: -0.3,
   },
   heroSubtitle: {
-    fontSize: 13,
+    fontSize: 11.5,
     color: 'rgba(255, 255, 255, 0.85)',
-    lineHeight: 18,
+    lineHeight: 15,
   },
   heroIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -1242,7 +1243,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     elevation: 3,
   },
   scrollContent: {
-    paddingTop: 16,
+    paddingTop: 12,
     paddingHorizontal: 16,
   },
 
