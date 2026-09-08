@@ -174,7 +174,9 @@ const QuotesScreen = ({ navigation }) => {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>{job.category}{job.subcategory ? ' · ' + job.subcategory : ''}</Text>
                     <Text style={styles.cardSub}>
-                      {job.workerId?.name ? `👤 ${job.workerId.name}` : `📍 ${job.addressDetails || 'Location saved'}`}
+                      {job.workerId?.name 
+                        ? `👤 ${job.workerId.name}` 
+                        : `📍 ${typeof job.addressDetails === 'string' ? job.addressDetails : (job.addressDetails?.fullAddress || job.addressDetails?.city || 'Location saved')}`}
                     </Text>
                     {job.payment?.amount > 0 && (
                       <Text style={[styles.cardPrice, { color: theme.colors.primary }]}>₹{job.payment.amount}</Text>

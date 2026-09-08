@@ -122,7 +122,9 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
           </View>
           <View style={styles.customerInfo}>
             <Text style={styles.customerName}>{job?.customerId?.name || 'Customer'}</Text>
-            <Text style={styles.customerLocation} numberOfLines={1}>📍 {job?.addressDetails || 'Address'}</Text>
+            <Text style={styles.customerLocation} numberOfLines={1}>
+              📍 {typeof job?.addressDetails === 'string' ? job.addressDetails : (job?.addressDetails?.fullAddress || job?.addressDetails?.address || job?.addressDetails?.city || 'Customer Location')}
+            </Text>
           </View>
           <View style={styles.contactActions}>
             <TouchableOpacity

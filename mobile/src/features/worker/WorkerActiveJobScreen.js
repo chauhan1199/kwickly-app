@@ -111,7 +111,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.appBarTitle}>Work in Progress</Text>
-          <Text style={styles.appBarSub}>Job ID: {jobId.substring(0,6)}</Text>
+          <Text style={styles.appBarSub}>Job ID: {jobId ? String(jobId).substring(0,6) : ''}</Text>
         </View>
       </View>
 

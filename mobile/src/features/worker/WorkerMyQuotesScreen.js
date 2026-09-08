@@ -119,6 +119,16 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
     const isAccepted = item.status === 'ACCEPTED';
     const isPending = item.status === 'PENDING';
 
+    const getAddressText = () => {
+      const addr = item.jobId?.addressDetails;
+      if (typeof addr === 'string' && addr.trim()) return addr.trim();
+      if (typeof addr === 'object' && addr) {
+        return addr.fullAddress || addr.address || addr.city || item.jobId?.location?.addressDetails?.city || 'Local Area';
+      }
+      if (item.jobId?.location?.addressDetails?.city) return item.jobId.location.addressDetails.city;
+      return 'Local Area';
+    };
+
     return (
       <TouchableOpacity 
         style={[styles.quoteCard, isAccepted && styles.quoteCardAccepted]} 
@@ -139,7 +149,7 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <MapPin size={12} color={isDarkMode ? '#94A3B8' : '#64748B'} style={{ marginRight: 4 }} />
               <Text style={styles.addressText} numberOfLines={1}>
-                {item.jobId?.addressDetails || item.jobId?.location?.addressDetails?.city || 'Local Area'}
+                {getAddressText()}
               </Text>
             </View>
           </View>

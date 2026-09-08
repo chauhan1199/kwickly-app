@@ -231,9 +231,19 @@ const WorkerDashboard = ({ navigation }) => {
   const isSubscriptionValid = isTrialActive || isPaidActive;
   const activeDaysRemaining = isPaidActive ? paidDaysLeft : (isTrialActive ? trialDaysLeft : 0);
 
+  const getJobLocation = (j) => {
+    if (!j) return 'Local Area';
+    if (typeof j.addressDetails === 'string' && j.addressDetails.trim()) return j.addressDetails.trim();
+    if (typeof j.addressDetails === 'object' && j.addressDetails) {
+      return j.addressDetails.city || j.addressDetails.fullAddress || j.addressDetails.address || j.location?.addressDetails?.city || 'Local Area';
+    }
+    if (j.location?.addressDetails?.city) return j.location.addressDetails.city;
+    return 'Local Area';
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
+      <StatusBar barStyle="light-content" backgroundColor="#5830E0" />
       
       <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       
@@ -251,22 +261,25 @@ const WorkerDashboard = ({ navigation }) => {
         {/* ═══════════════════════════════════════
             DUTY STATUS ROW
         ═══════════════════════════════════════ */}
-        <View style={styles.dutyCard}>
+        <View style={[
+          styles.dutyCard,
+          isOnline ? styles.dutyCardOnline : styles.dutyCardOffline
+        ]}>
           <View style={styles.dutyLeft}>
             <View style={[styles.dutyStatusPill, isOnline ? styles.dutyPillOnline : styles.dutyPillOffline]}>
               <View style={[styles.dutyPulseDot, { backgroundColor: isOnline ? '#10B981' : '#94A3B8' }]} />
               <Text style={[styles.dutyPillText, { color: isOnline ? '#059669' : '#64748B' }]}>
-                {isOnline ? 'Online' : 'Offline'}
+                {isOnline ? 'ONLINE • READY FOR JOBS' : 'OFFLINE • ON BREAK'}
               </Text>
             </View>
             <Text style={styles.dutySubText}>
-              {isOnline ? 'Ready & receiving customer job alerts' : 'Turn on duty to start receiving jobs'}
+              {isOnline ? 'Receiving real-time job alerts from nearby customers' : 'Turn on duty to start receiving customer job alerts'}
             </Text>
           </View>
 
           <View style={styles.dutyRight}>
             <Switch
-              trackColor={{ false: isDarkMode ? '#334155' : '#E2E8F0', true: '#6C47FF' }}
+              trackColor={{ false: isDarkMode ? '#334155' : '#CBD5E1', true: '#10B981' }}
               thumbColor={'#FFFFFF'}
               onValueChange={handleToggleOnline}
               value={isOnline}
@@ -275,40 +288,40 @@ const WorkerDashboard = ({ navigation }) => {
         </View>
 
         {/* ═══════════════════════════════════════
-            4-ITEM STATS GRID (FIXED TYPOGRAPHY)
+            4-ITEM STATS GRID (PREMIUM TINTED CARDS)
         ═══════════════════════════════════════ */}
         <View style={styles.statsGrid}>
           {/* Today's Jobs */}
-          <View style={[styles.statCard, { borderColor: isDarkMode ? '#334155' : '#EEF2F6' }]}>
-            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
-              <Briefcase size={18} color="#6C47FF" />
+          <View style={[styles.statCard, styles.statCardToday]}>
+            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(108, 71, 255, 0.15)' }]}>
+              <Briefcase size={17} color="#6C47FF" strokeWidth={2.2} />
             </View>
-            <Text style={styles.statValue}>{stats.todayJobs || 0}</Text>
+            <Text style={[styles.statValue, { color: '#6C47FF' }]}>{stats.todayJobs || 0}</Text>
             <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Today</Text>
           </View>
           
           {/* Completed */}
-          <View style={[styles.statCard, { borderColor: isDarkMode ? '#334155' : '#EEF2F6' }]}>
-            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-              <CheckCircle size={18} color="#10B981" />
+          <View style={[styles.statCard, styles.statCardCompleted]}>
+            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+              <CheckCircle size={17} color="#10B981" strokeWidth={2.2} />
             </View>
             <Text style={[styles.statValue, { color: '#10B981' }]}>{stats.completed || 0}</Text>
             <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Completed</Text>
           </View>
           
           {/* In Progress */}
-          <View style={[styles.statCard, { borderColor: isDarkMode ? '#334155' : '#EEF2F6' }]}>
-            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
-              <Clock size={18} color="#F59E0B" />
+          <View style={[styles.statCard, styles.statCardInProgress]}>
+            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+              <Clock size={17} color="#F59E0B" strokeWidth={2.2} />
             </View>
             <Text style={[styles.statValue, { color: '#F59E0B' }]}>{stats.inProgress || 0}</Text>
             <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>In Progress</Text>
           </View>
           
           {/* Cancelled */}
-          <View style={[styles.statCard, { borderColor: isDarkMode ? '#334155' : '#EEF2F6' }]}>
-            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
-              <XCircle size={18} color="#EF4444" />
+          <View style={[styles.statCard, styles.statCardCancelled]}>
+            <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+              <XCircle size={17} color="#EF4444" strokeWidth={2.2} />
             </View>
             <Text style={[styles.statValue, { color: '#EF4444' }]}>{stats.cancelled || 0}</Text>
             <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Cancelled</Text>
@@ -318,44 +331,44 @@ const WorkerDashboard = ({ navigation }) => {
         {/* ═══════════════════════════════════════
             PREMIUM PLAN STATUS BANNER
         ═══════════════════════════════════════ */}
-        <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Earnings')}>
+        <TouchableOpacity activeOpacity={0.92} onPress={() => navigation.navigate('Earnings')}>
           <LinearGradient
             colors={
               isPaidActive 
-                ? ['#6C47FF', '#8B6FFF'] 
+                ? ['#4338CA', '#5830E0', '#7C3AED'] 
                 : isTrialActive 
-                ? ['#0D9488', '#14B8A6'] 
-                : ['#EF4444', '#DC2626']
+                ? ['#0F766E', '#0D9488', '#14B8A6'] 
+                : ['#B91C1C', '#DC2626', '#EF4444']
             }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.premiumBanner}
           >
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
               <View style={styles.premiumHeaderTag}>
-                <Sparkles size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Sparkles size={13} color="#FDE047" style={{ marginRight: 5 }} />
                 <Text style={styles.premiumHeaderTagText}>
-                  {isPaidActive ? 'PRO Plan Active' : isTrialActive ? 'Free Trial Active' : 'Subscription Expired ⚠️'}
+                  {isPaidActive ? 'PRO Plan Active' : isTrialActive ? 'Free Trial Active' : 'Subscription Required'}
                 </Text>
               </View>
               <Text style={styles.premiumTitle}>
                 {isPaidActive 
                   ? `${paidDaysLeft} Days Remaining` 
                   : isTrialActive 
-                  ? `${trialDaysLeft} Days Remaining in Free Trial` 
-                  : 'View-Only Mode (Plan Required)'}
+                  ? `${trialDaysLeft} Days Remaining in Trial` 
+                  : 'View-Only Mode'}
               </Text>
               <Text style={styles.premiumSub}>
                 {isPaidActive 
-                  ? 'Priority access to instant customer job requests.' 
+                  ? 'Priority customer dispatch • 100% earnings to your wallet' 
                   : isTrialActive 
-                  ? 'Free trial active from registration. ₹100 freeze balance required after trial.' 
-                  : 'Subscription expired. Tap to activate plan & go online to accept jobs.'}
+                  ? 'Free trial active. ₹100 freeze balance required for jobs.' 
+                  : 'Subscription expired. Tap to activate plan & go online.'}
               </Text>
             </View>
 
             <View style={styles.premiumActionCircle}>
-              <ArrowRight size={18} color="#FFFFFF" />
+              <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
             </View>
           </LinearGradient>
         </TouchableOpacity>
@@ -367,6 +380,11 @@ const WorkerDashboard = ({ navigation }) => {
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Layers size={18} color="#6C47FF" style={{ marginRight: 6 }} />
             <Text style={styles.sectionTitle}>Active Categories</Text>
+            {activeCategories.length > 0 && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{activeCategories.length}</Text>
+              </View>
+            )}
           </View>
           <TouchableOpacity 
             style={{ flexDirection: 'row', alignItems: 'center' }} 
@@ -392,7 +410,7 @@ const WorkerDashboard = ({ navigation }) => {
                   key={i} 
                   style={styles.categoryCard}
                   onPress={() => navigation.navigate('Services')}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                 >
                   <View style={styles.categoryCardTop}>
                     <View style={styles.catThumbnailBox}>
@@ -472,10 +490,10 @@ const WorkerDashboard = ({ navigation }) => {
               </View>
 
               <View style={styles.jobCardFooter}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 8 }}>
                   <MapPin size={14} color="#6C47FF" style={{ marginRight: 4 }} />
                   <Text style={styles.jobLocationText} numberOfLines={1}>
-                    {job.addressDetails?.city || job.location?.addressDetails?.city || 'Local Area'}
+                    {getJobLocation(job)}
                   </Text>
                 </View>
 
@@ -500,11 +518,11 @@ const WorkerDashboard = ({ navigation }) => {
             </Text>
 
             {!isOnline ? (
-              <TouchableOpacity style={styles.radarActionBtn} onPress={() => handleToggleOnline(true)} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.radarActionBtn} onPress={() => handleToggleOnline(true)} activeOpacity={0.85}>
                 <Text style={styles.radarActionBtnText}>Go Online</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.radarActionBtn} onPress={() => navigation.navigate('Services')} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.radarActionBtn} onPress={() => navigation.navigate('Services')} activeOpacity={0.85}>
                 <Text style={styles.radarActionBtnText}>Adjust Service Radius</Text>
               </TouchableOpacity>
             )}
@@ -543,6 +561,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
+  },
+  dutyCardOnline: {
+    borderColor: '#10B981',
+    backgroundColor: isDarkMode ? '#064E3B18' : '#F0FDF4',
+  },
+  dutyCardOffline: {
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
   },
   dutyLeft: {
     flex: 1,
@@ -596,11 +621,28 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 6,
     alignItems: 'center',
     borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#EEF2F6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
     shadowRadius: 6,
     elevation: 1,
+  },
+  statCardToday: {
+    borderColor: isDarkMode ? '#4F46E533' : '#EEF2FF',
+    backgroundColor: isDarkMode ? '#1E1B4B25' : '#F5F3FF',
+  },
+  statCardCompleted: {
+    borderColor: isDarkMode ? '#05966933' : '#ECFDF5',
+    backgroundColor: isDarkMode ? '#064E3B25' : '#F0FDF4',
+  },
+  statCardInProgress: {
+    borderColor: isDarkMode ? '#D9770633' : '#FEF3C7',
+    backgroundColor: isDarkMode ? '#78350F25' : '#FFFBEB',
+  },
+  statCardCancelled: {
+    borderColor: isDarkMode ? '#DC262633' : '#FEE2E2',
+    backgroundColor: isDarkMode ? '#7F1D1D25' : '#FEF2F2',
   },
   statIconWrapper: {
     width: 36,
@@ -681,6 +723,18 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 16.5,
     fontWeight: '800',
     color: isDarkMode ? '#F8FAFC' : '#1E293B',
+  },
+  countBadge: {
+    backgroundColor: 'rgba(108, 71, 255, 0.12)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 6,
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6C47FF',
   },
   linkText: {
     fontSize: 13,

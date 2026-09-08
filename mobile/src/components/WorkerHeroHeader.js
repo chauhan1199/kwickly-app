@@ -37,24 +37,33 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
   return (
     <View style={{ zIndex: 10 }}>
       <LinearGradient
-        colors={[PURPLE, '#8B6FFF']}
+        colors={['#5830E0', '#7447FF', '#8F66FF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 16) + 16 }]}
+        style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 16) + 12 }]}
       >
         <View style={styles.blob1} />
         <View style={styles.blob2} />
 
-        {/* Top row: location + bell/cart */}
+        {/* Top row: location + bell/notifications */}
         <View style={styles.heroTopRow}>
-          <TouchableOpacity style={styles.locationRow} activeOpacity={0.8} onPress={() => navigation.navigate('Profile')}>
-            <MapPin size={14} color="rgba(255,255,255,0.85)" />
+          <TouchableOpacity 
+            style={styles.locationPill} 
+            activeOpacity={0.85} 
+            onPress={() => navigation.navigate('Profile')}
+          >
+            <MapPin size={13} color="#FFFFFF" />
             <Text style={styles.locationText} numberOfLines={1}>{displayLocation}</Text>
-            <Text style={styles.locationCaret}>  ⌄</Text>
+            <Text style={styles.locationCaret}>▾</Text>
           </TouchableOpacity>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity style={styles.bellBtn} activeOpacity={0.8} onPress={() => navigation.navigate('Notifications')}>
-              <Bell size={22} color="#fff" />
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity 
+              style={styles.bellBtn} 
+              activeOpacity={0.85} 
+              onPress={() => navigation.navigate('Notifications')}
+            >
+              <Bell size={20} color="#FFFFFF" />
               {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
@@ -64,32 +73,41 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
           </View>
         </View>
 
-        {/* Greeting + mascot row */}
+        {/* Greeting + avatar row */}
         <View style={styles.heroMiddleRow}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={styles.heroGreeting}>Hi, {displayName}! 👋</Text>
-            <Text style={styles.heroSubtitle}>{searchQuery !== undefined ? 'Let\'s complete more jobs today' : 'Ready to get more jobs today?'}</Text>
+            <Text style={styles.heroSubtitle}>
+              {searchQuery !== undefined ? 'Search and manage all your quotes' : 'Ready to accept more customer jobs today?'}
+            </Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            {user?.profileImage ? (
+
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('Profile')} 
+            activeOpacity={0.85}
+            style={styles.avatarWrapper}
+          >
+            <View style={styles.avatarFrame}>
+              {user?.profileImage ? (
                 <Image
                   source={{ uri: getImageUrl(user.profileImage) }}
                   style={styles.heroMascot}
                   resizeMode="cover"
                 />
-            ) : (
-              <View style={[styles.heroMascot, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff' }}>{displayName[0]?.toUpperCase()}</Text>
-              </View>
-            )}
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarFallbackText}>{displayName[0]?.toUpperCase()}</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.cameraIconBadge}>
-              <Text style={{fontSize: 8}}>📷</Text>
+              <Text style={{ fontSize: 10 }}>📷</Text>
             </View>
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
-      {/* Search bar component - overlapping the header and body (Only if search is enabled for the screen) */}
+      {/* Search bar component (Only if search is enabled for the screen) */}
       {searchQuery !== undefined && (
         <View style={{ zIndex: 10 }}>
           <SearchBar 
@@ -97,7 +115,7 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
             onChangeText={setSearchQuery}
             theme={theme}
             onFilterPress={() => {}}
-            style={{ marginHorizontal: 20, marginTop: -26 }}
+            style={{ marginHorizontal: 20, marginTop: -24 }}
           />
         </View>
       )}
@@ -108,45 +126,29 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
 const styles = StyleSheet.create({
   heroGradient: {
     paddingHorizontal: 18,
-    paddingBottom: 40,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingBottom: 38,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
     overflow: 'hidden',
     position: 'relative',
   },
-  cameraIconBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
-  },
   blob1: {
     position: 'absolute',
-    top: -50,
-    right: -30,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   blob2: {
     position: 'absolute',
-    bottom: -60,
-    left: -40,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    bottom: -70,
+    left: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   heroTopRow: {
     flexDirection: 'row',
@@ -154,67 +156,128 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-  locationRow: {
+  locationPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    maxWidth: '75%',
+    gap: 6,
   },
   locationText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-    marginLeft: 4,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12.5,
+    flexShrink: 1,
   },
   locationCaret: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 11,
+    fontWeight: '800',
   },
   bellBtn: {
     position: 'relative',
-    padding: 4,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   badge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#FF3B30',
+    top: -3,
+    right: -3,
+    backgroundColor: '#EF4444',
     borderRadius: 10,
     minWidth: 18,
     height: 18,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: PURPLE,
+    borderColor: '#7447FF',
     paddingHorizontal: 4,
   },
   badgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '800',
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '900',
   },
   heroMiddleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  heroMascot: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginLeft: 12,
+    marginBottom: 10,
   },
   heroGreeting: {
-    fontSize: 26,
-    fontWeight: '300',
-    color: '#fff',
+    fontSize: 25,
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginBottom: 4,
-    letterSpacing: 0.5,
+    letterSpacing: -0.3,
   },
   heroSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '400',
-    paddingRight: 12,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  avatarWrapper: {
+    position: 'relative',
+  },
+  avatarFrame: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  heroMascot: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#6C47FF',
+  },
+  avatarFallbackText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  cameraIconBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 11,
+    width: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#7447FF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 4,
   },
 });
 

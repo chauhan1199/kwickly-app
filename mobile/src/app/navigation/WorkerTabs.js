@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, DeviceEventEmitter, Platform,
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Home, MessageSquare, Wallet, Wrench, User } from 'lucide-react-native';
+import { Home, Briefcase, Wallet, User, Power } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Theme from '../../constants/Theme';
 import { useTheme } from '../../context/ThemeContext';
@@ -84,7 +84,7 @@ const MAIN_TABS = ['Dashboard', 'Quotes', 'Power', 'Earnings', 'Profile'];
 
 const TAB_ICONS = {
   Dashboard: Home,
-  Quotes: MessageSquare,
+  Quotes: Briefcase,
   Earnings: Wallet,
   Profile: User,
 };
@@ -106,10 +106,10 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
       style={[
         styles.tabBar, 
         { 
-          backgroundColor: theme.colors.surface, 
-          borderTopColor: theme.colors.border,
+          backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF', 
+          borderTopColor: isDarkMode ? '#1E293B' : '#F1F5F9',
           paddingBottom: bottomInset,
-          height: 60 + bottomInset,
+          height: 62 + bottomInset,
         }
       ]}
     >
@@ -125,22 +125,35 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
             <TouchableOpacity 
               key={route.key} 
               style={styles.centerTabItem}
-              activeOpacity={0.85} 
+              activeOpacity={0.88} 
               onPress={() => {
                 DeviceEventEmitter.emit('toggleDutyStatus');
               }}
             >
               <LinearGradient
-                colors={isOnline ? ['#6C47FF', '#8B6FFF'] : ['#9CA3AF', '#D1D5DB']}
+                colors={isOnline ? ['#10B981', '#059669'] : ['#475569', '#334155']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={[styles.fab, { borderColor: theme.colors.surface }]}
+                style={[
+                  styles.fab, 
+                  { 
+                    borderColor: isOnline ? 'rgba(16, 185, 129, 0.4)' : (isDarkMode ? '#1E293B' : '#F1F5F9'),
+                    shadowColor: isOnline ? '#10B981' : '#000000',
+                    elevation: isOnline ? 8 : 4,
+                  }
+                ]}
               >
-                <View style={{width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center'}}>
-                  <View style={{width: 2, height: 8, backgroundColor: '#fff', position: 'absolute', top: -1}} />
-                </View>
+                <Power size={22} color="#FFFFFF" strokeWidth={2.8} />
               </LinearGradient>
-              <Text style={[styles.tabLabel, { color: theme.colors.textDim }]}>{isOnline ? 'Go Offline' : 'Go Online'}</Text>
+              <Text style={[
+                styles.tabLabel, 
+                { 
+                  color: isOnline ? '#10B981' : (isDarkMode ? '#94A3B8' : '#64748B'),
+                  fontWeight: '800'
+                }
+              ]}>
+                {isOnline ? 'On Duty' : 'Off Duty'}
+              </Text>
             </TouchableOpacity>
           );
         }
@@ -155,10 +168,17 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
             key={route.key}
             style={[styles.tabItem]}
             onPress={onPress}
+            activeOpacity={0.8}
             accessibilityRole="button"
           >
-            <Icon size={22} color={isFocused ? '#6C47FF' : theme.colors.textDim} strokeWidth={isFocused ? 2.5 : 1.8} />
-            <Text style={[styles.tabLabel, { color: isFocused ? '#6C47FF' : theme.colors.textDim, fontWeight: isFocused ? '800' : '600' }]}>
+            <Icon size={22} color={isFocused ? '#6C47FF' : (isDarkMode ? '#64748B' : '#94A3B8')} strokeWidth={isFocused ? 2.5 : 1.8} />
+            <Text style={[
+              styles.tabLabel, 
+              { 
+                color: isFocused ? '#6C47FF' : (isDarkMode ? '#64748B' : '#94A3B8'), 
+                fontWeight: isFocused ? '800' : '600' 
+              }
+            ]}>
               {route.name === 'Dashboard' ? 'Home' : route.name === 'Quotes' ? 'Jobs' : route.name}
             </Text>
           </TouchableOpacity>

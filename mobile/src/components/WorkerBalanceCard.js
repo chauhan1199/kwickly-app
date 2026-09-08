@@ -50,9 +50,14 @@ const WorkerBalanceCard = ({ balance = 0, onTopUp, onWithdraw, showTopUpOnly = f
         </View>
 
         {/* Balance Display */}
-        <Text style={[styles.balance, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-          {showBalance ? `₹${formattedBalance}` : '••••••••'}
-        </Text>
+        <View style={styles.balanceContainer}>
+          <Text style={[styles.balance, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
+            {showBalance ? `₹${formattedBalance}` : '••••••••'}
+          </Text>
+          <View style={styles.zeroCommissionBadge}>
+            <Text style={styles.zeroCommissionText}>0% Commission • 100% Payout</Text>
+          </View>
+        </View>
 
         {/* Action Buttons Row */}
         <View style={styles.actionRow}>
@@ -62,12 +67,12 @@ const WorkerBalanceCard = ({ balance = 0, onTopUp, onWithdraw, showTopUpOnly = f
             activeOpacity={0.88}
           >
             <LinearGradient
-              colors={['#6C47FF', '#8B6FFF']}
+              colors={['#5830E0', '#7447FF']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.topUpBtn}
             >
-              <Plus size={16} color="#FFFFFF" />
+              <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
               <Text style={styles.topUpText}>Add Money</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -84,7 +89,7 @@ const WorkerBalanceCard = ({ balance = 0, onTopUp, onWithdraw, showTopUpOnly = f
               onPress={onWithdraw}
               activeOpacity={0.8}
             >
-              <Landmark size={15} color={isDarkMode ? '#CBD5E1' : '#334155'} />
+              <Landmark size={15} color={isDarkMode ? '#CBD5E1' : '#475569'} />
               <Text style={[styles.withdrawText, { color: isDarkMode ? '#F8FAFC' : '#1E293B' }]}>
                 Withdraw
               </Text>
@@ -102,12 +107,12 @@ const styles = StyleSheet.create({
     padding: 20,
     marginHorizontal: 16,
     borderWidth: 1.2,
-    shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 5,
-    marginTop: -22,
+    shadowColor: '#5830E0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    elevation: 6,
+    marginTop: -24,
     zIndex: 100,
   },
   content: {
@@ -117,17 +122,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   walletIconCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(108, 71, 255, 0.1)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(108, 71, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
@@ -135,15 +140,32 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '700',
+    letterSpacing: 0.1,
   },
   eyeBtn: {
-    padding: 4,
+    padding: 6,
+  },
+  balanceContainer: {
+    marginBottom: 18,
   },
   balance: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '900',
-    marginBottom: 18,
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
+    lineHeight: 40,
+  },
+  zeroCommissionBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  zeroCommissionText: {
+    color: '#059669',
+    fontSize: 11,
+    fontWeight: '700',
   },
   actionRow: {
     flexDirection: 'row',
@@ -154,14 +176,14 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#6C47FF',
+    shadowColor: '#5830E0',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 4,
   },
   topUpBtn: {
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -172,12 +194,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+    letterSpacing: 0.2,
   },
   withdrawBtn: {
     flex: 1,
     borderWidth: 1.2,
     borderRadius: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
