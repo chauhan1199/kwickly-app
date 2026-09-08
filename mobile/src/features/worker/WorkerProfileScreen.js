@@ -26,8 +26,10 @@ import Geolocation from '@react-native-community/geolocation';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { workerService } from '../../services/workerService';
+import { useNotifications } from '../../context/NotificationContext';
 import { 
   Camera, 
+  Bell,
   ChevronRight, 
   ShieldCheck, 
   Building2, 
@@ -69,10 +71,20 @@ const DOC_TYPES = ['AADHAR', 'PAN', 'LICENSE', 'VOTER_ID', 'PASSPORT'];
 const WorkerProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, signOut, fetchUser } = useAuth();
+  const { unreadCount } = useNotifications();
   const insets = useSafeAreaInsets();
   const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
   const styles = createStyles(theme, isDarkMode);
+
+  const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
+  const displayLocation = primaryAddress 
+    ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || ''}`
+    : (user?.city || 'Select Location');
+  const walletBalance = user?.wallet?.balance ?? profile?.wallet?.balance ?? 0;
+  const displayName = profile?.name 
+    ? profile.name.split(' ').map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ')
+    : (user?.name ? user.name.split(' ').map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ') : 'Worker');
 
   const [activeModal, setActiveModal] = useState(null); // 'kyc', 'bank', 'editProfile', 'addresses', 'editAddress'
   const [loading, setLoading] = useState(true);
@@ -649,72 +661,123 @@ const WorkerProfileScreen = ({ navigation }) => {
         >
           <View style={styles.blob1} />
           <View style={styles.blob2} />
-          <View style={styles.profileHeaderContent}>
-            <View style={styles.avatarWrapperNew}>
-              {profile?.profileImage ? (
-                <Image source={{ uri: getImageUrl(profile.profileImage) }} style={styles.avatarImageNew} />
-              ) : (
-                <View style={[styles.avatarImageNew, { backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }]}>
-                  <Text style={{ fontSize: 26, fontWeight: '800', color: '#fff' }}>{profile?.name ? profile.name.charAt(0).toUpperCase() : 'W'}</Text>
-                </View>
-              )}
-              {saving ? (
-                <View style={styles.avatarEditBtnNew}>
-                  <ActivityIndicator size="small" color="#6C47FF" />
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.avatarEditBtnNew} onPress={handlePickPhoto} activeOpacity={0.85}>
-                  <Camera size={11} color="#6C47FF" />
-                </TouchableOpacity>
-              )}
-            </View>
-            
-            {/* Interactive Name Row with Edit button */}
+
+          {/* Top row: location + quick wallet pill + bell/notifications */}
+          <View style={styles.heroTopRow}>
             <TouchableOpacity 
-              style={styles.nameEditTouchable}
-              onPress={() => setActiveModal('editProfile')}
-              activeOpacity={0.85}
+              style={styles.locationPill} 
+              activeOpacity={0.85} 
+              onPress={() => setActiveModal('addresses')}
             >
-              <Text style={styles.profileNameNew}>{profile?.name || 'Worker'}</Text>
-              <View style={styles.editPencilBadge}>
-                <Edit2 size={11} color="#FFFFFF" />
-              </View>
+              <MapPin size={12} color="#FFFFFF" />
+              <Text style={styles.locationText} numberOfLines={1}>{displayLocation}</Text>
+              <Text style={styles.locationCaret}>▾</Text>
             </TouchableOpacity>
 
-            <Text style={styles.profilePhoneNew}>{profile?.phone || ''}</Text>
-            {profile?.email ? <Text style={styles.profileEmailNew}>{profile.email}</Text> : null}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity 
+                style={styles.walletPill} 
+                activeOpacity={0.85} 
+                onPress={() => navigation.navigate('Earnings')}
+              >
+                <Wallet size={12} color="#A7F3D0" />
+                <Text style={styles.walletPillText}>₹{Math.round(walletBalance).toLocaleString('en-IN')}</Text>
+              </TouchableOpacity>
 
-            {/* Subscription & Rating Badges */}
-            <View style={styles.headerBadgesRow}>
-              <View style={styles.badgePill}>
-                <Text style={styles.badgePillText}>
-                  {profile?.subscription?.expiryDate ? 'PRO Active' : 'Free Trial'}
-                </Text>
-              </View>
-              <View style={[
-                styles.badgePill, 
-                { 
-                  backgroundColor: isKycApproved 
-                    ? 'rgba(16, 185, 129, 0.25)' 
-                    : isKycRejected 
-                    ? 'rgba(239, 68, 68, 0.25)' 
-                    : 'rgba(245, 158, 11, 0.25)' 
-                }
-              ]}>
-                <Text style={[
-                  styles.badgePillText, 
+              <TouchableOpacity 
+                style={styles.bellBtn} 
+                activeOpacity={0.85} 
+                onPress={() => navigation.navigate('Notifications')}
+              >
+                <Bell size={18} color="#FFFFFF" />
+                {unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Profile Hero Row matching WorkerHeroHeader */}
+          <View style={styles.heroMiddleRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              {/* Name with subtle edit badge */}
+              <TouchableOpacity 
+                style={styles.nameEditTouchable}
+                onPress={() => setActiveModal('editProfile')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.profileNameNew} numberOfLines={1}>{displayName}</Text>
+                <View style={styles.editPencilBadge}>
+                  <Edit2 size={10} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+
+              <Text style={styles.profilePhoneNew}>
+                {profile?.phone || user?.phone ? `+91 ${profile?.phone || user?.phone}` : ''}
+              </Text>
+
+              {/* Status Badges */}
+              <View style={styles.headerBadgesRow}>
+                <View style={styles.badgePill}>
+                  <Text style={styles.badgePillText}>
+                    {profile?.subscription?.expiryDate ? 'PRO Active' : 'Free Trial'}
+                  </Text>
+                </View>
+                <View style={[
+                  styles.badgePill, 
                   { 
-                    color: isKycApproved 
-                      ? '#A7F3D0' 
+                    backgroundColor: isKycApproved 
+                      ? 'rgba(16, 185, 129, 0.25)' 
                       : isKycRejected 
-                      ? '#FECACA' 
-                      : '#FDE68A' 
+                      ? 'rgba(239, 68, 68, 0.25)' 
+                      : 'rgba(245, 158, 11, 0.25)' 
                   }
                 ]}>
-                  {isKycApproved ? 'KYC Verified ✓' : isKycRejected ? 'KYC Rejected ✕' : 'KYC Pending ⏳'}
-                </Text>
+                  <Text style={[
+                    styles.badgePillText, 
+                    { 
+                      color: isKycApproved 
+                        ? '#A7F3D0' 
+                        : isKycRejected 
+                        ? '#FECACA' 
+                        : '#FDE68A' 
+                    }
+                  ]}>
+                    {isKycApproved ? 'KYC Verified ✓' : isKycRejected ? 'KYC Rejected ✕' : 'KYC Pending ⏳'}
+                  </Text>
+                </View>
               </View>
             </View>
+
+            {/* Avatar Frame on the Right */}
+            <TouchableOpacity 
+              onPress={handlePickPhoto} 
+              activeOpacity={0.85}
+              style={styles.avatarWrapper}
+            >
+              <View style={styles.avatarFrame}>
+                {profile?.profileImage || user?.profileImage ? (
+                  <Image
+                    source={{ uri: getImageUrl(profile?.profileImage || user?.profileImage) }}
+                    style={styles.heroMascot}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.avatarFallback}>
+                    <Text style={styles.avatarFallbackText}>{displayName[0]?.toUpperCase()}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.cameraIconBadge}>
+                {saving ? (
+                  <ActivityIndicator size="small" color="#6C47FF" />
+                ) : (
+                  <Camera size={10} color="#6C47FF" />
+                )}
+              </View>
+            </TouchableOpacity>
           </View>
         </LinearGradient>
 
@@ -727,7 +790,7 @@ const WorkerProfileScreen = ({ navigation }) => {
             {renderMenuItem(
               <User size={20} color="#6C47FF" />,
               'Edit Personal Details',
-              `${profile?.name || 'Worker'} · ${profile?.phone || ''}${profile?.city ? ' · ' + profile.city : ''}`,
+              `${displayName} · ${profile?.phone || user?.phone || ''}${profile?.city || user?.city ? ' · ' + (profile?.city || user?.city) : ''}`,
               () => setActiveModal('editProfile')
             )}
           </View>
@@ -777,8 +840,8 @@ const WorkerProfileScreen = ({ navigation }) => {
             )}
           </View>
 
-          {/* Section 3: Preferences & Display */}
-          <Text style={styles.sectionHeading}>Preferences & Display</Text>
+          {/* Section 3: Preferences & Support */}
+          <Text style={styles.sectionHeading}>Preferences & Support</Text>
           <View style={styles.menuCard}>
             <View style={[styles.menuItem, { paddingVertical: 14 }]}>
               <View style={[styles.menuIconBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : 'rgba(245, 158, 11, 0.15)' }]}>
@@ -795,6 +858,13 @@ const WorkerProfileScreen = ({ navigation }) => {
                 value={isDarkMode}
               />
             </View>
+            <View style={styles.divider} />
+            {renderMenuItem(
+              <LifeBuoy size={20} color="#6C47FF" />,
+              'Help & Support',
+              'FAQs, contact support & worker assistance',
+              () => navigation.navigate('HelpSupport')
+            )}
           </View>
 
           {/* Section 4: App & Account */}
@@ -1486,8 +1556,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
   },
   profileHeaderGradient: {
-    paddingBottom: 16,
     paddingHorizontal: 16,
+    paddingBottom: 14,
     borderBottomLeftRadius: 22,
     borderBottomRightRadius: 22,
     position: 'relative',
@@ -1511,55 +1581,102 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 110,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  profileHeaderContent: {
+  heroTopRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 2,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  avatarWrapperNew: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    borderWidth: 2.5,
-    borderColor: '#FFFFFF',
+  locationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    maxWidth: '56%',
+    gap: 5,
+  },
+  locationText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 11.5,
+    flexShrink: 1,
+  },
+  locationCaret: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  walletPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    paddingHorizontal: 8,
+    paddingVertical: 4.5,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    gap: 4,
+  },
+  walletPillText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 11.5,
+  },
+  bellBtn: {
     position: 'relative',
-    marginBottom: 6,
-  },
-  avatarImageNew: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 33,
-  },
-  avatarEditBtnNew: {
-    position: 'absolute',
-    bottom: -1,
-    right: -1,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#FFFFFF',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+  },
+  badge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#EF4444',
+    borderRadius: 9,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#7447FF',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  heroMiddleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   nameEditTouchable: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: 'flex-start',
     gap: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     marginBottom: 2,
   },
   editPencilBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.4)',
@@ -1573,15 +1690,77 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     letterSpacing: -0.3,
   },
   profilePhoneNew: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 1,
+    fontSize: 11.5,
+    color: 'rgba(255, 255, 255, 0.85)',
     fontWeight: '600',
+    marginBottom: 4,
   },
-  profileEmailNew: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.75)',
-    marginTop: 1,
+  headerBadgesRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 2,
+  },
+  badgePill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+  },
+  badgePillText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  avatarWrapper: {
+    position: 'relative',
+  },
+  avatarFrame: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  heroMascot: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#6C47FF',
+  },
+  avatarFallbackText: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  cameraIconBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.2,
+    borderColor: '#7447FF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 3,
   },
   inputWithIconRow: {
     flexDirection: 'row',
@@ -1632,22 +1811,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 10,
     marginTop: 2,
     marginLeft: 2,
-  },
-  headerBadgesRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 6,
-  },
-  badgePill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  badgePillText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
   },
 
   // Menu items
