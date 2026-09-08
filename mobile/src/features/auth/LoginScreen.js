@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
+import {
+  View,
+  Text,
+  StyleSheet,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
@@ -19,12 +19,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
-import { 
-  Lock, 
-  ChevronLeft, 
-  ArrowRight, 
-  Eye, 
-  EyeOff, 
+import {
+  Lock,
+  ChevronLeft,
+  ArrowRight,
+  Eye,
+  EyeOff,
   ShieldCheck,
   MessageSquare,
   User,
@@ -43,7 +43,6 @@ import { getApiErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import CustomAlert from '../../components/ui/CustomAlert';
 import LinearGradient from 'react-native-linear-gradient';
-import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -65,7 +64,7 @@ const LoginScreen = ({ navigation, route }) => {
   const [selectedRole, setSelectedRole] = useState(initialRole || 'CUSTOMER');
   const [detectedName, setDetectedName] = useState('');
   const [availableAccounts, setAvailableAccounts] = useState([]);
-  const [hasMpinSet, setHasMpinSet] = useState(true);
+  const [, setHasMpinSet] = useState(true);
 
   // MPIN State
   const [mpin, setMpin] = useState('');
@@ -81,17 +80,10 @@ const LoginScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
 
-  // Keyboard avoidance state
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef(null);
   const phoneInputRef = useRef(null);
   const mpinInputRef = useRef(null);
   const isCheckingPhoneRef = useRef(false);
-
-  // Ambient floating background orbs
-  const bgOrb1 = useRef(new Animated.Value(0)).current;
-  const bgOrb2 = useRef(new Animated.Value(0)).current;
 
   // Shake animation for MPIN failure
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -107,34 +99,17 @@ const LoginScreen = ({ navigation, route }) => {
     ]).start();
   };
 
-  const [alertConfig, setAlertConfig] = useState({ 
-    visible: false, 
-    title: '', 
-    message: '', 
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
     type: 'error',
-    onConfirm: null 
+    onConfirm: null
   });
 
   const showAlert = (title, message, type = 'error', onConfirm = null) => {
     setAlertConfig({ visible: true, title, message, type, onConfirm });
   };
-
-  // Ambient background animation loop
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(bgOrb1, { toValue: 1, duration: 4000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(bgOrb1, { toValue: 0, duration: 4000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(bgOrb2, { toValue: 1, duration: 5000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(bgOrb2, { toValue: 0, duration: 5000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
 
   // If prefilled phone is 10 digits on mount, auto-check status
   useEffect(() => {
@@ -154,27 +129,6 @@ const LoginScreen = ({ navigation, route }) => {
       return () => clearTimeout(timer);
     }
   }, [step]);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setKeyboardVisible(true);
-        setKeyboardHeight(e.endCoordinates?.height || 260);
-      }
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false);
-        setKeyboardHeight(0);
-      }
-    );
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   const scrollToInput = (yOffset = 180) => {
     setTimeout(() => {
@@ -213,8 +167,8 @@ const LoginScreen = ({ navigation, route }) => {
         return;
       }
 
-      const accounts = Array.isArray(data.accounts) && data.accounts.length > 0 
-        ? data.accounts 
+      const accounts = Array.isArray(data.accounts) && data.accounts.length > 0
+        ? data.accounts
         : [{ role: data.role || 'CUSTOMER', name: data.name || 'User', hasMpin: data.hasMpin ?? true }];
 
       setAvailableAccounts(accounts);
@@ -249,12 +203,12 @@ const LoginScreen = ({ navigation, route }) => {
    * Auto-advance on phone number input
    */
   const handlePhoneChange = (text) => {
-    const clean = text.replace(/[^0-9]/g, '').slice(0, 10);
+    const clean = (text || '').replace(/[^0-9]/g, '').slice(0, 10);
     setPhone(clean);
     if (mpinError) setMpinError('');
 
-    // If reaches 10 valid digits, automatically advance to check user / MPIN
-    if (clean.length === 10 && /^[6-9]\d{9}$/.test(clean)) {
+    // If reaches 10 digits, automatically advance to check user / MPIN
+    if (clean.length === 10) {
       Keyboard.dismiss();
       handleCheckNumber(clean);
     }
@@ -319,9 +273,9 @@ const LoginScreen = ({ navigation, route }) => {
       await signIn(token, user.role, user);
     } catch (error) {
       const errorData = error.response?.data;
-      const isMpinNotSet = errorData?.mpinNotSet || 
-                           errorData?.message?.toLowerCase()?.includes('mpin is not set') ||
-                           errorData?.message?.toLowerCase()?.includes('password is not set');
+      const isMpinNotSet = errorData?.mpinNotSet ||
+        errorData?.message?.toLowerCase()?.includes('mpin is not set') ||
+        errorData?.message?.toLowerCase()?.includes('password is not set');
 
       if (isMpinNotSet) {
         handleAutoSendOtpForMpin(phone, selectedRole);
@@ -424,21 +378,14 @@ const LoginScreen = ({ navigation, route }) => {
   };
 
   const headerTopPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 8;
-  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 16) + 20;
-  const dynamicBottomPad = bottomPad + (keyboardVisible ? keyboardHeight + 30 : 16);
-  const styles = createStyles(theme, isDarkMode, headerTopPad, dynamicBottomPad);
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 16) + 16;
+  const styles = createStyles(theme, isDarkMode, headerTopPad, bottomPad);
 
   const currentRoleMeta = ROLE_META[selectedRole] || ROLE_META.CUSTOMER;
   const RoleIcon = currentRoleMeta.icon;
 
   const isResetMatched = newMpin.length === 4 && confirmNewMpin.length === 4 && newMpin === confirmNewMpin;
   const isResetMismatched = confirmNewMpin.length === 4 && newMpin.length === 4 && newMpin !== confirmNewMpin;
-
-  // Background orb interpolations
-  const orb1Y = bgOrb1.interpolate({ inputRange: [0, 1], outputRange: [0, -25] });
-  const orb1X = bgOrb1.interpolate({ inputRange: [0, 1], outputRange: [0, 20] });
-  const orb2Y = bgOrb2.interpolate({ inputRange: [0, 1], outputRange: [0, 30] });
-  const orb2X = bgOrb2.interpolate({ inputRange: [0, 1], outputRange: [0, -20] });
 
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
@@ -448,41 +395,10 @@ const LoginScreen = ({ navigation, route }) => {
         translucent={false}
       />
 
-      {/* Ambient Animated Background Orbs */}
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.ambientOrbTop,
-          { transform: [{ translateY: orb1Y }, { translateX: orb1X }] },
-        ]}
-      >
-        <LinearGradient
-          colors={['#8B5CF6', '#6C47FF']}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-      </Animated.View>
-
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.ambientOrbBottom,
-          { transform: [{ translateY: orb2Y }, { translateX: orb2X }] },
-        ]}
-      >
-        <LinearGradient
-          colors={['#3B82F6', '#6C47FF']}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-      </Animated.View>
-      
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => {
               if (step === 'RESET_MPIN') {
                 setStep('MPIN');
@@ -491,8 +407,8 @@ const LoginScreen = ({ navigation, route }) => {
               } else {
                 navigation.goBack();
               }
-            }} 
-            style={styles.backBtn} 
+            }}
+            style={styles.backBtn}
             activeOpacity={0.7}
           >
             <ChevronLeft size={22} color={theme.colors.text} />
@@ -500,41 +416,42 @@ const LoginScreen = ({ navigation, route }) => {
           <Text style={styles.headerTitle}>
             {step === 'RESET_MPIN' ? 'Reset MPIN' : (step === 'MPIN' ? 'Enter MPIN' : 'Sign In')}
           </Text>
-          <View style={styles.headerRight}>
-            <KwicklyIcon size={28} />
-          </View>
+          <View style={styles.headerRight} />
         </View>
       </View>
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView 
+        <ScrollView
           ref={scrollViewRef}
-          contentContainerStyle={styles.scrollContent} 
-          showsVerticalScrollIndicator={false} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          bounces={false}
         >
           <View style={styles.body}>
 
-            {/* ─── BRAND HERO BADGE & TITLE ─── */}
-            <View style={styles.brandHeroBlock}>
-              <View style={styles.brandLogoCircle}>
-                <Image
-                  source={require('../../assets/logo.png')}
-                  style={styles.brandLogoImg}
-                  resizeMode="contain"
-                />
+            {/* ─── BRAND HERO BADGE & TITLE (Only 1 logo on screen) ─── */}
+            {step === 'PHONE' && (
+              <View style={styles.brandHeroBlock}>
+                <View style={styles.brandLogoCircle}>
+                  <Image
+                    source={require('../../assets/logo.png')}
+                    style={styles.brandLogoImg}
+                    resizeMode="contain"
+                  />
+                </View>
+                <Text style={[styles.brandWordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+                </Text>
+                <View style={[styles.heroPill, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE' }]}>
+                  <Sparkles size={12} color="#6C47FF" style={{ marginRight: 4 }} />
+                  <Text style={styles.heroPillText}>Every Service. Anytime. Near You.</Text>
+                </View>
               </View>
-              <Text style={[styles.brandWordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
-              </Text>
-              <View style={[styles.heroPill, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE' }]}>
-                <Sparkles size={13} color="#6C47FF" style={{ marginRight: 5 }} />
-                <Text style={styles.heroPillText}>Every Service. Anytime. Near You.</Text>
-              </View>
-            </View>
+            )}
 
             {/* ─── STEP 1: SMART PHONE NUMBER ENTRY ─── */}
             {step === 'PHONE' && (
@@ -547,11 +464,14 @@ const LoginScreen = ({ navigation, route }) => {
                   </View>
 
                   <Text style={styles.inputLabel}>Mobile Number</Text>
-                  <View style={[
-                    styles.inputWrapper, 
-                    focusedInput === 'phone' && styles.inputFocused,
-                    phone.length === 10 && styles.inputReady
-                  ]}>
+                  <Pressable
+                    onPress={() => phoneInputRef.current?.focus()}
+                    style={[
+                      styles.inputWrapper,
+                      focusedInput === 'phone' && styles.inputFocused,
+                      phone.length === 10 && styles.inputReady
+                    ]}
+                  >
                     <View style={styles.countryCodeBadge}>
                       <Text style={styles.countryCodeText}>🇮🇳 +91</Text>
                     </View>
@@ -560,9 +480,7 @@ const LoginScreen = ({ navigation, route }) => {
                       style={styles.phoneInput}
                       placeholder="Enter 10-digit number"
                       placeholderTextColor={theme.colors.textDim}
-                      keyboardType="phone-pad"
-                      maxLength={10}
-                      autoFocus={true}
+                      keyboardType="number-pad"
                       value={phone}
                       onChangeText={handlePhoneChange}
                       onFocus={() => setFocusedInput('phone')}
@@ -581,18 +499,18 @@ const LoginScreen = ({ navigation, route }) => {
                         <X size={16} color={theme.colors.textDim} />
                       </TouchableOpacity>
                     ) : null}
-                  </View>
+                  </Pressable>
 
                   <View style={styles.helperRow}>
-                    <Zap size={13} color="#6C47FF" style={{ marginRight: 5 }} />
+                    <Zap size={12} color="#6C47FF" style={{ marginRight: 5 }} />
                     <Text style={styles.helperText}>Auto-detects your account upon entering 10 digits.</Text>
                   </View>
 
                   {/* Continue Action Button inside card */}
-                  <TouchableOpacity 
-                    style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.65, marginTop: 18 }]} 
-                    onPress={() => handleCheckNumber()} 
-                    activeOpacity={0.88} 
+                  <TouchableOpacity
+                    style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.65, marginTop: 16 }]}
+                    onPress={() => handleCheckNumber()}
+                    activeOpacity={0.88}
                     disabled={phone.length !== 10 || loading}
                   >
                     <LinearGradient
@@ -613,7 +531,7 @@ const LoginScreen = ({ navigation, route }) => {
 
                   {/* Registration Prompt Link */}
                   <View style={styles.bottomLinkContainer}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.registerLink}
                       onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}
                       activeOpacity={0.7}
@@ -626,37 +544,25 @@ const LoginScreen = ({ navigation, route }) => {
                   </View>
                 </View>
 
-                {/* ─── TRUST & SECURITY SECTION (Fills Blank Space Beautifully) ─── */}
-                <View style={styles.trustSection}>
-                  <View style={styles.trustGrid}>
-                    <View style={[styles.trustCard, { backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF', borderColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
-                      <View style={[styles.trustIconCircle, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
-                        <ShieldCheck size={18} color="#6C47FF" />
-                      </View>
-                      <Text style={[styles.trustCardTitle, { color: theme.colors.text }]}>100% Secure</Text>
-                      <Text style={styles.trustCardDesc}>Encrypted sign-in</Text>
-                    </View>
-
-                    <View style={[styles.trustCard, { backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF', borderColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
-                      <View style={[styles.trustIconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                        <Zap size={18} color="#10B981" />
-                      </View>
-                      <Text style={[styles.trustCardTitle, { color: theme.colors.text }]}>Instant Access</Text>
-                      <Text style={styles.trustCardDesc}>4-Digit MPIN login</Text>
-                    </View>
-
-                    <View style={[styles.trustCard, { backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF', borderColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
-                      <View style={[styles.trustIconCircle, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
-                        <Store size={18} color="#F59E0B" />
-                      </View>
-                      <Text style={[styles.trustCardTitle, { color: theme.colors.text }]}>All-in-One</Text>
-                      <Text style={styles.trustCardDesc}>Services & Shops</Text>
-                    </View>
+                {/* Compact Trust Badge (Comfortably fits screen without scrolling) */}
+                <View style={styles.compactTrustRow}>
+                  <View style={styles.compactTrustItem}>
+                    <ShieldCheck size={13} color="#10B981" style={{ marginRight: 4 }} />
+                    <Text style={[styles.compactTrustText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                      100% Encrypted
+                    </Text>
                   </View>
-
-                  <View style={styles.trustFooter}>
-                    <Text style={[styles.trustFooterText, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
-                      Fast • Reliable • Local • Made for India 🇮🇳
+                  <Text style={{ color: isDarkMode ? '#334155' : '#CBD5E1', marginHorizontal: 8 }}>•</Text>
+                  <View style={styles.compactTrustItem}>
+                    <Zap size={13} color="#6C47FF" style={{ marginRight: 4 }} />
+                    <Text style={[styles.compactTrustText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                      Instant MPIN Access
+                    </Text>
+                  </View>
+                  <Text style={{ color: isDarkMode ? '#334155' : '#CBD5E1', marginHorizontal: 8 }}>•</Text>
+                  <View style={styles.compactTrustItem}>
+                    <Text style={[styles.compactTrustText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                      🇮🇳 India
                     </Text>
                   </View>
                 </View>
@@ -695,8 +601,8 @@ const LoginScreen = ({ navigation, route }) => {
                   })}
                 </View>
 
-                <TouchableOpacity 
-                  style={styles.switchNumberBtn} 
+                <TouchableOpacity
+                  style={styles.switchNumberBtn}
                   onPress={() => setStep('PHONE')}
                 >
                   <Edit3 size={15} color="#6C47FF" />
@@ -782,8 +688,8 @@ const LoginScreen = ({ navigation, route }) => {
 
                   {/* Eye Toggle & Feedback Row */}
                   <View style={styles.pinControlRow}>
-                    <TouchableOpacity 
-                      onPress={() => setShowMpin(!showMpin)} 
+                    <TouchableOpacity
+                      onPress={() => setShowMpin(!showMpin)}
                       style={styles.eyeTogglePill}
                       activeOpacity={0.7}
                     >
@@ -808,10 +714,10 @@ const LoginScreen = ({ navigation, route }) => {
                   )}
 
                   {/* Sign In Button */}
-                  <TouchableOpacity 
-                    style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.65, marginTop: 18 }]} 
-                    onPress={() => handleMpinSubmit(mpin)} 
-                    activeOpacity={0.88} 
+                  <TouchableOpacity
+                    style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.65, marginTop: 18 }]}
+                    onPress={() => handleMpinSubmit(mpin)}
+                    activeOpacity={0.88}
                     disabled={mpin.length !== 4 || loading}
                   >
                     <LinearGradient
@@ -832,7 +738,7 @@ const LoginScreen = ({ navigation, route }) => {
 
                   {/* Secondary Actions */}
                   <View style={styles.actionLinksRow}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.otpSwitchLink}
                       onPress={handleDirectOtpLogin}
                       activeOpacity={0.7}
@@ -844,8 +750,8 @@ const LoginScreen = ({ navigation, route }) => {
                     </TouchableOpacity>
                   </View>
 
-                  <TouchableOpacity 
-                    style={styles.switchNumberBtn} 
+                  <TouchableOpacity
+                    style={styles.switchNumberBtn}
                     onPress={() => {
                       setMpin('');
                       setMpinError('');
@@ -951,7 +857,7 @@ const LoginScreen = ({ navigation, route }) => {
                     )}
                   </View>
                   <View style={[
-                    styles.inputWrapper, 
+                    styles.inputWrapper,
                     focusedInput === 'confirmNewMpin' && styles.inputFocused,
                     isResetMatched && styles.inputSuccess
                   ]}>
@@ -976,10 +882,10 @@ const LoginScreen = ({ navigation, route }) => {
                   </View>
 
                   {/* Reset & Sign In Button */}
-                  <TouchableOpacity 
-                    style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.65, marginTop: 18 }]} 
-                    onPress={handleExecuteResetMpin} 
-                    activeOpacity={0.88} 
+                  <TouchableOpacity
+                    style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.65, marginTop: 18 }]}
+                    onPress={handleExecuteResetMpin}
+                    activeOpacity={0.88}
                     disabled={resetOtp.length !== 4 || !isResetMatched || loading}
                   >
                     <LinearGradient
@@ -995,8 +901,8 @@ const LoginScreen = ({ navigation, route }) => {
                     </LinearGradient>
                   </TouchableOpacity>
 
-                  <TouchableOpacity 
-                    style={styles.switchNumberBtn} 
+                  <TouchableOpacity
+                    style={styles.switchNumberBtn}
                     onPress={() => setStep('MPIN')}
                     activeOpacity={0.7}
                   >
@@ -1010,7 +916,7 @@ const LoginScreen = ({ navigation, route }) => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <CustomAlert 
+      <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
         message={alertConfig.message}
@@ -1028,25 +934,6 @@ const LoginScreen = ({ navigation, route }) => {
 const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleSheet.create({
   container: {
     flex: 1,
-    overflow: 'hidden',
-  },
-  ambientOrbTop: {
-    position: 'absolute',
-    top: -60,
-    right: -60,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    opacity: isDarkMode ? 0.18 : 0.12,
-  },
-  ambientOrbBottom: {
-    position: 'absolute',
-    bottom: SH * 0.15,
-    left: -80,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    opacity: isDarkMode ? 0.16 : 0.1,
   },
   header: {
     paddingHorizontal: 16,
@@ -1080,86 +967,80 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   headerRight: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: '#0F172A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1E293B',
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
     paddingBottom: bottomPad,
   },
   body: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     width: '100%',
-    zIndex: 2,
   },
   brandHeroBlock: {
     alignItems: 'center',
-    marginVertical: 12,
+    marginBottom: 14,
   },
   brandLogoCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 18,
     backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 8,
-    borderWidth: 1.5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
     borderColor: '#1E293B',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   brandLogoImg: {
-    width: 52,
-    height: 52,
+    width: 42,
+    height: 42,
   },
   brandWordmark: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '900',
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
   },
   heroPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+    marginTop: 4,
   },
   heroPillText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#6C47FF',
   },
   stepContainer: {
     width: '100%',
-    marginTop: 4,
   },
   inputCard: {
     backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
     borderWidth: 1,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    borderRadius: 22,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 10,
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
   cardHeaderRow: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   cardTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
     color: theme.colors.text,
     letterSpacing: -0.3,
@@ -1168,7 +1049,7 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     fontSize: 13,
     color: theme.colors.textDim,
     fontWeight: '500',
-    marginTop: 3,
+    marginTop: 2,
     lineHeight: 18,
   },
   titleContainer: {
@@ -1432,55 +1313,20 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     color: '#6C47FF',
     fontWeight: '800',
   },
-  trustSection: {
-    marginTop: 10,
-    width: '100%',
-  },
-  trustGrid: {
+  compactTrustRow: {
     flexDirection: 'row',
-    gap: 10,
-  },
-  trustCard: {
-    flex: 1,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 12,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  trustIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
+    marginTop: 14,
+    paddingVertical: 4,
   },
-  trustCardTitle: {
+  compactTrustItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  compactTrustText: {
     fontSize: 12,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  trustCardDesc: {
-    fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: '500',
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  trustFooter: {
-    alignItems: 'center',
-    marginTop: 16,
-    paddingVertical: 6,
-  },
-  trustFooterText: {
-    fontSize: 11.5,
     fontWeight: '600',
-    letterSpacing: 0.3,
   },
   actionLinksRow: {
     alignItems: 'center',
