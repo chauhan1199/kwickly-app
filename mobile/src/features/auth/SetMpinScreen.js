@@ -10,10 +10,13 @@ import {
   ActivityIndicator,
   Keyboard,
   Dimensions,
+  ScrollView,
+  KeyboardAvoidingView,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
+import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import {
   Lock,
   ShieldCheck,
@@ -115,27 +118,43 @@ const SetMpinScreen = ({ navigation, route }) => {
     <View style={[styles.root, { backgroundColor: isDarkMode ? '#0C0E1A' : '#FFF' }]}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* ── HERO HEADER (matches HomeScreen) ── */}
-      <LinearGradient
-        colors={[PURPLE, '#8B6FFF']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.hero, { paddingTop: topPad + 20 }]}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.blob1} />
-        <View style={styles.blob2} />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          {/* ── HERO HEADER (matches HomeScreen) ── */}
+          <LinearGradient
+            colors={[PURPLE, '#8B6FFF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.hero, { paddingTop: topPad + 18 }]}
+          >
+            <View style={styles.blob1} />
+            <View style={styles.blob2} />
 
-        {/* Badge Pill */}
-        <View style={styles.badgePill}>
-          <Sparkles size={13} color="#FFFFFF" />
-          <Text style={styles.badgePillText}>Almost Done</Text>
-        </View>
+            {/* Brand */}
+            <View style={styles.brandRow}>
+              <KwicklyIcon size={38} />
+              <Text style={styles.brandName}>Kwick<Text style={{ color: '#FFD580' }}>ly</Text></Text>
+            </View>
 
-        <Text style={styles.heroTitle}>Create 4-Digit MPIN</Text>
-        <Text style={styles.heroSub}>
-          Use this secure MPIN to sign in quickly anytime
-        </Text>
-      </LinearGradient>
+            {/* Badge Pill */}
+            <View style={styles.badgePill}>
+              <Sparkles size={13} color="#FFFFFF" />
+              <Text style={styles.badgePillText}>Almost Done</Text>
+            </View>
+
+            <Text style={styles.heroTitle}>Create 4-Digit MPIN</Text>
+            <Text style={styles.heroSub}>
+              Use this secure MPIN to sign in quickly anytime
+            </Text>
+          </LinearGradient>
 
       {/* ── FORM CARD ── */}
       <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 16 }]}>
@@ -298,6 +317,8 @@ const SetMpinScreen = ({ navigation, route }) => {
           <Text style={[styles.secureText, { color: textSub }]}> Bank-grade 256-bit encryption • 100% Secure</Text>
         </View>
       </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <CustomAlert
         visible={alertConfig.visible}
@@ -312,6 +333,19 @@ const SetMpinScreen = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  brandName: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: -0.4,
+  },
   hero: {
     paddingHorizontal: 22,
     paddingBottom: 28,

@@ -20,6 +20,7 @@ import CustomAlert from '../../components/ui/CustomAlert';
 import api, { getApiErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { validateOtpForSubmit, sanitizeOtp } from '../../utils/otpGuard';
+import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 // ── Design tokens (matches HomeScreen) ──
 const PURPLE = '#6C47FF';
@@ -171,7 +172,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
 
         {/* Brand */}
         <View style={styles.brandRow}>
-          <View style={styles.brandDot} />
+          <KwicklyIcon size={38} />
           <Text style={styles.brandName}>Kwick<Text style={{ color: '#FFD580' }}>ly</Text></Text>
         </View>
 
@@ -314,9 +315,8 @@ const styles = StyleSheet.create({
     width: 140, height: 140, borderRadius: 70,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  brandDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#FFD580', marginRight: 8 },
-  brandName: { fontSize: 20, fontWeight: '900', color: '#FFF', letterSpacing: -0.3 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  brandName: { fontSize: 22, fontWeight: '900', color: '#FFF', letterSpacing: -0.4 },
   iconBadge: {
     width: 58, height: 58, borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.2)',
