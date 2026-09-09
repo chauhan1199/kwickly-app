@@ -27,7 +27,6 @@ import CustomAlert from '../../components/ui/CustomAlert';
 import api, { getApiErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { validateOtpForSubmit, sanitizeOtp, OTP_LENGTH } from '../../utils/otpGuard';
-import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const RESEND_COOLDOWN = 30;
 
@@ -203,7 +202,6 @@ const OTPVerifyScreen = ({ navigation, route }) => {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.colors.background}
         translucent={false}
       />
       
@@ -213,22 +211,12 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
             <ChevronLeft size={22} color={theme.colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Verify OTP</Text>
-          <View style={styles.headerRight}>
-            <KwicklyIcon size={28} />
-          </View>
-        </View>
-
-        <View style={styles.stepDots}>
-          <View style={[styles.stepDot, styles.stepDotDone]} />
-          <View style={[styles.stepDot, styles.stepDotDone]} />
-          <View style={[styles.stepDot, styles.stepDotActive]} />
-          <View style={styles.stepDot} />
+          <View style={styles.headerRight} />
         </View>
       </View>
 
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
         style={{ flex: 1 }}
       >
         <ScrollView 
@@ -237,116 +225,114 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.body}>
+            <View style={styles.verifyCard}>
+              {/* Glowing Icon Badge */}
+              <View style={[styles.iconWrapper, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.16)' : '#F5F3FF' }]}>
+                {currentMethod === 'WHATSAPP' ? (
+                  <Smartphone size={32} color="#10B981" />
+                ) : (
+                  <MessageSquare size={32} color="#6C47FF" />
+                )}
+              </View>
 
-            {/* Glowing Icon Badge */}
-            <View style={[styles.iconWrapper, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.16)' : '#F5F3FF' }]}>
-              {currentMethod === 'WHATSAPP' ? (
-                <Smartphone size={34} color="#10B981" />
-              ) : (
-                <MessageSquare size={34} color="#6C47FF" />
-              )}
-            </View>
+              {/* Title & Phone Pill */}
+              <Text style={styles.title}>Check your {currentMethod === 'WHATSAPP' ? 'WhatsApp' : 'Messages'}</Text>
+              
+              <View style={styles.phonePillRow}>
+                <Text style={styles.subtitle}>Code sent to </Text>
+                <View style={styles.phonePill}>
+                  <Text style={styles.phonePillText}>+91 {displayPhone}</Text>
+                  <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 4 }}>
+                    <Edit3 size={12} color="#6C47FF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-            {/* Title & Phone Pill */}
-            <Text style={styles.title}>Check your {currentMethod === 'WHATSAPP' ? 'WhatsApp' : 'Messages'}</Text>
-            
-            <View style={styles.phonePillRow}>
-              <Text style={styles.subtitle}>OTP sent to </Text>
-              <View style={styles.phonePill}>
-                <Text style={styles.phonePillText}>+91 {displayPhone}</Text>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 4 }}>
-                  <Edit3 size={13} color="#6C47FF" />
-                </TouchableOpacity>
+              {/* 4-Digit OTP Inputs */}
+              <View style={styles.otpContainer}>
+                {code.map((digit, index) => {
+                  const isFocused = focusedIndex === index;
+                  const isFilled = digit.length > 0;
+                  return (
+                    <View 
+                      key={index} 
+                      style={[
+                        styles.otpBoxWrapper,
+                        isFocused && styles.otpBoxFocused,
+                        isFilled && styles.otpBoxFilled,
+                      ]}
+                    >
+                      <TextInput
+                        ref={(ref) => (inputs.current[index] = ref)}
+                        style={styles.otpInput}
+                        maxLength={4}
+                        keyboardType="number-pad"
+                        autoFocus={index === 0}
+                        selectTextOnFocus={true}
+                        value={digit}
+                        onChangeText={(text) => handleChange(text, index)}
+                        onKeyPress={(e) => handleKeyPress(e, index)}
+                        onFocus={() => setFocusedIndex(index)}
+                        onBlur={() => setFocusedIndex(null)}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* Auto-read notice */}
+              <View style={styles.securityNotice}>
+                <ShieldCheck size={14} color="#10B981" style={{ marginRight: 6 }} />
+                <Text style={styles.securityNoticeText}>Auto-verifying your secure single-use OTP</Text>
+              </View>
+
+              {/* Verify & Continue Button */}
+              <TouchableOpacity 
+                style={[styles.btnShadow, { opacity: (isComplete && !loading) ? 1 : 0.65 }]} 
+                onPress={() => handleVerify()} 
+                disabled={!isComplete || loading || sending} 
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={['#7C3AED', '#6C47FF']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={styles.btnGradient}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.btnText}>Verify & Continue →</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Resend & Alternative Channels */}
+              <View style={styles.resendCard}>
+                {countdown > 0 ? (
+                  <View style={styles.timerRow}>
+                    <RefreshCw size={13} color={theme.colors.textDim} style={{ marginRight: 6 }} />
+                    <Text style={styles.timerText}>
+                      Resend code in <Text style={styles.timerSeconds}>{countdown}s</Text>
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.resendActionsRow}>
+                    <Text style={styles.resendPrompt}>Didn't receive code? </Text>
+                    <TouchableOpacity onPress={handleResend} activeOpacity={0.7} disabled={sending || loading}>
+                      <Text style={styles.resendLink}>
+                        {sending ? 'Sending...' : 'Resend OTP'}
+                      </Text>
+                    </TouchableOpacity>
+                    <Text style={styles.resendDivider}> • </Text>
+                    <TouchableOpacity onPress={toggleMethod} activeOpacity={0.7} disabled={sending || loading}>
+                      <Text style={styles.switchChannelLink}>
+                        Try {currentMethod === 'WHATSAPP' ? 'SMS' : 'WhatsApp'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </View>
-
-            {/* 4-Digit OTP Inputs */}
-            <View style={styles.otpContainer}>
-              {code.map((digit, index) => {
-                const isFocused = focusedIndex === index;
-                const isFilled = digit.length > 0;
-                return (
-                  <View 
-                    key={index} 
-                    style={[
-                      styles.otpBoxWrapper,
-                      isFocused && styles.otpBoxFocused,
-                      isFilled && styles.otpBoxFilled,
-                    ]}
-                  >
-                    <TextInput
-                      ref={(ref) => (inputs.current[index] = ref)}
-                      style={styles.otpInput}
-                      maxLength={4}
-                      keyboardType="number-pad"
-                      autoFocus={index === 0}
-                      selectTextOnFocus={true}
-                      value={digit}
-                      onChangeText={(text) => handleChange(text, index)}
-                      onKeyPress={(e) => handleKeyPress(e, index)}
-                      onFocus={() => setFocusedIndex(index)}
-                      onBlur={() => setFocusedIndex(null)}
-                    />
-                  </View>
-                );
-              })}
-            </View>
-
-            {/* Auto-read notice */}
-            <View style={styles.securityNotice}>
-              <ShieldCheck size={15} color="#10B981" style={{ marginRight: 6 }} />
-              <Text style={styles.securityNoticeText}>Auto-verifying your secure single-use OTP</Text>
-            </View>
-
-            <View style={styles.spacer} />
-
-            {/* Verify & Continue Button */}
-            <TouchableOpacity 
-              style={[styles.btnShadow, { opacity: (isComplete && !loading) ? 1 : 0.65 }]} 
-              onPress={() => handleVerify()} 
-              disabled={!isComplete || loading || sending} 
-              activeOpacity={0.88}
-            >
-              <LinearGradient
-                colors={['#7C3AED', '#6C47FF']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={styles.btnGradient}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.btnText}>Verify & Continue →</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {/* Resend & Alternative Channels */}
-            <View style={styles.resendCard}>
-              {countdown > 0 ? (
-                <View style={styles.timerRow}>
-                  <RefreshCw size={14} color={theme.colors.textDim} style={{ marginRight: 6 }} />
-                  <Text style={styles.timerText}>
-                    Resend code in <Text style={styles.timerSeconds}>{countdown}s</Text>
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.resendActionsRow}>
-                  <Text style={styles.resendPrompt}>Didn't receive code? </Text>
-                  <TouchableOpacity onPress={handleResend} activeOpacity={0.7} disabled={sending || loading}>
-                    <Text style={styles.resendLink}>
-                      {sending ? 'Sending...' : 'Resend OTP'}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={styles.resendDivider}> • </Text>
-                  <TouchableOpacity onPress={toggleMethod} activeOpacity={0.7} disabled={sending || loading}>
-                    <Text style={styles.switchChannelLink}>
-                      Try {currentMethod === 'WHATSAPP' ? 'SMS' : 'WhatsApp'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -369,15 +355,15 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   header: {
     paddingHorizontal: 16,
     paddingTop: headerTopPad,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: isDarkMode ? '#1E293B' : '#EDF2F7',
+    paddingBottom: 2,
+    borderBottomWidth: 0,
+    zIndex: 3,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 2,
   },
   backBtn: {
     width: 40,
@@ -389,83 +375,61 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
   headerRight: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: '#0F172A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1E293B',
-  },
-  stepDots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-  },
-  stepDot: {
-    width: 8,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: isDarkMode ? '#334155' : '#E2E8F0',
-  },
-  stepDotDone: {
-    width: 14,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  stepDotActive: {
-    width: 24,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#6C47FF',
   },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: bottomPad,
   },
   body: {
-    paddingHorizontal: 22,
-    paddingTop: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
     width: '100%',
     alignItems: 'center',
   },
+  verifyCard: {
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
   iconWrapper: {
-    width: 74,
-    height: 74,
-    borderRadius: 22,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#EDE9FE',
   },
   title: {
-    fontSize: 24,
-    fontWeight: '900',
+    fontSize: 20,
+    fontWeight: '800',
     color: theme.colors.text,
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: 'center',
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
   phonePillRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     flexWrap: 'wrap',
-    marginBottom: 30,
+    marginBottom: 18,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.textDim,
     fontWeight: '500',
   },
@@ -473,31 +437,31 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: isDarkMode ? '#334155' : '#E2E8F0',
   },
   phonePillText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: theme.colors.text,
   },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 14,
-    marginBottom: 18,
+    gap: 10,
+    marginBottom: 14,
     width: '100%',
   },
   otpBoxWrapper: {
-    width: 64,
-    height: 66,
-    borderRadius: 18,
-    borderWidth: 1.8,
+    width: 54,
+    height: 56,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: isDarkMode ? '#334155' : '#CBD5E1',
-    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -509,12 +473,12 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   otpBoxFocused: {
     borderColor: '#6C47FF',
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.12)' : '#F5F3FF',
-    borderWidth: 2.2,
+    borderWidth: 2,
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   otpBoxFilled: {
     borderColor: '#6C47FF',
@@ -524,49 +488,45 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     width: '100%',
     height: '100%',
     textAlign: 'center',
-    fontSize: 28,
-    fontWeight: '900',
+    fontSize: 24,
+    fontWeight: '800',
     color: theme.colors.text,
     padding: 0,
   },
   securityNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   securityNoticeText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#10B981',
-  },
-  spacer: {
-    height: 24,
-    minHeight: 16,
   },
   btnShadow: {
     width: '100%',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
-    borderRadius: 16,
-    marginBottom: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    borderRadius: 14,
+    marginBottom: 12,
   },
   btnGradient: {
-    borderRadius: 16,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 16,
+    fontSize: 15,
     letterSpacing: 0.3,
   },
   resendCard: {

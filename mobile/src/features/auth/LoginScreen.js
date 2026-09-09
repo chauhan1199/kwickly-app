@@ -429,9 +429,6 @@ const LoginScreen = ({ navigation, route }) => {
           >
             <ChevronLeft size={22} color={theme.colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {step === 'RESET_MPIN' ? 'Reset MPIN' : (step === 'MPIN' ? 'Enter MPIN' : 'Sign In')}
-          </Text>
           <View style={styles.headerRight} />
         </View>
       </View>
@@ -976,16 +973,15 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32, keyboardV
   header: {
     paddingHorizontal: 16,
     paddingTop: headerTopPad,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: isDarkMode ? '#1E293B' : '#EDF2F7',
+    paddingBottom: 2,
+    borderBottomWidth: 0,
     zIndex: 3,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   backBtn: {
     width: 40,
@@ -996,11 +992,6 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32, keyboardV
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: theme.colors.text,
   },
   headerRight: {
     width: 40,

@@ -171,17 +171,7 @@ const RoleSelection = ({ navigation, route }) => {
           >
             <ChevronLeft size={22} color={theme.colors.text} />
           </TouchableOpacity>
-
-          <Text style={styles.headerTitle}>Create Account</Text>
-
           <View style={styles.headerRight} />
-        </View>
-
-        {/* Step Indicator */}
-        <View style={styles.stepDots}>
-          <View style={[styles.stepDot, styles.stepDotActive]} />
-          <View style={styles.stepDot} />
-          <View style={styles.stepDot} />
         </View>
       </View>
 
@@ -199,8 +189,8 @@ const RoleSelection = ({ navigation, route }) => {
 
             {/* Title Section */}
             <View style={styles.titleContainer}>
-              <Text style={styles.title}>Enter your details</Text>
-              <Text style={styles.subtitle}>We'll send a 4-digit OTP to verify your number</Text>
+              <Text style={styles.title}>Create your Account</Text>
+              <Text style={styles.subtitle}>Select your role and enter your details to register</Text>
             </View>
 
             {/* Role Selector Tabs */}
@@ -356,7 +346,6 @@ const RoleSelection = ({ navigation, route }) => {
               </View>
             </View>
 
-            <View style={styles.spacer} />
 
             {/* Submit Action Button */}
             <TouchableOpacity 
@@ -427,15 +416,15 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   header: {
     paddingHorizontal: 16,
     paddingTop: headerTopPad,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: isDarkMode ? '#1E293B' : '#EDF2F7',
+    paddingBottom: 2,
+    borderBottomWidth: 0,
+    zIndex: 3,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 2,
   },
   backBtn: {
     width: 40,
@@ -447,40 +436,18 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
   headerRight: {
     width: 40,
     height: 40,
-  },
-  stepDots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-  },
-  stepDot: {
-    width: 8,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: isDarkMode ? '#334155' : '#E2E8F0',
-  },
-  stepDotActive: {
-    width: 24,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#6C47FF',
   },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: bottomPad,
   },
   body: {
-    padding: 20,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 20,
     width: '100%',
   },
   titleContainer: {
@@ -678,23 +645,24 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   btnShadow: {
     width: '100%',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
-    borderRadius: 16,
-    marginBottom: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    borderRadius: 14,
+    marginTop: 14,
+    marginBottom: 12,
   },
   btnGradient: {
-    borderRadius: 16,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 16,
+    fontSize: 15,
     letterSpacing: 0.3,
   },
   footerLink: {
