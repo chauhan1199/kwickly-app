@@ -28,3 +28,4 @@ mobile/.env
 # Secrets rotation record (contains live secrets - never commit)
 .secrets-rotation.txt
 backend/test-artifacts/
+mobile/serve_apk.js
