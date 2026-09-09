@@ -32,7 +32,6 @@ import {
   Wrench,
   Sparkles,
   ArrowRight,
-  ChevronLeft,
   Zap,
 } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
@@ -57,14 +56,12 @@ const SetMpinScreen = ({ navigation, route }) => {
   const { signIn } = useAuth();
 
   const [mpin, setMpin] = useState('');
-  const [confirmMpin, setConfirmMpin] = useState('');
   const [showMpin, setShowMpin] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [focusedSection, setFocusedSection] = useState('mpin');
+  const [isMpinFocused, setIsMpinFocused] = useState(true);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error' });
 
   const mpinInputRef = useRef(null);
-  const confirmInputRef = useRef(null);
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
@@ -84,27 +81,15 @@ const SetMpinScreen = ({ navigation, route }) => {
   const roleMeta = ROLE_META[normalizedRole] || ROLE_META.CUSTOMER;
   const RoleIcon = roleMeta.icon;
 
-  const isMatched = mpin.length === 4 && confirmMpin.length === 4 && mpin === confirmMpin;
-  const isMismatched = confirmMpin.length === 4 && mpin.length === 4 && mpin !== confirmMpin;
-
   const showAlert = (title, message, type = 'error') => {
     setAlertConfig({ visible: true, title, message, type });
   };
 
-  const handleSetMpin = async (pinOverride, confirmOverride) => {
+  const handleSetMpin = async (pinOverride) => {
     const activePin = typeof pinOverride === 'string' ? pinOverride : mpin;
-    const activeConfirm = typeof confirmOverride === 'string' ? confirmOverride : confirmMpin;
 
     if (!activePin || activePin.length !== 4 || !/^\d{4}$/.test(activePin)) {
       showAlert('Invalid MPIN', 'Please enter a valid 4-digit numeric MPIN.');
-      return;
-    }
-    if (!activeConfirm || activeConfirm.length !== 4) {
-      showAlert('Confirm MPIN', 'Please confirm your 4-digit MPIN.');
-      return;
-    }
-    if (activePin !== activeConfirm) {
-      showAlert('Mismatch', 'MPINs do not match. Please re-enter.');
       return;
     }
 
@@ -171,274 +156,186 @@ const SetMpinScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: safeBottomPadding + bottomInset,
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Top Nav Back Button */}
-          <View style={styles.topNavRow}>
-            <TouchableOpacity
-              style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
-              onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login'))}
-              activeOpacity={0.8}
-            >
-              <ChevronLeft size={20} color={textMain} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Header Layout Row: Headline Left, 3D Hero Right */}
-          <View style={styles.headerLayoutRow}>
-            <View style={styles.headerTextCol}>
-              <Text style={[styles.heroHeadline, { color: textMain }]}>
-                Create{'\n'}
-                <Text style={{ color: PURPLE }}>4-Digit MPIN</Text>
-              </Text>
-              <Text style={[styles.heroSub, { color: textSub }]}>
-                Use this secure MPIN to sign in quickly anytime
-              </Text>
-              <View style={styles.safeShieldPill}>
-                <ShieldCheck size={14} color={PURPLE} />
-                <Text style={styles.safeShieldText}>Your data is safe with us</Text>
-              </View>
-            </View>
-            <Image
-              source={require('../../assets/images/hero_mpin.png')}
-              style={styles.heroMpinImg}
-              resizeMode="contain"
-            />
-          </View>
-
-          {/* Floating Form Card */}
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-            {/* User Info Chip */}
-            <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }]}>
-              <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
-                <RoleIcon size={16} color={roleMeta.color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.userName, { color: textMain }]} numberOfLines={1}>
-                  {name || 'User'}
+          <View style={styles.topSection}>
+            {/* Header Layout Row: Headline Left, 3D Hero Right */}
+            <View style={styles.headerLayoutRow}>
+              <View style={styles.headerTextCol}>
+                <Text style={[styles.heroHeadline, { color: textMain }]}>
+                  Create{'\n'}
+                  <Text style={{ color: PURPLE }}>4-Digit MPIN</Text>
                 </Text>
-                <Text style={[styles.userPhone, { color: textSub }]}>
-                  +91 {phone} · {roleMeta.label}
+                <Text style={[styles.heroSub, { color: textSub }]}>
+                  Use this secure MPIN to sign in quickly anytime
                 </Text>
+                <View style={styles.safeShieldPill}>
+                  <ShieldCheck size={14} color={PURPLE} />
+                  <Text style={styles.safeShieldText}>Your data is safe with us</Text>
+                </View>
               </View>
-              <View style={styles.verifiedBadge}>
-                <ShieldCheck size={13} color="#10B981" />
-                <Text style={styles.verifiedText}>Verified</Text>
-              </View>
+              <Image
+                source={require('../../assets/images/hero_mpin.png')}
+                style={styles.heroMpinImg}
+                resizeMode="contain"
+              />
             </View>
 
-            {/* ── NEW 4-DIGIT MPIN SECTION ── */}
-            <View style={styles.fieldHeader}>
-              <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
-              <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.toggleRow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
-                <Text style={[styles.toggleText, { color: PURPLE }]}>{showMpin ? 'Hide PIN' : 'Show PIN'}</Text>
+            {/* Floating Form Card */}
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              {/* User Info Chip */}
+              <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+                <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
+                  <RoleIcon size={16} color={roleMeta.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.userName, { color: textMain }]} numberOfLines={1}>
+                    {name || 'User'}
+                  </Text>
+                  <Text style={[styles.userPhone, { color: textSub }]}>
+                    +91 {phone} · {roleMeta.label}
+                  </Text>
+                </View>
+                <View style={styles.verifiedBadge}>
+                  <ShieldCheck size={13} color="#10B981" />
+                  <Text style={styles.verifiedText}>Verified</Text>
+                </View>
+              </View>
+
+              {/* ── 4-DIGIT MPIN SECTION ── */}
+              <View style={styles.fieldHeader}>
+                <Text style={[styles.fieldLabel, { color: textSub }]}>ENTER 4-DIGIT MPIN</Text>
+                <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.toggleRow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
+                  <Text style={[styles.toggleText, { color: PURPLE }]}>{showMpin ? 'Hide PIN' : 'Show PIN'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Hidden native input for MPIN */}
+              <TextInput
+                ref={mpinInputRef}
+                style={styles.hiddenInput}
+                keyboardType="phone-pad"
+                maxLength={4}
+                editable={!loading}
+                value={mpin}
+                onChangeText={(t) => {
+                  const clean = t.replace(/\D/g, '').slice(0, 4);
+                  setMpin(clean);
+                  if (clean.length === 4) {
+                    Keyboard.dismiss();
+                    handleSetMpin(clean);
+                  }
+                }}
+                onFocus={() => setIsMpinFocused(true)}
+                onBlur={() => setIsMpinFocused(false)}
+                caretHidden
+              />
+
+              {/* Visual 4-box display for MPIN */}
+              <Pressable
+                onPress={() => mpinInputRef.current?.focus()}
+                style={styles.pinRow}
+              >
+                {[0, 1, 2, 3].map((i) => {
+                  const filled = mpin.length > i;
+                  const active = mpin.length === i && isMpinFocused;
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        styles.pinBox,
+                        { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : inputBorder },
+                        active && styles.pinBoxActiveGlow,
+                      ]}
+                    >
+                      {filled ? (
+                        showMpin ? (
+                          <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                        ) : (
+                          <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
+                        )
+                      ) : (
+                        <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
+                      )}
+                    </View>
+                  );
+                })}
+              </Pressable>
+
+              {/* Security hint */}
+              <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }]}>
+                <Text style={styles.hintIcon}>💡</Text>
+                <Text style={[styles.hintText, { color: textSub }]}>
+                  Never share your MPIN. Avoid simple sequences like 1234 or 0000.
+                </Text>
+              </View>
+
+              {/* CTA Button */}
+              <TouchableOpacity
+                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 14 }]}
+                onPress={() => handleSetMpin(mpin)}
+                disabled={mpin.length !== 4 || loading}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={[PURPLE, '#582BE8']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.ctaBtn}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.ctaText}>Complete & Sign In</Text>
+                      <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
+                    </>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
             </View>
-
-            {/* Hidden native input for New MPIN */}
-            <TextInput
-              ref={mpinInputRef}
-              style={styles.hiddenInput}
-              keyboardType="phone-pad"
-              maxLength={4}
-              editable={!loading}
-              value={mpin}
-              onChangeText={(t) => {
-                const clean = t.replace(/\D/g, '').slice(0, 4);
-                setMpin(clean);
-                if (clean.length === 4) {
-                  confirmInputRef.current?.focus();
-                  setFocusedSection('confirm');
-                }
-              }}
-              onFocus={() => {
-                setFocusedSection('mpin');
-                setTimeout(() => scrollRef.current?.scrollTo({ y: 60, animated: true }), 100);
-              }}
-              onBlur={() => { if (focusedSection === 'mpin') setFocusedSection(null); }}
-              caretHidden
-            />
-
-            {/* Visual 4-box display for New MPIN */}
-            <Pressable
-              onPress={() => { mpinInputRef.current?.focus(); setFocusedSection('mpin'); }}
-              style={styles.pinRow}
-            >
-              {[0, 1, 2, 3].map((i) => {
-                const filled = mpin.length > i;
-                const active = mpin.length === i && focusedSection === 'mpin';
-                return (
-                  <View
-                    key={i}
-                    style={[
-                      styles.pinBox,
-                      { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : inputBorder },
-                      active && styles.pinBoxActiveGlow,
-                    ]}
-                  >
-                    {filled ? (
-                      showMpin ? (
-                        <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
-                      ) : (
-                        <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
-                      )
-                    ) : (
-                      <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
-                    )}
-                  </View>
-                );
-              })}
-            </Pressable>
-
-            {/* ── CONFIRM 4-DIGIT MPIN SECTION ── */}
-            <View style={[styles.fieldHeader, { marginTop: 10 }]}>
-              <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM 4-DIGIT MPIN</Text>
-              {isMatched && (
-                <View style={styles.matchTag}>
-                  <CheckCircle2 size={13} color="#10B981" />
-                  <Text style={styles.matchTagText}>Matched</Text>
-                </View>
-              )}
-              {isMismatched && (
-                <View style={styles.mismatchTag}>
-                  <X size={13} color="#EF4444" />
-                  <Text style={styles.mismatchTagText}>Does not match</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Hidden native input for Confirm MPIN */}
-            <TextInput
-              ref={confirmInputRef}
-              style={styles.hiddenInput}
-              keyboardType="phone-pad"
-              maxLength={4}
-              editable={!loading}
-              value={confirmMpin}
-              onChangeText={(t) => {
-                const clean = t.replace(/\D/g, '').slice(0, 4);
-                setConfirmMpin(clean);
-                if (clean.length === 4 && mpin.length === 4 && clean === mpin) {
-                  Keyboard.dismiss();
-                  handleSetMpin(mpin, clean);
-                }
-              }}
-              onFocus={() => {
-                setFocusedSection('confirm');
-                setTimeout(() => scrollRef.current?.scrollTo({ y: 150, animated: true }), 100);
-              }}
-              onBlur={() => { if (focusedSection === 'confirm') setFocusedSection(null); }}
-              caretHidden
-            />
-
-            {/* Visual 4-box display for Confirm MPIN */}
-            <Pressable
-              onPress={() => { confirmInputRef.current?.focus(); setFocusedSection('confirm'); }}
-              style={styles.pinRow}
-            >
-              {[0, 1, 2, 3].map((i) => {
-                const filled = confirmMpin.length > i;
-                const active = confirmMpin.length === i && focusedSection === 'confirm';
-                const isMismatchBox = isMismatched && filled;
-                const isMatchBox = isMatched;
-                return (
-                  <View
-                    key={i}
-                    style={[
-                      styles.pinBox,
-                      {
-                        backgroundColor: inputBg,
-                        borderColor: isMatchBox ? '#10B981' : isMismatchBox ? '#EF4444' : active ? PURPLE : filled ? PURPLE : inputBorder,
-                      },
-                      active && styles.pinBoxActiveGlow,
-                    ]}
-                  >
-                    {filled ? (
-                      showMpin ? (
-                        <Text style={[styles.pinDigit, { color: isMatchBox ? '#10B981' : isMismatchBox ? '#EF4444' : textMain }]}>
-                          {confirmMpin[i]}
-                        </Text>
-                      ) : (
-                        <View style={[styles.pinDot, { backgroundColor: isMatchBox ? '#10B981' : isMismatchBox ? '#EF4444' : PURPLE }]} />
-                      )
-                    ) : (
-                      <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
-                    )}
-                  </View>
-                );
-              })}
-            </Pressable>
-
-            {/* Security hint */}
-            <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }]}>
-              <Text style={styles.hintIcon}>💡</Text>
-              <Text style={[styles.hintText, { color: textSub }]}>
-                Never share your MPIN. Avoid simple sequences like 1234 or 0000.
-              </Text>
-            </View>
-
-            {/* CTA Button */}
-            <TouchableOpacity
-              style={[styles.btnShadow, { opacity: (isMatched && !loading) ? 1 : 0.45, marginTop: 10 }]}
-              onPress={() => handleSetMpin(mpin, confirmMpin)}
-              disabled={!isMatched || loading}
-              activeOpacity={0.88}
-            >
-              <LinearGradient
-                colors={[PURPLE, '#582BE8']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.ctaBtn}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <>
-                    <Text style={styles.ctaText}>Complete & Sign In</Text>
-                    <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
           </View>
 
-          {/* Bottom Trust Bar (3 Badges) */}
-          <View style={styles.trustBarRow}>
-            <View style={styles.trustItem}>
-              <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                <ShieldCheck size={16} color="#10B981" />
+          {/* Bottom Section */}
+          <View style={styles.bottomSection}>
+            {/* Bottom Trust Bar (3 Badges) */}
+            <View style={styles.trustBarRow}>
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                  <ShieldCheck size={16} color="#10B981" />
+                </View>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>Your data, our priority</Text>
+                </View>
               </View>
-              <View>
-                <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
-                <Text style={[styles.trustSub, { color: textSub }]}>Your data, our priority</Text>
+
+              <View style={styles.trustDivider} />
+
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                  <Zap size={16} color="#6C47FF" />
+                </View>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>Quick Access</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>Get things done faster</Text>
+                </View>
               </View>
-            </View>
 
-            <View style={styles.trustDivider} />
+              <View style={styles.trustDivider} />
 
-            <View style={styles.trustItem}>
-              <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                <Zap size={16} color="#6C47FF" />
-              </View>
-              <View>
-                <Text style={[styles.trustTitle, { color: textMain }]}>Quick Access</Text>
-                <Text style={[styles.trustSub, { color: textSub }]}>Get things done faster</Text>
-              </View>
-            </View>
-
-            <View style={styles.trustDivider} />
-
-            <View style={styles.trustItem}>
-              <Text style={{ fontSize: 18 }}>🇮🇳</Text>
-              <View>
-                <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
-                <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
+              <View style={styles.trustItem}>
+                <Text style={{ fontSize: 18 }}>🇮🇳</Text>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
+                </View>
               </View>
             </View>
           </View>
@@ -486,10 +383,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexGrow: 1,
   },
-  topNavRow: {
-    marginTop: 4,
-    marginBottom: 8,
-    paddingHorizontal: 2,
+  topSection: {
+    width: '100%',
+  },
+  bottomSection: {
+    width: '100%',
+    marginTop: 8,
   },
   backBtn: {
     width: 38,

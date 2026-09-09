@@ -33,7 +33,6 @@ import {
   Check,
   ArrowRight,
   Sparkles,
-  ChevronLeft,
   Phone,
   Zap,
 } from 'lucide-react-native';
@@ -218,17 +217,6 @@ const RoleSelection = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Top Bar with Back Button */}
-          <View style={styles.topNavRow}>
-            <TouchableOpacity
-              style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
-              onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Welcome'))}
-              activeOpacity={0.8}
-            >
-              <ChevronLeft size={20} color={textMain} />
-            </TouchableOpacity>
-          </View>
-
           {/* Top Header Row with Left Headline & Right 3D Art */}
           <View style={styles.headerLayoutRow}>
             <View style={styles.headerTextCol}>
@@ -491,48 +479,51 @@ const RoleSelection = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* Trust Bar Row (3 Badges) */}
-          <View style={styles.trustBarRow}>
-            <View style={styles.trustItem}>
-              <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                <ShieldCheck size={16} color="#10B981" />
+          {/* Bottom Section */}
+          <View style={styles.bottomSection}>
+            {/* Trust Bar Row (3 Badges) */}
+            <View style={styles.trustBarRow}>
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                  <ShieldCheck size={16} color="#10B981" />
+                </View>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>Your data is safe</Text>
+                </View>
               </View>
-              <View>
-                <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
-                <Text style={[styles.trustSub, { color: textSub }]}>Your data is safe</Text>
+
+              <View style={styles.trustDivider} />
+
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                  <Zap size={16} color="#6C47FF" />
+                </View>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>Quick & Easy</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>Get started in minutes</Text>
+                </View>
+              </View>
+
+              <View style={styles.trustDivider} />
+
+              <View style={styles.trustItem}>
+                <Text style={{ fontSize: 18 }}>🇮🇳</Text>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
+                </View>
               </View>
             </View>
 
-            <View style={styles.trustDivider} />
-
-            <View style={styles.trustItem}>
-              <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                <Zap size={16} color="#6C47FF" />
-              </View>
-              <View>
-                <Text style={[styles.trustTitle, { color: textMain }]}>Quick & Easy</Text>
-                <Text style={[styles.trustSub, { color: textSub }]}>Get started in minutes</Text>
-              </View>
+            {/* Bottom Road Landscape Illustration */}
+            <View style={styles.footerWrap} pointerEvents="none">
+              <Image
+                source={require('../../assets/images/footer_create_account.png')}
+                style={styles.bottomFooterImg}
+                resizeMode="cover"
+              />
             </View>
-
-            <View style={styles.trustDivider} />
-
-            <View style={styles.trustItem}>
-              <Text style={{ fontSize: 18 }}>🇮🇳</Text>
-              <View>
-                <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
-                <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Bottom Road Landscape Illustration */}
-          <View style={styles.footerWrap} pointerEvents="none">
-            <Image
-              source={require('../../assets/images/footer_create_account.png')}
-              style={styles.bottomFooterImg}
-              resizeMode="cover"
-            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -858,6 +849,10 @@ const styles = StyleSheet.create({
   footerLink: {
     fontWeight: '800',
   },
+  bottomSection: {
+    width: '100%',
+    marginTop: 8,
+  },
   trustBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -896,6 +891,7 @@ const styles = StyleSheet.create({
     height: Math.min(SH * 0.09, 68),
     overflow: 'hidden',
     marginTop: 2,
+    marginHorizontal: -16,
   },
   bottomFooterImg: {
     width: SW,

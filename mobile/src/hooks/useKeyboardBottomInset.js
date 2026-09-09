@@ -36,7 +36,7 @@ export function useKeyboardBottomInset(extraPadding = 24) {
   return {
     keyboardVisible,
     keyboardHeight,
-    bottomInset: keyboardVisible ? keyboardHeight + extraPadding : 0,
+    bottomInset: Platform.OS === 'ios' && keyboardVisible ? keyboardHeight + extraPadding : 0,
   };
 }
 

@@ -451,6 +451,7 @@ const styles = StyleSheet.create({
     height: Math.min(SH * 0.10, 75),
     overflow: 'hidden',
     marginTop: 2,
+    marginHorizontal: -16,
   },
   footerLandscapeImg: {
     width: SW,
