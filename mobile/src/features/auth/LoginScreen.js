@@ -79,6 +79,22 @@ const LoginScreen = ({ navigation, route }) => {
 
   const [loading, setLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const scrollViewRef = useRef(null);
   const phoneInputRef = useRef(null);
@@ -379,7 +395,7 @@ const LoginScreen = ({ navigation, route }) => {
 
   const headerTopPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 8;
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 16) + 16;
-  const styles = createStyles(theme, isDarkMode, headerTopPad, bottomPad);
+  const styles = createStyles(theme, isDarkMode, headerTopPad, bottomPad, keyboardVisible);
 
   const currentRoleMeta = ROLE_META[selectedRole] || ROLE_META.CUSTOMER;
   const RoleIcon = currentRoleMeta.icon;
@@ -433,22 +449,30 @@ const LoginScreen = ({ navigation, route }) => {
         >
           <View style={styles.body}>
 
-            {/* ─── BRAND HERO BADGE & TITLE (Only 1 logo on screen) ─── */}
+            {/* ─── BRAND HERO BADGE & TITLE (Clean, compact, matching WelcomeScreen) ─── */}
             {step === 'PHONE' && (
-              <View style={styles.brandHeroBlock}>
-                <View style={styles.brandLogoCircle}>
-                  <Image
-                    source={require('../../assets/logo.png')}
-                    style={styles.brandLogoImg}
-                    resizeMode="contain"
-                  />
+              <View style={[styles.brandHeroBlock, keyboardVisible && { marginBottom: 8 }]}>
+                <View style={styles.brandLogoRow}>
+                  <View style={styles.brandLogoCircle}>
+                    <Image
+                      source={require('../../assets/logo.png')}
+                      style={styles.brandLogoImg}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <View style={{ marginLeft: 10 }}>
+                    <Text style={[styles.brandWordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                      Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+                    </Text>
+                    <Text style={[styles.brandSubTitle, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                      Anytime. Near You.
+                    </Text>
+                  </View>
                 </View>
-                <Text style={[styles.brandWordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
-                </Text>
+
+                {/* Tagline matching WelcomeScreen */}
                 <View style={[styles.heroPill, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#EDE9FE' }]}>
-                  <Sparkles size={12} color="#6C47FF" style={{ marginRight: 4 }} />
-                  <Text style={styles.heroPillText}>Every Service. Anytime. Near You.</Text>
+                  <Text style={styles.heroPillText}>⚡ Trusted Local Experts & Shops, Right Next Door.</Text>
                 </View>
               </View>
             )}
@@ -483,7 +507,10 @@ const LoginScreen = ({ navigation, route }) => {
                       keyboardType="number-pad"
                       value={phone}
                       onChangeText={handlePhoneChange}
-                      onFocus={() => setFocusedInput('phone')}
+                      onFocus={() => {
+                        setFocusedInput('phone');
+                        scrollToInput(40);
+                      }}
                       onBlur={() => setFocusedInput(null)}
                       returnKeyType="done"
                       onSubmitEditing={() => {
@@ -508,7 +535,7 @@ const LoginScreen = ({ navigation, route }) => {
 
                   {/* Continue Action Button inside card */}
                   <TouchableOpacity
-                    style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.65, marginTop: 16 }]}
+                    style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.65, marginTop: 14 }]}
                     onPress={() => handleCheckNumber()}
                     activeOpacity={0.88}
                     disabled={phone.length !== 10 || loading}
@@ -544,28 +571,30 @@ const LoginScreen = ({ navigation, route }) => {
                   </View>
                 </View>
 
-                {/* Compact Trust Badge (Comfortably fits screen without scrolling) */}
-                <View style={styles.compactTrustRow}>
-                  <View style={styles.compactTrustItem}>
-                    <ShieldCheck size={13} color="#10B981" style={{ marginRight: 4 }} />
-                    <Text style={[styles.compactTrustText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                      100% Encrypted
-                    </Text>
+                {/* Compact Trust Badge (Hidden when keyboard is open to guarantee zero clipping) */}
+                {!keyboardVisible && (
+                  <View style={styles.compactTrustRow}>
+                    <View style={styles.compactTrustItem}>
+                      <ShieldCheck size={13} color="#10B981" style={{ marginRight: 4 }} />
+                      <Text style={[styles.compactTrustText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                        100% Encrypted
+                      </Text>
+                    </View>
+                    <Text style={{ color: isDarkMode ? '#334155' : '#CBD5E1', marginHorizontal: 8 }}>•</Text>
+                    <View style={styles.compactTrustItem}>
+                      <Zap size={13} color="#6C47FF" style={{ marginRight: 4 }} />
+                      <Text style={[styles.compactTrustText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                        Instant MPIN Access
+                      </Text>
+                    </View>
+                    <Text style={{ color: isDarkMode ? '#334155' : '#CBD5E1', marginHorizontal: 8 }}>•</Text>
+                    <View style={styles.compactTrustItem}>
+                      <Text style={[styles.compactTrustText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                        🇮🇳 India
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={{ color: isDarkMode ? '#334155' : '#CBD5E1', marginHorizontal: 8 }}>•</Text>
-                  <View style={styles.compactTrustItem}>
-                    <Zap size={13} color="#6C47FF" style={{ marginRight: 4 }} />
-                    <Text style={[styles.compactTrustText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                      Instant MPIN Access
-                    </Text>
-                  </View>
-                  <Text style={{ color: isDarkMode ? '#334155' : '#CBD5E1', marginHorizontal: 8 }}>•</Text>
-                  <View style={styles.compactTrustItem}>
-                    <Text style={[styles.compactTrustText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                      🇮🇳 India
-                    </Text>
-                  </View>
-                </View>
+                )}
               </View>
             )}
 
@@ -621,24 +650,23 @@ const LoginScreen = ({ navigation, route }) => {
                     <Text style={styles.cardSubtitle}>Enter your 4-digit Security MPIN to access your account</Text>
                   </View>
 
+                  {/* Unified role & phone chip */}
                   <View style={styles.roleBadgeRow}>
                     <View style={[styles.roleBadge, { backgroundColor: currentRoleMeta.bg }]}>
-                      <RoleIcon size={14} color={currentRoleMeta.color} />
+                      <RoleIcon size={13} color={currentRoleMeta.color} />
                       <Text style={[styles.roleBadgeText, { color: currentRoleMeta.color }]}>
                         {currentRoleMeta.label}
                       </Text>
+                      <Text style={{ color: isDarkMode ? '#475569' : '#CBD5E1', marginHorizontal: 4 }}>•</Text>
+                      <Text style={[styles.phonePillText, { color: theme.colors.text }]}>+91 {phone}</Text>
+                      <TouchableOpacity
+                        onPress={() => setStep('PHONE')}
+                        style={{ padding: 2, marginLeft: 2 }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Edit3 size={12} color="#6C47FF" />
+                      </TouchableOpacity>
                     </View>
-                    <TouchableOpacity onPress={() => setStep('PHONE')} style={styles.changePhonePill}>
-                      <Text style={styles.phonePillText}>+91 {phone}</Text>
-                      <Edit3 size={12} color="#6C47FF" style={{ marginLeft: 4 }} />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={[styles.labelRow, { marginTop: 12 }]}>
-                    <Text style={styles.inputLabel}>4-Digit Security MPIN</Text>
-                    <TouchableOpacity onPress={handleInitiateForgotMpin} activeOpacity={0.7}>
-                      <Text style={styles.forgotText}>Forgot MPIN?</Text>
-                    </TouchableOpacity>
                   </View>
 
                   {/* Hidden Real TextInput for robust keyboard handling */}
@@ -649,7 +677,10 @@ const LoginScreen = ({ navigation, route }) => {
                     maxLength={4}
                     value={mpin}
                     onChangeText={handleMpinChange}
-                    onFocus={() => setFocusedInput('mpin')}
+                    onFocus={() => {
+                      setFocusedInput('mpin');
+                      scrollToInput(20);
+                    }}
                     onBlur={() => setFocusedInput(null)}
                     caretHidden={true}
                   />
@@ -686,36 +717,40 @@ const LoginScreen = ({ navigation, route }) => {
                     })}
                   </Animated.View>
 
-                  {/* Eye Toggle & Feedback Row */}
+                  {/* Controls Row: Eye Toggle on Left, Forgot MPIN? on Right */}
                   <View style={styles.pinControlRow}>
                     <TouchableOpacity
                       onPress={() => setShowMpin(!showMpin)}
                       style={styles.eyeTogglePill}
                       activeOpacity={0.7}
                     >
-                      {showMpin ? <EyeOff size={14} color="#6C47FF" /> : <Eye size={14} color="#6C47FF" />}
+                      {showMpin ? <EyeOff size={13} color="#6C47FF" /> : <Eye size={13} color="#6C47FF" />}
                       <Text style={styles.eyeTogglePillText}>{showMpin ? 'Hide MPIN' : 'Show MPIN'}</Text>
                     </TouchableOpacity>
 
-                    {loading && (
+                    {loading ? (
                       <View style={styles.autoVerifyingPill}>
                         <ActivityIndicator size="small" color="#6C47FF" style={{ marginRight: 6 }} />
-                        <Text style={styles.autoVerifyingText}>Verifying MPIN...</Text>
+                        <Text style={styles.autoVerifyingText}>Verifying...</Text>
                       </View>
+                    ) : (
+                      <TouchableOpacity onPress={handleInitiateForgotMpin} activeOpacity={0.7} style={{ paddingVertical: 4 }}>
+                        <Text style={styles.forgotText}>Forgot MPIN?</Text>
+                      </TouchableOpacity>
                     )}
                   </View>
 
                   {/* Inline Error Display (Clear, High Contrast) */}
                   {Boolean(mpinError) && (
                     <View style={styles.inlineErrorBox}>
-                      <AlertCircle size={16} color="#EF4444" style={{ marginRight: 6 }} />
+                      <AlertCircle size={15} color="#EF4444" style={{ marginRight: 6 }} />
                       <Text style={styles.inlineErrorText}>{mpinError}</Text>
                     </View>
                   )}
 
                   {/* Sign In Button */}
                   <TouchableOpacity
-                    style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.65, marginTop: 18 }]}
+                    style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.65, marginTop: 12 }]}
                     onPress={() => handleMpinSubmit(mpin)}
                     activeOpacity={0.88}
                     disabled={mpin.length !== 4 || loading}
@@ -743,33 +778,36 @@ const LoginScreen = ({ navigation, route }) => {
                       onPress={handleDirectOtpLogin}
                       activeOpacity={0.7}
                     >
-                      <MessageSquare size={16} color="#6C47FF" style={{ marginRight: 6 }} />
+                      <MessageSquare size={15} color="#6C47FF" style={{ marginRight: 5 }} />
                       <Text style={styles.otpSwitchText}>
                         Sign in with <Text style={{ color: '#6C47FF', fontWeight: '800' }}>OTP instead</Text>
                       </Text>
                     </TouchableOpacity>
-                  </View>
 
-                  <TouchableOpacity
-                    style={styles.switchNumberBtn}
-                    onPress={() => {
-                      setMpin('');
-                      setMpinError('');
-                      setStep('PHONE');
-                    }}
-                  >
-                    <Text style={styles.switchNumberText}>Switch mobile number</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Trust Footer */}
-                <View style={styles.trustSection}>
-                  <View style={styles.trustFooter}>
-                    <Text style={[styles.trustFooterText, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
-                      Protected with bank-grade 256-bit encryption 🔒
-                    </Text>
+                    <TouchableOpacity
+                      style={[styles.switchNumberBtn, { marginTop: 4 }]}
+                      onPress={() => {
+                        setMpin('');
+                        setMpinError('');
+                        setStep('PHONE');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.switchNumberText}>Switch mobile number</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
+
+                {/* Trust Footer (Hidden when typing) */}
+                {!keyboardVisible && (
+                  <View style={styles.trustSection}>
+                    <View style={styles.trustFooter}>
+                      <Text style={[styles.trustFooterText, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
+                        Protected with bank-grade 256-bit encryption 🔒
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
             )}
 
@@ -931,7 +969,7 @@ const LoginScreen = ({ navigation, route }) => {
   );
 };
 
-const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32, keyboardVisible = false) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -970,50 +1008,61 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingBottom: bottomPad,
+    paddingTop: 6,
+    paddingBottom: keyboardVisible ? (Platform.OS === 'android' ? 140 : 120) : bottomPad,
   },
   body: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 4,
     width: '100%',
   },
   brandHeroBlock: {
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 10,
+    marginTop: 2,
+  },
+  brandLogoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 5,
   },
   brandLogoCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 13,
     backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
     borderWidth: 1,
     borderColor: '#1E293B',
-    marginBottom: 8,
   },
   brandLogoImg: {
-    width: 42,
-    height: 42,
+    width: 30,
+    height: 30,
   },
   brandWordmark: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
+  },
+  brandSubTitle: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    marginTop: 1,
   },
   heroPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 16,
-    marginTop: 4,
+    borderRadius: 14,
   },
   heroPillText: {
     fontSize: 11.5,
@@ -1027,9 +1076,9 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
     borderWidth: 1,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 10,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 8,
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -1037,20 +1086,20 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     elevation: 3,
   },
   cardHeaderRow: {
-    marginBottom: 14,
+    marginBottom: 10,
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '900',
     color: theme.colors.text,
     letterSpacing: -0.3,
   },
   cardSubtitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: theme.colors.textDim,
     fontWeight: '500',
     marginTop: 2,
-    lineHeight: 18,
+    lineHeight: 17,
   },
   titleContainer: {
     marginBottom: 18,
@@ -1071,19 +1120,17 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   roleBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
   roleBadgeText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
@@ -1097,8 +1144,7 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   },
   phonePillText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: theme.colors.text,
+    fontWeight: '700',
   },
   inputLabel: {
     fontSize: 13,
@@ -1114,7 +1160,7 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     marginBottom: 10,
   },
   forgotText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#6C47FF',
   },
@@ -1125,8 +1171,8 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     borderWidth: 1.5,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 56,
+    paddingHorizontal: 12,
+    height: 50,
   },
   inputFocused: {
     borderColor: '#6C47FF',
@@ -1168,10 +1214,10 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   helperRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 6,
   },
   helperText: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: theme.colors.textDim,
     fontWeight: '500',
   },
@@ -1184,13 +1230,13 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   pinBoxesRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 10,
-    gap: 12,
+    marginVertical: 8,
+    gap: 10,
   },
   pinBox: {
     flex: 1,
-    height: 60,
-    borderRadius: 16,
+    height: 50,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
@@ -1215,19 +1261,19 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.08)' : '#FEF2F2',
   },
   pinDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#6C47FF',
   },
   pinEmptyDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: isDarkMode ? '#334155' : '#CBD5E1',
   },
   pinDigitText: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
     color: theme.colors.text,
   },
@@ -1235,19 +1281,19 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 8,
   },
   eyeTogglePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.12)' : '#F5F3FF',
   },
   eyeTogglePillText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#6C47FF',
   },
@@ -1269,7 +1315,7 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    marginTop: 14,
+    marginTop: 10,
   },
   inlineErrorText: {
     fontSize: 12.5,
@@ -1279,15 +1325,15 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   },
   btnShadow: {
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
-    borderRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    borderRadius: 14,
   },
   btnGradient: {
-    borderRadius: 16,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingVertical: 13,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1295,7 +1341,7 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   btnText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 16,
+    fontSize: 15,
     letterSpacing: 0.3,
   },
   bottomLinkContainer: {

@@ -19,7 +19,6 @@ import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
 import { User, Wrench, Store, CheckCircle2, ChevronLeft, MessageSquare, Smartphone, ShieldCheck, X } from 'lucide-react-native';
 import api, { getApiErrorMessage } from '../../services/api';
-import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const ROLE_OPTIONS = [
   { id: 'CUSTOMER', label: 'Customer', icon: User, desc: 'Book on-demand services' },
@@ -175,9 +174,7 @@ const RoleSelection = ({ navigation, route }) => {
 
           <Text style={styles.headerTitle}>Create Account</Text>
 
-          <View style={styles.headerRight}>
-            <KwicklyIcon size={28} />
-          </View>
+          <View style={styles.headerRight} />
         </View>
 
         {/* Step Indicator */}
@@ -458,12 +455,6 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   headerRight: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: '#0F172A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1E293B',
   },
   stepDots: {
     flexDirection: 'row',
