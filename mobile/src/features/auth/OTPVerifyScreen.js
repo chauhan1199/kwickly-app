@@ -88,7 +88,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
 
   const handleVerify = async (explicitCode = null) => {
     if (loading || sending) return;
-    const codeArr = explicitCode ? explicitCode.split('') : code;
+    const codeArr = (typeof explicitCode === 'string' && explicitCode.length === 4) ? explicitCode.split('') : code;
     const validation = validateOtpForSubmit(codeArr);
     if (!validation.valid) { showAlert('Invalid Code', validation.message); return; }
     const otpCode = validation.code;

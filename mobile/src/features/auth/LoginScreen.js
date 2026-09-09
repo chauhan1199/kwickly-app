@@ -12,7 +12,6 @@ import {
   Keyboard,
   Animated,
   Pressable,
-  ScrollView,
   Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -597,11 +596,7 @@ const LoginScreen = ({ navigation, route }) => {
         <Text style={styles.heroSub}>Enter the OTP sent to +91 {phone}</Text>
       </LinearGradient>
 
-      <ScrollView
-        style={{ flex: 1, backgroundColor: cardBg }}
-        contentContainerStyle={{ padding: 20, paddingBottom: bottomPad + 24 }}
-        keyboardShouldPersistTaps="handled"
-      >
+      <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 16 }]}>
         {/* OTP */}
         <Text style={[styles.label, { color: textSub }]}>Verification OTP</Text>
         <View style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : border, marginBottom: 14 }, focusedInput === 'resetOtp' && styles.inputFocusShadow]}>
@@ -679,7 +674,7 @@ const LoginScreen = ({ navigation, route }) => {
         <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('MPIN')}>
           <Text style={styles.footerLink}>Back to MPIN sign in</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
       {alertEl}
     </KeyboardAvoidingView>
   );

@@ -113,13 +113,21 @@ const RoleSelection = ({ navigation, route }) => {
       try {
         const statusRes = await api.post('/auth/check-status', { phone: phoneNumber, role: selectedRole });
         const statusData = statusRes.data?.data || {};
-        // If account exists with MPIN → redirect to login
+        // If account exists with MPIN → notify and redirect to login
         if (statusData.exists && (statusData.hasMpin || statusData.hasPassword)) {
-          navigation.navigate('Login', {
-            prefillPhone: phoneNumber,
-            role: selectedRole,
-            defaultMode: 'MPIN',
-          });
+          setLoading(false);
+          showAlert(
+            'Account Already Exists',
+            `An account with mobile number +91 ${phoneNumber} is already registered. Please sign in with your MPIN.`,
+            'info',
+            () => {
+              navigation.navigate('Login', {
+                prefillPhone: phoneNumber,
+                role: selectedRole,
+                defaultMode: 'MPIN',
+              });
+            }
+          );
           return;
         }
         existingAccount = !!statusData.exists;
@@ -133,7 +141,6 @@ const RoleSelection = ({ navigation, route }) => {
         phone: phoneNumber,
         role: selectedRole,
         method: otpMethod,
-        name: fullName.trim(),
       });
 
       // Step 3: Navigate to OTP verify
