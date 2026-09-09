@@ -8,7 +8,6 @@ import {
   StatusBar,
   Image,
   Platform,
-  ScrollView,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,10 +25,10 @@ import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
-// Adaptive sizing for 3-column hero zone (Reference 3)
-const HERO_H = Math.min(Math.max(SH * 0.29, 210), 250);
-const CHIP_W = Math.min(Math.max(SW * 0.20, 72), 85);
-const CHIP_H = (HERO_H - 14) / 3;
+// Adaptive sizing for 3-column hero zone (Reference 3) to fit 100% within viewport without scrolling
+const HERO_H = Math.min(Math.max(SH * 0.22, 175), 205);
+const CHIP_W = Math.min(Math.max(SW * 0.20, 68), 82);
+const CHIP_H = (HERO_H - 10) / 3;
 
 const FEATURES = [
   { icon: ShieldCheck, label: 'Trusted\nPros', color: '#10B981', bg: '#ECFDF5' },
@@ -49,8 +48,8 @@ const WelcomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 8;
-  const safeBottomPadding = Math.max(insets.bottom, 10);
+  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
+  const safeBottomPadding = Math.max(insets.bottom, 6);
 
   return (
     <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
@@ -79,20 +78,19 @@ const WelcomeScreen = ({ navigation }) => {
         <LinearGradient colors={['#3B82F6', '#6C47FF']} style={StyleSheet.absoluteFill} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
+      {/* Fixed Non-Scrollable Viewport Container */}
+      <View
+        style={[
+          styles.mainContent,
           {
             paddingTop: safeTopPadding,
             paddingBottom: safeBottomPadding,
           },
         ]}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
       >
         {/* TOP BRAND LOGO ROW */}
         <View style={styles.logoRow}>
-          <KwicklyIcon size={36} />
+          <KwicklyIcon size={32} />
           <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
             KWICKLY
           </Text>
@@ -176,7 +174,7 @@ const WelcomeScreen = ({ navigation }) => {
                     },
                   ]}
                 >
-                  <Icon size={16} color={f.color} />
+                  <Icon size={14} color={f.color} />
                 </View>
                 <Text style={[styles.featLbl, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
                   {f.label}
@@ -201,7 +199,7 @@ const WelcomeScreen = ({ navigation }) => {
                   },
                 ]}
               >
-                <Icon size={18} color={s.text} style={{ marginBottom: 4 }} />
+                <Icon size={16} color={s.text} style={{ marginBottom: 2 }} />
                 <Text style={[styles.statVal, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
                   {s.value}
                 </Text>
@@ -243,13 +241,14 @@ const WelcomeScreen = ({ navigation }) => {
         </View>
 
         {/* Bottom Road Landscape Illustration */}
-        <Image
-          source={require('../../assets/images/footer_landscape.png')}
-          style={styles.footerLandscapeImg}
-          resizeMode="cover"
-          pointerEvents="none"
-        />
-      </ScrollView>
+        <View style={styles.footerWrap} pointerEvents="none">
+          <Image
+            source={require('../../assets/images/footer_landscape.png')}
+            style={styles.footerLandscapeImg}
+            resizeMode="cover"
+          />
+        </View>
+      </View>
     </View>
   );
 };
@@ -279,8 +278,8 @@ const styles = StyleSheet.create({
     opacity: 0.13,
     overflow: 'hidden',
   },
-  scrollContent: {
-    flexGrow: 1,
+  mainContent: {
+    flex: 1,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -290,43 +289,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 4,
-    marginBottom: 6,
+    marginTop: 2,
+    marginBottom: 4,
   },
   wordmark: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
     letterSpacing: 1.5,
   },
   headBlock: {
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 4,
   },
   hl: {
-    fontSize: Math.min(SW * 0.058, 23),
+    fontSize: Math.min(SW * 0.052, 20),
     fontWeight: '900',
     textAlign: 'center',
     letterSpacing: -0.4,
   },
   hlSub: {
-    fontSize: Math.min(SW * 0.054, 21),
+    fontSize: Math.min(SW * 0.048, 18),
     fontWeight: '900',
     textAlign: 'center',
-    marginTop: 2,
+    marginTop: 1,
     letterSpacing: -0.3,
   },
   hlDesc: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '500',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 2,
   },
   heroRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginVertical: 6,
+    marginVertical: 4,
   },
   chipsCol: {
     width: CHIP_W,
@@ -337,22 +336,22 @@ const styles = StyleSheet.create({
   },
   chipImg: {
     width: CHIP_W,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   heroCenterCard: {
     flex: 1,
     height: '100%',
     marginHorizontal: 8,
-    borderRadius: 22,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
     overflow: 'hidden',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
   heroCenterImg: {
     width: '100%',
@@ -362,49 +361,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
-    marginVertical: 8,
+    marginVertical: 4,
     paddingHorizontal: 4,
   },
   featItem: {
     alignItems: 'center',
-    gap: 3,
+    gap: 2,
   },
   featCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
   },
   featLbl: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 13,
+    lineHeight: 12,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
     gap: 8,
-    marginVertical: 8,
+    marginVertical: 4,
   },
   statCard: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 6,
     paddingHorizontal: 6,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1.5,
   },
   statVal: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
     letterSpacing: -0.3,
   },
   statLbl: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '600',
     marginTop: 1,
     textAlign: 'center',
@@ -412,45 +411,50 @@ const styles = StyleSheet.create({
   ctaBlock: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 6,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 2,
   },
   btnShadow: {
     width: '100%',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.32,
+    shadowRadius: 12,
+    elevation: 5,
   },
   btnGradient: {
-    height: 52,
-    borderRadius: 16,
+    height: 48,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnTxt: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },
   signInBtn: {
-    marginTop: 10,
-    paddingVertical: 4,
+    marginTop: 6,
+    paddingVertical: 3,
   },
   signInPrompt: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
   },
   signInHighlight: {
     color: '#6C47FF',
     fontWeight: '800',
   },
+  footerWrap: {
+    width: SW,
+    height: Math.min(SH * 0.10, 75),
+    overflow: 'hidden',
+    marginTop: 2,
+  },
   footerLandscapeImg: {
     width: SW,
-    height: 115,
-    marginTop: 6,
+    height: '100%',
   },
 });
 

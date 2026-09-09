@@ -161,8 +161,8 @@ const RoleSelection = ({ navigation, route }) => {
   };
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 12;
-  const safeBottomPadding = Math.max(insets.bottom, 16);
+  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
+  const safeBottomPadding = Math.max(insets.bottom, 6);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -211,7 +211,7 @@ const RoleSelection = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: safeBottomPadding + bottomInset,
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -289,7 +289,7 @@ const RoleSelection = ({ navigation, route }) => {
             </View>
 
             {/* Full Name Field */}
-            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 14 }]}>Full Name</Text>
+            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 8 }]}>Full Name</Text>
             <TouchableOpacity
               activeOpacity={1}
               onPress={() => nameInputRef.current?.focus()}
@@ -302,7 +302,7 @@ const RoleSelection = ({ navigation, route }) => {
                 focusedInput === 'name' && styles.inputFocusGlow,
               ]}
             >
-              <User size={18} color={focusedInput === 'name' ? PURPLE : textSub} style={{ marginRight: 8 }} />
+              <User size={17} color={focusedInput === 'name' ? PURPLE : textSub} style={{ marginRight: 8 }} />
               <TextInput
                 ref={nameInputRef}
                 style={[styles.inputText, { color: textMain }]}
@@ -314,7 +314,7 @@ const RoleSelection = ({ navigation, route }) => {
                 onChangeText={setFullName}
                 onFocus={() => {
                   setFocusedInput('name');
-                  setTimeout(() => scrollRef.current?.scrollTo({ y: 90, animated: true }), 100);
+                  setTimeout(() => scrollRef.current?.scrollTo({ y: 70, animated: true }), 100);
                 }}
                 onBlur={() => setFocusedInput(null)}
                 returnKeyType="next"
@@ -324,7 +324,7 @@ const RoleSelection = ({ navigation, route }) => {
             </TouchableOpacity>
 
             {/* Mobile Number Field */}
-            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 14 }]}>Mobile Number</Text>
+            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 8 }]}>Mobile Number</Text>
             <TouchableOpacity
               activeOpacity={1}
               onPress={() => phoneInputRef.current?.focus()}
@@ -337,7 +337,7 @@ const RoleSelection = ({ navigation, route }) => {
                 focusedInput === 'phone' && styles.inputFocusGlow,
               ]}
             >
-              <Phone size={17} color={focusedInput === 'phone' ? PURPLE : textSub} style={{ marginRight: 8 }} />
+              <Phone size={16} color={focusedInput === 'phone' ? PURPLE : textSub} style={{ marginRight: 8 }} />
               <View pointerEvents="none" style={styles.prefixWrapper}>
                 <Text style={[styles.flagText]}>🇮🇳</Text>
                 <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
@@ -360,7 +360,7 @@ const RoleSelection = ({ navigation, route }) => {
                 }}
                 onFocus={() => {
                   setFocusedInput('phone');
-                  setTimeout(() => scrollRef.current?.scrollTo({ y: 160, animated: true }), 100);
+                  setTimeout(() => scrollRef.current?.scrollTo({ y: 130, animated: true }), 100);
                 }}
                 onBlur={() => setFocusedInput(null)}
                 returnKeyType="done"
@@ -376,7 +376,7 @@ const RoleSelection = ({ navigation, route }) => {
             </TouchableOpacity>
 
             {/* OTP Delivery Method Selection */}
-            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 14 }]}>Receive OTP Via</Text>
+            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 8 }]}>Receive OTP Via</Text>
             <View style={styles.methodRow}>
               <TouchableOpacity
                 style={[
@@ -459,7 +459,7 @@ const RoleSelection = ({ navigation, route }) => {
               onPress={handlePhoneSubmit}
               disabled={!canSubmit}
               activeOpacity={0.88}
-              style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: 18 }]}
+              style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: 10 }]}
             >
               <LinearGradient
                 colors={[PURPLE, '#582BE8']}
@@ -472,7 +472,7 @@ const RoleSelection = ({ navigation, route }) => {
                 ) : (
                   <>
                     <Text style={styles.ctaText}>Send OTP</Text>
-                    <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                    <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
                   </>
                 )}
               </LinearGradient>
@@ -525,16 +525,17 @@ const RoleSelection = ({ navigation, route }) => {
               </View>
             </View>
           </View>
+
+          {/* Bottom Road Landscape Illustration */}
+          <View style={styles.footerWrap} pointerEvents="none">
+            <Image
+              source={require('../../assets/images/footer_create_account.png')}
+              style={styles.bottomFooterImg}
+              resizeMode="cover"
+            />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Bottom Road Landscape Illustration */}
-      <Image
-        source={require('../../assets/images/footer_create_account.png')}
-        style={styles.bottomFooterImg}
-        resizeMode="cover"
-        pointerEvents="none"
-      />
 
       <CustomAlert
         visible={alertConfig.visible}
@@ -608,84 +609,84 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   topNavRow: {
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 2,
+    marginBottom: 4,
     paddingHorizontal: 2,
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
     elevation: 2,
   },
   headerLayoutRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 6,
   },
   headerTextCol: {
     flex: 1,
-    paddingRight: 8,
+    paddingRight: 6,
   },
   scriptBadge: {
-    fontSize: 13,
+    fontSize: 11.5,
     fontWeight: '800',
     color: '#6C47FF',
     fontStyle: 'italic',
     transform: [{ rotate: '-4deg' }],
-    marginBottom: 4,
+    marginBottom: 1,
   },
   headerHeroImg: {
-    width: SW * 0.40,
-    height: 120,
+    width: SW * 0.32,
+    height: 75,
   },
   title: {
-    fontSize: 26,
+    fontSize: 21,
     fontWeight: '900',
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
     textAlign: 'left',
   },
   subtitle: {
-    fontSize: 12.5,
+    fontSize: 11,
     fontWeight: '500',
     textAlign: 'left',
-    marginTop: 4,
-    lineHeight: 17,
+    marginTop: 1,
+    lineHeight: 15,
   },
   card: {
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1.5,
-    paddingHorizontal: 20,
-    paddingVertical: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
-    shadowRadius: 18,
+    shadowRadius: 14,
     elevation: 4,
   },
   fieldLabel: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.7,
-    marginBottom: 8,
+    letterSpacing: 0.6,
+    marginBottom: 5,
   },
   roleTabsContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   roleCard: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 14,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    borderRadius: 12,
     borderWidth: 1.5,
     position: 'relative',
   },
@@ -694,32 +695,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   roleCheckBadge: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: '#6C47FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   roleCardLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
   roleCardSub: {
-    fontSize: 9.5,
+    fontSize: 8.5,
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: 1,
   },
   inputContainer: {
-    height: 52,
-    borderRadius: 14,
+    height: 44,
+    borderRadius: 12,
     borderWidth: 1.5,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
   },
   inputFocusGlow: {
     shadowColor: '#6C47FF',
@@ -730,97 +731,97 @@ const styles = StyleSheet.create({
   },
   inputText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     paddingVertical: 0,
   },
   prefixWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 6,
   },
   flagText: {
-    fontSize: 16,
-    marginRight: 4,
+    fontSize: 15,
+    marginRight: 3,
   },
   prefixNumber: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    marginRight: 8,
+    marginRight: 6,
   },
   prefixDivider: {
     width: 1,
-    height: 22,
+    height: 18,
     marginRight: 4,
   },
   methodRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
   methodCard: {
     flex: 1,
-    height: 50,
-    borderRadius: 12,
+    height: 44,
+    borderRadius: 10,
     borderWidth: 1.5,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
   },
   methodIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
   },
   methodTitle: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
   },
   methodSub: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontWeight: '500',
     marginTop: 1,
   },
   checkCircle: {
-    width: 16,
-    height: 16,
+    width: 15,
+    height: 15,
     borderRadius: 8,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   radioCircle: {
-    width: 16,
-    height: 16,
+    width: 15,
+    height: 15,
     borderRadius: 8,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   radioDot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
   },
   termsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 14,
-    gap: 10,
+    marginTop: 8,
+    gap: 8,
   },
   checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
+    width: 16,
+    height: 16,
+    borderRadius: 4,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   termsText: {
     flex: 1,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 15,
   },
   termsLink: {
     fontWeight: '700',
@@ -828,30 +829,30 @@ const styles = StyleSheet.create({
   btnShadow: {
     width: '100%',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
+    elevation: 5,
   },
   ctaBtn: {
-    height: 52,
-    borderRadius: 16,
+    height: 46,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   ctaText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.2,
   },
   footerRow: {
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 8,
   },
   footerText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   footerLink: {
@@ -861,39 +862,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 18,
-    marginBottom: 6,
+    marginTop: 8,
+    marginBottom: 2,
     paddingHorizontal: 4,
   },
   trustItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   trustIconWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   trustTitle: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
   },
   trustSub: {
-    fontSize: 8.5,
+    fontSize: 8,
     fontWeight: '500',
   },
   trustDivider: {
     width: 1,
-    height: 22,
+    height: 18,
     backgroundColor: 'rgba(150, 150, 150, 0.25)',
+  },
+  footerWrap: {
+    width: SW,
+    height: Math.min(SH * 0.09, 68),
+    overflow: 'hidden',
+    marginTop: 2,
   },
   bottomFooterImg: {
     width: SW,
-    height: 120,
-    marginTop: 4,
+    height: '100%',
   },
   modalHeader: {
     flexDirection: 'row',

@@ -77,8 +77,8 @@ const SetMpinScreen = ({ navigation, route }) => {
   }, []);
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 14;
-  const safeBottomPadding = Math.max(insets.bottom, 16);
+  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
+  const safeBottomPadding = Math.max(insets.bottom, 8);
 
   const normalizedRole = (role || 'CUSTOMER').toUpperCase();
   const roleMeta = ROLE_META[normalizedRole] || ROLE_META.CUSTOMER;
@@ -297,7 +297,7 @@ const SetMpinScreen = ({ navigation, route }) => {
             </Pressable>
 
             {/* ── CONFIRM 4-DIGIT MPIN SECTION ── */}
-            <View style={[styles.fieldHeader, { marginTop: 18 }]}>
+            <View style={[styles.fieldHeader, { marginTop: 10 }]}>
               <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM 4-DIGIT MPIN</Text>
               {isMatched && (
                 <View style={styles.matchTag}>
@@ -331,7 +331,7 @@ const SetMpinScreen = ({ navigation, route }) => {
               }}
               onFocus={() => {
                 setFocusedSection('confirm');
-                setTimeout(() => scrollRef.current?.scrollTo({ y: 170, animated: true }), 100);
+                setTimeout(() => scrollRef.current?.scrollTo({ y: 150, animated: true }), 100);
               }}
               onBlur={() => { if (focusedSection === 'confirm') setFocusedSection(null); }}
               caretHidden
@@ -385,7 +385,7 @@ const SetMpinScreen = ({ navigation, route }) => {
 
             {/* CTA Button */}
             <TouchableOpacity
-              style={[styles.btnShadow, { opacity: (isMatched && !loading) ? 1 : 0.45, marginTop: 18 }]}
+              style={[styles.btnShadow, { opacity: (isMatched && !loading) ? 1 : 0.45, marginTop: 10 }]}
               onPress={() => handleSetMpin(mpin, confirmMpin)}
               disabled={!isMatched || loading}
               activeOpacity={0.88}
@@ -401,7 +401,7 @@ const SetMpinScreen = ({ navigation, route }) => {
                 ) : (
                   <>
                     <Text style={styles.ctaText}>Complete & Sign In</Text>
-                    <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                    <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
                   </>
                 )}
               </LinearGradient>
@@ -508,27 +508,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 6,
   },
   headerTextCol: {
     flex: 1,
-    paddingRight: 8,
+    paddingRight: 6,
   },
   heroHeadline: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '900',
-    letterSpacing: -0.5,
-    lineHeight: 34,
+    letterSpacing: -0.4,
+    lineHeight: 26,
   },
   heroSub: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
-    marginTop: 4,
-    lineHeight: 16,
+    marginTop: 2,
+    lineHeight: 14,
   },
   heroMpinImg: {
-    width: SW * 0.44,
-    height: 135,
+    width: SW * 0.35,
+    height: 85,
   },
   safeShieldPill: {
     flexDirection: 'row',
@@ -536,84 +536,84 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F3FF',
     borderRadius: 12,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginTop: 8,
+    paddingVertical: 4,
+    marginTop: 6,
     gap: 5,
     alignSelf: 'flex-start',
   },
   safeShieldText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#6C47FF',
   },
   card: {
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1.5,
-    paddingHorizontal: 20,
-    paddingVertical: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
-    shadowRadius: 18,
+    shadowRadius: 14,
     elevation: 4,
   },
   userChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 14,
+    padding: 8,
+    borderRadius: 12,
     borderWidth: 1.5,
-    marginBottom: 16,
-    gap: 10,
+    marginBottom: 10,
+    gap: 8,
   },
   roleIconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   userName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
   },
   userPhone: {
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 11.5,
+    marginTop: 1,
     fontWeight: '500',
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   verifiedText: {
     color: '#059669',
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
   },
   fieldHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   fieldLabel: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.7,
+    letterSpacing: 0.6,
   },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
   },
   toggleText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
   },
   hiddenInput: {
@@ -625,36 +625,36 @@ const styles = StyleSheet.create({
   pinRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
+    gap: 10,
   },
   pinBox: {
-    width: Math.min(SW * 0.15, 62),
-    height: Math.min(SW * 0.16, 64),
-    borderRadius: 16,
+    width: Math.min(SW * 0.13, 52),
+    height: Math.min(SW * 0.13, 52),
+    borderRadius: 14,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pinBoxActiveGlow: {
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
     elevation: 3,
   },
   pinDigit: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
   },
   pinDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
   pinEmptyDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   matchTag: {
     flexDirection: 'row',
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
   },
   matchTagText: {
     color: '#10B981',
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
   },
   mismatchTag: {
@@ -673,43 +673,43 @@ const styles = StyleSheet.create({
   },
   mismatchTagText: {
     color: '#EF4444',
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
   },
   hintBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
+    padding: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    marginTop: 18,
-    gap: 8,
+    marginTop: 10,
+    gap: 6,
   },
   hintIcon: {
-    fontSize: 16,
+    fontSize: 15,
   },
   hintText: {
     flex: 1,
-    fontSize: 11.5,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 15,
   },
   btnShadow: {
     width: '100%',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
+    elevation: 5,
   },
   ctaBtn: {
-    height: 52,
-    borderRadius: 16,
+    height: 46,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   ctaText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.2,
@@ -718,24 +718,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 22,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 4,
     paddingHorizontal: 4,
   },
   trustItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   trustIconWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   trustTitle: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
   },
   trustSub: {

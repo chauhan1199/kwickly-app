@@ -301,8 +301,8 @@ const LoginScreen = ({ navigation, route }) => {
   };
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 14;
-  const safeBottomPadding = Math.max(insets.bottom, 16);
+  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
+  const safeBottomPadding = Math.max(insets.bottom, 6);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -533,16 +533,17 @@ const LoginScreen = ({ navigation, route }) => {
                 </View>
               </View>
             </View>
+
+            {/* Bottom Road Landscape Illustration */}
+            <View style={styles.footerWrap} pointerEvents="none">
+              <Image
+                source={require('../../assets/images/footer_login.png')}
+                style={styles.bottomFooterImg}
+                resizeMode="cover"
+              />
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
-
-        {/* Bottom Road Landscape Illustration */}
-        <Image
-          source={require('../../assets/images/footer_login.png')}
-          style={styles.bottomFooterImg}
-          resizeMode="cover"
-          pointerEvents="none"
-        />
         {alertEl}
       </View>
     );
@@ -871,6 +872,15 @@ const LoginScreen = ({ navigation, route }) => {
                 </View>
               </View>
             </View>
+
+            {/* Bottom Road Landscape Illustration */}
+            <View style={styles.footerWrap} pointerEvents="none">
+              <Image
+                source={require('../../assets/images/footer_login.png')}
+                style={styles.bottomFooterImg}
+                resizeMode="cover"
+              />
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
         {alertEl}
@@ -1075,31 +1085,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 6,
   },
   headerTextCol: {
     flex: 1,
-    paddingRight: 8,
+    paddingRight: 6,
   },
   heroHeadline: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '900',
-    letterSpacing: -0.5,
-    lineHeight: 34,
+    letterSpacing: -0.4,
+    lineHeight: 26,
   },
   heroSub: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
-    marginTop: 4,
-    lineHeight: 16,
+    marginTop: 2,
+    lineHeight: 14,
   },
   heroLoginImg: {
-    width: SW * 0.44,
-    height: 135,
+    width: SW * 0.35,
+    height: 85,
   },
   heroMpinImg: {
-    width: SW * 0.44,
-    height: 135,
+    width: SW * 0.35,
+    height: 85,
   },
   safeShieldPill: {
     flexDirection: 'row',
@@ -1107,29 +1117,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F3FF',
     borderRadius: 12,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginTop: 8,
+    paddingVertical: 4,
+    marginTop: 6,
     gap: 5,
     alignSelf: 'flex-start',
   },
   safeShieldText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#6C47FF',
   },
   headerBlock: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    marginBottom: 8,
+    gap: 8,
+    marginBottom: 6,
   },
   wordmark: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
     letterSpacing: -0.5,
   },
@@ -1137,64 +1147,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 16,
     borderWidth: 1,
-    marginBottom: 10,
+    marginBottom: 6,
   },
   pillText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
   title: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '900',
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 11.5,
     fontWeight: '500',
     textAlign: 'center',
-    marginTop: 3,
+    marginTop: 2,
   },
   profilePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
     borderWidth: 1,
-    marginTop: 8,
+    marginTop: 6,
     gap: 5,
   },
   profilePillText: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '700',
   },
   card: {
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1.5,
-    paddingHorizontal: 20,
-    paddingVertical: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
-    shadowRadius: 18,
+    shadowRadius: 14,
     elevation: 4,
   },
   cardTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '900',
     letterSpacing: -0.4,
     marginBottom: 2,
   },
   cardSub: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '500',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   cardHeading: {
     fontSize: 18,
@@ -1418,8 +1428,13 @@ const styles = StyleSheet.create({
   },
   bottomFooterImg: {
     width: SW,
-    height: 125,
-    marginTop: 4,
+    height: '100%',
+  },
+  footerWrap: {
+    width: SW,
+    height: Math.min(SH * 0.09, 68),
+    overflow: 'hidden',
+    marginTop: 2,
   },
   trustFooter: {
     flexDirection: 'row',

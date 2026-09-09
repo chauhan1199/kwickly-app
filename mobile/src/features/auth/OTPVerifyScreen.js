@@ -152,8 +152,8 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   };
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 14;
-  const safeBottomPadding = Math.max(insets.bottom, 16);
+  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
+  const safeBottomPadding = Math.max(insets.bottom, 8);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -299,7 +299,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
               onPress={() => handleVerify()}
               disabled={!isComplete || loading}
               activeOpacity={0.88}
-              style={[styles.btnShadow, { opacity: isComplete && !loading ? 1 : 0.45, marginTop: 18 }]}
+              style={[styles.btnShadow, { opacity: isComplete && !loading ? 1 : 0.45, marginTop: 10 }]}
             >
               <LinearGradient
                 colors={[PURPLE, '#582BE8']}
@@ -312,7 +312,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
                 ) : (
                   <>
                     <Text style={styles.ctaText}>Verify & Continue</Text>
-                    <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                    <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
                   </>
                 )}
               </LinearGradient>
@@ -511,20 +511,20 @@ const styles = StyleSheet.create({
   btnShadow: {
     width: '100%',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
+    elevation: 5,
   },
   ctaBtn: {
-    height: 52,
-    borderRadius: 16,
+    height: 46,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   ctaText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.2,
