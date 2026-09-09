@@ -470,6 +470,11 @@ const RoleSelection = ({ navigation, route }) => {
           setAlertConfig(p => ({ ...p, visible: false, onConfirm: null }));
           if (cb) cb();
         }}
+        onRequestClose={() => {
+          const cb = alertConfig.onConfirm;
+          setAlertConfig(p => ({ ...p, visible: false, onConfirm: null }));
+          if (cb) cb();
+        }}
       />
 
       {/* Legal Modal */}

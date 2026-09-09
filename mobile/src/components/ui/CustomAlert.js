@@ -6,8 +6,7 @@ import {
   Modal,
   TouchableOpacity,
   Dimensions,
-  Platform,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
@@ -16,12 +15,9 @@ import {
   AlertTriangle,
   AlertCircle,
   Trash2,
-  Info,
   Sparkles,
   X,
-  XCircle,
   LogOut,
-  Check
 } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -86,7 +82,7 @@ export const detectAlertType = (title = '', message = '', buttons = []) => {
 
 /**
  * CustomAlert - Modern, themed modal dialog for Kwickly
- * Replaces ugly native Alert.alert() with rich, themed, icon-based popups
+ * Replaces native Alert.alert() with rich, themed, icon-based popups with visible 'X' close button and working buttons.
  */
 const CustomAlert = ({
   visible,
@@ -102,7 +98,7 @@ const CustomAlert = ({
   onRequestClose,
   onButtonPress,
 }) => {
-  const { theme, isDarkMode } = useTheme();
+  const { isDarkMode } = useTheme();
 
   if (!visible) return null;
 
@@ -198,11 +194,31 @@ const CustomAlert = ({
   const config = getConfig();
   const displayTitle = title || config.defaultTitle;
 
+  const closeAlert = () => {
+    if (onRequestClose) {
+      onRequestClose();
+    } else if (onCancel) {
+      onCancel();
+    } else if (onConfirm) {
+      onConfirm();
+    } else if (onButtonPress) {
+      onButtonPress({ text: 'Close', style: 'cancel' });
+    } else if (activeButtons[0]?.onPress) {
+      activeButtons[0].onPress();
+    }
+  };
+
   const handlePress = (btn) => {
     if (onButtonPress) {
       onButtonPress(btn);
     } else {
-      if (onRequestClose) onRequestClose();
+      if (onRequestClose) {
+        onRequestClose();
+      } else if (btn?.style === 'cancel' && onCancel) {
+        onCancel();
+      } else if (onConfirm) {
+        onConfirm();
+      }
       if (btn?.onPress) {
         setTimeout(() => {
           btn.onPress();
@@ -212,13 +228,7 @@ const CustomAlert = ({
   };
 
   const handleBackdropPress = () => {
-    // If a cancel button exists, trigger it; otherwise dismiss safely
-    const cancelBtn = activeButtons.find(b => b.style === 'cancel');
-    if (cancelBtn) {
-      handlePress(cancelBtn);
-    } else if (onRequestClose) {
-      onRequestClose();
-    }
+    closeAlert();
   };
 
   const isTwoButtons = activeButtons.length === 2;
@@ -229,7 +239,7 @@ const CustomAlert = ({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={handleBackdropPress}
+      onRequestClose={closeAlert}
     >
       <TouchableWithoutFeedback onPress={handleBackdropPress}>
         <View style={styles.overlay}>
@@ -241,6 +251,23 @@ const CustomAlert = ({
                 borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(108, 71, 255, 0.12)',
               }
             ]}>
+              {/* Explicit Top-Right "X" Close Icon */}
+              <TouchableOpacity
+                style={[
+                  styles.closeBtn,
+                  {
+                    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.06)',
+                  }
+                ]}
+                onPress={closeAlert}
+                activeOpacity={0.7}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityLabel="Close Alert"
+                accessibilityRole="button"
+              >
+                <X size={18} color={isDarkMode ? '#CBD5E1' : '#64748B'} strokeWidth={2.4} />
+              </TouchableOpacity>
+
               {/* Circular Themed Icon Badge with glowing halo */}
               <View style={[styles.haloContainer, { backgroundColor: config.haloBg }]}>
                 <View style={[
@@ -300,7 +327,7 @@ const CustomAlert = ({
                     return (
                       <TouchableOpacity
                         key={idx}
-                        style={styles.confirmBtnWrapper}
+                        style={styles.twoBtnConfirmWrapper}
                         onPress={() => handlePress(btn)}
                         activeOpacity={0.88}
                       >
@@ -386,10 +413,10 @@ const CustomAlert = ({
                   })}
                 </View>
               ) : (
-                /* Single Button: Full Width Gradient Pill */
+                /* Single Button: Full Width Gradient Pill with Fixed Height */
                 <View style={styles.singleBtnContainer}>
                   <TouchableOpacity
-                    style={styles.confirmBtnWrapper}
+                    style={styles.singleConfirmBtn}
                     onPress={() => handlePress(activeButtons[0])}
                     activeOpacity={0.88}
                   >
@@ -421,6 +448,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   modalContent: {
+    position: 'relative',
     width: '100%',
     maxWidth: 360,
     borderRadius: 26,
@@ -434,6 +462,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 28,
     elevation: 20,
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   haloContainer: {
     padding: 6,
@@ -464,6 +503,18 @@ const styles = StyleSheet.create({
   },
   singleBtnContainer: {
     width: '100%',
+    marginTop: 4,
+  },
+  singleConfirmBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 15,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 4,
   },
   twoBtnRow: {
     width: '100%',
@@ -483,7 +534,7 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     fontWeight: '700',
   },
-  confirmBtnWrapper: {
+  twoBtnConfirmWrapper: {
     flex: 1,
     height: 48,
     borderRadius: 15,

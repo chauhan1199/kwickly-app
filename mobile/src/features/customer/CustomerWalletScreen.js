@@ -490,7 +490,12 @@ const CustomerWalletScreen = ({ navigation }) => {
               <TouchableWithoutFeedback>
                 <View style={styles.sheet}>
                   <View style={styles.handle} />
-                  <Text style={styles.sheetTitle}>Add Money</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={styles.sheetTitle}>Add Money</Text>
+                    <TouchableOpacity onPress={() => setAddMoneyModal(false)} style={{ padding: 6 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <X size={20} color={theme.colors.textDim} />
+                    </TouchableOpacity>
+                  </View>
                   <Text style={styles.inputLabel}>Enter Amount</Text>
                   <View style={styles.amountInputRow}>
                     <Text style={styles.rupeeSym}>₹</Text>

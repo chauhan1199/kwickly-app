@@ -342,6 +342,7 @@ const LoginScreen = ({ navigation, route }) => {
       message={alertConfig.message}
       type={alertConfig.type}
       onConfirm={dismissAlert}
+      onRequestClose={dismissAlert}
     />
   );
 

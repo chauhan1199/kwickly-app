@@ -349,6 +349,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
         message={alertConfig.message}
         type={alertConfig.type}
         onConfirm={() => setAlertConfig(p => ({ ...p, visible: false }))}
+        onRequestClose={() => setAlertConfig(p => ({ ...p, visible: false }))}
       />
     </View>
   );

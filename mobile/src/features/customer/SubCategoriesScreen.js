@@ -20,7 +20,7 @@ import api from '../../services/api';
 import { jobService } from '../../services/jobService';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
-import { ChevronLeft, ChevronRight, Clock, IndianRupee } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Clock, IndianRupee, X } from 'lucide-react-native';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { getImageUrl } from '../../utils/helpers';
 import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryTheme';
@@ -224,8 +224,15 @@ const SubCategoriesScreen = ({ route, navigation }) => {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Suggest a Subcategory</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.card, position: 'relative' }]}>
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, padding: 6 }}
+              onPress={() => setModalVisible(false)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={20} color={theme.colors.textDim} />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, paddingRight: 28 }]}>Suggest a Subcategory</Text>
             <Text style={[styles.modalDesc, { color: theme.colors.textDim }]}>
               Don't see what you're looking for under {name}? Suggest it!
             </Text>

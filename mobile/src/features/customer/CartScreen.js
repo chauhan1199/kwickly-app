@@ -936,7 +936,15 @@ const CartScreen = ({ route, navigation }) => {
       {/* Custom Order Placed Success Modal */}
       <Modal visible={Boolean(orderSuccessModal)} transparent animationType="fade" onRequestClose={() => setOrderSuccessModal(null)}>
         <View style={styles.successModalOverlay}>
-          <View style={styles.successModalCard}>
+          <View style={[styles.successModalCard, { position: 'relative' }]}>
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, padding: 6 }}
+              onPress={() => setOrderSuccessModal(null)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={20} color={theme.colors.textDim} />
+            </TouchableOpacity>
+
             <LinearGradient
               colors={['#10B981', '#059669']}
               style={styles.successBadgeCircle}

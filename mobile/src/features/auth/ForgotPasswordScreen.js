@@ -17,7 +17,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
-import { Phone, Lock, ChevronLeft, Eye, EyeOff, CheckCircle2, ShieldCheck } from 'lucide-react-native';
+import { Phone, Lock, ChevronLeft, Eye, EyeOff, CheckCircle2, ShieldCheck, X } from 'lucide-react-native';
 import api, { getApiErrorMessage } from '../../services/api';
 import { validateOtpForSubmit } from '../../utils/otpGuard';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
@@ -312,12 +312,23 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
         message={alertConfig.message}
         type={alertConfig.type}
         onConfirm={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+        onRequestClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
       />
 
       {/* Success Modal */}
-      <Modal visible={showSuccessModal} transparent animationType="fade">
+      <Modal visible={showSuccessModal} transparent animationType="fade" onRequestClose={() => setShowSuccessModal(false)}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.successModal}>
+          <View style={[styles.successModal, { position: 'relative' }]}>
+            {/* Top Right Close Button */}
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setShowSuccessModal(false)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <X size={18} color={isDarkMode ? '#CBD5E1' : '#64748B'} strokeWidth={2.4} />
+            </TouchableOpacity>
+
             <View style={styles.modalIconBox}>
               <CheckCircle2 size={44} color="#10B981" />
             </View>
@@ -508,6 +519,18 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   successModal: {
     width: '100%',

@@ -308,7 +308,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
       )}
 
       {/* QUANTITY MODAL */}
-      <Modal visible={qtyModalVisible} transparent animationType="fade">
+      <Modal visible={qtyModalVisible} transparent animationType="fade" onRequestClose={() => setQtyModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
