@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Dimensions,
   ScrollView,
   KeyboardAvoidingView,
+  Pressable,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +29,7 @@ import {
   Store,
   Wrench,
   Sparkles,
+  ArrowRight,
 } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import api, { getApiErrorMessage } from '../../services/api';
@@ -54,10 +56,19 @@ const SetMpinScreen = ({ navigation, route }) => {
   const [confirmMpin, setConfirmMpin] = useState('');
   const [showMpin, setShowMpin] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [focusedInput, setFocusedInput] = useState(null);
+  const [focusedSection, setFocusedSection] = useState('mpin');
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error' });
 
-  const confirmRef = useRef(null);
+  const mpinInputRef = useRef(null);
+  const confirmInputRef = useRef(null);
+
+  useEffect(() => {
+    // Auto focus first PIN input on mount
+    const timer = setTimeout(() => {
+      mpinInputRef.current?.focus();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, []);
 
   const topPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 16);
@@ -67,7 +78,7 @@ const SetMpinScreen = ({ navigation, route }) => {
   const RoleIcon = roleMeta.icon;
 
   const isMatched = mpin.length === 4 && confirmMpin.length === 4 && mpin === confirmMpin;
-  const isMismatched = mpin.length === 4 && confirmMpin.length === 4 && mpin !== confirmMpin;
+  const isMismatched = confirmMpin.length === 4 && mpin.length === 4 && mpin !== confirmMpin;
 
   const showAlert = (title, message, type = 'error') => {
     setAlertConfig({ visible: true, title, message, type });
@@ -138,16 +149,18 @@ const SetMpinScreen = ({ navigation, route }) => {
             <View style={styles.blob1} />
             <View style={styles.blob2} />
 
-            {/* Brand */}
+            {/* Official Kwickly App Icon & Brand Name */}
             <View style={styles.brandRow}>
               <KwicklyIcon size={38} />
-              <Text style={styles.brandName}>Kwick<Text style={{ color: '#FFD580' }}>ly</Text></Text>
+              <Text style={styles.brandName}>
+                Kwick<Text style={{ color: '#FFD580' }}>ly</Text>
+              </Text>
             </View>
 
             {/* Badge Pill */}
             <View style={styles.badgePill}>
               <Sparkles size={13} color="#FFFFFF" />
-              <Text style={styles.badgePillText}>Almost Done</Text>
+              <Text style={styles.badgePillText}>Security Setup</Text>
             </View>
 
             <Text style={styles.heroTitle}>Create 4-Digit MPIN</Text>
@@ -156,167 +169,204 @@ const SetMpinScreen = ({ navigation, route }) => {
             </Text>
           </LinearGradient>
 
-      {/* ── FORM CARD ── */}
-      <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 16 }]}>
-        {/* User Info Chip */}
-        <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: border }]}>
-          <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
-            <RoleIcon size={16} color={roleMeta.color} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.userName, { color: textMain }]} numberOfLines={1}>
-              {name || 'User'}
-            </Text>
-            <Text style={[styles.userPhone, { color: textSub }]}>
-              +91 {phone} · {roleMeta.label}
-            </Text>
-          </View>
-          <View style={styles.verifiedBadge}>
-            <ShieldCheck size={13} color="#10B981" />
-            <Text style={styles.verifiedText}>Verified</Text>
-          </View>
-        </View>
-
-        {/* MPIN Input */}
-        <View style={styles.fieldHeader}>
-          <Text style={[styles.label, { color: textSub }]}>New 4-Digit MPIN</Text>
-          <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.toggleRow}>
-            {showMpin ? <EyeOff size={14} color={PURPLE} /> : <Eye size={14} color={PURPLE} />}
-            <Text style={styles.toggleText}>{showMpin ? 'Hide' : 'Show'}</Text>
-          </TouchableOpacity>
-        </View>
-        <View
-          style={[
-            styles.inputWrap,
-            { backgroundColor: inputBg, borderColor: focusedInput === 'mpin' ? PURPLE : border },
-            focusedInput === 'mpin' && styles.inputFocusShadow,
-          ]}
-        >
-          <Lock size={16} color={focusedInput === 'mpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
-          <TextInput
-            style={[
-              styles.inputText,
-              {
-                color: textMain,
-                letterSpacing: mpin.length > 0 ? (showMpin ? 6 : 10) : 0,
-                fontWeight: '800',
-              },
-            ]}
-            placeholder="Enter 4-digit MPIN"
-            placeholderTextColor={textSub}
-            keyboardType="number-pad"
-            maxLength={4}
-            secureTextEntry={!showMpin}
-            value={mpin}
-            onChangeText={(t) => {
-              const cleaned = t.replace(/\D/g, '').slice(0, 4);
-              setMpin(cleaned);
-              if (cleaned.length === 4) confirmRef.current?.focus();
-            }}
-            onFocus={() => setFocusedInput('mpin')}
-            onBlur={() => setFocusedInput(null)}
-            returnKeyType="next"
-            onSubmitEditing={() => confirmRef.current?.focus()}
-          />
-          {mpin.length === 4 && <CheckCircle2 size={18} color="#10B981" />}
-        </View>
-
-        {/* Confirm MPIN Input */}
-        <View style={[styles.fieldHeader, { marginTop: 14 }]}>
-          <Text style={[styles.label, { color: textSub }]}>Confirm 4-Digit MPIN</Text>
-          {isMatched && (
-            <View style={styles.matchTag}>
-              <CheckCircle2 size={12} color="#10B981" />
-              <Text style={styles.matchTagText}>Matched</Text>
+          {/* ── FORM CARD ── */}
+          <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 16 }]}>
+            {/* User Info Chip */}
+            <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: border }]}>
+              <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
+                <RoleIcon size={16} color={roleMeta.color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.userName, { color: textMain }]} numberOfLines={1}>
+                  {name || 'User'}
+                </Text>
+                <Text style={[styles.userPhone, { color: textSub }]}>
+                  +91 {phone} · {roleMeta.label}
+                </Text>
+              </View>
+              <View style={styles.verifiedBadge}>
+                <ShieldCheck size={13} color="#10B981" />
+                <Text style={styles.verifiedText}>Verified</Text>
+              </View>
             </View>
-          )}
-          {isMismatched && (
-            <View style={styles.mismatchTag}>
-              <X size={12} color="#EF4444" />
-              <Text style={styles.mismatchTagText}>Mismatch</Text>
+
+            {/* ── NEW 4-DIGIT MPIN SECTION ── */}
+            <View style={styles.fieldHeader}>
+              <Text style={[styles.label, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
+              <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.toggleRow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                {showMpin ? <EyeOff size={14} color={PURPLE} /> : <Eye size={14} color={PURPLE} />}
+                <Text style={styles.toggleText}>{showMpin ? 'Hide PIN' : 'Show PIN'}</Text>
+              </TouchableOpacity>
             </View>
-          )}
-        </View>
-        <View
-          style={[
-            styles.inputWrap,
-            {
-              backgroundColor: inputBg,
-              borderColor: isMatched ? '#10B981' : isMismatched ? '#EF4444' : focusedInput === 'confirm' ? PURPLE : border,
-            },
-            focusedInput === 'confirm' && styles.inputFocusShadow,
-          ]}
-        >
-          <ShieldCheck size={16} color={isMatched ? '#10B981' : focusedInput === 'confirm' ? PURPLE : textSub} style={{ marginRight: 10 }} />
-          <TextInput
-            ref={confirmRef}
-            style={[
-              styles.inputText,
-              {
-                color: textMain,
-                letterSpacing: confirmMpin.length > 0 ? (showMpin ? 6 : 10) : 0,
-                fontWeight: '800',
-              },
-            ]}
-            placeholder="Re-enter 4-digit MPIN"
-            placeholderTextColor={textSub}
-            keyboardType="number-pad"
-            maxLength={4}
-            secureTextEntry={!showMpin}
-            value={confirmMpin}
-            onChangeText={(t) => {
-              const cleaned = t.replace(/\D/g, '').slice(0, 4);
-              setConfirmMpin(cleaned);
-              if (cleaned.length === 4 && mpin.length === 4 && cleaned === mpin) {
-                Keyboard.dismiss();
-                handleSetMpin(mpin, cleaned);
-              }
-            }}
-            onFocus={() => setFocusedInput('confirm')}
-            onBlur={() => setFocusedInput(null)}
-            returnKeyType="done"
-            onSubmitEditing={() => handleSetMpin(mpin, confirmMpin)}
-          />
-          {isMatched && <CheckCircle2 size={18} color="#10B981" />}
-        </View>
 
-        {/* Security hint */}
-        <View style={styles.hintBox}>
-          <Text style={styles.hintIcon}>💡</Text>
-          <Text style={[styles.hintText, { color: textSub }]}>
-            Never share your MPIN. Avoid simple sequences like 1234 or 0000.
-          </Text>
-        </View>
+            {/* Hidden native input for New MPIN */}
+            <TextInput
+              ref={mpinInputRef}
+              style={styles.hiddenInput}
+              keyboardType="phone-pad"
+              maxLength={4}
+              editable={!loading}
+              value={mpin}
+              onChangeText={(t) => {
+                const clean = t.replace(/\D/g, '').slice(0, 4);
+                setMpin(clean);
+                if (clean.length === 4) {
+                  confirmInputRef.current?.focus();
+                  setFocusedSection('confirm');
+                }
+              }}
+              onFocus={() => setFocusedSection('mpin')}
+              onBlur={() => { if (focusedSection === 'mpin') setFocusedSection(null); }}
+              caretHidden
+            />
 
-        <View style={{ flex: 1 }} />
+            {/* Visual 4-box display for New MPIN */}
+            <Pressable
+              onPress={() => { mpinInputRef.current?.focus(); setFocusedSection('mpin'); }}
+              style={styles.pinRow}
+            >
+              {[0, 1, 2, 3].map((i) => {
+                const filled = mpin.length > i;
+                const active = mpin.length === i && focusedSection === 'mpin';
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.pinBox,
+                      { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : border },
+                      active && styles.pinBoxActive,
+                    ]}
+                  >
+                    {filled ? (
+                      showMpin ? (
+                        <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                      ) : (
+                        <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
+                      )
+                    ) : (
+                      <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
+                    )}
+                  </View>
+                );
+              })}
+            </Pressable>
 
-        {/* CTA Button */}
-        <TouchableOpacity
-          style={{ opacity: (isMatched && !loading) ? 1 : 0.5 }}
-          onPress={() => handleSetMpin(mpin, confirmMpin)}
-          disabled={!isMatched || loading}
-          activeOpacity={0.88}
-        >
-          <LinearGradient
-            colors={[PURPLE, '#8B6FFF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.ctaBtn}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <Text style={styles.ctaText}>Complete & Sign In</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+            {/* ── CONFIRM 4-DIGIT MPIN SECTION ── */}
+            <View style={[styles.fieldHeader, { marginTop: 18 }]}>
+              <Text style={[styles.label, { color: textSub }]}>CONFIRM 4-DIGIT MPIN</Text>
+              {isMatched && (
+                <View style={styles.matchTag}>
+                  <CheckCircle2 size={13} color="#10B981" />
+                  <Text style={styles.matchTagText}>Matched</Text>
+                </View>
+              )}
+              {isMismatched && (
+                <View style={styles.mismatchTag}>
+                  <X size={13} color="#EF4444" />
+                  <Text style={styles.mismatchTagText}>Does not match</Text>
+                </View>
+              )}
+            </View>
 
-        {/* Security trust badge */}
-        <View style={styles.secureRow}>
-          <ShieldCheck size={13} color="#10B981" />
-          <Text style={[styles.secureText, { color: textSub }]}> Bank-grade 256-bit encryption • 100% Secure</Text>
-        </View>
-      </View>
+            {/* Hidden native input for Confirm MPIN */}
+            <TextInput
+              ref={confirmInputRef}
+              style={styles.hiddenInput}
+              keyboardType="phone-pad"
+              maxLength={4}
+              editable={!loading}
+              value={confirmMpin}
+              onChangeText={(t) => {
+                const clean = t.replace(/\D/g, '').slice(0, 4);
+                setConfirmMpin(clean);
+                if (clean.length === 4 && mpin.length === 4 && clean === mpin) {
+                  Keyboard.dismiss();
+                  handleSetMpin(mpin, clean);
+                }
+              }}
+              onFocus={() => setFocusedSection('confirm')}
+              onBlur={() => { if (focusedSection === 'confirm') setFocusedSection(null); }}
+              caretHidden
+            />
+
+            {/* Visual 4-box display for Confirm MPIN */}
+            <Pressable
+              onPress={() => { confirmInputRef.current?.focus(); setFocusedSection('confirm'); }}
+              style={styles.pinRow}
+            >
+              {[0, 1, 2, 3].map((i) => {
+                const filled = confirmMpin.length > i;
+                const active = confirmMpin.length === i && focusedSection === 'confirm';
+                const isMismatchBox = isMismatched && filled;
+                const isMatchBox = isMatched;
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.pinBox,
+                      {
+                        backgroundColor: inputBg,
+                        borderColor: isMatchBox ? '#10B981' : isMismatchBox ? '#EF4444' : active ? PURPLE : filled ? PURPLE : border,
+                      },
+                      active && styles.pinBoxActive,
+                    ]}
+                  >
+                    {filled ? (
+                      showMpin ? (
+                        <Text style={[styles.pinDigit, { color: isMatchBox ? '#10B981' : isMismatchBox ? '#EF4444' : textMain }]}>
+                          {confirmMpin[i]}
+                        </Text>
+                      ) : (
+                        <View style={[styles.pinDot, { backgroundColor: isMatchBox ? '#10B981' : isMismatchBox ? '#EF4444' : PURPLE }]} />
+                      )
+                    ) : (
+                      <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
+                    )}
+                  </View>
+                );
+              })}
+            </Pressable>
+
+            {/* Security hint */}
+            <View style={styles.hintBox}>
+              <Text style={styles.hintIcon}>💡</Text>
+              <Text style={[styles.hintText, { color: textSub }]}>
+                Never share your MPIN. Avoid simple sequences like 1234 or 0000.
+              </Text>
+            </View>
+
+            <View style={{ flex: 1, minHeight: 20 }} />
+
+            {/* CTA Button */}
+            <TouchableOpacity
+              style={{ opacity: (isMatched && !loading) ? 1 : 0.5 }}
+              onPress={() => handleSetMpin(mpin, confirmMpin)}
+              disabled={!isMatched || loading}
+              activeOpacity={0.88}
+            >
+              <LinearGradient
+                colors={[PURPLE, '#8B6FFF']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.ctaBtn}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Text style={styles.ctaText}>Complete & Sign In</Text>
+                    <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Security trust badge */}
+            <View style={styles.secureRow}>
+              <ShieldCheck size={13} color="#10B981" />
+              <Text style={[styles.secureText, { color: textSub }]}> Bank-grade 256-bit encryption • 100% Secure</Text>
+            </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -334,6 +384,22 @@ const SetMpinScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   scrollContent: { flexGrow: 1 },
+  hero: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  blob1: {
+    position: 'absolute', top: -40, right: -40,
+    width: 170, height: 170, borderRadius: 85,
+    backgroundColor: 'rgba(255,255,255,0.09)',
+  },
+  blob2: {
+    position: 'absolute', bottom: -30, left: -40,
+    width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -345,30 +411,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#FFF',
     letterSpacing: -0.4,
-  },
-  hero: {
-    paddingHorizontal: 22,
-    paddingBottom: 28,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  blob1: {
-    position: 'absolute',
-    width: SW * 0.55,
-    height: SW * 0.55,
-    borderRadius: SW * 0.28,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    top: -SW * 0.15,
-    right: -SW * 0.1,
-  },
-  blob2: {
-    position: 'absolute',
-    width: SW * 0.4,
-    height: SW * 0.4,
-    borderRadius: SW * 0.2,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    bottom: 5,
-    left: -SW * 0.1,
   },
   badgePill: {
     flexDirection: 'row',
@@ -404,7 +446,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     marginTop: -12,
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: 20,
   },
   userChip: {
     flexDirection: 'row',
@@ -449,11 +491,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   label: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   toggleRow: {
     flexDirection: 'row',
@@ -468,7 +512,7 @@ const styles = StyleSheet.create({
   matchTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
   },
   matchTagText: {
     color: '#10B981',
@@ -478,32 +522,54 @@ const styles = StyleSheet.create({
   mismatchTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
   },
   mismatchTagText: {
     color: '#EF4444',
     fontSize: 11.5,
     fontWeight: '700',
   },
-  inputWrap: {
+  hiddenInput: {
+    position: 'absolute',
+    opacity: 0,
+    width: 1,
+    height: 1,
+  },
+  pinRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    height: 52,
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 4,
+  },
+  pinBox: {
+    flex: 1,
+    height: 56,
     borderRadius: 14,
     borderWidth: 1.5,
-    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  inputFocusShadow: {
+  pinBoxActive: {
+    borderWidth: 2,
     shadowColor: PURPLE,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
     shadowRadius: 6,
-    elevation: 2,
+    elevation: 3,
   },
-  inputText: {
-    flex: 1,
-    fontSize: 16,
-    padding: 0,
+  pinDigit: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  pinDot: {
+    width: 13,
+    height: 13,
+    borderRadius: 6.5,
+  },
+  pinEmptyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   hintBox: {
     flexDirection: 'row',
@@ -511,7 +577,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(108, 71, 255, 0.06)',
     padding: 10,
     borderRadius: 12,
-    marginTop: 14,
+    marginTop: 18,
     gap: 8,
   },
   hintIcon: {
@@ -524,8 +590,9 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   ctaBtn: {
-    height: 50,
-    borderRadius: 14,
+    height: 52,
+    borderRadius: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: PURPLE,
@@ -544,7 +611,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
+    marginTop: 12,
   },
   secureText: {
     fontSize: 11,
