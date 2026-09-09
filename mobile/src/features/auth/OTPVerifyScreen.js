@@ -10,9 +10,12 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
-  Keyboard
+  Keyboard,
+  Dimensions
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+
+const { width: SW, height: SH } = Dimensions.get('window');
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { 
@@ -199,11 +202,28 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const isComplete = code.every((digit) => digit.length === 1);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#0A0F1D' : '#F8FAFC' }]}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        translucent={false}
+        backgroundColor="transparent"
+        translucent={true}
       />
+
+      {/* Atmospheric Ambient Glow Orbs */}
+      <View style={styles.ambientContainer} pointerEvents="none">
+        <View style={styles.orbTopRight}>
+          <LinearGradient
+            colors={['#6C47FF', '#3B82F6']}
+            style={StyleSheet.fillObject}
+          />
+        </View>
+        <View style={styles.orbBottomLeft}>
+          <LinearGradient
+            colors={['#7C3AED', '#10B981']}
+            style={StyleSheet.fillObject}
+          />
+        </View>
+      </View>
       
       {/* Header */}
       <View style={styles.header}>
@@ -352,6 +372,28 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   container: {
     flex: 1,
   },
+  ambientContainer: {
+    ...StyleSheet.fillObject,
+    overflow: 'hidden',
+  },
+  orbTopRight: {
+    position: 'absolute',
+    top: -80,
+    right: -80,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    opacity: isDarkMode ? 0.18 : 0.12,
+  },
+  orbBottomLeft: {
+    position: 'absolute',
+    bottom: SH * 0.15,
+    left: -90,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    opacity: isDarkMode ? 0.15 : 0.09,
+  },
   header: {
     paddingHorizontal: 16,
     paddingTop: headerTopPad,
@@ -369,11 +411,16 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#131B2E' : '#F1F4F9',
-    borderWidth: 1,
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+    borderWidth: 1.2,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerRight: {
     width: 40,
@@ -391,22 +438,22 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
   },
   verifyCard: {
     backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 20,
     width: '100%',
     alignItems: 'center',
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
     elevation: 3,
   },
   iconWrapper: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 68,
+    height: 68,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
@@ -414,12 +461,12 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#EDE9FE',
   },
   title: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '900',
     color: theme.colors.text,
     marginBottom: 4,
     textAlign: 'center',
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   phonePillRow: {
     flexDirection: 'row',
@@ -437,9 +484,9 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: isDarkMode ? '#334155' : '#E2E8F0',
   },
@@ -456,12 +503,12 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     width: '100%',
   },
   otpBoxWrapper: {
-    width: 54,
-    height: 56,
-    borderRadius: 14,
+    width: 58,
+    height: 60,
+    borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: isDarkMode ? '#334155' : '#CBD5E1',
-    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -511,15 +558,15 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleS
     width: '100%',
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-    borderRadius: 14,
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
+    elevation: 5,
+    borderRadius: 16,
     marginBottom: 12,
   },
   btnGradient: {
-    borderRadius: 14,
-    paddingVertical: 14,
+    borderRadius: 16,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },

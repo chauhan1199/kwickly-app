@@ -11,19 +11,59 @@ import {
   Platform,
   Modal,
   Keyboard,
-  ActivityIndicator
+  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
-import { User, Wrench, Store, CheckCircle2, ChevronLeft, MessageSquare, Smartphone, ShieldCheck, X } from 'lucide-react-native';
+import {
+  User,
+  Wrench,
+  Store,
+  CheckCircle2,
+  ChevronLeft,
+  MessageSquare,
+  Smartphone,
+  ShieldCheck,
+  X,
+  Sparkles,
+  ArrowRight,
+  Check,
+} from 'lucide-react-native';
 import api, { getApiErrorMessage } from '../../services/api';
 
+const { width: SW, height: SH } = Dimensions.get('window');
+
 const ROLE_OPTIONS = [
-  { id: 'CUSTOMER', label: 'Customer', icon: User, desc: 'Book on-demand services' },
-  { id: 'WORKER', label: 'Worker', icon: Wrench, desc: 'Offer expert skills' },
-  { id: 'SHOP', label: 'Shop', icon: Store, desc: 'Sell catalog items' },
+  {
+    id: 'CUSTOMER',
+    label: 'Customer',
+    icon: User,
+    tag: 'Book Services',
+    color: '#6C47FF',
+    accentBg: 'rgba(108, 71, 255, 0.12)',
+    desc: 'Book on-demand services',
+  },
+  {
+    id: 'WORKER',
+    label: 'Worker',
+    icon: Wrench,
+    tag: 'Earn & Work',
+    color: '#10B981',
+    accentBg: 'rgba(16, 185, 129, 0.12)',
+    desc: 'Offer expert skills',
+  },
+  {
+    id: 'SHOP',
+    label: 'Shop',
+    icon: Store,
+    tag: 'Sell Catalog',
+    color: '#F59E0B',
+    accentBg: 'rgba(245, 158, 11, 0.12)',
+    desc: 'Sell catalog items',
+  },
 ];
 
 const RoleSelection = ({ navigation, route }) => {
@@ -53,7 +93,6 @@ const RoleSelection = ({ navigation, route }) => {
   const [privacyText, setPrivacyText] = useState('');
 
   useEffect(() => {
-    // Keyboard listeners to guarantee active inputs & submit button are never hidden
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
@@ -131,7 +170,7 @@ const RoleSelection = ({ navigation, route }) => {
           phone: phoneNumber,
           role: selectedRole,
           otpMethod: otpMethod,
-          fullName: fullName.trim()
+          fullName: fullName.trim(),
         });
       }
     } catch (error) {
@@ -149,19 +188,35 @@ const RoleSelection = ({ navigation, route }) => {
   };
 
   const headerTopPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 8;
-  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 16) + 20;
-  const dynamicBottomPad = bottomPad + (keyboardVisible ? keyboardHeight + 24 : 16);
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 16) + 20;
+  const dynamicBottomPad = bottomPad + (keyboardVisible ? keyboardHeight + 20 : 16);
   const styles = createStyles(theme, isDarkMode, headerTopPad, dynamicBottomPad);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#0A0F1D' : '#F8FAFC' }]}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.colors.background}
-        translucent={false}
+        backgroundColor="transparent"
+        translucent={true}
       />
 
-      {/* Header */}
+      {/* Atmospheric Ambient Glow Orbs */}
+      <View style={styles.ambientContainer} pointerEvents="none">
+        <View style={styles.orbTopRight}>
+          <LinearGradient
+            colors={['#6C47FF', '#3B82F6']}
+            style={StyleSheet.fillObject}
+          />
+        </View>
+        <View style={styles.orbBottomLeft}>
+          <LinearGradient
+            colors={['#7C3AED', '#10B981']}
+            style={StyleSheet.fillObject}
+          />
+        </View>
+      </View>
+
+      {/* Header Bar */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity
@@ -175,28 +230,32 @@ const RoleSelection = ({ navigation, route }) => {
         </View>
       </View>
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView 
+        <ScrollView
           ref={scrollViewRef}
-          contentContainerStyle={styles.scrollContent} 
-          showsVerticalScrollIndicator={false} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.body}>
 
-            {/* Title Section */}
+            {/* Title & Brand Intro */}
             <View style={styles.titleContainer}>
+              <View style={styles.badgePill}>
+                <Sparkles size={13} color="#6C47FF" />
+                <Text style={styles.badgePillText}>Get Started with Kwickly</Text>
+              </View>
               <Text style={styles.title}>Create your Account</Text>
-              <Text style={styles.subtitle}>Select your role and enter your details to register</Text>
+              <Text style={styles.subtitle}>Choose your role and register to get started in seconds</Text>
             </View>
 
-            {/* Role Selector Tabs */}
+            {/* Role Selector Grid */}
             <View style={styles.sectionGroup}>
-              <Text style={styles.inputLabel}>Registering As</Text>
-              <View style={styles.roleTabRow}>
+              <Text style={styles.sectionHeaderLabel}>REGISTERING AS</Text>
+              <View style={styles.roleGrid}>
                 {ROLE_OPTIONS.map((r) => {
                   const IconComp = r.icon;
                   const isActive = selectedRole === r.id;
@@ -207,169 +266,262 @@ const RoleSelection = ({ navigation, route }) => {
                         setSelectedRole(r.id);
                         Keyboard.dismiss();
                       }}
-                      style={[styles.roleTab, isActive && styles.roleTabActive]}
+                      style={[
+                        styles.roleCard,
+                        isActive && [
+                          styles.roleCardActive,
+                          {
+                            borderColor: r.color,
+                            backgroundColor: isDarkMode ? 'rgba(30, 27, 75, 0.45)' : '#F5F3FF',
+                          },
+                        ],
+                      ]}
                       activeOpacity={0.75}
                     >
-                      <IconComp size={16} color={isActive ? '#6C47FF' : theme.colors.textDim} />
-                      <Text style={[styles.roleTabText, isActive && styles.roleTabTextActive]}>
+                      {isActive && (
+                        <View style={[styles.roleActiveBadge, { backgroundColor: r.color }]}>
+                          <Check size={9} color="#FFFFFF" strokeWidth={3} />
+                        </View>
+                      )}
+                      <View
+                        style={[
+                          styles.roleIconCircle,
+                          {
+                            backgroundColor: isActive
+                              ? r.color
+                              : (isDarkMode ? '#1E293B' : '#F1F5F9'),
+                          },
+                        ]}
+                      >
+                        <IconComp
+                          size={18}
+                          color={isActive ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B')}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.roleName,
+                          isActive && { color: r.color, fontWeight: '800' },
+                        ]}
+                      >
                         {r.label}
                       </Text>
+                      <View
+                        style={[
+                          styles.roleTagPill,
+                          isActive && { backgroundColor: r.accentBg },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.roleTagText,
+                            isActive && { color: r.color, fontWeight: '700' },
+                          ]}
+                        >
+                          {r.tag}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
               </View>
             </View>
 
-            {/* Form Inputs */}
+            {/* Elevated Form Card */}
             <View style={styles.formCard}>
-              {/* Full Name */}
-              <Text style={styles.inputLabel}>Full Name</Text>
-              <View style={[styles.inputWrapper, focusedInput === 'name' && styles.inputFocused]}>
-                <View style={styles.inputIcon}>
-                  <User size={18} color={focusedInput === 'name' ? '#6C47FF' : theme.colors.textDim} />
+              {/* Full Name Field */}
+              <View style={styles.inputBlock}>
+                <Text style={styles.inputLabel}>Full Name</Text>
+                <View style={[styles.inputWrapper, focusedInput === 'name' && styles.inputFocused]}>
+                  <View style={styles.inputIconCircle}>
+                    <User size={17} color={focusedInput === 'name' ? '#6C47FF' : theme.colors.textDim} />
+                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter your full name"
+                    placeholderTextColor={theme.colors.textDim}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    value={fullName}
+                    onChangeText={setFullName}
+                    onFocus={() => {
+                      setFocusedInput('name');
+                      scrollToInput(60);
+                    }}
+                    onBlur={() => setFocusedInput(null)}
+                    returnKeyType="next"
+                    onSubmitEditing={() => phoneInputRef.current?.focus()}
+                  />
+                  {fullName.trim().length >= 2 && (
+                    <View style={styles.validCheckBadge}>
+                      <CheckCircle2 size={16} color="#10B981" />
+                    </View>
+                  )}
                 </View>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Enter your full name"
-                  placeholderTextColor={theme.colors.textDim}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  value={fullName}
-                  onChangeText={setFullName}
-                  onFocus={() => {
-                    setFocusedInput('name');
-                    scrollToInput(60);
-                  }}
-                  onBlur={() => setFocusedInput(null)}
-                  returnKeyType="next"
-                  onSubmitEditing={() => phoneInputRef.current?.focus()}
-                />
               </View>
 
-              {/* Mobile Number */}
-              <Text style={[styles.inputLabel, { marginTop: 14 }]}>Mobile Number</Text>
-              <View style={[
-                styles.inputWrapper, 
-                focusedInput === 'phone' && styles.inputFocused,
-                phoneNumber.length === 10 && validatePhone(phoneNumber) && styles.inputReady
-              ]}>
-                <View style={styles.countryCodeBadge}>
-                  <Text style={styles.flagText}>🇮🇳 +91</Text>
-                </View>
-                <TextInput
-                  ref={phoneInputRef}
-                  style={styles.textInput}
-                  placeholder="10-digit number"
-                  placeholderTextColor={theme.colors.textDim}
-                  keyboardType="number-pad"
-                  maxLength={10}
-                  value={phoneNumber}
-                  onChangeText={(text) => {
-                    const clean = text.replace(/[^0-9]/g, '').slice(0, 10);
-                    setPhoneNumber(clean);
-                    if (clean.length === 10 && validatePhone(clean) && fullName.trim().length >= 2) {
-                      Keyboard.dismiss();
-                    }
-                  }}
-                  onFocus={() => {
-                    setFocusedInput('phone');
-                    scrollToInput(140);
-                  }}
-                  onBlur={() => setFocusedInput(null)}
-                  returnKeyType="done"
-                  onSubmitEditing={handlePhoneSubmit}
-                />
-                {phoneNumber.length === 10 && validatePhone(phoneNumber) ? (
-                  <View style={{ padding: 4 }}>
-                    <CheckCircle2 size={18} color="#10B981" />
+              {/* Mobile Number Field */}
+              <View style={[styles.inputBlock, { marginTop: 16 }]}>
+                <Text style={styles.inputLabel}>Mobile Number</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    focusedInput === 'phone' && styles.inputFocused,
+                    phoneNumber.length === 10 && validatePhone(phoneNumber) && styles.inputReady,
+                  ]}
+                >
+                  <View style={styles.countryBadge}>
+                    <Text style={styles.countryFlag}>🇮🇳</Text>
+                    <Text style={styles.countryPrefix}>+91</Text>
+                    <View style={styles.countryDivider} />
                   </View>
-                ) : phoneNumber.length > 0 ? (
-                  <TouchableOpacity onPress={() => setPhoneNumber('')} style={{ padding: 6 }}>
-                    <X size={16} color={theme.colors.textDim} />
+                  <TextInput
+                    ref={phoneInputRef}
+                    style={styles.textInput}
+                    placeholder="10-digit number"
+                    placeholderTextColor={theme.colors.textDim}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    value={phoneNumber}
+                    onChangeText={(text) => {
+                      const clean = text.replace(/[^0-9]/g, '').slice(0, 10);
+                      setPhoneNumber(clean);
+                      if (clean.length === 10 && validatePhone(clean) && fullName.trim().length >= 2) {
+                        Keyboard.dismiss();
+                      }
+                    }}
+                    onFocus={() => {
+                      setFocusedInput('phone');
+                      scrollToInput(140);
+                    }}
+                    onBlur={() => setFocusedInput(null)}
+                    returnKeyType="done"
+                    onSubmitEditing={handlePhoneSubmit}
+                  />
+                  {phoneNumber.length === 10 && validatePhone(phoneNumber) ? (
+                    <View style={styles.validCheckBadge}>
+                      <CheckCircle2 size={18} color="#10B981" />
+                    </View>
+                  ) : phoneNumber.length > 0 ? (
+                    <TouchableOpacity onPress={() => setPhoneNumber('')} style={styles.clearBadge}>
+                      <X size={15} color={theme.colors.textDim} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+
+              {/* Receive OTP Via Channel Cards */}
+              <View style={[styles.inputBlock, { marginTop: 18 }]}>
+                <Text style={styles.inputLabel}>Receive OTP Via</Text>
+                <View style={styles.otpMethodsRow}>
+                  {/* SMS Card */}
+                  <TouchableOpacity
+                    style={[
+                      styles.otpMethodCard,
+                      otpMethod === 'SMS' && styles.otpMethodCardActiveSms,
+                    ]}
+                    onPress={() => setOtpMethod('SMS')}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.otpMethodIconBox, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
+                      <MessageSquare size={17} color="#6C47FF" />
+                    </View>
+                    <View style={styles.otpMethodInfo}>
+                      <Text style={[styles.otpMethodTitle, otpMethod === 'SMS' && { color: '#6C47FF' }]}>
+                        SMS
+                      </Text>
+                      <Text style={styles.otpMethodSubtitle}>Instant text</Text>
+                    </View>
+                    <View style={[styles.radioCircle, otpMethod === 'SMS' && styles.radioCircleActiveSms]}>
+                      {otpMethod === 'SMS' && <View style={styles.radioInnerDotSms} />}
+                    </View>
                   </TouchableOpacity>
-                ) : null}
+
+                  {/* WhatsApp Card */}
+                  <TouchableOpacity
+                    style={[
+                      styles.otpMethodCard,
+                      otpMethod === 'WHATSAPP' && styles.otpMethodCardActiveWa,
+                    ]}
+                    onPress={() => setOtpMethod('WHATSAPP')}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.otpMethodIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+                      <Smartphone size={17} color="#10B981" />
+                    </View>
+                    <View style={styles.otpMethodInfo}>
+                      <Text style={[styles.otpMethodTitle, otpMethod === 'WHATSAPP' && { color: '#10B981' }]}>
+                        WhatsApp
+                      </Text>
+                      <Text style={styles.otpMethodSubtitle}>Instant chat</Text>
+                    </View>
+                    <View style={[styles.radioCircle, otpMethod === 'WHATSAPP' && styles.radioCircleActiveWa]}>
+                      {otpMethod === 'WHATSAPP' && <View style={styles.radioInnerDotWa} />}
+                    </View>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              {/* Receive OTP Via */}
-              <Text style={[styles.inputLabel, { marginTop: 16 }]}>Receive OTP Via</Text>
-              <View style={styles.otpCardsContainer}>
+              {/* Terms & Privacy Policy Checkbox */}
+              <View style={styles.legalRow}>
                 <TouchableOpacity
-                  style={[styles.otpCard, otpMethod === 'SMS' && styles.otpCardActive]}
-                  onPress={() => setOtpMethod('SMS')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.otpCardTop}>
-                    <View style={[styles.otpIconBox, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
-                      <MessageSquare size={18} color="#6C47FF" />
-                    </View>
-                    <View style={[styles.methodCheck, otpMethod === 'SMS' && styles.methodCheckActive]}>
-                      {otpMethod === 'SMS' && <CheckCircle2 size={13} color="#FFFFFF" />}
-                    </View>
-                  </View>
-                  <Text style={styles.otpCardTitle}>SMS</Text>
-                  <Text style={styles.otpCardDesc}>Standard text</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.otpCard, otpMethod === 'WHATSAPP' && styles.otpCardActive]}
-                  onPress={() => setOtpMethod('WHATSAPP')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.otpCardTop}>
-                    <View style={[styles.otpIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                      <Smartphone size={18} color="#10B981" />
-                    </View>
-                    <View style={[styles.methodCheck, otpMethod === 'WHATSAPP' && styles.methodCheckActive]}>
-                      {otpMethod === 'WHATSAPP' && <CheckCircle2 size={13} color="#FFFFFF" />}
-                    </View>
-                  </View>
-                  <Text style={styles.otpCardTitle}>WhatsApp</Text>
-                  <Text style={styles.otpCardDesc}>Instant message</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Terms & Conditions Checkbox */}
-              <View style={styles.legalBox}>
-                <TouchableOpacity
-                  style={[styles.checkbox, acceptedLegal && styles.checkboxActive]}
+                  style={[styles.checkboxSquircle, acceptedLegal && styles.checkboxSquircleActive]}
                   onPress={() => setAcceptedLegal(!acceptedLegal)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.75}
                 >
-                  {acceptedLegal && <CheckCircle2 size={15} color="#FFFFFF" />}
+                  {acceptedLegal && <Check size={13} color="#FFFFFF" strokeWidth={3} />}
                 </TouchableOpacity>
                 <Text style={styles.legalText}>
                   I agree to the{' '}
-                  <Text style={styles.legalLink} onPress={() => openLegalModal('terms')}>Terms</Text>
+                  <Text style={styles.legalLink} onPress={() => openLegalModal('terms')}>
+                    Terms of Service
+                  </Text>
                   {' '}&{' '}
-                  <Text style={styles.legalLink} onPress={() => openLegalModal('privacy')}>Privacy Policy</Text>.
+                  <Text style={styles.legalLink} onPress={() => openLegalModal('privacy')}>
+                    Privacy Policy
+                  </Text>
                 </Text>
               </View>
             </View>
 
-
             {/* Submit Action Button */}
-            <TouchableOpacity 
-              style={[styles.btnShadow, { opacity: (acceptedLegal && phoneNumber.length === 10 && fullName.trim().length >= 2 && !loading) ? 1 : 0.65 }]} 
-              onPress={handlePhoneSubmit} 
-              activeOpacity={0.88} 
+            <TouchableOpacity
+              style={[
+                styles.btnShadow,
+                {
+                  opacity:
+                    acceptedLegal &&
+                    phoneNumber.length === 10 &&
+                    fullName.trim().length >= 2 &&
+                    !loading
+                      ? 1
+                      : 0.6,
+                },
+              ]}
+              onPress={handlePhoneSubmit}
+              activeOpacity={0.88}
               disabled={loading || !acceptedLegal || phoneNumber.length !== 10 || fullName.trim().length < 2}
             >
               <LinearGradient
                 colors={['#7C3AED', '#6C47FF']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
                 style={styles.btnGradient}
               >
                 {loading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.btnText}>Send OTP →</Text>
+                  <View style={styles.btnContent}>
+                    <Text style={styles.btnText}>Send OTP</Text>
+                    <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                  </View>
                 )}
               </LinearGradient>
             </TouchableOpacity>
 
             {/* Already registered Footer */}
-            <TouchableOpacity 
-              style={styles.footerLink} 
+            <TouchableOpacity
+              style={styles.footerLink}
               onPress={() => navigation.navigate('Login', { role: selectedRole })}
               activeOpacity={0.7}
             >
@@ -377,6 +529,12 @@ const RoleSelection = ({ navigation, route }) => {
                 Already registered? <Text style={styles.footerLinkText}>Sign In</Text>
               </Text>
             </TouchableOpacity>
+
+            {/* Trust Guarantee Badge */}
+            <View style={styles.trustBadgeRow}>
+              <ShieldCheck size={14} color="#10B981" style={{ marginRight: 6 }} />
+              <Text style={styles.trustBadgeText}>Bank-grade 256-bit encryption • 100% Secure</Text>
+            </View>
 
           </View>
         </ScrollView>
@@ -391,16 +549,23 @@ const RoleSelection = ({ navigation, route }) => {
       />
 
       {/* Legal Modal */}
-      <Modal visible={legalModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setLegalModalVisible(false)}>
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <Modal
+        visible={legalModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setLegalModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{legalModalTitle}</Text>
-            <TouchableOpacity onPress={() => setLegalModalVisible(false)} style={styles.modalCloseBtn}>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setLegalModalVisible(false)}>
               <Text style={styles.modalCloseText}>Done</Text>
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
-            <Text style={{ fontSize: 14, color: theme.colors.text, lineHeight: 22 }}>{legalModalContent}</Text>
+            <Text style={{ fontSize: 14, color: theme.colors.text, lineHeight: 22 }}>
+              {legalModalContent}
+            </Text>
           </ScrollView>
         </View>
       </Modal>
@@ -409,297 +574,447 @@ const RoleSelection = ({ navigation, route }) => {
   );
 };
 
-const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) => StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: headerTopPad,
-    paddingBottom: 2,
-    borderBottomWidth: 0,
-    zIndex: 3,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 2,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: isDarkMode ? '#131B2E' : '#F1F4F9',
-    borderWidth: 1,
-    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerRight: {
-    width: 40,
-    height: 40,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: bottomPad,
-  },
-  body: {
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 20,
-    width: '100%',
-  },
-  titleContainer: {
-    marginBottom: 18,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: theme.colors.text,
-    marginBottom: 4,
-    letterSpacing: -0.4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: theme.colors.textDim,
-    fontWeight: '500',
-  },
-  sectionGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 6,
-    marginLeft: 2,
-  },
-  roleTabRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  roleTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-  },
-  roleTabActive: {
-    borderColor: '#6C47FF',
-    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.14)' : '#F5F3FF',
-  },
-  roleTabText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.colors.textDim,
-  },
-  roleTabTextActive: {
-    color: '#6C47FF',
-    fontWeight: '800',
-  },
-  formCard: {
-    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1.2,
-    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-    marginBottom: 16,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    borderRadius: 14,
-    height: 52,
-    paddingHorizontal: 12,
-  },
-  inputFocused: {
-    borderColor: '#6C47FF',
-    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.06)' : '#FFFFFF',
-  },
-  inputReady: {
-    borderColor: '#10B981',
-  },
-  inputIcon: {
-    marginRight: 10,
-  },
-  countryCodeBadge: {
-    marginRight: 8,
-    paddingRight: 8,
-    borderRightWidth: 1,
-    borderRightColor: isDarkMode ? '#334155' : '#CBD5E1',
-  },
-  flagText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.text,
-    padding: 0,
-  },
-  otpCardsContainer: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-    marginBottom: 14,
-  },
-  otpCard: {
-    flex: 1,
-    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    borderRadius: 14,
-    padding: 12,
-  },
-  otpCardActive: {
-    borderColor: '#6C47FF',
-    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.12)' : '#F5F3FF',
-  },
-  otpCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  otpIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  methodCheck: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? '#475569' : '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  methodCheckActive: {
-    borderColor: '#6C47FF',
-    backgroundColor: '#6C47FF',
-  },
-  otpCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  otpCardDesc: {
-    fontSize: 11,
-    color: theme.colors.textDim,
-    marginTop: 2,
-  },
-  legalBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: isDarkMode ? '#475569' : '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  checkboxActive: {
-    borderColor: '#6C47FF',
-    backgroundColor: '#6C47FF',
-  },
-  legalText: {
-    fontSize: 12.5,
-    color: theme.colors.textDim,
-    flex: 1,
-    lineHeight: 18,
-  },
-  legalLink: {
-    color: '#6C47FF',
-    fontWeight: '800',
-  },
-  spacer: {
-    height: 12,
-  },
-  btnShadow: {
-    width: '100%',
-    shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-    borderRadius: 14,
-    marginTop: 14,
-    marginBottom: 12,
-  },
-  btnGradient: {
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 15,
-    letterSpacing: 0.3,
-  },
-  footerLink: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  footerText: {
-    fontSize: 14,
-    color: theme.colors.textDim,
-    fontWeight: '500',
-  },
-  footerLinkText: {
-    color: '#6C47FF',
-    fontWeight: '800',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  modalCloseBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  modalCloseText: {
-    color: '#6C47FF',
-    fontWeight: '800',
-    fontSize: 15,
-  },
-});
+const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    ambientContainer: {
+      ...StyleSheet.fillObject,
+      overflow: 'hidden',
+    },
+    orbTopRight: {
+      position: 'absolute',
+      top: -80,
+      right: -80,
+      width: 260,
+      height: 260,
+      borderRadius: 130,
+      opacity: isDarkMode ? 0.18 : 0.12,
+    },
+    orbBottomLeft: {
+      position: 'absolute',
+      bottom: SH * 0.15,
+      left: -90,
+      width: 280,
+      height: 280,
+      borderRadius: 140,
+      opacity: isDarkMode ? 0.15 : 0.09,
+    },
+    header: {
+      paddingHorizontal: 16,
+      paddingTop: headerTopPad,
+      paddingBottom: 4,
+      zIndex: 3,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    backBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+      borderWidth: 1.2,
+      borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    headerRight: {
+      width: 40,
+      height: 40,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingBottom: bottomPad,
+    },
+    body: {
+      paddingHorizontal: 18,
+      paddingTop: 6,
+      width: '100%',
+    },
+    titleContainer: {
+      marginBottom: 16,
+    },
+    badgePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.18)' : '#EDE9FE',
+      borderWidth: 1,
+      borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.35)' : '#DDD6FE',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
+      marginBottom: 8,
+      gap: 6,
+    },
+    badgePillText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#6C47FF',
+      letterSpacing: 0.2,
+    },
+    title: {
+      fontSize: 26,
+      fontWeight: '900',
+      color: theme.colors.text,
+      marginBottom: 4,
+      letterSpacing: -0.5,
+    },
+    subtitle: {
+      fontSize: 13.5,
+      color: theme.colors.textDim,
+      fontWeight: '500',
+      lineHeight: 19,
+    },
+    sectionGroup: {
+      marginBottom: 14,
+    },
+    sectionHeaderLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: theme.colors.textDim,
+      letterSpacing: 0.8,
+      marginBottom: 8,
+      marginLeft: 2,
+    },
+    roleGrid: {
+      flexDirection: 'row',
+      gap: 9,
+    },
+    roleCard: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+      borderWidth: 1.5,
+      borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+      borderRadius: 16,
+      paddingVertical: 12,
+      paddingHorizontal: 6,
+      position: 'relative',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 5,
+      elevation: 2,
+    },
+    roleCardActive: {
+      borderWidth: 2,
+      shadowColor: '#6C47FF',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.14,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    roleActiveBadge: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      width: 15,
+      height: 15,
+      borderRadius: 7.5,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    roleIconCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    roleName: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.colors.text,
+      marginBottom: 4,
+    },
+    roleTagPill: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    },
+    roleTagText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: theme.colors.textDim,
+    },
+    formCard: {
+      backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+      borderRadius: 22,
+      padding: 18,
+      borderWidth: 1.2,
+      borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+      shadowColor: '#6C47FF',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06,
+      shadowRadius: 14,
+      elevation: 3,
+      marginBottom: 16,
+    },
+    inputBlock: {
+      width: '100%',
+    },
+    inputLabel: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.colors.text,
+      marginBottom: 6,
+      marginLeft: 2,
+    },
+    inputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
+      borderWidth: 1.5,
+      borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+      borderRadius: 14,
+      height: 52,
+      paddingHorizontal: 12,
+    },
+    inputFocused: {
+      borderColor: '#6C47FF',
+      backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.06)' : '#FFFFFF',
+      shadowColor: '#6C47FF',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 6,
+      elevation: 2,
+    },
+    inputReady: {
+      borderColor: '#10B981',
+    },
+    inputIconCircle: {
+      width: 30,
+      height: 30,
+      borderRadius: 9,
+      backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    countryBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginRight: 8,
+    },
+    countryFlag: {
+      fontSize: 16,
+      marginRight: 4,
+    },
+    countryPrefix: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: theme.colors.text,
+      marginRight: 8,
+    },
+    countryDivider: {
+      width: 1,
+      height: 20,
+      backgroundColor: isDarkMode ? '#334155' : '#CBD5E1',
+    },
+    textInput: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: '700',
+      color: theme.colors.text,
+      padding: 0,
+    },
+    validCheckBadge: {
+      padding: 4,
+    },
+    clearBadge: {
+      padding: 6,
+    },
+    otpMethodsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 2,
+    },
+    otpMethodCard: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
+      borderWidth: 1.5,
+      borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+      borderRadius: 14,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+    },
+    otpMethodCardActiveSms: {
+      borderColor: '#6C47FF',
+      backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.12)' : '#F5F3FF',
+    },
+    otpMethodCardActiveWa: {
+      borderColor: '#10B981',
+      backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#F0FDF4',
+    },
+    otpMethodIconBox: {
+      width: 32,
+      height: 32,
+      borderRadius: 9,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 8,
+    },
+    otpMethodInfo: {
+      flex: 1,
+    },
+    otpMethodTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: theme.colors.text,
+    },
+    otpMethodSubtitle: {
+      fontSize: 10.5,
+      color: theme.colors.textDim,
+      marginTop: 1,
+    },
+    radioCircle: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 1.5,
+      borderColor: isDarkMode ? '#475569' : '#CBD5E1',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    radioCircleActiveSms: {
+      borderColor: '#6C47FF',
+    },
+    radioInnerDotSms: {
+      width: 9,
+      height: 9,
+      borderRadius: 4.5,
+      backgroundColor: '#6C47FF',
+    },
+    radioCircleActiveWa: {
+      borderColor: '#10B981',
+    },
+    radioInnerDotWa: {
+      width: 9,
+      height: 9,
+      borderRadius: 4.5,
+      backgroundColor: '#10B981',
+    },
+    legalRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 14,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: isDarkMode ? '#1E293B' : '#F1F5F9',
+    },
+    checkboxSquircle: {
+      width: 20,
+      height: 20,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: isDarkMode ? '#475569' : '#CBD5E1',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    checkboxSquircleActive: {
+      borderColor: '#6C47FF',
+      backgroundColor: '#6C47FF',
+    },
+    legalText: {
+      fontSize: 12,
+      color: theme.colors.textDim,
+      flex: 1,
+      lineHeight: 18,
+    },
+    legalLink: {
+      color: '#6C47FF',
+      fontWeight: '800',
+    },
+    btnShadow: {
+      width: '100%',
+      shadowColor: '#6C47FF',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.32,
+      shadowRadius: 10,
+      elevation: 5,
+      borderRadius: 16,
+      marginBottom: 10,
+    },
+    btnGradient: {
+      borderRadius: 16,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    btnContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    btnText: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+      fontSize: 15.5,
+      letterSpacing: 0.3,
+    },
+    footerLink: {
+      alignItems: 'center',
+      paddingVertical: 8,
+    },
+    footerText: {
+      fontSize: 13.5,
+      color: theme.colors.textDim,
+      fontWeight: '500',
+    },
+    footerLinkText: {
+      color: '#6C47FF',
+      fontWeight: '800',
+    },
+    trustBadgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 10,
+      paddingVertical: 4,
+    },
+    trustBadgeText: {
+      fontSize: 11.5,
+      color: isDarkMode ? '#94A3B8' : '#64748B',
+      fontWeight: '600',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E2E8F0',
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: theme.colors.text,
+    },
+    modalCloseBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    modalCloseText: {
+      color: '#6C47FF',
+      fontWeight: '800',
+      fontSize: 15,
+    },
+  });
 
 export default RoleSelection;

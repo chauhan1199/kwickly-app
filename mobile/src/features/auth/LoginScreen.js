@@ -404,12 +404,28 @@ const LoginScreen = ({ navigation, route }) => {
   const isResetMismatched = confirmNewMpin.length === 4 && newMpin.length === 4 && newMpin !== confirmNewMpin;
 
   return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#0A0F1D' : '#F8FAFC' }]}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={isDarkMode ? '#0B0F19' : '#F8F9FD'}
-        translucent={false}
+        backgroundColor="transparent"
+        translucent={true}
       />
+
+      {/* Atmospheric Ambient Glow Orbs */}
+      <View style={styles.ambientContainer} pointerEvents="none">
+        <View style={styles.orbTopRight}>
+          <LinearGradient
+            colors={['#6C47FF', '#3B82F6']}
+            style={StyleSheet.fillObject}
+          />
+        </View>
+        <View style={styles.orbBottomLeft}>
+          <LinearGradient
+            colors={['#7C3AED', '#10B981']}
+            style={StyleSheet.fillObject}
+          />
+        </View>
+      </View>
 
       {/* Header */}
       <View style={styles.header}>
@@ -970,6 +986,28 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32, keyboardV
   container: {
     flex: 1,
   },
+  ambientContainer: {
+    ...StyleSheet.fillObject,
+    overflow: 'hidden',
+  },
+  orbTopRight: {
+    position: 'absolute',
+    top: -80,
+    right: -80,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    opacity: isDarkMode ? 0.18 : 0.12,
+  },
+  orbBottomLeft: {
+    position: 'absolute',
+    bottom: SH * 0.15,
+    left: -90,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    opacity: isDarkMode ? 0.15 : 0.09,
+  },
   header: {
     paddingHorizontal: 16,
     paddingTop: headerTopPad,
@@ -987,11 +1025,16 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32, keyboardV
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: isDarkMode ? '#131B2E' : '#F1F4F9',
-    borderWidth: 1,
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+    borderWidth: 1.2,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerRight: {
     width: 40,
@@ -1065,15 +1108,15 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32, keyboardV
   },
   inputCard: {
     backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 8,
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 10,
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
     elevation: 3,
   },
   cardHeaderRow: {
@@ -1226,26 +1269,27 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32, keyboardV
   },
   pinBox: {
     flex: 1,
-    height: 50,
-    borderRadius: 14,
+    height: 56,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+    backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',
     alignItems: 'center',
     justifyContent: 'center',
   },
   pinBoxCurrent: {
     borderColor: '#6C47FF',
-    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F5F3FF',
+    borderWidth: 2,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.12)' : '#F5F3FF',
     shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
     elevation: 3,
   },
   pinBoxFilled: {
-    borderColor: '#8B5CF6',
-    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+    borderColor: '#6C47FF',
+    backgroundColor: isDarkMode ? '#1E1B4B' : '#FAF5FF',
   },
   pinBoxError: {
     borderColor: '#EF4444',
@@ -1317,14 +1361,14 @@ const createStyles = (theme, isDarkMode, headerTopPad, bottomPad = 32, keyboardV
   btnShadow: {
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-    borderRadius: 14,
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
+    elevation: 5,
+    borderRadius: 16,
   },
   btnGradient: {
-    borderRadius: 14,
-    paddingVertical: 13,
+    borderRadius: 16,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
