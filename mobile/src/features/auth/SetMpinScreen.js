@@ -13,6 +13,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Pressable,
+  Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +32,8 @@ import {
   Wrench,
   Sparkles,
   ArrowRight,
+  ChevronLeft,
+  Zap,
 } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import api, { getApiErrorMessage } from '../../services/api';
@@ -175,28 +178,37 @@ const SetMpinScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Top Brand Header */}
-          <View style={styles.headerBlock}>
-            <View style={styles.logoRow}>
-              <KwicklyIcon size={38} />
-              <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
-              </Text>
-            </View>
+          {/* Top Nav Back Button */}
+          <View style={styles.topNavRow}>
+            <TouchableOpacity
+              style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
+              onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login'))}
+              activeOpacity={0.8}
+            >
+              <ChevronLeft size={20} color={textMain} />
+            </TouchableOpacity>
+          </View>
 
-            <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
-              <Sparkles size={12} color="#6C47FF" />
-              <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
-                Security Setup · Almost Done
+          {/* Header Layout Row: Headline Left, 3D Hero Right */}
+          <View style={styles.headerLayoutRow}>
+            <View style={styles.headerTextCol}>
+              <Text style={[styles.heroHeadline, { color: textMain }]}>
+                Create{'\n'}
+                <Text style={{ color: PURPLE }}>4-Digit MPIN</Text>
               </Text>
+              <Text style={[styles.heroSub, { color: textSub }]}>
+                Use this secure MPIN to sign in quickly anytime
+              </Text>
+              <View style={styles.safeShieldPill}>
+                <ShieldCheck size={14} color={PURPLE} />
+                <Text style={styles.safeShieldText}>Your data is safe with us</Text>
+              </View>
             </View>
-
-            <Text style={[styles.title, { color: textMain }]}>
-              Create <Text style={{ color: '#6C47FF' }}>4-Digit MPIN</Text>
-            </Text>
-            <Text style={[styles.subtitle, { color: textSub }]}>
-              Use this secure MPIN to sign in quickly anytime
-            </Text>
+            <Image
+              source={require('../../assets/images/hero_mpin.png')}
+              style={styles.heroMpinImg}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Floating Form Card */}
@@ -396,12 +408,39 @@ const SetMpinScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Bottom Security Trust Badge */}
-          <View style={styles.trustFooter}>
-            <ShieldCheck size={14} color="#10B981" />
-            <Text style={[styles.trustText, { color: textSub }]}>
-              Bank-grade 256-bit encryption · 100% Secure
-            </Text>
+          {/* Bottom Trust Bar (3 Badges) */}
+          <View style={styles.trustBarRow}>
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                <ShieldCheck size={16} color="#10B981" />
+              </View>
+              <View>
+                <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
+                <Text style={[styles.trustSub, { color: textSub }]}>Your data, our priority</Text>
+              </View>
+            </View>
+
+            <View style={styles.trustDivider} />
+
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                <Zap size={16} color="#6C47FF" />
+              </View>
+              <View>
+                <Text style={[styles.trustTitle, { color: textMain }]}>Quick Access</Text>
+                <Text style={[styles.trustSub, { color: textSub }]}>Get things done faster</Text>
+              </View>
+            </View>
+
+            <View style={styles.trustDivider} />
+
+            <View style={styles.trustItem}>
+              <Text style={{ fontSize: 18 }}>🇮🇳</Text>
+              <View>
+                <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
+                <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -447,48 +486,65 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexGrow: 1,
   },
-  headerBlock: {
-    alignItems: 'center',
-    marginBottom: 16,
+  topNavRow: {
+    marginTop: 4,
+    marginBottom: 8,
+    paddingHorizontal: 2,
   },
-  logoRow: {
-    flexDirection: 'row',
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  wordmark: {
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  pillBadge: {
+  headerLayoutRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 10,
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  pillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+  headerTextCol: {
+    flex: 1,
+    paddingRight: 8,
   },
-  title: {
-    fontSize: 26,
+  heroHeadline: {
+    fontSize: 28,
     fontWeight: '900',
     letterSpacing: -0.5,
-    textAlign: 'center',
+    lineHeight: 34,
   },
-  subtitle: {
-    fontSize: 13,
+  heroSub: {
+    fontSize: 12,
     fontWeight: '500',
-    textAlign: 'center',
-    marginTop: 3,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  heroMpinImg: {
+    width: SW * 0.44,
+    height: 135,
+  },
+  safeShieldPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F3FF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 8,
+    gap: 5,
+    alignSelf: 'flex-start',
+  },
+  safeShieldText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6C47FF',
   },
   card: {
     borderRadius: 24,
@@ -658,16 +714,38 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.2,
   },
-  trustFooter: {
+  trustBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 20,
+    justifyContent: 'space-between',
+    marginTop: 22,
+    marginBottom: 10,
+    paddingHorizontal: 4,
   },
-  trustText: {
-    fontSize: 11.5,
-    fontWeight: '600',
+  trustItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trustIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trustTitle: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  trustSub: {
+    fontSize: 8.5,
+    fontWeight: '500',
+  },
+  trustDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: 'rgba(150, 150, 150, 0.25)',
   },
 });
 

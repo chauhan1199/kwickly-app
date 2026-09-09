@@ -33,30 +33,30 @@ const { width: SW, height: SH } = Dimensions.get('window');
 const HERO_H = Math.min(Math.max(SH * 0.26, 170), 220);
 const CHIP_SIZE = Math.min(Math.max(SW * 0.18, 64), 74);
 
-// Left & right service chips
+// Left & right service chips using high-fidelity 3D reference assets
 const LEFT_CHIPS = [
-  { label: 'Plumbing', img: require('../../assets/services/plumbing.jpeg') },
-  { label: 'Car Repair', img: require('../../assets/services/car_repair_photo.png') },
-  { label: 'Groceries', img: require('../../assets/services/groceries.png') },
+  { label: 'Plumbing', img: require('../../assets/images/chip_plumbing.png') },
+  { label: 'Car Repair', img: require('../../assets/images/chip_car.png') },
+  { label: 'Groceries', img: require('../../assets/images/chip_groceries.png') },
 ];
 
 const RIGHT_CHIPS = [
-  { label: 'Electrician', img: require('../../assets/services/electrician.jpeg') },
-  { label: 'Cleaning', img: require('../../assets/services/cleaning.jpeg') },
-  { label: 'Delivery', img: require('../../assets/services/delivery.png') },
+  { label: 'Electrician', img: require('../../assets/images/chip_electrician.png') },
+  { label: 'Cleaning', img: require('../../assets/images/chip_cleaning.png') },
+  { label: 'Delivery', img: require('../../assets/images/chip_delivery.png') },
 ];
 
 const FEATURES = [
-  { icon: ShieldCheck, label: 'Trusted\nPros' },
-  { icon: Clock, label: 'On-Time\nService' },
-  { icon: Award, label: 'Quality\nAssured' },
-  { icon: Tag, label: 'Best\nPrices' },
+  { icon: ShieldCheck, label: 'Trusted\nPros', color: '#10B981', bg: '#ECFDF5' },
+  { icon: Clock, label: 'On-Time\nService', color: '#6C47FF', bg: '#F5F3FF' },
+  { icon: Award, label: 'Quality\nAssured', color: '#3B82F6', bg: '#EFF6FF' },
+  { icon: Tag, label: 'Best\nPrices', color: '#EC4899', bg: '#FDF2F8' },
 ];
 
 const STATS = [
-  { icon: Package, value: '50+', label: 'Categories' },
-  { icon: Users, value: '1M+', label: 'Happy Users' },
-  { icon: Star, value: '4.8★', label: 'Top Rated', isStar: true },
+  { icon: Package, value: '40+', label: 'Categories', bg: '#F5F3FF', border: '#DDD6FE', text: '#6C47FF' },
+  { icon: Users, value: '25K+', label: 'Happy Users', bg: '#ECFDF5', border: '#A7F3D0', text: '#059669' },
+  { icon: Star, value: '4.7★', label: 'Top Rated', bg: '#FEF3C7', border: '#FDE68A', text: '#D97706', isStar: true },
 ];
 
 const LocationPinMap = ({ color = '#6C47FF' }) => (
@@ -328,21 +328,17 @@ const WelcomeScreen = ({ navigation }) => {
           </Text>
         </Animated.View>
 
-        {/* HEADLINE */}
+        {/* HEADLINE (HomeScreen Reference) */}
         <Animated.View style={[styles.headBlock, { opacity: headAnim, transform: [{ translateY: headSlide }] }]}>
           <Text style={[styles.hl, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
-            <Text style={{ color: '#6C47FF', fontWeight: '900' }}>Every Local Services</Text> & Products
+            Local Services & Products
           </Text>
-          <Text style={[styles.hlSub, { color: isDarkMode ? '#CBD5E1' : '#334155' }]}>
-            Anytime. Near You.
+          <Text style={[styles.hlSub, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
+            <Text style={{ color: '#6C47FF', fontWeight: '900' }}>Anytime.</Text> Near You.
           </Text>
-
-          {/* TAGLINE PILL */}
-          <Animated.View style={[styles.pill, { opacity: pillAnim, backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
-            <Text style={[styles.pillTxt, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
-              ⚡ Trusted Local Experts & Shops, Right Next Door.
-            </Text>
-          </Animated.View>
+          <Text style={[styles.hlDesc, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+            Home services, daily needs and more — all in one place.
+          </Text>
         </Animated.View>
 
         {/* HERO ZONE */}
@@ -351,21 +347,10 @@ const WelcomeScreen = ({ navigation }) => {
           <Animated.View style={[styles.heroCtr, { opacity: phoneAnim, transform: [{ scale: phoneScale }] }]}>
             <View style={[styles.heroCard, { backgroundColor: isDarkMode ? '#111726' : '#FFFFFF', borderColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
               <Image
-                source={require('../../assets/images/splash_hero.png')}
+                source={require('../../assets/images/hero_welcome.png')}
                 style={styles.heroImg}
-                resizeMode="contain"
+                resizeMode="cover"
               />
-              <Animated.View
-                style={[
-                  styles.pinOverlay,
-                  {
-                    transform: [{ scale: pinScale }],
-                    opacity: pinOpacity,
-                  },
-                ]}
-              >
-                <LocationPinMap color="#6C47FF" />
-              </Animated.View>
             </View>
           </Animated.View>
 
@@ -377,7 +362,7 @@ const WelcomeScreen = ({ navigation }) => {
                 styles.chipPos,
                 {
                   top: chipY[i],
-                  left: 4,
+                  left: 2,
                   opacity: cardAnims[i],
                   transform: [
                     { scale: cardScales[i] },
@@ -386,12 +371,7 @@ const WelcomeScreen = ({ navigation }) => {
                 },
               ]}
             >
-              <View style={[styles.chip, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-                <Image source={c.img} style={styles.chipImg} resizeMode="cover" />
-                <Text style={[styles.chipTxt, { color: isDarkMode ? '#E2E8F0' : '#1E293B' }]} numberOfLines={1}>
-                  {c.label}
-                </Text>
-              </View>
+              <Image source={c.img} style={styles.chipCardImg} resizeMode="contain" />
             </Animated.View>
           ))}
 
@@ -403,7 +383,7 @@ const WelcomeScreen = ({ navigation }) => {
                 styles.chipPos,
                 {
                   top: chipY[i],
-                  right: 4,
+                  right: 2,
                   opacity: cardAnims[i + 3],
                   transform: [
                     { scale: cardScales[i + 3] },
@@ -412,26 +392,21 @@ const WelcomeScreen = ({ navigation }) => {
                 },
               ]}
             >
-              <View style={[styles.chip, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-                <Image source={c.img} style={styles.chipImg} resizeMode="cover" />
-                <Text style={[styles.chipTxt, { color: isDarkMode ? '#E2E8F0' : '#1E293B' }]} numberOfLines={1}>
-                  {c.label}
-                </Text>
-              </View>
+              <Image source={c.img} style={styles.chipCardImg} resizeMode="contain" />
             </Animated.View>
           ))}
         </View>
 
-        {/* FEATURES ROW */}
+        {/* FEATURES ROW (HomeScreen Reference) */}
         <Animated.View style={[styles.featRow, { opacity: badgesAnim, transform: [{ translateY: badgesSlide }] }]}>
           {FEATURES.map(f => {
             const Icon = f.icon;
             return (
               <View key={f.label} style={styles.featItem}>
-                <View style={[styles.featCircle, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF' }]}>
-                  <Icon size={16} color="#6C47FF" />
+                <View style={[styles.featCircle, { backgroundColor: isDarkMode ? `${f.color}22` : f.bg, borderColor: isDarkMode ? `${f.color}44` : '#E2E8F0' }]}>
+                  <Icon size={16} color={f.color} />
                 </View>
-                <Text style={[styles.featLbl, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                <Text style={[styles.featLbl, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
                   {f.label}
                 </Text>
               </View>
@@ -439,7 +414,7 @@ const WelcomeScreen = ({ navigation }) => {
           })}
         </Animated.View>
 
-        {/* STATS ROW */}
+        {/* STATS ROW (HomeScreen Reference) */}
         <Animated.View style={[styles.statsRow, { opacity: statsAnim, transform: [{ translateY: statsSlide }] }]}>
           {STATS.map(s => {
             const Icon = s.icon;
@@ -449,14 +424,12 @@ const WelcomeScreen = ({ navigation }) => {
                 style={[
                   styles.statCard,
                   {
-                    backgroundColor: cardBg,
-                    borderColor: cardBorder,
+                    backgroundColor: isDarkMode ? '#131B2E' : s.bg,
+                    borderColor: isDarkMode ? '#1E293B' : s.border,
                   },
                 ]}
               >
-                <View style={[styles.statIconBox, { backgroundColor: s.isStar ? '#FEF3C7' : (isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF') }]}>
-                  <Icon size={15} color={s.isStar ? '#F59E0B' : '#6C47FF'} />
-                </View>
+                <Icon size={18} color={s.text} style={{ marginBottom: 4 }} />
                 <Text style={[styles.statVal, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
                   {s.value}
                 </Text>
@@ -508,6 +481,14 @@ const WelcomeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </Animated.View>
       </View>
+
+      {/* Bottom Road Landscape Illustration */}
+      <Image
+        source={require('../../assets/images/footer_landscape.png')}
+        style={styles.footerLandscapeImg}
+        resizeMode="cover"
+        pointerEvents="none"
+      />
     </View>
   );
 };
@@ -580,23 +561,17 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   hlSub: {
-    fontSize: Math.min(SW * 0.048, 19),
-    fontWeight: '700',
+    fontSize: Math.min(SW * 0.052, 21),
+    fontWeight: '800',
     textAlign: 'center',
     marginTop: 2,
     letterSpacing: -0.3,
   },
-  pill: {
-    marginTop: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  pillTxt: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+  hlDesc: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 4,
   },
 
   /* Hero Zone */
@@ -607,8 +582,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginVertical: 4,
   },
+  chipCardImg: {
+    width: CHIP_SIZE,
+    height: CHIP_SIZE * 0.94,
+    borderRadius: 14,
+  },
   heroCtr: {
-    width: HERO_H * 0.72,
+    width: Math.min(SW * 0.50, 190),
     height: HERO_H,
     alignItems: 'center',
     justifyContent: 'center',
@@ -620,59 +600,27 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     overflow: 'hidden',
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
     elevation: 6,
   },
   heroImg: {
-    width: '90%',
-    height: '90%',
+    width: '100%',
+    height: '100%',
   },
-  pinOverlay: {
+  footerLandscapeImg: {
     position: 'absolute',
-    top: '20%',
-    alignSelf: 'center',
-  },
-  pinWrapper: {
-    shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-
-  /* Service Chips */
-  chipPos: {
-    position: 'absolute',
-    zIndex: 4,
-  },
-  chip: {
-    width: CHIP_SIZE,
-    alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 3,
-    borderRadius: 14,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  chipImg: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    marginBottom: 3,
-  },
-  chipTxt: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    textAlign: 'center',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: SW,
+    height: SH * 0.18,
+    zIndex: 1,
+    opacity: 0.95,
   },
 
   /* Features */

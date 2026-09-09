@@ -14,6 +14,7 @@ import {
   Pressable,
   ScrollView,
   Dimensions,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -35,6 +36,7 @@ import {
   X,
   Sparkles,
   KeyRound,
+  ChevronLeft,
 } from 'lucide-react-native';
 import { authService } from '../../services/authService';
 import { getApiErrorMessage } from '../../services/api';
@@ -367,40 +369,46 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: safeBottomPadding + bottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-            {/* Top Brand Header */}
-            <View style={styles.headerBlock}>
-              <View style={styles.logoRow}>
-                <KwicklyIcon size={38} />
-                <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+            {/* Top Nav Back Button */}
+            <View style={styles.topNavRow}>
+              <TouchableOpacity
+                style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
+                onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Welcome'))}
+                activeOpacity={0.8}
+              >
+                <ChevronLeft size={20} color={textMain} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Header Layout Row: Headline Left, 3D Hero Right */}
+            <View style={styles.headerLayoutRow}>
+              <View style={styles.headerTextCol}>
+                <Text style={[styles.heroHeadline, { color: textMain }]}>
+                  Glad to{'\n'}See You{'\n'}
+                  <Text style={{ color: PURPLE }}>Again!</Text>
+                </Text>
+                <Text style={[styles.heroSub, { color: textSub }]}>
+                  Log in to continue your services, anytime & near you.
                 </Text>
               </View>
-
-              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
-                <Sparkles size={12} color="#6C47FF" />
-                <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
-                  Auto-Detects Your Account · Secure
-                </Text>
-              </View>
-
-              <Text style={[styles.title, { color: textMain }]}>
-                Welcome <Text style={{ color: '#6C47FF' }}>Back!</Text>
-              </Text>
-              <Text style={[styles.subtitle, { color: textSub }]}>
-                Sign in to continue your journey
-              </Text>
+              <Image
+                source={require('../../assets/images/hero_login.png')}
+                style={styles.heroLoginImg}
+                resizeMode="contain"
+              />
             </View>
 
             {/* Floating Form Card */}
             <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-              <Text style={[styles.fieldLabel, { color: textSub }]}>MOBILE NUMBER</Text>
+              <Text style={[styles.cardTitle, { color: textMain }]}>Welcome Back!</Text>
+              <Text style={[styles.cardSub, { color: textSub }]}>Enter your 10-digit mobile number to sign in</Text>
+
               <TouchableOpacity
                 activeOpacity={1}
                 onPress={() => phoneInputRef.current?.focus()}
@@ -421,7 +429,7 @@ const LoginScreen = ({ navigation, route }) => {
                 <TextInput
                   ref={phoneInputRef}
                   style={[styles.inputText, { color: textMain }]}
-                  placeholder="10-digit mobile number"
+                  placeholder="Enter 10-digit number"
                   placeholderTextColor={textSub}
                   keyboardType="phone-pad"
                   maxLength={15}
@@ -445,9 +453,15 @@ const LoginScreen = ({ navigation, route }) => {
                 ) : null}
               </TouchableOpacity>
 
+              {/* Auto Detect Hint */}
+              <View style={styles.autoDetectRow}>
+                <Zap size={14} color={PURPLE} />
+                <Text style={[styles.autoDetectText, { color: textSub }]}>We'll automatically find your account</Text>
+              </View>
+
               {/* Continue Button */}
               <TouchableOpacity
-                style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: 20 }]}
+                style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: 18 }]}
                 onPress={() => handleCheckNumber()}
                 disabled={phone.length !== 10 || loading}
                 activeOpacity={0.88}
@@ -469,28 +483,66 @@ const LoginScreen = ({ navigation, route }) => {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Secondary Navigation */}
-              <View style={styles.footerRow}>
+              {/* Divider with Create Account */}
+              <View style={styles.orDividerRow}>
+                <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
                 <TouchableOpacity
                   onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}
                   activeOpacity={0.75}
+                  style={styles.orContent}
                 >
                   <Text style={[styles.footerText, { color: textSub }]}>
-                    New to Kwickly? <Text style={[styles.footerLink, { color: PURPLE }]}>Create Account</Text>
+                    New here? <Text style={[styles.footerLink, { color: PURPLE }]}>Create Account</Text>
                   </Text>
                 </TouchableOpacity>
+                <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
               </View>
             </View>
 
-            {/* Bottom Trust Badge */}
-            <View style={styles.trustFooter}>
-              <ShieldCheck size={14} color="#10B981" />
-              <Text style={[styles.trustText, { color: textSub }]}>
-                100% Encrypted · Instant MPIN · 🇮🇳 India
-              </Text>
+            {/* Trust Bar Row (3 Badges) */}
+            <View style={styles.trustBarRow}>
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                  <ShieldCheck size={16} color="#10B981" />
+                </View>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>& Encrypted</Text>
+                </View>
+              </View>
+
+              <View style={styles.trustDivider} />
+
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                  <Zap size={16} color="#6C47FF" />
+                </View>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>Instant</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>Access</Text>
+                </View>
+              </View>
+
+              <View style={styles.trustDivider} />
+
+              <View style={styles.trustItem}>
+                <Text style={{ fontSize: 18 }}>🇮🇳</Text>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>Made</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>in India</Text>
+                </View>
+              </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+
+        {/* Bottom Road Landscape Illustration */}
+        <Image
+          source={require('../../assets/images/footer_login.png')}
+          style={styles.bottomFooterImg}
+          resizeMode="cover"
+          pointerEvents="none"
+        />
         {alertEl}
       </View>
     );
@@ -518,6 +570,16 @@ const LoginScreen = ({ navigation, route }) => {
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
+            <View style={styles.topNavRow}>
+              <TouchableOpacity
+                style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
+                onPress={() => setStep('PHONE')}
+                activeOpacity={0.8}
+              >
+                <ChevronLeft size={20} color={textMain} />
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.headerBlock}>
               <View style={styles.logoRow}>
                 <KwicklyIcon size={38} />
@@ -590,47 +652,65 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: safeBottomPadding + bottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-            {/* Top Brand Header */}
-            <View style={styles.headerBlock}>
-              <View style={styles.logoRow}>
-                <KwicklyIcon size={38} />
-                <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
-                </Text>
-              </View>
-
-              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
-                <Lock size={12} color="#6C47FF" />
-                <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
-                  Instant MPIN Sign In
-                </Text>
-              </View>
-
-              <Text style={[styles.title, { color: textMain }]}>
-                Welcome <Text style={{ color: '#6C47FF' }}>{detectedName || 'Back'}!</Text>
-              </Text>
-
-              {/* Profile Chip with Edit Button */}
+            {/* Top Nav Back Button */}
+            <View style={styles.topNavRow}>
               <TouchableOpacity
-                style={[styles.profilePill, { backgroundColor: isDarkMode ? '#1E2540' : '#F0F2FF', borderColor: isDarkMode ? '#2D3760' : '#E0E4FF' }]}
+                style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
                 onPress={() => setStep('PHONE')}
-                activeOpacity={0.75}
+                activeOpacity={0.8}
               >
-                <RoleIcon size={13} color={PURPLE} />
-                <Text style={[styles.profilePillText, { color: PURPLE }]}>{currentRoleMeta.label} · +91 {phone}</Text>
-                <Edit3 size={11} color={PURPLE} style={{ marginLeft: 4 }} />
+                <ChevronLeft size={20} color={textMain} />
               </TouchableOpacity>
+            </View>
+
+            {/* Header Layout Row: Headline Left, 3D Hero Right */}
+            <View style={styles.headerLayoutRow}>
+              <View style={styles.headerTextCol}>
+                <Text style={[styles.heroHeadline, { color: textMain }]}>
+                  Welcome{'\n'}
+                  <Text style={{ color: PURPLE }}>Back!</Text>
+                </Text>
+                <Text style={[styles.heroSub, { color: textSub }]}>
+                  Enter your 4-digit MPIN to access your account
+                </Text>
+                <View style={styles.safeShieldPill}>
+                  <ShieldCheck size={14} color={PURPLE} />
+                  <Text style={styles.safeShieldText}>Your data is safe with us</Text>
+                </View>
+              </View>
+              <Image
+                source={require('../../assets/images/hero_mpin.png')}
+                style={styles.heroMpinImg}
+                resizeMode="contain"
+              />
             </View>
 
             {/* Floating Form Card */}
             <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              {/* User Profile Pill */}
+              <View style={[styles.userProfileBox, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF' }]}>
+                <View style={styles.avatarCircle}>
+                  <User size={18} color={PURPLE} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={[styles.profileRoleText, { color: textMain }]}>{selectedRole.toUpperCase()}</Text>
+                  <Text style={[styles.profilePhoneText, { color: textSub }]}>+91 {phone}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.changeBtn, { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF' }]}
+                  onPress={() => setStep('PHONE')}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.changeBtnText, { color: PURPLE }]}>Change</Text>
+                </TouchableOpacity>
+              </View>
+
               {/* Hidden Real Input */}
               <TextInput
                 ref={mpinInputRef}
@@ -647,10 +727,15 @@ const LoginScreen = ({ navigation, route }) => {
                 caretHidden
               />
 
-              <Text style={[styles.cardHeading, { color: textMain }]}>Enter 4-Digit MPIN</Text>
-              <Text style={[styles.cardSubheading, { color: textSub }]}>Tap to enter your security PIN</Text>
+              {/* PIN Header Row */}
+              <View style={styles.pinHeaderRow}>
+                <Text style={[styles.pinHeaderTitle, { color: textMain }]}>Enter 4-Digit MPIN</Text>
+                <TouchableOpacity onPress={handleForgotMpin} activeOpacity={0.75}>
+                  <Text style={[styles.forgotMpinText, { color: PURPLE }]}>Forgot MPIN?</Text>
+                </TouchableOpacity>
+              </View>
 
-              {/* PIN Boxes (HomeScreen Standard) */}
+              {/* PIN Boxes */}
               <Animated.View style={[styles.pinRow, { transform: [{ translateX: shakeAnim }] }]}>
                 {[0, 1, 2, 3].map((i) => {
                   const filled = mpin.length > i;
@@ -681,27 +766,15 @@ const LoginScreen = ({ navigation, route }) => {
                 })}
               </Animated.View>
 
-              {/* Eye Toggle & Forgot MPIN */}
-              <View style={styles.pinControls}>
-                <TouchableOpacity
-                  style={[styles.eyePill, { backgroundColor: isDarkMode ? `${PURPLE}22` : PURPLE_LIGHT }]}
-                  onPress={() => setShowMpin(!showMpin)}
-                >
-                  {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
-                  <Text style={[styles.eyePillText, { color: PURPLE }]}>{showMpin ? 'Hide' : 'Show'} PIN</Text>
-                </TouchableOpacity>
-
-                {loading ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <ActivityIndicator size="small" color={PURPLE} />
-                    <Text style={{ color: PURPLE, fontWeight: '700', fontSize: 12 }}>Verifying...</Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity onPress={handleForgotMpin}>
-                    <Text style={[styles.footerLink, { color: PURPLE }]}>Forgot MPIN?</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              {/* Show MPIN Toggle */}
+              <TouchableOpacity
+                style={[styles.eyePill, { backgroundColor: isDarkMode ? `${PURPLE}22` : PURPLE_LIGHT }]}
+                onPress={() => setShowMpin(!showMpin)}
+                activeOpacity={0.75}
+              >
+                {showMpin ? <EyeOff size={14} color={PURPLE} /> : <Eye size={14} color={PURPLE} />}
+                <Text style={[styles.eyePillText, { color: PURPLE }]}>{showMpin ? 'Hide' : 'Show'} MPIN</Text>
+              </TouchableOpacity>
 
               {/* Error Message */}
               {Boolean(mpinError) && (
@@ -713,7 +786,7 @@ const LoginScreen = ({ navigation, route }) => {
 
               {/* Sign In CTA */}
               <TouchableOpacity
-                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 14 }]}
+                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 16 }]}
                 onPress={() => handleMpinSubmit(mpin)}
                 disabled={mpin.length !== 4 || loading}
                 activeOpacity={0.88}
@@ -735,21 +808,68 @@ const LoginScreen = ({ navigation, route }) => {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Sign in with OTP option */}
-              <TouchableOpacity style={styles.otpLink} onPress={handleDirectOtpLogin} activeOpacity={0.75}>
-                <MessageSquare size={14} color={PURPLE} />
-                <Text style={[styles.footerText, { color: textSub }]}>
-                  {' '}Sign in with <Text style={[styles.footerLink, { color: PURPLE }]}>OTP instead</Text>
+              {/* OR Divider */}
+              <View style={styles.orRow}>
+                <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
+                <Text style={[styles.orText, { color: textSub }]}>OR</Text>
+                <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
+              </View>
+
+              {/* Sign in with OTP instead button */}
+              <TouchableOpacity
+                style={[styles.otpOutlineBtn, { borderColor: inputBorder, backgroundColor: isDarkMode ? '#1E2540' : '#FFFFFF' }]}
+                onPress={handleDirectOtpLogin}
+                activeOpacity={0.8}
+              >
+                <MessageSquare size={16} color={PURPLE} style={{ marginRight: 8 }} />
+                <Text style={[styles.otpOutlineText, { color: textSub }]}>
+                  Sign in with <Text style={{ color: PURPLE, fontWeight: '800' }}>OTP instead</Text>
                 </Text>
+              </TouchableOpacity>
+
+              {/* Switch mobile number */}
+              <TouchableOpacity
+                style={{ alignItems: 'center', marginTop: 14 }}
+                onPress={() => setStep('PHONE')}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.footerLink, { color: PURPLE }]}>Switch mobile number</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Bottom Trust Badge */}
-            <View style={styles.trustFooter}>
-              <ShieldCheck size={14} color="#10B981" />
-              <Text style={[styles.trustText, { color: textSub }]}>
-                Bank-grade 256-bit encryption · 100% Secure
-              </Text>
+            {/* Bottom Trust Bar (3 Badges) */}
+            <View style={styles.trustBarRow}>
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                  <ShieldCheck size={16} color="#10B981" />
+                </View>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>Your data, our priority</Text>
+                </View>
+              </View>
+
+              <View style={styles.trustDivider} />
+
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                  <Zap size={16} color="#6C47FF" />
+                </View>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>Quick Access</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>Get things done faster</Text>
+                </View>
+              </View>
+
+              <View style={styles.trustDivider} />
+
+              <View style={styles.trustItem}>
+                <Text style={{ fontSize: 18 }}>🇮🇳</Text>
+                <View>
+                  <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
+                </View>
+              </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -779,6 +899,16 @@ const LoginScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
+          <View style={styles.topNavRow}>
+            <TouchableOpacity
+              style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
+              onPress={() => setStep('MPIN')}
+              activeOpacity={0.8}
+            >
+              <ChevronLeft size={20} color={textMain} />
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.headerBlock}>
             <View style={styles.logoRow}>
               <KwicklyIcon size={38} />
@@ -923,6 +1053,70 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexGrow: 1,
   },
+  topNavRow: {
+    marginTop: 4,
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerLayoutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  headerTextCol: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  heroHeadline: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    lineHeight: 34,
+  },
+  heroSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  heroLoginImg: {
+    width: SW * 0.44,
+    height: 135,
+  },
+  heroMpinImg: {
+    width: SW * 0.44,
+    height: 135,
+  },
+  safeShieldPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F3FF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 8,
+    gap: 5,
+    alignSelf: 'flex-start',
+  },
+  safeShieldText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6C47FF',
+  },
   headerBlock: {
     alignItems: 'center',
     marginBottom: 16,
@@ -991,6 +1185,17 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 4,
   },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+    marginBottom: 2,
+  },
+  cardSub: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    marginBottom: 16,
+  },
   cardHeading: {
     fontSize: 18,
     fontWeight: '800',
@@ -1050,6 +1255,79 @@ const styles = StyleSheet.create({
     height: 22,
     marginRight: 4,
   },
+  autoDetectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
+  },
+  autoDetectText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  orDividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+  },
+  orContent: {
+    paddingHorizontal: 10,
+  },
+  userProfileBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  avatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E0E7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileRoleText: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  profilePhoneText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  changeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  changeBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pinHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  pinHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  forgotMpinText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
   btnShadow: {
     width: '100%',
     shadowColor: '#6C47FF',
@@ -1071,6 +1349,29 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.2,
   },
+  orRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 14,
+  },
+  orText: {
+    paddingHorizontal: 10,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  otpOutlineBtn: {
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpOutlineText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   footerRow: {
     alignItems: 'center',
     marginTop: 16,
@@ -1081,6 +1382,44 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontWeight: '800',
+  },
+  trustBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  trustItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trustIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trustTitle: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  trustSub: {
+    fontSize: 8.5,
+    fontWeight: '500',
+  },
+  trustDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: 'rgba(150, 150, 150, 0.25)',
+  },
+  bottomFooterImg: {
+    width: SW,
+    height: 125,
+    marginTop: 4,
   },
   trustFooter: {
     flexDirection: 'row',
@@ -1126,12 +1465,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 12,
-    marginBottom: 18,
+    marginBottom: 14,
   },
   pinBox: {
-    width: Math.min(SW * 0.15, 62),
-    height: Math.min(SW * 0.16, 64),
-    borderRadius: 16,
+    width: Math.min(SW * 0.17, 66),
+    height: Math.min(SW * 0.17, 66),
+    borderRadius: 18,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1167,10 +1506,12 @@ const styles = StyleSheet.create({
   eyePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
-    gap: 5,
+    gap: 6,
+    alignSelf: 'flex-start',
+    marginTop: 4,
   },
   eyePillText: {
     fontSize: 12,
@@ -1182,6 +1523,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     borderWidth: 1,
+    marginTop: 8,
     marginBottom: 8,
   },
   errorText: {

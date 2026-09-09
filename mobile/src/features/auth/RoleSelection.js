@@ -32,6 +32,9 @@ import {
   Check,
   ArrowRight,
   Sparkles,
+  ChevronLeft,
+  Phone,
+  Zap,
 } from 'lucide-react-native';
 import api, { getApiErrorMessage } from '../../services/api';
 
@@ -41,9 +44,9 @@ const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#F5F3FF';
 
 const ROLE_OPTIONS = [
-  { id: 'CUSTOMER', label: 'Customer', icon: User, color: PURPLE, bg: PURPLE_LIGHT },
-  { id: 'WORKER', label: 'Worker', icon: Wrench, color: '#10B981', bg: '#D1FAE5' },
-  { id: 'SHOP', label: 'Shop', icon: Store, color: '#F59E0B', bg: '#FEF3C7' },
+  { id: 'CUSTOMER', label: 'Customer', sub: 'Find & book services', icon: User, color: PURPLE, bg: PURPLE_LIGHT },
+  { id: 'WORKER', label: 'Worker', sub: 'Offer your services', icon: Wrench, color: '#10B981', bg: '#D1FAE5' },
+  { id: 'SHOP', label: 'Shop', sub: 'Grow your business', icon: Store, color: '#F59E0B', bg: '#FEF3C7' },
 ];
 
 const RoleSelection = ({ navigation, route }) => {
@@ -214,35 +217,40 @@ const RoleSelection = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Top Brand Header */}
-          <View style={styles.headerBlock}>
-            <View style={styles.logoRow}>
-              <KwicklyIcon size={38} />
-              <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
-              </Text>
-            </View>
-
-            <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
-              <Sparkles size={12} color="#6C47FF" />
-              <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
-                Fast & Secure Registration
-              </Text>
-            </View>
-
-            <Text style={[styles.title, { color: textMain }]}>
-              Create <Text style={{ color: '#6C47FF' }}>Account</Text>
-            </Text>
-            <Text style={[styles.subtitle, { color: textSub }]}>
-              Join thousands who trust Kwickly every day
-            </Text>
+          {/* Top Bar with Back Button */}
+          <View style={styles.topNavRow}>
+            <TouchableOpacity
+              style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
+              onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Welcome'))}
+              activeOpacity={0.8}
+            >
+              <ChevronLeft size={20} color={textMain} />
+            </TouchableOpacity>
           </View>
 
-          {/* Floating Form Card (HomeScreen Card Standard) */}
+          {/* Top Header Row with Left Headline & Right 3D Art */}
+          <View style={styles.headerLayoutRow}>
+            <View style={styles.headerTextCol}>
+              <Text style={styles.scriptBadge}>Join Our Growing Community</Text>
+              <Text style={[styles.title, { color: textMain }]}>
+                Create <Text style={{ color: '#6C47FF' }}>Your Account</Text>
+              </Text>
+              <Text style={[styles.subtitle, { color: textSub }]}>
+                Take the next step. A few details and you're all set!
+              </Text>
+            </View>
+            <Image
+              source={require('../../assets/images/hero_create_account.png')}
+              style={styles.headerHeroImg}
+              resizeMode="contain"
+            />
+          </View>
+
+          {/* Floating Form Card */}
           <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             
-            {/* Role Selection Tabs */}
-            <Text style={[styles.fieldLabel, { color: textSub }]}>I WANT TO JOIN AS</Text>
+            {/* Registering As */}
+            <Text style={[styles.fieldLabel, { color: textSub }]}>Registering As</Text>
             <View style={styles.roleTabsContainer}>
               {ROLE_OPTIONS.map((r) => {
                 const Icon = r.icon;
@@ -253,31 +261,34 @@ const RoleSelection = ({ navigation, route }) => {
                     style={[
                       styles.roleCard,
                       {
-                        backgroundColor: active ? PURPLE : inputBg,
+                        backgroundColor: active ? (isDarkMode ? '#1E1B4B' : '#F5F3FF') : inputBg,
                         borderColor: active ? PURPLE : inputBorder,
                       },
-                      active && styles.roleCardActiveShadow,
                     ]}
                     onPress={() => { setSelectedRole(r.id); Keyboard.dismiss(); }}
-                    activeOpacity={0.8}
+                    activeOpacity={0.85}
                   >
-                    <Icon size={18} color={active ? '#FFFFFF' : textSub} />
-                    <Text
-                      style={[
-                        styles.roleCardLabel,
-                        { color: active ? '#FFFFFF' : textMain, fontWeight: active ? '800' : '600' },
-                      ]}
-                    >
+                    <View style={styles.roleTopRow}>
+                      <Icon size={18} color={active ? PURPLE : textSub} />
+                      {active && (
+                        <View style={styles.roleCheckBadge}>
+                          <Check size={9} color="#FFF" strokeWidth={3} />
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.roleCardLabel, { color: active ? PURPLE : textMain }]}>
                       {r.label}
                     </Text>
-                    {active && <View style={styles.roleActiveDot} />}
+                    <Text style={[styles.roleCardSub, { color: textSub }]} numberOfLines={1}>
+                      {r.sub}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
 
             {/* Full Name Field */}
-            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 16 }]}>FULL NAME</Text>
+            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 14 }]}>Full Name</Text>
             <TouchableOpacity
               activeOpacity={1}
               onPress={() => nameInputRef.current?.focus()}
@@ -290,9 +301,7 @@ const RoleSelection = ({ navigation, route }) => {
                 focusedInput === 'name' && styles.inputFocusGlow,
               ]}
             >
-              <View style={[styles.inputIconCircle, { backgroundColor: focusedInput === 'name' ? 'rgba(108, 71, 255, 0.12)' : 'rgba(100, 116, 139, 0.08)' }]}>
-                <User size={16} color={focusedInput === 'name' ? PURPLE : textSub} />
-              </View>
+              <User size={18} color={focusedInput === 'name' ? PURPLE : textSub} style={{ marginRight: 8 }} />
               <TextInput
                 ref={nameInputRef}
                 style={[styles.inputText, { color: textMain }]}
@@ -314,7 +323,7 @@ const RoleSelection = ({ navigation, route }) => {
             </TouchableOpacity>
 
             {/* Mobile Number Field */}
-            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 14 }]}>MOBILE NUMBER</Text>
+            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 14 }]}>Mobile Number</Text>
             <TouchableOpacity
               activeOpacity={1}
               onPress={() => phoneInputRef.current?.focus()}
@@ -327,6 +336,7 @@ const RoleSelection = ({ navigation, route }) => {
                 focusedInput === 'phone' && styles.inputFocusGlow,
               ]}
             >
+              <Phone size={17} color={focusedInput === 'phone' ? PURPLE : textSub} style={{ marginRight: 8 }} />
               <View pointerEvents="none" style={styles.prefixWrapper}>
                 <Text style={[styles.flagText]}>🇮🇳</Text>
                 <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
@@ -335,7 +345,7 @@ const RoleSelection = ({ navigation, route }) => {
               <TextInput
                 ref={phoneInputRef}
                 style={[styles.inputText, { color: textMain }]}
-                placeholder="10-digit mobile number"
+                placeholder="Enter 10-digit number"
                 placeholderTextColor={textSub}
                 keyboardType="phone-pad"
                 maxLength={15}
@@ -365,38 +375,53 @@ const RoleSelection = ({ navigation, route }) => {
             </TouchableOpacity>
 
             {/* OTP Delivery Method Selection */}
-            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 14 }]}>RECEIVE OTP VIA</Text>
+            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 14 }]}>Receive OTP Via</Text>
             <View style={styles.methodRow}>
-              {[
-                { id: 'SMS', Icon: MessageSquare, color: PURPLE, label: 'SMS' },
-                { id: 'WHATSAPP', Icon: Smartphone, color: '#10B981', label: 'WhatsApp' },
-              ].map((m) => {
-                const active = otpMethod === m.id;
-                return (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={[
-                      styles.methodCard,
-                      {
-                        backgroundColor: active ? (isDarkMode ? `${m.color}22` : `${m.color}10`) : inputBg,
-                        borderColor: active ? m.color : inputBorder,
-                      },
-                    ]}
-                    onPress={() => setOtpMethod(m.id)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.methodIconBox, { backgroundColor: active ? m.color : 'rgba(100, 116, 139, 0.1)' }]}>
-                      <m.Icon size={14} color={active ? '#FFF' : textSub} />
-                    </View>
-                    <Text style={[styles.methodLabel, { color: active ? (isDarkMode ? '#FFF' : m.color) : textMain, fontWeight: active ? '700' : '500' }]}>
-                      {m.label}
-                    </Text>
-                    <View style={[styles.radioCircle, { borderColor: active ? m.color : inputBorder }]}>
-                      {active && <View style={[styles.radioDot, { backgroundColor: m.color }]} />}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+              <TouchableOpacity
+                style={[
+                  styles.methodCard,
+                  {
+                    backgroundColor: otpMethod === 'SMS' ? (isDarkMode ? '#1E1B4B' : '#F5F3FF') : inputBg,
+                    borderColor: otpMethod === 'SMS' ? PURPLE : inputBorder,
+                  },
+                ]}
+                onPress={() => setOtpMethod('SMS')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.methodIconBox, { backgroundColor: PURPLE }]}>
+                  <MessageSquare size={16} color="#FFF" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={[styles.methodTitle, { color: textMain }]}>SMS</Text>
+                  <Text style={[styles.methodSub, { color: textSub }]}>Standard text message</Text>
+                </View>
+                <View style={[styles.checkCircle, { backgroundColor: otpMethod === 'SMS' ? PURPLE : 'transparent', borderColor: otpMethod === 'SMS' ? PURPLE : inputBorder }]}>
+                  {otpMethod === 'SMS' && <Check size={10} color="#FFF" strokeWidth={3} />}
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.methodCard,
+                  {
+                    backgroundColor: otpMethod === 'WHATSAPP' ? (isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#F0FDF4') : inputBg,
+                    borderColor: otpMethod === 'WHATSAPP' ? '#10B981' : inputBorder,
+                  },
+                ]}
+                onPress={() => setOtpMethod('WHATSAPP')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.methodIconBox, { backgroundColor: '#10B981' }]}>
+                  <Smartphone size={16} color="#FFF" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={[styles.methodTitle, { color: textMain }]}>WhatsApp</Text>
+                  <Text style={[styles.methodSub, { color: textSub }]}>Instant message</Text>
+                </View>
+                <View style={[styles.radioCircle, { borderColor: otpMethod === 'WHATSAPP' ? '#10B981' : inputBorder }]}>
+                  {otpMethod === 'WHATSAPP' && <View style={[styles.radioDot, { backgroundColor: '#10B981' }]} />}
+                </View>
+              </TouchableOpacity>
             </View>
 
             {/* Terms of Service & Privacy Policy Checkbox */}
@@ -465,15 +490,50 @@ const RoleSelection = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* Bottom Security Trust Badge (HomeScreen Trust Badge) */}
-          <View style={styles.trustFooter}>
-            <ShieldCheck size={14} color="#10B981" />
-            <Text style={[styles.trustText, { color: textSub }]}>
-              Bank-grade 256-bit encryption · 100% Secure
-            </Text>
+          {/* Trust Bar Row (3 Badges) */}
+          <View style={styles.trustBarRow}>
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                <ShieldCheck size={16} color="#10B981" />
+              </View>
+              <View>
+                <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
+                <Text style={[styles.trustSub, { color: textSub }]}>Your data is safe</Text>
+              </View>
+            </View>
+
+            <View style={styles.trustDivider} />
+
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                <Zap size={16} color="#6C47FF" />
+              </View>
+              <View>
+                <Text style={[styles.trustTitle, { color: textMain }]}>Quick & Easy</Text>
+                <Text style={[styles.trustSub, { color: textSub }]}>Get started in minutes</Text>
+              </View>
+            </View>
+
+            <View style={styles.trustDivider} />
+
+            <View style={styles.trustItem}>
+              <Text style={{ fontSize: 18 }}>🇮🇳</Text>
+              <View>
+                <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
+                <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Bottom Road Landscape Illustration */}
+      <Image
+        source={require('../../assets/images/footer_create_account.png')}
+        style={styles.bottomFooterImg}
+        resizeMode="cover"
+        pointerEvents="none"
+      />
 
       <CustomAlert
         visible={alertConfig.visible}
@@ -546,48 +606,58 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexGrow: 1,
   },
-  headerBlock: {
-    alignItems: 'center',
-    marginBottom: 16,
+  topNavRow: {
+    marginTop: 4,
+    marginBottom: 8,
+    paddingHorizontal: 2,
   },
-  logoRow: {
-    flexDirection: 'row',
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  wordmark: {
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  pillBadge: {
+  headerLayoutRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 10,
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  pillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+  headerTextCol: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  scriptBadge: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#6C47FF',
+    fontStyle: 'italic',
+    transform: [{ rotate: '-4deg' }],
+    marginBottom: 4,
+  },
+  headerHeroImg: {
+    width: SW * 0.40,
+    height: 120,
   },
   title: {
     fontSize: 26,
     fontWeight: '900',
     letterSpacing: -0.5,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '500',
-    textAlign: 'center',
-    marginTop: 3,
+    textAlign: 'left',
+    marginTop: 4,
+    lineHeight: 17,
   },
   card: {
     borderRadius: 24,
@@ -612,32 +682,35 @@ const styles = StyleSheet.create({
   },
   roleCard: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: 14,
     borderWidth: 1.5,
     position: 'relative',
-    gap: 5,
   },
-  roleCardActiveShadow: {
-    shadowColor: '#6C47FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
+  roleTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 6,
+  },
+  roleCheckBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#6C47FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   roleCardLabel: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '700',
   },
-  roleActiveDot: {
-    position: 'absolute',
-    top: 6,
-    right: 8,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFD580',
+  roleCardSub: {
+    fontSize: 9.5,
+    fontWeight: '500',
+    marginTop: 2,
   },
   inputContainer: {
     height: 52,
@@ -653,14 +726,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 2,
-  },
-  inputIconCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
   },
   inputText: {
     flex: 1,
@@ -693,24 +758,36 @@ const styles = StyleSheet.create({
   },
   methodCard: {
     flex: 1,
-    height: 48,
+    height: 50,
     borderRadius: 12,
     borderWidth: 1.5,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    gap: 8,
+    paddingHorizontal: 8,
   },
   methodIconBox: {
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  methodLabel: {
-    flex: 1,
-    fontSize: 13,
+  methodTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  methodSub: {
+    fontSize: 9,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  checkCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   radioCircle: {
     width: 16,
@@ -779,16 +856,43 @@ const styles = StyleSheet.create({
   footerLink: {
     fontWeight: '800',
   },
-  trustFooter: {
+  trustBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
     marginTop: 18,
+    marginBottom: 6,
+    paddingHorizontal: 4,
   },
-  trustText: {
-    fontSize: 11.5,
-    fontWeight: '600',
+  trustItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trustIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trustTitle: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  trustSub: {
+    fontSize: 8.5,
+    fontWeight: '500',
+  },
+  trustDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: 'rgba(150, 150, 150, 0.25)',
+  },
+  bottomFooterImg: {
+    width: SW,
+    height: 120,
+    marginTop: 4,
   },
   modalHeader: {
     flexDirection: 'row',
