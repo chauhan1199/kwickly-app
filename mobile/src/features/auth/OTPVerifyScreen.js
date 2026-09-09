@@ -10,21 +10,30 @@ import {
   StatusBar,
   ActivityIndicator,
   Keyboard,
-  Pressable,
+  Dimensions,
+  ScrollView,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
-import { MessageSquare, Smartphone, ShieldCheck, Edit3, RefreshCw } from 'lucide-react-native';
+import {
+  MessageSquare,
+  Smartphone,
+  ShieldCheck,
+  Edit3,
+  RefreshCw,
+  Sparkles,
+  ArrowRight,
+} from 'lucide-react-native';
 import CustomAlert from '../../components/ui/CustomAlert';
 import api, { getApiErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { validateOtpForSubmit, sanitizeOtp } from '../../utils/otpGuard';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
-// ── Design tokens (matches HomeScreen) ──
+const { width: SW, height: SH } = Dimensions.get('window');
+
 const PURPLE = '#6C47FF';
-const PURPLE_LIGHT = '#EEE8FF';
 const RESEND_COOLDOWN = 30;
 
 const OTPVerifyScreen = ({ navigation, route }) => {
@@ -45,8 +54,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const timerRef = useRef(null);
 
   useEffect(() => {
-    // Auto-focus first box
-    const t = setTimeout(() => { if (inputs.current[0]) inputs.current[0].focus(); }, 300);
+    const t = setTimeout(() => { if (inputs.current[0]) inputs.current[0].focus(); }, 350);
     timerRef.current = setInterval(() => {
       setCountdown(prev => (prev > 0 ? prev - 1 : 0));
     }, 1000);
@@ -59,7 +67,6 @@ const OTPVerifyScreen = ({ navigation, route }) => {
 
   const handleChange = (text, index) => {
     const digitOnly = sanitizeOtp(text).slice(0, 4);
-    // Handle paste (>1 char)
     if (digitOnly.length > 1) {
       const chars = digitOnly.split('');
       const newCode = [...code];
@@ -140,154 +147,201 @@ const OTPVerifyScreen = ({ navigation, route }) => {
     sendOtp(next);
   };
 
-  const topPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
-  const bottomPad = Math.max(insets.bottom, 16);
+  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 14;
+  const safeBottomPadding = Math.max(insets.bottom, 16);
 
-  const cardBg = isDarkMode ? '#13172A' : '#FFFFFF';
-  const border = isDarkMode ? '#2A3050' : '#E8EAFF';
-  const textMain = isDarkMode ? '#F1F2FF' : '#1A1A2E';
-  const textSub = isDarkMode ? '#7B83B0' : '#64748B';
-  const inputBg = isDarkMode ? '#0A0D1C' : '#F8F9FF';
+  const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
+  const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
+  const textMain = isDarkMode ? '#F8FAFC' : '#0F172A';
+  const textSub = isDarkMode ? '#94A3B8' : '#64748B';
+  const inputBg = isDarkMode ? '#0B1120' : '#F8FAFC';
+  const inputBorder = isDarkMode ? '#1E293B' : '#E2E8F0';
 
   const isWa = currentMethod === 'WHATSAPP';
-  const accentColor = isWa ? '#10B981' : PURPLE;
-  const MethodIcon = isWa ? Smartphone : MessageSquare;
   const isComplete = code.every(d => d.length === 1);
-  const maskedPhone = phone ? `${phone.substring(0, 4)}••••${phone.substring(8)}` : '••••••••••';
+  const maskedPhone = phone ? `+91 ${phone.substring(0, 4)}••••${phone.substring(8)}` : '+91 ••••••••••';
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: isDarkMode ? '#0C0E1A' : '#FFF' }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor="transparent"
+        translucent
+      />
 
-      {/* ── HERO (matches HomeScreen purple gradient) ── */}
+      {/* Ambient Gradient Canvas */}
       <LinearGradient
-        colors={isWa ? ['#059669', '#10B981'] : [PURPLE, '#8B6FFF']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={[styles.hero, { paddingTop: topPad + 24 }]}
+        colors={
+          isDarkMode
+            ? ['#0B0F19', '#111827', '#0B0F19']
+            : ['#FFFFFF', '#F6F8FC', '#EEF2FF', '#FFFFFF']
+        }
+        locations={[0, 0.3, 0.7, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* Ambient Glowing Orbs */}
+      <View pointerEvents="none" style={styles.bgOrbTopLeft}>
+        <LinearGradient colors={['#8B5CF6', '#6C47FF']} style={StyleSheet.absoluteFill} />
+      </View>
+      <View pointerEvents="none" style={styles.bgOrbBottomRight}>
+        <LinearGradient colors={['#3B82F6', '#6C47FF']} style={StyleSheet.absoluteFill} />
+      </View>
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.blob1} /><View style={styles.blob2} />
-
-        {/* Brand */}
-        <View style={styles.brandRow}>
-          <KwicklyIcon size={38} />
-          <Text style={styles.brandName}>Kwick<Text style={{ color: '#FFD580' }}>ly</Text></Text>
-        </View>
-
-        {/* Method icon badge */}
-        <View style={styles.iconBadge}>
-          <MethodIcon size={28} color="#FFF" />
-        </View>
-
-        <Text style={styles.heroTitle}>
-          {isWa ? 'Check WhatsApp' : 'Check your SMS'}
-        </Text>
-
-        {/* Phone pill with edit */}
-        <TouchableOpacity style={styles.phonePill} onPress={() => navigation.goBack()}>
-          <Text style={styles.phonePillText}>+91 {maskedPhone}</Text>
-          <Edit3 size={11} color="rgba(255,255,255,0.75)" style={{ marginLeft: 4 }} />
-        </TouchableOpacity>
-      </LinearGradient>
-
-      {/* ── FORM CARD ── */}
-      <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 12 }]}>
-        <Text style={[styles.cardHeading, { color: textMain }]}>Enter Verification Code</Text>
-        <Text style={[styles.cardSub, { color: textSub }]}>
-          Type the 4-digit code. It auto-verifies when complete.
-        </Text>
-
-        {/* OTP Boxes */}
-        <View style={styles.otpRow}>
-          {code.map((digit, index) => {
-            const isFocused = focusedIndex === index;
-            const isFilled = digit.length > 0;
-            return (
-              <Pressable
-                key={index}
-                onPress={() => { inputs.current[index]?.focus(); setFocusedIndex(index); }}
-                style={[
-                  styles.otpBox,
-                  { backgroundColor: inputBg, borderColor: border },
-                  isFocused && { borderColor: accentColor, backgroundColor: isDarkMode ? `${accentColor}20` : (isWa ? '#ECFDF5' : PURPLE_LIGHT), borderWidth: 2 },
-                  isFilled && !isFocused && { borderColor: accentColor },
-                ]}
-              >
-                <TextInput
-                  ref={ref => { inputs.current[index] = ref; }}
-                  style={[styles.otpInput, { color: textMain }]}
-                  maxLength={4}
-                  keyboardType="number-pad"
-                  autoFocus={false}
-                  selectTextOnFocus
-                  value={digit}
-                  onChangeText={t => handleChange(t, index)}
-                  onKeyPress={e => handleKeyPress(e, index)}
-                  onFocus={() => setFocusedIndex(index)}
-                  onBlur={() => setFocusedIndex(null)}
-                  caretHidden
-                />
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Security notice */}
-        <View style={[styles.secNotice, { backgroundColor: isDarkMode ? 'rgba(16,185,129,0.12)' : '#ECFDF5' }]}>
-          <ShieldCheck size={13} color="#10B981" style={{ marginRight: 6 }} />
-          <Text style={styles.secNoticeText}>Auto-verifying your single-use OTP securely</Text>
-        </View>
-
-        {/* Verify button */}
-        <TouchableOpacity
-          style={{ opacity: (isComplete && !loading) ? 1 : 0.5 }}
-          onPress={() => handleVerify()}
-          disabled={!isComplete || loading || sending}
-          activeOpacity={0.88}
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
         >
-          <LinearGradient
-            colors={isWa ? ['#059669', '#10B981'] : [PURPLE, '#8B6FFF']}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={styles.ctaBtn}
-          >
-            {loading ? <ActivityIndicator size="small" color="#FFF" /> : (
-              <Text style={styles.ctaText}>Verify & Continue →</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-
-        {/* Resend & switch */}
-        <View style={styles.resendArea}>
-          {countdown > 0 ? (
-            <View style={styles.resendRow}>
-              <RefreshCw size={12} color={textSub} style={{ marginRight: 5 }} />
-              <Text style={[styles.resendText, { color: textSub }]}>
-                Resend in{' '}
-                <Text style={[styles.resendText, { color: accentColor, fontWeight: '800' }]}>
-                  {countdown}s
-                </Text>
+          {/* Top Brand Header */}
+          <View style={styles.headerBlock}>
+            <View style={styles.logoRow}>
+              <KwicklyIcon size={38} />
+              <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
               </Text>
             </View>
-          ) : (
-            <View style={styles.resendRow}>
-              <Text style={[styles.resendText, { color: textSub }]}>Didn't get it? </Text>
-              <TouchableOpacity onPress={handleResend} disabled={sending || loading}>
-                <Text style={[styles.resendText, { color: accentColor, fontWeight: '800' }]}>
-                  {sending ? 'Sending…' : 'Resend'}
-                </Text>
-              </TouchableOpacity>
-              <Text style={[styles.resendText, { color: textSub }]}> · </Text>
-              <TouchableOpacity onPress={toggleMethod} disabled={sending || loading}>
-                <Text style={[styles.resendText, { color: textMain, fontWeight: '800' }]}>
-                  Try {isWa ? 'SMS' : 'WhatsApp'}
+
+            <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+              {isWa ? <Smartphone size={12} color="#10B981" /> : <MessageSquare size={12} color="#6C47FF" />}
+              <Text style={[styles.pillText, { color: isWa ? '#10B981' : (isDarkMode ? '#C4B5FD' : '#475569') }]}>
+                {isWa ? 'WhatsApp Verification' : 'SMS Verification'}
+              </Text>
+            </View>
+
+            <Text style={[styles.title, { color: textMain }]}>
+              Verify Your <Text style={{ color: '#6C47FF' }}>Number</Text>
+            </Text>
+
+            {/* Masked Phone Pill with Edit Button */}
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={[styles.phonePill, { backgroundColor: isDarkMode ? '#1E2540' : '#F0F2FF', borderColor: isDarkMode ? '#2D3760' : '#E0E4FF' }]}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.phonePillText, { color: PURPLE }]}>{maskedPhone}</Text>
+              <Edit3 size={13} color={PURPLE} style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Floating Form Card */}
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <Text style={[styles.cardHeading, { color: textMain }]}>
+              Enter Verification Code
+            </Text>
+            <Text style={[styles.cardSubheading, { color: textSub }]}>
+              Type the 4-digit code. It auto-verifies when complete.
+            </Text>
+
+            {/* 4-Box PIN Layout */}
+            <View style={styles.codeContainer}>
+              {[0, 1, 2, 3].map((index) => {
+                const isFocused = focusedIndex === index;
+                const isFilled = !!code[index];
+                return (
+                  <TextInput
+                    key={index}
+                    ref={(ref) => (inputs.current[index] = ref)}
+                    style={[
+                      styles.codeBox,
+                      {
+                        backgroundColor: inputBg,
+                        borderColor: isFocused ? PURPLE : isFilled ? PURPLE : inputBorder,
+                        color: textMain,
+                      },
+                      isFocused && styles.codeBoxActiveGlow,
+                    ]}
+                    keyboardType="number-pad"
+                    maxLength={index === 0 ? 4 : 1}
+                    value={code[index]}
+                    onChangeText={(text) => handleChange(text, index)}
+                    onKeyPress={(e) => handleKeyPress(e, index)}
+                    onFocus={() => setFocusedIndex(index)}
+                    onBlur={() => setFocusedIndex(null)}
+                    selectTextOnFocus
+                    caretHidden
+                  />
+                );
+              })}
+            </View>
+
+            {/* Auto-verification status indicator */}
+            <View style={[styles.statusBadge, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.25)' : '#A7F3D0' }]}>
+              <ShieldCheck size={14} color="#10B981" />
+              <Text style={[styles.statusText, { color: '#059669' }]}>
+                Auto-verifying your single-use OTP securely
+              </Text>
+            </View>
+
+            {/* Verify & Continue Button */}
+            <TouchableOpacity
+              onPress={() => handleVerify()}
+              disabled={!isComplete || loading}
+              activeOpacity={0.88}
+              style={[styles.btnShadow, { opacity: isComplete && !loading ? 1 : 0.45, marginTop: 18 }]}
+            >
+              <LinearGradient
+                colors={[PURPLE, '#582BE8']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.ctaBtn}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Text style={styles.ctaText}>Verify & Continue</Text>
+                    <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Resend & Alternative Method Row */}
+            <View style={styles.resendSection}>
+              {countdown > 0 ? (
+                <View style={styles.countdownRow}>
+                  <RefreshCw size={13} color={textSub} />
+                  <Text style={[styles.countdownText, { color: textSub }]}>
+                    {' '}Resend in <Text style={{ color: PURPLE, fontWeight: '700' }}>{countdown}s</Text>
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={handleResend} style={styles.resendBtn} activeOpacity={0.75}>
+                  <RefreshCw size={14} color={PURPLE} />
+                  <Text style={[styles.resendBtnText, { color: PURPLE }]}> Resend Code</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity onPress={toggleMethod} style={styles.switchMethodBtn} activeOpacity={0.75}>
+                <Text style={[styles.switchMethodText, { color: textSub }]}>
+                  Didn't receive code?{' '}
+                  <Text style={{ color: PURPLE, fontWeight: '700' }}>
+                    {isWa ? 'Send via SMS' : 'Send via WhatsApp'}
+                  </Text>
                 </Text>
               </TouchableOpacity>
             </View>
-          )}
-        </View>
-      </View>
+          </View>
+
+          {/* Bottom Trust Badge */}
+          <View style={styles.trustFooter}>
+            <ShieldCheck size={14} color="#10B981" />
+            <Text style={[styles.trustText, { color: textSub }]}>
+              Bank-grade 256-bit encryption · 100% Secure
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <CustomAlert
         visible={alertConfig.visible}
@@ -296,86 +350,213 @@ const OTPVerifyScreen = ({ navigation, route }) => {
         type={alertConfig.type}
         onConfirm={() => setAlertConfig(p => ({ ...p, visible: false }))}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-
-  // Hero
-  hero: { paddingHorizontal: 20, paddingBottom: 26, overflow: 'hidden' },
-  blob1: {
-    position: 'absolute', top: -50, right: -50,
-    width: 180, height: 180, borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  root: {
+    flex: 1,
+    overflow: 'hidden',
   },
-  blob2: {
-    position: 'absolute', bottom: -30, left: -40,
-    width: 140, height: 140, borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  bgOrbTopLeft: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    opacity: 0.14,
+    overflow: 'hidden',
   },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  brandName: { fontSize: 22, fontWeight: '900', color: '#FFF', letterSpacing: -0.4 },
-  iconBadge: {
-    width: 58, height: 58, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+  bgOrbBottomRight: {
+    position: 'absolute',
+    bottom: SH * 0.10,
+    right: -70,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    opacity: 0.12,
+    overflow: 'hidden',
   },
-  heroTitle: { fontSize: 24, fontWeight: '900', color: '#FFF', letterSpacing: -0.4, marginBottom: 10 },
+  scrollContent: {
+    paddingHorizontal: 16,
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  headerBlock: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  wordmark: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  pillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
   phonePill: {
-    flexDirection: 'row', alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: 8,
   },
-  phonePillText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
-
-  // Card
+  phonePillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
   card: {
-    flex: 1, paddingHorizontal: 20, paddingTop: 22,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    marginTop: -12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 5,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  cardHeading: { fontSize: 18, fontWeight: '800', letterSpacing: -0.2 },
-  cardSub: { fontSize: 13, marginTop: 3, marginBottom: 22 },
-
-  // OTP Boxes
-  otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 16 },
-  otpBox: {
-    width: 64, height: 68, borderRadius: 16, borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 1,
+  cardHeading: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    textAlign: 'center',
   },
-  otpInput: {
-    width: '100%', height: '100%',
-    textAlign: 'center', fontSize: 26, fontWeight: '900', padding: 0,
+  cardSubheading: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 20,
   },
-
-  // Security notice
-  secNotice: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginBottom: 18,
+  codeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 16,
   },
-  secNoticeText: { fontSize: 12, fontWeight: '600', color: '#10B981' },
-
-  // CTA
+  codeBox: {
+    width: Math.min(SW * 0.15, 64),
+    height: Math.min(SW * 0.16, 68),
+    borderRadius: 16,
+    borderWidth: 2,
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  codeBoxActiveGlow: {
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+    marginVertical: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  btnShadow: {
+    width: '100%',
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
+  },
   ctaBtn: {
-    height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-    shadowColor: PURPLE, shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3, shadowRadius: 10, elevation: 6,
+    height: 52,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  ctaText: { color: '#FFF', fontWeight: '900', fontSize: 16, letterSpacing: 0.3 },
-
-  // Resend
-  resendArea: { alignItems: 'center', marginTop: 16 },
-  resendRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' },
-  resendText: { fontSize: 13, fontWeight: '500' },
+  ctaText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  resendSection: {
+    alignItems: 'center',
+    marginTop: 18,
+    gap: 10,
+  },
+  countdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  countdownText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  resendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  resendBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  switchMethodBtn: {
+    paddingVertical: 4,
+  },
+  switchMethodText: {
+    fontSize: 12.5,
+  },
+  trustFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 20,
+  },
+  trustText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
 });
 
 export default OTPVerifyScreen;

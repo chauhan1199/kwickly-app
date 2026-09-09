@@ -33,6 +33,8 @@ import {
   CheckCircle2,
   Zap,
   X,
+  Sparkles,
+  KeyRound,
 } from 'lucide-react-native';
 import { authService } from '../../services/authService';
 import { getApiErrorMessage } from '../../services/api';
@@ -40,11 +42,10 @@ import { useAuth } from '../../context/AuthContext';
 import CustomAlert from '../../components/ui/CustomAlert';
 import LinearGradient from 'react-native-linear-gradient';
 
-const { width: SW } = Dimensions.get('window');
+const { width: SW, height: SH } = Dimensions.get('window');
 
-// ── Design tokens (matches HomeScreen) ──
 const PURPLE = '#6C47FF';
-const PURPLE_LIGHT = '#EEE8FF';
+const PURPLE_LIGHT = '#F5F3FF';
 
 const ROLE_META = {
   CUSTOMER: { label: 'Customer', icon: User, color: PURPLE, bg: PURPLE_LIGHT },
@@ -75,7 +76,6 @@ const LoginScreen = ({ navigation, route }) => {
 
   const [loading, setLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const phoneInputRef = useRef(null);
   const mpinInputRef = useRef(null);
@@ -83,25 +83,14 @@ const LoginScreen = ({ navigation, route }) => {
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const show = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setKeyboardVisible(true)
-    );
-    const hide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardVisible(false)
-    );
-    return () => { show.remove(); hide.remove(); };
-  }, []);
-
-  useEffect(() => {
     if (prefillPhone && prefillPhone.length === 10) handleCheckNumber(prefillPhone);
   }, []); // eslint-disable-line
 
   useEffect(() => {
     if (step === 'MPIN') {
-      setMpin(''); setMpinError('');
-      const t = setTimeout(() => mpinInputRef.current?.focus(), 280);
+      setMpin('');
+      setMpinError('');
+      const t = setTimeout(() => mpinInputRef.current?.focus(), 320);
       return () => clearTimeout(t);
     }
   }, [step]);
@@ -126,7 +115,7 @@ const LoginScreen = ({ navigation, route }) => {
     if (cb) cb();
   };
 
-  // ── Step 1: Check phone number ──
+  // Step 1: Check phone number
   const handleCheckNumber = async (numberToCheck) => {
     const targetPhone = (numberToCheck || phone || '').replace(/\D/g, '');
     if (!targetPhone || targetPhone.length !== 10) {
@@ -178,99 +167,21 @@ const LoginScreen = ({ navigation, route }) => {
 
   const handlePhoneChange = (text) => {
     let digits = (text || '').replace(/\D/g, '');
-    if (digits.length > 10 && digits.startsWith('91')) {
-      digits = digits.slice(2);
-    } else if (digits.length > 10 && digits.startsWith('0')) {
-      digits = digits.slice(1);
-    }
-    const clean = digits.slice(0, 10);
-    setPhone(clean);
-    if (mpinError) setMpinError('');
-    if (clean.length === 10) { Keyboard.dismiss(); handleCheckNumber(clean); }
-  };
-
-  const handleAutoSendOtp = (targetPhone, role) => {
-    showAlert(
-      'MPIN Not Set',
-      'We\'ll send you an OTP to sign in and set your 4-digit MPIN.',
-      'info',
-      async () => {
-        setLoading(true);
-        try {
-          await authService.sendOtp(targetPhone, role);
-          navigation.navigate('OTPVerify', { phone: targetPhone, role });
-        } catch (err) {
-          showAlert('Error', getApiErrorMessage(err, 'Failed to send OTP. Please try again.'));
-        } finally {
-          setLoading(false);
-        }
-      }
-    );
-  };
-
-  // ── Step 2: Select account (multi-role) ──
-  const handleSelectAccount = (acc) => {
-    setSelectedRole(acc.role);
-    setDetectedName(acc.name);
-    if (acc.hasMpin) { setStep('MPIN'); } else { handleAutoSendOtp(phone, acc.role); }
-  };
-
-  // ── Step 3: MPIN login ──
-  const handleMpinChange = (text) => {
-    const clean = text.replace(/\D/g, '').slice(0, 4);
-    setMpin(clean);
-    if (mpinError) setMpinError('');
-    if (clean.length === 4) handleMpinSubmit(clean);
-  };
-
-  const handleMpinSubmit = async (pinValue) => {
-    const pin = (typeof pinValue === 'string' && pinValue.length === 4) ? pinValue : mpin;
-    if (!pin || pin.length !== 4) {
-      setMpinError('Please enter a valid 4-digit MPIN');
-      triggerShake();
-      return;
-    }
-    setLoading(true);
-    setMpinError('');
-    try {
-      const response = await authService.login(phone, pin, selectedRole);
-      const resData = response?.data?.data || response?.data || {};
-      const token = resData.token;
-      const user = resData.user || {};
-      const activeRole = user.role || selectedRole || 'CUSTOMER';
-      if (!token) throw new Error('No authentication token received');
-      await signIn(token, activeRole, user);
-    } catch (error) {
-      triggerShake();
-      const status = error?.response?.status;
-      const data = error?.response?.data || {};
-      if (status === 400 || status === 401) {
-        const remaining = data.remainingAttempts;
-        const msg = remaining !== undefined
-          ? `Incorrect MPIN. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
-          : 'Incorrect MPIN. Please try again.';
-        setMpinError(msg);
-        setMpin('');
-        setTimeout(() => mpinInputRef.current?.focus(), 150);
-      } else if (status === 429) {
-        setMpinError('Too many failed attempts. Please reset your MPIN.');
-      } else {
-        showAlert('Sign In Failed', getApiErrorMessage(error, 'Sign in failed. Please try again.'));
-      }
-    } finally {
-      setLoading(false);
+    if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(2);
+    else if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1);
+    digits = digits.slice(0, 10);
+    setPhone(digits);
+    if (digits.length === 10) {
+      Keyboard.dismiss();
+      handleCheckNumber(digits);
     }
   };
 
-  // ── Step 4: Forgot MPIN ──
-  const handleForgotMpin = async () => {
+  const handleAutoSendOtp = async (phoneNumber, targetRole) => {
     setLoading(true);
     try {
-      await authService.forgotMpin(phone, selectedRole);
-      setResetOtp('');
-      setNewMpin('');
-      setConfirmNewMpin('');
-      setStep('RESET_MPIN');
+      await authService.sendOtp(phoneNumber, targetRole);
+      navigation.navigate('OTPVerify', { phone: phoneNumber, role: targetRole });
     } catch (error) {
       showAlert('Error', getApiErrorMessage(error, 'Failed to send OTP. Please try again.'));
     } finally {
@@ -278,25 +189,79 @@ const LoginScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleResetMpin = async () => {
-    if (!resetOtp || resetOtp.length !== 4) {
-      showAlert('Invalid OTP', 'Please enter the 4-digit OTP sent to your phone.');
-      return;
+  const handleSelectAccount = (acc) => {
+    setSelectedRole(acc.role);
+    setDetectedName(acc.name);
+    if (acc.hasMpin) {
+      setStep('MPIN');
+    } else {
+      handleAutoSendOtp(phone, acc.role);
     }
-    if (!newMpin || newMpin.length !== 4) {
-      showAlert('Invalid MPIN', 'New MPIN must be 4 digits.');
-      return;
+  };
+
+  const handleMpinSubmit = async (explicitPin) => {
+    const pinToUse = explicitPin || mpin;
+    if (!pinToUse || pinToUse.length !== 4) return;
+    setLoading(true);
+    setMpinError('');
+    try {
+      const response = await authService.loginWithMpin(phone, selectedRole, pinToUse);
+      const data = response?.data?.data || response?.data || {};
+      const { token, user } = data;
+      if (!token) throw new Error('Authentication failed. No token received.');
+      await signIn(token, selectedRole, user);
+    } catch (error) {
+      triggerShake();
+      setMpin('');
+      const status = error.response?.status;
+      const msg = getApiErrorMessage(error, '');
+      if (status === 401 || msg.toLowerCase().includes('mpin') || msg.toLowerCase().includes('password') || msg.toLowerCase().includes('invalid')) {
+        setMpinError('Incorrect MPIN. Please try again.');
+      } else {
+        setMpinError(msg || 'Sign in failed. Please try again.');
+      }
+      setTimeout(() => mpinInputRef.current?.focus(), 150);
+    } finally {
+      setLoading(false);
     }
-    if (newMpin !== confirmNewMpin) {
-      showAlert('Mismatch', 'MPINs do not match. Please re-enter.');
-      return;
+  };
+
+  const handleMpinChange = (text) => {
+    const clean = text.replace(/\D/g, '').slice(0, 4);
+    setMpin(clean);
+    setMpinError('');
+    if (clean.length === 4) {
+      Keyboard.dismiss();
+      handleMpinSubmit(clean);
     }
+  };
+
+  const handleForgotMpin = async () => {
     setLoading(true);
     try {
-      await authService.resetMpin(phone, resetOtp, newMpin, selectedRole);
+      await authService.forgotPassword(phone, selectedRole);
+      setStep('RESET_MPIN');
+      setResetOtp('');
+      setNewMpin('');
+      setConfirmNewMpin('');
+      showAlert('OTP Sent', `A verification code was sent to +91 ${phone} to reset your MPIN.`, 'info');
+    } catch (error) {
+      showAlert('Error', getApiErrorMessage(error, 'Failed to send reset code.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetMpin = async () => {
+    if (resetOtp.length !== 4) { showAlert('Invalid OTP', 'Please enter the 4-digit OTP.'); return; }
+    if (newMpin.length !== 4) { showAlert('Invalid MPIN', 'New MPIN must be 4 digits.'); return; }
+    if (newMpin !== confirmNewMpin) { showAlert('Mismatch', 'New MPIN and confirm MPIN do not match.'); return; }
+    setLoading(true);
+    try {
+      await authService.resetPasswordWithOtp(phone, resetOtp, newMpin, selectedRole);
       showAlert(
-        'MPIN Reset!',
-        'Your MPIN has been updated. Signing you in...',
+        'Success',
+        'MPIN reset successfully! Logging you in...',
         'success',
         async () => {
           try {
@@ -327,14 +292,16 @@ const LoginScreen = ({ navigation, route }) => {
     }
   };
 
-  const topPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
-  const bottomPad = Math.max(insets.bottom, 16);
+  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 14;
+  const safeBottomPadding = Math.max(insets.bottom, 16);
 
-  const cardBg = isDarkMode ? '#13172A' : '#FFFFFF';
-  const border = isDarkMode ? '#2A3050' : '#E8EAFF';
-  const textMain = isDarkMode ? '#F1F2FF' : '#1A1A2E';
-  const textSub = isDarkMode ? '#7B83B0' : '#64748B';
-  const inputBg = isDarkMode ? '#0A0D1C' : '#F8F9FF';
+  const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
+  const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
+  const textMain = isDarkMode ? '#F8FAFC' : '#0F172A';
+  const textSub = isDarkMode ? '#94A3B8' : '#64748B';
+  const inputBg = isDarkMode ? '#0B1120' : '#F8FAFC';
+  const inputBorder = isDarkMode ? '#1E293B' : '#E2E8F0';
 
   const currentRoleMeta = ROLE_META[selectedRole] || ROLE_META.CUSTOMER;
   const RoleIcon = currentRoleMeta.icon;
@@ -342,22 +309,30 @@ const LoginScreen = ({ navigation, route }) => {
   const isResetMatched = newMpin.length === 4 && confirmNewMpin.length === 4 && newMpin === confirmNewMpin;
   const isResetMismatched = confirmNewMpin.length === 4 && newMpin.length === 4 && newMpin !== confirmNewMpin;
 
-  // ── Shared Hero with official KwicklyIcon (matches HomeScreen) ──
-  const Hero = ({ title, subtitle, children }) => (
-    <LinearGradient
-      colors={[PURPLE, '#8B6FFF']}
-      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      style={[styles.hero, { paddingTop: topPad + 18 }]}
-    >
-      <View style={styles.blob1} /><View style={styles.blob2} />
-      <View style={styles.brandRow}>
-        <KwicklyIcon size={38} />
-        <Text style={styles.brandName}>Kwick<Text style={{ color: '#FFD580' }}>ly</Text></Text>
+  // Background Layout Wrapper (HomeScreen aesthetic)
+  const renderBackground = () => (
+    <>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor="transparent"
+        translucent
+      />
+      <LinearGradient
+        colors={
+          isDarkMode
+            ? ['#0B0F19', '#111827', '#0B0F19']
+            : ['#FFFFFF', '#F6F8FC', '#EEF2FF', '#FFFFFF']
+        }
+        locations={[0, 0.3, 0.7, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View pointerEvents="none" style={styles.bgOrbTopLeft}>
+        <LinearGradient colors={['#8B5CF6', '#6C47FF']} style={StyleSheet.absoluteFill} />
       </View>
-      <Text style={styles.heroTitle}>{title}</Text>
-      <Text style={styles.heroSub}>{subtitle}</Text>
-      {children}
-    </LinearGradient>
+      <View pointerEvents="none" style={styles.bgOrbBottomRight}>
+        <LinearGradient colors={['#3B82F6', '#6C47FF']} style={StyleSheet.absoluteFill} />
+      </View>
+    </>
   );
 
   const alertEl = (
@@ -371,36 +346,62 @@ const LoginScreen = ({ navigation, route }) => {
   );
 
   // ══════════════════════════════════════════
-  // STEP: PHONE
+  // STEP 1: PHONE
   // ══════════════════════════════════════════
   if (step === 'PHONE') {
     return (
-      <View style={[styles.root, { backgroundColor: isDarkMode ? '#0C0E1A' : '#FFF' }]}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
+        {renderBackground()}
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
-            <Hero title="Welcome Back!" subtitle="Sign in to continue your journey">
-              <View style={styles.trustPill}>
-                <Zap size={12} color="#FFD580" />
-                <Text style={styles.trustPillText}>Auto-detects your account · Secure</Text>
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            {/* Top Brand Header */}
+            <View style={styles.headerBlock}>
+              <View style={styles.logoRow}>
+                <KwicklyIcon size={38} />
+                <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+                </Text>
               </View>
-            </Hero>
 
-            <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 16 }]}>
-              <Text style={[styles.cardHeading, { color: textMain }]}>Enter Mobile Number</Text>
-              <Text style={[styles.cardSub, { color: textSub }]}>We'll find your account automatically</Text>
+              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+                <Sparkles size={12} color="#6C47FF" />
+                <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
+                  Auto-Detects Your Account · Secure
+                </Text>
+              </View>
 
+              <Text style={[styles.title, { color: textMain }]}>
+                Welcome <Text style={{ color: '#6C47FF' }}>Back!</Text>
+              </Text>
+              <Text style={[styles.subtitle, { color: textSub }]}>
+                Sign in to continue your journey
+              </Text>
+            </View>
+
+            {/* Floating Form Card */}
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Text style={[styles.fieldLabel, { color: textSub }]}>MOBILE NUMBER</Text>
               <TouchableOpacity
                 activeOpacity={1}
                 onPress={() => phoneInputRef.current?.focus()}
                 style={[
-                  styles.inputWrap,
-                  { backgroundColor: inputBg, borderColor: phone.length === 10 ? '#10B981' : focusedInput === 'phone' ? PURPLE : border, marginTop: 18 },
-                  focusedInput === 'phone' && styles.inputFocusShadow,
+                  styles.inputContainer,
+                  {
+                    backgroundColor: inputBg,
+                    borderColor: phone.length === 10 ? '#10B981' : focusedInput === 'phone' ? PURPLE : inputBorder,
+                  },
+                  focusedInput === 'phone' && styles.inputFocusGlow,
                 ]}
               >
-                <View pointerEvents="none" style={styles.prefixBox}>
-                  <Text style={[styles.prefix, { color: textMain, borderRightColor: border }]}>🇮🇳 +91</Text>
+                <View pointerEvents="none" style={styles.prefixWrapper}>
+                  <Text style={styles.flagText}>🇮🇳</Text>
+                  <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
+                  <View style={[styles.prefixDivider, { backgroundColor: inputBorder }]} />
                 </View>
                 <TextInput
                   ref={phoneInputRef}
@@ -426,33 +427,49 @@ const LoginScreen = ({ navigation, route }) => {
                 ) : null}
               </TouchableOpacity>
 
+              {/* Continue Button */}
               <TouchableOpacity
-                style={{ opacity: (phone.length === 10 && !loading) ? 1 : 0.5, marginTop: 20 }}
+                style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: 20 }]}
                 onPress={() => handleCheckNumber()}
                 disabled={phone.length !== 10 || loading}
                 activeOpacity={0.88}
               >
-                <LinearGradient colors={[PURPLE, '#8B6FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaBtn}>
-                  {loading ? <ActivityIndicator size="small" color="#FFF" /> : (
-                    <><Text style={styles.ctaText}>Continue</Text><ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} /></>
+                <LinearGradient
+                  colors={[PURPLE, '#582BE8']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.ctaBtn}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.ctaText}>Continue</Text>
+                      <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                    </>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
 
-              <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}>
-                <Text style={[styles.footerText, { color: textSub }]}>
-                  New to Kwickly? <Text style={styles.footerLink}>Create Account</Text>
-                </Text>
-              </TouchableOpacity>
+              {/* Secondary Navigation */}
+              <View style={styles.footerRow}>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.footerText, { color: textSub }]}>
+                    New to Kwickly? <Text style={[styles.footerLink, { color: PURPLE }]}>Create Account</Text>
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
-              {!keyboardVisible && (
-                <View style={[styles.trustRow, { marginTop: 18 }]}>
-                  <ShieldCheck size={13} color="#10B981" />
-                  <Text style={[styles.trustText, { color: textSub }]}> 100% Encrypted · </Text>
-                  <Zap size={12} color={PURPLE} />
-                  <Text style={[styles.trustText, { color: textSub }]}> Instant MPIN · 🇮🇳 India</Text>
-                </View>
-              )}
+            {/* Bottom Trust Badge */}
+            <View style={styles.trustFooter}>
+              <ShieldCheck size={14} color="#10B981" />
+              <Text style={[styles.trustText, { color: textSub }]}>
+                100% Encrypted · Instant MPIN · 🇮🇳 India
+              </Text>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -462,28 +479,55 @@ const LoginScreen = ({ navigation, route }) => {
   }
 
   // ══════════════════════════════════════════
-  // STEP: SELECT_ROLE
+  // STEP 2: SELECT_ROLE (Multi Profile)
   // ══════════════════════════════════════════
   if (step === 'SELECT_ROLE') {
     return (
-      <View style={[styles.root, { backgroundColor: isDarkMode ? '#0C0E1A' : '#FFF' }]}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
+        {renderBackground()}
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
-            <Hero title="Select Profile" subtitle={`Multiple accounts found for +91 ${phone}`} />
-            <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 16 }]}>
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <View style={styles.headerBlock}>
+              <View style={styles.logoRow}>
+                <KwicklyIcon size={38} />
+                <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+                </Text>
+              </View>
+
+              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+                <User size={12} color="#6C47FF" />
+                <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
+                  Multiple Profiles Found
+                </Text>
+              </View>
+
+              <Text style={[styles.title, { color: textMain }]}>
+                Select <Text style={{ color: '#6C47FF' }}>Profile</Text>
+              </Text>
+              <Text style={[styles.subtitle, { color: textSub }]}>
+                Accounts linked with +91 {phone}
+              </Text>
+            </View>
+
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
               {availableAccounts.map((acc, idx) => {
                 const meta = ROLE_META[acc.role] || ROLE_META.CUSTOMER;
                 const Icon = meta.icon;
                 return (
                   <TouchableOpacity
                     key={idx}
-                    style={[styles.accountCard, { backgroundColor: inputBg, borderColor: border }]}
+                    style={[styles.accountCard, { backgroundColor: inputBg, borderColor: inputBorder }]}
                     onPress={() => handleSelectAccount(acc)}
-                    activeOpacity={0.75}
+                    activeOpacity={0.8}
                   >
                     <View style={[styles.accountIconWrap, { backgroundColor: meta.bg }]}>
-                      <Icon size={22} color={meta.color} />
+                      <Icon size={20} color={meta.color} />
                     </View>
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       <Text style={[styles.accountRole, { color: textMain }]}>{meta.label}</Text>
@@ -493,8 +537,9 @@ const LoginScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                 );
               })}
-              <TouchableOpacity style={{ alignItems: 'center', marginTop: 18 }} onPress={() => setStep('PHONE')}>
-                <Text style={styles.footerLink}>Use a different number</Text>
+
+              <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('PHONE')}>
+                <Text style={[styles.footerLink, { color: PURPLE }]}>Use a different number</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -505,26 +550,54 @@ const LoginScreen = ({ navigation, route }) => {
   }
 
   // ══════════════════════════════════════════
-  // STEP: MPIN
+  // STEP 3: MPIN
   // ══════════════════════════════════════════
   if (step === 'MPIN') {
     return (
-      <View style={[styles.root, { backgroundColor: isDarkMode ? '#0C0E1A' : '#FFF' }]}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
+        {renderBackground()}
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
-            <Hero title={`Welcome Back${detectedName ? `, ${detectedName}` : ''}!`} subtitle="Enter your 4-digit MPIN">
-              <TouchableOpacity style={styles.rolePill} onPress={() => setStep('PHONE')}>
-                <RoleIcon size={12} color="#FFF" />
-                <Text style={styles.rolePillText}>{currentRoleMeta.label}</Text>
-                <Text style={styles.rolePillSep}> · </Text>
-                <Text style={styles.rolePillText}>+91 {phone}</Text>
-                <Edit3 size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
-              </TouchableOpacity>
-            </Hero>
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            {/* Top Brand Header */}
+            <View style={styles.headerBlock}>
+              <View style={styles.logoRow}>
+                <KwicklyIcon size={38} />
+                <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+                </Text>
+              </View>
 
-            <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 12 }]}>
-              {/* Hidden real input */}
+              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+                <Lock size={12} color="#6C47FF" />
+                <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
+                  Instant MPIN Sign In
+                </Text>
+              </View>
+
+              <Text style={[styles.title, { color: textMain }]}>
+                Welcome <Text style={{ color: '#6C47FF' }}>{detectedName || 'Back'}!</Text>
+              </Text>
+
+              {/* Profile Chip with Edit Button */}
+              <TouchableOpacity
+                style={[styles.profilePill, { backgroundColor: isDarkMode ? '#1E2540' : '#F0F2FF', borderColor: isDarkMode ? '#2D3760' : '#E0E4FF' }]}
+                onPress={() => setStep('PHONE')}
+                activeOpacity={0.75}
+              >
+                <RoleIcon size={13} color={PURPLE} />
+                <Text style={[styles.profilePillText, { color: PURPLE }]}>{currentRoleMeta.label} · +91 {phone}</Text>
+                <Edit3 size={11} color={PURPLE} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Floating Form Card */}
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              {/* Hidden Real Input */}
               <TextInput
                 ref={mpinInputRef}
                 style={styles.hiddenInput}
@@ -537,11 +610,10 @@ const LoginScreen = ({ navigation, route }) => {
                 caretHidden
               />
 
-              <Text style={[styles.cardSub, { color: textSub, textAlign: 'center', marginBottom: 20 }]}>
-                Tap to enter your secure PIN
-              </Text>
+              <Text style={[styles.cardHeading, { color: textMain }]}>Enter 4-Digit MPIN</Text>
+              <Text style={[styles.cardSubheading, { color: textSub }]}>Tap to enter your security PIN</Text>
 
-              {/* PIN Boxes */}
+              {/* PIN Boxes (HomeScreen Standard) */}
               <Animated.View style={[styles.pinRow, { transform: [{ translateX: shakeAnim }] }]}>
                 {[0, 1, 2, 3].map((i) => {
                   const filled = mpin.length > i;
@@ -552,32 +624,36 @@ const LoginScreen = ({ navigation, route }) => {
                       onPress={() => mpinInputRef.current?.focus()}
                       style={[
                         styles.pinBox,
-                        { backgroundColor: inputBg, borderColor: border },
-                        current && { borderColor: PURPLE, backgroundColor: isDarkMode ? `${PURPLE}22` : PURPLE_LIGHT },
+                        { backgroundColor: inputBg, borderColor: inputBorder },
+                        current && styles.pinBoxActiveGlow,
                         filled && { borderColor: PURPLE },
                         mpinError && { borderColor: '#EF4444' },
                       ]}
                     >
-                      {filled
-                        ? showMpin
-                          ? <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
-                          : <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
-                        : <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
-                      }
+                      {filled ? (
+                        showMpin ? (
+                          <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                        ) : (
+                          <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
+                        )
+                      ) : (
+                        <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
+                      )}
                     </Pressable>
                   );
                 })}
               </Animated.View>
 
-              {/* Controls */}
+              {/* Eye Toggle & Forgot MPIN */}
               <View style={styles.pinControls}>
                 <TouchableOpacity
                   style={[styles.eyePill, { backgroundColor: isDarkMode ? `${PURPLE}22` : PURPLE_LIGHT }]}
                   onPress={() => setShowMpin(!showMpin)}
                 >
                   {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
-                  <Text style={styles.eyePillText}>{showMpin ? 'Hide' : 'Show'} PIN</Text>
+                  <Text style={[styles.eyePillText, { color: PURPLE }]}>{showMpin ? 'Hide' : 'Show'} PIN</Text>
                 </TouchableOpacity>
+
                 {loading ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <ActivityIndicator size="small" color={PURPLE} />
@@ -585,12 +661,12 @@ const LoginScreen = ({ navigation, route }) => {
                   </View>
                 ) : (
                   <TouchableOpacity onPress={handleForgotMpin}>
-                    <Text style={styles.footerLink}>Forgot MPIN?</Text>
+                    <Text style={[styles.footerLink, { color: PURPLE }]}>Forgot MPIN?</Text>
                   </TouchableOpacity>
                 )}
               </View>
 
-              {/* Error */}
+              {/* Error Message */}
               {Boolean(mpinError) && (
                 <View style={[styles.errorBox, { backgroundColor: isDarkMode ? 'rgba(239,68,68,0.12)' : '#FEF2F2', borderColor: isDarkMode ? 'rgba(239,68,68,0.3)' : '#FCA5A5' }]}>
                   <AlertCircle size={14} color="#EF4444" style={{ marginRight: 6 }} />
@@ -598,27 +674,45 @@ const LoginScreen = ({ navigation, route }) => {
                 </View>
               )}
 
-              {/* Sign In button */}
+              {/* Sign In CTA */}
               <TouchableOpacity
-                style={{ opacity: (mpin.length === 4 && !loading) ? 1 : 0.5, marginTop: 14 }}
+                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 14 }]}
                 onPress={() => handleMpinSubmit(mpin)}
                 disabled={mpin.length !== 4 || loading}
                 activeOpacity={0.88}
               >
-                <LinearGradient colors={[PURPLE, '#8B6FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaBtn}>
-                  {loading ? <ActivityIndicator size="small" color="#FFF" /> : (
-                    <><Text style={styles.ctaText}>Sign In with MPIN</Text><ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} /></>
+                <LinearGradient
+                  colors={[PURPLE, '#582BE8']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.ctaBtn}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.ctaText}>Sign In with MPIN</Text>
+                      <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                    </>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* OTP option */}
-              <TouchableOpacity style={styles.otpLink} onPress={handleDirectOtpLogin}>
+              {/* Sign in with OTP option */}
+              <TouchableOpacity style={styles.otpLink} onPress={handleDirectOtpLogin} activeOpacity={0.75}>
                 <MessageSquare size={14} color={PURPLE} />
                 <Text style={[styles.footerText, { color: textSub }]}>
-                  {' '}Sign in with <Text style={styles.footerLink}>OTP instead</Text>
+                  {' '}Sign in with <Text style={[styles.footerLink, { color: PURPLE }]}>OTP instead</Text>
                 </Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Bottom Trust Badge */}
+            <View style={styles.trustFooter}>
+              <ShieldCheck size={14} color="#10B981" />
+              <Text style={[styles.trustText, { color: textSub }]}>
+                Bank-grade 256-bit encryption · 100% Secure
+              </Text>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -628,27 +722,45 @@ const LoginScreen = ({ navigation, route }) => {
   }
 
   // ══════════════════════════════════════════
-  // STEP: RESET_MPIN
+  // STEP 4: RESET_MPIN
   // ══════════════════════════════════════════
   return (
-    <View style={[styles.root, { backgroundColor: isDarkMode ? '#0C0E1A' : '#FFF' }]}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
+      {renderBackground()}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
-          <LinearGradient colors={[PURPLE, '#8B6FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: topPad + 18 }]}>
-            <View style={styles.blob1} /><View style={styles.blob2} />
-            <View style={styles.brandRow}>
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <View style={styles.headerBlock}>
+            <View style={styles.logoRow}>
               <KwicklyIcon size={38} />
-              <Text style={styles.brandName}>Kwick<Text style={{ color: '#FFD580' }}>ly</Text></Text>
+              <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+              </Text>
             </View>
-            <Text style={styles.heroTitle}>Reset MPIN</Text>
-            <Text style={styles.heroSub}>Enter the OTP sent to +91 {phone}</Text>
-          </LinearGradient>
 
-          <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 16 }]}>
-            {/* OTP */}
-            <Text style={[styles.label, { color: textSub }]}>Verification OTP</Text>
-            <View style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : border, marginBottom: 14 }, focusedInput === 'resetOtp' && styles.inputFocusShadow]}>
+            <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+              <KeyRound size={12} color="#6C47FF" />
+              <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
+                MPIN Recovery
+              </Text>
+            </View>
+
+            <Text style={[styles.title, { color: textMain }]}>
+              Reset <Text style={{ color: '#6C47FF' }}>MPIN</Text>
+            </Text>
+            <Text style={[styles.subtitle, { color: textSub }]}>
+              Enter OTP sent to +91 {phone}
+            </Text>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            {/* OTP Input */}
+            <Text style={[styles.fieldLabel, { color: textSub }]}>VERIFICATION OTP</Text>
+            <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : inputBorder, marginBottom: 14 }]}>
               <MessageSquare size={16} color={focusedInput === 'resetOtp' ? PURPLE : textSub} style={{ marginRight: 10 }} />
               <TextInput
                 style={[styles.inputText, { color: textMain, letterSpacing: resetOtp.length > 0 ? 8 : 0, fontWeight: '800' }]}
@@ -665,13 +777,13 @@ const LoginScreen = ({ navigation, route }) => {
 
             {/* New MPIN */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[styles.label, { color: textSub }]}>New 4-Digit MPIN</Text>
+              <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
               <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                {showNewMpin ? <EyeOff size={14} color={PURPLE} /> : <Eye size={14} color={PURPLE} />}
-                <Text style={styles.footerLink}>{showNewMpin ? 'Hide' : 'Show'}</Text>
+                {showNewMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
+                <Text style={[styles.footerLink, { color: PURPLE, fontSize: 12 }]}>{showNewMpin ? 'Hide' : 'Show'}</Text>
               </TouchableOpacity>
             </View>
-            <View style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: focusedInput === 'newMpin' ? PURPLE : border, marginBottom: 14 }, focusedInput === 'newMpin' && styles.inputFocusShadow]}>
+            <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: focusedInput === 'newMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
               <Lock size={16} color={focusedInput === 'newMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
               <TextInput
                 style={[styles.inputText, { color: textMain, letterSpacing: newMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
@@ -689,11 +801,11 @@ const LoginScreen = ({ navigation, route }) => {
 
             {/* Confirm MPIN */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[styles.label, { color: textSub }]}>Confirm New MPIN</Text>
-              {isResetMatched && <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 12 }}>✓ Match</Text>}
-              {isResetMismatched && <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 12 }}>✗ Mismatch</Text>}
+              <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM NEW MPIN</Text>
+              {isResetMatched && <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 12 }}>✓ Matched</Text>}
+              {isResetMismatched && <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 12 }}>✗ Does not match</Text>}
             </View>
-            <View style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : border, marginBottom: 20 }, focusedInput === 'confirmMpin' && styles.inputFocusShadow]}>
+            <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : inputBorder, marginBottom: 20 }]}>
               <ShieldCheck size={16} color={isResetMatched ? '#10B981' : (focusedInput === 'confirmMpin' ? PURPLE : textSub)} style={{ marginRight: 10 }} />
               <TextInput
                 style={[styles.inputText, { color: textMain, letterSpacing: confirmNewMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
@@ -709,19 +821,25 @@ const LoginScreen = ({ navigation, route }) => {
               />
             </View>
 
+            {/* Reset CTA */}
             <TouchableOpacity
-              style={{ opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.5 }}
+              style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45 }]}
               onPress={handleResetMpin}
               disabled={resetOtp.length !== 4 || !isResetMatched || loading}
               activeOpacity={0.88}
             >
-              <LinearGradient colors={[PURPLE, '#8B6FFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaBtn}>
+              <LinearGradient
+                colors={[PURPLE, '#582BE8']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.ctaBtn}
+              >
                 {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.ctaText}>Reset MPIN & Sign In</Text>}
               </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('MPIN')}>
-              <Text style={styles.footerLink}>Back to MPIN sign in</Text>
+              <Text style={[styles.footerLink, { color: PURPLE }]}>Back to MPIN sign in</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -732,131 +850,309 @@ const LoginScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  scrollContent: { flexGrow: 1 },
-
-  // Hero
-  hero: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+  root: {
+    flex: 1,
     overflow: 'hidden',
   },
-  blob1: {
-    position: 'absolute', top: -50, right: -50,
-    width: 180, height: 180, borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  bgOrbTopLeft: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    opacity: 0.14,
+    overflow: 'hidden',
   },
-  blob2: {
-    position: 'absolute', bottom: -30, left: -40,
-    width: 140, height: 140, borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  bgOrbBottomRight: {
+    position: 'absolute',
+    bottom: SH * 0.10,
+    right: -70,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    opacity: 0.12,
+    overflow: 'hidden',
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 14,
-  },
-  brandName: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#FFF',
-    letterSpacing: -0.4,
-  },
-  heroTitle: { fontSize: 26, fontWeight: '900', color: '#FFF', letterSpacing: -0.4, marginBottom: 4 },
-  heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500', marginBottom: 12 },
-  trustPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
-  },
-  trustPillText: { fontSize: 11.5, color: '#FFF', fontWeight: '600' },
-  rolePill: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 20, gap: 4,
-  },
-  rolePillText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
-  rolePillSep: { color: 'rgba(255,255,255,0.5)' },
-
-  // Card
-  card: {
-    flex: 1, paddingHorizontal: 20, paddingTop: 22,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    marginTop: -12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 5,
-  },
-  cardHeading: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  cardSub: { fontSize: 13, marginTop: 3 },
-
-  // Input
-  label: { fontSize: 11.5, fontWeight: '700', marginBottom: 6, letterSpacing: 0.3, textTransform: 'uppercase' },
-  inputWrap: {
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1.5, borderRadius: 14, height: 52, paddingHorizontal: 12,
-  },
-  inputFocusShadow: {
-    shadowColor: PURPLE, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 6, elevation: 2,
-  },
-  inputText: {
-    flex: 1, fontSize: 16, fontWeight: '700',
-    height: '100%', paddingVertical: 0,
-  },
-  prefixBox: {
+  scrollContent: {
+    paddingHorizontal: 16,
+    flexGrow: 1,
     justifyContent: 'center',
   },
-  prefix: {
-    fontSize: 14, fontWeight: '800',
-    marginRight: 10, paddingRight: 10, borderRightWidth: 1,
+  headerBlock: {
+    alignItems: 'center',
+    marginBottom: 16,
   },
-
-  // CTA
-  ctaBtn: {
-    height: 52, borderRadius: 16, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: PURPLE, shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3, shadowRadius: 10, elevation: 6,
-  },
-  ctaText: { color: '#FFF', fontWeight: '900', fontSize: 16, letterSpacing: 0.3 },
-
-  footerText: { fontSize: 13 },
-  footerLink: { color: PURPLE, fontWeight: '800' },
-  trustRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  trustText: { fontSize: 11.5 },
-
-  // Role select step
-  accountCard: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 14, borderRadius: 16, borderWidth: 1.5,
-    marginBottom: 10,
-  },
-  accountIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  accountRole: { fontSize: 15, fontWeight: '800' },
-  accountName: { fontSize: 12.5, marginTop: 2 },
-
-  // MPIN step
-  hiddenInput: { position: 'absolute', opacity: 0, width: 1, height: 1 },
-  pinRow: { flexDirection: 'row', justifyContent: 'center', gap: 14, marginBottom: 20 },
-  pinBox: {
-    width: 58, height: 58, borderRadius: 16, borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  pinDigit: { fontSize: 22, fontWeight: '900' },
-  pinDot: { width: 14, height: 14, borderRadius: 7 },
-  pinEmptyDot: { width: 8, height: 8, borderRadius: 4 },
-  pinControls: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  eyePill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, gap: 5 },
-  eyePillText: { fontSize: 12, fontWeight: '700', color: PURPLE },
-  errorBox: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 10, borderRadius: 10, borderWidth: 1,
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
     marginBottom: 8,
   },
-  errorText: { color: '#EF4444', fontSize: 12.5, fontWeight: '600', flex: 1 },
-  otpLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 14, paddingVertical: 4 },
+  wordmark: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  pillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 3,
+  },
+  profilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: 8,
+    gap: 5,
+  },
+  profilePillText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  card: {
+    borderRadius: 24,
+    borderWidth: 1.5,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  cardHeading: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
+  cardSubheading: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  fieldLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    marginBottom: 8,
+  },
+  inputContainer: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  inputFocusGlow: {
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  inputText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    paddingVertical: 0,
+  },
+  prefixWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  flagText: {
+    fontSize: 16,
+    marginRight: 4,
+  },
+  prefixNumber: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+  prefixDivider: {
+    width: 1,
+    height: 22,
+    marginRight: 4,
+  },
+  btnShadow: {
+    width: '100%',
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  ctaBtn: {
+    height: 52,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  footerRow: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  footerText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  footerLink: {
+    fontWeight: '800',
+  },
+  trustFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 20,
+  },
+  trustText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  accountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    marginBottom: 10,
+  },
+  accountIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountRole: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  accountName: {
+    fontSize: 12.5,
+    marginTop: 2,
+  },
+  hiddenInput: {
+    position: 'absolute',
+    opacity: 0,
+    width: 1,
+    height: 1,
+  },
+  pinRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 18,
+  },
+  pinBox: {
+    width: Math.min(SW * 0.15, 62),
+    height: Math.min(SW * 0.16, 64),
+    borderRadius: 16,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinBoxActiveGlow: {
+    borderColor: PURPLE,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  pinDigit: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  pinDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  pinEmptyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  pinControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  eyePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 5,
+  },
+  eyePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+  otpLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingVertical: 4,
+  },
 });
 
 export default LoginScreen;

@@ -35,10 +35,10 @@ import { useAuth } from '../../context/AuthContext';
 import api, { getApiErrorMessage } from '../../services/api';
 import CustomAlert from '../../components/ui/CustomAlert';
 
-const { width: SW } = Dimensions.get('window');
+const { width: SW, height: SH } = Dimensions.get('window');
 
 const PURPLE = '#6C47FF';
-const PURPLE_LIGHT = '#EEE8FF';
+const PURPLE_LIGHT = '#F5F3FF';
 
 const ROLE_META = {
   CUSTOMER: { label: 'Customer', icon: User, color: PURPLE, bg: PURPLE_LIGHT },
@@ -63,15 +63,15 @@ const SetMpinScreen = ({ navigation, route }) => {
   const confirmInputRef = useRef(null);
 
   useEffect(() => {
-    // Auto focus first PIN input on mount
     const timer = setTimeout(() => {
       mpinInputRef.current?.focus();
     }, 350);
     return () => clearTimeout(timer);
   }, []);
 
-  const topPad = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
-  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 16);
+  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 14;
+  const safeBottomPadding = Math.max(insets.bottom, 16);
 
   const normalizedRole = (role || 'CUSTOMER').toUpperCase();
   const roleMeta = ROLE_META[normalizedRole] || ROLE_META.CUSTOMER;
@@ -120,59 +120,80 @@ const SetMpinScreen = ({ navigation, route }) => {
   };
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
-  const textMain = isDarkMode ? '#F1F5F9' : '#0F172A';
+  const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
+  const textMain = isDarkMode ? '#F8FAFC' : '#0F172A';
   const textSub = isDarkMode ? '#94A3B8' : '#64748B';
-  const border = isDarkMode ? '#1E293B' : '#E2E8F0';
   const inputBg = isDarkMode ? '#0B1120' : '#F8FAFC';
+  const inputBorder = isDarkMode ? '#1E293B' : '#E2E8F0';
 
   return (
-    <View style={[styles.root, { backgroundColor: isDarkMode ? '#0C0E1A' : '#FFF' }]}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor="transparent"
+        translucent
+      />
+
+      {/* Ambient Gradient Canvas (HomeScreen standard) */}
+      <LinearGradient
+        colors={
+          isDarkMode
+            ? ['#0B0F19', '#111827', '#0B0F19']
+            : ['#FFFFFF', '#F6F8FC', '#EEF2FF', '#FFFFFF']
+        }
+        locations={[0, 0.3, 0.7, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* Ambient Glowing Orbs */}
+      <View pointerEvents="none" style={styles.bgOrbTopLeft}>
+        <LinearGradient colors={['#8B5CF6', '#6C47FF']} style={StyleSheet.absoluteFill} />
+      </View>
+      <View pointerEvents="none" style={styles.bgOrbBottomRight}>
+        <LinearGradient colors={['#3B82F6', '#6C47FF']} style={StyleSheet.absoluteFill} />
+      </View>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* ── HERO HEADER (matches HomeScreen) ── */}
-          <LinearGradient
-            colors={[PURPLE, '#8B6FFF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.hero, { paddingTop: topPad + 18 }]}
-          >
-            <View style={styles.blob1} />
-            <View style={styles.blob2} />
-
-            {/* Official Kwickly App Icon & Brand Name */}
-            <View style={styles.brandRow}>
+          {/* Top Brand Header */}
+          <View style={styles.headerBlock}>
+            <View style={styles.logoRow}>
               <KwicklyIcon size={38} />
-              <Text style={styles.brandName}>
-                Kwick<Text style={{ color: '#FFD580' }}>ly</Text>
+              <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
               </Text>
             </View>
 
-            {/* Badge Pill */}
-            <View style={styles.badgePill}>
-              <Sparkles size={13} color="#FFFFFF" />
-              <Text style={styles.badgePillText}>Security Setup</Text>
+            <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+              <Sparkles size={12} color="#6C47FF" />
+              <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
+                Security Setup · Almost Done
+              </Text>
             </View>
 
-            <Text style={styles.heroTitle}>Create 4-Digit MPIN</Text>
-            <Text style={styles.heroSub}>
+            <Text style={[styles.title, { color: textMain }]}>
+              Create <Text style={{ color: '#6C47FF' }}>4-Digit MPIN</Text>
+            </Text>
+            <Text style={[styles.subtitle, { color: textSub }]}>
               Use this secure MPIN to sign in quickly anytime
             </Text>
-          </LinearGradient>
+          </View>
 
-          {/* ── FORM CARD ── */}
-          <View style={[styles.card, { backgroundColor: cardBg, paddingBottom: bottomPad + 16 }]}>
+          {/* Floating Form Card */}
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             {/* User Info Chip */}
-            <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: border }]}>
+            <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }]}>
               <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
                 <RoleIcon size={16} color={roleMeta.color} />
               </View>
@@ -192,10 +213,10 @@ const SetMpinScreen = ({ navigation, route }) => {
 
             {/* ── NEW 4-DIGIT MPIN SECTION ── */}
             <View style={styles.fieldHeader}>
-              <Text style={[styles.label, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
+              <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
               <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.toggleRow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                {showMpin ? <EyeOff size={14} color={PURPLE} /> : <Eye size={14} color={PURPLE} />}
-                <Text style={styles.toggleText}>{showMpin ? 'Hide PIN' : 'Show PIN'}</Text>
+                {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
+                <Text style={[styles.toggleText, { color: PURPLE }]}>{showMpin ? 'Hide PIN' : 'Show PIN'}</Text>
               </TouchableOpacity>
             </View>
 
@@ -233,8 +254,8 @@ const SetMpinScreen = ({ navigation, route }) => {
                     key={i}
                     style={[
                       styles.pinBox,
-                      { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : border },
-                      active && styles.pinBoxActive,
+                      { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : inputBorder },
+                      active && styles.pinBoxActiveGlow,
                     ]}
                   >
                     {filled ? (
@@ -253,7 +274,7 @@ const SetMpinScreen = ({ navigation, route }) => {
 
             {/* ── CONFIRM 4-DIGIT MPIN SECTION ── */}
             <View style={[styles.fieldHeader, { marginTop: 18 }]}>
-              <Text style={[styles.label, { color: textSub }]}>CONFIRM 4-DIGIT MPIN</Text>
+              <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM 4-DIGIT MPIN</Text>
               {isMatched && (
                 <View style={styles.matchTag}>
                   <CheckCircle2 size={13} color="#10B981" />
@@ -306,9 +327,9 @@ const SetMpinScreen = ({ navigation, route }) => {
                       styles.pinBox,
                       {
                         backgroundColor: inputBg,
-                        borderColor: isMatchBox ? '#10B981' : isMismatchBox ? '#EF4444' : active ? PURPLE : filled ? PURPLE : border,
+                        borderColor: isMatchBox ? '#10B981' : isMismatchBox ? '#EF4444' : active ? PURPLE : filled ? PURPLE : inputBorder,
                       },
-                      active && styles.pinBoxActive,
+                      active && styles.pinBoxActiveGlow,
                     ]}
                   >
                     {filled ? (
@@ -328,24 +349,22 @@ const SetMpinScreen = ({ navigation, route }) => {
             </Pressable>
 
             {/* Security hint */}
-            <View style={styles.hintBox}>
+            <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }]}>
               <Text style={styles.hintIcon}>💡</Text>
               <Text style={[styles.hintText, { color: textSub }]}>
                 Never share your MPIN. Avoid simple sequences like 1234 or 0000.
               </Text>
             </View>
 
-            <View style={{ flex: 1, minHeight: 20 }} />
-
             {/* CTA Button */}
             <TouchableOpacity
-              style={{ opacity: (isMatched && !loading) ? 1 : 0.5 }}
+              style={[styles.btnShadow, { opacity: (isMatched && !loading) ? 1 : 0.45, marginTop: 18 }]}
               onPress={() => handleSetMpin(mpin, confirmMpin)}
               disabled={!isMatched || loading}
               activeOpacity={0.88}
             >
               <LinearGradient
-                colors={[PURPLE, '#8B6FFF']}
+                colors={[PURPLE, '#582BE8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.ctaBtn}
@@ -360,12 +379,14 @@ const SetMpinScreen = ({ navigation, route }) => {
                 )}
               </LinearGradient>
             </TouchableOpacity>
+          </View>
 
-            {/* Security trust badge */}
-            <View style={styles.secureRow}>
-              <ShieldCheck size={13} color="#10B981" />
-              <Text style={[styles.secureText, { color: textSub }]}> Bank-grade 256-bit encryption • 100% Secure</Text>
-            </View>
+          {/* Bottom Security Trust Badge */}
+          <View style={styles.trustFooter}>
+            <ShieldCheck size={14} color="#10B981" />
+            <Text style={[styles.trustText, { color: textSub }]}>
+              Bank-grade 256-bit encryption · 100% Secure
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -382,87 +403,104 @@ const SetMpinScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  scrollContent: { flexGrow: 1 },
-  hero: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    position: 'relative',
+  root: {
+    flex: 1,
     overflow: 'hidden',
   },
-  blob1: {
-    position: 'absolute', top: -40, right: -40,
-    width: 170, height: 170, borderRadius: 85,
-    backgroundColor: 'rgba(255,255,255,0.09)',
+  bgOrbTopLeft: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    opacity: 0.14,
+    overflow: 'hidden',
   },
-  blob2: {
-    position: 'absolute', bottom: -30, left: -40,
-    width: 140, height: 140, borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  bgOrbBottomRight: {
+    position: 'absolute',
+    bottom: SH * 0.10,
+    right: -70,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    opacity: 0.12,
+    overflow: 'hidden',
   },
-  brandRow: {
+  scrollContent: {
+    paddingHorizontal: 16,
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  headerBlock: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
-    marginBottom: 14,
-  },
-  brandName: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#FFF',
-    letterSpacing: -0.4,
-  },
-  badgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
     marginBottom: 8,
-    gap: 6,
   },
-  badgePillText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  heroTitle: {
-    color: '#FFFFFF',
+  wordmark: {
     fontSize: 24,
     fontWeight: '900',
     letterSpacing: -0.5,
-    marginBottom: 4,
   },
-  heroSub: {
-    color: 'rgba(255,255,255,0.85)',
+  pillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  subtitle: {
     fontSize: 13,
     fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 3,
   },
   card: {
-    flex: 1,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -12,
+    borderRadius: 24,
+    borderWidth: 1.5,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingVertical: 22,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
   },
   userChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
+    padding: 12,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
     marginBottom: 16,
     gap: 10,
   },
   roleIconCircle: {
     width: 34,
     height: 34,
-    borderRadius: 17,
-    justifyContent: 'center',
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   userName: {
     fontSize: 14,
@@ -470,20 +508,20 @@ const styles = StyleSheet.create({
   },
   userPhone: {
     fontSize: 12,
+    marginTop: 2,
     fontWeight: '500',
-    marginTop: 1,
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 10,
-    gap: 4,
+    borderRadius: 12,
   },
   verifiedText: {
-    color: '#10B981',
+    color: '#059669',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -491,23 +529,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  label: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
+  fieldLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.7,
   },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   toggleText: {
-    color: PURPLE,
     fontSize: 12,
     fontWeight: '700',
+  },
+  hiddenInput: {
+    position: 'absolute',
+    opacity: 0,
+    width: 1,
+    height: 1,
+  },
+  pinRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  pinBox: {
+    width: Math.min(SW * 0.15, 62),
+    height: Math.min(SW * 0.16, 64),
+    borderRadius: 16,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinBoxActiveGlow: {
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  pinDigit: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  pinDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  pinEmptyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   matchTag: {
     flexDirection: 'row',
@@ -529,65 +605,30 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '700',
   },
-  hiddenInput: {
-    position: 'absolute',
-    opacity: 0,
-    width: 1,
-    height: 1,
-  },
-  pinRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 4,
-  },
-  pinBox: {
-    flex: 1,
-    height: 56,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pinBoxActive: {
-    borderWidth: 2,
-    shadowColor: PURPLE,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  pinDigit: {
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  pinDot: {
-    width: 13,
-    height: 13,
-    borderRadius: 6.5,
-  },
-  pinEmptyDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
   hintBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(108, 71, 255, 0.06)',
-    padding: 10,
+    padding: 12,
     borderRadius: 12,
+    borderWidth: 1,
     marginTop: 18,
     gap: 8,
   },
   hintIcon: {
-    fontSize: 14,
+    fontSize: 16,
   },
   hintText: {
-    fontSize: 11.5,
-    fontWeight: '500',
     flex: 1,
+    fontSize: 11.5,
     lineHeight: 16,
+  },
+  btnShadow: {
+    width: '100%',
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   ctaBtn: {
     height: 52,
@@ -595,26 +636,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: PURPLE,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   ctaText: {
-    color: '#FFFFFF',
-    fontSize: 15.5,
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
   },
-  secureRow: {
+  trustFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    gap: 6,
+    marginTop: 20,
   },
-  secureText: {
-    fontSize: 11,
+  trustText: {
+    fontSize: 11.5,
     fontWeight: '600',
   },
 });
