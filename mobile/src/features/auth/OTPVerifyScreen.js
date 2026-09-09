@@ -28,6 +28,7 @@ import {
 import CustomAlert from '../../components/ui/CustomAlert';
 import api, { getApiErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 import { validateOtpForSubmit, sanitizeOtp } from '../../utils/otpGuard';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
@@ -52,6 +53,9 @@ const OTPVerifyScreen = ({ navigation, route }) => {
 
   const inputs = useRef([]);
   const timerRef = useRef(null);
+  const scrollRef = useRef(null);
+
+  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
 
   useEffect(() => {
     const t = setTimeout(() => { if (inputs.current[0]) inputs.current[0].focus(); }, 350);
@@ -194,9 +198,14 @@ const OTPVerifyScreen = ({ navigation, route }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding },
+            {
+              paddingTop: safeTopPadding,
+              paddingBottom: safeBottomPadding + bottomInset,
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+            },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -265,7 +274,10 @@ const OTPVerifyScreen = ({ navigation, route }) => {
                     value={code[index]}
                     onChangeText={(text) => handleChange(text, index)}
                     onKeyPress={(e) => handleKeyPress(e, index)}
-                    onFocus={() => setFocusedIndex(index)}
+                    onFocus={() => {
+                      setFocusedIndex(index);
+                      setTimeout(() => scrollRef.current?.scrollTo({ y: 70, animated: true }), 100);
+                    }}
                     onBlur={() => setFocusedIndex(null)}
                     selectTextOnFocus
                     caretHidden
@@ -383,7 +395,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     flexGrow: 1,
-    justifyContent: 'center',
   },
   headerBlock: {
     alignItems: 'center',

@@ -18,6 +18,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 import {
   Lock,
   ShieldCheck,
@@ -61,6 +62,9 @@ const SetMpinScreen = ({ navigation, route }) => {
 
   const mpinInputRef = useRef(null);
   const confirmInputRef = useRef(null);
+  const scrollRef = useRef(null);
+
+  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -158,9 +162,14 @@ const SetMpinScreen = ({ navigation, route }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding },
+            {
+              paddingTop: safeTopPadding,
+              paddingBottom: safeBottomPadding + bottomInset,
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+            },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -236,7 +245,10 @@ const SetMpinScreen = ({ navigation, route }) => {
                   setFocusedSection('confirm');
                 }
               }}
-              onFocus={() => setFocusedSection('mpin')}
+              onFocus={() => {
+                setFocusedSection('mpin');
+                setTimeout(() => scrollRef.current?.scrollTo({ y: 60, animated: true }), 100);
+              }}
               onBlur={() => { if (focusedSection === 'mpin') setFocusedSection(null); }}
               caretHidden
             />
@@ -305,7 +317,10 @@ const SetMpinScreen = ({ navigation, route }) => {
                   handleSetMpin(mpin, clean);
                 }
               }}
-              onFocus={() => setFocusedSection('confirm')}
+              onFocus={() => {
+                setFocusedSection('confirm');
+                setTimeout(() => scrollRef.current?.scrollTo({ y: 170, animated: true }), 100);
+              }}
               onBlur={() => { if (focusedSection === 'confirm') setFocusedSection(null); }}
               caretHidden
             />
@@ -431,7 +446,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     flexGrow: 1,
-    justifyContent: 'center',
   },
   headerBlock: {
     alignItems: 'center',

@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 import {
   User,
   Wrench,
@@ -59,6 +60,9 @@ const RoleSelection = ({ navigation, route }) => {
 
   const nameInputRef = useRef(null);
   const phoneInputRef = useRef(null);
+  const scrollRef = useRef(null);
+
+  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
 
   // Legal Modal
   const [legalModalVisible, setLegalModalVisible] = useState(false);
@@ -197,9 +201,14 @@ const RoleSelection = ({ navigation, route }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding },
+            {
+              paddingTop: safeTopPadding,
+              paddingBottom: safeBottomPadding + bottomInset,
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+            },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -293,7 +302,10 @@ const RoleSelection = ({ navigation, route }) => {
                 autoCorrect={false}
                 value={fullName}
                 onChangeText={setFullName}
-                onFocus={() => setFocusedInput('name')}
+                onFocus={() => {
+                  setFocusedInput('name');
+                  setTimeout(() => scrollRef.current?.scrollTo({ y: 90, animated: true }), 100);
+                }}
                 onBlur={() => setFocusedInput(null)}
                 returnKeyType="next"
                 onSubmitEditing={() => phoneInputRef.current?.focus()}
@@ -335,7 +347,10 @@ const RoleSelection = ({ navigation, route }) => {
                   else if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1);
                   setPhoneNumber(digits.slice(0, 10));
                 }}
-                onFocus={() => setFocusedInput('phone')}
+                onFocus={() => {
+                  setFocusedInput('phone');
+                  setTimeout(() => scrollRef.current?.scrollTo({ y: 160, animated: true }), 100);
+                }}
                 onBlur={() => setFocusedInput(null)}
                 returnKeyType="done"
                 onSubmitEditing={handlePhoneSubmit}
@@ -530,7 +545,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     flexGrow: 1,
-    justifyContent: 'center',
   },
   headerBlock: {
     alignItems: 'center',

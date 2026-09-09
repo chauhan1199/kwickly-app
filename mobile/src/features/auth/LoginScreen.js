@@ -41,6 +41,7 @@ import { getApiErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import CustomAlert from '../../components/ui/CustomAlert';
 import LinearGradient from 'react-native-linear-gradient';
+import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -79,8 +80,11 @@ const LoginScreen = ({ navigation, route }) => {
 
   const phoneInputRef = useRef(null);
   const mpinInputRef = useRef(null);
+  const scrollRef = useRef(null);
   const isCheckingRef = useRef(false);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
 
   useEffect(() => {
     if (prefillPhone && prefillPhone.length === 10) handleCheckNumber(prefillPhone);
@@ -217,8 +221,10 @@ const LoginScreen = ({ navigation, route }) => {
       const msg = getApiErrorMessage(error, '');
       if (status === 401 || msg.toLowerCase().includes('mpin') || msg.toLowerCase().includes('password') || msg.toLowerCase().includes('invalid')) {
         setMpinError('Incorrect MPIN. Please try again.');
+      } else if (msg && !msg.toLowerCase().includes('undefined')) {
+        setMpinError(msg);
       } else {
-        setMpinError(msg || 'Sign in failed. Please try again.');
+        setMpinError('Sign in failed. Please try again.');
       }
       setTimeout(() => mpinInputRef.current?.focus(), 150);
     } finally {
@@ -355,7 +361,15 @@ const LoginScreen = ({ navigation, route }) => {
         {renderBackground()}
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
-            contentContainerStyle={[styles.scrollContent, { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding }]}
+            ref={scrollRef}
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingTop: safeTopPadding,
+                paddingBottom: safeBottomPadding + bottomInset,
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              },
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
@@ -414,7 +428,10 @@ const LoginScreen = ({ navigation, route }) => {
                   editable={!loading}
                   value={phone}
                   onChangeText={handlePhoneChange}
-                  onFocus={() => setFocusedInput('phone')}
+                  onFocus={() => {
+                    setFocusedInput('phone');
+                    setTimeout(() => scrollRef.current?.scrollTo({ y: 80, animated: true }), 100);
+                  }}
                   onBlur={() => setFocusedInput(null)}
                   returnKeyType="done"
                   onSubmitEditing={() => { if (phone.length === 10) handleCheckNumber(phone); }}
@@ -488,7 +505,15 @@ const LoginScreen = ({ navigation, route }) => {
         {renderBackground()}
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
-            contentContainerStyle={[styles.scrollContent, { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding }]}
+            ref={scrollRef}
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingTop: safeTopPadding,
+                paddingBottom: safeBottomPadding + bottomInset,
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              },
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
@@ -559,7 +584,15 @@ const LoginScreen = ({ navigation, route }) => {
         {renderBackground()}
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
-            contentContainerStyle={[styles.scrollContent, { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding }]}
+            ref={scrollRef}
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingTop: safeTopPadding,
+                paddingBottom: safeBottomPadding + bottomInset,
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              },
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
@@ -606,7 +639,10 @@ const LoginScreen = ({ navigation, route }) => {
                 maxLength={4}
                 value={mpin}
                 onChangeText={handleMpinChange}
-                onFocus={() => setFocusedInput('mpin')}
+                onFocus={() => {
+                  setFocusedInput('mpin');
+                  setTimeout(() => scrollRef.current?.scrollTo({ y: 90, animated: true }), 100);
+                }}
                 onBlur={() => setFocusedInput(null)}
                 caretHidden
               />
@@ -730,7 +766,15 @@ const LoginScreen = ({ navigation, route }) => {
       {renderBackground()}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingTop: safeTopPadding, paddingBottom: safeBottomPadding }]}
+          ref={scrollRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: safeTopPadding,
+              paddingBottom: safeBottomPadding + bottomInset,
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
@@ -878,7 +922,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     flexGrow: 1,
-    justifyContent: 'center',
   },
   headerBlock: {
     alignItems: 'center',

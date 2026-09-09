@@ -19,6 +19,28 @@ export const authService = {
       ...(role ? { role } : {})
     })),
 
+  loginWithMpin: (phone, roleOrMpin, maybeMpin) => {
+    let role = null;
+    let mpin = null;
+    if (maybeMpin !== undefined) {
+      if (typeof roleOrMpin === 'string' && ['CUSTOMER', 'WORKER', 'SHOP', 'ADMIN'].includes(roleOrMpin.toUpperCase())) {
+        role = roleOrMpin;
+        mpin = maybeMpin;
+      } else {
+        mpin = roleOrMpin;
+        role = maybeMpin;
+      }
+    } else {
+      mpin = roleOrMpin;
+    }
+    return withErrorHandling(() => api.post('/auth/login', {
+      phone,
+      password: mpin,
+      mpin: mpin,
+      ...(role ? { role: role.toUpperCase() } : {})
+    }))();
+  },
+
   setMpin: async (mpin, token) => {
     try {
       const response = await api.post('/auth/set-mpin', { mpin }, {
@@ -74,6 +96,12 @@ export const authService = {
       throw error;
     }
   },
+
+  resetPasswordWithOtp: (phone, code, newPassword, role) =>
+    authService.resetPassword(phone, code, newPassword, role),
+
+  resetMpinWithOtp: (phone, code, newMpin, role) =>
+    authService.resetMpin(phone, code, newMpin, role),
 };
 
 export default authService;
