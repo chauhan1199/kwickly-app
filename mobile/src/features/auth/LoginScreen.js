@@ -219,9 +219,9 @@ const LoginScreen = ({ navigation, route }) => {
     } catch (error) {
       triggerShake();
       setMpin('');
-      const status = error.response?.status;
-      const msg = getApiErrorMessage(error, '');
-      if (status === 401 || msg.toLowerCase().includes('mpin') || msg.toLowerCase().includes('password') || msg.toLowerCase().includes('invalid')) {
+      const status = error.response?.status || error.originalError?.response?.status || error.code;
+      const msg = getApiErrorMessage(error?.originalError || error, error.message || '');
+      if (status === 401 || status === 'UNAUTHORIZED' || msg.toLowerCase().includes('mpin') || msg.toLowerCase().includes('password') || msg.toLowerCase().includes('invalid')) {
         setMpinError('Incorrect MPIN. Please try again.');
       } else if (msg && !msg.toLowerCase().includes('undefined')) {
         setMpinError(msg);

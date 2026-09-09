@@ -38,7 +38,7 @@ export const authService = {
       password: mpin,
       mpin: mpin,
       ...(role ? { role: role.toUpperCase() } : {})
-    }))();
+    }));
   },
 
   setMpin: async (mpin, token) => {
