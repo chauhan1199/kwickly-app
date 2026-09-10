@@ -277,7 +277,7 @@ const WelcomeScreen = ({ navigation }) => {
                 : require('../../assets/images/footer_landscape.png')
             }
             style={styles.footerLandscapeImg}
-            resizeMode="contain"
+            resizeMode="cover"
           />
         </View>
       </View>

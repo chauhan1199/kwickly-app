@@ -529,7 +529,7 @@ const RoleSelection = ({ navigation, route }) => {
                     : require('../../assets/images/footer_create_account.png')
                 }
                 style={styles.bottomFooterImg}
-                resizeMode="contain"
+                resizeMode="cover"
               />
             </View>
           </View>

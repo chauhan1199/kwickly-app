@@ -544,7 +544,7 @@ const LoginScreen = ({ navigation, route }) => {
                       : require('../../assets/images/footer_login.png')
                   }
                   style={styles.bottomFooterImg}
-                  resizeMode="contain"
+                  resizeMode="cover"
                 />
               </View>
             </View>
@@ -890,7 +890,7 @@ const LoginScreen = ({ navigation, route }) => {
                       : require('../../assets/images/footer_login.png')
                   }
                   style={styles.bottomFooterImg}
-                  resizeMode="contain"
+                  resizeMode="cover"
                 />
               </View>
             </View>
