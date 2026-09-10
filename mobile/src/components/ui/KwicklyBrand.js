@@ -4,11 +4,12 @@ import { View, Text, StyleSheet, Image } from 'react-native';
 /**
  * Official Kwickly Logo Icon with sleek dark background for maximum contrast
  */
-export const KwicklyIcon = ({ size = 36, style }) => {
+export const KwicklyIcon = ({ size = 38, style }) => {
+  const width = Math.round(size * 1.08);
   return (
     <Image
       source={require('../../assets/logo.png')}
-      style={[{ width: size, height: size, borderRadius: Math.round(size * 0.26) }, style]}
+      style={[{ width, height: size }, style]}
       resizeMode="contain"
     />
   );

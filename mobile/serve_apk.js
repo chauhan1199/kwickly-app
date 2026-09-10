@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.5.3.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.5.4.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.5.3.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.5.4.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.5.3 (Build 54) Brand Icon & Size Reduction</div><br/>
-    <div class="success-badge">✓ New 3D Brand Logo · Compressed APK Size</div>
+    <div class="badge">v1.5.4 (Build 55) Transparent Logo & Purple Brand</div><br/>
+    <div class="success-badge">✓ Clean Isolated Logo · Purple "ly" on Home Screen</div>
     <h1>Kwickly Mobile</h1>
-    <p>New 3D stopwatch logo everywhere (launcher, header, splash) with maximum APK file size reduction via native compression & asset optimization.</p>
+    <p>Isolated 3D brand logo without background boxes and "Kwickly" wordmark with purple "ly" prominently visible on all home screens.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>

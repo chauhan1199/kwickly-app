@@ -21,6 +21,7 @@ import { shopService } from '../../services/shopService';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ServiceCard, getServiceImage, getServiceRating } from '../../components/ui/ServiceCard';
+import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import LinearGradient from 'react-native-linear-gradient';
 import { ChevronRight, Star, Zap, MapPin, Bell, Package, Store, Clock, RotateCcw, X, Radio, CheckCircle2 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -293,13 +294,14 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.blob1} />
           <View style={styles.blob2} />
 
-          {/* Top row: location + bell/cart */}
-          <View style={styles.heroTopRow}>
-            <TouchableOpacity style={styles.locationRow} activeOpacity={0.8} onPress={() => navigation.navigate('SavedAddresses')}>
-              <MapPin size={14} color="rgba(255,255,255,0.85)" />
-              <Text style={styles.locationText} numberOfLines={1}>{displayLocation}</Text>
-              <Text style={styles.locationCaret}>  ⌄</Text>
-            </TouchableOpacity>
+          {/* Top row: Brand + bell/cart */}
+          <View style={[styles.heroTopRow, { marginBottom: 8 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <KwicklyIcon size={28} />
+              <Text style={{ fontSize: 20, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.4 }}>
+                Kwick<Text style={{ color: '#DDD6FE' }}>ly</Text>
+              </Text>
+            </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity style={[styles.bellBtn, { marginRight: 16 }]} activeOpacity={0.8} onPress={() => navigation.navigate('CustomerShopOrders')}>
                 <Package size={22} color="#fff" />
@@ -310,6 +312,13 @@ const HomeScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Location row */}
+          <TouchableOpacity style={[styles.locationRow, { alignSelf: 'flex-start', marginBottom: 4 }]} activeOpacity={0.8} onPress={() => navigation.navigate('SavedAddresses')}>
+            <MapPin size={13} color="rgba(255,255,255,0.85)" />
+            <Text style={styles.locationText} numberOfLines={1}>{displayLocation}</Text>
+            <Text style={styles.locationCaret}>  ⌄</Text>
+          </TouchableOpacity>
 
           {/* Greeting + mascot row */}
           <Animated.View style={[styles.heroMiddleRow, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
