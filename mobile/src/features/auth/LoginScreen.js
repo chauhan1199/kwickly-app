@@ -96,8 +96,12 @@ const LoginScreen = ({ navigation, route }) => {
     if (step === 'MPIN') {
       setMpin('');
       setMpinError('');
-      const t = setTimeout(() => mpinInputRef.current?.focus(), 320);
-      return () => clearTimeout(t);
+      const t1 = setTimeout(() => mpinInputRef.current?.focus(), 150);
+      const t2 = setTimeout(() => mpinInputRef.current?.focus(), 380);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
   }, [step]);
 
@@ -369,7 +373,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: safeBottomPadding + bottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -647,7 +651,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: safeBottomPadding + bottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -697,21 +701,6 @@ const LoginScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                 </View>
 
-                {/* Hidden Real Input */}
-                <TextInput
-                  ref={mpinInputRef}
-                  style={styles.hiddenInput}
-                  keyboardType="phone-pad"
-                  maxLength={4}
-                  value={mpin}
-                  onChangeText={handleMpinChange}
-                  onFocus={() => {
-                    setFocusedInput('mpin');
-                  }}
-                  onBlur={() => setFocusedInput(null)}
-                  caretHidden
-                />
-
                 {/* PIN Header Row */}
                 <View style={styles.pinHeaderRow}>
                   <Text style={[styles.pinHeaderTitle, { color: textMain }]}>Enter 4-Digit MPIN</Text>
@@ -720,36 +709,56 @@ const LoginScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                 </View>
 
-                {/* PIN Boxes */}
-                <Animated.View style={[styles.pinRow, { transform: [{ translateX: shakeAnim }] }]}>
-                  {[0, 1, 2, 3].map((i) => {
-                    const filled = mpin.length > i;
-                    const current = mpin.length === i && focusedInput === 'mpin';
-                    return (
-                      <Pressable
-                        key={i}
-                        onPress={() => mpinInputRef.current?.focus()}
-                        style={[
-                          styles.pinBox,
-                          { backgroundColor: inputBg, borderColor: inputBorder },
-                          current && styles.pinBoxActiveGlow,
-                          filled && { borderColor: PURPLE },
-                          mpinError && { borderColor: '#EF4444' },
-                        ]}
-                      >
-                        {filled ? (
-                          showMpin ? (
-                            <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                {/* PIN Boxes Container with Touchable Overlay */}
+                <View style={styles.pinContainer}>
+                  <Animated.View
+                    style={[styles.pinRow, { transform: [{ translateX: shakeAnim }] }]}
+                    pointerEvents="none"
+                  >
+                    {[0, 1, 2, 3].map((i) => {
+                      const filled = mpin.length > i;
+                      const current = mpin.length === i && focusedInput === 'mpin';
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            styles.pinBox,
+                            { backgroundColor: inputBg, borderColor: inputBorder },
+                            current && styles.pinBoxActiveGlow,
+                            filled && { borderColor: PURPLE },
+                            mpinError && { borderColor: '#EF4444' },
+                          ]}
+                        >
+                          {filled ? (
+                            showMpin ? (
+                              <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                            ) : (
+                              <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
+                            )
                           ) : (
-                            <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
-                          )
-                        ) : (
-                          <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </Animated.View>
+                            <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
+                          )}
+                        </View>
+                      );
+                    })}
+                  </Animated.View>
+
+                  {/* Real Touchable Input Overlay covering entire PIN area */}
+                  <TextInput
+                    ref={mpinInputRef}
+                    style={styles.realMpinOverlay}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    value={mpin}
+                    onChangeText={handleMpinChange}
+                    onFocus={() => {
+                      setFocusedInput('mpin');
+                    }}
+                    onBlur={() => setFocusedInput(null)}
+                    caretHidden
+                    autoFocus={true}
+                  />
+                </View>
 
                 {/* Show MPIN Toggle */}
                 <TouchableOpacity
@@ -1073,7 +1082,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 8,
+    marginTop: 2,
   },
   headerTextCol: {
     flex: 1,
@@ -1173,10 +1183,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   card: {
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1.5,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -1386,14 +1396,14 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     width: '100%',
-    marginTop: 8,
+    marginTop: 12,
   },
   trustBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 6,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 6,
     paddingHorizontal: 4,
   },
   trustItem: {
@@ -1427,10 +1437,13 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.min(SH * 0.09, 68),
+    height: Math.round(SW * (150 / 576)),
     overflow: 'hidden',
-    marginTop: 2,
+    marginTop: 4,
     marginHorizontal: -16,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    alignSelf: 'center',
   },
   trustFooter: {
     flexDirection: 'row',
@@ -1466,6 +1479,25 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     marginTop: 2,
   },
+  pinContainer: {
+    position: 'relative',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  realMpinOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.01,
+    backgroundColor: 'transparent',
+    color: 'transparent',
+  },
   hiddenInput: {
     position: 'absolute',
     opacity: 0,
@@ -1476,7 +1508,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 12,
-    marginBottom: 14,
   },
   pinBox: {
     width: Math.min(SW * 0.17, 66),

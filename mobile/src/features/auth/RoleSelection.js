@@ -888,7 +888,7 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.round(SW * (198 / 576)),
+    height: Math.round(SW * (160 / 576)),
     alignItems: 'center',
     justifyContent: 'flex-end',
     marginTop: 8,

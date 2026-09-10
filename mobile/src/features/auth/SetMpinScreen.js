@@ -67,10 +67,16 @@ const SetMpinScreen = ({ navigation, route }) => {
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer1 = setTimeout(() => {
       mpinInputRef.current?.focus();
-    }, 350);
-    return () => clearTimeout(timer);
+    }, 150);
+    const timer2 = setTimeout(() => {
+      mpinInputRef.current?.focus();
+    }, 400);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
   }, []);
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
@@ -216,57 +222,60 @@ const SetMpinScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* Hidden native input for MPIN */}
-              <TextInput
-                ref={mpinInputRef}
-                style={styles.hiddenInput}
-                keyboardType="phone-pad"
-                maxLength={4}
-                editable={!loading}
-                value={mpin}
-                onChangeText={(t) => {
-                  const clean = t.replace(/\D/g, '').slice(0, 4);
-                  setMpin(clean);
-                  if (clean.length === 4) {
-                    Keyboard.dismiss();
-                    handleSetMpin(clean);
-                  }
-                }}
-                onFocus={() => setIsMpinFocused(true)}
-                onBlur={() => setIsMpinFocused(false)}
-                caretHidden
-              />
-
-              {/* Visual 4-box display for MPIN */}
-              <Pressable
-                onPress={() => mpinInputRef.current?.focus()}
-                style={styles.pinRow}
-              >
-                {[0, 1, 2, 3].map((i) => {
-                  const filled = mpin.length > i;
-                  const active = mpin.length === i && isMpinFocused;
-                  return (
-                    <View
-                      key={i}
-                      style={[
-                        styles.pinBox,
-                        { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : inputBorder },
-                        active && styles.pinBoxActiveGlow,
-                      ]}
-                    >
-                      {filled ? (
-                        showMpin ? (
-                          <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+              {/* Visual 4-box display for MPIN with touchable overlay */}
+              <View style={styles.pinContainer}>
+                <View
+                  pointerEvents="none"
+                  style={styles.pinRow}
+                >
+                  {[0, 1, 2, 3].map((i) => {
+                    const filled = mpin.length > i;
+                    const active = mpin.length === i && isMpinFocused;
+                    return (
+                      <View
+                        key={i}
+                        style={[
+                          styles.pinBox,
+                          { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : inputBorder },
+                          active && styles.pinBoxActiveGlow,
+                        ]}
+                      >
+                        {filled ? (
+                          showMpin ? (
+                            <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                          ) : (
+                            <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
+                          )
                         ) : (
-                          <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
-                        )
-                      ) : (
-                        <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
-                      )}
-                    </View>
-                  );
-                })}
-              </Pressable>
+                          <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+
+                {/* Real touchable input overlay */}
+                <TextInput
+                  ref={mpinInputRef}
+                  style={styles.realMpinOverlay}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  editable={!loading}
+                  value={mpin}
+                  onChangeText={(t) => {
+                    const clean = t.replace(/\D/g, '').slice(0, 4);
+                    setMpin(clean);
+                    if (clean.length === 4) {
+                      Keyboard.dismiss();
+                      handleSetMpin(clean);
+                    }
+                  }}
+                  onFocus={() => setIsMpinFocused(true)}
+                  onBlur={() => setIsMpinFocused(false)}
+                  caretHidden
+                  autoFocus={true}
+                />
+              </View>
 
               {/* Security hint */}
               <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }]}>
@@ -514,6 +523,25 @@ const styles = StyleSheet.create({
   toggleText: {
     fontSize: 11.5,
     fontWeight: '700',
+  },
+  pinContainer: {
+    position: 'relative',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 4,
+  },
+  realMpinOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.01,
+    backgroundColor: 'transparent',
+    color: 'transparent',
   },
   hiddenInput: {
     position: 'absolute',
