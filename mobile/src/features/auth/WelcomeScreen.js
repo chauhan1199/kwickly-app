@@ -245,7 +245,7 @@ const WelcomeScreen = ({ navigation }) => {
           <Image
             source={require('../../assets/images/footer_landscape.png')}
             style={styles.footerLandscapeImg}
-            resizeMode="cover"
+            resizeMode="contain"
           />
         </View>
       </View>
@@ -448,10 +448,11 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.min(SH * 0.10, 75),
-    overflow: 'hidden',
+    height: Math.round(SW * (169 / 576)),
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     marginTop: 2,
-    marginHorizontal: -16,
+    alignSelf: 'center',
   },
   footerLandscapeImg: {
     width: SW,

@@ -532,7 +532,7 @@ const LoginScreen = ({ navigation, route }) => {
                 <Image
                   source={require('../../assets/images/footer_login.png')}
                   style={styles.bottomFooterImg}
-                  resizeMode="cover"
+                  resizeMode="contain"
                 />
               </View>
             </View>
@@ -865,7 +865,7 @@ const LoginScreen = ({ navigation, route }) => {
                 <Image
                   source={require('../../assets/images/footer_login.png')}
                   style={styles.bottomFooterImg}
-                  resizeMode="cover"
+                  resizeMode="contain"
                 />
               </View>
             </View>
@@ -1549,6 +1549,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 16,
     paddingVertical: 4,
+  },
+  footerWrap: {
+    width: SW,
+    height: Math.round(SW * (200 / 576)),
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    alignSelf: 'center',
+  },
+  bottomFooterImg: {
+    width: SW,
+    height: '100%',
   },
 });
 

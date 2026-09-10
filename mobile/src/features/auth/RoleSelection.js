@@ -521,7 +521,7 @@ const RoleSelection = ({ navigation, route }) => {
               <Image
                 source={require('../../assets/images/footer_create_account.png')}
                 style={styles.bottomFooterImg}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             </View>
           </View>
@@ -888,10 +888,11 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.min(SH * 0.09, 68),
-    overflow: 'hidden',
-    marginTop: 2,
-    marginHorizontal: -16,
+    height: Math.round(SW * (198 / 576)),
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    alignSelf: 'center',
   },
   bottomFooterImg: {
     width: SW,
