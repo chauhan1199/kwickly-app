@@ -393,7 +393,11 @@ const LoginScreen = ({ navigation, route }) => {
                   </Text>
                 </View>
                 <Image
-                  source={require('../../assets/images/hero_login.png')}
+                  source={
+                    isDarkMode
+                      ? require('../../assets/images/hero_login_dark.png')
+                      : require('../../assets/images/hero_login.png')
+                  }
                   style={styles.heroLoginImg}
                   resizeMode="contain"
                 />
@@ -534,7 +538,11 @@ const LoginScreen = ({ navigation, route }) => {
               {/* Bottom Road Landscape Illustration */}
               <View style={styles.footerWrap} pointerEvents="none">
                 <Image
-                  source={require('../../assets/images/footer_login.png')}
+                  source={
+                    isDarkMode
+                      ? require('../../assets/images/footer_login_dark.png')
+                      : require('../../assets/images/footer_login.png')
+                  }
                   style={styles.bottomFooterImg}
                   resizeMode="contain"
                 />
@@ -675,7 +683,11 @@ const LoginScreen = ({ navigation, route }) => {
                   </View>
                 </View>
                 <Image
-                  source={require('../../assets/images/hero_mpin.png')}
+                  source={
+                    isDarkMode
+                      ? require('../../assets/images/hero_mpin_dark.png')
+                      : require('../../assets/images/hero_mpin.png')
+                  }
                   style={styles.heroMpinImg}
                   resizeMode="contain"
                 />
@@ -872,7 +884,11 @@ const LoginScreen = ({ navigation, route }) => {
               {/* Bottom Road Landscape Illustration */}
               <View style={styles.footerWrap} pointerEvents="none">
                 <Image
-                  source={require('../../assets/images/footer_login.png')}
+                  source={
+                    isDarkMode
+                      ? require('../../assets/images/footer_login_dark.png')
+                      : require('../../assets/images/footer_login.png')
+                  }
                   style={styles.bottomFooterImg}
                   resizeMode="contain"
                 />

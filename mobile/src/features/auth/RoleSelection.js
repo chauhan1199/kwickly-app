@@ -229,7 +229,11 @@ const RoleSelection = ({ navigation, route }) => {
               </Text>
             </View>
             <Image
-              source={require('../../assets/images/hero_create_account.png')}
+              source={
+                isDarkMode
+                  ? require('../../assets/images/hero_create_account_dark.png')
+                  : require('../../assets/images/hero_create_account.png')
+              }
               style={styles.headerHeroImg}
               resizeMode="contain"
             />
@@ -519,7 +523,11 @@ const RoleSelection = ({ navigation, route }) => {
             {/* Bottom Road Landscape Illustration */}
             <View style={styles.footerWrap} pointerEvents="none">
               <Image
-                source={require('../../assets/images/footer_create_account.png')}
+                source={
+                  isDarkMode
+                    ? require('../../assets/images/footer_create_account_dark.png')
+                    : require('../../assets/images/footer_create_account.png')
+                }
                 style={styles.bottomFooterImg}
                 resizeMode="contain"
               />

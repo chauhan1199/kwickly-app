@@ -186,7 +186,11 @@ const SetMpinScreen = ({ navigation, route }) => {
                 </View>
               </View>
               <Image
-                source={require('../../assets/images/hero_mpin.png')}
+                source={
+                  isDarkMode
+                    ? require('../../assets/images/hero_mpin_dark.png')
+                    : require('../../assets/images/hero_mpin.png')
+                }
                 style={styles.heroMpinImg}
                 resizeMode="contain"
               />

@@ -114,17 +114,29 @@ const WelcomeScreen = ({ navigation }) => {
           {/* Left Column: 3 Chips */}
           <View style={styles.chipsCol}>
             <Image
-              source={require('../../assets/images/chip_plumbing.png')}
+              source={
+                isDarkMode
+                  ? require('../../assets/images/chip_plumbing_dark.png')
+                  : require('../../assets/images/chip_plumbing.png')
+              }
               style={[styles.chipImg, { height: CHIP_H }]}
               resizeMode="contain"
             />
             <Image
-              source={require('../../assets/images/chip_car.png')}
+              source={
+                isDarkMode
+                  ? require('../../assets/images/chip_car_dark.png')
+                  : require('../../assets/images/chip_car.png')
+              }
               style={[styles.chipImg, { height: CHIP_H }]}
               resizeMode="contain"
             />
             <Image
-              source={require('../../assets/images/chip_groceries.png')}
+              source={
+                isDarkMode
+                  ? require('../../assets/images/chip_groceries_dark.png')
+                  : require('../../assets/images/chip_groceries.png')
+              }
               style={[styles.chipImg, { height: CHIP_H }]}
               resizeMode="contain"
             />
@@ -133,7 +145,11 @@ const WelcomeScreen = ({ navigation }) => {
           {/* Center Column: 3D Delivery Rider Card */}
           <View style={[styles.heroCenterCard, { backgroundColor: isDarkMode ? '#111726' : '#FFFFFF', borderColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
             <Image
-              source={require('../../assets/images/hero_welcome.png')}
+              source={
+                isDarkMode
+                  ? require('../../assets/images/hero_welcome_dark.png')
+                  : require('../../assets/images/hero_welcome.png')
+              }
               style={styles.heroCenterImg}
               resizeMode="contain"
             />
@@ -142,17 +158,29 @@ const WelcomeScreen = ({ navigation }) => {
           {/* Right Column: 3 Chips */}
           <View style={styles.chipsCol}>
             <Image
-              source={require('../../assets/images/chip_electrician.png')}
+              source={
+                isDarkMode
+                  ? require('../../assets/images/chip_electrician_dark.png')
+                  : require('../../assets/images/chip_electrician.png')
+              }
               style={[styles.chipImg, { height: CHIP_H }]}
               resizeMode="contain"
             />
             <Image
-              source={require('../../assets/images/chip_cleaning.png')}
+              source={
+                isDarkMode
+                  ? require('../../assets/images/chip_cleaning_dark.png')
+                  : require('../../assets/images/chip_cleaning.png')
+              }
               style={[styles.chipImg, { height: CHIP_H }]}
               resizeMode="contain"
             />
             <Image
-              source={require('../../assets/images/chip_delivery.png')}
+              source={
+                isDarkMode
+                  ? require('../../assets/images/chip_delivery_dark.png')
+                  : require('../../assets/images/chip_delivery.png')
+              }
               style={[styles.chipImg, { height: CHIP_H }]}
               resizeMode="contain"
             />
@@ -243,7 +271,11 @@ const WelcomeScreen = ({ navigation }) => {
         {/* Bottom Road Landscape Illustration */}
         <View style={styles.footerWrap} pointerEvents="none">
           <Image
-            source={require('../../assets/images/footer_landscape.png')}
+            source={
+              isDarkMode
+                ? require('../../assets/images/footer_landscape_dark.png')
+                : require('../../assets/images/footer_landscape.png')
+            }
             style={styles.footerLandscapeImg}
             resizeMode="contain"
           />
