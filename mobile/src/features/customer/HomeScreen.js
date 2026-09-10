@@ -296,9 +296,9 @@ const HomeScreen = ({ navigation }) => {
 
           {/* Top row: Brand + bell/cart */}
           <View style={[styles.heroTopRow, { marginBottom: 8 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <KwicklyIcon size={28} />
-              <Text style={{ fontSize: 20, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <KwicklyIcon size={34} />
+              <Text style={{ fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.4 }}>
                 Kwick<Text style={{ color: '#DDD6FE' }}>ly</Text>
               </Text>
             </View>

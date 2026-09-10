@@ -90,7 +90,7 @@ const WelcomeScreen = ({ navigation }) => {
       >
         {/* TOP BRAND LOGO ROW */}
         <View style={styles.logoRow}>
-          <KwicklyIcon size={38} />
+          <KwicklyIcon size={48} />
           <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
             Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
           </Text>
@@ -320,12 +320,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 12,
     marginTop: 2,
     marginBottom: 4,
   },
   wordmark: {
-    fontSize: 26,
+    fontSize: 29,
     fontWeight: '900',
     letterSpacing: -0.4,
   },
