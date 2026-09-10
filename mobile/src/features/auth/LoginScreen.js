@@ -306,7 +306,7 @@ const LoginScreen = ({ navigation, route }) => {
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
-  const safeBottomPadding = Math.max(insets.bottom, 6);
+  const safeBottomPadding = Math.max(insets.bottom, 14);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -500,11 +500,11 @@ const LoginScreen = ({ navigation, route }) => {
               <View style={styles.trustBarRow}>
                 <View style={styles.trustItem}>
                   <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                    <ShieldCheck size={16} color="#10B981" />
+                    <ShieldCheck size={14} color="#10B981" />
                   </View>
-                  <View>
-                    <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]}>& Encrypted</Text>
+                  <View style={styles.trustTextCol}>
+                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
+                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
                   </View>
                 </View>
 
@@ -512,21 +512,21 @@ const LoginScreen = ({ navigation, route }) => {
 
                 <View style={styles.trustItem}>
                   <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                    <Zap size={16} color="#6C47FF" />
+                    <Zap size={14} color="#6C47FF" />
                   </View>
-                  <View>
-                    <Text style={[styles.trustTitle, { color: textMain }]}>Instant</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]}>Access</Text>
+                  <View style={styles.trustTextCol}>
+                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
+                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
                   </View>
                 </View>
 
                 <View style={styles.trustDivider} />
 
                 <View style={styles.trustItem}>
-                  <Text style={{ fontSize: 18 }}>🇮🇳</Text>
-                  <View>
-                    <Text style={[styles.trustTitle, { color: textMain }]}>Made</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]}>in India</Text>
+                  <Text style={{ fontSize: 16 }}>🇮🇳</Text>
+                  <View style={styles.trustTextCol}>
+                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
+                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
                   </View>
                 </View>
               </View>
@@ -838,11 +838,11 @@ const LoginScreen = ({ navigation, route }) => {
               <View style={styles.trustBarRow}>
                 <View style={styles.trustItem}>
                   <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                    <ShieldCheck size={16} color="#10B981" />
+                    <ShieldCheck size={14} color="#10B981" />
                   </View>
-                  <View>
-                    <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]}>Your data, our priority</Text>
+                  <View style={styles.trustTextCol}>
+                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
+                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
                   </View>
                 </View>
 
@@ -850,21 +850,21 @@ const LoginScreen = ({ navigation, route }) => {
 
                 <View style={styles.trustItem}>
                   <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                    <Zap size={16} color="#6C47FF" />
+                    <Zap size={14} color="#6C47FF" />
                   </View>
-                  <View>
-                    <Text style={[styles.trustTitle, { color: textMain }]}>Quick Access</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]}>Get things done faster</Text>
+                  <View style={styles.trustTextCol}>
+                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
+                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
                   </View>
                 </View>
 
                 <View style={styles.trustDivider} />
 
                 <View style={styles.trustItem}>
-                  <Text style={{ fontSize: 18 }}>🇮🇳</Text>
-                  <View>
-                    <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
+                  <Text style={{ fontSize: 16 }}>🇮🇳</Text>
+                  <View style={styles.trustTextCol}>
+                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
+                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
                   </View>
                 </View>
               </View>
@@ -1404,32 +1404,41 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 4,
     marginBottom: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
+    width: '100%',
   },
   trustItem: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 5,
+  },
+  trustTextCol: {
+    flexShrink: 1,
   },
   trustIconWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   trustTitle: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
+    lineHeight: 13,
   },
   trustSub: {
     fontSize: 8.5,
-    fontWeight: '500',
+    fontWeight: '600',
+    lineHeight: 11,
   },
   trustDivider: {
     width: 1,
-    height: 22,
+    height: 18,
     backgroundColor: 'rgba(150, 150, 150, 0.25)',
+    marginHorizontal: 3,
   },
   bottomFooterImg: {
     width: SW,

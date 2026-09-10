@@ -485,11 +485,11 @@ const RoleSelection = ({ navigation, route }) => {
             <View style={styles.trustBarRow}>
               <View style={styles.trustItem}>
                 <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                  <ShieldCheck size={16} color="#10B981" />
+                  <ShieldCheck size={14} color="#10B981" />
                 </View>
-                <View>
-                  <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]}>Your data is safe</Text>
+                <View style={styles.trustTextCol}>
+                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Data Safe</Text>
                 </View>
               </View>
 
@@ -497,21 +497,21 @@ const RoleSelection = ({ navigation, route }) => {
 
               <View style={styles.trustItem}>
                 <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                  <Zap size={16} color="#6C47FF" />
+                  <Zap size={14} color="#6C47FF" />
                 </View>
-                <View>
-                  <Text style={[styles.trustTitle, { color: textMain }]}>Quick & Easy</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]}>Get started in minutes</Text>
+                <View style={styles.trustTextCol}>
+                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Quick & Easy</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>In Minutes</Text>
                 </View>
               </View>
 
               <View style={styles.trustDivider} />
 
               <View style={styles.trustItem}>
-                <Text style={{ fontSize: 18 }}>🇮🇳</Text>
-                <View>
-                  <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
+                <Text style={{ fontSize: 16 }}>🇮🇳</Text>
+                <View style={styles.trustTextCol}>
+                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made in India</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Trusted App</Text>
                 </View>
               </View>
             </View>
@@ -857,14 +857,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
-    marginBottom: 2,
-    paddingHorizontal: 4,
+    width: '100%',
+    marginTop: 6,
+    marginBottom: 4,
+    paddingHorizontal: 8,
   },
   trustItem: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
+  },
+  trustTextCol: {
+    flexShrink: 1,
   },
   trustIconWrap: {
     width: 24,
@@ -876,15 +882,18 @@ const styles = StyleSheet.create({
   trustTitle: {
     fontSize: 10,
     fontWeight: '800',
+    lineHeight: 13,
   },
   trustSub: {
-    fontSize: 8,
-    fontWeight: '500',
+    fontSize: 8.5,
+    fontWeight: '600',
+    lineHeight: 11,
   },
   trustDivider: {
     width: 1,
     height: 18,
     backgroundColor: 'rgba(150, 150, 150, 0.25)',
+    marginHorizontal: 3,
   },
   footerWrap: {
     width: SW,
