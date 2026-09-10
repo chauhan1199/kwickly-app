@@ -358,6 +358,90 @@ const LoginScreen = ({ navigation, route }) => {
     />
   );
 
+  // Top Nav Row: Back button + Brand mark
+  const renderTopNav = (onBack) => (
+    <View style={styles.topNavRow}>
+      <TouchableOpacity
+        style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
+        onPress={onBack}
+        activeOpacity={0.8}
+      >
+        <ChevronLeft size={20} color={textMain} />
+      </TouchableOpacity>
+      <View style={styles.topBrandMini}>
+        <KwicklyIcon size={28} />
+        <Text style={[styles.wordmarkMini, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+          Kwick<Text style={{ color: PURPLE }}>ly</Text>
+        </Text>
+      </View>
+      <View style={{ width: 38 }} />
+    </View>
+  );
+
+  // Bottom Section: Trust Badges Bar + Edge-to-Edge Road Footer
+  const renderBottomFooter = () => {
+    if (keyboardVisible) return null;
+    return (
+      <View style={styles.bottomSection}>
+        {/* Trust Bar Row (3 Badges in sleek card) */}
+        <View
+          style={[
+            styles.trustBarCard,
+            {
+              backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+              borderColor: cardBorder,
+            },
+          ]}
+        >
+          <View style={styles.trustItem}>
+            <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
+              <ShieldCheck size={14} color="#10B981" />
+            </View>
+            <View style={styles.trustTextCol}>
+              <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
+              <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
+            </View>
+          </View>
+
+          <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
+
+          <View style={styles.trustItem}>
+            <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF' }]}>
+              <Zap size={14} color="#6C47FF" />
+            </View>
+            <View style={styles.trustTextCol}>
+              <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
+              <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
+            </View>
+          </View>
+
+          <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
+
+          <View style={styles.trustItem}>
+            <Text style={{ fontSize: 16 }}>🇮🇳</Text>
+            <View style={styles.trustTextCol}>
+              <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
+              <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Bottom Road Landscape Illustration touching bottom edge */}
+        <View style={styles.footerWrap} pointerEvents="none">
+          <Image
+            source={
+              isDarkMode
+                ? require('../../assets/images/footer_login_dark.png')
+                : require('../../assets/images/footer_login.png')
+            }
+            style={styles.bottomFooterImg}
+            resizeMode="cover"
+          />
+        </View>
+      </View>
+    );
+  };
+
   // ══════════════════════════════════════════
   // STEP 1: PHONE
   // ══════════════════════════════════════════
@@ -372,8 +456,8 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: safeBottomPadding + bottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -381,6 +465,8 @@ const LoginScreen = ({ navigation, route }) => {
             bounces={false}
           >
             <View style={styles.topSection}>
+              {renderTopNav(() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Welcome')))}
+
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={styles.headerLayoutRow}>
                 <View style={styles.headerTextCol}>
@@ -499,55 +585,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Footer Section */}
-            <View style={styles.bottomSection}>
-              {/* Trust Bar Row (3 Badges) */}
-              <View style={styles.trustBarRow}>
-                <View style={styles.trustItem}>
-                  <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                    <ShieldCheck size={14} color="#10B981" />
-                  </View>
-                  <View style={styles.trustTextCol}>
-                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
-                  </View>
-                </View>
-
-                <View style={styles.trustDivider} />
-
-                <View style={styles.trustItem}>
-                  <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                    <Zap size={14} color="#6C47FF" />
-                  </View>
-                  <View style={styles.trustTextCol}>
-                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
-                  </View>
-                </View>
-
-                <View style={styles.trustDivider} />
-
-                <View style={styles.trustItem}>
-                  <Text style={{ fontSize: 16 }}>🇮🇳</Text>
-                  <View style={styles.trustTextCol}>
-                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Bottom Road Landscape Illustration */}
-              <View style={styles.footerWrap} pointerEvents="none">
-                <Image
-                  source={
-                    isDarkMode
-                      ? require('../../assets/images/footer_login_dark.png')
-                      : require('../../assets/images/footer_login.png')
-                  }
-                  style={styles.bottomFooterImg}
-                  resizeMode="cover"
-                />
-              </View>
-            </View>
+            {renderBottomFooter()}
           </ScrollView>
         </KeyboardAvoidingView>
         {alertEl}
@@ -569,74 +607,64 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: safeBottomPadding + bottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-            <View style={styles.topNavRow}>
-              <TouchableOpacity
-                style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
-                onPress={() => setStep('PHONE')}
-                activeOpacity={0.8}
-              >
-                <ChevronLeft size={20} color={textMain} />
-              </TouchableOpacity>
-            </View>
+            <View style={styles.topSection}>
+              {renderTopNav(() => setStep('PHONE'))}
 
-            <View style={styles.headerBlock}>
-              <View style={styles.logoRow}>
-                <KwicklyIcon size={38} />
-                <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+              <View style={styles.headerBlock}>
+                <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+                  <User size={12} color="#6C47FF" />
+                  <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
+                    Multiple Profiles Found
+                  </Text>
+                </View>
+
+                <Text style={[styles.title, { color: textMain }]}>
+                  Select <Text style={{ color: '#6C47FF' }}>Profile</Text>
+                </Text>
+                <Text style={[styles.subtitle, { color: textSub }]}>
+                  Accounts linked with +91 {phone}
                 </Text>
               </View>
 
-              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
-                <User size={12} color="#6C47FF" />
-                <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
-                  Multiple Profiles Found
-                </Text>
+              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+                {availableAccounts.map((acc, idx) => {
+                  const meta = ROLE_META[acc.role] || ROLE_META.CUSTOMER;
+                  const Icon = meta.icon;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.accountCard, { backgroundColor: inputBg, borderColor: inputBorder }]}
+                      onPress={() => handleSelectAccount(acc)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.accountIconWrap, { backgroundColor: meta.bg }]}>
+                        <Icon size={20} color={meta.color} />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={[styles.accountRole, { color: textMain }]}>{meta.label}</Text>
+                        <Text style={[styles.accountName, { color: textSub }]}>{acc.name || 'Registered Profile'}</Text>
+                      </View>
+                      <ArrowRight size={16} color={textSub} />
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('PHONE')}>
+                  <Text style={[styles.footerLink, { color: PURPLE }]}>Use a different number</Text>
+                </TouchableOpacity>
               </View>
-
-              <Text style={[styles.title, { color: textMain }]}>
-                Select <Text style={{ color: '#6C47FF' }}>Profile</Text>
-              </Text>
-              <Text style={[styles.subtitle, { color: textSub }]}>
-                Accounts linked with +91 {phone}
-              </Text>
             </View>
 
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-              {availableAccounts.map((acc, idx) => {
-                const meta = ROLE_META[acc.role] || ROLE_META.CUSTOMER;
-                const Icon = meta.icon;
-                return (
-                  <TouchableOpacity
-                    key={idx}
-                    style={[styles.accountCard, { backgroundColor: inputBg, borderColor: inputBorder }]}
-                    onPress={() => handleSelectAccount(acc)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.accountIconWrap, { backgroundColor: meta.bg }]}>
-                      <Icon size={20} color={meta.color} />
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={[styles.accountRole, { color: textMain }]}>{meta.label}</Text>
-                      <Text style={[styles.accountName, { color: textSub }]}>{acc.name || 'Registered Profile'}</Text>
-                    </View>
-                    <ArrowRight size={16} color={textSub} />
-                  </TouchableOpacity>
-                );
-              })}
-
-              <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('PHONE')}>
-                <Text style={[styles.footerLink, { color: PURPLE }]}>Use a different number</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Bottom Footer Section */}
+            {renderBottomFooter()}
           </ScrollView>
         </KeyboardAvoidingView>
         {alertEl}
@@ -658,8 +686,8 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: safeBottomPadding + bottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -667,6 +695,8 @@ const LoginScreen = ({ navigation, route }) => {
             bounces={false}
           >
             <View style={styles.topSection}>
+              {renderTopNav(() => setStep('PHONE'))}
+
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={styles.headerLayoutRow}>
                 <View style={styles.headerTextCol}>
@@ -845,55 +875,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Footer Section */}
-            <View style={styles.bottomSection}>
-              {/* Bottom Trust Bar (3 Badges) */}
-              <View style={styles.trustBarRow}>
-                <View style={styles.trustItem}>
-                  <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                    <ShieldCheck size={14} color="#10B981" />
-                  </View>
-                  <View style={styles.trustTextCol}>
-                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
-                  </View>
-                </View>
-
-                <View style={styles.trustDivider} />
-
-                <View style={styles.trustItem}>
-                  <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                    <Zap size={14} color="#6C47FF" />
-                  </View>
-                  <View style={styles.trustTextCol}>
-                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
-                  </View>
-                </View>
-
-                <View style={styles.trustDivider} />
-
-                <View style={styles.trustItem}>
-                  <Text style={{ fontSize: 16 }}>🇮🇳</Text>
-                  <View style={styles.trustTextCol}>
-                    <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
-                    <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Bottom Road Landscape Illustration */}
-              <View style={styles.footerWrap} pointerEvents="none">
-                <Image
-                  source={
-                    isDarkMode
-                      ? require('../../assets/images/footer_login_dark.png')
-                      : require('../../assets/images/footer_login.png')
-                  }
-                  style={styles.bottomFooterImg}
-                  resizeMode="cover"
-                />
-              </View>
-            </View>
+            {renderBottomFooter()}
           </ScrollView>
         </KeyboardAvoidingView>
         {alertEl}
@@ -914,132 +896,122 @@ const LoginScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: safeBottomPadding + bottomInset,
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          <View style={styles.topNavRow}>
-            <TouchableOpacity
-              style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
-              onPress={() => setStep('MPIN')}
-              activeOpacity={0.8}
-            >
-              <ChevronLeft size={20} color={textMain} />
-            </TouchableOpacity>
-          </View>
+          <View style={styles.topSection}>
+            {renderTopNav(() => setStep('MPIN'))}
 
-          <View style={styles.headerBlock}>
-            <View style={styles.logoRow}>
-              <KwicklyIcon size={38} />
-              <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+            <View style={styles.headerBlock}>
+              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+                <KeyRound size={12} color="#6C47FF" />
+                <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
+                  MPIN Recovery
+                </Text>
+              </View>
+
+              <Text style={[styles.title, { color: textMain }]}>
+                Reset <Text style={{ color: '#6C47FF' }}>MPIN</Text>
+              </Text>
+              <Text style={[styles.subtitle, { color: textSub }]}>
+                Enter OTP sent to +91 {phone}
               </Text>
             </View>
 
-            <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
-              <KeyRound size={12} color="#6C47FF" />
-              <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
-                MPIN Recovery
-              </Text>
-            </View>
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              {/* OTP Input */}
+              <Text style={[styles.fieldLabel, { color: textSub }]}>VERIFICATION OTP</Text>
+              <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : inputBorder, marginBottom: 14 }]}>
+                <MessageSquare size={16} color={focusedInput === 'resetOtp' ? PURPLE : textSub} style={{ marginRight: 10 }} />
+                <TextInput
+                  style={[styles.inputText, { color: textMain, letterSpacing: resetOtp.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                  placeholder="4-digit OTP"
+                  placeholderTextColor={textSub}
+                  keyboardType="phone-pad"
+                  maxLength={4}
+                  value={resetOtp}
+                  onChangeText={(t) => setResetOtp(t.replace(/\D/g, '').slice(0, 4))}
+                  onFocus={() => setFocusedInput('resetOtp')}
+                  onBlur={() => setFocusedInput(null)}
+                />
+              </View>
 
-            <Text style={[styles.title, { color: textMain }]}>
-              Reset <Text style={{ color: '#6C47FF' }}>MPIN</Text>
-            </Text>
-            <Text style={[styles.subtitle, { color: textSub }]}>
-              Enter OTP sent to +91 {phone}
-            </Text>
-          </View>
+              {/* New MPIN */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
+                <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  {showNewMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
+                  <Text style={[styles.footerLink, { color: PURPLE, fontSize: 12 }]}>{showNewMpin ? 'Hide' : 'Show'}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: focusedInput === 'newMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
+                <Lock size={16} color={focusedInput === 'newMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
+                <TextInput
+                  style={[styles.inputText, { color: textMain, letterSpacing: newMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                  placeholder="New MPIN"
+                  placeholderTextColor={textSub}
+                  keyboardType="phone-pad"
+                  maxLength={4}
+                  secureTextEntry={!showNewMpin}
+                  value={newMpin}
+                  onChangeText={(t) => setNewMpin(t.replace(/\D/g, '').slice(0, 4))}
+                  onFocus={() => setFocusedInput('newMpin')}
+                  onBlur={() => setFocusedInput(null)}
+                />
+              </View>
 
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-            {/* OTP Input */}
-            <Text style={[styles.fieldLabel, { color: textSub }]}>VERIFICATION OTP</Text>
-            <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : inputBorder, marginBottom: 14 }]}>
-              <MessageSquare size={16} color={focusedInput === 'resetOtp' ? PURPLE : textSub} style={{ marginRight: 10 }} />
-              <TextInput
-                style={[styles.inputText, { color: textMain, letterSpacing: resetOtp.length > 0 ? 8 : 0, fontWeight: '800' }]}
-                placeholder="4-digit OTP"
-                placeholderTextColor={textSub}
-                keyboardType="phone-pad"
-                maxLength={4}
-                value={resetOtp}
-                onChangeText={(t) => setResetOtp(t.replace(/\D/g, '').slice(0, 4))}
-                onFocus={() => setFocusedInput('resetOtp')}
-                onBlur={() => setFocusedInput(null)}
-              />
-            </View>
+              {/* Confirm MPIN */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM NEW MPIN</Text>
+                {isResetMatched && <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 12 }}>✓ Matched</Text>}
+                {isResetMismatched && <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 12 }}>✗ Does not match</Text>}
+              </View>
+              <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : inputBorder, marginBottom: 20 }]}>
+                <ShieldCheck size={16} color={isResetMatched ? '#10B981' : (focusedInput === 'confirmMpin' ? PURPLE : textSub)} style={{ marginRight: 10 }} />
+                <TextInput
+                  style={[styles.inputText, { color: textMain, letterSpacing: confirmNewMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                  placeholder="Re-enter MPIN"
+                  placeholderTextColor={textSub}
+                  keyboardType="phone-pad"
+                  maxLength={4}
+                  secureTextEntry={!showNewMpin}
+                  value={confirmNewMpin}
+                  onChangeText={(t) => setConfirmNewMpin(t.replace(/\D/g, '').slice(0, 4))}
+                  onFocus={() => setFocusedInput('confirmMpin')}
+                  onBlur={() => setFocusedInput(null)}
+                />
+              </View>
 
-            {/* New MPIN */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
-              <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                {showNewMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
-                <Text style={[styles.footerLink, { color: PURPLE, fontSize: 12 }]}>{showNewMpin ? 'Hide' : 'Show'}</Text>
+              {/* Reset CTA */}
+              <TouchableOpacity
+                style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45 }]}
+                onPress={handleResetMpin}
+                disabled={resetOtp.length !== 4 || !isResetMatched || loading}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={[PURPLE, '#582BE8']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.ctaBtn}
+                >
+                  {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.ctaText}>Reset MPIN & Sign In</Text>}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('MPIN')}>
+                <Text style={[styles.footerLink, { color: PURPLE }]}>Back to MPIN sign in</Text>
               </TouchableOpacity>
             </View>
-            <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: focusedInput === 'newMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
-              <Lock size={16} color={focusedInput === 'newMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
-              <TextInput
-                style={[styles.inputText, { color: textMain, letterSpacing: newMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
-                placeholder="New MPIN"
-                placeholderTextColor={textSub}
-                keyboardType="phone-pad"
-                maxLength={4}
-                secureTextEntry={!showNewMpin}
-                value={newMpin}
-                onChangeText={(t) => setNewMpin(t.replace(/\D/g, '').slice(0, 4))}
-                onFocus={() => setFocusedInput('newMpin')}
-                onBlur={() => setFocusedInput(null)}
-              />
-            </View>
-
-            {/* Confirm MPIN */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM NEW MPIN</Text>
-              {isResetMatched && <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 12 }}>✓ Matched</Text>}
-              {isResetMismatched && <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 12 }}>✗ Does not match</Text>}
-            </View>
-            <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : inputBorder, marginBottom: 20 }]}>
-              <ShieldCheck size={16} color={isResetMatched ? '#10B981' : (focusedInput === 'confirmMpin' ? PURPLE : textSub)} style={{ marginRight: 10 }} />
-              <TextInput
-                style={[styles.inputText, { color: textMain, letterSpacing: confirmNewMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
-                placeholder="Re-enter MPIN"
-                placeholderTextColor={textSub}
-                keyboardType="phone-pad"
-                maxLength={4}
-                secureTextEntry={!showNewMpin}
-                value={confirmNewMpin}
-                onChangeText={(t) => setConfirmNewMpin(t.replace(/\D/g, '').slice(0, 4))}
-                onFocus={() => setFocusedInput('confirmMpin')}
-                onBlur={() => setFocusedInput(null)}
-              />
-            </View>
-
-            {/* Reset CTA */}
-            <TouchableOpacity
-              style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45 }]}
-              onPress={handleResetMpin}
-              disabled={resetOtp.length !== 4 || !isResetMatched || loading}
-              activeOpacity={0.88}
-            >
-              <LinearGradient
-                colors={[PURPLE, '#582BE8']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.ctaBtn}
-              >
-                {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.ctaText}>Reset MPIN & Sign In</Text>}
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('MPIN')}>
-              <Text style={[styles.footerLink, { color: PURPLE }]}>Back to MPIN sign in</Text>
-            </TouchableOpacity>
           </View>
+
+          {/* Bottom Footer Section */}
+          {renderBottomFooter()}
         </ScrollView>
       </KeyboardAvoidingView>
       {alertEl}
@@ -1077,9 +1049,23 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   topNavRow: {
-    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
     marginBottom: 8,
-    paddingHorizontal: 2,
+    width: '100%',
+  },
+  topBrandMini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  wordmarkMini: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.4,
   },
   backBtn: {
     width: 38,
@@ -1098,7 +1084,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
     marginTop: 2,
   },
   headerTextCol: {
@@ -1106,24 +1092,24 @@ const styles = StyleSheet.create({
     paddingRight: 6,
   },
   heroHeadline: {
-    fontSize: 22,
+    fontSize: 23,
     fontWeight: '900',
     letterSpacing: -0.4,
-    lineHeight: 26,
+    lineHeight: 28,
   },
   heroSub: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '500',
-    marginTop: 2,
-    lineHeight: 14,
+    marginTop: 3,
+    lineHeight: 15,
   },
   heroLoginImg: {
-    width: SW * 0.35,
-    height: 85,
+    width: Math.min(SW * 0.36, 135),
+    height: Math.min(SW * 0.25, 95),
   },
   heroMpinImg: {
-    width: SW * 0.35,
-    height: 85,
+    width: Math.min(SW * 0.36, 135),
+    height: Math.min(SW * 0.25, 95),
   },
   safeShieldPill: {
     flexDirection: 'row',
@@ -1411,16 +1397,27 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   bottomSection: {
-    width: '100%',
-    marginTop: 12,
+    width: SW,
+    marginHorizontal: -16,
+    alignItems: 'center',
+    marginTop: 'auto',
+    marginBottom: 0,
+  },
+  trustBarCard: {
+    width: SW - 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 4,
   },
   trustBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
-    marginBottom: 6,
-    paddingHorizontal: 8,
     width: '100%',
   },
   trustItem: {
@@ -1462,13 +1459,12 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.round(SW * (150 / 576)),
+    height: Math.round(SW * (175 / 576)),
     overflow: 'hidden',
-    marginTop: 4,
-    marginHorizontal: -16,
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'center',
+    marginBottom: 0,
   },
   trustFooter: {
     flexDirection: 'row',

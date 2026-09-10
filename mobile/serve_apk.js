@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.5.5.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.5.6.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.5.5.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.5.6.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.5.5 (Build 56) Pure Transparent Logo</div><br/>
-    <div class="success-badge">✓ Zero White Box on Splash · Enlarged Home Logo</div>
+    <div class="badge">v1.5.6 (Build 57) Full Screen Edge-to-Edge</div><br/>
+    <div class="success-badge">✓ Zero Black Gaps · Flush Road Footer · Brand Nav</div>
     <h1>Kwickly Mobile</h1>
-    <p>Zero white background on splash screen and enlarged, high-visibility 3D stopwatch brand mark on home screens.</p>
+    <p>Complete edge-to-edge full screen Login page with brand navigation, security trust card, and flush landscape footer.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>
