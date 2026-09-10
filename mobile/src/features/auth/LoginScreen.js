@@ -36,7 +36,6 @@ import {
   X,
   Sparkles,
   KeyRound,
-  ChevronLeft,
 } from 'lucide-react-native';
 import { authService } from '../../services/authService';
 import { getApiErrorMessage } from '../../services/api';
@@ -358,73 +357,64 @@ const LoginScreen = ({ navigation, route }) => {
     />
   );
 
-  // Top Nav Row: Back button + Brand mark
-  const renderTopNav = (onBack) => (
-    <View style={styles.topNavRow}>
-      <TouchableOpacity
-        style={[styles.backBtn, { backgroundColor: cardBg, borderColor: cardBorder }]}
-        onPress={onBack}
-        activeOpacity={0.8}
-      >
-        <ChevronLeft size={20} color={textMain} />
-      </TouchableOpacity>
-      <View style={styles.topBrandMini}>
-        <KwicklyIcon size={28} />
-        <Text style={[styles.wordmarkMini, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-          Kwick<Text style={{ color: PURPLE }}>ly</Text>
-        </Text>
-      </View>
-      <View style={{ width: 38 }} />
+  // Top Brand Logo (Centered, no back button)
+  const renderTopLogo = () => (
+    <View style={styles.topLogoRow}>
+      <KwicklyIcon size={38} />
+      <Text style={[styles.topWordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+        Kwick<Text style={{ color: PURPLE }}>ly</Text>
+      </Text>
     </View>
   );
 
   // Bottom Section: Trust Badges Bar + Edge-to-Edge Road Footer
-  const renderBottomFooter = () => {
+  const renderBottomFooter = (showTrustBar = true) => {
     if (keyboardVisible) return null;
     return (
       <View style={styles.bottomSection}>
-        {/* Trust Bar Row (3 Badges in sleek card) */}
-        <View
-          style={[
-            styles.trustBarCard,
-            {
-              backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
-              borderColor: cardBorder,
-            },
-          ]}
-        >
-          <View style={styles.trustItem}>
-            <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
-              <ShieldCheck size={14} color="#10B981" />
+        {showTrustBar && (
+          <View
+            style={[
+              styles.trustBarCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                borderColor: cardBorder,
+              },
+            ]}
+          >
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
+                <ShieldCheck size={14} color="#10B981" />
+              </View>
+              <View style={styles.trustTextCol}>
+                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
+                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
+              </View>
             </View>
-            <View style={styles.trustTextCol}>
-              <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
-              <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
+
+            <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
+
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF' }]}>
+                <Zap size={14} color="#6C47FF" />
+              </View>
+              <View style={styles.trustTextCol}>
+                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
+                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
+              </View>
+            </View>
+
+            <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
+
+            <View style={styles.trustItem}>
+              <Text style={{ fontSize: 16 }}>🇮🇳</Text>
+              <View style={styles.trustTextCol}>
+                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
+                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
+              </View>
             </View>
           </View>
-
-          <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
-
-          <View style={styles.trustItem}>
-            <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF' }]}>
-              <Zap size={14} color="#6C47FF" />
-            </View>
-            <View style={styles.trustTextCol}>
-              <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
-              <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
-            </View>
-          </View>
-
-          <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
-
-          <View style={styles.trustItem}>
-            <Text style={{ fontSize: 16 }}>🇮🇳</Text>
-            <View style={styles.trustTextCol}>
-              <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
-              <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
-            </View>
-          </View>
-        </View>
+        )}
 
         {/* Bottom Road Landscape Illustration touching bottom edge */}
         <View style={styles.footerWrap} pointerEvents="none">
@@ -465,7 +455,7 @@ const LoginScreen = ({ navigation, route }) => {
             bounces={false}
           >
             <View style={styles.topSection}>
-              {renderTopNav(() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Welcome')))}
+              {renderTopLogo()}
 
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={styles.headerLayoutRow}>
@@ -616,7 +606,7 @@ const LoginScreen = ({ navigation, route }) => {
             bounces={false}
           >
             <View style={styles.topSection}>
-              {renderTopNav(() => setStep('PHONE'))}
+              {renderTopLogo()}
 
               <View style={styles.headerBlock}>
                 <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
@@ -664,7 +654,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Footer Section */}
-            {renderBottomFooter()}
+            {renderBottomFooter(false)}
           </ScrollView>
         </KeyboardAvoidingView>
         {alertEl}
@@ -695,7 +685,7 @@ const LoginScreen = ({ navigation, route }) => {
             bounces={false}
           >
             <View style={styles.topSection}>
-              {renderTopNav(() => setStep('PHONE'))}
+              {renderTopLogo()}
 
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={styles.headerLayoutRow}>
@@ -905,7 +895,7 @@ const LoginScreen = ({ navigation, route }) => {
           bounces={false}
         >
           <View style={styles.topSection}>
-            {renderTopNav(() => setStep('MPIN'))}
+            {renderTopLogo()}
 
             <View style={styles.headerBlock}>
               <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
@@ -1011,7 +1001,7 @@ const LoginScreen = ({ navigation, route }) => {
           </View>
 
           {/* Bottom Footer Section */}
-          {renderBottomFooter()}
+          {renderBottomFooter(false)}
         </ScrollView>
       </KeyboardAvoidingView>
       {alertEl}
@@ -1048,37 +1038,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexGrow: 1,
   },
-  topNavRow: {
+  topLogoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 10,
     marginTop: 2,
     marginBottom: 8,
-    width: '100%',
   },
-  topBrandMini: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  wordmarkMini: {
-    fontSize: 22,
+  topWordmark: {
+    fontSize: 26,
     fontWeight: '900',
     letterSpacing: -0.4,
-  },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
   },
   headerLayoutRow: {
     flexDirection: 'row',
