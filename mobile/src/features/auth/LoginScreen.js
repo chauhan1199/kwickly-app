@@ -18,7 +18,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
-import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import {
   Lock,
   ArrowRight,
@@ -357,77 +356,65 @@ const LoginScreen = ({ navigation, route }) => {
     />
   );
 
-  // Top Brand Logo (Centered, no back button)
-  const renderTopLogo = () => (
-    <View style={styles.topLogoRow}>
-      <KwicklyIcon size={38} />
-      <Text style={[styles.topWordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-        Kwick<Text style={{ color: PURPLE }}>ly</Text>
-      </Text>
+  // Trust Badges Bar (Directly below Card, no center gap!)
+  const renderTrustBar = () => (
+    <View
+      style={[
+        styles.trustBarCard,
+        {
+          backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+          borderColor: cardBorder,
+        },
+      ]}
+    >
+      <View style={styles.trustItem}>
+        <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
+          <ShieldCheck size={14} color="#10B981" />
+        </View>
+        <View style={styles.trustTextCol}>
+          <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
+          <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
+        </View>
+      </View>
+
+      <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
+
+      <View style={styles.trustItem}>
+        <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF' }]}>
+          <Zap size={14} color="#6C47FF" />
+        </View>
+        <View style={styles.trustTextCol}>
+          <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
+          <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
+        </View>
+      </View>
+
+      <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
+
+      <View style={styles.trustItem}>
+        <Text style={{ fontSize: 16 }}>🇮🇳</Text>
+        <View style={styles.trustTextCol}>
+          <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
+          <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
+        </View>
+      </View>
     </View>
   );
 
-  // Bottom Section: Trust Badges Bar + Edge-to-Edge Road Footer
-  const renderBottomFooter = (showTrustBar = true) => {
+  // Bottom Section: Edge-to-Edge Road Footer
+  const renderBottomFooter = () => {
     if (keyboardVisible) return null;
     return (
-      <View style={styles.bottomSection}>
-        {showTrustBar && (
-          <View
-            style={[
-              styles.trustBarCard,
-              {
-                backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
-                borderColor: cardBorder,
-              },
-            ]}
-          >
-            <View style={styles.trustItem}>
-              <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
-                <ShieldCheck size={14} color="#10B981" />
-              </View>
-              <View style={styles.trustTextCol}>
-                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
-                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
-              </View>
-            </View>
-
-            <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
-
-            <View style={styles.trustItem}>
-              <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF' }]}>
-                <Zap size={14} color="#6C47FF" />
-              </View>
-              <View style={styles.trustTextCol}>
-                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
-                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
-              </View>
-            </View>
-
-            <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
-
-            <View style={styles.trustItem}>
-              <Text style={{ fontSize: 16 }}>🇮🇳</Text>
-              <View style={styles.trustTextCol}>
-                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
-                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Bottom Road Landscape Illustration touching bottom edge */}
-        <View style={styles.footerWrap} pointerEvents="none">
-          <Image
-            source={
-              isDarkMode
-                ? require('../../assets/images/footer_login_dark.png')
-                : require('../../assets/images/footer_login.png')
-            }
-            style={styles.bottomFooterImg}
-            resizeMode="cover"
-          />
-        </View>
+      <View style={styles.footerWrap} pointerEvents="none">
+        <Image
+          source={
+            isDarkMode
+              ? require('../../assets/images/footer_login_dark.png')
+              : require('../../assets/images/footer_login.png')
+          }
+          style={styles.bottomFooterImg}
+          resizeMode="cover"
+        />
       </View>
     );
   };
@@ -455,8 +442,6 @@ const LoginScreen = ({ navigation, route }) => {
             bounces={false}
           >
             <View style={styles.topSection}>
-              {renderTopLogo()}
-
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={styles.headerLayoutRow}>
                 <View style={styles.headerTextCol}>
@@ -572,6 +557,22 @@ const LoginScreen = ({ navigation, route }) => {
                   <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
                 </View>
               </View>
+
+              {/* Trust Badges Bar directly below card */}
+              {renderTrustBar()}
+
+              {/* Service Highlights Perks Row */}
+              <View style={styles.perksRow}>
+                <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
+                  <Text style={[styles.perkText, { color: textSub }]}>⚡ 10-Min Delivery</Text>
+                </View>
+                <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
+                  <Text style={[styles.perkText, { color: textSub }]}>🛠️ 50+ Services</Text>
+                </View>
+                <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
+                  <Text style={[styles.perkText, { color: textSub }]}>🛡️ Verified Pros</Text>
+                </View>
+              </View>
             </View>
 
             {/* Bottom Footer Section */}
@@ -606,8 +607,6 @@ const LoginScreen = ({ navigation, route }) => {
             bounces={false}
           >
             <View style={styles.topSection}>
-              {renderTopLogo()}
-
               <View style={styles.headerBlock}>
                 <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                   <User size={12} color="#6C47FF" />
@@ -651,10 +650,13 @@ const LoginScreen = ({ navigation, route }) => {
                   <Text style={[styles.footerLink, { color: PURPLE }]}>Use a different number</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Trust Badges Bar directly below card */}
+              {renderTrustBar()}
             </View>
 
             {/* Bottom Footer Section */}
-            {renderBottomFooter(false)}
+            {renderBottomFooter()}
           </ScrollView>
         </KeyboardAvoidingView>
         {alertEl}
@@ -685,8 +687,6 @@ const LoginScreen = ({ navigation, route }) => {
             bounces={false}
           >
             <View style={styles.topSection}>
-              {renderTopLogo()}
-
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={styles.headerLayoutRow}>
                 <View style={styles.headerTextCol}>
@@ -862,6 +862,9 @@ const LoginScreen = ({ navigation, route }) => {
                   <Text style={[styles.footerLink, { color: PURPLE }]}>Switch mobile number</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Trust Badges Bar directly below card */}
+              {renderTrustBar()}
             </View>
 
             {/* Bottom Footer Section */}
@@ -895,8 +898,6 @@ const LoginScreen = ({ navigation, route }) => {
           bounces={false}
         >
           <View style={styles.topSection}>
-            {renderTopLogo()}
-
             <View style={styles.headerBlock}>
               <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                 <KeyRound size={12} color="#6C47FF" />
@@ -998,10 +999,13 @@ const LoginScreen = ({ navigation, route }) => {
                 <Text style={[styles.footerLink, { color: PURPLE }]}>Back to MPIN sign in</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Trust Badges Bar directly below card */}
+            {renderTrustBar()}
           </View>
 
           {/* Bottom Footer Section */}
-          {renderBottomFooter(false)}
+          {renderBottomFooter()}
         </ScrollView>
       </KeyboardAvoidingView>
       {alertEl}
@@ -1055,32 +1059,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    marginTop: 2,
+    marginBottom: 12,
+    marginTop: 6,
   },
   headerTextCol: {
     flex: 1,
-    paddingRight: 6,
+    paddingRight: 8,
   },
   heroHeadline: {
-    fontSize: 23,
+    fontSize: 25,
     fontWeight: '900',
     letterSpacing: -0.4,
-    lineHeight: 28,
+    lineHeight: 30,
   },
   heroSub: {
-    fontSize: 11.5,
+    fontSize: 12.5,
     fontWeight: '500',
-    marginTop: 3,
-    lineHeight: 15,
+    marginTop: 5,
+    lineHeight: 17,
   },
   heroLoginImg: {
-    width: Math.min(SW * 0.36, 135),
-    height: Math.min(SW * 0.25, 95),
+    width: Math.min(SW * 0.38, 140),
+    height: Math.min(SW * 0.28, 105),
   },
   heroMpinImg: {
-    width: Math.min(SW * 0.36, 135),
-    height: Math.min(SW * 0.25, 95),
+    width: Math.min(SW * 0.38, 140),
+    height: Math.min(SW * 0.28, 105),
   },
   safeShieldPill: {
     flexDirection: 'row',
@@ -1375,15 +1379,35 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   trustBarCard: {
-    width: SW - 32,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 9,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 16,
     borderWidth: 1,
-    marginBottom: 4,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  perksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 8,
+    width: '100%',
+  },
+  perkChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  perkText: {
+    fontSize: 10.5,
+    fontWeight: '600',
   },
   trustBarRow: {
     flexDirection: 'row',
@@ -1430,7 +1454,7 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.round(SW * (175 / 576)),
+    height: Math.round(SW * (195 / 576)),
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'flex-end',
