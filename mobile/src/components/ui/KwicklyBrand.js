@@ -6,13 +6,11 @@ import { View, Text, StyleSheet, Image } from 'react-native';
  */
 export const KwicklyIcon = ({ size = 36, style }) => {
   return (
-    <View style={[styles.iconBox, { width: size, height: size, borderRadius: Math.round(size * 0.28) }, style]}>
-      <Image
-        source={require('../../assets/logo.png')}
-        style={{ width: size * 0.78, height: size * 0.78 }}
-        resizeMode="contain"
-      />
-    </View>
+    <Image
+      source={require('../../assets/logo.png')}
+      style={[{ width: size, height: size, borderRadius: Math.round(size * 0.26) }, style]}
+      resizeMode="contain"
+    />
   );
 };
 

@@ -351,7 +351,6 @@ const AppSplashScreen = ({ navigation }) => {
             style={[
               styles.logoBadge,
               {
-                backgroundColor: '#0F172A',
                 shadowColor: '#6C47FF',
                 opacity: logoOpacity,
                 transform: [
@@ -482,22 +481,21 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   logoBadge: {
-    width: 92,
-    height: 92,
-    borderRadius: 28,
+    width: 88,
+    height: 88,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 18,
     elevation: 10,
-    borderWidth: 1.5,
-    borderColor: '#1E293B',
-    backgroundColor: '#0F172A',
+    backgroundColor: 'transparent',
   },
   splashLogoImg: {
-    width: 66,
-    height: 66,
+    width: 88,
+    height: 88,
+    borderRadius: 24,
   },
   titleWrapper: {
     alignItems: 'center',
