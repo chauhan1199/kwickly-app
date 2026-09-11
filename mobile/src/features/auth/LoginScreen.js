@@ -1459,6 +1459,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'center',
+    marginHorizontal: -16,
     marginBottom: 0,
   },
   trustFooter: {

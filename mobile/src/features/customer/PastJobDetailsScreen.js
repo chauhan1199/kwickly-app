@@ -353,8 +353,8 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
                 address: addressText
               })}
             >
-              <RefreshCw size={18} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles.rebookBtnText}>↺ Re-post / Book Again</Text>
+              <RefreshCw size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.rebookBtnText}>Re-post / Book Again</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
@@ -374,8 +374,8 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
                 address: addressText
               })}
             >
-              <RefreshCw size={18} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles.rebookBtnText}>↺ Rebook Service</Text>
+              <RefreshCw size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.rebookBtnText}>Rebook Service</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -388,8 +388,8 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
                 }
               }}
             >
-              <FileText size={16} color={theme.colors.text} style={{ marginRight: 6 }} />
-              <Text style={styles.invoiceBtnText}>📄 Download Invoice</Text>
+              <FileText size={16} color={theme.colors.text} style={{ marginRight: 8 }} />
+              <Text style={styles.invoiceBtnText}>Download Invoice</Text>
             </TouchableOpacity>
           </View>
         ) : null}

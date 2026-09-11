@@ -4,30 +4,42 @@ import Svg, { Path, Circle, Polygon, Rect } from 'react-native-svg';
 
 /**
  * Google Pay official brand logo badge
- * Featuring the authentic 4-color intertwined folded ribbon (Blue, Red, Yellow, Green)
+ * Featuring the authentic official 4-color Google 'G' (Red, Blue, Yellow, Green)
  */
 export const GooglePayIcon = ({ size = 36 }) => (
-  <View style={[styles.badgeBase, { width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' }]}>
-    <Svg width={size * 0.72} height={size * 0.72} viewBox="0 0 48 48">
-      {/* Top Blue loop */}
-      <Path
-        fill="#4285F4"
-        d="M24 6c-5.52 0-10 4.48-10 10v6h6v-6c0-2.21 1.79-4 4-4s4 1.79 4 4v1.5l5.6-5.6C31.2 8.6 27.8 6 24 6z"
-      />
-      {/* Top Right Red loop */}
+  <View
+    style={[
+      styles.badgeBase,
+      {
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+      },
+    ]}
+  >
+    <Svg width={size * 0.68} height={size * 0.68} viewBox="0 0 48 48">
+      {/* Top Red arc */}
       <Path
         fill="#EA4335"
-        d="M34 16c0-5.52-4.48-10-10-10-3.8 0-7.2 2.6-9.6 5.9l5.6 5.6C21.79 16.5 22.8 16 24 16c2.21 0 4 1.79 4 4v6h6v-10z"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
       />
-      {/* Bottom Yellow loop */}
+      {/* Right Blue bar & arc */}
+      <Path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      {/* Left Yellow arc */}
       <Path
         fill="#FBBC05"
-        d="M24 42c5.52 0 10-4.48 10-10v-6h-6v6c0 2.21-1.79 4-4 4s-4-1.79-4-4v-1.5l-5.6 5.6C16.8 39.4 20.2 42 24 42z"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
       />
-      {/* Bottom Left Green loop */}
+      {/* Bottom Green arc */}
       <Path
         fill="#34A853"
-        d="M14 32c0 5.52 4.48 10 10 10 3.8 0 7.2-2.6 9.6-5.9l-5.6-5.6c-1.79 1-2.8 1.5-4 1.5-2.21 0-4-1.79-4-4v-6h-6v10z"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
       />
     </Svg>
   </View>
@@ -38,27 +50,37 @@ export const GooglePayIcon = ({ size = 36 }) => (
  * Featuring the authentic white Devanagari 'पे' glyph on official PhonePe purple (#5F259F)
  */
 export const PhonePeIcon = ({ size = 36 }) => (
-  <View style={[styles.badgeBase, { width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#5F259F' }]}>
-    <Svg width={size * 0.68} height={size * 0.68} viewBox="0 0 32 32">
-      {/* Shirorekha (Top horizontal line) */}
-      <Rect x="5" y="7.5" width="22" height="2.8" rx="1.4" fill="#FFFFFF" />
+  <View
+    style={[
+      styles.badgeBase,
+      {
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        backgroundColor: '#5F259F',
+      },
+    ]}
+  >
+    <Svg width={size * 0.7} height={size * 0.7} viewBox="0 0 32 32">
+      {/* Top Shirorekha */}
+      <Rect x="5" y="7" width="22" height="3" rx="1.5" fill="#FFFFFF" />
 
       {/* Matra 'े' angled upper stroke */}
       <Path
-        d="M17.5 7.5L13.2 2.8C12.7 2.2 11.8 2.2 11.3 2.7C10.8 3.2 10.8 4.1 11.3 4.6L15.2 8.5"
+        d="M17.5 7L13 2.5C12.4 1.9 11.4 1.9 10.8 2.5C10.2 3.1 10.2 4 10.8 4.6L14.8 8.6"
         fill="#FFFFFF"
       />
 
       {/* Main Pe vertical right stem */}
-      <Rect x="18.5" y="8" width="3.2" height="17.5" rx="1.6" fill="#FFFFFF" />
+      <Rect x="18" y="7.5" width="3.4" height="18" rx="1.7" fill="#FFFFFF" />
 
       {/* Pe left curve/loop */}
       <Path
-        d="M10.2 9.5v5.8c0 3 2.2 5.2 5.2 5.2h4.5v-3.2h-4.2c-1.3 0-2.3-.9-2.3-2.2V9.5h-3.2z"
+        d="M9.8 9v6.2c0 3.2 2.4 5.4 5.5 5.4h4.5v-3.4h-4.2c-1.4 0-2.4-1-2.4-2.4V9H9.8z"
         fill="#FFFFFF"
       />
 
-      {/* PhonePe trademark accent circle */}
+      {/* PhonePe trademark accent dot */}
       <Circle cx="23.5" cy="22" r="2.2" fill="#FFFFFF" />
     </Svg>
   </View>
@@ -69,10 +91,42 @@ export const PhonePeIcon = ({ size = 36 }) => (
  * Crisp navy 'Pay' and vibrant cyan 'tm'
  */
 export const PaytmIcon = ({ size = 36 }) => (
-  <View style={[styles.badgeBase, { width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' }]}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ fontSize: size * 0.32, fontWeight: '900', color: '#002E6E', letterSpacing: -0.5 }}>Pay</Text>
-      <Text style={{ fontSize: size * 0.32, fontWeight: '900', color: '#00BAF2', letterSpacing: -0.5 }}>tm</Text>
+  <View
+    style={[
+      styles.badgeBase,
+      {
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+    ]}
+  >
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' }}>
+      <Text
+        style={{
+          fontSize: size * 0.34,
+          fontWeight: '900',
+          color: '#002970',
+          letterSpacing: -0.6,
+        }}
+      >
+        Pay
+      </Text>
+      <Text
+        style={{
+          fontSize: size * 0.34,
+          fontWeight: '900',
+          color: '#00BAF2',
+          letterSpacing: -0.6,
+        }}
+      >
+        tm
+      </Text>
     </View>
   </View>
 );
@@ -82,7 +136,19 @@ export const PaytmIcon = ({ size = 36 }) => (
  * Sleek dark slate tile (#0F1016) with the authentic white geometric CRED shield
  */
 export const CredIcon = ({ size = 36 }) => (
-  <View style={[styles.badgeBase, { width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#0F1016' }]}>
+  <View
+    style={[
+      styles.badgeBase,
+      {
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        backgroundColor: '#0F1016',
+        borderWidth: 1,
+        borderColor: '#1E2230',
+      },
+    ]}
+  >
     <Svg width={size * 0.65} height={size * 0.65} viewBox="0 0 32 32">
       {/* Outer CRED shield outline */}
       <Path
@@ -124,7 +190,7 @@ export const BhimIcon = ({ size = 36 }) => (
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 2,
+        paddingHorizontal: 3,
       },
     ]}
   >
@@ -133,6 +199,7 @@ export const BhimIcon = ({ size = 36 }) => (
         color: '#FFFFFF',
         fontSize: size * 0.28,
         fontWeight: '900',
+        fontStyle: 'italic',
         letterSpacing: -0.5,
         marginRight: 2,
       }}
@@ -140,8 +207,8 @@ export const BhimIcon = ({ size = 36 }) => (
       BHIM
     </Text>
     {/* Tricolor diagonal accent stripes */}
-    <Svg width={size * 0.22} height={size * 0.55} viewBox="0 0 10 24">
-      <Polygon points="3,0 10,0 7,10 0,10" fill="#FF9933" />
+    <Svg width={size * 0.24} height={size * 0.52} viewBox="0 0 10 24">
+      <Polygon points="3,1 10,1 7,11 0,11" fill="#FF9933" />
       <Polygon points="3,13 10,13 7,23 0,23" fill="#138808" />
     </Svg>
   </View>
@@ -169,19 +236,18 @@ export const AnyUpiIcon = ({ size = 36 }) => (
     ]}
   >
     {/* Dual NPCI Chevrons */}
-    <Svg width={size * 0.52} height={size * 0.44} viewBox="0 0 32 20">
+    <Svg width={size * 0.54} height={size * 0.44} viewBox="0 0 32 20">
       {/* Saffron leading chevron */}
-      <Polygon points="6,18 16,2 20,7 11,18" fill="#F47920" />
+      <Polygon points="6,19 16,2 20,7 11,19" fill="#F47920" />
       {/* Green trailing chevron */}
-      <Polygon points="13,18 23,2 27,7 18,18" fill="#0F7A3E" />
+      <Polygon points="13,19 23,2 27,7 18,19" fill="#0F7A3E" />
     </Svg>
     <Text
       style={{
         fontSize: size * 0.22,
         fontWeight: '900',
         color: '#1B365D',
-        letterSpacing: 0.6,
-        marginTop: 0,
+        letterSpacing: 0.8,
         lineHeight: size * 0.26,
       }}
     >

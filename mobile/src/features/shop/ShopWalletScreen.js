@@ -946,8 +946,8 @@ const ShopWalletScreen = ({ navigation }) => {
                     onPress={() => handlePayViaUpiApp(app.key)}
                     activeOpacity={0.8}
                   >
-                    <View style={{ marginBottom: 4 }}>
-                      <IconComponent size={32} />
+                    <View style={{ marginBottom: 6 }}>
+                      <IconComponent size={38} />
                     </View>
                     <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]} numberOfLines={1}>
                       {app.name}
@@ -1214,8 +1214,8 @@ const ShopWalletScreen = ({ navigation }) => {
                         onPress={() => handlePaySubscriptionUpi(app.key)}
                         activeOpacity={0.8}
                       >
-                        <View style={{ marginBottom: 4 }}>
-                          <IconComponent size={32} />
+                        <View style={{ marginBottom: 6 }}>
+                          <IconComponent size={38} />
                         </View>
                         <Text style={[styles.upiAppLabel, isSelected && { color: '#6C47FF', fontWeight: '800' }]} numberOfLines={1}>
                           {app.name}

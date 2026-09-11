@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.5.8.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.5.9.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.5.8.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.5.9.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.5.8 (Build 59) Latest Release</div><br/>
-    <div class="success-badge">✓ Clean Splash · Clean Notifications · Distinct UPI Icons · Professional Plans</div>
+    <div class="badge">v1.5.9 (Build 60) Latest Release</div><br/>
+    <div class="success-badge">✓ Full Edge-to-Edge Login · No Blank Gaps · Road Footer Flush</div>
     <h1>Kwickly Mobile</h1>
-    <p>Splash screen transparent logo, clean cancellation notifications, authentic UPI & BHIM icons, and professional subscription plan titles.</p>
+    <p>Complete edge-to-edge login screen layout with flush bottom footer, proper status bar alignment, and adaptive keyboard scrolling.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>
