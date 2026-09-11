@@ -31,6 +31,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 import { validateOtpForSubmit, sanitizeOtp } from '../../utils/otpGuard';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
+import { getSafeBottomInset } from '../../utils/safeInsets';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -153,7 +154,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
-  const safeBottomPadding = Math.max(insets.bottom, 8);
+  const safeBottomInset = getSafeBottomInset(insets);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -203,7 +204,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: safeBottomPadding + bottomInset,
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 16),
               justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}

@@ -21,6 +21,7 @@ import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
+import { getSafeBottomInset } from '../../utils/safeInsets';
 import {
   User,
   Wrench,
@@ -161,7 +162,7 @@ const RoleSelection = ({ navigation, route }) => {
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
-  const safeBottomPadding = Math.max(insets.bottom, 6);
+  const safeBottomInset = getSafeBottomInset(insets);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -209,7 +210,7 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: safeBottomPadding + bottomInset,
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
@@ -521,7 +522,7 @@ const RoleSelection = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Road Landscape Illustration */}
-            <View style={styles.footerWrap} pointerEvents="none">
+            <View style={[styles.footerWrap, { marginBottom: safeBottomInset }]} pointerEvents="none">
               <Image
                 source={
                   isDarkMode

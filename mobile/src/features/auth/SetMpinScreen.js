@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
+import { getSafeBottomInset } from '../../utils/safeInsets';
 import {
   Lock,
   ShieldCheck,
@@ -81,7 +82,7 @@ const SetMpinScreen = ({ navigation, route }) => {
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
-  const safeBottomPadding = Math.max(insets.bottom, 8);
+  const safeBottomInset = getSafeBottomInset(insets);
 
   const normalizedRole = (role || 'CUSTOMER').toUpperCase();
   const roleMeta = ROLE_META[normalizedRole] || ROLE_META.CUSTOMER;
@@ -161,7 +162,7 @@ const SetMpinScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: safeBottomPadding + bottomInset,
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 16),
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}

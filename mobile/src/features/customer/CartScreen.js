@@ -6,6 +6,8 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getSafeBottomInset } from '../../utils/safeInsets';
 import { useTheme } from '../../context/ThemeContext';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -26,6 +28,8 @@ import { nativeUpiService } from '../../services/nativeUpiService';
 import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
 
 const CartScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const safeBottomInset = getSafeBottomInset(insets);
   const { theme, isDarkMode } = useTheme();
   const { user, fetchUser } = useAuth();
   const {
@@ -732,7 +736,7 @@ const CartScreen = ({ route, navigation }) => {
           </View>
 
           {/* Checkout Button */}
-          <View style={styles.footer}>
+          <View style={[styles.footer, { paddingBottom: safeBottomInset }]}>
             <View>
               <Text style={styles.totalLabel}>Grand Total</Text>
               <Text style={styles.totalValue}>₹{total}</Text>

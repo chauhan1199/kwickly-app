@@ -4,6 +4,8 @@ import {
   StatusBar, Alert, TextInput, ActivityIndicator, Modal, Linking, Platform, KeyboardAvoidingView, AppState
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getSafeBottomInset } from '../../utils/safeInsets';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
@@ -18,6 +20,8 @@ import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
 const PRESETS = [100, 250, 500, 1000, 2000, 5000];
 
 const WalletTopupScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const safeBottomInset = getSafeBottomInset(insets);
   const { theme, isDarkMode } = useTheme();
   const { user, fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
@@ -222,7 +226,7 @@ const WalletTopupScreen = ({ navigation }) => {
       </View>
 
       {/* Topup Button */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: safeBottomInset }]}>
         <TouchableOpacity
           style={[styles.topupBtn, processing && { opacity: 0.6 }]}
           disabled={processing || !amount || parseInt(amount) < 100}

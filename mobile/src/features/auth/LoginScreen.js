@@ -42,6 +42,7 @@ import { useAuth } from '../../context/AuthContext';
 import CustomAlert from '../../components/ui/CustomAlert';
 import LinearGradient from 'react-native-linear-gradient';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
+import { getSafeBottomInset } from '../../utils/safeInsets';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -304,7 +305,7 @@ const LoginScreen = ({ navigation, route }) => {
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
-  const safeBottomPadding = Math.max(insets.bottom, 14);
+  const safeBottomInset = getSafeBottomInset(insets);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -401,11 +402,11 @@ const LoginScreen = ({ navigation, route }) => {
     </View>
   );
 
-  // Bottom Section: Edge-to-Edge Road Footer
+  // Bottom Section: Road Footer with safe clearance above navigation bar
   const renderBottomFooter = () => {
     if (keyboardVisible) return null;
     return (
-      <View style={styles.footerWrap} pointerEvents="none">
+      <View style={[styles.footerWrap, { marginBottom: safeBottomInset }]} pointerEvents="none">
         <Image
           source={
             isDarkMode
@@ -433,7 +434,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -598,7 +599,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -678,7 +679,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -889,7 +890,7 @@ const LoginScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
@@ -1454,13 +1455,12 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.round(SW * (195 / 576)),
-    overflow: 'hidden',
+    height: Math.round(SW * (180 / 576)),
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'center',
     marginHorizontal: -16,
-    marginBottom: 0,
+    marginTop: 8,
   },
   trustFooter: {
     flexDirection: 'row',
@@ -1598,18 +1598,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 4,
   },
-  footerWrap: {
-    width: SW,
-    height: Math.round(SW * (200 / 576)),
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: 8,
-    alignSelf: 'center',
-  },
-  bottomFooterImg: {
-    width: SW,
-    height: '100%',
-  },
+  // footerWrap and bottomFooterImg defined above
 });
 
 export default LoginScreen;

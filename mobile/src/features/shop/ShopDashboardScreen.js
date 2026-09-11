@@ -714,6 +714,7 @@ const createStyles = (theme, isDarkMode) =>
     /* ── Scroll ── */
     scroll: {
       padding: 16,
+      paddingBottom: 110,
     },
 
     /* ── Stats ── */

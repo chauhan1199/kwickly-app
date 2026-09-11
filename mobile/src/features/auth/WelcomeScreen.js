@@ -8,6 +8,7 @@ import {
   StatusBar,
   Image,
   Platform,
+  ScrollView,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
+import { getSafeBottomInset } from '../../utils/safeInsets';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -61,7 +63,7 @@ const WelcomeScreen = ({ navigation }) => {
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
-  const safeBottomPadding = Math.max(insets.bottom, 6);
+  const safeBottomInset = getSafeBottomInset(insets);
 
   return (
     <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
@@ -90,15 +92,17 @@ const WelcomeScreen = ({ navigation }) => {
         <LinearGradient colors={['#3B82F6', '#6C47FF']} style={StyleSheet.absoluteFill} />
       </View>
 
-      {/* Fixed Non-Scrollable Viewport Container */}
-      <View
-        style={[
+      {/* Responsive Viewport ScrollView Container */}
+      <ScrollView
+        contentContainerStyle={[
           styles.mainContent,
           {
             paddingTop: safeTopPadding,
-            paddingBottom: 2,
+            paddingBottom: safeBottomInset + 8,
           },
         ]}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
       >
         {/* TOP BRAND LOGO ROW */}
         <View style={styles.logoRow}>
@@ -283,20 +287,20 @@ const WelcomeScreen = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Bottom Road Landscape Illustration touching bottom edge */}
-      <View style={styles.footerWrap} pointerEvents="none">
-        <Image
-          source={
-            isDarkMode
-              ? require('../../assets/images/footer_landscape_dark.png')
-              : require('../../assets/images/footer_landscape.png')
-          }
-          style={styles.footerLandscapeImg}
-          resizeMode="cover"
-        />
-      </View>
+        {/* Bottom Road Landscape Illustration elevated safely above navigation bar */}
+        <View style={[styles.footerWrap, { marginTop: 10, marginBottom: safeBottomInset }]} pointerEvents="none">
+          <Image
+            source={
+              isDarkMode
+                ? require('../../assets/images/footer_landscape_dark.png')
+                : require('../../assets/images/footer_landscape.png')
+            }
+            style={styles.footerLandscapeImg}
+            resizeMode="cover"
+          />
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -327,7 +331,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   mainContent: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'space-between',
