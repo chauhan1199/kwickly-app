@@ -116,6 +116,10 @@ exports.topupWallet = catchAsync(async (req, res) => {
     }
     amount = Number(amount);
 
+    if (!planId && amount < 100) {
+        return errorResponse(res, 'Minimum wallet top-up amount is ₹100', StatusCodes.BAD_REQUEST);
+    }
+
     const user = await Customer.findById(req.user._id).lean();
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 

@@ -14,7 +14,7 @@ import CustomAlert from '../../components/ui/CustomAlert';
 import { shopService } from '../../services/shopService';
 import { walletService } from '../../services/walletService';
 import {
-  GooglePayIcon, PhonePeIcon, PaytmIcon, BhimUpiIcon
+  GooglePayIcon, PhonePeIcon, PaytmIcon, BhimIcon, CredIcon
 } from '../../components/ui/UpiBrandIcons';
 import {
   ShoppingCart, Minus, Plus, Trash2, MapPin, CreditCard,
@@ -776,7 +776,8 @@ const CartScreen = ({ route, navigation }) => {
                 { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
                 { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
                 { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
-                { key: 'generic', name: 'Any UPI', icon: BhimUpiIcon },
+                { key: 'bhim', name: 'BHIM', icon: BhimIcon },
+                { key: 'cred', name: 'CRED', icon: CredIcon },
               ].map((app) => {
                 const IconComponent = app.icon;
                 const isSelected = selectedUpiApp === app.key;
@@ -1138,8 +1139,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   upiModalSub: { fontSize: 12, color: theme.colors.textDim, marginTop: 2 },
   modalCloseBtn: { padding: 8 },
   upiAppsTitle: { fontSize: 13, fontWeight: '700', color: theme.colors.textDim, marginBottom: 12 },
-  upiAppsGrid: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 16 },
-  upiAppBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, backgroundColor: theme.colors.background, borderRadius: 16, borderWidth: 1.5, borderColor: theme.colors.border, position: 'relative' },
+  upiAppsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  upiAppBtn: { width: '31%', alignItems: 'center', paddingVertical: 12, backgroundColor: theme.colors.background, borderRadius: 16, borderWidth: 1.5, borderColor: theme.colors.border, position: 'relative' },
   upiAppBtnSelected: { borderColor: '#6C47FF', backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F5F3FF' },
   upiAppIconBox: { width: 42, height: 42, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
   upiAppName: { fontSize: 11, fontWeight: '700', color: theme.colors.text },

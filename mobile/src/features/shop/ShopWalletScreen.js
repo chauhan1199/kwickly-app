@@ -53,8 +53,7 @@ import {
   PhonePeIcon, 
   PaytmIcon, 
   CredIcon, 
-  BhimIcon, 
-  AnyUpiIcon 
+  BhimIcon 
 } from '../../components/ui/UpiBrandIcons';
 import { 
   generateAndSharePdfReceipt, 
@@ -271,8 +270,8 @@ const ShopWalletScreen = ({ navigation }) => {
 
   const handleTopUpProceed = () => {
     const amt = parseFloat(topUpAmount);
-    if (!amt || isNaN(amt) || amt < 10) {
-      Alert.alert('Invalid Amount', 'Minimum top-up amount is ₹10.');
+    if (!amt || isNaN(amt) || amt < 100) {
+      Alert.alert('Invalid Amount', 'Minimum top-up amount is ₹100.');
       return;
     }
     setTopUpModalVisible(false);
@@ -881,6 +880,11 @@ const ShopWalletScreen = ({ navigation }) => {
                 onChangeText={setTopUpAmount}
               />
             </View>
+            {topUpAmount !== '' && parseFloat(topUpAmount) < 100 && (
+              <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '700', marginTop: 4, marginBottom: 6 }}>
+                ⚠️ Minimum top-up amount is ₹100
+              </Text>
+            )}
 
             <View style={styles.presetChipsRow}>
               {TOP_UP_PRESETS.map(preset => (
@@ -933,9 +937,8 @@ const ShopWalletScreen = ({ navigation }) => {
                 { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
                 { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
                 { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
-                { key: 'cred', name: 'CRED', icon: CredIcon },
                 { key: 'bhim', name: 'BHIM', icon: BhimIcon },
-                { key: 'generic', name: 'Any UPI', icon: AnyUpiIcon },
+                { key: 'cred', name: 'CRED', icon: CredIcon },
               ].map((app) => {
                 const IconComponent = app.icon;
                 const isSelected = selectedUpiApp === app.key;
@@ -1201,9 +1204,8 @@ const ShopWalletScreen = ({ navigation }) => {
                     { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
                     { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
                     { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
-                    { key: 'cred', name: 'CRED', icon: CredIcon },
                     { key: 'bhim', name: 'BHIM', icon: BhimIcon },
-                    { key: 'generic', name: 'Any UPI', icon: AnyUpiIcon },
+                    { key: 'cred', name: 'CRED', icon: CredIcon },
                   ].map((app) => {
                     const IconComponent = app.icon;
                     const isSelected = selectedSubUpiApp === app.key;

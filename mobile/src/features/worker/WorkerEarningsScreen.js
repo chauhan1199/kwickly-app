@@ -63,8 +63,7 @@ import {
   PhonePeIcon, 
   PaytmIcon, 
   CredIcon, 
-  BhimIcon, 
-  AnyUpiIcon 
+  BhimIcon 
 } from '../../components/ui/UpiBrandIcons';
 import { 
   generateAndSharePdfReceipt, 
@@ -393,8 +392,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
   const handleTopUpProceed = () => {
     const amt = Number(topUpAmount);
-    if (!topUpAmount || isNaN(amt) || amt < 10) {
-      Alert.alert("Invalid Amount", "Please enter an amount of at least ₹10.");
+    if (!topUpAmount || isNaN(amt) || amt < 100) {
+      Alert.alert("Invalid Amount", "Please enter an amount of at least ₹100.");
       return;
     }
     setTopUpModalVisible(false);
@@ -775,6 +774,11 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 onChangeText={setTopUpAmount}
               />
             </View>
+            {topUpAmount !== '' && Number(topUpAmount) < 100 && (
+              <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '700', marginTop: -8, marginBottom: 12, paddingHorizontal: 4 }}>
+                ⚠️ Minimum top-up amount is ₹100
+              </Text>
+            )}
 
             {/* Quick Amount Chips */}
             <View style={styles.quickChipsRow}>
@@ -847,9 +851,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
                 { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
                 { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
-                { key: 'cred', name: 'CRED', icon: CredIcon },
                 { key: 'bhim', name: 'BHIM', icon: BhimIcon },
-                { key: 'generic', name: 'Any UPI', icon: AnyUpiIcon },
+                { key: 'cred', name: 'CRED', icon: CredIcon },
               ].map((app) => {
                 const IconComponent = app.icon;
                 const isSelected = selectedUpiApp === app.key;

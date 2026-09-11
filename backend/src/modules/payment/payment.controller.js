@@ -74,6 +74,10 @@ exports.createOrder = catchAsync(async (req, res) => {
         return errorResponse(res, 'Invalid amount', StatusCodes.BAD_REQUEST);
     }
 
+    if (purpose === 'wallet_topup' && Number(amount) < 100) {
+        return errorResponse(res, 'Minimum wallet top-up amount is ₹100', StatusCodes.BAD_REQUEST);
+    }
+
     const [adminWallet, appSettings] = await Promise.all([
         AdminWallet.findOne().lean(),
         AppSettings.findOne({ isSingleton: 'CONFIG' }).lean()

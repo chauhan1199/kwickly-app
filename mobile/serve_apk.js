@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.5.9.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.6.0.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.5.9.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.6.0.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.5.9 (Build 60) Latest Release</div><br/>
-    <div class="success-badge">✓ Full Edge-to-Edge Login · No Blank Gaps · Road Footer Flush</div>
+    <div class="badge">v1.6.0 (Build 61) Latest Release</div><br/>
+    <div class="success-badge">✓ Original GPay, PhonePe, Paytm, BHIM, CRED · Min ₹100 Top-up Enforced</div>
     <h1>Kwickly Mobile</h1>
-    <p>Complete edge-to-edge login screen layout with flush bottom footer, proper status bar alignment, and adaptive keyboard scrolling.</p>
+    <p>Authentic brand icons for UPI payment methods, removed redundant logo, and enforced minimum ₹100 wallet top-up.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>

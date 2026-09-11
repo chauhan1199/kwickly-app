@@ -10,7 +10,7 @@ import { Wallet, ArrowDown, ArrowUp, Plus, TrendingUp, Copy, CheckCircle2, Build
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import CustomAlert from '../../components/ui/CustomAlert';
-import { GooglePayIcon, PhonePeIcon, PaytmIcon, CredIcon, BhimIcon, AnyUpiIcon } from '../../components/ui/UpiBrandIcons';
+import { GooglePayIcon, PhonePeIcon, PaytmIcon, CredIcon, BhimIcon } from '../../components/ui/UpiBrandIcons';
 import { shareOfficialReceipt, printReceiptPdf } from '../../utils/receiptGenerator';
 
 import { SearchBar } from '../../components/ui/SearchBar';
@@ -132,10 +132,10 @@ const CustomerWalletScreen = ({ navigation }) => {
 
   const handleInitiateTopup = async () => {
     const amount = Number(topupAmount);
-    if (!amount || isNaN(amount) || amount < 10) {
+    if (!amount || isNaN(amount) || amount < 100) {
       return showAlert({
         title: 'Invalid Amount',
-        message: 'Minimum topup is ₹10.',
+        message: 'Minimum top-up amount is ₹100.',
         type: 'warning',
         confirmText: 'OK'
       });
@@ -496,7 +496,7 @@ const CustomerWalletScreen = ({ navigation }) => {
                       <X size={20} color={theme.colors.textDim} />
                     </TouchableOpacity>
                   </View>
-                  <Text style={styles.inputLabel}>Enter Amount</Text>
+                  <Text style={styles.inputLabel}>Enter Amount (Min ₹100)</Text>
                   <View style={styles.amountInputRow}>
                     <Text style={styles.rupeeSym}>₹</Text>
                     <TextInput
@@ -504,10 +504,15 @@ const CustomerWalletScreen = ({ navigation }) => {
                       value={topupAmount}
                       onChangeText={setTopupAmount}
                       keyboardType="numeric"
-                      placeholder="0"
+                      placeholder="100"
                       placeholderTextColor={theme.colors.textDim}
                     />
                   </View>
+                  {topupAmount !== '' && Number(topupAmount) < 100 && (
+                    <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '700', marginTop: -6, marginBottom: 8 }}>
+                      ⚠️ Minimum top-up amount is ₹100
+                    </Text>
+                  )}
                   <View style={styles.quickRow}>
                     {QUICK_AMOUNTS.map(a => (
                       <TouchableOpacity key={a} style={styles.quickBtn} onPress={() => setTopupAmount(String(a))}>
@@ -564,9 +569,8 @@ const CustomerWalletScreen = ({ navigation }) => {
                 { key: 'gpay', name: 'Google Pay', icon: GooglePayIcon },
                 { key: 'phonepe', name: 'PhonePe', icon: PhonePeIcon },
                 { key: 'paytm', name: 'Paytm', icon: PaytmIcon },
-                { key: 'cred', name: 'CRED', icon: CredIcon },
                 { key: 'bhim', name: 'BHIM', icon: BhimIcon },
-                { key: 'generic', name: 'Any UPI', icon: AnyUpiIcon },
+                { key: 'cred', name: 'CRED', icon: CredIcon },
               ].map((app) => {
                 const IconComponent = app.icon;
                 const isSelected = selectedUpiApp === app.key;
