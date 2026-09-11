@@ -26,15 +26,15 @@ export function getSafeBottomInset(insets = {}, extraPadding = 0) {
       windowDiff = 0;
     }
 
-    // On Android, if insets.bottom is reported (> 0), use it.
-    // If windowDiff indicates a navigation bar (> 20dp), use windowDiff.
-    // If both are 0 (e.g. translucent navigation bar or custom ROM without fitSystemWindows),
-    // provide a guaranteed baseline of 44dp so navigation buttons never overlap UI.
-    const resolvedBottom = insetsBottom > 0
-      ? insetsBottom
-      : (windowDiff > 20 ? windowDiff : 44);
+    // On Android, 3-button and 4-button navigation bars (Recent, Home, Back, Accessibility)
+    // require 56dp minimum height so navigation buttons never overlap footer illustrations.
+    const resolvedBottom = Math.max(
+      insetsBottom,
+      windowDiff > 20 ? windowDiff : 0,
+      56
+    );
 
-    return Math.max(resolvedBottom, 40) + extraPadding;
+    return resolvedBottom + extraPadding;
   }
 
   // iOS: Use safe area inset with sensible minimum

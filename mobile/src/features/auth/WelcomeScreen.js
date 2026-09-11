@@ -65,6 +65,9 @@ const WelcomeScreen = ({ navigation }) => {
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
   const safeBottomInset = getSafeBottomInset(insets);
 
+  const footerAspect = isDarkMode ? (448 / 1376) : (99 / 576);
+  const footerHeight = Math.round(SW * footerAspect);
+
   return (
     <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
       <StatusBar
@@ -99,7 +102,7 @@ const WelcomeScreen = ({ navigation }) => {
           styles.mainContent,
           {
             paddingTop: safeTopPadding,
-            paddingBottom: Math.round(SW * (99 / 576)) + safeBottomInset + 24,
+            paddingBottom: footerHeight + safeBottomInset + 20,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -307,8 +310,8 @@ const WelcomeScreen = ({ navigation }) => {
               ? require('../../assets/images/footer_landscape_dark.png')
               : require('../../assets/images/footer_landscape.png')
           }
-          style={styles.footerLandscapeImg}
-          resizeMode="contain"
+          style={[styles.footerLandscapeImg, { height: footerHeight }]}
+          resizeMode={isDarkMode ? 'cover' : 'contain'}
         />
       </View>
     </View>
@@ -541,7 +544,6 @@ const styles = StyleSheet.create({
   },
   footerLandscapeImg: {
     width: SW,
-    height: Math.round(SW * (99 / 576)),
   },
 });
 

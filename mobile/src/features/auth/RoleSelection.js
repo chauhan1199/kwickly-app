@@ -164,6 +164,9 @@ const RoleSelection = ({ navigation, route }) => {
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
   const safeBottomInset = getSafeBottomInset(insets);
 
+  const createFooterAspect = isDarkMode ? (508 / 1376) : (160 / 576);
+  const createFooterHeight = Math.round(SW * createFooterAspect);
+
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
   const textMain = isDarkMode ? '#F8FAFC' : '#0F172A';
@@ -538,8 +541,8 @@ const RoleSelection = ({ navigation, route }) => {
                     ? require('../../assets/images/footer_create_account_dark.png')
                     : require('../../assets/images/footer_create_account.png')
                 }
-                style={styles.bottomFooterImg}
-                resizeMode="contain"
+                style={[styles.bottomFooterImg, { height: createFooterHeight }]}
+                resizeMode={isDarkMode ? 'cover' : 'contain'}
               />
             </View>
           </View>
@@ -923,7 +926,6 @@ const styles = StyleSheet.create({
   },
   bottomFooterImg: {
     width: SW,
-    height: Math.round(SW * (160 / 576)),
   },
   modalHeader: {
     flexDirection: 'row',

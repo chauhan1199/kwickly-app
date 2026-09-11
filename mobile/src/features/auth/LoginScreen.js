@@ -307,6 +307,9 @@ const LoginScreen = ({ navigation, route }) => {
   const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
   const safeBottomInset = getSafeBottomInset(insets);
 
+  const loginFooterAspect = isDarkMode ? (508 / 1376) : (200 / 576);
+  const loginFooterHeight = Math.round(SW * loginFooterAspect);
+
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
   const textMain = isDarkMode ? '#F8FAFC' : '#0F172A';
@@ -422,8 +425,8 @@ const LoginScreen = ({ navigation, route }) => {
               ? require('../../assets/images/footer_login_dark.png')
               : require('../../assets/images/footer_login.png')
           }
-          style={styles.bottomFooterImg}
-          resizeMode="contain"
+          style={[styles.bottomFooterImg, { height: loginFooterHeight }]}
+          resizeMode={isDarkMode ? 'cover' : 'contain'}
         />
       </View>
     );
@@ -684,6 +687,7 @@ const LoginScreen = ({ navigation, route }) => {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
             ref={scrollRef}
+            scrollEnabled={keyboardVisible}
             contentContainerStyle={[
               styles.scrollContent,
               {
@@ -1458,10 +1462,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(150, 150, 150, 0.25)',
     marginHorizontal: 3,
   },
-  bottomFooterImg: {
-    width: SW,
-    height: '100%',
-  },
   footerWrap: {
     width: SW,
     alignItems: 'center',
@@ -1472,7 +1472,6 @@ const styles = StyleSheet.create({
   },
   bottomFooterImg: {
     width: SW,
-    height: Math.round(SW * (200 / 576)),
   },
   trustFooter: {
     flexDirection: 'row',
