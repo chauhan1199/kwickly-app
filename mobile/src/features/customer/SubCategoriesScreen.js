@@ -126,9 +126,6 @@ const SubCategoriesScreen = ({ route, navigation }) => {
         {/* Content row: Left details, Right framed image */}
         <View style={styles.heroContentRow}>
           <View style={styles.heroTextCol}>
-            <View style={styles.heroIconBadge}>
-              <Text style={styles.heroIcon}>{displayIcon}</Text>
-            </View>
             <Text style={styles.heroTitle} numberOfLines={2}>{name}</Text>
             <View style={styles.servicesBadge}>
               <Clock size={12} color="#E0E7FF" style={{ marginRight: 4 }} />

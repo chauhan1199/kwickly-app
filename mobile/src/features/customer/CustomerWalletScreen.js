@@ -419,7 +419,7 @@ const CustomerWalletScreen = ({ navigation }) => {
         <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
         <View style={{ position: 'absolute', bottom: -60, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }} />
 
-        <AppBar title="My Wallet" transparent={true} showLogo={false} showBack={true} />
+        <AppBar title="My Wallet" transparent={true} showLogo={false} showBack={false} />
       </LinearGradient>
 
       {/* Sticky Search - overlapping header */}

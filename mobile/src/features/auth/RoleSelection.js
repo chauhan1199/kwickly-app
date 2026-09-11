@@ -522,7 +522,16 @@ const RoleSelection = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Road Landscape Illustration */}
-            <View style={styles.footerWrap} pointerEvents="none">
+            <View 
+              style={[
+                styles.footerWrap, 
+                { 
+                  paddingBottom: safeBottomInset,
+                  backgroundColor: isDarkMode ? '#11162A' : '#75759E',
+                }
+              ]} 
+              pointerEvents="none"
+            >
               <Image
                 source={
                   isDarkMode
@@ -530,7 +539,7 @@ const RoleSelection = ({ navigation, route }) => {
                     : require('../../assets/images/footer_create_account.png')
                 }
                 style={styles.bottomFooterImg}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             </View>
           </View>
@@ -906,17 +915,15 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.round(SW * (160 / 576)),
     alignItems: 'center',
     justifyContent: 'flex-end',
     marginHorizontal: -16,
     marginTop: 8,
-    marginBottom: 0,
     alignSelf: 'center',
   },
   bottomFooterImg: {
     width: SW,
-    height: '100%',
+    height: Math.round(SW * (160 / 576)),
   },
   modalHeader: {
     flexDirection: 'row',

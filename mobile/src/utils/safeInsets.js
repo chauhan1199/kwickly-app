@@ -32,9 +32,9 @@ export function getSafeBottomInset(insets = {}, extraPadding = 0) {
     // provide a guaranteed baseline of 44dp so navigation buttons never overlap UI.
     const resolvedBottom = insetsBottom > 0
       ? insetsBottom
-      : (windowDiff > 20 ? windowDiff : 20);
+      : (windowDiff > 20 ? windowDiff : 44);
 
-    return Math.max(resolvedBottom, 16) + extraPadding;
+    return Math.max(resolvedBottom, 40) + extraPadding;
   }
 
   // iOS: Use safe area inset with sensible minimum

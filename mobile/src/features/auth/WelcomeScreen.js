@@ -99,7 +99,7 @@ const WelcomeScreen = ({ navigation }) => {
           styles.mainContent,
           {
             paddingTop: safeTopPadding,
-            paddingBottom: Math.round(SW * (135 / 576)) + 14,
+            paddingBottom: Math.round(SW * (99 / 576)) + safeBottomInset + 24,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -291,7 +291,16 @@ const WelcomeScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* Bottom Road Landscape Illustration pinned flush to bottom edge */}
-      <View style={styles.footerWrap} pointerEvents="none">
+      <View 
+        style={[
+          styles.footerWrap, 
+          { 
+            paddingBottom: safeBottomInset,
+            backgroundColor: isDarkMode ? '#131826' : '#55587B',
+          }
+        ]} 
+        pointerEvents="none"
+      >
         <Image
           source={
             isDarkMode
@@ -299,7 +308,7 @@ const WelcomeScreen = ({ navigation }) => {
               : require('../../assets/images/footer_landscape.png')
           }
           style={styles.footerLandscapeImg}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       </View>
     </View>
@@ -526,14 +535,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     width: SW,
-    height: Math.round(SW * (135 / 576)),
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'center',
   },
   footerLandscapeImg: {
     width: SW,
-    height: '100%',
+    height: Math.round(SW * (99 / 576)),
   },
 });
 

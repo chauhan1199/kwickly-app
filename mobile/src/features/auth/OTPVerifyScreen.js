@@ -204,7 +204,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 20,
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 12),
               justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}

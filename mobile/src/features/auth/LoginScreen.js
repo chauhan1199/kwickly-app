@@ -402,11 +402,20 @@ const LoginScreen = ({ navigation, route }) => {
     </View>
   );
 
-  // Bottom Section: Road Footer sitting flush at bottom of viewport
+  // Bottom Section: Road Footer grounded above system navigation bar
   const renderBottomFooter = () => {
     if (keyboardVisible) return null;
     return (
-      <View style={styles.footerWrap} pointerEvents="none">
+      <View 
+        style={[
+          styles.footerWrap, 
+          { 
+            paddingBottom: safeBottomInset,
+            backgroundColor: isDarkMode ? '#11162A' : '#75759E',
+          }
+        ]} 
+        pointerEvents="none"
+      >
         <Image
           source={
             isDarkMode
@@ -414,7 +423,7 @@ const LoginScreen = ({ navigation, route }) => {
               : require('../../assets/images/footer_login.png')
           }
           style={styles.bottomFooterImg}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       </View>
     );
@@ -1455,13 +1464,15 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.round(SW * (180 / 576)),
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'center',
     marginHorizontal: -16,
     marginTop: 6,
-    marginBottom: 0,
+  },
+  bottomFooterImg: {
+    width: SW,
+    height: Math.round(SW * (200 / 576)),
   },
   trustFooter: {
     flexDirection: 'row',
