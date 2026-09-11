@@ -162,11 +162,18 @@ const ShopWalletScreen = ({ navigation }) => {
       }
 
       if (settingsRes?.data?.status === 'success') {
+        const cleanShopPlanName = (title, days) => {
+          const l = (title || '').toLowerCase().trim();
+          if (['montly', 'monthly', 'test'].includes(l)) return 'Shop Starter Monthly';
+          if (['half yearky', 'half yearly', 'semi'].includes(l)) return 'Shop Growth Semi-Annual';
+          if (['yearly', 'annual'].includes(l)) return 'Shop Enterprise Annual';
+          return title || (days ? `${days} Days Plan` : 'Shop Plan');
+        };
         const plans = (settingsRes.data.data.subscriptionPlans || [])
           .filter(p => !p.targetRole || p.targetRole === 'SHOP');
         const formatted = plans.map(p => ({
           id: p.id || p.label,
-          title: p.label || p.name,
+          title: cleanShopPlanName(p.label || p.name, p.durationDays),
           desc: p.durationDays ? `${p.durationDays} days validity` : 'Standard plan',
           price: `₹${p.price || 0}`,
           priceNum: Number(p.price) || 0,

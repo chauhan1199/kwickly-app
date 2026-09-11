@@ -30,6 +30,18 @@ const HERO_H = Math.min(Math.max(SH * 0.22, 175), 205);
 const CHIP_W = Math.min(Math.max(SW * 0.20, 68), 82);
 const CHIP_H = (HERO_H - 10) / 3;
 
+const LEFT_CHIPS = [
+  { key: 'plumbing', label: 'Plumbing', icon: require('../../assets/images/icon_plumbing.png') },
+  { key: 'car', label: 'Car Repair', icon: require('../../assets/images/icon_car.png') },
+  { key: 'groceries', label: 'Groceries', icon: require('../../assets/images/icon_groceries.png') },
+];
+
+const RIGHT_CHIPS = [
+  { key: 'electrician', label: 'Electrician', icon: require('../../assets/images/icon_electrician.png') },
+  { key: 'cleaning', label: 'Cleaning', icon: require('../../assets/images/icon_cleaning.png') },
+  { key: 'delivery', label: 'Delivery', icon: require('../../assets/images/icon_delivery.png') },
+];
+
 const FEATURES = [
   { icon: ShieldCheck, label: 'Trusted\nPros', color: '#10B981', bg: '#ECFDF5' },
   { icon: Clock, label: 'On-Time\nService', color: '#6C47FF', bg: '#F5F3FF' },
@@ -84,7 +96,7 @@ const WelcomeScreen = ({ navigation }) => {
           styles.mainContent,
           {
             paddingTop: safeTopPadding,
-            paddingBottom: safeBottomPadding,
+            paddingBottom: 2,
           },
         ]}
       >
@@ -113,33 +125,35 @@ const WelcomeScreen = ({ navigation }) => {
         <View style={[styles.heroRow, { height: HERO_H }]}>
           {/* Left Column: 3 Chips */}
           <View style={styles.chipsCol}>
-            <Image
-              source={
-                isDarkMode
-                  ? require('../../assets/images/chip_plumbing_dark.png')
-                  : require('../../assets/images/chip_plumbing.png')
-              }
-              style={[styles.chipImg, { height: CHIP_H }]}
-              resizeMode="contain"
-            />
-            <Image
-              source={
-                isDarkMode
-                  ? require('../../assets/images/chip_car_dark.png')
-                  : require('../../assets/images/chip_car.png')
-              }
-              style={[styles.chipImg, { height: CHIP_H }]}
-              resizeMode="contain"
-            />
-            <Image
-              source={
-                isDarkMode
-                  ? require('../../assets/images/chip_groceries_dark.png')
-                  : require('../../assets/images/chip_groceries.png')
-              }
-              style={[styles.chipImg, { height: CHIP_H }]}
-              resizeMode="contain"
-            />
+            {LEFT_CHIPS.map((chip) => (
+              <View
+                key={chip.key}
+                style={[
+                  styles.chipCard,
+                  {
+                    height: CHIP_H,
+                    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+                    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+                  },
+                ]}
+              >
+                <Image
+                  source={chip.icon}
+                  style={styles.chipIconImg}
+                  resizeMode="contain"
+                />
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: isDarkMode ? '#F1F5F9' : '#0F172A' },
+                  ]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {chip.label}
+                </Text>
+              </View>
+            ))}
           </View>
 
           {/* Center Column: 3D Delivery Rider Card */}
@@ -157,33 +171,35 @@ const WelcomeScreen = ({ navigation }) => {
 
           {/* Right Column: 3 Chips */}
           <View style={styles.chipsCol}>
-            <Image
-              source={
-                isDarkMode
-                  ? require('../../assets/images/chip_electrician_dark.png')
-                  : require('../../assets/images/chip_electrician.png')
-              }
-              style={[styles.chipImg, { height: CHIP_H }]}
-              resizeMode="contain"
-            />
-            <Image
-              source={
-                isDarkMode
-                  ? require('../../assets/images/chip_cleaning_dark.png')
-                  : require('../../assets/images/chip_cleaning.png')
-              }
-              style={[styles.chipImg, { height: CHIP_H }]}
-              resizeMode="contain"
-            />
-            <Image
-              source={
-                isDarkMode
-                  ? require('../../assets/images/chip_delivery_dark.png')
-                  : require('../../assets/images/chip_delivery.png')
-              }
-              style={[styles.chipImg, { height: CHIP_H }]}
-              resizeMode="contain"
-            />
+            {RIGHT_CHIPS.map((chip) => (
+              <View
+                key={chip.key}
+                style={[
+                  styles.chipCard,
+                  {
+                    height: CHIP_H,
+                    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+                    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+                  },
+                ]}
+              >
+                <Image
+                  source={chip.icon}
+                  style={styles.chipIconImg}
+                  resizeMode="contain"
+                />
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: isDarkMode ? '#F1F5F9' : '#0F172A' },
+                  ]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {chip.label}
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
 
@@ -267,19 +283,19 @@ const WelcomeScreen = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Bottom Road Landscape Illustration */}
-        <View style={styles.footerWrap} pointerEvents="none">
-          <Image
-            source={
-              isDarkMode
-                ? require('../../assets/images/footer_landscape_dark.png')
-                : require('../../assets/images/footer_landscape.png')
-            }
-            style={styles.footerLandscapeImg}
-            resizeMode="cover"
-          />
-        </View>
+      {/* Bottom Road Landscape Illustration touching bottom edge */}
+      <View style={styles.footerWrap} pointerEvents="none">
+        <Image
+          source={
+            isDarkMode
+              ? require('../../assets/images/footer_landscape_dark.png')
+              : require('../../assets/images/footer_landscape.png')
+          }
+          style={styles.footerLandscapeImg}
+          resizeMode="cover"
+        />
       </View>
     </View>
   );
@@ -366,9 +382,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  chipImg: {
+  chipCard: {
     width: CHIP_W,
-    borderRadius: 10,
+    borderRadius: 12,
+    borderWidth: 1.2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 3,
+    paddingHorizontal: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  chipIconImg: {
+    width: '100%',
+    height: Math.min(CHIP_H * 0.54, 30),
+    marginBottom: 1,
+  },
+  chipText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: -0.2,
   },
   heroCenterCard: {
     flex: 1,
@@ -480,10 +517,10 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     width: SW,
-    height: Math.round(SW * (99 / 576)),
+    height: Math.round(SW * (104 / 576)),
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: 2,
+    marginBottom: 0,
     alignSelf: 'center',
   },
   footerLandscapeImg: {

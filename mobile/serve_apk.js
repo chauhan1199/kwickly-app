@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.5.7.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.5.8.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.5.7.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.5.8.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.5.7 (Build 58) Pure Edge-to-Edge</div><br/>
-    <div class="success-badge">✓ Removed Back Icon · Zero Blank Gaps Above & Below</div>
+    <div class="badge">v1.5.8 (Build 59) Latest Release</div><br/>
+    <div class="success-badge">✓ Clean Splash · Clean Notifications · Distinct UPI Icons · Professional Plans</div>
     <h1>Kwickly Mobile</h1>
-    <p>Pure full-screen layout across all login & MPIN reset screens with centered brand mark, zero blank gaps, and flush bottom road illustration.</p>
+    <p>Splash screen transparent logo, clean cancellation notifications, authentic UPI & BHIM icons, and professional subscription plan titles.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>

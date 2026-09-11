@@ -1,14 +1,14 @@
 import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import Svg, { Path, Circle, Polygon, Rect, G } from 'react-native-svg';
+import Svg, { Path, Circle, Polygon, Rect } from 'react-native-svg';
 
 /**
  * Google Pay official brand logo badge
  * Featuring the authentic 4-color intertwined folded ribbon (Blue, Red, Yellow, Green)
  */
 export const GooglePayIcon = ({ size = 36 }) => (
-  <View style={[styles.badgeBase, { width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#FFFFFF' }]}>
-    <Svg width={size * 0.76} height={size * 0.76} viewBox="0 0 48 48">
+  <View style={[styles.badgeBase, { width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' }]}>
+    <Svg width={size * 0.72} height={size * 0.72} viewBox="0 0 48 48">
       {/* Top Blue loop */}
       <Path
         fill="#4285F4"
@@ -107,34 +107,90 @@ export const CredIcon = ({ size = 36 }) => (
 );
 
 /**
- * Official BHIM tricolor brand motif
+ * BHIM official brand badge
+ * Deep navy blue tile with crisp white bold 'BHIM' lettering and tricolor saffron/green accent slash
  */
 export const BhimIcon = ({ size = 36 }) => (
-  <View style={[styles.badgeBase, { width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' }]}>
-    <Svg width={size * 0.75} height={size * 0.75} viewBox="0 0 40 40">
-      {/* Left green triangle */}
-      <Polygon points="7,32 18,8 23,15 13,32" fill="#007A3D" />
-      {/* Right saffron triangle */}
-      <Polygon points="16,32 27,8 32,15 22,32" fill="#F47920" />
+  <View
+    style={[
+      styles.badgeBase,
+      {
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        backgroundColor: '#002855',
+        borderWidth: 1,
+        borderColor: '#003A7A',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 2,
+      },
+    ]}
+  >
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: size * 0.28,
+        fontWeight: '900',
+        letterSpacing: -0.5,
+        marginRight: 2,
+      }}
+    >
+      BHIM
+    </Text>
+    {/* Tricolor diagonal accent stripes */}
+    <Svg width={size * 0.22} height={size * 0.55} viewBox="0 0 10 24">
+      <Polygon points="3,0 10,0 7,10 0,10" fill="#FF9933" />
+      <Polygon points="3,13 10,13 7,23 0,23" fill="#138808" />
     </Svg>
   </View>
 );
 
 /**
- * Official NPCI UPI Chevron badge
+ * Official NPCI UPI badge ("Any UPI App")
+ * Featuring the authentic NPCI orange/green chevrons with bold 'UPI' wordmark below
  */
-export const BhimUpiIcon = ({ size = 36 }) => (
-  <View style={[styles.badgeBase, { width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' }]}>
-    <Svg width={size * 0.75} height={size * 0.75} viewBox="0 0 40 40">
+export const AnyUpiIcon = ({ size = 36 }) => (
+  <View
+    style={[
+      styles.badgeBase,
+      {
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 2,
+      },
+    ]}
+  >
+    {/* Dual NPCI Chevrons */}
+    <Svg width={size * 0.52} height={size * 0.44} viewBox="0 0 32 20">
       {/* Saffron leading chevron */}
-      <Polygon points="8,32 20,8 24,14 14,32" fill="#F47920" />
+      <Polygon points="6,18 16,2 20,7 11,18" fill="#F47920" />
       {/* Green trailing chevron */}
-      <Polygon points="16,32 28,8 32,14 22,32" fill="#0F7A3E" />
+      <Polygon points="13,18 23,2 27,7 18,18" fill="#0F7A3E" />
     </Svg>
+    <Text
+      style={{
+        fontSize: size * 0.22,
+        fontWeight: '900',
+        color: '#1B365D',
+        letterSpacing: 0.6,
+        marginTop: 0,
+        lineHeight: size * 0.26,
+      }}
+    >
+      UPI
+    </Text>
   </View>
 );
 
-export const AnyUpiIcon = BhimUpiIcon;
+export const BhimUpiIcon = AnyUpiIcon;
 
 /**
  * Official WhatsApp Pay badge
@@ -161,3 +217,14 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 });
+
+export default {
+  GooglePayIcon,
+  PhonePeIcon,
+  PaytmIcon,
+  CredIcon,
+  BhimIcon,
+  AnyUpiIcon,
+  BhimUpiIcon,
+  WhatsAppIcon,
+};

@@ -696,7 +696,7 @@ exports.payJob = catchAsync(async (req, res) => {
     }
 });
 
-// â”€â”€â”€â”€â”€ POST /api/v1/jobs/:id/rate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /api/v1/jobs/:id/rate ─────────────────────────────────────────────
 exports.rateJob = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { score, review } = req.body;
@@ -767,8 +767,8 @@ exports.cancelJob = catchAsync(async (req, res) => {
     if (job.customerId) {
         notifyUser({
             userId: job.customerId,
-            title: 'âŒ Job Cancelled',
-            message: `Your job #${String(job._id).slice(-6)} has been cancelled.`,
+            title: 'Job Cancelled',
+            message: `Your request for ${job.category || 'Service'} (#${String(job._id).slice(-6)}) has been cancelled successfully.`,
             action: 'JOB_UPDATED',
             entityType: 'JOB',
             entityId: job._id,
@@ -785,8 +785,8 @@ exports.cancelJob = catchAsync(async (req, res) => {
 
         notifyUser({
             userId: job.workerId,
-            title: 'âŒ Job Cancelled',
-            message: `Job #${String(job._id).slice(-6)} assigned to you has been cancelled.`,
+            title: 'Job Cancelled',
+            message: `Job #${String(job._id).slice(-6)} (${job.category || 'Service'}) assigned to you was cancelled by the customer.`,
             action: 'JOB_UPDATED',
             entityType: 'JOB',
             entityId: job._id,
@@ -804,8 +804,8 @@ exports.cancelJob = catchAsync(async (req, res) => {
             });
             notifyUser({
                 userId: q.workerId,
-                title: 'âŒ Job Cancelled',
-                message: `Job #${String(job._id).slice(-6)} you bid on has been cancelled.`,
+                title: 'Job Cancelled',
+                message: `Job #${String(job._id).slice(-6)} (${job.category || 'Service'}) you bid on was cancelled by the customer.`,
                 action: 'JOB_UPDATED',
                 entityType: 'JOB',
                 entityId: job._id,

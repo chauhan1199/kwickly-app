@@ -179,11 +179,19 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
       if (settingsRes.status === 'fulfilled' && settingsRes.value?.data?.status === 'success') {
         const plansData = settingsRes.value.data.data.subscriptionPlans || [];
+        const cleanPlanName = (title, days) => {
+          const l = (title || '').toLowerCase().trim();
+          if (['tests', 'test'].includes(l)) return 'Starter Monthly Pro';
+          if (l === 'new') return 'Quarterly Growth Pro';
+          if (l === 'rer') return 'Semi-Annual Value Plan';
+          if (l === 'sds') return 'Annual VIP Elite';
+          return title || (days ? `${days} Days Plan` : 'Standard Plan');
+        };
         const formatted = plansData
           .filter(p => !p.targetRole || p.targetRole === 'WORKER')
           .map(p => ({
             id: p.id || p.label,
-            title: p.label || p.name,
+            title: cleanPlanName(p.label || p.name, p.durationDays),
             sub: p.durationDays ? `${p.durationDays} days validity` : 'Custom duration',
             price: `₹${p.price || 0}`,
             rawPrice: p.price || 0

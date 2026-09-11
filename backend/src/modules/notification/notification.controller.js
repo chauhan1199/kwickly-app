@@ -67,7 +67,7 @@ const cleanMojibake = (str) => {
         .replace(/ðŸ›Žï¸|ðŸ›Ž|ðŸ›/g, '🛍️ ')
         .replace(/âœ…|âœ\.\.\.|âœ“|âœ/g, '✅ ')
         .replace(/ðŸŽ‰/g, '🎉 ')
-        .replace(/âŒ/g, '❌ ')
+        .replace(/â[\s\u0080-\u009F]*Œ|â\s*Œ|âŒ/g, '❌ ')
         .replace(/ðŸ’°|ðŸ’/g, '💰 ')
         .replace(/ðŸ””/g, '🔔 ')
         .replace(/ðŸšš/g, '🚚 ')

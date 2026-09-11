@@ -29,64 +29,114 @@ const AppSplashScreen = ({ navigation }) => {
   const footerOpacity = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  // Radar pulse rings
-  const pulseRing1 = useRef(new Animated.Value(0.8)).current;
-  const pulseRingOpacity1 = useRef(new Animated.Value(0.7)).current;
-  const pulseRing2 = useRef(new Animated.Value(0.8)).current;
-  const pulseRingOpacity2 = useRef(new Animated.Value(0.7)).current;
+  // Radar pulse rings (centered concentric soft aura)
+  const pulseRing1 = useRef(new Animated.Value(1.0)).current;
+  const pulseRingOpacity1 = useRef(new Animated.Value(0.45)).current;
+  const pulseRing2 = useRef(new Animated.Value(1.0)).current;
+  const pulseRingOpacity2 = useRef(new Animated.Value(0.45)).current;
+
+  // Gentle centered breathing scale for logo (no off-center bobbing)
+  const logoBreath = useRef(new Animated.Value(1.0)).current;
 
   // Ambient floating background orbs
   const orb1Anim = useRef(new Animated.Value(0)).current;
   const orb2Anim = useRef(new Animated.Value(0)).current;
-  const orbCenterPulse = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    // 1. Logo Pop Entrance
+    // 1. Logo Entrance
     Animated.parallel([
       Animated.timing(logoOpacity, {
         toValue: 1,
-        duration: 600,
+        duration: 700,
         useNativeDriver: true,
-        easing: Easing.out(Easing.back(1.5)),
+        easing: Easing.out(Easing.cubic),
       }),
       Animated.spring(logoScale, {
         toValue: 1,
-        friction: 5,
-        tension: 40,
+        friction: 6,
+        tension: 45,
         useNativeDriver: true,
       }),
-    ]).start();
+    ]).start(() => {
+      // Subtle symmetric breathing pulse
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(logoBreath, {
+            toValue: 1.03,
+            duration: 1600,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(logoBreath, {
+            toValue: 0.98,
+            duration: 1600,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    });
 
-    // 2. Gentle continuous logo bobbing
+    // 2. Concentric Radial Aura Pulse 1
     Animated.loop(
       Animated.sequence([
-        Animated.timing(logoFloat, {
-          toValue: -6,
-          duration: 1600,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoFloat, {
-          toValue: 4,
-          duration: 1600,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
+        Animated.parallel([
+          Animated.timing(pulseRing1, {
+            toValue: 1.45,
+            duration: 2200,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.quad),
+          }),
+          Animated.timing(pulseRingOpacity1, {
+            toValue: 0,
+            duration: 2200,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(pulseRing1, { toValue: 1.0, duration: 0, useNativeDriver: true }),
+          Animated.timing(pulseRingOpacity1, { toValue: 0.45, duration: 0, useNativeDriver: true }),
+        ]),
       ])
     ).start();
+
+    // Concentric Radial Aura Pulse 2 (Staggered)
+    const ring2Timer = setTimeout(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(pulseRing2, {
+              toValue: 1.45,
+              duration: 2200,
+              useNativeDriver: true,
+              easing: Easing.out(Easing.quad),
+            }),
+            Animated.timing(pulseRingOpacity2, {
+              toValue: 0,
+              duration: 2200,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(pulseRing2, { toValue: 1.0, duration: 0, useNativeDriver: true }),
+            Animated.timing(pulseRingOpacity2, { toValue: 0.45, duration: 0, useNativeDriver: true }),
+          ]),
+        ])
+      ).start();
+    }, 1100);
 
     // 3. Ambient Background Floating Orbs
     Animated.loop(
       Animated.sequence([
         Animated.timing(orb1Anim, {
           toValue: 1,
-          duration: 3500,
+          duration: 4000,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(orb1Anim, {
           toValue: 0,
-          duration: 3500,
+          duration: 4000,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -97,82 +147,18 @@ const AppSplashScreen = ({ navigation }) => {
       Animated.sequence([
         Animated.timing(orb2Anim, {
           toValue: 1,
-          duration: 4200,
+          duration: 4500,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(orb2Anim, {
           toValue: 0,
-          duration: 4200,
+          duration: 4500,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
       ])
     ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(orbCenterPulse, {
-          toValue: 1.25,
-          duration: 2000,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(orbCenterPulse, {
-          toValue: 0.95,
-          duration: 2000,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // 4. Staggered Dual Radar Rings
-    Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(pulseRing1, {
-            toValue: 1.6,
-            duration: 1800,
-            useNativeDriver: true,
-            easing: Easing.out(Easing.quad),
-          }),
-          Animated.timing(pulseRingOpacity1, {
-            toValue: 0,
-            duration: 1800,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(pulseRing1, { toValue: 0.8, duration: 0, useNativeDriver: true }),
-          Animated.timing(pulseRingOpacity1, { toValue: 0.7, duration: 0, useNativeDriver: true }),
-        ]),
-      ])
-    ).start();
-
-    const ring2Timer = setTimeout(() => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.parallel([
-            Animated.timing(pulseRing2, {
-              toValue: 1.85,
-              duration: 2000,
-              useNativeDriver: true,
-              easing: Easing.out(Easing.quad),
-            }),
-            Animated.timing(pulseRingOpacity2, {
-              toValue: 0,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-          ]),
-          Animated.parallel([
-            Animated.timing(pulseRing2, { toValue: 0.8, duration: 0, useNativeDriver: true }),
-            Animated.timing(pulseRingOpacity2, { toValue: 0.7, duration: 0, useNativeDriver: true }),
-          ]),
-        ])
-      ).start();
-    }, 700);
 
     // 5. Text entrance
     Animated.sequence([
@@ -308,53 +294,44 @@ const AppSplashScreen = ({ navigation }) => {
         />
       </Animated.View>
 
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.ambientCenterGlow,
-          {
-            transform: [{ scale: orbCenterPulse }],
-          },
-        ]}
-      />
-
       {/* ─── CENTER BRANDING CONTENT ─── */}
       <View style={styles.centerContainer}>
-        {/* Animated Icon with Dual Pulse Rings */}
+        {/* Animated Icon with Dual Radial Aura Rings */}
         <View style={styles.iconBox}>
-          {/* Outer Pulse Ring 2 */}
+          {/* Outer Aura Ring 2 */}
           <Animated.View
             style={[
               styles.pulseCircle,
               {
                 borderColor: isDarkMode ? '#8B5CF6' : '#C4B5FD',
+                backgroundColor: isDarkMode ? 'rgba(139, 92, 246, 0.08)' : 'rgba(196, 181, 253, 0.15)',
                 transform: [{ scale: pulseRing2 }],
                 opacity: pulseRingOpacity2,
               },
             ]}
           />
 
-          {/* Inner Pulse Ring 1 */}
+          {/* Inner Aura Ring 1 */}
           <Animated.View
             style={[
               styles.pulseCircle,
               {
                 borderColor: isDarkMode ? '#6C47FF' : '#7C3AED',
+                backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.1)' : 'rgba(124, 58, 237, 0.18)',
                 transform: [{ scale: pulseRing1 }],
                 opacity: pulseRingOpacity1,
               },
             ]}
           />
 
-          {/* Logo Container with Smooth Bobbing */}
+          {/* Logo Container with Smooth Centered Breathing */}
           <Animated.View
             style={[
               styles.logoBadge,
               {
                 opacity: logoOpacity,
                 transform: [
-                  { scale: logoScale },
-                  { translateY: logoFloat },
+                  { scale: Animated.multiply(logoScale, logoBreath) },
                 ],
               },
             ]}
@@ -415,7 +392,7 @@ const AppSplashScreen = ({ navigation }) => {
           Fast • Reliable • Multi-Service
         </Text>
         <Text style={[styles.versionText, { color: isDarkMode ? '#475569' : '#CBD5E1' }]}>
-          v1.3.0
+          v1.5.8
         </Text>
       </Animated.View>
     </View>
@@ -450,15 +427,6 @@ const styles = StyleSheet.create({
     opacity: 0.14,
     overflow: 'hidden',
   },
-  ambientCenterGlow: {
-    position: 'absolute',
-    top: SH * 0.36,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: '#7C3AED',
-    opacity: 0.1,
-  },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
@@ -466,28 +434,28 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   iconBox: {
-    width: 140,
-    height: 140,
+    width: 124,
+    height: 124,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   pulseCircle: {
     position: 'absolute',
     width: 110,
     height: 110,
     borderRadius: 55,
-    borderWidth: 2,
+    borderWidth: 1.5,
   },
   logoBadge: {
-    width: 110,
-    height: 100,
+    width: 96,
+    height: 96,
     alignItems: 'center',
     justifyContent: 'center',
   },
   splashLogoImg: {
-    width: 108,
-    height: 100,
+    width: 92,
+    height: 92,
   },
   titleWrapper: {
     alignItems: 'center',

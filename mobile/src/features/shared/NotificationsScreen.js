@@ -72,10 +72,10 @@ const NotificationsScreen = ({ navigation }) => {
 const cleanNotificationText = (str) => {
   if (!str || typeof str !== 'string') return '';
   return str
-    .replace(/ðŸ›Žï¸ |ðŸ›Ž|ðŸ›/g, '🛍️ ')
+    .replace(/â[\s\u0080-\u009F]*Œ|â\s*Œ|âŒ/g, '❌ ')
     .replace(/âœ…|âœ\.\.\.|âœ“|âœ/g, '✅ ')
+    .replace(/ðŸ›Žï¸ |ðŸ›Ž|ðŸ›/g, '🛍️ ')
     .replace(/ðŸŽ‰/g, '🎉 ')
-    .replace(/âŒ/g, '❌ ')
     .replace(/ðŸ’°|ðŸ’/g, '💰 ')
     .replace(/ðŸ””/g, '🔔 ')
     .replace(/ðŸšš/g, '🚚 ')
