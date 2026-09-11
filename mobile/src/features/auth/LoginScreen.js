@@ -402,11 +402,11 @@ const LoginScreen = ({ navigation, route }) => {
     </View>
   );
 
-  // Bottom Section: Road Footer with safe clearance above navigation bar
+  // Bottom Section: Road Footer sitting flush at bottom of viewport
   const renderBottomFooter = () => {
     if (keyboardVisible) return null;
     return (
-      <View style={[styles.footerWrap, { marginBottom: safeBottomInset }]} pointerEvents="none">
+      <View style={styles.footerWrap} pointerEvents="none">
         <Image
           source={
             isDarkMode
@@ -434,7 +434,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -565,7 +565,7 @@ const LoginScreen = ({ navigation, route }) => {
               {/* Service Highlights Perks Row */}
               <View style={styles.perksRow}>
                 <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
-                  <Text style={[styles.perkText, { color: textSub }]}>⚡ 10-Min Delivery</Text>
+                  <Text style={[styles.perkText, { color: textSub }]}>⚡ On-Time Service</Text>
                 </View>
                 <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
                   <Text style={[styles.perkText, { color: textSub }]}>🛠️ 50+ Services</Text>
@@ -599,7 +599,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -679,7 +679,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -890,7 +890,7 @@ const LoginScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
@@ -1460,7 +1460,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignSelf: 'center',
     marginHorizontal: -16,
-    marginTop: 8,
+    marginTop: 6,
+    marginBottom: 0,
   },
   trustFooter: {
     flexDirection: 'row',

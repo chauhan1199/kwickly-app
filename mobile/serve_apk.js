@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.6.1.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.6.3.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.6.1.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.6.3.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.6.1 (Build 62) Latest Release</div><br/>
-    <div class="success-badge">✓ Navigation Bar & Footer Overlap Fixed · Light & Dark Mode Supported</div>
+    <div class="badge">v1.6.3 (Build 64) Latest Release</div><br/>
+    <div class="success-badge">✓ Cleaned Perks & Badges · Zero Gap Edge-to-Edge Footer · Light & Dark Mode</div>
     <h1>Kwickly Mobile</h1>
-    <p>Guaranteed safe bottom insets across all devices. No footer or navigation bar overlap on any phone.</p>
+    <p>On-time services & instant access. Seamless bottom grounding with zero gap on all devices.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>

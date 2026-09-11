@@ -210,7 +210,7 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 8),
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
@@ -505,8 +505,8 @@ const RoleSelection = ({ navigation, route }) => {
                   <Zap size={14} color="#6C47FF" />
                 </View>
                 <View style={styles.trustTextCol}>
-                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Quick & Easy</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>In Minutes</Text>
+                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
+                  <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
                 </View>
               </View>
 
@@ -522,7 +522,7 @@ const RoleSelection = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Road Landscape Illustration */}
-            <View style={[styles.footerWrap, { marginBottom: safeBottomInset }]} pointerEvents="none">
+            <View style={styles.footerWrap} pointerEvents="none">
               <Image
                 source={
                   isDarkMode
@@ -909,7 +909,9 @@ const styles = StyleSheet.create({
     height: Math.round(SW * (160 / 576)),
     alignItems: 'center',
     justifyContent: 'flex-end',
+    marginHorizontal: -16,
     marginTop: 8,
+    marginBottom: 0,
     alignSelf: 'center',
   },
   bottomFooterImg: {

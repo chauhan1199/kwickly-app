@@ -162,7 +162,7 @@ const SetMpinScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 16),
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 20,
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}

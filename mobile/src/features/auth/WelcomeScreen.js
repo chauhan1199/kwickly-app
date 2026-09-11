@@ -94,11 +94,12 @@ const WelcomeScreen = ({ navigation }) => {
 
       {/* Responsive Viewport ScrollView Container */}
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.mainContent,
           {
             paddingTop: safeTopPadding,
-            paddingBottom: safeBottomInset + 8,
+            paddingBottom: Math.round(SW * (135 / 576)) + 14,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -287,20 +288,20 @@ const WelcomeScreen = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* Bottom Road Landscape Illustration elevated safely above navigation bar */}
-        <View style={[styles.footerWrap, { marginTop: 10, marginBottom: safeBottomInset }]} pointerEvents="none">
-          <Image
-            source={
-              isDarkMode
-                ? require('../../assets/images/footer_landscape_dark.png')
-                : require('../../assets/images/footer_landscape.png')
-            }
-            style={styles.footerLandscapeImg}
-            resizeMode="cover"
-          />
-        </View>
       </ScrollView>
+
+      {/* Bottom Road Landscape Illustration pinned flush to bottom edge */}
+      <View style={styles.footerWrap} pointerEvents="none">
+        <Image
+          source={
+            isDarkMode
+              ? require('../../assets/images/footer_landscape_dark.png')
+              : require('../../assets/images/footer_landscape.png')
+          }
+          style={styles.footerLandscapeImg}
+          resizeMode="cover"
+        />
+      </View>
     </View>
   );
 };
@@ -520,11 +521,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   footerWrap: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     width: SW,
-    height: Math.round(SW * (104 / 576)),
+    height: Math.round(SW * (135 / 576)),
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginBottom: 0,
     alignSelf: 'center',
   },
   footerLandscapeImg: {
