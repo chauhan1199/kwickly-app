@@ -674,7 +674,7 @@ const ShopWalletScreen = ({ navigation }) => {
       <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC' }}>
         <ScrollView 
           showsVerticalScrollIndicator={false} 
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 16 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

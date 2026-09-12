@@ -406,7 +406,7 @@ const cleanNotificationText = (str) => {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:     { flex: 1 },
-  list:          { paddingHorizontal: 14, paddingBottom: 100 },
+  list:          { paddingHorizontal: 14, paddingBottom: 16 },
 
   headerRow:     { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 16 },
   headerTitle:   { fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },

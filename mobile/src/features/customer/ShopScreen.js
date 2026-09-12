@@ -406,8 +406,6 @@ const ShopScreen = ({ navigation }) => {
               </TouchableOpacity>
             ))
           )}
-
-          <View style={{ height: 40 }} />
         </View>
       </ScrollView>
     </View>
@@ -450,7 +448,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     zIndex: 10,
   },
   scrollContent: {
-    paddingBottom: 110,
+    paddingBottom: 16,
     paddingTop: 16,
   },
   chipsScroll: {

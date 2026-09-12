@@ -355,7 +355,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   list: { 
     paddingHorizontal: 16, 
-    paddingBottom: 100, 
+    paddingBottom: 16, 
     gap: 12 
   },
   quoteCard: { 

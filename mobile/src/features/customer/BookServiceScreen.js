@@ -566,8 +566,6 @@ const BookServiceScreen = ({ navigation, route }) => {
             ))
           )}
         </View>
-
-        <View style={{ height: 60 }} />
       </ScrollView>
     </View>
   );
@@ -613,7 +611,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 16,
-    paddingBottom: 110,
+    paddingBottom: 16,
   },
   errorBanner: {
     marginHorizontal: 14,

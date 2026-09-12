@@ -360,7 +360,7 @@ const HomeScreen = ({ navigation }) => {
       ═══════════════════════════════════════ */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 110 }}
+        contentContainerStyle={{ paddingBottom: 20 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={PURPLE} />}
       >
         {/* ═══════════════════════════════════════
@@ -715,8 +715,6 @@ const HomeScreen = ({ navigation }) => {
               )}
             </>
           )}
-
-          <View style={{ height: 36 }} />
         </View>
       </ScrollView>
     </View>

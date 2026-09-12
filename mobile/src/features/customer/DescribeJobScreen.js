@@ -586,7 +586,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.content, { paddingBottom: 100 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: 16 }]}
           keyboardShouldPersistTaps="handled"
         >
 
@@ -847,8 +847,6 @@ const DescribeJobScreen = ({ route, navigation }) => {
             )}
           </LinearGradient>
         </TouchableOpacity>
-
-        <View style={{ height: 40 }} />
       </ScrollView>
       </KeyboardAvoidingView>
 

@@ -526,8 +526,6 @@ const ShopDashboardScreen = ({ navigation }) => {
               </LinearGradient>
             </>
           )}
-
-          <View style={{ height: 40 }} />
         </ScrollView>
       </View>
     </View>
@@ -714,7 +712,7 @@ const createStyles = (theme, isDarkMode) =>
     /* ── Scroll ── */
     scroll: {
       padding: 16,
-      paddingBottom: 110,
+      paddingBottom: 16,
     },
 
     /* ── Stats ── */

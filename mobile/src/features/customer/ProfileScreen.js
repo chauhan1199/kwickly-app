@@ -168,8 +168,6 @@ const ProfileScreen = ({ navigation }) => {
             </View>
           </View>
         </TouchableOpacity>
-
-        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -213,7 +211,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   content: {
     paddingHorizontal: 14,
     paddingTop: 4,
-    paddingBottom: 110,
+    paddingBottom: 16,
   },
   profileCard: {
     backgroundColor: theme.colors.surface,

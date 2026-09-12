@@ -1256,7 +1256,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   scrollContent: {
     paddingTop: 12,
     paddingHorizontal: 16,
-    paddingBottom: 110,
+    paddingBottom: 16,
   },
 
   // Plan Banner

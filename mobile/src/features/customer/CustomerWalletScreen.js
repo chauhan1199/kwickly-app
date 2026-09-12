@@ -432,7 +432,7 @@ const CustomerWalletScreen = ({ navigation }) => {
         />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 110 }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: 16 }]}>
 
         {/* Clean Balance Card */}
         <View style={styles.balanceCard}>
@@ -478,8 +478,6 @@ const CustomerWalletScreen = ({ navigation }) => {
           contentContainerStyle={{ gap: 10 }}
           ListEmptyComponent={<Text style={{ textAlign: 'center', color: theme.colors.textDim, padding: 20 }}>No transactions found.</Text>}
         />
-
-        <View style={{ height: 80 }} />
       </ScrollView>
 
       {/* Add Money Modal */}
