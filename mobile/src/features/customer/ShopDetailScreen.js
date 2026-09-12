@@ -148,7 +148,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
               resizeMode="contain" 
             />
           ) : (
-            <View style={[styles.productImage, { backgroundColor: '#f5f5f5' }]} />
+            <View style={[styles.productImage, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9' }]} />
           )}
           <View style={styles.ratingPill}>
             <Star size={10} color="#EAB308" fill="#EAB308" />
@@ -201,18 +201,18 @@ const ShopDetailScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+        <ActivityIndicator size="large" color={isDarkMode ? '#A78BFA' : '#6C47FF'} />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f2f2f2" />
+      <StatusBar barStyle="light-content" backgroundColor={isDarkMode ? '#4C1D95' : '#6C47FF'} />
       
       {/* CUSTOM HEADER */}
       <LinearGradient
-        colors={['#6C47FF', '#8B6FFF']}
+        colors={isDarkMode ? ['#4C1D95', '#6D28D9'] : ['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{ paddingBottom: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, position: 'relative', overflow: 'hidden' }}
@@ -252,7 +252,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
                 <Text style={styles.shopRatingText}>{shop.rating || '4.5'}</Text>
               </View>
               <Text style={styles.shopCategoryText}>{shop.category}</Text>
-              <Text style={[styles.shopStatusText, { color: shop.isOnline ? '#6C47FF' : '#EF4444' }]}>
+              <Text style={[styles.shopStatusText, { color: shop.isOnline ? (isDarkMode ? '#34D399' : '#10B981') : '#EF4444' }]}>
                 • {shop.isOnline ? 'Open' : 'Closed'}
               </Text>
             </View>
@@ -314,7 +314,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Quantity</Text>
               <TouchableOpacity onPress={() => setQtyModalVisible(false)}>
-                <X size={24} color="#333" />
+                <X size={24} color={isDarkMode ? '#F8FAFC' : '#333'} />
               </TouchableOpacity>
             </View>
             {[1, 2, 3, 4, 5].map((qty) => (
@@ -324,7 +324,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
                 onPress={() => selectQtyFromModal(qty)}
               >
                 <Text style={styles.modalOptionText}>
-                  {qty} {qty === 5 && <Text style={{ color: '#888', fontWeight: '400' }}>Max Quantity</Text>}
+                  {qty} {qty === 5 && <Text style={{ color: isDarkMode ? '#94A3B8' : '#888', fontWeight: '400' }}>Max Quantity</Text>}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -337,7 +337,10 @@ const ShopDetailScreen = ({ route, navigation }) => {
 };
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9f9f9' },
+  container: { 
+    flex: 1, 
+    backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD',
+  },
   
   // Header Styles
   headerContainer: {
@@ -353,21 +356,21 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  expressText: { fontSize: 13 },
-  locationText: { fontSize: 13, fontWeight: '700' },
+  expressText: { fontSize: 13, color: isDarkMode ? '#94A3B8' : '#64748B' },
+  locationText: { fontSize: 13, fontWeight: '700', color: isDarkMode ? '#F8FAFC' : '#0F172A' },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDarkMode ? 0.2 : 0.05,
     shadowRadius: 6,
     elevation: 3,
   },
@@ -376,31 +379,31 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginLeft: 12,
     marginRight: 12,
     fontSize: 15,
-    color: '#111',
+    color: isDarkMode ? '#F8FAFC' : '#0F172A',
     padding: 0,
   },
   shopDetailsCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDarkMode ? 0.25 : 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
   shopNameText: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111',
+    color: isDarkMode ? '#F8FAFC' : '#0F172A',
     marginBottom: 4,
   },
   shopDescText: {
     fontSize: 13,
-    color: '#666',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
     marginBottom: 12,
     lineHeight: 18,
   },
@@ -411,10 +414,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   shopRatingBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#6C47FF',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+    backgroundColor: isDarkMode ? '#7C3AED' : '#6C47FF',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
     marginRight: 8,
   },
   shopRatingText: {
@@ -426,7 +429,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   shopCategoryText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#444',
+    color: isDarkMode ? '#94A3B8' : '#475569',
     marginRight: 6,
   },
   shopStatusText: {
@@ -441,22 +444,23 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#334155' : '#E2E8F0',
     marginRight: 10,
-    backgroundColor: '#fff'
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
   },
   filterPillActive: {
-    backgroundColor: '#222',
-    borderColor: '#222',
+    backgroundColor: isDarkMode ? '#7C3AED' : '#6C47FF',
+    borderColor: isDarkMode ? '#7C3AED' : '#6C47FF',
   },
   filterPillText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#444'
+    color: isDarkMode ? '#94A3B8' : '#64748B',
   },
   filterPillTextActive: {
-    color: '#fff'
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 
   // Grid Styles
@@ -468,20 +472,26 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'stretch',
   },
-  emptyText: { textAlign: 'center', color: '#888', marginTop: 40 },
+  emptyText: { 
+    textAlign: 'center', 
+    color: isDarkMode ? '#94A3B8' : '#64748B', 
+    marginTop: 40,
+    fontSize: 14,
+    fontWeight: '500',
+  },
 
   // Product Card
   productCard: {
     width: '48%',
-    backgroundColor: '#fff',
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
     borderRadius: 16,
     marginBottom: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-    shadowColor: '#6C47FF',
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDarkMode ? 0.25 : 0.05,
     shadowRadius: 10,
     elevation: 2,
     flexDirection: 'column',
@@ -489,11 +499,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   imageContainer: {
     width: '100%',
     height: 140,
-    backgroundColor: '#fff',
+    backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
     position: 'relative',
     padding: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f8f9fa',
+    borderBottomColor: isDarkMode ? '#1E293B' : '#F1F5F9',
   },
   productImage: {
     width: '100%',
@@ -505,17 +515,17 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     left: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fef3c7',
+    backgroundColor: isDarkMode ? 'rgba(234, 179, 8, 0.18)' : '#FEF3C7',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#fde047'
+    borderColor: isDarkMode ? 'rgba(234, 179, 8, 0.35)' : '#FDE047',
   },
   ratingText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#854d0e',
+    color: isDarkMode ? '#FDE047' : '#854D0E',
     marginLeft: 4,
   },
   productInfo: {
@@ -527,13 +537,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   productName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1a1a2e',
+    color: isDarkMode ? '#F8FAFC' : '#0F172A',
     lineHeight: 18,
     marginBottom: 4,
   },
   productSubtitle: {
     fontSize: 12,
-    color: '#64748b',
+    color: isDarkMode ? '#94A3B8' : '#64748B',
     marginBottom: 10,
   },
   priceRow: {
@@ -541,24 +551,24 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   mrpText: {
     fontSize: 11,
-    color: '#9ca3af',
+    color: isDarkMode ? '#64748B' : '#94A3B8',
     textDecorationLine: 'line-through',
     marginBottom: 2,
   },
   priceText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#1a1a2e',
+    color: isDarkMode ? '#F8FAFC' : '#0F172A',
   },
   discountText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#EF4444',
+    color: isDarkMode ? '#34D399' : '#10B981',
   },
   
   // Buttons
   addBtn: {
-    backgroundColor: '#6C47FF',
+    backgroundColor: isDarkMode ? '#7C3AED' : '#6C47FF',
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
@@ -572,7 +582,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#6C47FF',
+    backgroundColor: isDarkMode ? '#7C3AED' : '#6C47FF',
     borderRadius: 8,
     overflow: 'hidden',
   },
@@ -589,16 +599,18 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
     width: '80%',
-    backgroundColor: '#fff',
+    backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
     borderRadius: 16,
     overflow: 'hidden',
     paddingBottom: 8,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -606,23 +618,23 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: isDarkMode ? '#1E293B' : '#F1F5F9',
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111',
+    color: isDarkMode ? '#F8FAFC' : '#0F172A',
   },
   modalOption: {
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
+    borderBottomColor: isDarkMode ? '#1E293B' : '#F1F5F9',
   },
   modalOptionText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#111',
+    color: isDarkMode ? '#F8FAFC' : '#0F172A',
   },
 
   // Cart Banner
@@ -632,21 +644,21 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     left: 0,
     right: 0,
     padding: 16,
-    backgroundColor: '#f9f9f9', // blends with list bottom
+    backgroundColor: isDarkMode ? 'rgba(11, 15, 25, 0.95)' : 'rgba(248, 249, 253, 0.95)',
   },
   cartBanner: {
-    backgroundColor: '#6C47FF',
-    borderRadius: 12,
+    backgroundColor: isDarkMode ? '#7C3AED' : '#6C47FF',
+    borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 5,
+    elevation: 6,
   },
   cartItemsText: {
     fontSize: 14,
@@ -655,7 +667,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   cartSubText: {
     fontSize: 12,
-    color: '#cbd5e1',
+    color: '#E0E7FF',
     marginTop: 2,
   },
   checkoutBtn: {
