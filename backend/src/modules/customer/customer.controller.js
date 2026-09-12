@@ -10,9 +10,15 @@ const Suggestion = require('../suggestion/suggestion.model');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 
 exports.getTopPros = catchAsync(async (req, res) => {
+    const cacheKey = 'top_pros_list';
+    const cached = await getCache(cacheKey);
+    if (cached) {
+        return successResponse(res, cached, 'Top pros fetched successfully (cached)');
+    }
+
     const pros = await Customer.find({ role: 'WORKER', isVerified: true })
         .select('name phone profileImage activeLocation rating jobs services bio kyc serviceRadius isOnline city createdAt')
-        .populate('services.category', 'name icon basePrice')
+        .populate('services.category', 'name icon basePrice description imageUrl subcategories')
         .sort('-rating.average -rating.count -jobs')
         .limit(20)
         .lean();
@@ -27,6 +33,7 @@ exports.getTopPros = catchAsync(async (req, res) => {
         };
     }));
 
+    await setCache(cacheKey, enrichedPros, 120); // 2 min TTL for zero latency
     return successResponse(res, enrichedPros, 'Top pros fetched successfully');
 });
 
@@ -153,9 +160,15 @@ exports.getActiveJob = catchAsync(async (req, res) => {
 });
 
 exports.getWorkerProfile = catchAsync(async (req, res) => {
+    const cacheKey = `worker_profile:${req.params.id}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+        return successResponse(res, cached, 'Worker profile fetched successfully (cached)');
+    }
+
     const worker = await Customer.findById(req.params.id)
         .select('name phone email profileImage rating services city kyc.status isOnline role bio activeLocation serviceRadius createdAt')
-        .populate('services.category', 'name icon basePrice description')
+        .populate('services.category', 'name icon basePrice description imageUrl subcategories')
         .lean();
 
     if (!worker || worker.role !== 'WORKER') {
@@ -180,17 +193,20 @@ exports.getWorkerProfile = catchAsync(async (req, res) => {
         reviewerName: r.customerId?.name || 'Verified Customer',
         reviewerImage: r.customerId?.profileImage || null,
         score: r.rating?.score || 5,
-        reviewText: r.rating?.review || 'Completed job on time with great quality.',
+        reviewText: r.rating?.review || '',
         date: r.rating?.createdAt || r.createdAt,
         service: r.subcategory || r.category || 'Service'
     }));
 
-    return successResponse(res, { 
+    const responseData = {
         ...worker, 
         completedJobs,
         verified: worker.kyc?.status === 'APPROVED' || worker.isVerified,
         reviews: formattedReviews
-    }, 'Worker profile fetched');
+    };
+
+    await setCache(cacheKey, responseData, 120); // 2 min TTL for zero latency
+    return successResponse(res, responseData, 'Worker profile fetched');
 });
 
 exports.updateNotificationPreferences = catchAsync(async (req, res) => {

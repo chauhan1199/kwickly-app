@@ -20,7 +20,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.7.2.apk',
+        'Content-Disposition': 'attachment; filename=kwickly-v1.7.3.apk',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
     }
   } else {
     // Single clean download page
-    let fileSizeMb = '23.3';
+    let fileSizeMb = '12.5';
     if (fs.existsSync(apkPath)) {
       fileSizeMb = (fs.statSync(apkPath).size / (1024 * 1024)).toFixed(1);
     }
@@ -143,10 +143,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.7.2 · Build 73 (Final)</div><br/>
-    <div class="success-tag">✓ Ready For Full Verification</div>
-    <h1>Kwickly Universal APK</h1>
-    <p class="meta">Single unified APK compatible with all Android devices (${fileSizeMb} MB).</p>
+    <div class="badge">v1.7.3 · Build 74 (Compressed)</div><br/>
+    <div class="success-tag">✓ Optimized & Latency Free</div>
+    <h1>Kwickly Final Testing APK</h1>
+    <p class="meta">Single compressed release APK (${fileSizeMb} MB) with ultra-fast Redis caching.</p>
     
     <a class="btn-download" href="/kwickly.apk">
       Download Final APK ↓
@@ -154,11 +154,12 @@ const server = http.createServer((req, res) => {
 
     <div class="features">
       <h3>Verified Changes in this Build:</h3>
-      <div class="feature-item">✓ Top Verified Pros multi-service selection modal</div>
-      <div class="feature-item">✓ Subcategories header alignment & overlap fix</div>
-      <div class="feature-item">✓ 100% dynamic professional profile (no static copy)</div>
-      <div class="feature-item">✓ Direct priority dispatch to selected professional</div>
-      <div class="feature-item">✓ Real bio & trust attributes in customer view</div>
+      <div class="feature-item">✓ Subcategories header color matches Shop screen gradient</div>
+      <div class="feature-item">✓ Compact professional profile header matching subcategories</div>
+      <div class="feature-item">✓ Dynamic category & subcategory uploaded images</div>
+      <div class="feature-item">✓ Removed redundant back &lt; header icon</div>
+      <div class="feature-item">✓ Redis cache-first data: zero latency</div>
+      <div class="feature-item">✓ Optimized APK size (~12 MB compressed, no latency)</div>
     </div>
   </div>
 </body>

@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { 
-  ChevronLeft, 
   Star, 
   MapPin, 
   Clock, 
@@ -29,7 +28,9 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { customerService } from '../../services/customerService';
-import { getCategoryIcon } from '../../utils/categoryTheme';
+import { jobService } from '../../services/jobService';
+import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryTheme';
+import { getImageUrl } from '../../utils/helpers';
 
 const { width } = Dimensions.get('window');
 
@@ -44,6 +45,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
   }
 
   const [workerData, setWorkerData] = useState(worker);
+  const [allCategories, setAllCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCatIndex, setSelectedCatIndex] = useState(0);
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
@@ -55,15 +57,25 @@ const WorkerProfileScreen = ({ route, navigation }) => {
     let isMounted = true;
     if (workerId) {
       setIsLoading(true);
-      customerService.getWorkerProfile(workerId)
-        .then(res => {
-          if (isMounted && res.data?.status === 'success' && res.data?.data) {
+      Promise.allSettled([
+        customerService.getWorkerProfile(workerId),
+        jobService.getCategories()
+      ])
+        .then(([profileRes, catRes]) => {
+          if (!isMounted) return;
+
+          if (profileRes.status === 'fulfilled' && profileRes.value?.data?.status === 'success' && profileRes.value?.data?.data) {
+            const data = profileRes.value.data.data;
             setWorkerData(prev => ({
               ...prev,
-              ...res.data.data,
-              dist: prev.dist || `${res.data.data.distanceKm || '2.5'} km`,
+              ...data,
+              dist: prev.dist || `${data.distanceKm || '2.5'} km`,
               eta: prev.eta || 15
             }));
+          }
+
+          if (catRes.status === 'fulfilled' && catRes.value?.data?.status === 'success' && Array.isArray(catRes.value?.data?.data)) {
+            setAllCategories(catRes.value.data.data);
           }
         })
         .catch(err => {
@@ -78,22 +90,38 @@ const WorkerProfileScreen = ({ route, navigation }) => {
 
   const w = workerData;
 
-  // Extract structured dynamic services added by worker
+  // Extract structured dynamic services with images
   const servicesList = (w.services || [])
     .filter(s => s && s.isActive !== false)
     .map(s => {
       const catName = s.categoryName || s.category?.name || (typeof s === 'string' ? s : 'General Service');
       const catIcon = getCategoryIcon(catName, s.category?.icon);
+      
+      // Match with loaded categories to get admin uploaded imageUrl
+      const matchedCategory = allCategories.find(c => c.name?.toLowerCase() === catName.toLowerCase());
+      const catImageUrl = s.category?.imageUrl || matchedCategory?.imageUrl || s.catImageUrl || null;
+      
       const subs = Array.isArray(s.subcategories) ? s.subcategories : [];
-      const basePrice = s.category?.basePrice || w.price || 199;
-      const desc = s.category?.description || '';
-      return { catName, catIcon, subs, basePrice, desc };
+      const subcategoriesWithData = subs.map(subName => {
+        const catSubs = s.category?.subcategories || matchedCategory?.subcategories || [];
+        const foundSub = catSubs.find(cs => cs.name?.toLowerCase() === subName?.toLowerCase());
+        return {
+          name: subName,
+          imageUrl: foundSub?.imageUrl || null
+        };
+      });
+
+      const basePrice = s.category?.basePrice || matchedCategory?.basePrice || w.price || 199;
+      const desc = s.category?.description || matchedCategory?.description || '';
+      return { catName, catIcon, catImageUrl, subs, subcategoriesWithData, basePrice, desc };
     });
 
   const primaryService = servicesList[0] || {
     catName: w.cat || 'Professional Services',
     catIcon: getCategoryIcon(w.cat || 'General', '🛠️'),
+    catImageUrl: null,
     subs: ['General Maintenance & Diagnostics'],
+    subcategoriesWithData: [{ name: 'General Maintenance & Diagnostics', imageUrl: null }],
     basePrice: w.price || 199
   };
 
@@ -136,45 +164,53 @@ const WorkerProfileScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent={true} backgroundColor="transparent" />
 
-      {/* Top Gradient Header with Safe Camera Notch Area */}
+      {/* ── Compact Hero Header (Matching SubCategoriesScreen) ── */}
       <LinearGradient
-        colors={['#5535d4', '#6C47FF', '#8B6FFF']}
+        colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.gradientHeader}
+        style={styles.hero}
       >
-        <View style={styles.ambientCircle1} />
-        <View style={styles.ambientCircle2} />
+        <View style={styles.heroDecor1} />
+        <View style={styles.heroDecor2} />
 
-        {/* App Bar */}
-        <SafeAreaView style={styles.safeAppBarArea}>
-          <View style={styles.appBar}>
-            <TouchableOpacity 
-              style={styles.backBtn} 
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
-            >
-              <ChevronLeft size={22} color="#fff" />
-            </TouchableOpacity>
-            
-            <Text style={styles.appBarTitle} numberOfLines={1}>
-              Professional Profile
-            </Text>
+        {/* Content row: Left details, Right framed worker photo */}
+        <View style={styles.heroContentRow}>
+          <View style={styles.heroTextCol}>
+            <View style={styles.nameRow}>
+              <Text style={styles.heroTitle} numberOfLines={1}>{w.name || 'Professional'}</Text>
+              {(w.verified !== false) && (
+                <View style={styles.verifiedBadge}>
+                  <ShieldCheck size={11} color="#10b981" style={{ marginRight: 3 }} />
+                  <Text style={styles.verifiedBadgeText}>KYC</Text>
+                </View>
+              )}
+            </View>
 
-            <View style={{ width: 40 }} />
+            <View style={styles.primaryCatBadge}>
+              <Text style={styles.primaryCatBadgeText} numberOfLines={1}>
+                {primaryService.catIcon} {primaryService.catName}
+              </Text>
+            </View>
+
+            <View style={styles.heroMetaRow}>
+              <View style={styles.starPill}>
+                <Star size={11} color="#f59e0b" fill="#f59e0b" />
+                <Text style={styles.starText}>{ratingAvg > 0 ? ratingAvg.toFixed(1) : '5.0'}</Text>
+              </View>
+              <Text style={styles.dotDivider}>·</Text>
+              <Text style={styles.heroMetaText}>{totalJobs} jobs done</Text>
+              <Text style={styles.dotDivider}>·</Text>
+              <Text style={styles.heroMetaText}>📍 {w.dist || 'Nearby'}</Text>
+            </View>
           </View>
-        </SafeAreaView>
 
-        {/* Hero Card Overview */}
-        <View style={styles.heroProfile}>
-          <View style={styles.avatarWrapper}>
+          {/* Right Framed Worker Image */}
+          <View style={styles.heroImageCardWrapper}>
             {w.profileImage ? (
-              <Image source={{ uri: w.profileImage }} style={styles.avatarImg} />
+              <Image source={{ uri: w.profileImage }} style={styles.heroFramedImage} resizeMode="cover" />
             ) : (
-              <LinearGradient
-                colors={['#8B6FFF', '#6C47FF']}
-                style={styles.avatarPlaceholder}
-              >
+              <LinearGradient colors={['#8B6FFF', '#6C47FF']} style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarInitial}>
                   {w.name ? w.name.trim().charAt(0).toUpperCase() : 'P'}
                 </Text>
@@ -184,32 +220,6 @@ const WorkerProfileScreen = ({ route, navigation }) => {
               <View style={styles.onlineDot} />
             </View>
           </View>
-
-          <Text style={styles.workerName}>{w.name || 'Verified Professional'}</Text>
-          
-          <View style={styles.badgeRow}>
-            <View style={styles.primaryCatBadge}>
-              <Text style={styles.primaryCatBadgeText}>
-                {primaryService.catIcon} {primaryService.catName}
-              </Text>
-            </View>
-
-            {(w.verified !== false) && (
-              <View style={styles.verifiedBadge}>
-                <ShieldCheck size={13} color="#10b981" style={{ marginRight: 4 }} />
-                <Text style={styles.verifiedBadgeText}>KYC Verified</Text>
-              </View>
-            )}
-          </View>
-
-          {w.city ? (
-            <View style={styles.cityRow}>
-              <MapPin size={13} color="rgba(255,255,255,0.85)" />
-              <Text style={styles.cityText}>
-                Based in {w.city} {w.serviceRadius ? `· Service Radius: ${w.serviceRadius} km` : ''}
-              </Text>
-            </View>
-          ) : null}
         </View>
       </LinearGradient>
 
@@ -263,7 +273,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Specialized Services Offered Section (Interactive Selection) */}
+        {/* Specialized Services Offered Section (Dynamic Images & Interactive Selection) */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionTitleWithIcon}>
@@ -290,6 +300,8 @@ const WorkerProfileScreen = ({ route, navigation }) => {
           ) : (
             servicesList.map((srv, idx) => {
               const isSelected = selectedCatIndex === idx;
+              const resolvedCatImg = getImageUrl(srv.catImageUrl) || getCategoryLocalImage(srv.catName);
+
               return (
                 <TouchableOpacity
                   key={idx}
@@ -304,12 +316,23 @@ const WorkerProfileScreen = ({ route, navigation }) => {
                   ]}
                 >
                   <View style={styles.serviceItemTop}>
-                    <View style={[styles.serviceIconCircle, isSelected && styles.serviceIconCircleActive]}>
-                      <Text style={{ fontSize: 22 }}>{srv.catIcon}</Text>
-                    </View>
+                    {resolvedCatImg ? (
+                      <View style={styles.serviceCatImageWrapper}>
+                        <Image 
+                          source={typeof resolvedCatImg === 'string' ? { uri: resolvedCatImg } : resolvedCatImg} 
+                          style={styles.serviceCatImage} 
+                          resizeMode="cover" 
+                        />
+                      </View>
+                    ) : (
+                      <View style={[styles.serviceIconCircle, isSelected && styles.serviceIconCircleActive]}>
+                        <Text style={{ fontSize: 22 }}>{srv.catIcon}</Text>
+                      </View>
+                    )}
+
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       <View style={styles.serviceTitleRow}>
-                        <Text style={[styles.serviceItemName, isSelected && styles.serviceItemNameActive]}>
+                        <Text style={[styles.serviceItemName, isSelected && styles.serviceItemNameActive]} numberOfLines={1}>
                           {srv.catName}
                         </Text>
                         {isSelected ? (
@@ -326,10 +349,14 @@ const WorkerProfileScreen = ({ route, navigation }) => {
                     </View>
                   </View>
 
+                  {/* Subcategories with dynamic images */}
                   {srv.subs.length > 0 && (
                     <View style={styles.subPillsRow}>
                       {srv.subs.map((sub, sIdx) => {
                         const isSubActive = isSelected && selectedSubcategory === sub;
+                        const subData = (srv.subcategoriesWithData || []).find(s => s.name?.toLowerCase() === sub?.toLowerCase());
+                        const subImgUrl = getImageUrl(subData?.imageUrl) || getCategoryLocalImage(sub);
+
                         return (
                           <TouchableOpacity
                             key={sIdx}
@@ -340,7 +367,15 @@ const WorkerProfileScreen = ({ route, navigation }) => {
                             }}
                             style={[styles.subPill, isSubActive && styles.subPillActive]}
                           >
-                            <CheckCircle2 size={12} color={isSubActive ? '#fff' : '#6C47FF'} style={{ marginRight: 4 }} />
+                            {subImgUrl ? (
+                              <Image 
+                                source={typeof subImgUrl === 'string' ? { uri: subImgUrl } : subImgUrl} 
+                                style={styles.subChipThumb} 
+                                resizeMode="cover" 
+                              />
+                            ) : (
+                              <CheckCircle2 size={12} color={isSubActive ? '#fff' : '#6C47FF'} style={{ marginRight: 4 }} />
+                            )}
                             <Text style={[styles.subPillText, isSubActive && styles.subPillTextActive]}>{sub}</Text>
                           </TouchableOpacity>
                         );
@@ -527,154 +562,161 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  gradientHeader: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 10,
-    paddingBottom: 24,
+  hero: {
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 14 : 36,
+    paddingBottom: 22,
+    paddingHorizontal: 16,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     position: 'relative',
     overflow: 'hidden',
   },
-  ambientCircle1: {
+  heroDecor1: {
     position: 'absolute',
-    top: -50,
+    top: -40,
     right: -40,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  ambientCircle2: {
+  heroDecor2: {
     position: 'absolute',
     bottom: -30,
-    left: -30,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    left: -20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  safeAppBarArea: {
-    zIndex: 10,
-  },
-  appBar: {
+  heroContentRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: 14,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  heroTextCol: {
+    flex: 1,
+    marginRight: 10,
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  appBarTitle: {
-    color: '#ffffff',
-    fontSize: 18,
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  heroTitle: {
+    fontSize: 21,
     fontWeight: '800',
-    letterSpacing: -0.2,
+    color: '#ffffff',
+    letterSpacing: -0.3,
+    lineHeight: 26,
+    flexShrink: 1,
   },
-  heroProfile: {
+  primaryCatBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  primaryCatBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    marginTop: 4,
+    gap: 5,
   },
-  avatarWrapper: {
+  starPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  starText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  dotDivider: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+  },
+  heroMetaText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  verifiedBadgeText: {
+    color: '#a7f3d0',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  heroImageCardWrapper: {
+    width: 84,
+    height: 84,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     position: 'relative',
-    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
   },
-  avatarImg: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
+  heroFramedImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarPlaceholder: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
   },
   avatarInitial: {
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: '900',
     color: '#ffffff',
   },
   onlineBadge: {
     position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    bottom: 3,
+    right: 3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
   },
   onlineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: '#10b981',
-  },
-  workerName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  primaryCatBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  primaryCatBadgeText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-  },
-  verifiedBadgeText: {
-    color: '#a7f3d0',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  cityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 4,
-  },
-  cityText: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 12,
   },
   content: {
     paddingHorizontal: 16,
@@ -773,10 +815,23 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  serviceCatImageWrapper: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(108,71,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(108,71,255,0.15)',
+  },
+  serviceCatImage: {
+    width: '100%',
+    height: '100%',
+  },
   serviceIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 50,
+    height: 50,
+    borderRadius: 14,
     backgroundColor: 'rgba(108, 71, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -828,15 +883,21 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F3F0FF',
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: 'transparent',
   },
   subPillActive: {
     backgroundColor: '#6C47FF',
     borderColor: '#6C47FF',
+  },
+  subChipThumb: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    marginRight: 6,
   },
   subPillText: {
     fontSize: 11,

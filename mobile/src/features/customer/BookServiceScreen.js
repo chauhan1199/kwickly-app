@@ -207,13 +207,15 @@ const BookServiceScreen = ({ navigation, route }) => {
             .map(s => {
               const catName = s.categoryName || s.category?.name || (typeof s === 'string' ? s : 'General');
               const catIcon = getCategoryIcon(catName, s.category?.icon);
+              const catImageUrl = s.category?.imageUrl || s.categoryImageUrl || null;
               const subs = Array.isArray(s.subcategories) ? s.subcategories : [];
               const basePrice = s.category?.basePrice || 199;
-              return { catName, catIcon, subs, basePrice };
+              return { catName, catIcon, catImageUrl, category: s.category, subs, basePrice };
             });
 
           const primaryCategory = servicesList[0]?.catName || 'General Expert';
           const primaryIcon = servicesList[0]?.catIcon || getCategoryIcon(primaryCategory, '🛠️');
+          const primaryImageUrl = servicesList[0]?.catImageUrl || null;
           const allSubs = servicesList.flatMap(s => s.subs);
           const startingPrice = servicesList.length > 0
             ? Math.min(...servicesList.map(s => s.basePrice))
@@ -224,6 +226,7 @@ const BookServiceScreen = ({ navigation, route }) => {
           const totalJobs = w.completedJobs !== undefined ? w.completedJobs : (w.jobs || 0);
 
           return {
+            ...w,
             id: w._id || w.id,
             _id: w._id || w.id,
             name: w.name || 'Verified Professional',
@@ -238,6 +241,7 @@ const BookServiceScreen = ({ navigation, route }) => {
             distNumeric: distKm,
             cat: primaryCategory,
             catIcon: primaryIcon,
+            catImageUrl: primaryImageUrl,
             services: servicesList,
             subcategories: allSubs,
             bio: w.bio,

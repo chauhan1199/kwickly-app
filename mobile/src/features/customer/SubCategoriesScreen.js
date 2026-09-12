@@ -106,7 +106,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
     <SafeAreaView style={styles.container}>
       {/* ── Hero Header ── */}
       <LinearGradient
-        colors={['#5E35B1', '#7E57C2', '#4A148C']}
+        colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.hero}
