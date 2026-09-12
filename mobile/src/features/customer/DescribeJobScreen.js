@@ -511,9 +511,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
       if (!newJob?._id) throw new Error('Invalid response from server.');
 
       setSubmitSuccess(true);
-      setTimeout(() => {
-        navigation.navigate('Home', { screen: 'HomeMain', params: { refresh: Date.now() } });
-      }, 400);
+      navigation.navigate('Home', { screen: 'HomeMain', params: { refresh: Date.now() } });
     } catch (error) {
       const serverErrors = error.response?.data?.errors;
       const msg =

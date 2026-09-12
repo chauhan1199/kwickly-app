@@ -323,5 +323,18 @@ exports.resetPassword = catchAsync(async (req, res) => {
     }
 
     await delCache(`session:${user._id}`);
-    return successResponse(res, null, 'MPIN reset successfully');
+
+    const token = generateToken(user);
+    const safeUser = user.toObject();
+    delete safeUser.password;
+    if (safeUser.wallet) {
+        delete safeUser.wallet.bankDetails;
+        delete safeUser.wallet.upiId;
+    }
+    await setCache(`session:${user._id}`, JSON.stringify(safeUser), SESSION_TTL);
+
+    return successResponse(res, {
+        token,
+        user: safeUser
+    }, 'MPIN reset successfully');
 });

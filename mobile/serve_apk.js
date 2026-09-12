@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.7.0.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.7.1.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.7.0.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.7.1.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.7.0 (Build 71) Latest Release</div><br/>
-    <div class="success-badge">✓ Clean Dashboard, Profile Theme Toggle & Clean Book Service</div>
+    <div class="badge">v1.7.1 (Build 72) Latest Release</div><br/>
+    <div class="success-badge">✓ Zero-Latency Job Posting & Instant MPIN Reset Login</div>
     <h1>Kwickly Mobile</h1>
-    <p>Dashboard logo/name removed, Book a Service logo removed, screen header toggles moved into Profile section switch.</p>
+    <p>Clean 100% Secure badge, instant MPIN reset login, clean subcategories header, and zero-latency instant job posting.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>

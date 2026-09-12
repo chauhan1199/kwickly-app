@@ -118,78 +118,80 @@ exports.createJob = catchAsync(async (req, res) => {
         throw err;
     }
 
-    // ─── Step 2 & 3: Find ALL eligible workers using server-side criteria ────────────
-    const eligibleWorkerIds = await findEligibleWorkers(job, initialRadiusKm, minBalance);
-
-    // Update job to broadcast round 1
-    job.broadcast.round = 1;
-    await job.save();
-    // ─── Step 4: Load customer info for the notification payload ─────────────────
-    const customer = await Customer.findById(req.user._id)
-        .select('name phone profileImage')
-        .lean();
-
-    const alertPayload = {
-        jobId: job._id,
-        category: job.category,
-        subcategory: job.subcategory,
-        description: job.description,
-        budget: job.budget,
-        location: job.location,
-        addressDetails: job.addressDetails,
-        timeSlot: job.timeSlot,
-        preferredDate: job.preferredDate,
-        notifiedWorkers: eligibleWorkerIds.length,
-        customer: {
-            _id: customer?._id,
-            name: customer?.name,
-            profileImage: customer?.profileImage
-        }
-    };
-
-    // â”€â”€ Step 5: Emit ONLY to eligible workers' personal Socket.io rooms â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    //
-    // Each worker joins 'worker_{userId}' on app open.
-    // We emit to EACH room individually â€” no broadcast-to-all.
-    // Workers who are offline or haven't joined their room won't receive it.
-
-    if (eligibleWorkerIds.length > 0) {
-        eligibleWorkerIds.forEach(workerId => {
-            emitToRoom(`worker_${workerId}`, 'NEW_JOB_ALERT', alertPayload);
-        });
-    }
-
-    // â”€â”€ Step 6: Cache eligible worker IDs for this job (for quick re-broadcast) â”€
-    //  Key: job:{jobId}:eligible_workers  TTL: 30 min (job broadcast window)
-    await setCache(`job:${job._id}:eligible_workers`, eligibleWorkerIds, JOB_ELIGIBLE_WORKERS_TTL);
-
-    // â”€â”€ Step 7: Invalidate admin dashboard cache + notify admin room â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    await delCache('admin_dashboard_stats');
-    await delCache('admin_badge_counts');
-    emitToRoom('admin_dashboard', 'DASHBOARD_UPDATE', {
-        type: 'NEW_JOB',
-        id: job._id,
-        category: job.category,
-        notifiedWorkers: eligibleWorkerIds.length
-    });
-
-    // ── Notify customer that job was posted successfully ─────────────────────
-    notifyUser({
-        userId: req.user._id,
-        title: 'Job Posted Successfully',
-        message: `Your request for ${job.category}${job.subcategory ? ' (' + job.subcategory + ')' : ''} has been broadcasted. Finding verified workers near you!`,
-        action: 'JOB_CREATED',
-        entityType: 'JOB',
-        entityId: job._id,
-        targetRole: 'CUSTOMER'
-    });
-
-    return successResponse(
+    // Return response immediately to customer with zero latency
+    successResponse(
         res,
-        { ...job.toObject(), notifiedWorkers: eligibleWorkerIds.length },
-        `Job created. ${eligibleWorkerIds.length} eligible worker(s) notified.`,
+        job.toObject(),
+        'Job created successfully.',
         StatusCodes.CREATED
     );
+
+    // ─── Background async worker discovery & broadcasting ─────────────────────
+    setImmediate(async () => {
+        try {
+            const eligibleWorkerIds = await findEligibleWorkers(job, initialRadiusKm, minBalance);
+
+            // Update job to broadcast round 1
+            job.broadcast.round = 1;
+            await job.save();
+
+            // ─── Load customer info for the notification payload ─────────────
+            const customer = await Customer.findById(req.user._id)
+                .select('name phone profileImage')
+                .lean();
+
+            const alertPayload = {
+                jobId: job._id,
+                category: job.category,
+                subcategory: job.subcategory,
+                description: job.description,
+                budget: job.budget,
+                location: job.location,
+                addressDetails: job.addressDetails,
+                timeSlot: job.timeSlot,
+                preferredDate: job.preferredDate,
+                notifiedWorkers: eligibleWorkerIds.length,
+                customer: {
+                    _id: customer?._id,
+                    name: customer?.name,
+                    profileImage: customer?.profileImage
+                }
+            };
+
+            // ─── Emit ONLY to eligible workers' personal rooms ───────────────
+            if (eligibleWorkerIds.length > 0) {
+                eligibleWorkerIds.forEach(workerId => {
+                    emitToRoom(`worker_${workerId}`, 'NEW_JOB_ALERT', alertPayload);
+                });
+            }
+
+            // ─── Cache eligible worker IDs for this job ───────────────────────
+            await setCache(`job:${job._id}:eligible_workers`, eligibleWorkerIds, JOB_ELIGIBLE_WORKERS_TTL);
+
+            // ─── Invalidate admin dashboard cache + notify admin room ────────
+            await delCache('admin_dashboard_stats');
+            await delCache('admin_badge_counts');
+            emitToRoom('admin_dashboard', 'DASHBOARD_UPDATE', {
+                type: 'NEW_JOB',
+                id: job._id,
+                category: job.category,
+                notifiedWorkers: eligibleWorkerIds.length
+            });
+
+            // ─── Notify customer that job was posted successfully ─────────────
+            notifyUser({
+                userId: req.user._id,
+                title: 'Job Posted Successfully',
+                message: `Your request for ${job.category}${job.subcategory ? ' (' + job.subcategory + ')' : ''} has been broadcasted. Finding verified workers near you!`,
+                action: 'JOB_CREATED',
+                entityType: 'JOB',
+                entityId: job._id,
+                targetRole: 'CUSTOMER'
+            });
+        } catch (bgError) {
+            logger.error('[createJob] Background broadcast error:', bgError);
+        }
+    });
 });
 
 

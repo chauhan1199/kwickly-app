@@ -20,7 +20,7 @@ import api from '../../services/api';
 import { jobService } from '../../services/jobService';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
-import { ChevronLeft, ChevronRight, Clock, IndianRupee, X } from 'lucide-react-native';
+import { ChevronRight, Clock, IndianRupee, X } from 'lucide-react-native';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { getImageUrl } from '../../utils/helpers';
 import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryTheme';
@@ -112,16 +112,6 @@ const SubCategoriesScreen = ({ route, navigation }) => {
       >
         <View style={styles.heroDecor1} />
         <View style={styles.heroDecor2} />
-
-        {/* Top bar with back button */}
-        <View style={styles.heroTopBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <ChevronLeft size={22} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.heroCategoryPill}>
-            <Text style={styles.heroCategoryPillText}>SERVICE CATEGORY</Text>
-          </View>
-        </View>
 
         {/* Content row: Left details, Right framed image */}
         <View style={styles.heroContentRow}>
@@ -305,7 +295,7 @@ const createStyles = (theme, isDarkMode) =>
 
     // ── Hero ──
     hero: {
-      paddingTop: 16,
+      paddingTop: 24,
       paddingBottom: 40,
       paddingHorizontal: 16,
       borderBottomLeftRadius: 30,

@@ -269,21 +269,19 @@ const LoginScreen = ({ navigation, route }) => {
     if (newMpin !== confirmNewMpin) { showAlert('Mismatch', 'New MPIN and confirm MPIN do not match.'); return; }
     setLoading(true);
     try {
-      await authService.resetPasswordWithOtp(phone, resetOtp, newMpin, selectedRole);
-      showAlert(
-        'Success',
-        'MPIN reset successfully! Logging you in...',
-        'success',
-        async () => {
-          try {
-            const loginRes = await authService.login(phone, newMpin, selectedRole);
-            const resData = loginRes?.data?.data || loginRes?.data || {};
-            await signIn(resData.token, selectedRole, resData.user || {});
-          } catch {
-            setStep('MPIN');
-          }
-        }
-      );
+      const resetRes = await authService.resetPasswordWithOtp(phone, resetOtp, newMpin, selectedRole);
+      const resData = resetRes?.data?.data || resetRes?.data || {};
+      if (resData.token) {
+        await signIn(resData.token, selectedRole, resData.user || {});
+        return;
+      }
+      const loginRes = await authService.login(phone, newMpin, selectedRole);
+      const loginData = loginRes?.data?.data || loginRes?.data || {};
+      if (loginData.token) {
+        await signIn(loginData.token, selectedRole, loginData.user || {});
+      } else {
+        setStep('MPIN');
+      }
     } catch (error) {
       showAlert('Reset Failed', getApiErrorMessage(error, 'Failed to reset MPIN. Please try again.'));
     } finally {
@@ -360,7 +358,7 @@ const LoginScreen = ({ navigation, route }) => {
     />
   );
 
-  // Trust Badges Bar (Directly below Card, no center gap!)
+  // Trust Badges Bar (Directly below Card, clean centered pill)
   const renderTrustBar = () => (
     <View
       style={[
@@ -368,40 +366,18 @@ const LoginScreen = ({ navigation, route }) => {
         {
           backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
           borderColor: cardBorder,
+          justifyContent: 'center',
+          alignItems: 'center',
+          flexDirection: 'row',
+          gap: 8,
+          paddingVertical: 10,
         },
       ]}
     >
-      <View style={styles.trustItem}>
-        <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
-          <ShieldCheck size={14} color="#10B981" />
-        </View>
-        <View style={styles.trustTextCol}>
-          <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
-          <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>& Encrypted</Text>
-        </View>
-      </View>
-
-      <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
-
-      <View style={styles.trustItem}>
-        <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F5F3FF' }]}>
-          <Zap size={14} color="#6C47FF" />
-        </View>
-        <View style={styles.trustTextCol}>
-          <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
-          <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
-        </View>
-      </View>
-
-      <View style={[styles.trustDivider, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]} />
-
-      <View style={styles.trustItem}>
-        <Text style={{ fontSize: 16 }}>🇮🇳</Text>
-        <View style={styles.trustTextCol}>
-          <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made</Text>
-          <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>in India</Text>
-        </View>
-      </View>
+      <ShieldCheck size={16} color="#10B981" />
+      <Text style={[styles.trustTitle, { color: textMain, fontSize: 12, fontWeight: '700' }]}>
+        100% Secure & Encrypted
+      </Text>
     </View>
   );
 
@@ -884,25 +860,8 @@ const LoginScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* Compact Trust Badges Bar directly below card */}
-              <View style={[styles.trustBarCard, { marginTop: 6, marginBottom: 0, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF', borderColor: isDarkMode ? '#1E293B' : '#EDF0F7' }]}>
-                <View style={styles.trustBarRow}>
-                  <View style={styles.trustItem}>
-                    <ShieldCheck size={12} color="#10B981" />
-                    <Text style={[styles.trustTitle, { fontSize: 10, marginLeft: 4, color: textMain }]}>100% Secure</Text>
-                  </View>
-                  <View style={styles.trustDivider} />
-                  <View style={styles.trustItem}>
-                    <Zap size={12} color={PURPLE} />
-                    <Text style={[styles.trustTitle, { fontSize: 10, marginLeft: 4, color: textMain }]}>Instant</Text>
-                  </View>
-                  <View style={styles.trustDivider} />
-                  <View style={styles.trustItem}>
-                    <Text style={{ fontSize: 12 }}>🇮🇳</Text>
-                    <Text style={[styles.trustTitle, { fontSize: 10, marginLeft: 4, color: textMain }]}>Made in India</Text>
-                  </View>
-                </View>
-              </View>
+              {/* Trust Badges Bar directly below card */}
+              {renderTrustBar()}
             </View>
 
             {/* Bottom Footer Section */}
