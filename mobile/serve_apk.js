@@ -1,64 +1,165 @@
 const http = require('http');
 const fs = require('fs');
+const path = require('path');
 
-const apkPath = 'd:/kwickly/11-4-26/kwickly.apk';
+const apkPath = path.resolve(__dirname, '../kwickly.apk');
 const PORT = 8088;
 
 const server = http.createServer((req, res) => {
-  if (req.url === '/kwickly.apk' || req.url === '/apk') {
+  const url = req.url.split('?')[0];
+
+  // Any APK direct request
+  if (
+    url === '/kwickly.apk' ||
+    url === '/apk' ||
+    url === '/download' ||
+    url.endsWith('.apk')
+  ) {
     if (fs.existsSync(apkPath)) {
       const stat = fs.statSync(apkPath);
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.7.1.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.7.2.apk',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
-      res.writeHead(404);
-      res.end('APK not found');
-    }
-  } else if (req.url === '/kwickly-universal.apk' || req.url === '/universal') {
-    const uniPath = 'd:/kwickly/11-4-26/kwickly-universal.apk';
-    if (fs.existsSync(uniPath)) {
-      const stat = fs.statSync(uniPath);
-      res.writeHead(200, {
-        'Content-Type': 'application/vnd.android.package-archive',
-        'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.7.1.apk'
-      });
-      fs.createReadStream(uniPath).pipe(res);
-    } else {
-      res.writeHead(404);
-      res.end('Universal APK not found');
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('APK not found on server');
     }
   } else {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
+    // Single clean download page
+    let fileSizeMb = '23.3';
+    if (fs.existsSync(apkPath)) {
+      fileSizeMb = (fs.statSync(apkPath).size / (1024 * 1024)).toFixed(1);
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/html',
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    });
     res.end(`<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kwickly APK Download</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kwickly Final Testing APK</title>
   <style>
-    body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0B0F19; color: #FFF; }
-    .card { background: #131B2E; padding: 28px; border-radius: 20px; border: 1.5px solid #1E293B; text-align: center; max-width: 380px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-    h1 { margin: 0 0 8px; font-size: 24px; color: #FFF; }
-    p { color: #94A3B8; font-size: 14px; margin-bottom: 20px; line-height: 1.4; }
-    .btn-main { display: block; background: #6C47FF; color: #FFF; font-weight: 700; text-decoration: none; padding: 14px 20px; border-radius: 12px; font-size: 16px; margin-bottom: 12px; transition: transform 0.1s; }
-    .btn-main:active { transform: scale(0.98); }
-    .btn-secondary { display: block; background: #1E293B; color: #94A3B8; font-weight: 600; text-decoration: none; padding: 10px 16px; border-radius: 10px; font-size: 13px; }
-    .badge { display: inline-block; background: rgba(108, 71, 255, 0.2); color: #C4B5FD; padding: 4px 10px; border-radius: 20px; font-size: 12px; margin-bottom: 8px; font-weight: 600; }
-    .success-badge { display: inline-block; background: rgba(34, 197, 94, 0.15); color: #4ADE80; padding: 4px 10px; border-radius: 12px; font-size: 11px; margin-bottom: 12px; font-weight: 600; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #0B0F19;
+      color: #FFFFFF;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #131B2E;
+      border: 1px solid #1E293B;
+      border-radius: 24px;
+      padding: 32px 24px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(108, 71, 255, 0.2);
+      color: #A78BFA;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+    }
+    .success-tag {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .meta {
+      color: #94A3B8;
+      font-size: 13px;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .btn-download {
+      display: block;
+      background: linear-gradient(135deg, #6C47FF, #5535D4);
+      color: #FFFFFF;
+      font-weight: 800;
+      font-size: 16px;
+      text-decoration: none;
+      padding: 16px 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(108, 71, 255, 0.35);
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .btn-download:active {
+      transform: scale(0.98);
+      opacity: 0.9;
+    }
+    .features {
+      text-align: left;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #1E293B;
+    }
+    .features h3 {
+      font-size: 12px;
+      color: #64748B;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+    .feature-item {
+      font-size: 13px;
+      color: #CBD5E1;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.7.1 (Build 72) Latest Release</div><br/>
-    <div class="success-badge">✓ Zero-Latency Job Posting & Instant MPIN Reset Login</div>
-    <h1>Kwickly Mobile</h1>
-    <p>Clean 100% Secure badge, instant MPIN reset login, clean subcategories header, and zero-latency instant job posting.</p>
-    <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
-    <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
+    <div class="badge">v1.7.2 · Build 73 (Final)</div><br/>
+    <div class="success-tag">✓ Ready For Full Verification</div>
+    <h1>Kwickly Universal APK</h1>
+    <p class="meta">Single unified APK compatible with all Android devices (${fileSizeMb} MB).</p>
+    
+    <a class="btn-download" href="/kwickly.apk">
+      Download Final APK ↓
+    </a>
+
+    <div class="features">
+      <h3>Verified Changes in this Build:</h3>
+      <div class="feature-item">✓ Top Verified Pros multi-service selection modal</div>
+      <div class="feature-item">✓ Subcategories header alignment & overlap fix</div>
+      <div class="feature-item">✓ 100% dynamic professional profile (no static copy)</div>
+      <div class="feature-item">✓ Direct priority dispatch to selected professional</div>
+      <div class="feature-item">✓ Real bio & trust attributes in customer view</div>
+    </div>
   </div>
 </body>
 </html>`);
@@ -66,5 +167,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('APK HTTP Server active at http://0.0.0.0:' + PORT + '/');
+  console.log(`Final APK HTTP Server running at http://0.0.0.0:${PORT}/ (serving ${apkPath})`);
 });
