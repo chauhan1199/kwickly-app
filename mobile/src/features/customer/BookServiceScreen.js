@@ -11,7 +11,8 @@ import {
   Dimensions,
   Platform,
   Image,
-  RefreshControl
+  RefreshControl,
+  Modal
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { 
@@ -26,7 +27,8 @@ import {
   SlidersHorizontal,
   Wrench,
   Sparkles,
-  Zap
+  Zap,
+  X
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -71,6 +73,50 @@ const BookServiceScreen = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('ALL');
   const [error, setError] = useState(null);
+
+  // Pro booking modal state
+  const [bookingWorker, setBookingWorker] = useState(null);
+  const [selectedServiceIndex, setSelectedServiceIndex] = useState(0);
+  const [selectedSubcategory, setSelectedSubcategory] = useState('');
+
+  const handleBookNowPress = (worker) => {
+    const services = worker.services && worker.services.length > 0
+      ? worker.services
+      : [{ catName: worker.cat, catIcon: worker.catIcon || '🛠️', subs: worker.subcategories || [], basePrice: worker.price || 199 }];
+
+    if (services.length > 1 || (services[0]?.subs && services[0].subs.length > 1)) {
+      setBookingWorker(worker);
+      setSelectedServiceIndex(0);
+      setSelectedSubcategory(services[0]?.subs?.[0] || 'General Service');
+    } else {
+      navigation.navigate('DescribeJob', {
+        category: { name: services[0]?.catName || worker.cat },
+        subcategory: services[0]?.subs?.[0] || 'General Service',
+        selectedWorker: worker
+      });
+    }
+  };
+
+  const handleConfirmWorkerBooking = () => {
+    if (!bookingWorker) return;
+    const services = bookingWorker.services && bookingWorker.services.length > 0
+      ? bookingWorker.services
+      : [{ catName: bookingWorker.cat, catIcon: bookingWorker.catIcon || '🛠️', subs: bookingWorker.subcategories || [], basePrice: bookingWorker.price || 199 }];
+
+    const chosenService = services[selectedServiceIndex] || services[0];
+    const chosenSub = selectedSubcategory || chosenService?.subs?.[0] || 'General Service';
+    const workerToBook = {
+      ...bookingWorker,
+      cat: chosenService.catName,
+      price: chosenService.basePrice || bookingWorker.price
+    };
+    setBookingWorker(null);
+    navigation.navigate('DescribeJob', {
+      category: { name: chosenService.catName },
+      subcategory: chosenSub,
+      selectedWorker: workerToBook
+    });
+  };
 
   // Determine customer's active location coordinates
   const customerCoords = useMemo(() => {
@@ -545,13 +591,7 @@ const BookServiceScreen = ({ navigation, route }) => {
                     <TouchableOpacity
                       style={styles.bookNowBtn}
                       activeOpacity={0.85}
-                      onPress={() => {
-                        navigation.navigate('DescribeJob', { 
-                          category: { name: worker.cat }, 
-                          subcategory: worker.subcategories?.[0] || 'Inspection & Repair',
-                          selectedWorker: worker
-                        });
-                      }}
+                      onPress={() => handleBookNowPress(worker)}
                     >
                       <LinearGradient
                         colors={['#6C47FF', '#5535d4']}
@@ -567,6 +607,125 @@ const BookServiceScreen = ({ navigation, route }) => {
           )}
         </View>
       </ScrollView>
+
+      {/* ── Booking Pro Service Selection Modal ── */}
+      <Modal
+        visible={!!bookingWorker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setBookingWorker(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalWorkerInfo}>
+                {bookingWorker?.profileImage ? (
+                  <Image source={{ uri: bookingWorker.profileImage }} style={styles.modalAvatar} />
+                ) : (
+                  <View style={styles.modalAvatarPlaceholder}>
+                    <Text style={styles.modalAvatarText}>
+                      {bookingWorker?.name ? bookingWorker.name.trim().charAt(0).toUpperCase() : 'P'}
+                    </Text>
+                  </View>
+                )}
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <Text style={styles.modalWorkerName} numberOfLines={1}>{bookingWorker?.name}</Text>
+                  <Text style={styles.modalSubTitle}>Select service & problem type</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setBookingWorker(null)} style={styles.modalCloseBtn}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
+              {/* Step 1: Select Category */}
+              <Text style={styles.modalSectionLabel}>1. SELECT SERVICE CATEGORY</Text>
+              <View style={styles.modalCategoriesWrap}>
+                {(bookingWorker?.services && bookingWorker.services.length > 0
+                  ? bookingWorker.services
+                  : [{ catName: bookingWorker?.cat, catIcon: bookingWorker?.catIcon, subs: bookingWorker?.subcategories, basePrice: bookingWorker?.price }]
+                ).map((srv, idx) => {
+                  const isCatSelected = selectedServiceIndex === idx;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setSelectedServiceIndex(idx);
+                        setSelectedSubcategory(srv.subs?.[0] || 'General Service');
+                      }}
+                      style={[styles.modalCatCard, isCatSelected && styles.modalCatCardActive]}
+                    >
+                      <View style={[styles.modalCatIconCircle, isCatSelected && styles.modalCatIconCircleActive]}>
+                        <Text style={{ fontSize: 18 }}>{srv.catIcon || '⚡'}</Text>
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={[styles.modalCatName, isCatSelected && styles.modalCatNameActive]} numberOfLines={1}>
+                          {srv.catName}
+                        </Text>
+                        <Text style={styles.modalCatPrice}>Starting from ₹{srv.basePrice || 199}</Text>
+                      </View>
+                      {isCatSelected && <CheckCircle2 size={18} color="#6C47FF" />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Step 2: Select Subcategory */}
+              <Text style={styles.modalSectionLabel}>2. SELECT SUBCATEGORY / PROBLEM</Text>
+              <View style={styles.modalSubsWrap}>
+                {(() => {
+                  const currentSrv = (bookingWorker?.services || [])[selectedServiceIndex] || { subs: bookingWorker?.subcategories || [] };
+                  const subList = (currentSrv.subs && currentSrv.subs.length > 0)
+                    ? currentSrv.subs
+                    : ['General Inspection & Diagnostics', 'Routine Maintenance'];
+
+                  return subList.map((sub, sIdx) => {
+                    const isSubSelected = selectedSubcategory === sub;
+                    return (
+                      <TouchableOpacity
+                        key={sIdx}
+                        activeOpacity={0.75}
+                        onPress={() => setSelectedSubcategory(sub)}
+                        style={[styles.modalSubChip, isSubSelected && styles.modalSubChipActive]}
+                      >
+                        <CheckCircle2 size={12} color={isSubSelected ? '#fff' : '#6C47FF'} style={{ marginRight: 5 }} />
+                        <Text style={[styles.modalSubChipText, isSubSelected && styles.modalSubChipTextActive]}>
+                          {sub}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  });
+                })()}
+              </View>
+            </ScrollView>
+
+            {/* Modal Bottom Action */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.modalContinueBtn}
+                activeOpacity={0.88}
+                onPress={handleConfirmWorkerBooking}
+              >
+                <LinearGradient
+                  colors={['#6C47FF', '#5535d4']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalContinueGradient}
+                >
+                  <Text style={styles.modalContinueText}>
+                    Continue with {bookingWorker?.name ? bookingWorker.name.split(' ')[0] : 'Professional'} →
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -968,6 +1127,174 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#ffffff',
+  },
+
+  // ── Pro Booking Modal Styles ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 18,
+    maxHeight: '85%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.border,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    marginBottom: 14,
+  },
+  modalWorkerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  modalAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: '#6C47FF',
+  },
+  modalAvatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#6C47FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalAvatarText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  modalWorkerName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  modalSubTitle: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    padding: 6,
+  },
+  modalSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: theme.colors.textDim,
+    letterSpacing: 0.8,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  modalCategoriesWrap: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  modalCatCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+  },
+  modalCatCardActive: {
+    borderColor: '#6C47FF',
+    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.12)' : '#F5F2FF',
+  },
+  modalCatIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(108,71,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCatIconCircleActive: {
+    backgroundColor: 'rgba(108,71,255,0.2)',
+  },
+  modalCatName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  modalCatNameActive: {
+    color: '#6C47FF',
+  },
+  modalCatPrice: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  modalSubsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  modalSubChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F1EDFF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  modalSubChipActive: {
+    backgroundColor: '#6C47FF',
+    borderColor: '#6C47FF',
+  },
+  modalSubChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: isDarkMode ? '#C4B5FD' : '#5B21B6',
+  },
+  modalSubChipTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  modalFooter: {
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  modalContinueBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  modalContinueGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalContinueText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
   }
 });
 

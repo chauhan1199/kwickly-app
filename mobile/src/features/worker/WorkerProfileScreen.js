@@ -96,6 +96,7 @@ const WorkerProfileScreen = ({ navigation }) => {
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editCity, setEditCity] = useState('');
+  const [editBio, setEditBio] = useState('');
 
   // Form states for Bank Account & UPI
   const [bankName, setBankName] = useState('');
@@ -153,6 +154,7 @@ const WorkerProfileScreen = ({ navigation }) => {
         setAddressList(userData.addresses);
       }
       setEditCity(userData?.city || '');
+      setEditBio(userData?.bio || '');
     } catch (error) {
       // Silently handle
     } finally {
@@ -176,7 +178,8 @@ const WorkerProfileScreen = ({ navigation }) => {
       await workerService.updateProfile({
         name: editName.trim(),
         email: editEmail.trim() ? editEmail.trim().toLowerCase() : '',
-        city: editCity.trim() || undefined
+        city: editCity.trim() || undefined,
+        bio: editBio.trim() || undefined
       });
       Alert.alert('Profile Updated 🎉', `Your details have been saved successfully.`);
       setActiveModal(null);
@@ -968,6 +971,19 @@ const WorkerProfileScreen = ({ navigation }) => {
                   autoCapitalize="words"
                 />
               </View>
+
+              {/* Bio / About Me */}
+              <Text style={styles.inputLabel}>About Me / Bio</Text>
+              <TextInput
+                style={[styles.modalInput, { height: 75, textAlignVertical: 'top', paddingTop: 10, paddingBottom: 10 }]}
+                placeholder="Briefly describe your experience, specialization, and tools..."
+                placeholderTextColor="#94A3B8"
+                value={editBio}
+                onChangeText={setEditBio}
+                multiline
+                numberOfLines={3}
+                maxLength={300}
+              />
 
               {/* Save Button */}
               <TouchableOpacity 

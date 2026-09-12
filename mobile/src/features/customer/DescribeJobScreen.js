@@ -503,6 +503,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
         timeSlot:       timeSlot || 'urgent',
         location:       jobLocation,
         addressDetails: address.trim(),
+        preferredWorkerId: selectedWorker?._id || selectedWorker?.id || undefined,
       };
 
       const res    = await jobService.createJob(payload);
@@ -587,6 +588,39 @@ const DescribeJobScreen = ({ route, navigation }) => {
           contentContainerStyle={[styles.content, { paddingBottom: 16 }]}
           keyboardShouldPersistTaps="handled"
         >
+
+        {/* ── Preferred Worker Banner (If booking a specific verified pro) ── */}
+        {selectedWorker && (
+          <View style={styles.preferredWorkerBanner}>
+            <View style={styles.preferredWorkerTop}>
+              {selectedWorker.profileImage ? (
+                <Image source={{ uri: selectedWorker.profileImage }} style={styles.preferredWorkerAvatar} />
+              ) : (
+                <View style={styles.preferredWorkerAvatarPlaceholder}>
+                  <Text style={styles.preferredWorkerAvatarText}>
+                    {selectedWorker.name ? selectedWorker.name.trim().charAt(0).toUpperCase() : 'P'}
+                  </Text>
+                </View>
+              )}
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles.preferredWorkerName} numberOfLines={1}>{selectedWorker.name}</Text>
+                  {selectedWorker.verified && (
+                    <View style={styles.preferredWorkerKyc}>
+                      <Text style={styles.preferredWorkerKycText}>KYC ✓</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.preferredWorkerSub} numberOfLines={1}>
+                  Direct Request · {category?.name || category} ({subcategory})
+                </Text>
+              </View>
+              <View style={styles.preferredWorkerBadge}>
+                <Text style={styles.preferredWorkerBadgeText}>Priority Dispatch</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* ── Description ── */}
         <Text style={styles.label}>Describe the issue <Text style={styles.required}>*</Text></Text>
@@ -1584,6 +1618,74 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.textDim,
     marginTop: 5,
     lineHeight: 15,
+  },
+
+  // ── Preferred Worker Banner ──
+  preferredWorkerBanner: {
+    backgroundColor: isDarkMode ? 'rgba(108,71,255,0.15)' : '#F4F0FF',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#6C47FF',
+  },
+  preferredWorkerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  preferredWorkerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: '#6C47FF',
+  },
+  preferredWorkerAvatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#6C47FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  preferredWorkerAvatarText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  preferredWorkerName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  preferredWorkerKyc: {
+    backgroundColor: 'rgba(16,185,129,0.18)',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  preferredWorkerKycText: {
+    color: '#10b981',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  preferredWorkerSub: {
+    fontSize: 12,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  preferredWorkerBadge: {
+    backgroundColor: 'rgba(108,71,255,0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  preferredWorkerBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#6C47FF',
   },
 });
 

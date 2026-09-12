@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   DeviceEventEmitter,
+  Platform,
 } from 'react-native';
 import api from '../../services/api';
 import { jobService } from '../../services/jobService';
@@ -135,9 +136,8 @@ const SubCategoriesScreen = ({ route, navigation }) => {
         </View>
       </LinearGradient>
 
-
       {/* Search - overlapping header */}
-      <View style={{ paddingHorizontal: 16, marginTop: -26, zIndex: 10 }}>
+      <View style={{ paddingHorizontal: 16, marginTop: -20, zIndex: 10 }}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -295,7 +295,7 @@ const createStyles = (theme, isDarkMode) =>
 
     // ── Hero ──
     hero: {
-      paddingTop: 24,
+      paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 14 : 36,
       paddingBottom: 40,
       paddingHorizontal: 16,
       borderBottomLeftRadius: 30,
@@ -321,41 +321,16 @@ const createStyles = (theme, isDarkMode) =>
       borderRadius: 60,
       backgroundColor: 'rgba(255,255,255,0.05)',
     },
-    heroTopBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 16,
-    },
-    backBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    heroCategoryPill: {
-      paddingHorizontal: 12,
-      paddingVertical: 5,
-      borderRadius: 12,
-      backgroundColor: 'rgba(255,255,255,0.15)',
-    },
-    heroCategoryPillText: {
-      color: '#E0E7FF',
-      fontSize: 10,
-      fontWeight: '800',
-      letterSpacing: 1,
-    },
     heroContentRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: 12,
+      gap: 14,
     },
     heroTextCol: {
       flex: 1,
-      paddingRight: 6,
+      marginRight: 10,
+      justifyContent: 'center',
     },
     heroIconBadge: {
       width: 38,
@@ -370,21 +345,21 @@ const createStyles = (theme, isDarkMode) =>
       fontSize: 20,
     },
     heroTitle: {
-      fontSize: 22,
-      fontWeight: '900',
+      fontSize: 21,
+      fontWeight: '800',
       color: '#fff',
       letterSpacing: -0.3,
-      lineHeight: 28,
-      marginBottom: 6,
+      lineHeight: 27,
+      marginBottom: 8,
     },
     servicesBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: 'rgba(255,255,255,0.15)',
+      backgroundColor: 'rgba(255,255,255,0.18)',
       alignSelf: 'flex-start',
       paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 10,
+      paddingVertical: 4.5,
+      borderRadius: 12,
     },
     heroSubtitle: {
       fontSize: 12,
@@ -392,32 +367,33 @@ const createStyles = (theme, isDarkMode) =>
       fontWeight: '600',
     },
     heroImageCardWrapper: {
-      width: 100,
-      height: 100,
-      borderRadius: 20,
+      width: 86,
+      height: 86,
+      borderRadius: 18,
       overflow: 'hidden',
       borderWidth: 2,
-      borderColor: 'rgba(255,255,255,0.3)',
-      backgroundColor: 'rgba(255,255,255,0.1)',
+      borderColor: 'rgba(255,255,255,0.35)',
+      backgroundColor: 'rgba(255,255,255,0.12)',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 6,
-      elevation: 5,
+      shadowOpacity: 0.22,
+      shadowRadius: 8,
+      elevation: 6,
     },
     heroFramedImage: {
       width: '100%',
       height: '100%',
+      borderRadius: 16,
     },
     heroIconCardWrapper: {
-      width: 90,
-      height: 90,
-      borderRadius: 20,
+      width: 86,
+      height: 86,
+      borderRadius: 18,
       backgroundColor: 'rgba(255,255,255,0.15)',
       justifyContent: 'center',
       alignItems: 'center',
       borderWidth: 1.5,
-      borderColor: 'rgba(255,255,255,0.25)',
+      borderColor: 'rgba(255,255,255,0.3)',
     },
 
 

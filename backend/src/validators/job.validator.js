@@ -19,7 +19,9 @@ const createJobSchema = Joi.object({
             fullAddress: Joi.string().allow('')
         })
     ).optional(),
-    city: Joi.string().optional()
+    city: Joi.string().optional(),
+    preferredWorkerId: Joi.string().hex().length(24).allow(null, '').optional(),
+    workerId: Joi.string().hex().length(24).allow(null, '').optional()
 });
 
 module.exports = {

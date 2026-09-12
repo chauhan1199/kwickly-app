@@ -82,12 +82,14 @@ exports.createJob = catchAsync(async (req, res) => {
 
     // Initial radius is the first round or maxKm
     const initialRadiusKm = settings?.radius?.rounds?.[0]?.maxKm || settings?.radius?.maxKm || 25;
+    const preferredWorkerId = req.body.preferredWorkerId || req.body.workerId || undefined;
 
     // Create the job
     let job;
     try {
         job = await Job.create({
             customerId: req.user._id,
+            preferredWorkerId: preferredWorkerId ? preferredWorkerId : undefined,
             category,
             subcategory,
             description,
@@ -151,6 +153,7 @@ exports.createJob = catchAsync(async (req, res) => {
                 timeSlot: job.timeSlot,
                 preferredDate: job.preferredDate,
                 notifiedWorkers: eligibleWorkerIds.length,
+                isDirectBooking: !!job.preferredWorkerId,
                 customer: {
                     _id: customer?._id,
                     name: customer?.name,
@@ -158,10 +161,29 @@ exports.createJob = catchAsync(async (req, res) => {
                 }
             };
 
-            // ─── Emit ONLY to eligible workers' personal rooms ───────────────
+            // ─── If preferred worker was chosen, notify them directly with top priority ─
+            if (job.preferredWorkerId) {
+                emitToRoom(`worker_${job.preferredWorkerId}`, 'NEW_JOB_ALERT', {
+                    ...alertPayload,
+                    customerRequestedYou: true
+                });
+                notifyUser({
+                    userId: job.preferredWorkerId,
+                    title: 'Direct Job Request from Customer!',
+                    message: `${customer?.name || 'A customer'} specifically selected you for ${job.category}${job.subcategory ? ' (' + job.subcategory + ')' : ''}. Respond now!`,
+                    action: 'DIRECT_JOB_REQUEST',
+                    entityType: 'JOB',
+                    entityId: job._id,
+                    targetRole: 'WORKER'
+                });
+            }
+
+            // ─── Emit to all eligible workers' personal rooms ───────────────
             if (eligibleWorkerIds.length > 0) {
                 eligibleWorkerIds.forEach(workerId => {
-                    emitToRoom(`worker_${workerId}`, 'NEW_JOB_ALERT', alertPayload);
+                    if (!job.preferredWorkerId || workerId.toString() !== job.preferredWorkerId.toString()) {
+                        emitToRoom(`worker_${workerId}`, 'NEW_JOB_ALERT', alertPayload);
+                    }
                 });
             }
 
@@ -182,7 +204,9 @@ exports.createJob = catchAsync(async (req, res) => {
             notifyUser({
                 userId: req.user._id,
                 title: 'Job Posted Successfully',
-                message: `Your request for ${job.category}${job.subcategory ? ' (' + job.subcategory + ')' : ''} has been broadcasted. Finding verified workers near you!`,
+                message: job.preferredWorkerId 
+                    ? `Your direct request for ${job.category}${job.subcategory ? ' (' + job.subcategory + ')' : ''} has been sent to your selected professional with priority dispatch!`
+                    : `Your request for ${job.category}${job.subcategory ? ' (' + job.subcategory + ')' : ''} has been broadcasted. Finding verified workers near you!`,
                 action: 'JOB_CREATED',
                 entityType: 'JOB',
                 entityId: job._id,

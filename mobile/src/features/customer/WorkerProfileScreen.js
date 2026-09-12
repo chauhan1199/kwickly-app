@@ -23,14 +23,13 @@ import {
   CheckCircle2, 
   Wrench, 
   Sparkles,
-  Phone,
-  MessageSquare,
   Award,
   Zap,
   Info
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { customerService } from '../../services/customerService';
+import { getCategoryIcon } from '../../utils/categoryTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -46,6 +45,8 @@ const WorkerProfileScreen = ({ route, navigation }) => {
 
   const [workerData, setWorkerData] = useState(worker);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedCatIndex, setSelectedCatIndex] = useState(0);
+  const [selectedSubcategory, setSelectedSubcategory] = useState('');
 
   const workerId = worker.id || worker._id;
 
@@ -60,7 +61,6 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             setWorkerData(prev => ({
               ...prev,
               ...res.data.data,
-              // retain distance and eta calculated on client if not in API response
               dist: prev.dist || `${res.data.data.distanceKm || '2.5'} km`,
               eta: prev.eta || 15
             }));
@@ -78,28 +78,51 @@ const WorkerProfileScreen = ({ route, navigation }) => {
 
   const w = workerData;
 
-  // Extract structured dynamic services
+  // Extract structured dynamic services added by worker
   const servicesList = (w.services || [])
     .filter(s => s && s.isActive !== false)
     .map(s => {
       const catName = s.categoryName || s.category?.name || (typeof s === 'string' ? s : 'General Service');
-      const catIcon = s.category?.icon || '⚡';
+      const catIcon = getCategoryIcon(catName, s.category?.icon);
       const subs = Array.isArray(s.subcategories) ? s.subcategories : [];
-      const basePrice = s.category?.basePrice || w.price || 299;
+      const basePrice = s.category?.basePrice || w.price || 199;
       const desc = s.category?.description || '';
       return { catName, catIcon, subs, basePrice, desc };
     });
 
   const primaryService = servicesList[0] || {
     catName: w.cat || 'Professional Services',
-    catIcon: '🛠️',
-    subs: ['General Maintenance', 'Inspection', 'Repairs'],
-    basePrice: w.price || 299
+    catIcon: getCategoryIcon(w.cat || 'General', '🛠️'),
+    subs: ['General Maintenance & Diagnostics'],
+    basePrice: w.price || 199
   };
 
+  // Sync route params with selection or fallback to first
+  useEffect(() => {
+    if (servicesList.length > 0) {
+      if (route.params?.category?.name) {
+        const idx = servicesList.findIndex(
+          s => s.catName?.toLowerCase() === route.params.category.name.toLowerCase()
+        );
+        if (idx >= 0) {
+          setSelectedCatIndex(idx);
+          setSelectedSubcategory(route.params?.subcategory || servicesList[idx].subs[0] || 'General Service');
+          return;
+        }
+      }
+      if (!selectedSubcategory) {
+        setSelectedSubcategory(servicesList[0]?.subs[0] || 'General Service');
+      }
+    }
+  }, [servicesList.length, route.params]);
+
+  const activeService = servicesList[selectedCatIndex] || servicesList[0] || primaryService;
+  const activeSub = selectedSubcategory || activeService.subs[0] || 'General Inspection';
+  const activePrice = activeService.basePrice || w.price || 199;
+
   const startingPrice = servicesList.length > 0 
-    ? Math.min(...servicesList.map(s => s.basePrice || 299)) 
-    : (w.price || 299);
+    ? Math.min(...servicesList.map(s => s.basePrice || 199)) 
+    : (w.price || 199);
 
   const ratingAvg = typeof w.rating === 'object' ? (w.rating?.average || 5.0) : (Number(w.rating) || 5.0);
   const ratingCount = typeof w.rating === 'object' ? (w.rating?.count || (w.jobs > 0 ? w.jobs : 0)) : (w.jobs || 0);
@@ -120,7 +143,6 @@ const WorkerProfileScreen = ({ route, navigation }) => {
         end={{ x: 1, y: 1 }}
         style={styles.gradientHeader}
       >
-        {/* Dynamic ambient shapes */}
         <View style={styles.ambientCircle1} />
         <View style={styles.ambientCircle2} />
 
@@ -180,14 +202,14 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             )}
           </View>
 
-          {w.city && (
+          {w.city ? (
             <View style={styles.cityRow}>
               <MapPin size={13} color="rgba(255,255,255,0.85)" />
               <Text style={styles.cityText}>
-                Based in {w.city} · Service Radius: {w.serviceRadius || 10} km
+                Based in {w.city} {w.serviceRadius ? `· Service Radius: ${w.serviceRadius} km` : ''}
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
       </LinearGradient>
 
@@ -206,7 +228,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
               {ratingAvg > 0 ? ratingAvg.toFixed(1) : '5.0'}
             </Text>
             <Text style={styles.statLabel}>
-              {ratingCount > 0 ? `${ratingCount} reviews` : 'New Pro'}
+              {ratingCount > 0 ? `${ratingCount} reviews` : 'Top Rated'}
             </Text>
           </View>
 
@@ -226,7 +248,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             <View style={[styles.statIconWrap, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
               <MapPin size={16} color="#10b981" />
             </View>
-            <Text style={styles.statValue}>{w.dist || '2.5 km'}</Text>
+            <Text style={styles.statValue}>{w.dist || 'Nearby'}</Text>
             <Text style={styles.statLabel}>Distance</Text>
           </View>
 
@@ -241,7 +263,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Specialized Services Offered Section (Crucial) */}
+        {/* Specialized Services Offered Section (Interactive Selection) */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionTitleWithIcon}>
@@ -249,7 +271,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
               <Text style={styles.sectionTitle}>Services & Specializations</Text>
             </View>
             <Text style={styles.sectionSubtitleBadge}>
-              {servicesList.length} {servicesList.length === 1 ? 'Service' : 'Services'}
+              Tap to select
             </Text>
           </View>
 
@@ -260,77 +282,125 @@ const WorkerProfileScreen = ({ route, navigation }) => {
                   <Text style={{ fontSize: 20 }}>🛠️</Text>
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.serviceItemName}>{w.cat || 'General Home Service'}</Text>
+                  <Text style={styles.serviceItemName}>{w.cat || 'General Service'}</Text>
                   <Text style={styles.serviceItemRate}>Base fee ₹{startingPrice}</Text>
                 </View>
               </View>
-              <View style={styles.subPillsRow}>
-                {['Inspection & Diagnostics', 'Quick Fix', 'General Maintenance'].map((sub, i) => (
-                  <View key={i} style={styles.subPill}>
-                    <CheckCircle2 size={12} color="#6C47FF" style={{ marginRight: 4 }} />
-                    <Text style={styles.subPillText}>{sub}</Text>
-                  </View>
-                ))}
-              </View>
             </View>
           ) : (
-            servicesList.map((srv, idx) => (
-              <View key={idx} style={styles.serviceItemCard}>
-                <View style={styles.serviceItemTop}>
-                  <View style={styles.serviceIconCircle}>
-                    <Text style={{ fontSize: 22 }}>{srv.catIcon}</Text>
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.serviceItemName}>{srv.catName}</Text>
-                    <Text style={styles.serviceItemRate}>
-                      Starting from <Text style={styles.serviceItemPrice}>₹{srv.basePrice}</Text>
-                    </Text>
-                  </View>
-                </View>
-
-                {srv.subs.length > 0 && (
-                  <View style={styles.subPillsRow}>
-                    {srv.subs.map((sub, sIdx) => (
-                      <View key={sIdx} style={styles.subPill}>
-                        <CheckCircle2 size={12} color="#6C47FF" style={{ marginRight: 4 }} />
-                        <Text style={styles.subPillText}>{sub}</Text>
+            servicesList.map((srv, idx) => {
+              const isSelected = selectedCatIndex === idx;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  activeOpacity={0.88}
+                  onPress={() => {
+                    setSelectedCatIndex(idx);
+                    setSelectedSubcategory(srv.subs[0] || 'General Service');
+                  }}
+                  style={[
+                    styles.serviceItemCard,
+                    isSelected && styles.serviceItemCardActive
+                  ]}
+                >
+                  <View style={styles.serviceItemTop}>
+                    <View style={[styles.serviceIconCircle, isSelected && styles.serviceIconCircleActive]}>
+                      <Text style={{ fontSize: 22 }}>{srv.catIcon}</Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <View style={styles.serviceTitleRow}>
+                        <Text style={[styles.serviceItemName, isSelected && styles.serviceItemNameActive]}>
+                          {srv.catName}
+                        </Text>
+                        {isSelected ? (
+                          <View style={styles.activeCheckBadge}>
+                            <CheckCircle2 size={18} color="#6C47FF" />
+                          </View>
+                        ) : (
+                          <Text style={styles.tapToSelectText}>Tap to select</Text>
+                        )}
                       </View>
-                    ))}
+                      <Text style={styles.serviceItemRate}>
+                        Starting from <Text style={styles.serviceItemPrice}>₹{srv.basePrice}</Text>
+                      </Text>
+                    </View>
                   </View>
-                )}
-              </View>
-            ))
+
+                  {srv.subs.length > 0 && (
+                    <View style={styles.subPillsRow}>
+                      {srv.subs.map((sub, sIdx) => {
+                        const isSubActive = isSelected && selectedSubcategory === sub;
+                        return (
+                          <TouchableOpacity
+                            key={sIdx}
+                            activeOpacity={0.75}
+                            onPress={() => {
+                              setSelectedCatIndex(idx);
+                              setSelectedSubcategory(sub);
+                            }}
+                            style={[styles.subPill, isSubActive && styles.subPillActive]}
+                          >
+                            <CheckCircle2 size={12} color={isSubActive ? '#fff' : '#6C47FF'} style={{ marginRight: 4 }} />
+                            <Text style={[styles.subPillText, isSubActive && styles.subPillTextActive]}>{sub}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
 
-        {/* About & Quality Guarantees */}
+        {/* About & Verified Qualifications */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             About {w.name ? w.name.split(' ')[0] : 'Professional'}
           </Text>
           
           <View style={styles.aboutCard}>
-            <Text style={styles.aboutText}>
-              {w.bio && w.bio.trim().length > 0 
-                ? w.bio 
-                : `Verified and dedicated ${primaryService.catName} specialist with extensive hands-on experience. Fully trained, equipped with professional diagnostic tools, and dedicated to transparent pricing and customer satisfaction.`}
-            </Text>
+            {w.bio && w.bio.trim().length > 0 ? (
+              <Text style={styles.aboutText}>{w.bio.trim()}</Text>
+            ) : (
+              <View style={styles.noBioBox}>
+                <Info size={16} color={theme.colors.textDim} style={{ marginRight: 6 }} />
+                <Text style={styles.noBioText}>
+                  This verified professional has not added a personal bio description yet.
+                </Text>
+              </View>
+            )}
 
+            {/* Real verified attributes */}
             <View style={styles.trustDivider} />
 
             <View style={styles.trustGrid}>
-              <View style={styles.trustItem}>
-                <Zap size={15} color="#10b981" />
-                <Text style={styles.trustItemText}>Fast Response</Text>
-              </View>
-              <View style={styles.trustItem}>
-                <Award size={15} color="#6C47FF" />
-                <Text style={styles.trustItemText}>Quality Guarantee</Text>
-              </View>
-              <View style={styles.trustItem}>
-                <ShieldCheck size={15} color="#2563eb" />
-                <Text style={styles.trustItemText}>Identity Verified</Text>
-              </View>
+              {w.verified !== false && (
+                <View style={styles.trustItem}>
+                  <ShieldCheck size={14} color="#10B981" />
+                  <Text style={styles.trustItemText}>KYC Verified</Text>
+                </View>
+              )}
+              {w.city ? (
+                <View style={styles.trustItem}>
+                  <MapPin size={14} color="#6C47FF" />
+                  <Text style={styles.trustItemText}>In {w.city}</Text>
+                </View>
+              ) : null}
+              {w.serviceRadius ? (
+                <View style={styles.trustItem}>
+                  <Zap size={14} color="#F59E0B" />
+                  <Text style={styles.trustItemText}>{w.serviceRadius} km Radius</Text>
+                </View>
+              ) : null}
+              {w.createdAt ? (
+                <View style={styles.trustItem}>
+                  <Award size={14} color="#2563EB" />
+                  <Text style={styles.trustItemText}>
+                    Joined {new Date(w.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </View>
         </View>
@@ -349,9 +419,9 @@ const WorkerProfileScreen = ({ route, navigation }) => {
           {reviewsList.length === 0 ? (
             <View style={styles.emptyReviewCard}>
               <Sparkles size={24} color="#6C47FF" style={{ marginBottom: 8 }} />
-              <Text style={styles.emptyReviewTitle}>Verified Professional</Text>
+              <Text style={styles.emptyReviewTitle}>No Customer Reviews Yet</Text>
               <Text style={styles.emptyReviewSub}>
-                Be among the first customers to book and review {w.name ? w.name.split(' ')[0] : 'this professional'}!
+                Be among the first customers to book {w.name ? w.name.split(' ')[0] : 'this professional'} and leave a review!
               </Text>
             </View>
           ) : (
@@ -385,23 +455,34 @@ const WorkerProfileScreen = ({ route, navigation }) => {
                     </View>
                   )}
                 </View>
-                <Text style={styles.reviewComment}>{rev.reviewText}</Text>
+                {rev.reviewText ? (
+                  <Text style={styles.reviewComment}>{rev.reviewText}</Text>
+                ) : (
+                  <Text style={[styles.reviewComment, { fontStyle: 'italic', color: theme.colors.textDim }]}>
+                    Customer rated {rev.score} stars
+                  </Text>
+                )}
               </View>
             ))
           )}
         </View>
 
-        {/* Extra Bottom Padding */}
         <View style={{ height: 120 }} />
       </ScrollView>
 
       {/* Floating Bottom Booking Action Bar */}
       <View style={styles.bottomBar}>
         <View style={styles.bottomPriceCol}>
-          <Text style={styles.bottomRateLabel}>Base Inspection Fee</Text>
+          <Text style={styles.bottomRateLabel} numberOfLines={1}>
+            {activeService.catName}
+          </Text>
           <View style={styles.bottomPriceRow}>
-            <Text style={styles.bottomPrice}>₹{startingPrice}</Text>
-            <Text style={styles.bottomEtaPill}>⏱️ ~{w.eta || 15} mins</Text>
+            <Text style={styles.bottomPrice}>₹{activePrice}</Text>
+            <View style={styles.selectedSubBadge}>
+              <Text style={styles.bottomSubPill} numberOfLines={1}>
+                {activeSub}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -410,16 +491,19 @@ const WorkerProfileScreen = ({ route, navigation }) => {
           activeOpacity={0.85}
           onPress={() => {
             navigation.navigate('DescribeJob', { 
-              category: { name: primaryService.catName }, 
-              subcategory: primaryService.subs[0] || 'Inspection & Repair',
+              category: { name: activeService.catName }, 
+              subcategory: activeSub,
               selectedWorker: {
                 id: w._id || w.id,
                 _id: w._id || w.id,
                 name: w.name,
                 profileImage: w.profileImage,
                 phone: w.phone,
-                cat: primaryService.catName,
-                price: startingPrice
+                cat: activeService.catName,
+                price: activePrice,
+                rating: w.rating,
+                jobs: totalJobs,
+                verified: w.verified
               }
             });
           }}
@@ -430,7 +514,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             end={{ x: 1, y: 0 }}
             style={styles.bookButtonGradient}
           >
-            <Text style={styles.bookButtonText}>Select Professional</Text>
+            <Text style={styles.bookButtonText}>Select Professional →</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -445,7 +529,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   gradientHeader: {
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 10,
-    paddingBottom: 28,
+    paddingBottom: 24,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     position: 'relative',
@@ -453,57 +537,50 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   ambientCircle1: {
     position: 'absolute',
-    top: -60,
+    top: -50,
     right: -40,
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   ambientCircle2: {
     position: 'absolute',
-    bottom: -50,
+    bottom: -30,
     left: -30,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   safeAppBarArea: {
-    paddingHorizontal: 16,
+    zIndex: 10,
   },
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   appBarTitle: {
+    color: '#ffffff',
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: 0.2,
-  },
-  actionBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    letterSpacing: -0.2,
   },
   heroProfile: {
     alignItems: 'center',
-    paddingTop: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    marginTop: 4,
   },
   avatarWrapper: {
     position: 'relative',
@@ -598,66 +675,64 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   cityText: {
     color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 12,
-    fontWeight: '500',
   },
   content: {
+    paddingHorizontal: 16,
     paddingTop: 16,
   },
   statsCard: {
     flexDirection: 'row',
     backgroundColor: theme.colors.surface,
-    marginHorizontal: 14,
     borderRadius: 18,
     paddingVertical: 14,
-    paddingHorizontal: 8,
-    marginBottom: 20,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'space-around',
     borderWidth: 1,
     borderColor: theme.colors.border,
-    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
     shadowRadius: 6,
+    elevation: 2,
+    marginBottom: 16,
   },
   statBox: {
-    flex: 1,
     alignItems: 'center',
+    flex: 1,
   },
   statIconWrap: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 4,
   },
   statValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: theme.colors.text,
-    marginBottom: 2,
   },
   statLabel: {
     fontSize: 11,
     color: theme.colors.textDim,
-    fontWeight: '500',
+    marginTop: 2,
   },
   statDivider: {
     width: 1,
-    height: '70%',
-    alignSelf: 'center',
+    height: 28,
     backgroundColor: theme.colors.border,
   },
   section: {
-    paddingHorizontal: 14,
-    marginBottom: 22,
+    marginBottom: 20,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   sectionTitleWithIcon: {
     flexDirection: 'row',
@@ -670,20 +745,29 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   sectionSubtitleBadge: {
     fontSize: 12,
-    color: '#6C47FF',
     fontWeight: '700',
+    color: '#6C47FF',
     backgroundColor: 'rgba(108, 71, 255, 0.1)',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 10,
+    borderRadius: 8,
   },
   serviceItemCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: 16,
     padding: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
     marginBottom: 10,
+  },
+  serviceItemCardActive: {
+    borderColor: '#6C47FF',
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.12)' : '#F7F5FF',
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
   serviceItemTop: {
     flexDirection: 'row',
@@ -697,10 +781,29 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  serviceIconCircleActive: {
+    backgroundColor: 'rgba(108, 71, 255, 0.2)',
+  },
+  serviceTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   serviceItemName: {
     fontSize: 15,
     fontWeight: '800',
     color: theme.colors.text,
+  },
+  serviceItemNameActive: {
+    color: '#6C47FF',
+  },
+  activeCheckBadge: {
+    marginLeft: 6,
+  },
+  tapToSelectText: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    fontWeight: '600',
   },
   serviceItemRate: {
     fontSize: 12,
@@ -725,14 +828,24 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F3F0FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  subPillActive: {
+    backgroundColor: '#6C47FF',
+    borderColor: '#6C47FF',
   },
   subPillText: {
     fontSize: 11,
     color: isDarkMode ? '#C4B5FD' : '#5B21B6',
     fontWeight: '600',
+  },
+  subPillTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
   },
   aboutCard: {
     backgroundColor: theme.colors.surface,
@@ -744,8 +857,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   aboutText: {
     fontSize: 14,
-    color: theme.colors.textDim,
+    color: theme.colors.text,
     lineHeight: 22,
+  },
+  noBioBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  noBioText: {
+    fontSize: 13,
+    color: theme.colors.textDim,
+    fontStyle: 'italic',
+    flex: 1,
   },
   trustDivider: {
     height: 1,
@@ -754,12 +878,17 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   trustGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
   },
   trustItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   trustItemText: {
     fontSize: 11,
@@ -877,27 +1006,31 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   bottomRateLabel: {
     fontSize: 11,
     color: theme.colors.textDim,
-    fontWeight: '600',
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   bottomPriceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginTop: 2,
   },
   bottomPrice: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
     color: theme.colors.text,
   },
-  bottomEtaPill: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#10b981',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+  selectedSubBadge: {
+    backgroundColor: 'rgba(108, 71, 255, 0.12)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
+    flexShrink: 1,
+  },
+  bottomSubPill: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6C47FF',
   },
   bookButton: {
     flex: 1.2,
@@ -911,7 +1044,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   bookButtonText: {
     color: '#ffffff',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   }
 });
