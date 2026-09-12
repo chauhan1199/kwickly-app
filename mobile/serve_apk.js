@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.6.7.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.6.8.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.6.7.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.6.8.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.6.7 (Build 68) Latest Release</div><br/>
-    <div class="success-badge">✓ MPIN Screen Footer Elevated & Zero Back Button Overlap</div>
+    <div class="badge">v1.6.8 (Build 69) Latest Release</div><br/>
+    <div class="success-badge">✓ Dark Mode Header Artwork Text Crisp & High Contrast</div>
     <h1>Kwickly Mobile</h1>
-    <p>Compact MPIN enter screen layout with footer grounded safely above mobile back and navigation buttons in both light and dark themes.</p>
+    <p>Enhanced dark mode header illustrations for Login and Enter 4-Digit MPIN screens: crystal-clear high contrast text on both speech bubbles and script typography.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>
