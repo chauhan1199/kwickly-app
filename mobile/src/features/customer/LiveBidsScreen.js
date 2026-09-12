@@ -348,7 +348,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
                     style={styles.goBackBtn}
                     onPress={() => {
                       if (navigation.canGoBack()) navigation.goBack();
-                      else navigation.navigate('MainTabs', { screen: 'Home' });
+                      else navigation.navigate('HomeMain');
                     }}
                   >
                     <Text style={styles.goBackBtnText}>Dashboard</Text>

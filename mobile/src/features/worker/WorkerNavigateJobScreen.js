@@ -14,7 +14,7 @@ import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
-import { Phone, MessageCircle } from 'lucide-react-native';
+import { Phone, MessageCircle, Navigation } from 'lucide-react-native';
 
 const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -143,7 +143,20 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
             >
               <Phone size={18} color="#ef4444" />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconBtn, { marginLeft: 8, backgroundColor: '#eff6ff' }]}
+              onPress={() => {
+                if (jobLat && jobLng) {
+                  Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${jobLat},${jobLng}`);
+                } else {
+                  Alert.alert('Notice', 'Destination coordinates unavailable.');
+                }
+              }}
+            >
+              <Navigation size={18} color="#2563eb" />
+            </TouchableOpacity>
           </View>
+
         </View>
 
         {/* Pricing Summary */}
