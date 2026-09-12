@@ -271,7 +271,7 @@ const BookServiceScreen = ({ navigation, route }) => {
         <View style={styles.ambientShape1} />
         <View style={styles.ambientShape2} />
 
-        <AppBar title="Book a Service" transparent={true} showBack={false} />
+        <AppBar title="Book a Service" transparent={true} showBack={false} showLogo={false} />
       </LinearGradient>
 
       {/* Floating Search Bar */}

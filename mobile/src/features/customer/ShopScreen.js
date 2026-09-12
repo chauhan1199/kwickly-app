@@ -233,7 +233,6 @@ const ShopScreen = ({ navigation }) => {
           showBack={false}
           showCart={true}
           showProfile={false}
-          showThemeToggle={true}
           showNotifications={true}
         />
       </LinearGradient>

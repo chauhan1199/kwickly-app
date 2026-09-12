@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.6.9.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.7.0.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.6.9.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.7.0.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.6.9 (Build 70) Latest Release</div><br/>
-    <div class="success-badge">✓ Full Dark Mode Support for Shop & Product Listing Screen</div>
+    <div class="badge">v1.7.0 (Build 71) Latest Release</div><br/>
+    <div class="success-badge">✓ Clean Dashboard, Profile Theme Toggle & Clean Book Service</div>
     <h1>Kwickly Mobile</h1>
-    <p>Complete dark theme conversion for Shop Details & Product Listing page: deep dark background, dark product cards, rich text contrast, themed filters, and quantity modal.</p>
+    <p>Dashboard logo/name removed, Book a Service logo removed, screen header toggles moved into Profile section switch.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>

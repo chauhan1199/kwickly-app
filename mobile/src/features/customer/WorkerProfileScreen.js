@@ -35,7 +35,7 @@ import { customerService } from '../../services/customerService';
 const { width } = Dimensions.get('window');
 
 const WorkerProfileScreen = ({ route, navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const { worker } = route.params || {};
 
   // If no worker data passed, go back
@@ -139,13 +139,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
               Professional Profile
             </Text>
 
-            <TouchableOpacity 
-              onPress={toggleTheme} 
-              style={styles.actionBtn}
-              activeOpacity={0.7}
-            >
-              <Text style={{ fontSize: 16 }}>{isDarkMode ? '🌙' : '☀️'}</Text>
-            </TouchableOpacity>
+            <View style={{ width: 40 }} />
           </View>
         </SafeAreaView>
 

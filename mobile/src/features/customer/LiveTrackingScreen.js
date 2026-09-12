@@ -16,7 +16,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { jobService } from '../../services/jobService';
 
 const LiveTrackingScreen = ({ route, navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
 
   const { worker: routeWorker, job } = route.params || {};
 
@@ -133,9 +133,6 @@ const LiveTrackingScreen = ({ route, navigation }) => {
           <Text style={styles.appBarTitle} numberOfLines={1}>Live Tracking</Text>
           <Text style={styles.appBarSub} numberOfLines={1}>{w.name} is on the way</Text>
         </View>
-        <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={styles.bellBtn}>
           <Text style={{fontSize: 16}}>🔔</Text>
           <View style={styles.badge} />

@@ -22,10 +22,10 @@ import { jobService } from '../../services/jobService';
 import { settingsService } from '../../services/settingsService';
 import LinearGradient from 'react-native-linear-gradient';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { Bell, Moon, Sun, ChevronLeft, Radio, MapPin, Calendar, Clock, Image as ImageIcon, X } from 'lucide-react-native';
+import { Bell, ChevronLeft, Radio, MapPin, Calendar, Clock, Image as ImageIcon, X } from 'lucide-react-native';
 
 const LiveBidsScreen = ({ route, navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
 
   const routeParams = route.params || {};
   const jobId = routeParams.jobId || (typeof routeParams.job === 'object' ? routeParams.job?._id : routeParams.job);
@@ -256,9 +256,6 @@ const LiveBidsScreen = ({ route, navigation }) => {
               Job #{jobId ? String(jobId).slice(-8) : ''}
             </Text>
           </View>
-          <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 6 }]}>
-            {isDarkMode ? <Sun size={18} color="#F59E0B" /> : <Moon size={18} color="#fff" />}
-          </TouchableOpacity>
           <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
             <Bell size={18} color="#fff" />
             <View style={styles.badge} />

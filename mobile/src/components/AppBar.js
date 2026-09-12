@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bell, Moon, Sun, Package, User, ChevronLeft } from 'lucide-react-native';
+import { Bell, Package, User, ChevronLeft } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useNotifications } from '../context/NotificationContext';
 import { KwicklyIcon } from './ui/KwicklyBrand';
@@ -24,15 +24,15 @@ const AppBar = ({
   subtitle,
   hideRightIcons = false,
   transparent = false,
-  showLogo = true,
+  showLogo = false,
   showCart = false,
   showProfile = false,
-  showThemeToggle = true,
+  showThemeToggle = false,
   showNotifications = true,
   customRight = null,
 }) => {
   const navigation = useNavigation();
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const { unreadCount } = useNotifications();
 
   const handleBack = () => {
@@ -117,20 +117,7 @@ const AppBar = ({
                 </TouchableOpacity>
               )}
 
-              {/* Dark / Light Toggle */}
-              {showThemeToggle && (
-                <TouchableOpacity
-                  style={[styles.iconBtn, { backgroundColor: iconBg }]}
-                  onPress={toggleTheme}
-                  activeOpacity={0.7}
-                >
-                  {isDarkMode ? (
-                    <Sun size={18} color="#F59E0B" />
-                  ) : (
-                    <Moon size={18} color={transparent ? '#FFF' : '#6C47FF'} />
-                  )}
-                </TouchableOpacity>
-              )}
+
 
               {/* Profile */}
               {showProfile && (

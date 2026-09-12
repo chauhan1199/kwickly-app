@@ -18,8 +18,6 @@ import { jobService } from '../../services/jobService';
 import { 
   ChevronLeft, 
   Bell, 
-  Moon, 
-  Sun, 
   MapPin, 
   Calendar, 
   Clock, 
@@ -35,7 +33,7 @@ import {
 } from 'lucide-react-native';
 
 const PastJobDetailsScreen = ({ route, navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
 
   const { jobId, job } = route.params || {};
   const resolvedJobId = jobId || (typeof job === 'object' ? job?._id : job);
@@ -149,9 +147,6 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.appBarTitle} numberOfLines={1}>Booking Summary</Text>
           <Text style={styles.appBarSub} numberOfLines={1}>Job #{String(jobData._id || resolvedJobId).slice(-8)}</Text>
         </View>
-        <TouchableOpacity onPress={toggleTheme} style={[styles.appBarActionBtn, { marginRight: 6 }]}>
-          {isDarkMode ? <Sun size={18} color="#F59E0B" /> : <Moon size={18} color={theme.colors.text} />}
-        </TouchableOpacity>
         <TouchableOpacity style={styles.appBarActionBtn} onPress={() => navigation.navigate('Notifications')}>
           <Bell size={18} color={theme.colors.text} />
         </TouchableOpacity>

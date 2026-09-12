@@ -14,7 +14,7 @@ import { useTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
 
 const RateExperienceScreen = ({ route, navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
 
   const { worker } = route.params || {};
   const w = worker || { name: 'Ramesh Kumar', cat: 'Cleaning · Home Cleaning' };
@@ -55,9 +55,6 @@ const RateExperienceScreen = ({ route, navigation }) => {
         <View style={{ flex: 1, marginLeft: 8 }}>
           <Text style={styles.appBarTitle} numberOfLines={1}>Rate your experience</Text>
         </View>
-        <TouchableOpacity onPress={toggleTheme} style={[styles.bellBtn, { marginRight: 4 }]}>
-          <Text style={{fontSize: 16}}>{isDarkMode ? '🌙' : '☀️'}</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={styles.bellBtn}>
           <Text style={{fontSize: 16}}>🔔</Text>
           <View style={styles.badge} />

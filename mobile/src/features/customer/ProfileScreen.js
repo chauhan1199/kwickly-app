@@ -8,8 +8,10 @@ import {
   TouchableOpacity, 
   StatusBar,
   Image,
-  Platform
+  Platform,
+  Switch
 } from 'react-native';
+import { Moon, Sun } from 'lucide-react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
@@ -69,7 +71,6 @@ const ProfileScreen = ({ navigation }) => {
           showBack={false} 
           showProfile={false} 
           showCart={false} 
-          showThemeToggle={true} 
           showNotifications={true} 
         />
       </LinearGradient>
@@ -119,6 +120,29 @@ const ProfileScreen = ({ navigation }) => {
 
         {/* Menu Items */}
         <View style={styles.menuContainer}>
+          {/* Dark Mode Switch */}
+          <TouchableOpacity 
+            style={styles.menuItem} 
+            activeOpacity={0.8}
+            onPress={toggleTheme}
+          >
+            <View style={styles.menuRow}>
+              <View style={[styles.menuIconBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : 'rgba(245, 158, 11, 0.15)' }]}>
+                {isDarkMode ? <Moon size={20} color="#8B6FFF" /> : <Sun size={20} color="#F59E0B" />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuTitle}>Dark Mode</Text>
+                <Text style={styles.menuSub}>{isDarkMode ? 'Dark theme enabled' : 'Light theme enabled'}</Text>
+              </View>
+              <Switch
+                value={isDarkMode}
+                onValueChange={toggleTheme}
+                trackColor={{ false: '#D1D5DB', true: '#6C47FF' }}
+                thumbColor={'#FFFFFF'}
+              />
+            </View>
+          </TouchableOpacity>
+
           {menuItems.map((item, index) => (
             <TouchableOpacity 
               key={item.id} 

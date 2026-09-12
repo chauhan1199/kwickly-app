@@ -42,7 +42,7 @@ const statusLabel = {
 };
 
 const QuotesScreen = ({ navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const { userToken } = useAuth();
   const [filter, setFilter] = useState('All');
   const [jobs, setJobs] = useState([]);
@@ -114,9 +114,6 @@ const QuotesScreen = ({ navigation }) => {
           <Text style={styles.appBarTitle}>My Bookings</Text>
           <Text style={styles.appBarSub}>Services & shop orders</Text>
         </View>
-        <TouchableOpacity onPress={toggleTheme} style={styles.iconBtn}>
-          <Text style={{ fontSize: 16 }}>{isDarkMode ? '☀️' : '🌙'}</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Filter Chips */}

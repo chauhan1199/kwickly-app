@@ -20,8 +20,6 @@ import CustomAlert from '../../components/ui/CustomAlert';
 import { getImageUrl } from '../../utils/helpers';
 import {
   ChevronLeft,
-  Sun,
-  Moon,
   Bell,
   CheckCircle2,
   ShieldCheck,
@@ -35,7 +33,7 @@ import {
 } from 'lucide-react-native';
 
 const WorkCompletedScreen = ({ route, navigation }) => {
-  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
 
   const { worker, job } = route.params || {};
@@ -202,14 +200,6 @@ const WorkCompletedScreen = ({ route, navigation }) => {
           <Text style={styles.appBarTitle} numberOfLines={1}>Work Completed</Text>
           <Text style={styles.appBarSub} numberOfLines={1}>Review & Authorize Payment</Text>
         </View>
-        
-        <TouchableOpacity 
-          onPress={toggleTheme} 
-          style={styles.iconBtn}
-          activeOpacity={0.7}
-        >
-          {isDarkMode ? <Sun size={18} color="#F59E0B" /> : <Moon size={18} color="#6C47FF" />}
-        </TouchableOpacity>
         
         <TouchableOpacity 
           style={styles.iconBtn}
