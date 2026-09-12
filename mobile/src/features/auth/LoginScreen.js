@@ -699,21 +699,22 @@ const LoginScreen = ({ navigation, route }) => {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
+            overScrollMode="never"
           >
             <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
-              <View style={styles.headerLayoutRow}>
+              <View style={[styles.headerLayoutRow, { marginBottom: 6 }]}>
                 <View style={styles.headerTextCol}>
-                  <Text style={[styles.heroHeadline, { color: textMain }]}>
+                  <Text style={[styles.heroHeadline, { fontSize: 24, lineHeight: 28, color: textMain }]}>
                     Welcome{'\n'}
                     <Text style={{ color: PURPLE }}>Back!</Text>
                   </Text>
-                  <Text style={[styles.heroSub, { color: textSub }]}>
+                  <Text style={[styles.heroSub, { fontSize: 11.5, lineHeight: 15, marginTop: 3, color: textSub }]}>
                     Enter your 4-digit MPIN to access your account
                   </Text>
-                  <View style={styles.safeShieldPill}>
-                    <ShieldCheck size={14} color={PURPLE} />
-                    <Text style={styles.safeShieldText}>Your data is safe with us</Text>
+                  <View style={[styles.safeShieldPill, { paddingVertical: 2, paddingHorizontal: 8, marginTop: 4 }]}>
+                    <ShieldCheck size={12} color={PURPLE} />
+                    <Text style={[styles.safeShieldText, { fontSize: 10 }]}>Your data is safe with us</Text>
                   </View>
                 </View>
                 <Image
@@ -722,43 +723,43 @@ const LoginScreen = ({ navigation, route }) => {
                       ? require('../../assets/images/hero_mpin_dark.png')
                       : require('../../assets/images/hero_mpin.png')
                   }
-                  style={styles.heroMpinImg}
+                  style={[styles.heroMpinImg, { width: 95, height: 80 }]}
                   resizeMode="contain"
                 />
               </View>
 
               {/* Floating Form Card */}
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: 16, paddingVertical: 12 }]}>
                 {/* User Profile Pill */}
-                <View style={[styles.userProfileBox, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF' }]}>
-                  <View style={styles.avatarCircle}>
-                    <User size={18} color={PURPLE} />
+                <View style={[styles.userProfileBox, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF', paddingVertical: 6, paddingHorizontal: 10, marginBottom: 8 }]}>
+                  <View style={[styles.avatarCircle, { width: 30, height: 30, borderRadius: 15 }]}>
+                    <User size={15} color={PURPLE} />
                   </View>
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={[styles.profileRoleText, { color: textMain }]}>{selectedRole.toUpperCase()}</Text>
-                    <Text style={[styles.profilePhoneText, { color: textSub }]}>+91 {phone}</Text>
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={[styles.profileRoleText, { fontSize: 12, color: textMain }]}>{selectedRole.toUpperCase()}</Text>
+                    <Text style={[styles.profilePhoneText, { fontSize: 11, color: textSub }]}>+91 {phone}</Text>
                   </View>
                   <TouchableOpacity
-                    style={[styles.changeBtn, { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF' }]}
+                    style={[styles.changeBtn, { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF', paddingVertical: 3, paddingHorizontal: 8 }]}
                     onPress={() => setStep('PHONE')}
                     activeOpacity={0.75}
                   >
-                    <Text style={[styles.changeBtnText, { color: PURPLE }]}>Change</Text>
+                    <Text style={[styles.changeBtnText, { fontSize: 11, color: PURPLE }]}>Change</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* PIN Header Row */}
-                <View style={styles.pinHeaderRow}>
-                  <Text style={[styles.pinHeaderTitle, { color: textMain }]}>Enter 4-Digit MPIN</Text>
+                <View style={[styles.pinHeaderRow, { marginBottom: 8 }]}>
+                  <Text style={[styles.pinHeaderTitle, { fontSize: 13, color: textMain }]}>Enter 4-Digit MPIN</Text>
                   <TouchableOpacity onPress={handleForgotMpin} activeOpacity={0.75}>
-                    <Text style={[styles.forgotMpinText, { color: PURPLE }]}>Forgot MPIN?</Text>
+                    <Text style={[styles.forgotMpinText, { fontSize: 12, color: PURPLE }]}>Forgot MPIN?</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* PIN Boxes Container with Touchable Overlay */}
                 <View style={styles.pinContainer}>
                   <Animated.View
-                    style={[styles.pinRow, { transform: [{ translateX: shakeAnim }] }]}
+                    style={[styles.pinRow, { gap: 10, transform: [{ translateX: shakeAnim }] }]}
                     pointerEvents="none"
                   >
                     {[0, 1, 2, 3].map((i) => {
@@ -769,7 +770,13 @@ const LoginScreen = ({ navigation, route }) => {
                           key={i}
                           style={[
                             styles.pinBox,
-                            { backgroundColor: inputBg, borderColor: inputBorder },
+                            {
+                              width: 50,
+                              height: 50,
+                              borderRadius: 14,
+                              backgroundColor: inputBg,
+                              borderColor: inputBorder,
+                            },
                             current && styles.pinBoxActiveGlow,
                             filled && { borderColor: PURPLE },
                             mpinError && { borderColor: '#EF4444' },
@@ -777,12 +784,12 @@ const LoginScreen = ({ navigation, route }) => {
                         >
                           {filled ? (
                             showMpin ? (
-                              <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                              <Text style={[styles.pinDigit, { fontSize: 18, color: textMain }]}>{mpin[i]}</Text>
                             ) : (
-                              <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
+                              <View style={[styles.pinDot, { width: 10, height: 10, borderRadius: 5, backgroundColor: PURPLE }]} />
                             )
                           ) : (
-                            <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
+                            <View style={[styles.pinEmptyDot, { width: 6, height: 6, borderRadius: 3, backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
                           )}
                         </View>
                       );
@@ -808,25 +815,25 @@ const LoginScreen = ({ navigation, route }) => {
 
                 {/* Show MPIN Toggle */}
                 <TouchableOpacity
-                  style={[styles.eyePill, { backgroundColor: isDarkMode ? `${PURPLE}22` : PURPLE_LIGHT }]}
+                  style={[styles.eyePill, { backgroundColor: isDarkMode ? `${PURPLE}22` : PURPLE_LIGHT, paddingVertical: 3, paddingHorizontal: 10, marginTop: 6 }]}
                   onPress={() => setShowMpin(!showMpin)}
                   activeOpacity={0.75}
                 >
-                  {showMpin ? <EyeOff size={14} color={PURPLE} /> : <Eye size={14} color={PURPLE} />}
-                  <Text style={[styles.eyePillText, { color: PURPLE }]}>{showMpin ? 'Hide' : 'Show'} MPIN</Text>
+                  {showMpin ? <EyeOff size={12} color={PURPLE} /> : <Eye size={12} color={PURPLE} />}
+                  <Text style={[styles.eyePillText, { fontSize: 11, color: PURPLE }]}>{showMpin ? 'Hide' : 'Show'} MPIN</Text>
                 </TouchableOpacity>
 
                 {/* Error Message */}
                 {Boolean(mpinError) && (
-                  <View style={[styles.errorBox, { backgroundColor: isDarkMode ? 'rgba(239,68,68,0.12)' : '#FEF2F2', borderColor: isDarkMode ? 'rgba(239,68,68,0.3)' : '#FCA5A5' }]}>
-                    <AlertCircle size={14} color="#EF4444" style={{ marginRight: 6 }} />
-                    <Text style={styles.errorText}>{mpinError}</Text>
+                  <View style={[styles.errorBox, { backgroundColor: isDarkMode ? 'rgba(239,68,68,0.12)' : '#FEF2F2', borderColor: isDarkMode ? 'rgba(239,68,68,0.3)' : '#FCA5A5', paddingVertical: 4, marginVertical: 4 }]}>
+                    <AlertCircle size={13} color="#EF4444" style={{ marginRight: 6 }} />
+                    <Text style={[styles.errorText, { fontSize: 11 }]}>{mpinError}</Text>
                   </View>
                 )}
 
                 {/* Sign In CTA */}
                 <TouchableOpacity
-                  style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 14 }]}
+                  style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 10 }]}
                   onPress={() => handleMpinSubmit(mpin)}
                   disabled={mpin.length !== 4 || loading}
                   activeOpacity={0.88}
@@ -835,50 +842,67 @@ const LoginScreen = ({ navigation, route }) => {
                     colors={[PURPLE, '#582BE8']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={styles.ctaBtn}
+                    style={[styles.ctaBtn, { height: 46 }]}
                   >
                     {loading ? (
                       <ActivityIndicator size="small" color="#FFF" />
                     ) : (
                       <>
-                        <Text style={styles.ctaText}>Sign In with MPIN</Text>
-                        <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                        <Text style={[styles.ctaText, { fontSize: 15 }]}>Sign In with MPIN</Text>
+                        <ArrowRight size={16} color="#FFF" style={{ marginLeft: 6 }} />
                       </>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
 
                 {/* OR Divider */}
-                <View style={styles.orRow}>
+                <View style={[styles.orRow, { marginVertical: 6 }]}>
                   <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
-                  <Text style={[styles.orText, { color: textSub }]}>OR</Text>
+                  <Text style={[styles.orText, { fontSize: 11, color: textSub }]}>OR</Text>
                   <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
                 </View>
 
                 {/* Sign in with OTP instead button */}
                 <TouchableOpacity
-                  style={[styles.otpOutlineBtn, { borderColor: inputBorder, backgroundColor: isDarkMode ? '#1E2540' : '#FFFFFF' }]}
+                  style={[styles.otpOutlineBtn, { height: 40, borderColor: inputBorder, backgroundColor: isDarkMode ? '#1E2540' : '#FFFFFF' }]}
                   onPress={handleDirectOtpLogin}
                   activeOpacity={0.8}
                 >
-                  <MessageSquare size={16} color={PURPLE} style={{ marginRight: 8 }} />
-                  <Text style={[styles.otpOutlineText, { color: textSub }]}>
+                  <MessageSquare size={14} color={PURPLE} style={{ marginRight: 6 }} />
+                  <Text style={[styles.otpOutlineText, { fontSize: 12, color: textSub }]}>
                     Sign in with <Text style={{ color: PURPLE, fontWeight: '800' }}>OTP instead</Text>
                   </Text>
                 </TouchableOpacity>
 
                 {/* Switch mobile number */}
                 <TouchableOpacity
-                  style={{ alignItems: 'center', marginTop: 12 }}
+                  style={{ alignItems: 'center', marginTop: 6 }}
                   onPress={() => setStep('PHONE')}
                   activeOpacity={0.75}
                 >
-                  <Text style={[styles.footerLink, { color: PURPLE }]}>Switch mobile number</Text>
+                  <Text style={[styles.footerLink, { fontSize: 12, color: PURPLE }]}>Switch mobile number</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Trust Badges Bar directly below card */}
-              {renderTrustBar()}
+              {/* Compact Trust Badges Bar directly below card */}
+              <View style={[styles.trustBarCard, { marginTop: 6, marginBottom: 0, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF', borderColor: isDarkMode ? '#1E293B' : '#EDF0F7' }]}>
+                <View style={styles.trustBarRow}>
+                  <View style={styles.trustItem}>
+                    <ShieldCheck size={12} color="#10B981" />
+                    <Text style={[styles.trustTitle, { fontSize: 10, marginLeft: 4, color: textMain }]}>100% Secure</Text>
+                  </View>
+                  <View style={styles.trustDivider} />
+                  <View style={styles.trustItem}>
+                    <Zap size={12} color={PURPLE} />
+                    <Text style={[styles.trustTitle, { fontSize: 10, marginLeft: 4, color: textMain }]}>Instant</Text>
+                  </View>
+                  <View style={styles.trustDivider} />
+                  <View style={styles.trustItem}>
+                    <Text style={{ fontSize: 12 }}>🇮🇳</Text>
+                    <Text style={[styles.trustTitle, { fontSize: 10, marginLeft: 4, color: textMain }]}>Made in India</Text>
+                  </View>
+                </View>
+              </View>
             </View>
 
             {/* Bottom Footer Section */}

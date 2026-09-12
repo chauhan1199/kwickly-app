@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.6.6.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-v1.6.7.apk'
       });
       fs.createReadStream(apkPath).pipe(res);
     } else {
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.6.6.apk'
+        'Content-Disposition': 'attachment; filename=kwickly-universal-v1.6.7.apk'
       });
       fs.createReadStream(uniPath).pipe(res);
     } else {
@@ -53,10 +53,10 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.6.6 (Build 67) Latest Release</div><br/>
-    <div class="success-badge">✓ Removed Bottom Blank Spaces Across All Screens (Light & Dark)</div>
+    <div class="badge">v1.6.7 (Build 68) Latest Release</div><br/>
+    <div class="success-badge">✓ MPIN Screen Footer Elevated & Zero Back Button Overlap</div>
     <h1>Kwickly Mobile</h1>
-    <p>Zero artificial end-of-scroll blank gaps across Home, Shops, Booking, Wallet, Profile, and Worker screens in both light and dark modes.</p>
+    <p>Compact MPIN enter screen layout with footer grounded safely above mobile back and navigation buttons in both light and dark themes.</p>
     <a class="btn-main" href="/kwickly.apk">Download Release APK (ARM64)</a>
     <a class="btn-secondary" href="/kwickly-universal.apk">Download Universal APK</a>
   </div>
