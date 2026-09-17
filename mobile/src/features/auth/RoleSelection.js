@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
   },
   bgOrbBottomRight: {
     position: 'absolute',
-    bottom: SH * 0.10,
+    bottom: 80,
     right: -70,
     width: 260,
     height: 260,

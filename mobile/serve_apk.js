@@ -20,7 +20,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.7.6.apk',
+        'Content-Disposition': 'attachment; filename=kwickly-v1.7.7.apk',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
@@ -143,7 +143,7 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.7.6 · Build 77 (Universal)</div><br/>
+    <div class="badge">v1.7.7 · Build 78 (Universal)</div><br/>
     <div class="success-tag">✓ Supports All Mobiles (32 & 64-bit)</div>
     <h1>Kwickly Universal Testing APK</h1>
     <p class="meta">Universal release APK (${fileSizeMb} MB) supporting Samsung M30s/A/M/S series, Xiaomi, Realme, Vivo, Oppo & all Android devices.</p>

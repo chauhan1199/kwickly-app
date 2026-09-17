@@ -10,10 +10,43 @@ echo JAVA_HOME: %JAVA_HOME%
 echo ANDROID_HOME: %ANDROID_HOME%
 echo.
 
-cd /d "d:\kwickly\11-4-26\mobile\android"
+cd /d "d:\kwickly\11-4-26\mobile"
 
-echo Running gradle assembleRelease...
-call gradlew.bat assembleRelease --no-daemon
+echo --------------------------------------------------------
+echo  STEP 1: Clearing Metro cache...
+echo --------------------------------------------------------
+rmdir /s /q node_modules\.cache 2>nul
+echo Metro cache cleared.
+
+echo.
+echo --------------------------------------------------------
+echo  STEP 2: Creating assets folder...
+echo --------------------------------------------------------
+mkdir android\app\src\main\assets 2>nul
+
+echo.
+echo --------------------------------------------------------
+echo  STEP 3: Bundling JavaScript (release mode)...
+echo --------------------------------------------------------
+call npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android\app\src\main\assets\index.android.bundle --assets-dest android\app\src\main\res --reset-cache
+if %ERRORLEVEL% neq 0 (
+    echo ERROR: JavaScript bundle failed! Aborting build.
+    pause
+    exit /b 1
+)
+echo JS bundle created successfully.
+
+echo.
+echo --------------------------------------------------------
+echo  STEP 4: Building release APK with Gradle...
+echo --------------------------------------------------------
+cd /d "d:\kwickly\11-4-26\mobile\android"
+call gradlew.bat assembleRelease --no-daemon -PbundleInRelease=false
+if %ERRORLEVEL% neq 0 (
+    echo ERROR: Gradle build failed!
+    pause
+    exit /b 1
+)
 
 cd /d "d:\kwickly\11-4-26\mobile"
 set "APK_SRC="
@@ -22,14 +55,14 @@ if not defined APK_SRC if exist "android\app\build\outputs\apk\release\app-relea
 if not defined APK_SRC if exist "android\app\build\outputs\apk\release\app-arm64-v8a-release.apk" set "APK_SRC=android\app\build\outputs\apk\release\app-arm64-v8a-release.apk"
 
 if defined APK_SRC (
-    copy /Y "%APK_SRC%" "kwickly-app.apk"
-    copy /Y "%APK_SRC%" "..\kwickly-app.apk"
+    copy /Y "%APK_SRC%" "kwickly.apk"
+    copy /Y "%APK_SRC%" "..\kwickly.apk"
     echo.
     echo ========================================================
-    echo  SUCCESS: Standalone APK Created Successfully!
+    echo  SUCCESS: APK Created!
     echo  Source: %APK_SRC%
-    echo  Mobile Folder: d:\kwickly\11-4-26\mobile\kwickly-app.apk
-    echo  Workspace Root: d:\kwickly\11-4-26\kwickly-app.apk
+    echo  Mobile: d:\kwickly\11-4-26\mobile\kwickly.apk
+    echo  Root:   d:\kwickly\11-4-26\kwickly.apk
     echo ========================================================
 ) else (
     echo.

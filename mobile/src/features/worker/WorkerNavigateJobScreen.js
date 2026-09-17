@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   StatusBar,
   Linking,
+  Platform,
   Alert
 } from 'react-native';
 import { WebView } from 'react-native-webview';

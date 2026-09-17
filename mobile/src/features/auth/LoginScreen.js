@@ -14,6 +14,7 @@ import {
   Pressable,
   ScrollView,
   Dimensions,
+  useWindowDimensions,
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1026,7 +1027,7 @@ const styles = StyleSheet.create({
   },
   bgOrbBottomRight: {
     position: 'absolute',
-    bottom: SH * 0.10,
+    bottom: 80,
     right: -70,
     width: 260,
     height: 260,
@@ -1078,12 +1079,12 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   heroLoginImg: {
-    width: Math.min(SW * 0.38, 140),
-    height: Math.min(SW * 0.28, 105),
+    width: 130,
+    height: 95,
   },
   heroMpinImg: {
-    width: Math.min(SW * 0.38, 140),
-    height: Math.min(SW * 0.28, 105),
+    width: 130,
+    height: 95,
   },
   safeShieldPill: {
     flexDirection: 'row',
@@ -1371,8 +1372,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   bottomSection: {
-    width: SW,
-    marginHorizontal: -16,
+    width: '100%',
     alignItems: 'center',
     marginTop: 'auto',
     marginBottom: 0,
@@ -1524,8 +1524,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   pinBox: {
-    width: Math.min(SW * 0.17, 66),
-    height: Math.min(SW * 0.17, 66),
+    width: 58,
+    height: 58,
     borderRadius: 18,
     borderWidth: 2,
     alignItems: 'center',

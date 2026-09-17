@@ -325,7 +325,7 @@ const ShopWalletScreen = ({ navigation }) => {
         } else {
           Alert.alert('Verification In Progress', `UTR ${utr} submitted. Your wallet will update once confirmed by the bank.`);
         }
-        fetchWalletData();
+        fetchWallet();
         return;
       }
 
@@ -334,7 +334,7 @@ const ShopWalletScreen = ({ navigation }) => {
     } catch (e) {
       console.warn('[Shop UPI] App launch:', e.message);
       setWaitingModalVisible(false);
-      setUpiModalVisible(false);
+      setUpiPaymentModalVisible(false);
     }
   };
 
@@ -624,7 +624,7 @@ const ShopWalletScreen = ({ navigation }) => {
         } else {
           Alert.alert('Verification In Progress', `UTR ${utr} submitted for subscription verification.`);
         }
-        fetchSubscriptionData();
+        fetchWallet();
         return;
       }
 

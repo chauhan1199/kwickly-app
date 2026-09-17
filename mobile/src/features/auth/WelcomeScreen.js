@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   },
   bgOrbBottomRight: {
     position: 'absolute',
-    bottom: SH * 0.12,
+    bottom: 90,
     right: -80,
     width: 280,
     height: 280,
@@ -371,13 +371,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   hl: {
-    fontSize: Math.min(SW * 0.052, 20),
+    fontSize: 20,
     fontWeight: '900',
     textAlign: 'center',
     letterSpacing: -0.4,
   },
   hlSub: {
-    fontSize: Math.min(SW * 0.048, 18),
+    fontSize: 18,
     fontWeight: '900',
     textAlign: 'center',
     marginTop: 1,
@@ -397,14 +397,14 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   chipsCol: {
-    width: CHIP_W,
+    width: 76,
     height: '100%',
     flexDirection: 'column',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   chipCard: {
-    width: CHIP_W,
+    width: 76,
     borderRadius: 12,
     borderWidth: 1.2,
     alignItems: 'center',
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
   },
   chipIconImg: {
     width: '100%',
-    height: Math.min(CHIP_H * 0.54, 30),
+    height: 26,
     marginBottom: 1,
   },
   chipText: {

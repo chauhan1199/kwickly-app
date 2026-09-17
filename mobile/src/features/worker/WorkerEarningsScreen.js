@@ -306,7 +306,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
         } else {
           Alert.alert('Verification In Progress', `UTR ${utr} submitted. Your wallet will update once confirmed by the bank.`);
         }
-        fetchEarnings();
+        fetchWalletAndProfile();
         return;
       }
 
@@ -1897,7 +1897,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 16,
   },
   upiAppBtn: {
-    width: (SCREEN_WIDTH - 64 - 16) / 3,
+    flexBasis: '30%',
+    flexGrow: 1,
     backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
     borderRadius: 14,
     paddingVertical: 12,

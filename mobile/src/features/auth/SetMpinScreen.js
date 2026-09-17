@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   },
   bgOrbBottomRight: {
     position: 'absolute',
-    bottom: SH * 0.10,
+    bottom: 80,
     right: -70,
     width: 260,
     height: 260,
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   heroMpinImg: {
-    width: SW * 0.35,
+    width: 120,
     height: 85,
   },
   safeShieldPill: {
@@ -563,8 +563,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   pinBox: {
-    width: Math.min(SW * 0.13, 52),
-    height: Math.min(SW * 0.13, 52),
+    width: 50,
+    height: 50,
     borderRadius: 14,
     borderWidth: 2,
     alignItems: 'center',

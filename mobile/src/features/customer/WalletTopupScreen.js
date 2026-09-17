@@ -254,7 +254,7 @@ const WalletTopupScreen = ({ navigation }) => {
       </View>
 
       {/* UPI Checkout Modal */}
-      <Modal visible={upiCheckoutModal} transparent animationType="slide" onRequestClose={() => !isVerifying && setUpiCheckoutModal(false)}>
+      <Modal visible={upiCheckoutModal} transparent animationType="slide" onRequestClose={() => !processing && setUpiCheckoutModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
           <View style={styles.upiSheet}>
             <View style={styles.handle} />
@@ -264,7 +264,7 @@ const WalletTopupScreen = ({ navigation }) => {
                 <Text style={styles.sheetTitle}>Pay via UPI / NetBanking</Text>
                 <Text style={styles.upiSubtitle}>Top-up Kwickly Wallet with instant credit</Text>
               </View>
-              <TouchableOpacity onPress={() => !isVerifying && setUpiCheckoutModal(false)} style={styles.closeBtn}>
+              <TouchableOpacity onPress={() => !processing && setUpiCheckoutModal(false)} style={styles.closeBtn}>
                 <X size={20} color={theme.colors.textDim} />
               </TouchableOpacity>
             </View>

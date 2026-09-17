@@ -9,6 +9,7 @@ import {
   StatusBar,
   Dimensions,
   useWindowDimensions,
+  Platform,
   Image,
   Animated,
   ActivityIndicator,
@@ -30,6 +31,7 @@ import GlassCard from '../../components/ui/GlassCard';
 import { getImageUrl } from '../../utils/helpers';
 
 // ── Purple accent ──
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#EEE8FF';
 const BG = '#fff';
@@ -613,7 +615,7 @@ const HomeScreen = ({ navigation }) => {
                         backgroundColor: theme.colors.card, 
                         borderColor: theme.colors.border,
                         marginRight: index === arr.length - 1 ? 0 : 12,
-                        width: Math.floor((SCREEN_WIDTH - 32 - 16) / 2.3)
+                        width: Math.floor((Math.min(windowWidth, 800) - 32 - 16) / 2.3)
                       }
                     ]}
                     onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id || shop._id, shopData: shop })}
