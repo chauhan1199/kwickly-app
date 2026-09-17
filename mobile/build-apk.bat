@@ -10,7 +10,7 @@ echo JAVA_HOME: %JAVA_HOME%
 echo ANDROID_HOME: %ANDROID_HOME%
 echo.
 
-cd /d "d:\kwickly\11-4-26\mobile"
+cd /d "D:\kwickly\11-4-26\mobile"
 
 echo --------------------------------------------------------
 echo  STEP 1: Clearing Metro cache...
@@ -28,10 +28,9 @@ echo.
 echo --------------------------------------------------------
 echo  STEP 3: Bundling JavaScript (release mode)...
 echo --------------------------------------------------------
-call npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android\app\src\main\assets\index.android.bundle --assets-dest android\app\src\main\res --reset-cache
+call npx.cmd react-native bundle --platform android --dev false --entry-file index.js --bundle-output android\app\src\main\assets\index.android.bundle --assets-dest android\app\src\main\res --reset-cache
 if %ERRORLEVEL% neq 0 (
     echo ERROR: JavaScript bundle failed! Aborting build.
-    pause
     exit /b 1
 )
 echo JS bundle created successfully.
@@ -40,15 +39,14 @@ echo.
 echo --------------------------------------------------------
 echo  STEP 4: Building release APK with Gradle...
 echo --------------------------------------------------------
-cd /d "d:\kwickly\11-4-26\mobile\android"
+cd /d "D:\kwickly\11-4-26\mobile\android"
 call gradlew.bat assembleRelease --no-daemon -PbundleInRelease=false
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Gradle build failed!
-    pause
     exit /b 1
 )
 
-cd /d "d:\kwickly\11-4-26\mobile"
+cd /d "D:\kwickly\11-4-26\mobile"
 set "APK_SRC="
 if exist "android\app\build\outputs\apk\release\app-universal-release.apk" set "APK_SRC=android\app\build\outputs\apk\release\app-universal-release.apk"
 if not defined APK_SRC if exist "android\app\build\outputs\apk\release\app-release.apk" set "APK_SRC=android\app\build\outputs\apk\release\app-release.apk"
