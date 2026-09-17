@@ -20,7 +20,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.7.3.apk',
+        'Content-Disposition': 'attachment; filename=kwickly-v1.7.4.apk',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
     }
   } else {
     // Single clean download page
-    let fileSizeMb = '12.5';
+    let fileSizeMb = '22.0';
     if (fs.existsSync(apkPath)) {
       fileSizeMb = (fs.statSync(apkPath).size / (1024 * 1024)).toFixed(1);
     }
@@ -143,23 +143,22 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.7.3 · Build 74 (Compressed)</div><br/>
-    <div class="success-tag">✓ Optimized & Latency Free</div>
-    <h1>Kwickly Final Testing APK</h1>
-    <p class="meta">Single compressed release APK (${fileSizeMb} MB) with ultra-fast Redis caching.</p>
+    <div class="badge">v1.7.4 · Build 75 (Universal)</div><br/>
+    <div class="success-tag">✓ Supports All Mobiles (32 & 64-bit)</div>
+    <h1>Kwickly Universal Testing APK</h1>
+    <p class="meta">Universal release APK (${fileSizeMb} MB) supporting Samsung M30s/A/M/S series, Xiaomi, Realme, Vivo, Oppo & all Android devices.</p>
     
     <a class="btn-download" href="/kwickly.apk">
-      Download Final APK ↓
+      Download Universal APK ↓
     </a>
 
     <div class="features">
-      <h3>Verified Changes in this Build:</h3>
-      <div class="feature-item">✓ Subcategories header color matches Shop screen gradient</div>
-      <div class="feature-item">✓ Compact professional profile header matching subcategories</div>
-      <div class="feature-item">✓ Dynamic category & subcategory uploaded images</div>
-      <div class="feature-item">✓ Removed redundant back &lt; header icon</div>
-      <div class="feature-item">✓ Redis cache-first data: zero latency</div>
-      <div class="feature-item">✓ Optimized APK size (~12 MB compressed, no latency)</div>
+      <h3>Verified Compatibility:</h3>
+      <div class="feature-item">✓ Universal dual ABI: armeabi-v7a (32-bit) + arm64-v8a (64-bit)</div>
+      <div class="feature-item">✓ Samsung M30s & One UI 3.1 launch crash resolved</div>
+      <div class="feature-item">✓ Legacy native library packaging enabled</div>
+      <div class="feature-item">✓ Turn-by-turn map navigation with live GPS geofencing</div>
+      <div class="feature-item">✓ Redis cache-first zero latency performance</div>
     </div>
   </div>
 </body>
