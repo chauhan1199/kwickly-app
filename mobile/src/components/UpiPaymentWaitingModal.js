@@ -469,7 +469,7 @@ const UpiPaymentWaitingModal = ({
       onRequestClose={handleDismissModal}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.overlay}
       >
         <View style={styles.card}>
@@ -693,9 +693,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 380,
+    maxHeight: '90%',
     backgroundColor: isDarkMode ? '#1E1E2E' : '#FFFFFF',
     borderRadius: 24,
-    padding: 22,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -730,13 +731,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     width: '100%',
   },
   promptIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: isDarkMode ? '#2D2B52' : '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   promptTitle: {
     fontSize: 19,

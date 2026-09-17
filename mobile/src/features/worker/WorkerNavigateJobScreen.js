@@ -21,8 +21,8 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
+  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
+  const safeTop = Math.max(insets.top, androidHeight, Platform.OS === 'android' ? 36 : 16);
   const styles = createStyles(theme, isDarkMode, safeTop);
 
   const { jobId, job, quoteAmount } = route.params || {};

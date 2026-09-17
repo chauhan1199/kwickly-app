@@ -57,16 +57,22 @@ const WelcomeScreen = ({ navigation }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   const contentWidth = Math.min(windowWidth, 480);
-  const heroH = Math.min(Math.max(windowHeight * 0.22, 175), 205);
+  // Responsive hero height: smaller on small screens to fit all content
+  const isSmallScreen = windowHeight < 700;
+  const heroH = isSmallScreen
+    ? Math.min(Math.max(windowHeight * 0.19, 145), 170)
+    : Math.min(Math.max(windowHeight * 0.22, 165), 195);
   const chipH = (heroH - 10) / 3;
-  const chipW = Math.min(Math.max(contentWidth * 0.20, 68), 82);
+  const chipW = Math.min(Math.max(contentWidth * 0.19, 64), 76);
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
+  const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 8;
   const safeBottomInset = getSafeBottomInset(insets);
 
   const footerAspect = isDarkMode ? (448 / 1376) : (99 / 576);
-  const footerHeight = Math.round(Math.min(windowWidth, 600) * footerAspect);
+  // Cap footer height on small screens so it doesn't hide the Sign In button
+  const rawFooterHeight = Math.round(Math.min(windowWidth, 600) * footerAspect);
+  const footerHeight = isSmallScreen ? Math.min(rawFooterHeight, 60) : rawFooterHeight;
 
   return (
     <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
@@ -102,7 +108,7 @@ const WelcomeScreen = ({ navigation }) => {
           styles.mainContent,
           {
             paddingTop: safeTopPadding,
-            paddingBottom: footerHeight + safeBottomInset + 20,
+            paddingBottom: footerHeight + safeBottomInset + 24,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -357,9 +363,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    marginTop: 2,
-    marginBottom: 4,
+    gap: 10,
+    marginTop: 0,
+    marginBottom: 2,
   },
   wordmark: {
     fontSize: 29,
@@ -368,7 +374,7 @@ const styles = StyleSheet.create({
   },
   headBlock: {
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   hl: {
     fontSize: 20,
@@ -394,7 +400,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginVertical: 4,
+    marginVertical: 2,
   },
   chipsCol: {
     width: 76,
@@ -451,7 +457,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
-    marginVertical: 4,
+    marginVertical: 2,
     paddingHorizontal: 4,
   },
   featItem: {
@@ -476,8 +482,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
-    gap: 8,
-    marginVertical: 4,
+    gap: 6,
+    marginVertical: 2,
   },
   statCard: {
     flex: 1,
@@ -501,8 +507,8 @@ const styles = StyleSheet.create({
   ctaBlock: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 2,
+    marginTop: 6,
+    marginBottom: 4,
   },
   btnShadow: {
     width: '100%',

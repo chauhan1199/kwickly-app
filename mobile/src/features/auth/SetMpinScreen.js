@@ -83,6 +83,8 @@ const SetMpinScreen = ({ navigation, route }) => {
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
   const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
   const safeBottomInset = getSafeBottomInset(insets);
+  const { height: windowHeight } = useWindowDimensions();
+  const isSmallScreen = windowHeight < 700;
 
   const normalizedRole = (role || 'CUSTOMER').toUpperCase();
   const roleMeta = ROLE_META[normalizedRole] || ROLE_META.CUSTOMER;
@@ -162,7 +164,9 @@ const SetMpinScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 12),
+              paddingBottom: keyboardVisible
+                ? (keyboardHeight || bottomInset)
+                : (safeBottomInset + 20),
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
@@ -174,7 +178,7 @@ const SetMpinScreen = ({ navigation, route }) => {
             {/* Header Layout Row: Headline Left, 3D Hero Right */}
             <View style={styles.headerLayoutRow}>
               <View style={styles.headerTextCol}>
-                <Text style={[styles.heroHeadline, { color: textMain }]}>
+                <Text style={[styles.heroHeadline, { fontSize: isSmallScreen ? 19 : 22, lineHeight: isSmallScreen ? 23 : 26, color: textMain }]}>
                   Create{'\n'}
                   <Text style={{ color: PURPLE }}>4-Digit MPIN</Text>
                 </Text>
@@ -654,7 +658,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 8,
-    marginBottom: 4,
+    marginBottom: 8,
     paddingHorizontal: 4,
   },
   trustItem: {

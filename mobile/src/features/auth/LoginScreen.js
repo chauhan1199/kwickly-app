@@ -305,8 +305,12 @@ const LoginScreen = ({ navigation, route }) => {
   const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
   const safeBottomInset = getSafeBottomInset(insets);
 
+  // Responsive footer: cap height on small screens so it never clips content above
+  const { height: windowHeight } = useWindowDimensions();
+  const isSmallScreen = windowHeight < 700;
   const loginFooterAspect = isDarkMode ? (508 / 1376) : (200 / 576);
-  const loginFooterHeight = Math.round(Math.min(windowWidth, 600) * loginFooterAspect);
+  const rawLoginFooterHeight = Math.round(Math.min(windowWidth, 600) * loginFooterAspect);
+  const loginFooterHeight = isSmallScreen ? Math.min(rawLoginFooterHeight, 72) : rawLoginFooterHeight;
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -386,8 +390,7 @@ const LoginScreen = ({ navigation, route }) => {
     if (keyboardVisible) return null;
     return (
       <View 
-        style={[
-          styles.footerWrap, 
+        style={[styles.footerWrap, 
           { 
             paddingBottom: safeBottomInset,
             backgroundColor: 'transparent',
@@ -402,7 +405,7 @@ const LoginScreen = ({ navigation, route }) => {
               : require('../../assets/images/footer_login.png')
           }
           style={[styles.bottomFooterImg, { height: loginFooterHeight }]}
-          resizeMode={isDarkMode ? 'cover' : 'contain'}
+          resizeMode="contain"
         />
       </View>
     );
@@ -1393,19 +1396,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     marginTop: 6,
-    marginBottom: 8,
+    marginBottom: 12,
     width: '100%',
+    flexWrap: 'wrap',
   },
   perkChip: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 20,
     borderWidth: 1,
   },
   perkText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '600',
   },
   trustBarRow: {

@@ -15,6 +15,7 @@ import {
   RefreshControl,
   Modal
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { 
   Search, 
@@ -64,6 +65,9 @@ const BookServiceScreen = ({ navigation, route }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
   const { width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const statusBarH = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
+  const safeTop = Math.max(insets.top, statusBarH, Platform.OS === 'android' ? 36 : 20);
   const bannerWidth = Math.min(windowWidth - 28, 680);
 
   const [categories, setCategories] = useState([]);
@@ -317,7 +321,7 @@ const BookServiceScreen = ({ navigation, route }) => {
         colors={['#5535d4', '#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.gradientHeader}
+        style={[styles.gradientHeader, { paddingTop: safeTop }]}
       >
         <View style={styles.ambientShape1} />
         <View style={styles.ambientShape2} />
@@ -346,6 +350,12 @@ const BookServiceScreen = ({ navigation, route }) => {
         {error && (
           <View style={styles.errorBanner}>
             <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity
+              onPress={onRefresh}
+              style={{ marginTop: 8, backgroundColor: '#6C47FF', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8 }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Retry</Text>
+            </TouchableOpacity>
           </View>
         )}
 

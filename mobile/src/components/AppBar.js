@@ -46,9 +46,10 @@ const AppBar = ({
   const insets = useSafeAreaInsets();
   const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
   const safeTop = Math.max(insets.top, androidHeight, Platform.OS === 'android' ? 36 : 20);
-  const calculatedPaddingTop = transparent 
-    ? (safeTop + 10) 
-    : (Platform.OS === 'ios' ? Math.max(insets.top, 12) : 8);
+  // Fix: non-transparent AppBar must also account for status bar height on Android
+  const calculatedPaddingTop = transparent
+    ? (safeTop + 10)
+    : (Platform.OS === 'ios' ? Math.max(insets.top, 16) : safeTop);
   
   const iconBg = isDarkMode && !transparent ? 'rgba(255,255,255,0.08)' : (transparent ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.05)');
   const badgeLabel = unreadCount > 99 ? '99+' : unreadCount > 0 ? String(unreadCount) : null;
@@ -68,8 +69,8 @@ const AppBar = ({
     >
       <StatusBar
         barStyle={transparent ? 'light-content' : (isDarkMode ? 'light-content' : 'dark-content')}
-        backgroundColor={transparent ? 'transparent' : theme.colors.background}
-        translucent={transparent}
+        backgroundColor="transparent"
+        translucent={true}
       />
 
       {/* ── LEFT ── */}

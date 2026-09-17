@@ -6,6 +6,7 @@ import {
   ScrollView, 
   TouchableOpacity, 
   StatusBar,
+  Platform,
   TextInput,
   Image,
   Modal,
@@ -468,7 +469,11 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
-    paddingTop: Math.max(insets?.top || 0, 16),
+    paddingTop: Math.max(
+      insets?.top || 0,
+      Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0,
+      Platform.OS === 'android' ? 36 : 16
+    ),
   },
   appBar: {
     flexDirection: 'row',
