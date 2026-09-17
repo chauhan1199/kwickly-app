@@ -20,7 +20,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename=kwickly-v1.7.4.apk',
+        'Content-Disposition': 'attachment; filename=kwickly-v1.7.5.apk',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
     }
   } else {
     // Single clean download page
-    let fileSizeMb = '22.0';
+    let fileSizeMb = '26.9';
     if (fs.existsSync(apkPath)) {
       fileSizeMb = (fs.statSync(apkPath).size / (1024 * 1024)).toFixed(1);
     }
@@ -143,7 +143,7 @@ const server = http.createServer((req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="badge">v1.7.4 · Build 75 (Universal)</div><br/>
+    <div class="badge">v1.7.5 · Build 76 (Universal)</div><br/>
     <div class="success-tag">✓ Supports All Mobiles (32 & 64-bit)</div>
     <h1>Kwickly Universal Testing APK</h1>
     <p class="meta">Universal release APK (${fileSizeMb} MB) supporting Samsung M30s/A/M/S series, Xiaomi, Realme, Vivo, Oppo & all Android devices.</p>
