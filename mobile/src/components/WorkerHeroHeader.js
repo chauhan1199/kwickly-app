@@ -45,7 +45,7 @@ const WorkerHeroHeader = ({ searchQuery, setSearchQuery }) => {
         style={[
           styles.heroGradient, 
           { 
-            paddingTop: Math.max(insets.top, 16) + 8,
+            paddingTop: Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 20, 36) + 12,
             paddingBottom: hasSearch ? 22 : 14,
           }
         ]}

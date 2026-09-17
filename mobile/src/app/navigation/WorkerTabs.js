@@ -94,12 +94,7 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   
-  const windowDiff = Platform.OS === 'android' 
-    ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height)
-    : 0;
-  const bottomInset = insets.bottom > 0 
-    ? insets.bottom 
-    : (windowDiff > 20 ? windowDiff : (Platform.OS === 'android' ? 14 : 8));
+  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 6 : 8);
 
   return (
     <View 
@@ -109,7 +104,7 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
           backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF', 
           borderTopColor: isDarkMode ? '#1E293B' : '#F1F5F9',
           paddingBottom: bottomInset,
-          height: 62 + bottomInset,
+          height: 58 + bottomInset,
         }
       ]}
     >

@@ -44,8 +44,11 @@ const AppBar = ({
   };
 
   const insets = useSafeAreaInsets();
-  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTop = Math.max(insets.top, androidHeight) > 0 ? Math.max(insets.top, androidHeight) : 16;
+  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
+  const safeTop = Math.max(insets.top, androidHeight, Platform.OS === 'android' ? 36 : 20);
+  const calculatedPaddingTop = transparent 
+    ? (safeTop + 10) 
+    : (Platform.OS === 'ios' ? Math.max(insets.top, 12) : 8);
   
   const iconBg = isDarkMode && !transparent ? 'rgba(255,255,255,0.08)' : (transparent ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.05)');
   const badgeLabel = unreadCount > 99 ? '99+' : unreadCount > 0 ? String(unreadCount) : null;
@@ -57,7 +60,7 @@ const AppBar = ({
         styles.container,
         {
           backgroundColor: transparent ? 'transparent' : theme.colors.background,
-          paddingTop: safeTop + 4,
+          paddingTop: calculatedPaddingTop,
           paddingBottom: 8,
           borderBottomColor: transparent ? 'transparent' : (isDarkMode ? '#1E293B' : '#EDF2F7'),
         },

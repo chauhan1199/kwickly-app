@@ -160,8 +160,8 @@ const RoleSelection = ({ navigation, route }) => {
     }
   };
 
-  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
+  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
+  const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
   const safeBottomInset = getSafeBottomInset(insets);
 
   const createFooterAspect = isDarkMode ? (508 / 1376) : (160 / 576);
@@ -213,8 +213,7 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -386,11 +385,11 @@ const RoleSelection = ({ navigation, route }) => {
                 activeOpacity={0.8}
               >
                 <View style={[styles.methodIconBox, { backgroundColor: PURPLE }]}>
-                  <MessageSquare size={16} color="#FFF" />
+                  <MessageSquare size={14} color="#FFF" />
                 </View>
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={[styles.methodTitle, { color: textMain }]}>SMS</Text>
-                  <Text style={[styles.methodSub, { color: textSub }]}>Standard text message</Text>
+                <View style={styles.methodTextBox}>
+                  <Text style={[styles.methodTitle, { color: textMain }]} numberOfLines={1}>SMS</Text>
+                  <Text style={[styles.methodSub, { color: textSub }]} numberOfLines={1}>Text message</Text>
                 </View>
                 <View style={[styles.checkCircle, { backgroundColor: otpMethod === 'SMS' ? PURPLE : 'transparent', borderColor: otpMethod === 'SMS' ? PURPLE : inputBorder }]}>
                   {otpMethod === 'SMS' && <Check size={10} color="#FFF" strokeWidth={3} />}
@@ -409,11 +408,18 @@ const RoleSelection = ({ navigation, route }) => {
                 activeOpacity={0.8}
               >
                 <View style={[styles.methodIconBox, { backgroundColor: '#10B981' }]}>
-                  <Smartphone size={16} color="#FFF" />
+                  <Smartphone size={14} color="#FFF" />
                 </View>
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={[styles.methodTitle, { color: textMain }]}>WhatsApp</Text>
-                  <Text style={[styles.methodSub, { color: textSub }]}>Instant message</Text>
+                <View style={styles.methodTextBox}>
+                  <Text 
+                    style={[styles.methodTitle, { color: textMain }]} 
+                    numberOfLines={1}
+                    adjustsFontSizeToFit={true}
+                    minimumFontScale={0.85}
+                  >
+                    WhatsApp
+                  </Text>
+                  <Text style={[styles.methodSub, { color: textSub }]} numberOfLines={1}>Instant</Text>
                 </View>
                 <View style={[styles.radioCircle, { borderColor: otpMethod === 'WHATSAPP' ? '#10B981' : inputBorder }]}>
                   {otpMethod === 'WHATSAPP' && <View style={[styles.radioDot, { backgroundColor: '#10B981' }]} />}
@@ -530,7 +536,7 @@ const RoleSelection = ({ navigation, route }) => {
                 styles.footerWrap, 
                 { 
                   paddingBottom: safeBottomInset,
-                  backgroundColor: isDarkMode ? '#11162A' : '#75759E',
+                  backgroundColor: 'transparent',
                 }
               ]} 
               pointerEvents="none"
@@ -772,22 +778,31 @@ const styles = StyleSheet.create({
   },
   methodCard: {
     flex: 1,
-    height: 44,
+    minHeight: 44,
     borderRadius: 10,
     borderWidth: 1.5,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
   },
   methodIconBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 7,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  methodTextBox: {
+    flex: 1,
+    marginLeft: 6,
+    marginRight: 4,
+    minWidth: 0,
     justifyContent: 'center',
   },
   methodTitle: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
   },
   methodSub: {

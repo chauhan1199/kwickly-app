@@ -287,7 +287,7 @@ const HomeScreen = ({ navigation }) => {
           colors={[PURPLE, '#8B6FFF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.heroGradient, { paddingTop: Math.max(insets.top, 16) + 10, paddingBottom: 30 }]}
+          style={[styles.heroGradient, { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 20, 36) + 12, paddingBottom: 30 }]}
         >
           {/* Dynamic background shapes */}
           <View style={styles.blob1} />

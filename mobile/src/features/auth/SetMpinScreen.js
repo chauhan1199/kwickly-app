@@ -80,8 +80,8 @@ const SetMpinScreen = ({ navigation, route }) => {
     };
   }, []);
 
-  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
+  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
+  const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
   const safeBottomInset = getSafeBottomInset(insets);
 
   const normalizedRole = (role || 'CUSTOMER').toUpperCase();

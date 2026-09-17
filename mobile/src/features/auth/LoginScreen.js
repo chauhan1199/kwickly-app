@@ -301,8 +301,8 @@ const LoginScreen = ({ navigation, route }) => {
     }
   };
 
-  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight) + 4;
+  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
+  const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
   const safeBottomInset = getSafeBottomInset(insets);
 
   const loginFooterAspect = isDarkMode ? (508 / 1376) : (200 / 576);
@@ -390,7 +390,7 @@ const LoginScreen = ({ navigation, route }) => {
           styles.footerWrap, 
           { 
             paddingBottom: safeBottomInset,
-            backgroundColor: isDarkMode ? '#11162A' : '#75759E',
+            backgroundColor: 'transparent',
           }
         ]} 
         pointerEvents="none"

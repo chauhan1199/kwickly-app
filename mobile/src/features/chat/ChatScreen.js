@@ -370,7 +370,7 @@ const createStyles = (theme, isDarkMode) =>
     header: {
       paddingHorizontal: 16,
       paddingBottom: 14,
-      paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 10,
+      paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 36) + 12 : 12,
       borderBottomLeftRadius: 20,
       borderBottomRightRadius: 20,
     },

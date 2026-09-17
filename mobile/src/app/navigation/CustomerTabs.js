@@ -131,13 +131,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
   
-  // Safe bottom inset calculation: handles on-screen 3-button navigation, gesture bars, and custom Android ROMs
-  const windowDiff = Platform.OS === 'android' 
-    ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height)
-    : 0;
-  const bottomInset = insets.bottom > 0 
-    ? insets.bottom 
-    : (windowDiff > 20 ? windowDiff : (Platform.OS === 'android' ? 14 : 8));
+  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 6 : 8);
 
   return (
     <View 
@@ -147,7 +141,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
           backgroundColor: theme.colors.surface, 
           borderTopColor: theme.colors.border,
           paddingBottom: bottomInset,
-          height: 60 + bottomInset,
+          height: 58 + bottomInset,
         }
       ]}
     >
