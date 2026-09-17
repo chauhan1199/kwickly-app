@@ -13,8 +13,6 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 
-const { width: SW, height: SH } = Dimensions.get('window');
-
 const AppSplashScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { userToken, isLoading } = useAuth();
@@ -419,7 +417,7 @@ const styles = StyleSheet.create({
   },
   ambientOrb2: {
     position: 'absolute',
-    bottom: SH * 0.15,
+    bottom: 120,
     left: -80,
     width: 280,
     height: 280,

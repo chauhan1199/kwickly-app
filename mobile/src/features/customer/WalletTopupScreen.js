@@ -227,27 +227,29 @@ const WalletTopupScreen = ({ navigation }) => {
 
       {/* Topup Button */}
       <View style={[styles.footer, { paddingBottom: safeBottomInset }]}>
-        <TouchableOpacity
-          style={[styles.topupBtn, processing && { opacity: 0.6 }]}
-          disabled={processing || !amount || parseInt(amount) < 100}
-          onPress={handleInitiateTopup}
-        >
-          {processing ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Zap size={20} color="#fff" />
-              <Text style={styles.topupBtnText}>
-                Top Up ₹{amount || 0}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <View style={styles.footerInner}>
+          <TouchableOpacity
+            style={[styles.topupBtn, processing && { opacity: 0.6 }]}
+            disabled={processing || !amount || parseInt(amount) < 100}
+            onPress={handleInitiateTopup}
+          >
+            {processing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Zap size={20} color="#fff" />
+                <Text style={styles.topupBtnText}>
+                  Top Up ₹{amount || 0}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
 
-        <View style={styles.securityNote}>
-          <Text style={styles.securityText}>
-            🔒 100% Secure Payments via Admin Verified UPI & Instant Settlement.
-          </Text>
+          <View style={styles.securityNote}>
+            <Text style={styles.securityText}>
+              🔒 100% Secure Payments via Admin Verified UPI & Instant Settlement.
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -342,28 +344,29 @@ const WalletTopupScreen = ({ navigation }) => {
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:     { flex: 1, backgroundColor: theme.colors.background },
-  balanceCard:   { flexDirection: 'row', alignItems: 'center', gap: 16, margin: 16, padding: 20, backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border },
+  balanceCard:   { flexDirection: 'row', alignItems: 'center', gap: 16, margin: 16, padding: 20, backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, width: '92%', maxWidth: 540, alignSelf: 'center' },
   balanceInfo:   { flex: 1 },
   balanceLabel:  { fontSize: 13, color: theme.colors.textDim, fontWeight: '600' },
   balanceValue:  { fontSize: 28, fontWeight: '900', color: theme.colors.text, marginTop: 4 },
-  inputSection:  { marginHorizontal: 16, marginBottom: 16 },
+  inputSection:  { marginHorizontal: 16, marginBottom: 16, width: '92%', maxWidth: 540, alignSelf: 'center' },
   sectionTitle:  { fontSize: 14, fontWeight: '700', color: theme.colors.text, marginBottom: 12 },
   amountInput:   { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 2, borderColor: theme.colors.border, paddingHorizontal: 20 },
   rupeeSymbol:   { fontSize: 24, fontWeight: '800', color: theme.colors.primary },
   amountField:   { flex: 1, fontSize: 32, fontWeight: '800', color: theme.colors.text, paddingVertical: 16, marginLeft: 8 },
-  presetsSection:{ marginHorizontal: 16, marginBottom: 16 },
+  presetsSection:{ marginHorizontal: 16, marginBottom: 16, width: '92%', maxWidth: 540, alignSelf: 'center' },
   presetsGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   presetBtn:     { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
   presetBtnActive:{ borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '15' },
   presetText:    { fontSize: 15, fontWeight: '700', color: theme.colors.textDim },
   presetTextActive:{ color: theme.colors.primary },
-  footer:        { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  footer:        { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 24, backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border, alignItems: 'center' },
+  footerInner:   { width: '100%', maxWidth: 540 },
   topupBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#6C47FF', paddingVertical: 16, borderRadius: 14 },
   topupBtnText:  { fontSize: 16, fontWeight: '800', color: '#fff' },
   securityNote:  { marginTop: 12, alignItems: 'center' },
   securityText:  { fontSize: 11, color: theme.colors.textDim, textAlign: 'center' },
   overlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  upiSheet:      { backgroundColor: theme.colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 22, paddingBottom: Platform.OS === 'ios' ? 40 : 26 },
+  upiSheet:      { backgroundColor: theme.colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 22, paddingBottom: Platform.OS === 'ios' ? 40 : 26, width: '100%', maxWidth: 540, alignSelf: 'center' },
   handle:        { width: 40, height: 5, backgroundColor: theme.colors.border, borderRadius: 3, alignSelf: 'center', marginBottom: 16 },
   sheetTitle:    { fontSize: 20, fontWeight: '900', color: theme.colors.text },
   upiHeaderRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },

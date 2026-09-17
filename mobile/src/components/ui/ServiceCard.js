@@ -1,10 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions, useWindowDimensions } from 'react-native';
 import { Star } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_W = Math.floor((SCREEN_WIDTH - 32 - 24) / 3);
 
 // ── Local bundled service images (category-name matched) ──
 const SERVICE_IMAGES = {
@@ -95,6 +92,8 @@ export const getServiceRating = (name) => {
 };
 
 export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
+  const { width: windowWidth } = useWindowDimensions();
+  const cardWidth = style?.width || Math.min(145, Math.max(96, Math.floor((windowWidth - 32 - 24) / 3)));
   const { rating, reviews } = getServiceRating(cat.label || cat.name);
   const hasNetworkImg = !!cat.imageUrl;
   const localImg = cat.localImage || getServiceImage(cat.name || cat.label);
@@ -104,6 +103,7 @@ export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
       style={[
         styles.serviceCard, 
         { 
+          width: cardWidth,
           backgroundColor: theme.colors.card, 
           borderColor: theme.colors.border,
           marginRight: isLast ? 0 : 12 
@@ -113,7 +113,7 @@ export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
       onPress={() => onPress(cat)}
       activeOpacity={0.88}
     >
-      <View style={[styles.serviceCardImgBox, { backgroundColor: theme.colors.card }]}>
+      <View style={[styles.serviceCardImgBox, { height: cardWidth * 0.95, backgroundColor: theme.colors.card }]}>
         {hasNetworkImg ? (
           <Image
             source={{ uri: getImageUrl(cat.imageUrl) }}
@@ -139,7 +139,6 @@ export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
 
 const styles = StyleSheet.create({
   serviceCard: {
-    width: CARD_W,
     marginBottom: 12,
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -154,7 +153,6 @@ const styles = StyleSheet.create({
   },
   serviceCardImgBox: {
     width: '100%',
-    height: CARD_W * 0.95,
     backgroundColor: '#fff',
     overflow: 'hidden',
   },

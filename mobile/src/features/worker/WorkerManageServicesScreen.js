@@ -41,7 +41,6 @@ import {
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const RADIUS_PRESETS = [5, 10, 15, 25, 50];
 
 const WorkerManageServicesScreen = ({ navigation }) => {
@@ -834,7 +833,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   scrollContent: { 
     paddingHorizontal: 16, 
-    paddingTop: 16 
+    paddingTop: 16,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   
   // Radius Card
@@ -1175,6 +1177,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 36,
     paddingTop: 16,
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
   },
   modalHandle: {
     width: 44,

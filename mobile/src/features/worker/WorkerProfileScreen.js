@@ -64,7 +64,6 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { getImageUrl } from '../../utils/helpers';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ADDR_LABELS = ['Home', 'Work', 'Office', 'Shop', 'Other'];
 const DOC_TYPES = ['AADHAR', 'PAN', 'LICENSE', 'VOTER_ID', 'PASSPORT'];
 
@@ -665,8 +664,9 @@ const WorkerProfileScreen = ({ navigation }) => {
           <View style={styles.blob1} />
           <View style={styles.blob2} />
 
-          {/* Top row: location + quick wallet pill + bell/notifications */}
-          <View style={styles.heroTopRow}>
+          <View style={styles.heroInner}>
+            {/* Top row: location + quick wallet pill + bell/notifications */}
+            <View style={styles.heroTopRow}>
             <TouchableOpacity 
               style={styles.locationPill} 
               activeOpacity={0.85} 
@@ -781,6 +781,7 @@ const WorkerProfileScreen = ({ navigation }) => {
                 )}
               </View>
             </TouchableOpacity>
+          </View>
           </View>
         </LinearGradient>
 
@@ -1597,6 +1598,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 110,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
+  heroInner: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1833,6 +1839,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   menuContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   sectionHeading: {
     fontSize: 13,
@@ -1905,6 +1914,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 36,
     paddingTop: 16,
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
   },
   modalHandle: {
     width: 44,

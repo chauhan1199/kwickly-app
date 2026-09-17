@@ -26,7 +26,6 @@ import { SearchBar } from '../../components/ui/SearchBar';
 import { getImageUrl } from '../../utils/helpers';
 import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryTheme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PURPLE = '#6C47FF';
 
 // Gradient palettes for hero (cycle by category index / id hash)
@@ -137,7 +136,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
       </LinearGradient>
 
       {/* Search - overlapping header */}
-      <View style={{ paddingHorizontal: 16, marginTop: -20, zIndex: 10 }}>
+      <View style={{ paddingHorizontal: 16, marginTop: -20, zIndex: 10, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -401,6 +400,9 @@ const createStyles = (theme, isDarkMode) =>
     listContent: {
       paddingHorizontal: 14,
       paddingTop: 30,
+      width: '100%',
+      maxWidth: 720,
+      alignSelf: 'center',
     },
     listHeading: {
       fontSize: 14,

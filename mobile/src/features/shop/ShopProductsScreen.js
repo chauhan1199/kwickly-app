@@ -38,8 +38,6 @@ import { getImageUrl, requestCameraPermission } from '../../utils/helpers';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 const ShopProductsScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { unreadCount } = useNotifications();
@@ -749,6 +747,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 6,
     minHeight: 52,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   appBarTitle: {
     fontSize: 20,
@@ -797,6 +798,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
 
   scrollContent: {
     padding: 16,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   addBtn: {
     borderRadius: 16,
@@ -1036,11 +1040,14 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 22,
     maxHeight: '92%',
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
   },
   modalHeader: {
     flexDirection: 'row',

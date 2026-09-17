@@ -311,7 +311,7 @@ const OrderTrackingScreen = ({ route, navigation }) => {
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:    { flex: 1, backgroundColor: theme.colors.background },
-  content:      { padding: 16 },
+  content:      { padding: 16, width: '100%', maxWidth: 720, alignSelf: 'center' },
   emptyText:    { fontSize: 16, color: theme.colors.textDim },
   heroCard:     { backgroundColor: theme.colors.primary, borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 16 },
   heroCancelled:{ backgroundColor: '#ef4444' },

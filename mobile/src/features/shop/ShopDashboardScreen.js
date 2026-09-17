@@ -41,8 +41,6 @@ import {
   Power
 } from 'lucide-react-native';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 const ShopDashboardScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { unreadCount } = useNotifications();
@@ -190,8 +188,9 @@ const ShopDashboardScreen = ({ navigation }) => {
         <View style={s.blob1} />
         <View style={s.blob2} />
 
-        {/* Top Row: Location + Quick Wallet + Bell */}
-        <View style={s.heroTopRow}>
+        <View style={s.heroInner}>
+          {/* Top Row: Location + Quick Wallet + Bell */}
+          <View style={s.heroTopRow}>
           <TouchableOpacity 
             style={s.locationPill} 
             activeOpacity={0.85} 
@@ -273,6 +272,7 @@ const ShopDashboardScreen = ({ navigation }) => {
               {shopInfo.isOnline ? 'ONLINE' : 'OFFLINE'}
             </Text>
           </TouchableOpacity>
+        </View>
         </View>
       </LinearGradient>
 
@@ -566,6 +566,11 @@ const createStyles = (theme, isDarkMode) =>
       borderRadius: 70,
       backgroundColor: 'rgba(255,255,255,0.08)',
     },
+    heroInner: {
+      width: '100%',
+      maxWidth: 720,
+      alignSelf: 'center',
+    },
     heroTopRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -713,6 +718,9 @@ const createStyles = (theme, isDarkMode) =>
     scroll: {
       padding: 16,
       paddingBottom: 16,
+      width: '100%',
+      maxWidth: 720,
+      alignSelf: 'center',
     },
 
     /* ── Stats ── */
@@ -723,7 +731,9 @@ const createStyles = (theme, isDarkMode) =>
       marginBottom: 16,
     },
     statCard: {
-      width: (SCREEN_WIDTH - 44) / 2,
+      flexBasis: '47%',
+      flexGrow: 1,
+      maxWidth: '49%',
       backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
       borderRadius: 20,
       borderWidth: 1,

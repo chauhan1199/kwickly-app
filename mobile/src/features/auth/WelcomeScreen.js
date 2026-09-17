@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  useWindowDimensions,
   StatusBar,
   Image,
   Platform,
@@ -24,13 +25,6 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import { getSafeBottomInset } from '../../utils/safeInsets';
-
-const { width: SW, height: SH } = Dimensions.get('window');
-
-// Adaptive sizing for 3-column hero zone (Reference 3) to fit 100% within viewport without scrolling
-const HERO_H = Math.min(Math.max(SH * 0.22, 175), 205);
-const CHIP_W = Math.min(Math.max(SW * 0.20, 68), 82);
-const CHIP_H = (HERO_H - 10) / 3;
 
 const LEFT_CHIPS = [
   { key: 'plumbing', label: 'Plumbing', icon: require('../../assets/images/icon_plumbing.png') },
@@ -60,13 +54,19 @@ const STATS = [
 const WelcomeScreen = ({ navigation }) => {
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+
+  const contentWidth = Math.min(windowWidth, 480);
+  const heroH = Math.min(Math.max(windowHeight * 0.22, 175), 205);
+  const chipH = (heroH - 10) / 3;
+  const chipW = Math.min(Math.max(contentWidth * 0.20, 68), 82);
 
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
   const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
   const safeBottomInset = getSafeBottomInset(insets);
 
   const footerAspect = isDarkMode ? (448 / 1376) : (99 / 576);
-  const footerHeight = Math.round(SW * footerAspect);
+  const footerHeight = Math.round(Math.min(windowWidth, 600) * footerAspect);
 
   return (
     <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
@@ -130,7 +130,7 @@ const WelcomeScreen = ({ navigation }) => {
         </View>
 
         {/* 3-COLUMN HERO SECTION (Matches Reference 3) */}
-        <View style={[styles.heroRow, { height: HERO_H }]}>
+        <View style={[styles.heroRow, { height: heroH, width: '100%' }]}>
           {/* Left Column: 3 Chips */}
           <View style={styles.chipsCol}>
             {LEFT_CHIPS.map((chip) => (
@@ -139,7 +139,8 @@ const WelcomeScreen = ({ navigation }) => {
                 style={[
                   styles.chipCard,
                   {
-                    height: CHIP_H,
+                    height: chipH,
+                    width: chipW,
                     backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
                     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
                   },
@@ -185,7 +186,8 @@ const WelcomeScreen = ({ navigation }) => {
                 style={[
                   styles.chipCard,
                   {
-                    height: CHIP_H,
+                    height: chipH,
+                    width: chipW,
                     backgroundColor: isDarkMode ? '#131B2E' : '#FFFFFF',
                     borderColor: isDarkMode ? '#1E293B' : '#E2E8F0',
                   },
@@ -347,7 +349,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 16,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
   },
   logoRow: {
     flexDirection: 'row',
@@ -537,13 +541,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    width: SW,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'center',
   },
   footerLandscapeImg: {
-    width: SW,
+    width: '100%',
+    maxWidth: 600,
   },
 });
 

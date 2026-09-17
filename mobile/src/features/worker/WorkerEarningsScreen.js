@@ -78,7 +78,6 @@ import settingsService from '../../services/settingsService';
 import api from '../../services/api';
 import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TOP_UP_PRESETS = [100, 500, 1000, 2000];
 
 const WorkerEarningsScreen = ({ navigation }) => {
@@ -464,8 +463,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
           <View style={styles.blob1} />
           <View style={styles.blob2} />
 
-          {/* Top row: location + bell/notifications */}
-          <View style={styles.heroTopRow}>
+          <View style={styles.heroInner}>
+            {/* Top row: location + bell/notifications */}
+            <View style={styles.heroTopRow}>
             <TouchableOpacity 
               style={styles.locationPill} 
               activeOpacity={0.85} 
@@ -499,6 +499,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
             <View style={styles.heroIconBox}>
               <Wallet size={18} color="#FFFFFF" />
             </View>
+          </View>
           </View>
         </LinearGradient>
       </View>
@@ -1159,6 +1160,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 110,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
+  heroInner: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1257,6 +1263,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingTop: 12,
     paddingHorizontal: 16,
     paddingBottom: 16,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
 
   // Plan Banner

@@ -474,6 +474,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 8 : 12,
     paddingBottom: 10,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   backBtn: {
     width: 36,
@@ -512,6 +515,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   content: {
     paddingHorizontal: 14,
     paddingBottom: 20,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   row: {
     flexDirection: 'row',

@@ -32,8 +32,6 @@ import { jobService } from '../../services/jobService';
 import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryTheme';
 import { getImageUrl } from '../../utils/helpers';
 
-const { width } = Dimensions.get('window');
-
 const WorkerProfileScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { worker } = route.params || {};
@@ -507,22 +505,23 @@ const WorkerProfileScreen = ({ route, navigation }) => {
 
       {/* Floating Bottom Booking Action Bar */}
       <View style={styles.bottomBar}>
-        <View style={styles.bottomPriceCol}>
-          <Text style={styles.bottomRateLabel} numberOfLines={1}>
-            {activeService.catName}
-          </Text>
-          <View style={styles.bottomPriceRow}>
-            <Text style={styles.bottomPrice}>₹{activePrice}</Text>
-            <View style={styles.selectedSubBadge}>
-              <Text style={styles.bottomSubPill} numberOfLines={1}>
-                {activeSub}
-              </Text>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomPriceCol}>
+            <Text style={styles.bottomRateLabel} numberOfLines={1}>
+              {activeService.catName}
+            </Text>
+            <View style={styles.bottomPriceRow}>
+              <Text style={styles.bottomPrice}>₹{activePrice}</Text>
+              <View style={styles.selectedSubBadge}>
+                <Text style={styles.bottomSubPill} numberOfLines={1}>
+                  {activeSub}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <TouchableOpacity 
-          style={styles.bookButton}
+          <TouchableOpacity 
+            style={styles.bookButton}
           activeOpacity={0.85}
           onPress={() => {
             navigation.navigate('DescribeJob', { 
@@ -552,6 +551,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             <Text style={styles.bookButtonText}>Select Professional →</Text>
           </LinearGradient>
         </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -721,6 +721,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 16,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   statsCard: {
     flexDirection: 'row',
@@ -1046,9 +1049,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: theme.colors.surface,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 28 : 16,
@@ -1059,6 +1060,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
+  },
+  bottomBarInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    maxWidth: 720,
   },
   bottomPriceCol: {
     flex: 1,

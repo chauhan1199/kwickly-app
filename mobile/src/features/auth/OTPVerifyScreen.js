@@ -12,6 +12,8 @@ import {
   Keyboard,
   Dimensions,
   ScrollView,
+  useWindowDimensions,
+  Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,8 +35,6 @@ import { validateOtpForSubmit, sanitizeOtp } from '../../utils/otpGuard';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import { getSafeBottomInset } from '../../utils/safeInsets';
 
-const { width: SW, height: SH } = Dimensions.get('window');
-
 const PURPLE = '#6C47FF';
 const RESEND_COOLDOWN = 30;
 
@@ -43,6 +43,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const [currentMethod, setCurrentMethod] = useState(otpMethod);
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { signIn } = useAuth();
 
   const [code, setCode] = useState(['', '', '', '']);
@@ -396,6 +397,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     flexGrow: 1,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   headerBlock: {
     alignItems: 'center',
@@ -479,8 +483,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   codeBox: {
-    width: Math.min(SW * 0.15, 64),
-    height: Math.min(SW * 0.16, 68),
+    width: 56,
+    height: 60,
     borderRadius: 16,
     borderWidth: 2,
     fontSize: 24,

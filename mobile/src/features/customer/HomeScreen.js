@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
+  useWindowDimensions,
   Image,
   Animated,
   ActivityIndicator,
@@ -27,8 +28,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchBar } from '../../components/ui/SearchBar';
 import GlassCard from '../../components/ui/GlassCard';
 import { getImageUrl } from '../../utils/helpers';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ── Purple accent ──
 const PURPLE = '#6C47FF';
@@ -53,6 +52,7 @@ const DEFAULT_COORDS = [72.574115, 23.1222453];
 
 const HomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { theme, isDarkMode } = useTheme();
   const { userToken, user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -395,16 +395,20 @@ const HomeScreen = ({ navigation }) => {
                     </TouchableOpacity>
                   </View>
                   <View style={styles.serviceGrid}>
-                    {matchedServices.map((cat, index) => (
-                      <ServiceCard 
-                        key={cat.id || index} 
-                        cat={cat} 
-                        index={index} 
-                        theme={theme} 
-                        style={{ width: (SCREEN_WIDTH - 32 - 16) / 2, marginBottom: 12 }}
-                        onPress={(c) => navigation.navigate('SubCategories', c)} 
-                      />
-                    ))}
+                    {matchedServices.map((cat, index) => {
+                      const serviceCols = windowWidth >= 600 ? 3 : 2;
+                      const searchCardWidth = (Math.min(windowWidth, 800) - 32 - (serviceCols - 1) * 12) / serviceCols;
+                      return (
+                        <ServiceCard 
+                          key={cat.id || index} 
+                          cat={cat} 
+                          index={index} 
+                          theme={theme} 
+                          style={{ width: searchCardWidth, marginBottom: 12 }}
+                          onPress={(c) => navigation.navigate('SubCategories', c)} 
+                        />
+                      );
+                    })}
                   </View>
                 </View>
               )}
@@ -902,6 +906,9 @@ const styles = StyleSheet.create({
     backgroundColor: BG,
     paddingHorizontal: 16,
     paddingTop: 30,
+    width: '100%',
+    maxWidth: 800,
+    alignSelf: 'center',
   },
   sectionHeader: {
     flexDirection: 'row',

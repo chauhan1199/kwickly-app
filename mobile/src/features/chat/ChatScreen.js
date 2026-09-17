@@ -29,8 +29,6 @@ import io from 'socket.io-client';
 import { SOCKET_URL, API_BASE_URL } from '../../config/env';
 import { getImageUrl } from '../../utils/helpers';
 
-const { width } = Dimensions.get('window');
-
 // ─── Upload helper — base64 JSON ─────────────────────────────────────────────
 const uploadImageBase64 = async (imageAsset, apiInstance) => {
   if (!imageAsset.base64) {
@@ -392,7 +390,7 @@ const createStyles = (theme, isDarkMode) =>
     headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
     emptyText: { color: theme.colors.textDim, textAlign: 'center', fontSize: 14 },
-    chatList: { padding: 16, flexGrow: 1, paddingBottom: 12 },
+    chatList: { padding: 16, flexGrow: 1, paddingBottom: 12, width: '100%', maxWidth: 720, alignSelf: 'center' },
 
     msgWrapper: { width: '100%', marginBottom: 12 },
     wrapMine: { alignItems: 'flex-end' },
@@ -419,7 +417,8 @@ const createStyles = (theme, isDarkMode) =>
       marginBottom: 6,
     },
     msgImage: { 
-      width: Math.min(240, width * 0.65), 
+      width: 220,
+      maxWidth: '100%', 
       height: 160, 
       borderRadius: 12 
     },
@@ -442,6 +441,7 @@ const createStyles = (theme, isDarkMode) =>
       shadowOffset: { width: 0, height: -2 },
       shadowOpacity: 0.08,
       shadowRadius: 4,
+      alignItems: 'center',
     },
     previewWrap: {
       position: 'relative',
@@ -461,7 +461,7 @@ const createStyles = (theme, isDarkMode) =>
       alignItems: 'center',
     },
     uploadingText: { color: theme.colors.textDim, fontSize: 12, marginBottom: 6 },
-    inputRow: { flexDirection: 'row', alignItems: 'flex-end' },
+    inputRow: { flexDirection: 'row', alignItems: 'flex-end', width: '100%', maxWidth: 720 },
     attachBtn: {
       width: 42,
       height: 42,

@@ -1054,6 +1054,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   headerBack: {
     width: 36,
@@ -1094,6 +1096,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 16,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   label: {
     fontSize: 12,
@@ -1443,6 +1448,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 36,
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
   },
   actionSheetTitle: {
     fontSize: 18,
@@ -1518,6 +1526,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderTopRightRadius: 28,
     padding: 24,
     paddingBottom: 36,
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
   },
   modalHandle: {
     width: 40, height: 4,

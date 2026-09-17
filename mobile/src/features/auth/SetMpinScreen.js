@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Keyboard,
   Dimensions,
+  useWindowDimensions,
   ScrollView,
   KeyboardAvoidingView,
   Pressable,
@@ -39,8 +40,6 @@ import { useAuth } from '../../context/AuthContext';
 import api, { getApiErrorMessage } from '../../services/api';
 import CustomAlert from '../../components/ui/CustomAlert';
 
-const { width: SW, height: SH } = Dimensions.get('window');
-
 const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#F5F3FF';
 
@@ -54,6 +53,7 @@ const SetMpinScreen = ({ navigation, route }) => {
   const { phone = '', role = 'CUSTOMER', name = 'User', token = null, user = null } = route.params || {};
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { signIn } = useAuth();
 
   const [mpin, setMpin] = useState('');
@@ -396,6 +396,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     flexGrow: 1,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   topSection: {
     width: '100%',

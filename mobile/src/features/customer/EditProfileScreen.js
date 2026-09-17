@@ -23,8 +23,6 @@ import { ChevronLeft, Camera, User, Phone, Mail, Lock, CheckCircle2, ShieldCheck
 import { getImageUrl } from '../../utils/helpers';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 
-const { width } = Dimensions.get('window');
-
 const EditProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { user, fetchUser } = useAuth();
@@ -334,6 +332,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   safeHeaderArea: {
     paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
   },
   appBar: {
     flexDirection: 'row',
@@ -358,6 +359,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
   },
   avatarSection: {
     alignItems: 'center',

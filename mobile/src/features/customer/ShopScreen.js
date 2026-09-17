@@ -8,6 +8,7 @@ import {
   TouchableOpacity, 
   StatusBar, 
   Dimensions, 
+  useWindowDimensions,
   Platform, 
   Image, 
   ActivityIndicator, 
@@ -41,6 +42,7 @@ const haversine = (coords1, coords2) => {
 
 const ShopScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const { user } = useAuth();
   const [filter, setFilter] = useState('All');
   const [shops, setShops] = useState([]);
@@ -257,9 +259,9 @@ const ShopScreen = ({ navigation }) => {
         {banners.length > 0 && !searchQuery && (
           <BannerCarousel 
             banners={banners} 
-            itemWidth={Dimensions.get('window').width - 28} 
+            itemWidth={Math.min(windowWidth - 28, 680)} 
             itemHeight={140}
-            style={{ marginBottom: 14 }}
+            style={{ marginBottom: 14, alignItems: 'center' }}
             autoPlayInterval={4000}
           />
         )}
@@ -511,12 +513,18 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
   },
   shopCard: {
     backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
     borderRadius: 20,
     padding: 14,
     marginBottom: 14,
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
     borderWidth: 1.2,
     borderColor: isDarkMode ? '#334155' : '#EEF2F6',
     shadowColor: '#000',

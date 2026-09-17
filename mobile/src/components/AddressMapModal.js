@@ -32,8 +32,6 @@ import {
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 // Default initial location: Ahmedabad / Mumbai
 const DEFAULT_LAT = 23.0225;
 const DEFAULT_LNG = 72.5714;
@@ -977,6 +975,8 @@ const createStyles = (theme, isDarkMode) =>
       top: Platform.OS === 'ios' ? 130 : 105,
       left: 16,
       right: 16,
+      maxWidth: 528,
+      alignSelf: 'center',
       backgroundColor: isDarkMode ? '#1E293B' : '#fff',
       borderRadius: 16,
       padding: 6,
@@ -1096,10 +1096,13 @@ const createStyles = (theme, isDarkMode) =>
       zIndex: 15
     },
     bottomSheet: {
-      maxHeight: SCREEN_HEIGHT * 0.46,
+      maxHeight: '52%',
       backgroundColor: isDarkMode ? '#1E293B' : '#fff',
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
+      width: '100%',
+      maxWidth: 560,
+      alignSelf: 'center',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -4 },
       shadowOpacity: 0.1,

@@ -293,6 +293,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 10,
     paddingBottom: 14,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   backBtn: {
     width: 36,
@@ -338,6 +341,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   content: {
     paddingHorizontal: 14,
     paddingTop: 4,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   mapArea: {
     height: 200,
@@ -524,6 +530,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   cancelBtnText: {
     color: '#ef4444',

@@ -44,8 +44,6 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 import { getSafeBottomInset } from '../../utils/safeInsets';
 
-const { width: SW, height: SH } = Dimensions.get('window');
-
 const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#F5F3FF';
 
@@ -59,6 +57,7 @@ const LoginScreen = ({ navigation, route }) => {
   const { role: initialRole = null, prefillPhone = '' } = route.params || {};
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { signIn } = useAuth();
 
   const [step, setStep] = useState('PHONE');
@@ -306,7 +305,7 @@ const LoginScreen = ({ navigation, route }) => {
   const safeBottomInset = getSafeBottomInset(insets);
 
   const loginFooterAspect = isDarkMode ? (508 / 1376) : (200 / 576);
-  const loginFooterHeight = Math.round(SW * loginFooterAspect);
+  const loginFooterHeight = Math.round(Math.min(windowWidth, 600) * loginFooterAspect);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -1038,6 +1037,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     flexGrow: 1,
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
   },
   topLogoRow: {
     flexDirection: 'row',
@@ -1446,15 +1448,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 3,
   },
   footerWrap: {
-    width: SW,
+    width: '100%',
+    maxWidth: 600,
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'center',
-    marginHorizontal: -16,
     marginTop: 6,
   },
   bottomFooterImg: {
-    width: SW,
+    width: '100%',
+    maxWidth: 600,
   },
   trustFooter: {
     flexDirection: 'row',

@@ -9,6 +9,7 @@ import {
   StatusBar,
   ActivityIndicator,
   Dimensions,
+  useWindowDimensions,
   Platform,
   Image,
   RefreshControl,
@@ -43,8 +44,6 @@ import { getImageUrl } from '../../utils/helpers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 
-const { width } = Dimensions.get('window');
-
 // Haversine formula to calculate accurate distance between two coordinates in km
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
@@ -64,6 +63,8 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 const BookServiceScreen = ({ navigation, route }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
+  const { width: windowWidth } = useWindowDimensions();
+  const bannerWidth = Math.min(windowWidth - 28, 680);
 
   const [categories, setCategories] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -350,10 +351,10 @@ const BookServiceScreen = ({ navigation, route }) => {
 
         {/* Dynamic Promotional Banners */}
         {banners.length > 0 && (
-          <View style={{ marginBottom: 18 }}>
+          <View style={{ marginBottom: 18, alignItems: 'center' }}>
             <BannerCarousel 
               banners={banners} 
-              itemWidth={width - 28} 
+              itemWidth={bannerWidth} 
               itemHeight={135}
               autoPlayInterval={4000}
               contentContainerStyle={{ paddingHorizontal: 14 }}
@@ -771,10 +772,16 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 14,
     marginTop: -22,
     zIndex: 10,
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
   },
   scrollContent: {
     paddingTop: 16,
     paddingBottom: 16,
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
   },
   errorBanner: {
     marginHorizontal: 14,

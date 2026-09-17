@@ -20,8 +20,6 @@ import {
   LogOut,
 } from 'lucide-react-native';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 /**
  * Auto-detect alert type based on title, message, and button styles
  */

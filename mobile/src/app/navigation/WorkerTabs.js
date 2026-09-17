@@ -108,7 +108,8 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
         }
       ]}
     >
-      {state.routes.map((route, index) => {
+      <View style={styles.tabBarInner}>
+        {state.routes.map((route, index) => {
         if (!MAIN_TABS.includes(route.name) && route.name !== 'Power') return null;
 
         const isFocused = state.index === index;
@@ -179,6 +180,7 @@ const CustomWorkerTabBar = ({ state, descriptors, navigation }) => {
           </TouchableOpacity>
         );
       })}
+      </View>
     </View>
   );
 };
@@ -203,8 +205,14 @@ const WorkerTabs = () => (
 
 const styles = StyleSheet.create({
   tabBar: {
-    flexDirection: 'row',
     borderTopWidth: 1,
+    alignItems: 'center',
+    width: '100%',
+  },
+  tabBarInner: {
+    flexDirection: 'row',
+    width: '100%',
+    maxWidth: 680,
     alignItems: 'flex-start',
     paddingTop: 6,
   },

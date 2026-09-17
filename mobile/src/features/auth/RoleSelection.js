@@ -4,16 +4,17 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  StatusBar,
+  Dimensions,
+  useWindowDimensions,
   TextInput,
+  Image,
+  StatusBar,
+  ScrollView,
   Platform,
+  ActivityIndicator,
   Modal,
   Keyboard,
-  ActivityIndicator,
-  Dimensions,
-  ScrollView,
   KeyboardAvoidingView,
-  Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,8 +40,6 @@ import {
 } from 'lucide-react-native';
 import api, { getApiErrorMessage } from '../../services/api';
 
-const { width: SW, height: SH } = Dimensions.get('window');
-
 const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#F5F3FF';
 
@@ -53,6 +52,7 @@ const ROLE_OPTIONS = [
 const RoleSelection = ({ navigation, route }) => {
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
 
   const [selectedRole, setSelectedRole] = useState(route?.params?.role || 'CUSTOMER');
   const [phoneNumber, setPhoneNumber] = useState(route?.params?.prefillPhone || '');
@@ -165,7 +165,7 @@ const RoleSelection = ({ navigation, route }) => {
   const safeBottomInset = getSafeBottomInset(insets);
 
   const createFooterAspect = isDarkMode ? (508 / 1376) : (160 / 576);
-  const createFooterHeight = Math.round(SW * createFooterAspect);
+  const createFooterHeight = Math.round(Math.min(windowWidth, 600) * createFooterAspect);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -625,6 +625,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     flexGrow: 1,
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
   },
   topNavRow: {
     marginTop: 2,
@@ -663,7 +666,7 @@ const styles = StyleSheet.create({
     marginBottom: 1,
   },
   headerHeroImg: {
-    width: SW * 0.32,
+    width: 110,
     height: 75,
   },
   title: {
@@ -932,15 +935,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 3,
   },
   footerWrap: {
-    width: SW,
+    width: '100%',
+    maxWidth: 600,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginHorizontal: -16,
     marginTop: 8,
     alignSelf: 'center',
   },
   bottomFooterImg: {
-    width: SW,
+    width: '100%',
+    maxWidth: 600,
   },
   modalHeader: {
     flexDirection: 'row',

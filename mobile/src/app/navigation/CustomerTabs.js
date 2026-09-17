@@ -145,7 +145,8 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
         }
       ]}
     >
-      {state.routes.map((route, index) => {
+      <View style={styles.tabBarInner}>
+        {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
 
         const label = options.tabBarLabel !== undefined ? options.tabBarLabel : route.name;
@@ -223,6 +224,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
           </TouchableOpacity>
         );
       })}
+      </View>
     </View>
   );
 };
@@ -245,8 +247,14 @@ const CustomerTabs = () => (
 
 const styles = StyleSheet.create({
   tabBar: {
-    flexDirection: 'row',
     borderTopWidth: 1,
+    alignItems: 'center',
+    width: '100%',
+  },
+  tabBarInner: {
+    flexDirection: 'row',
+    width: '100%',
+    maxWidth: 680,
     alignItems: 'flex-start',
     paddingTop: 6,
   },
