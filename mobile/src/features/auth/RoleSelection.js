@@ -52,7 +52,9 @@ const ROLE_OPTIONS = [
 const RoleSelection = ({ navigation, route }) => {
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isSmallScreen = windowHeight < 760;
+  const isTallScreen = windowHeight >= 820;
 
   const [selectedRole, setSelectedRole] = useState(route?.params?.role || 'CUSTOMER');
   const [phoneNumber, setPhoneNumber] = useState(route?.params?.prefillPhone || '');
@@ -209,38 +211,48 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 8 : 16),
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Top Header Row with Left Headline & Right 3D Art */}
-          <View style={styles.headerLayoutRow}>
-            <View style={styles.headerTextCol}>
-              <Text style={styles.scriptBadge}>Join Our Growing Community</Text>
-              <Text style={[styles.title, { color: textMain }]}>
-                Create <Text style={{ color: '#6C47FF' }}>Your Account</Text>
-              </Text>
-              <Text style={[styles.subtitle, { color: textSub }]}>
-                Take the next step. A few details and you're all set!
-              </Text>
+          <View style={styles.topSection}>
+            {/* Top Header Row with Left Headline & Right 3D Art */}
+            <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 3 }, isTallScreen && { marginBottom: 12 }]}>
+              <View style={styles.headerTextCol}>
+                <Text style={styles.scriptBadge}>Join Our Growing Community</Text>
+                <Text style={[styles.title, { color: textMain }, isSmallScreen && { fontSize: 18 }]}>
+                  Create <Text style={{ color: '#6C47FF' }}>Your Account</Text>
+                </Text>
+                <Text style={[styles.subtitle, { color: textSub }, isSmallScreen && { fontSize: 10 }]}>
+                  Take the next step. A few details and you're all set!
+                </Text>
+              </View>
+              <Image
+                source={
+                  isDarkMode
+                    ? require('../../assets/images/hero_create_account_dark.png')
+                    : require('../../assets/images/hero_create_account.png')
+                }
+                style={[
+                  styles.headerHeroImg,
+                  isSmallScreen && { width: 75, height: 50 },
+                  isTallScreen && { width: 105, height: 70 },
+                ]}
+                resizeMode="contain"
+              />
             </View>
-            <Image
-              source={
-                isDarkMode
-                  ? require('../../assets/images/hero_create_account_dark.png')
-                  : require('../../assets/images/hero_create_account.png')
-              }
-              style={styles.headerHeroImg}
-              resizeMode="contain"
-            />
-          </View>
 
-          {/* Floating Form Card */}
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            {/* Floating Form Card */}
+            <View style={[
+              styles.card,
+              { backgroundColor: cardBg, borderColor: cardBorder },
+              isSmallScreen && { paddingHorizontal: 12, paddingVertical: 10 },
+              isTallScreen && { paddingHorizontal: 18, paddingVertical: 16 },
+            ]}>
             
             {/* Registering As */}
             <Text style={[styles.fieldLabel, { color: textSub }]}>Registering As</Text>
@@ -482,44 +494,54 @@ const RoleSelection = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
 
-          {/* Bottom Section */}
-          <View style={styles.bottomSection}>
-            {/* Trust Bar Row (3 Badges) */}
-            <View style={styles.trustBarRow}>
-              <View style={styles.trustItem}>
-                <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                  <ShieldCheck size={14} color="#10B981" />
-                </View>
-                <View style={styles.trustTextCol}>
-                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Safe</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Data Safe</Text>
-                </View>
+        {/* Bottom Section */}
+        <View style={styles.bottomSection}>
+          {/* Trust Bar Row (3 Badges) */}
+          <View style={styles.trustBarRow}>
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                <ShieldCheck size={14} color="#10B981" />
               </View>
-
-              <View style={styles.trustDivider} />
-
-              <View style={styles.trustItem}>
-                <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                  <Zap size={14} color="#6C47FF" />
-                </View>
-                <View style={styles.trustTextCol}>
-                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
-                </View>
+              <View style={styles.trustTextCol}>
+                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Safe</Text>
+                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Data Safe</Text>
               </View>
+            </View>
 
-              <View style={styles.trustDivider} />
+            <View style={styles.trustDivider} />
 
-              <View style={styles.trustItem}>
-                <Text style={{ fontSize: 16 }}>🇮🇳</Text>
-                <View style={styles.trustTextCol}>
-                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>India App</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Trusted App</Text>
-                </View>
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                <Zap size={14} color="#6C47FF" />
+              </View>
+              <View style={styles.trustTextCol}>
+                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
+                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
+              </View>
+            </View>
+
+            <View style={styles.trustDivider} />
+
+            <View style={styles.trustItem}>
+              <Text style={{ fontSize: 16 }}>🇮🇳</Text>
+              <View style={styles.trustTextCol}>
+                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>India App</Text>
+                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Trusted App</Text>
               </View>
             </View>
           </View>
+
+          {isTallScreen && (
+            <View style={styles.reassuranceRow}>
+              <ShieldCheck size={13} color="#10B981" />
+              <Text style={[styles.reassuranceText, { color: textSub }]}>
+                Bank-grade 256-bit encryption · Your data is never shared
+              </Text>
+            </View>
+          )}
+        </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -856,9 +878,27 @@ const styles = StyleSheet.create({
   footerLink: {
     fontWeight: '800',
   },
+  topSection: {
+    width: '100%',
+  },
   bottomSection: {
     width: '100%',
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: 8,
+    marginBottom: 2,
+  },
+  reassuranceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     marginTop: 8,
+    marginBottom: 4,
+  },
+  reassuranceText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   trustBarRow: {
     flexDirection: 'row',

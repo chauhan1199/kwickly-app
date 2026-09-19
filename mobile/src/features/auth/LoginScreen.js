@@ -58,7 +58,9 @@ const LoginScreen = ({ navigation, route }) => {
   const { role: initialRole = null, prefillPhone = '' } = route.params || {};
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isSmallScreen = windowHeight < 760;
+  const isTallScreen = windowHeight >= 820;
   const { signIn } = useAuth();
 
   const [step, setStep] = useState('PHONE');
@@ -366,7 +368,8 @@ const LoginScreen = ({ navigation, route }) => {
           alignItems: 'center',
           flexDirection: 'row',
           gap: 8,
-          paddingVertical: 10,
+          paddingVertical: isSmallScreen ? 7 : 10,
+          marginTop: isSmallScreen ? 6 : 10,
         },
       ]}
     >
@@ -393,8 +396,8 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -517,11 +520,11 @@ const LoginScreen = ({ navigation, route }) => {
                   <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
                 </View>
               </View>
+            </View>
 
-              {/* Trust Badges Bar directly below card */}
+            {/* Bottom Section: anchored at bottom */}
+            <View style={styles.bottomSection}>
               {renderTrustBar()}
-
-              {/* Service Highlights Perks Row */}
               <View style={styles.perksRow}>
                 <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
                   <Text style={[styles.perkText, { color: textSub }]}>⚡ On-Time Service</Text>
@@ -533,6 +536,14 @@ const LoginScreen = ({ navigation, route }) => {
                   <Text style={[styles.perkText, { color: textSub }]}>🛡️ Verified Pros</Text>
                 </View>
               </View>
+              {isTallScreen && (
+                <View style={styles.socialProofRow}>
+                  <Text style={styles.socialProofStars}>★★★★★</Text>
+                  <Text style={[styles.socialProofText, { color: textSub }]}>
+                    Trusted by 10,000+ happy homes across India
+                  </Text>
+                </View>
+              )}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -555,8 +566,8 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -607,8 +618,10 @@ const LoginScreen = ({ navigation, route }) => {
                   <Text style={[styles.footerLink, { color: PURPLE }]}>Use a different number</Text>
                 </TouchableOpacity>
               </View>
+            </View>
 
-              {/* Trust Badges Bar directly below card */}
+            {/* Bottom Section */}
+            <View style={styles.bottomSection}>
               {renderTrustBar()}
             </View>
           </ScrollView>
@@ -632,8 +645,8 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -822,9 +835,19 @@ const LoginScreen = ({ navigation, route }) => {
                   <Text style={[styles.footerLink, { fontSize: 12, color: PURPLE }]}>Switch mobile number</Text>
                 </TouchableOpacity>
               </View>
+            </View>
 
-              {/* Trust Badges Bar directly below card */}
+            {/* Bottom Section */}
+            <View style={styles.bottomSection}>
               {renderTrustBar()}
+              {isTallScreen && (
+                <View style={styles.securityHighlightRow}>
+                  <ShieldCheck size={13} color="#10B981" />
+                  <Text style={[styles.securityHighlightText, { color: textSub }]}>
+                    256-bit encrypted · 100% Secure & Private
+                  </Text>
+                </View>
+              )}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -846,8 +869,8 @@ const LoginScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -956,9 +979,19 @@ const LoginScreen = ({ navigation, route }) => {
                 <Text style={[styles.footerLink, { color: PURPLE }]}>Back to MPIN sign in</Text>
               </TouchableOpacity>
             </View>
+          </View>
 
-            {/* Trust Badges Bar directly below card */}
+          {/* Bottom Section */}
+          <View style={styles.bottomSection}>
             {renderTrustBar()}
+            {isTallScreen && (
+              <View style={styles.securityHighlightRow}>
+                <ShieldCheck size={13} color="#10B981" />
+                <Text style={[styles.securityHighlightText, { color: textSub }]}>
+                  256-bit encrypted · 100% Secure & Private
+                </Text>
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1364,6 +1397,35 @@ const styles = StyleSheet.create({
   },
   perkText: {
     fontSize: 10,
+    fontWeight: '600',
+  },
+  socialProofRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  socialProofStars: {
+    color: '#F59E0B',
+    fontSize: 12,
+    letterSpacing: 2,
+  },
+  socialProofText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  securityHighlightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  securityHighlightText: {
+    fontSize: 11,
     fontWeight: '600',
   },
   trustBarRow: {

@@ -43,7 +43,9 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const [currentMethod, setCurrentMethod] = useState(otpMethod);
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isSmallScreen = windowHeight < 760;
+  const isTallScreen = windowHeight >= 820;
   const { signIn } = useAuth();
 
   const [code, setCode] = useState(['', '', '', '']);
@@ -204,16 +206,17 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + 18),
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + (isSmallScreen ? 8 : 16)),
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Top Brand Header */}
-          <View style={styles.headerBlock}>
+          <View style={styles.topSection}>
+            {/* Top Brand Header */}
+            <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 6 }, isTallScreen && { marginBottom: 16 }]}>
             <View style={styles.logoRow}>
               <KwicklyIcon size={38} />
               <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
@@ -345,14 +348,25 @@ const OTPVerifyScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
 
-          {/* Bottom Trust Badge */}
+        {/* Bottom Section */}
+        <View style={styles.bottomSection}>
           <View style={styles.trustFooter}>
             <ShieldCheck size={14} color="#10B981" />
             <Text style={[styles.trustText, { color: textSub }]}>
               Bank-grade 256-bit encryption · 100% Secure
             </Text>
           </View>
+          {isTallScreen && (
+            <View style={styles.supportRow}>
+              <MessageSquare size={13} color={PURPLE} />
+              <Text style={[styles.supportText, { color: textSub }]}>
+                Need help? <Text style={{ color: PURPLE, fontWeight: '700' }}>Kwickly Support is available 24/7</Text>
+              </Text>
+            </View>
+          )}
+        </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -562,14 +576,36 @@ const styles = StyleSheet.create({
   switchMethodText: {
     fontSize: 12.5,
   },
+  topSection: {
+    width: '100%',
+  },
+  bottomSection: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: 8,
+    marginBottom: 2,
+  },
   trustFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: 20,
+    marginTop: 4,
   },
   trustText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  supportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  supportText: {
     fontSize: 11.5,
     fontWeight: '600',
   },

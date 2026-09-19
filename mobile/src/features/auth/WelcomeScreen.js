@@ -327,6 +327,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 16,
     alignItems: 'center',
+    justifyContent: 'space-between',
     width: '100%',
     maxWidth: 500,
     alignSelf: 'center',
@@ -479,7 +480,8 @@ const styles = StyleSheet.create({
   ctaBlock: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: 'auto',
+    paddingTop: 8,
     marginBottom: 4,
   },
   btnShadow: {
