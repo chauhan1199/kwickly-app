@@ -304,13 +304,6 @@ const LoginScreen = ({ navigation, route }) => {
   const safeTopPadding = getSafeTopInset(insets, 14);
   const safeBottomInset = getSafeBottomInset(insets, 8);
 
-  // Responsive footer: cap height on small/medium screens (like Samsung M30s ~780dp) so it never clips
-  const { height: windowHeight } = useWindowDimensions();
-  const isCompactScreen = windowHeight < 840;
-  const loginFooterAspect = isDarkMode ? (508 / 1376) : (200 / 576);
-  const rawLoginFooterHeight = Math.round(Math.min(windowWidth, 600) * loginFooterAspect);
-  const loginFooterHeight = isCompactScreen ? Math.min(rawLoginFooterHeight, 68) : Math.min(rawLoginFooterHeight, 95);
-
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
   const textMain = isDarkMode ? '#F8FAFC' : '#0F172A';
@@ -384,31 +377,7 @@ const LoginScreen = ({ navigation, route }) => {
     </View>
   );
 
-  // Bottom Section: Road Footer grounded above system navigation bar
-  const renderBottomFooter = () => {
-    if (keyboardVisible) return null;
-    return (
-      <View 
-        style={[styles.footerWrap, 
-          { 
-            paddingBottom: Math.max(safeBottomInset, 12),
-            backgroundColor: 'transparent',
-          }
-        ]} 
-        pointerEvents="none"
-      >
-        <Image
-          source={
-            isDarkMode
-              ? require('../../assets/images/footer_login_dark.png')
-              : require('../../assets/images/footer_login.png')
-          }
-          style={[styles.bottomFooterImg, { height: loginFooterHeight }]}
-          resizeMode="contain"
-        />
-      </View>
-    );
-  };
+
 
   // ══════════════════════════════════════════
   // STEP 1: PHONE
@@ -424,8 +393,8 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -565,9 +534,6 @@ const LoginScreen = ({ navigation, route }) => {
                 </View>
               </View>
             </View>
-
-            {/* Bottom Footer Section */}
-            {renderBottomFooter()}
           </ScrollView>
         </KeyboardAvoidingView>
         {alertEl}
@@ -589,8 +555,8 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -645,9 +611,6 @@ const LoginScreen = ({ navigation, route }) => {
               {/* Trust Badges Bar directly below card */}
               {renderTrustBar()}
             </View>
-
-            {/* Bottom Footer Section */}
-            {renderBottomFooter()}
           </ScrollView>
         </KeyboardAvoidingView>
         {alertEl}
@@ -669,8 +632,8 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -863,9 +826,6 @@ const LoginScreen = ({ navigation, route }) => {
               {/* Trust Badges Bar directly below card */}
               {renderTrustBar()}
             </View>
-
-            {/* Bottom Footer Section */}
-            {renderBottomFooter()}
           </ScrollView>
         </KeyboardAvoidingView>
         {alertEl}
@@ -886,8 +846,8 @@ const LoginScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -1000,9 +960,6 @@ const LoginScreen = ({ navigation, route }) => {
             {/* Trust Badges Bar directly below card */}
             {renderTrustBar()}
           </View>
-
-          {/* Bottom Footer Section */}
-          {renderBottomFooter()}
         </ScrollView>
       </KeyboardAvoidingView>
       {alertEl}
@@ -1448,18 +1405,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(150, 150, 150, 0.25)',
     marginHorizontal: 3,
   },
-  footerWrap: {
-    width: '100%',
-    maxWidth: 600,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    alignSelf: 'center',
-    marginTop: 6,
-  },
-  bottomFooterImg: {
-    width: '100%',
-    maxWidth: 600,
-  },
+
   trustFooter: {
     flexDirection: 'row',
     alignItems: 'center',

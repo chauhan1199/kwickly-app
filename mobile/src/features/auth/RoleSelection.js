@@ -163,12 +163,6 @@ const RoleSelection = ({ navigation, route }) => {
   const safeTopPadding = getSafeTopInset(insets, 14);
   const safeBottomInset = getSafeBottomInset(insets, 8);
 
-  const { height: windowHeight } = useWindowDimensions();
-  const isCompactScreen = windowHeight < 840;
-  const createFooterAspect = isDarkMode ? (508 / 1376) : (160 / 576);
-  const rawCreateFooterHeight = Math.round(Math.min(windowWidth, 600) * createFooterAspect);
-  const createFooterHeight = isCompactScreen ? Math.min(rawCreateFooterHeight, 60) : Math.min(rawCreateFooterHeight, 85);
-
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
   const textMain = isDarkMode ? '#F8FAFC' : '#0F172A';
@@ -215,7 +209,8 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -524,28 +519,6 @@ const RoleSelection = ({ navigation, route }) => {
                 </View>
               </View>
             </View>
-
-            {/* Bottom Road Landscape Illustration */}
-            <View 
-              style={[
-                styles.footerWrap, 
-                { 
-                  paddingBottom: Math.max(safeBottomInset, 12),
-                  backgroundColor: 'transparent',
-                }
-              ]} 
-              pointerEvents="none"
-            >
-              <Image
-                source={
-                  isDarkMode
-                    ? require('../../assets/images/footer_create_account_dark.png')
-                    : require('../../assets/images/footer_create_account.png')
-                }
-                style={[styles.bottomFooterImg, { height: createFooterHeight }]}
-                resizeMode="contain"
-              />
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -661,11 +634,11 @@ const styles = StyleSheet.create({
     marginBottom: 1,
   },
   headerHeroImg: {
-    width: 110,
-    height: 75,
+    width: 90,
+    height: 60,
   },
   title: {
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '900',
     letterSpacing: -0.4,
     textAlign: 'left',
@@ -678,10 +651,10 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   card: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1.5,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     shadowColor: '#6C47FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -692,7 +665,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.6,
-    marginBottom: 5,
+    marginBottom: 4,
   },
   roleTabsContainer: {
     flexDirection: 'row',
@@ -731,7 +704,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   inputContainer: {
-    height: 44,
+    height: 42,
     borderRadius: 12,
     borderWidth: 1.5,
     flexDirection: 'row',
@@ -928,18 +901,6 @@ const styles = StyleSheet.create({
     height: 18,
     backgroundColor: 'rgba(150, 150, 150, 0.25)',
     marginHorizontal: 3,
-  },
-  footerWrap: {
-    width: '100%',
-    maxWidth: 600,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: 8,
-    alignSelf: 'center',
-  },
-  bottomFooterImg: {
-    width: '100%',
-    maxWidth: 600,
   },
   modalHeader: {
     flexDirection: 'row',

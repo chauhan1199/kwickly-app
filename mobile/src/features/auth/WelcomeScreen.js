@@ -68,11 +68,6 @@ const WelcomeScreen = ({ navigation }) => {
   const safeTopPadding = getSafeTopInset(insets, 14);
   const safeBottomInset = getSafeBottomInset(insets, 8);
 
-  const footerAspect = isDarkMode ? (448 / 1376) : (99 / 576);
-  // Cap footer height on small screens so it doesn't hide the Sign In button
-  const rawFooterHeight = Math.round(Math.min(windowWidth, 600) * footerAspect);
-  const footerHeight = isSmallScreen ? Math.min(rawFooterHeight, 60) : rawFooterHeight;
-
   return (
     <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
       <StatusBar
@@ -107,7 +102,7 @@ const WelcomeScreen = ({ navigation }) => {
           styles.mainContent,
           {
             paddingTop: safeTopPadding,
-            paddingBottom: footerHeight + safeBottomInset + 24,
+            paddingBottom: safeBottomInset + 24,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -299,28 +294,6 @@ const WelcomeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* Bottom Road Landscape Illustration pinned flush to bottom edge */}
-      <View 
-        style={[
-          styles.footerWrap, 
-          { 
-            paddingBottom: safeBottomInset,
-            backgroundColor: 'transparent',
-          }
-        ]} 
-        pointerEvents="none"
-      >
-        <Image
-          source={
-            isDarkMode
-              ? require('../../assets/images/footer_landscape_dark.png')
-              : require('../../assets/images/footer_landscape.png')
-          }
-          style={[styles.footerLandscapeImg, { height: footerHeight }]}
-          resizeMode={isDarkMode ? 'cover' : 'contain'}
-        />
-      </View>
     </View>
   );
 };
@@ -540,20 +513,6 @@ const styles = StyleSheet.create({
   signInHighlight: {
     color: '#6C47FF',
     fontWeight: '800',
-  },
-  footerWrap: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    alignSelf: 'center',
-  },
-  footerLandscapeImg: {
-    width: '100%',
-    maxWidth: 600,
   },
 });
 
