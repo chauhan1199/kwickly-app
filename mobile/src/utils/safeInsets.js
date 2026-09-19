@@ -13,20 +13,21 @@ import { Platform, StatusBar, Dimensions } from 'react-native';
  * @param {number} extraPadding - Additional breathing room (default: 10dp)
  * @returns {number} Safe top inset in dp
  */
-export function getSafeTopInset(insets = {}, extraPadding = 10) {
+export function getSafeTopInset(insets = {}, extraPadding = 14) {
   const insetsTop = typeof insets?.top === 'number' ? insets.top : 0;
-  const androidBar = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
-  const baseTop = Math.max(insetsTop, androidBar, Platform.OS === 'android' ? 36 : 20);
+  const androidBar = Platform.OS === 'android' ? (StatusBar.currentHeight || 40) : 0;
+  // Notch cutouts (e.g. Samsung Galaxy M30s Infinity-U, Xiaomi, Realme) require at least 44dp base height
+  const baseTop = Math.max(insetsTop, androidBar, Platform.OS === 'android' ? 44 : 20);
   return baseTop + extraPadding;
 }
 
 /**
  * Calculates a clean safe bottom inset for screens and tab bars.
  * 
- * Accurately accounts for:
- * 1. `insets.bottom` reported by react-native-safe-area-context (e.g., gesture bar, home indicator)
- * 2. Standard 3-button navigation on Android (where the app window is already bounded above the nav bar,
- *    so no redundant dead-space padding should be injected).
+ * Accounts for:
+ * 1. `insets.bottom` reported by react-native-safe-area-context (gesture bar, edge-to-edge window)
+ * 2. Standard 3-button navigation on Android (provides a guaranteed minimum 16dp buffer so footers
+ *    and trust badges never collide or get clipped by the navigation bar).
  *
  * @param {object} insets - Result of useSafeAreaInsets()
  * @param {number} extraPadding - Optional additional padding (defaults to 0)
@@ -36,10 +37,8 @@ export function getSafeBottomInset(insets = {}, extraPadding = 0) {
   const insetsBottom = typeof insets?.bottom === 'number' ? insets.bottom : 0;
 
   if (Platform.OS === 'android') {
-    // When insetsBottom > 0 (gesture bar or edge-to-edge window), respect the inset.
-    // When insetsBottom === 0 (standard 3-button nav), the OS already hosts the buttons
-    // outside the window; DO NOT add redundant height.
-    const resolvedBottom = insetsBottom > 0 ? insetsBottom : 0;
+    // Provide at least 16dp cushion above Android 3-button nav or edge-to-edge
+    const resolvedBottom = Math.max(insetsBottom, 16);
     return resolvedBottom + extraPadding;
   }
 

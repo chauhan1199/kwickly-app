@@ -43,7 +43,7 @@ import { useAuth } from '../../context/AuthContext';
 import CustomAlert from '../../components/ui/CustomAlert';
 import LinearGradient from 'react-native-linear-gradient';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
-import { getSafeBottomInset } from '../../utils/safeInsets';
+import { getSafeBottomInset, getSafeTopInset } from '../../utils/safeInsets';
 
 const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#F5F3FF';
@@ -301,16 +301,15 @@ const LoginScreen = ({ navigation, route }) => {
     }
   };
 
-  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
-  const safeBottomInset = getSafeBottomInset(insets);
+  const safeTopPadding = getSafeTopInset(insets, 14);
+  const safeBottomInset = getSafeBottomInset(insets, 8);
 
-  // Responsive footer: cap height on small screens so it never clips content above
+  // Responsive footer: cap height on small/medium screens (like Samsung M30s ~780dp) so it never clips
   const { height: windowHeight } = useWindowDimensions();
-  const isSmallScreen = windowHeight < 700;
+  const isCompactScreen = windowHeight < 840;
   const loginFooterAspect = isDarkMode ? (508 / 1376) : (200 / 576);
   const rawLoginFooterHeight = Math.round(Math.min(windowWidth, 600) * loginFooterAspect);
-  const loginFooterHeight = isSmallScreen ? Math.min(rawLoginFooterHeight, 72) : rawLoginFooterHeight;
+  const loginFooterHeight = isCompactScreen ? Math.min(rawLoginFooterHeight, 68) : Math.min(rawLoginFooterHeight, 95);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -392,7 +391,7 @@ const LoginScreen = ({ navigation, route }) => {
       <View 
         style={[styles.footerWrap, 
           { 
-            paddingBottom: safeBottomInset,
+            paddingBottom: Math.max(safeBottomInset, 12),
             backgroundColor: 'transparent',
           }
         ]} 
@@ -425,7 +424,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -481,7 +480,7 @@ const LoginScreen = ({ navigation, route }) => {
                   <TextInput
                     ref={phoneInputRef}
                     style={[styles.inputText, { color: textMain }]}
-                    placeholder="Enter 10-digit number"
+                    placeholder="10-digit number"
                     placeholderTextColor={textSub}
                     keyboardType="phone-pad"
                     maxLength={15}
@@ -590,7 +589,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -666,19 +665,17 @@ const LoginScreen = ({ navigation, route }) => {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
             ref={scrollRef}
-            scrollEnabled={keyboardVisible}
             contentContainerStyle={[
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
-            overScrollMode="never"
           >
             <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
@@ -889,7 +886,7 @@ const LoginScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : 0,
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
@@ -1227,20 +1224,20 @@ const styles = StyleSheet.create({
   prefixWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 6,
   },
   flagText: {
-    fontSize: 16,
-    marginRight: 4,
+    fontSize: 15,
+    marginRight: 3,
   },
   prefixNumber: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '700',
-    marginRight: 8,
+    marginRight: 6,
   },
   prefixDivider: {
     width: 1,
-    height: 22,
+    height: 20,
     marginRight: 4,
   },
   autoDetectRow: {

@@ -22,7 +22,7 @@ import CustomAlert from '../../components/ui/CustomAlert';
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
-import { getSafeBottomInset } from '../../utils/safeInsets';
+import { getSafeBottomInset, getSafeTopInset } from '../../utils/safeInsets';
 import {
   User,
   Wrench,
@@ -44,9 +44,9 @@ const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#F5F3FF';
 
 const ROLE_OPTIONS = [
-  { id: 'CUSTOMER', label: 'Customer', sub: 'Find & book services', icon: User, color: PURPLE, bg: PURPLE_LIGHT },
-  { id: 'WORKER', label: 'Worker', sub: 'Offer your services', icon: Wrench, color: '#10B981', bg: '#D1FAE5' },
-  { id: 'SHOP', label: 'Shop', sub: 'Grow your business', icon: Store, color: '#F59E0B', bg: '#FEF3C7' },
+  { id: 'CUSTOMER', label: 'Customer', sub: 'Book services', icon: User, color: PURPLE, bg: PURPLE_LIGHT },
+  { id: 'WORKER', label: 'Worker', sub: 'Offer services', icon: Wrench, color: '#10B981', bg: '#D1FAE5' },
+  { id: 'SHOP', label: 'Shop', sub: 'Grow business', icon: Store, color: '#F59E0B', bg: '#FEF3C7' },
 ];
 
 const RoleSelection = ({ navigation, route }) => {
@@ -160,12 +160,14 @@ const RoleSelection = ({ navigation, route }) => {
     }
   };
 
-  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
-  const safeBottomInset = getSafeBottomInset(insets);
+  const safeTopPadding = getSafeTopInset(insets, 14);
+  const safeBottomInset = getSafeBottomInset(insets, 8);
 
+  const { height: windowHeight } = useWindowDimensions();
+  const isCompactScreen = windowHeight < 840;
   const createFooterAspect = isDarkMode ? (508 / 1376) : (160 / 576);
-  const createFooterHeight = Math.round(Math.min(windowWidth, 600) * createFooterAspect);
+  const rawCreateFooterHeight = Math.round(Math.min(windowWidth, 600) * createFooterAspect);
+  const createFooterHeight = isCompactScreen ? Math.min(rawCreateFooterHeight, 60) : Math.min(rawCreateFooterHeight, 85);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -213,7 +215,7 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 20,
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -307,10 +309,7 @@ const RoleSelection = ({ navigation, route }) => {
                 autoCorrect={false}
                 value={fullName}
                 onChangeText={setFullName}
-                onFocus={() => {
-                  setFocusedInput('name');
-                  setTimeout(() => scrollRef.current?.scrollTo({ y: 70, animated: true }), 100);
-                }}
+                onFocus={() => setFocusedInput('name')}
                 onBlur={() => setFocusedInput(null)}
                 returnKeyType="next"
                 onSubmitEditing={() => phoneInputRef.current?.focus()}
@@ -332,7 +331,6 @@ const RoleSelection = ({ navigation, route }) => {
                 focusedInput === 'phone' && styles.inputFocusGlow,
               ]}
             >
-              <Phone size={16} color={focusedInput === 'phone' ? PURPLE : textSub} style={{ marginRight: 8 }} />
               <View pointerEvents="none" style={styles.prefixWrapper}>
                 <Text style={[styles.flagText]}>🇮🇳</Text>
                 <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
@@ -341,7 +339,7 @@ const RoleSelection = ({ navigation, route }) => {
               <TextInput
                 ref={phoneInputRef}
                 style={[styles.inputText, { color: textMain }]}
-                placeholder="Enter 10-digit number"
+                placeholder="10-digit number"
                 placeholderTextColor={textSub}
                 keyboardType="phone-pad"
                 maxLength={15}
@@ -353,10 +351,7 @@ const RoleSelection = ({ navigation, route }) => {
                   else if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1);
                   setPhoneNumber(digits.slice(0, 10));
                 }}
-                onFocus={() => {
-                  setFocusedInput('phone');
-                  setTimeout(() => scrollRef.current?.scrollTo({ y: 130, animated: true }), 100);
-                }}
+                onFocus={() => setFocusedInput('phone')}
                 onBlur={() => setFocusedInput(null)}
                 returnKeyType="done"
                 onSubmitEditing={handlePhoneSubmit}
@@ -389,7 +384,7 @@ const RoleSelection = ({ navigation, route }) => {
                 </View>
                 <View style={styles.methodTextBox}>
                   <Text style={[styles.methodTitle, { color: textMain }]} numberOfLines={1}>SMS</Text>
-                  <Text style={[styles.methodSub, { color: textSub }]} numberOfLines={1}>Text message</Text>
+                  <Text style={[styles.methodSub, { color: textSub }]} numberOfLines={1}>Quick SMS</Text>
                 </View>
                 <View style={[styles.checkCircle, { backgroundColor: otpMethod === 'SMS' ? PURPLE : 'transparent', borderColor: otpMethod === 'SMS' ? PURPLE : inputBorder }]}>
                   {otpMethod === 'SMS' && <Check size={10} color="#FFF" strokeWidth={3} />}
@@ -502,7 +497,7 @@ const RoleSelection = ({ navigation, route }) => {
                   <ShieldCheck size={14} color="#10B981" />
                 </View>
                 <View style={styles.trustTextCol}>
-                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Secure</Text>
+                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Safe</Text>
                   <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Data Safe</Text>
                 </View>
               </View>
@@ -524,7 +519,7 @@ const RoleSelection = ({ navigation, route }) => {
               <View style={styles.trustItem}>
                 <Text style={{ fontSize: 16 }}>🇮🇳</Text>
                 <View style={styles.trustTextCol}>
-                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Made in India</Text>
+                  <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>India App</Text>
                   <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Trusted App</Text>
                 </View>
               </View>
@@ -535,7 +530,7 @@ const RoleSelection = ({ navigation, route }) => {
               style={[
                 styles.footerWrap, 
                 { 
-                  paddingBottom: safeBottomInset,
+                  paddingBottom: Math.max(safeBottomInset, 12),
                   backgroundColor: 'transparent',
                 }
               ]} 
@@ -548,7 +543,7 @@ const RoleSelection = ({ navigation, route }) => {
                     : require('../../assets/images/footer_create_account.png')
                 }
                 style={[styles.bottomFooterImg, { height: createFooterHeight }]}
-                resizeMode={isDarkMode ? 'cover' : 'contain'}
+                resizeMode="contain"
               />
             </View>
           </View>

@@ -24,7 +24,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
-import { getSafeBottomInset } from '../../utils/safeInsets';
+import { getSafeBottomInset, getSafeTopInset } from '../../utils/safeInsets';
 
 const LEFT_CHIPS = [
   { key: 'plumbing', label: 'Plumbing', icon: require('../../assets/images/icon_plumbing.png') },
@@ -65,9 +65,8 @@ const WelcomeScreen = ({ navigation }) => {
   const chipH = (heroH - 10) / 3;
   const chipW = Math.min(Math.max(contentWidth * 0.19, 64), 76);
 
-  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 8;
-  const safeBottomInset = getSafeBottomInset(insets);
+  const safeTopPadding = getSafeTopInset(insets, 14);
+  const safeBottomInset = getSafeBottomInset(insets, 8);
 
   const footerAspect = isDarkMode ? (448 / 1376) : (99 / 576);
   // Cap footer height on small screens so it doesn't hide the Sign In button

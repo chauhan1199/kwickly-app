@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
-import { getSafeBottomInset } from '../../utils/safeInsets';
+import { getSafeBottomInset, getSafeTopInset } from '../../utils/safeInsets';
 import {
   Lock,
   ShieldCheck,
@@ -80,9 +80,8 @@ const SetMpinScreen = ({ navigation, route }) => {
     };
   }, []);
 
-  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
-  const safeTopPadding = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 36 : 20) + 12;
-  const safeBottomInset = getSafeBottomInset(insets);
+  const safeTopPadding = getSafeTopInset(insets, 14);
+  const safeBottomInset = getSafeBottomInset(insets, 8);
   const { height: windowHeight } = useWindowDimensions();
   const isSmallScreen = windowHeight < 700;
 
