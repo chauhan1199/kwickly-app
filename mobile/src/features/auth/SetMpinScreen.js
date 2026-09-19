@@ -53,7 +53,8 @@ const SetMpinScreen = ({ navigation, route }) => {
   const { phone = '', role = 'CUSTOMER', name = 'User', token = null, user = null } = route.params || {};
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isSmallScreen = windowHeight < 760;
   const { signIn } = useAuth();
 
   const [mpin, setMpin] = useState('');
@@ -66,6 +67,8 @@ const SetMpinScreen = ({ navigation, route }) => {
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
+  const topSectionDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
+  const cardDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
 
   useEffect(() => {
     const timer1 = setTimeout(() => {
@@ -82,8 +85,6 @@ const SetMpinScreen = ({ navigation, route }) => {
 
   const safeTopPadding = getSafeTopInset(insets, 14);
   const safeBottomInset = getSafeBottomInset(insets, 8);
-  const { height: windowHeight } = useWindowDimensions();
-  const isSmallScreen = windowHeight < 700;
 
   const normalizedRole = (role || 'CUSTOMER').toUpperCase();
   const roleMeta = ROLE_META[normalizedRole] || ROLE_META.CUSTOMER;
@@ -165,15 +166,17 @@ const SetMpinScreen = ({ navigation, route }) => {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible
                 ? (keyboardHeight || bottomInset)
-                : (safeBottomInset + 20),
+                : (safeBottomInset + (isSmallScreen ? 8 : 12)),
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
+          overScrollMode="never"
+          scrollEnabled={keyboardVisible || isSmallScreen}
         >
-          <View style={styles.topSection}>
+          <View style={[styles.topSection, topSectionDynamicStyle]}>
             {/* Header Layout Row: Headline Left, 3D Hero Right */}
             <View style={styles.headerLayoutRow}>
               <View style={styles.headerTextCol}>
@@ -201,7 +204,7 @@ const SetMpinScreen = ({ navigation, route }) => {
             </View>
 
             {/* Floating Form Card */}
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
               {/* User Info Chip */}
               <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }]}>
                 <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
@@ -292,6 +295,9 @@ const SetMpinScreen = ({ navigation, route }) => {
                   Never share your MPIN. Avoid simple sequences like 1234 or 0000.
                 </Text>
               </View>
+
+              {/* Spacer to push actions cleanly */}
+              {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
 
               {/* CTA Button */}
               <TouchableOpacity

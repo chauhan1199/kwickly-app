@@ -46,7 +46,6 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isSmallScreen = windowHeight < 760;
   const isTallScreen = windowHeight >= 820;
-  const sectionGap = Math.round(Math.min(windowHeight * 0.07, 60));
   const { signIn } = useAuth();
 
   const [code, setCode] = useState(['', '', '', '']);
@@ -61,6 +60,8 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
+  const topSectionDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
+  const cardDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
 
   useEffect(() => {
     const t = setTimeout(() => { if (inputs.current[0]) inputs.current[0].focus(); }, 350);
@@ -207,15 +208,17 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + (isSmallScreen ? 8 : 16)),
-              justifyContent: 'flex-start',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + (isSmallScreen ? 8 : 12)),
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
+          overScrollMode="never"
+          scrollEnabled={keyboardVisible || isSmallScreen}
         >
-          <View style={styles.topSection}>
+          <View style={[styles.topSection, topSectionDynamicStyle]}>
             {/* Top Brand Header */}
             <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 6 }, isTallScreen && { marginBottom: 16 }]}>
             <View style={styles.logoRow}>
@@ -248,7 +251,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           </View>
 
           {/* Floating Form Card */}
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
             <Text style={[styles.cardHeading, { color: textMain }]}>
               Enter Verification Code
             </Text>
@@ -298,6 +301,9 @@ const OTPVerifyScreen = ({ navigation, route }) => {
                 Auto-verifying your single-use OTP securely
               </Text>
             </View>
+
+            {/* Spacer to push actions cleanly */}
+            {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
 
             {/* Verify & Continue Button */}
             <TouchableOpacity
@@ -351,8 +357,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Fixed gap + Bottom Section */}
-        {!keyboardVisible && <View style={{ height: sectionGap }} />}
+        {/* Bottom Section */}
         <View style={styles.bottomSection}>
           <View style={styles.trustFooter}>
             <ShieldCheck size={14} color="#10B981" />
@@ -584,7 +589,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 0,
+    marginTop: 10,
     paddingTop: 8,
     marginBottom: 2,
   },

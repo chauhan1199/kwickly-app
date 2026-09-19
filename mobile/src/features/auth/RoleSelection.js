@@ -55,7 +55,6 @@ const RoleSelection = ({ navigation, route }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isSmallScreen = windowHeight < 760;
   const isTallScreen = windowHeight >= 820;
-  const sectionGap = Math.round(Math.min(windowHeight * 0.07, 60));
 
   const [selectedRole, setSelectedRole] = useState(route?.params?.role || 'CUSTOMER');
   const [phoneNumber, setPhoneNumber] = useState(route?.params?.prefillPhone || '');
@@ -70,6 +69,8 @@ const RoleSelection = ({ navigation, route }) => {
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
+  const topSectionDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
+  const cardDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
 
   // Legal Modal
   const [legalModalVisible, setLegalModalVisible] = useState(false);
@@ -212,15 +213,17 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 8 : 16),
-              justifyContent: 'flex-start',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 8 : 12),
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
+          overScrollMode="never"
+          scrollEnabled={keyboardVisible || isSmallScreen}
         >
-          <View style={styles.topSection}>
+          <View style={[styles.topSection, topSectionDynamicStyle]}>
             {/* Top Header Row with Left Headline & Right 3D Art */}
             <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 3 }, isTallScreen && { marginBottom: 12 }]}>
               <View style={styles.headerTextCol}>
@@ -251,6 +254,7 @@ const RoleSelection = ({ navigation, route }) => {
             <View style={[
               styles.card,
               { backgroundColor: cardBg, borderColor: cardBorder },
+              cardDynamicStyle,
               isSmallScreen && { paddingHorizontal: 12, paddingVertical: 10 },
               isTallScreen && { paddingHorizontal: 18, paddingVertical: 16 },
             ]}>
@@ -459,6 +463,9 @@ const RoleSelection = ({ navigation, route }) => {
               </Text>
             </TouchableOpacity>
 
+            {/* Spacer to push actions cleanly */}
+            {!keyboardVisible && <View style={{ flex: 1, minHeight: 8 }} />}
+
             {/* Primary Action Button (HomeScreen CTA standard) */}
             <TouchableOpacity
               onPress={handlePhoneSubmit}
@@ -497,8 +504,7 @@ const RoleSelection = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Fixed gap + Bottom Section */}
-        {!keyboardVisible && <View style={{ height: sectionGap }} />}
+        {/* Bottom Section */}
         <View style={styles.bottomSection}>
           {/* Trust Bar Row (3 Badges) */}
           <View style={styles.trustBarRow}>
@@ -886,7 +892,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 0,
+    marginTop: 10,
     paddingTop: 8,
     marginBottom: 2,
   },

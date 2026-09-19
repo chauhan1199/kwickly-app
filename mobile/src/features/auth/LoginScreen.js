@@ -61,8 +61,6 @@ const LoginScreen = ({ navigation, route }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isSmallScreen = windowHeight < 760;
   const isTallScreen = windowHeight >= 820;
-  // Universal section gap: scales with height but capped at 60dp so all phones look consistent
-  const sectionGap = Math.round(Math.min(windowHeight * 0.07, 60));
   const { signIn } = useAuth();
 
   const [step, setStep] = useState('PHONE');
@@ -90,6 +88,8 @@ const LoginScreen = ({ navigation, route }) => {
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
+  const topSectionDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
+  const cardDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
 
   useEffect(() => {
     if (prefillPhone && prefillPhone.length === 10) handleCheckNumber(prefillPhone);
@@ -398,15 +398,17 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-                justifyContent: 'flex-start',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
+            overScrollMode="never"
+            scrollEnabled={keyboardVisible || isSmallScreen}
           >
-            <View style={styles.topSection}>
+            <View style={[styles.topSection, topSectionDynamicStyle]}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={styles.headerLayoutRow}>
                 <View style={styles.headerTextCol}>
@@ -430,7 +432,7 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
 
               {/* Floating Form Card */}
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
                 <Text style={[styles.cardTitle, { color: textMain }]}>Welcome Back!</Text>
                 <Text style={[styles.cardSub, { color: textSub }]}>Enter your 10-digit mobile number to sign in</Text>
 
@@ -483,9 +485,12 @@ const LoginScreen = ({ navigation, route }) => {
                   <Text style={[styles.autoDetectText, { color: textSub }]}>We'll automatically find your account</Text>
                 </View>
 
+                {/* Spacer to push actions cleanly */}
+                {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
+
                 {/* Continue Button */}
                 <TouchableOpacity
-                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: 16 }]}
+                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: 14 }]}
                   onPress={() => handleCheckNumber()}
                   disabled={phone.length !== 10 || loading}
                   activeOpacity={0.88}
@@ -524,8 +529,7 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
             </View>
 
-            {/* Fixed gap + Bottom Section */}
-            {!keyboardVisible && <View style={{ height: sectionGap }} />}
+            {/* Bottom Section */}
             <View style={styles.bottomSection}>
               {renderTrustBar()}
               <View style={styles.perksRow}>
@@ -569,15 +573,17 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-                justifyContent: 'flex-start',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
+            overScrollMode="never"
+            scrollEnabled={keyboardVisible || isSmallScreen}
           >
-            <View style={styles.topSection}>
+            <View style={[styles.topSection, topSectionDynamicStyle]}>
               <View style={styles.headerBlock}>
                 <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                   <User size={12} color="#6C47FF" />
@@ -594,7 +600,7 @@ const LoginScreen = ({ navigation, route }) => {
                 </Text>
               </View>
 
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
                 {availableAccounts.map((acc, idx) => {
                   const meta = ROLE_META[acc.role] || ROLE_META.CUSTOMER;
                   const Icon = meta.icon;
@@ -617,14 +623,15 @@ const LoginScreen = ({ navigation, route }) => {
                   );
                 })}
 
+                {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
+
                 <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('PHONE')}>
                   <Text style={[styles.footerLink, { color: PURPLE }]}>Use a different number</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Fixed gap + Bottom Section */}
-            {!keyboardVisible && <View style={{ height: sectionGap }} />}
+            {/* Bottom Section */}
             <View style={styles.bottomSection}>
               {renderTrustBar()}
             </View>
@@ -649,15 +656,17 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-                justifyContent: 'flex-start',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
+            overScrollMode="never"
+            scrollEnabled={keyboardVisible || isSmallScreen}
           >
-            <View style={styles.topSection}>
+            <View style={[styles.topSection, topSectionDynamicStyle]}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={[styles.headerLayoutRow, { marginBottom: 6 }]}>
                 <View style={styles.headerTextCol}>
@@ -685,7 +694,7 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
 
               {/* Floating Form Card */}
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: 16, paddingVertical: 12 }]}>
+              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: 16, paddingVertical: 14 }, cardDynamicStyle]}>
                 {/* User Profile Pill */}
                 <View style={[styles.userProfileBox, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF', paddingVertical: 6, paddingHorizontal: 10, marginBottom: 8 }]}>
                   <View style={[styles.avatarCircle, { width: 30, height: 30, borderRadius: 15 }]}>
@@ -713,10 +722,14 @@ const LoginScreen = ({ navigation, route }) => {
                 </View>
 
                 {/* PIN Boxes Container with Touchable Overlay */}
-                <View style={styles.pinContainer}>
+                <View style={styles.pinBoxesContainer}>
                   <Animated.View
-                    style={[styles.pinRow, { gap: 10, transform: [{ translateX: shakeAnim }] }]}
-                    pointerEvents="none"
+                    style={[
+                      styles.pinBoxesRow,
+                      {
+                        transform: [{ translateX: shakeAnim }],
+                      },
+                    ]}
                   >
                     {[0, 1, 2, 3].map((i) => {
                       const filled = mpin.length > i;
@@ -787,6 +800,9 @@ const LoginScreen = ({ navigation, route }) => {
                   </View>
                 )}
 
+                {/* Spacer to push actions cleanly */}
+                {!keyboardVisible && <View style={{ flex: 1, minHeight: 10 }} />}
+
                 {/* Sign In CTA */}
                 <TouchableOpacity
                   style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 10 }]}
@@ -841,8 +857,7 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
             </View>
 
-            {/* Fixed gap + Bottom Section */}
-            {!keyboardVisible && <View style={{ height: sectionGap }} />}
+            {/* Bottom Section */}
             <View style={styles.bottomSection}>
               {renderTrustBar()}
               {isTallScreen && (
@@ -874,15 +889,17 @@ const LoginScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-              justifyContent: 'flex-start',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
+          overScrollMode="never"
+          scrollEnabled={keyboardVisible || isSmallScreen}
         >
-          <View style={styles.topSection}>
+          <View style={[styles.topSection, topSectionDynamicStyle]}>
             <View style={styles.headerBlock}>
               <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                 <KeyRound size={12} color="#6C47FF" />
@@ -899,7 +916,7 @@ const LoginScreen = ({ navigation, route }) => {
               </Text>
             </View>
 
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
               {/* OTP Input */}
               <Text style={[styles.fieldLabel, { color: textSub }]}>VERIFICATION OTP</Text>
               <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : inputBorder, marginBottom: 14 }]}>
@@ -918,20 +935,14 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
 
               {/* New MPIN */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
-                <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  {showNewMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
-                  <Text style={[styles.footerLink, { color: PURPLE, fontSize: 12 }]}>{showNewMpin ? 'Hide' : 'Show'}</Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
               <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: focusedInput === 'newMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
                 <Lock size={16} color={focusedInput === 'newMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
                 <TextInput
                   style={[styles.inputText, { color: textMain, letterSpacing: newMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
                   placeholder="New MPIN"
                   placeholderTextColor={textSub}
-                  keyboardType="phone-pad"
+                  keyboardType="number-pad"
                   maxLength={4}
                   secureTextEntry={!showNewMpin}
                   value={newMpin}
@@ -939,21 +950,20 @@ const LoginScreen = ({ navigation, route }) => {
                   onFocus={() => setFocusedInput('newMpin')}
                   onBlur={() => setFocusedInput(null)}
                 />
+                <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  {showNewMpin ? <EyeOff size={16} color={textSub} /> : <Eye size={16} color={textSub} />}
+                </TouchableOpacity>
               </View>
 
-              {/* Confirm MPIN */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM NEW MPIN</Text>
-                {isResetMatched && <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 12 }}>✓ Matched</Text>}
-                {isResetMismatched && <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 12 }}>✗ Does not match</Text>}
-              </View>
-              <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : inputBorder, marginBottom: 20 }]}>
-                <ShieldCheck size={16} color={isResetMatched ? '#10B981' : (focusedInput === 'confirmMpin' ? PURPLE : textSub)} style={{ marginRight: 10 }} />
+              {/* Confirm New MPIN */}
+              <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM NEW MPIN</Text>
+              <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: isResetMismatched ? '#EF4444' : isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
+                <ShieldCheck size={16} color={isResetMismatched ? '#EF4444' : isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
                 <TextInput
                   style={[styles.inputText, { color: textMain, letterSpacing: confirmNewMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
                   placeholder="Re-enter MPIN"
                   placeholderTextColor={textSub}
-                  keyboardType="phone-pad"
+                  keyboardType="number-pad"
                   maxLength={4}
                   secureTextEntry={!showNewMpin}
                   value={confirmNewMpin}
@@ -962,6 +972,9 @@ const LoginScreen = ({ navigation, route }) => {
                   onBlur={() => setFocusedInput(null)}
                 />
               </View>
+
+              {/* Spacer to push actions cleanly */}
+              {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
 
               {/* Reset CTA */}
               <TouchableOpacity
@@ -986,8 +999,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* Fixed gap + Bottom Section */}
-          {!keyboardVisible && <View style={{ height: sectionGap }} />}
+          {/* Bottom Section */}
           <View style={styles.bottomSection}>
             {renderTrustBar()}
             {isTallScreen && (
@@ -1370,7 +1382,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 0,
+    marginTop: 10,
     marginBottom: 0,
   },
   trustBarCard: {
