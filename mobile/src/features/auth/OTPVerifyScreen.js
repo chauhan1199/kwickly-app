@@ -46,6 +46,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isSmallScreen = windowHeight < 760;
   const isTallScreen = windowHeight >= 820;
+  const sectionGap = Math.round(Math.min(windowHeight * 0.07, 60));
   const { signIn } = useAuth();
 
   const [code, setCode] = useState(['', '', '', '']);
@@ -207,7 +208,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + (isSmallScreen ? 8 : 16)),
-              justifyContent: keyboardVisible ? 'flex-start' : (isTallScreen ? 'flex-start' : 'space-between'),
+              justifyContent: 'flex-start',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -350,8 +351,9 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Bottom Section */}
-        <View style={[styles.bottomSection, isTallScreen && !keyboardVisible ? { marginTop: 20, marginBottom: 8 } : null]}>
+        {/* Fixed gap + Bottom Section */}
+        {!keyboardVisible && <View style={{ height: sectionGap }} />}
+        <View style={styles.bottomSection}>
           <View style={styles.trustFooter}>
             <ShieldCheck size={14} color="#10B981" />
             <Text style={[styles.trustText, { color: textSub }]}>
@@ -582,7 +584,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 'auto',
+    marginTop: 0,
     paddingTop: 8,
     marginBottom: 2,
   },
