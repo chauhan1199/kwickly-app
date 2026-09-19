@@ -397,7 +397,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: keyboardVisible ? 'flex-start' : (isTallScreen ? 'flex-start' : 'space-between'),
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -522,8 +522,8 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
             </View>
 
-            {/* Bottom Section: anchored at bottom */}
-            <View style={styles.bottomSection}>
+            {/* Bottom Section */}
+            <View style={[styles.bottomSection, isTallScreen && !keyboardVisible ? { marginTop: 20, marginBottom: 8 } : null]}>
               {renderTrustBar()}
               <View style={styles.perksRow}>
                 <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
@@ -567,7 +567,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: keyboardVisible ? 'flex-start' : (isTallScreen ? 'flex-start' : 'space-between'),
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -621,7 +621,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Section */}
-            <View style={styles.bottomSection}>
+            <View style={[styles.bottomSection, isTallScreen && !keyboardVisible ? { marginTop: 20, marginBottom: 8 } : null]}>
               {renderTrustBar()}
             </View>
           </ScrollView>
@@ -646,7 +646,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: keyboardVisible ? 'flex-start' : (isTallScreen ? 'flex-start' : 'space-between'),
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -838,7 +838,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Section */}
-            <View style={styles.bottomSection}>
+            <View style={[styles.bottomSection, isTallScreen && !keyboardVisible ? { marginTop: 20, marginBottom: 8 } : null]}>
               {renderTrustBar()}
               {isTallScreen && (
                 <View style={styles.securityHighlightRow}>
@@ -870,7 +870,7 @@ const LoginScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 16,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: keyboardVisible ? 'flex-start' : (isTallScreen ? 'flex-start' : 'space-between'),
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -982,7 +982,7 @@ const LoginScreen = ({ navigation, route }) => {
           </View>
 
           {/* Bottom Section */}
-          <View style={styles.bottomSection}>
+          <View style={[styles.bottomSection, isTallScreen && !keyboardVisible ? { marginTop: 20, marginBottom: 8 } : null]}>
             {renderTrustBar()}
             {isTallScreen && (
               <View style={styles.securityHighlightRow}>
@@ -1364,7 +1364,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 'auto',
+    marginTop: 'auto', // overridden inline on tall screens
     marginBottom: 0,
   },
   trustBarCard: {

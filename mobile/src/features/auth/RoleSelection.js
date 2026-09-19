@@ -212,7 +212,7 @@ const RoleSelection = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 8 : 16),
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: keyboardVisible ? 'flex-start' : (isTallScreen ? 'flex-start' : 'space-between'),
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -497,7 +497,7 @@ const RoleSelection = ({ navigation, route }) => {
         </View>
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, isTallScreen && !keyboardVisible ? { marginTop: 20, marginBottom: 8 } : null]}>
           {/* Trust Bar Row (3 Badges) */}
           <View style={styles.trustBarRow}>
             <View style={styles.trustItem}>
