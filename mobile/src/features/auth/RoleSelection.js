@@ -53,8 +53,9 @@ const RoleSelection = ({ navigation, route }) => {
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isSmallScreen = windowHeight < 760;
-  const isTallScreen = windowHeight >= 820;
+  const screenHeight = Dimensions.get('screen').height;
+  const isSmallScreen = windowHeight < 720;
+  const isTallScreen = windowHeight >= 760 || screenHeight >= 800;
 
   const [selectedRole, setSelectedRole] = useState(route?.params?.role || 'CUSTOMER');
   const [phoneNumber, setPhoneNumber] = useState(route?.params?.prefillPhone || '');
@@ -211,7 +212,8 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 8 : 12),
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -222,13 +224,13 @@ const RoleSelection = ({ navigation, route }) => {
         >
           <View style={styles.topSection}>
             {/* Top Header Row with Left Headline & Right 3D Art */}
-            <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 3 }, isTallScreen && { marginBottom: 10 }]}>
+            <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 3 }, isTallScreen && { marginBottom: 12 }]}>
               <View style={styles.headerTextCol}>
                 <Text style={styles.scriptBadge}>Join Our Growing Community</Text>
-                <Text style={[styles.title, { color: textMain }, isSmallScreen && { fontSize: 18 }]}>
+                <Text style={[styles.title, { color: textMain }, isSmallScreen && { fontSize: 18 }, isTallScreen && { fontSize: 22 }]}>
                   Create <Text style={{ color: '#6C47FF' }}>Your Account</Text>
                 </Text>
-                <Text style={[styles.subtitle, { color: textSub }, isSmallScreen && { fontSize: 10 }]}>
+                <Text style={[styles.subtitle, { color: textSub }, isSmallScreen && { fontSize: 10 }, isTallScreen && { fontSize: 12, marginTop: 3 }]}>
                   Take the next step. A few details and you're all set!
                 </Text>
               </View>
@@ -241,7 +243,7 @@ const RoleSelection = ({ navigation, route }) => {
                 style={[
                   styles.headerHeroImg,
                   isSmallScreen && { width: 75, height: 50 },
-                  isTallScreen && { width: 105, height: 70 },
+                  isTallScreen && { width: 115, height: 75 },
                 ]}
                 resizeMode="contain"
               />
@@ -252,7 +254,7 @@ const RoleSelection = ({ navigation, route }) => {
               styles.card,
               { backgroundColor: cardBg, borderColor: cardBorder },
               isSmallScreen && { paddingHorizontal: 12, paddingVertical: 10 },
-              isTallScreen && { paddingHorizontal: 18, paddingVertical: 16 },
+              isTallScreen && { paddingHorizontal: 18, paddingVertical: 20 },
             ]}>
             
             {/* Registering As */}
@@ -464,13 +466,13 @@ const RoleSelection = ({ navigation, route }) => {
               onPress={handlePhoneSubmit}
               disabled={!canSubmit}
               activeOpacity={0.88}
-              style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: 16 }]}
+              style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: isTallScreen ? 18 : 14 }]}
             >
               <LinearGradient
                 colors={[PURPLE, '#582BE8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.ctaBtn}
+                style={[styles.ctaBtn, isTallScreen && { height: 50 }]}
               >
                 {loading ? (
                   <ActivityIndicator size="small" color="#FFF" />
@@ -484,7 +486,7 @@ const RoleSelection = ({ navigation, route }) => {
             </TouchableOpacity>
 
             {/* Bottom Navigation Link */}
-            <View style={styles.footerRow}>
+            <View style={[styles.footerRow, isTallScreen && { marginTop: 12 }]}>
               <TouchableOpacity
                 onPress={() => navigation.navigate('Login', { role: selectedRole })}
                 activeOpacity={0.75}
@@ -498,7 +500,7 @@ const RoleSelection = ({ navigation, route }) => {
         </View>
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { marginTop: isTallScreen ? 16 : 8 }]}>
           {/* Trust Bar Row (3 Badges) */}
           <View style={styles.trustBarRow}>
             <View style={styles.trustItem}>
@@ -885,8 +887,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 'auto',
-    paddingTop: 16,
+    paddingTop: 4,
     paddingBottom: 4,
   },
   reassuranceRow: {

@@ -54,7 +54,9 @@ const SetMpinScreen = ({ navigation, route }) => {
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isSmallScreen = windowHeight < 760;
+  const screenHeight = Dimensions.get('screen').height;
+  const isSmallScreen = windowHeight < 720;
+  const isTallScreen = windowHeight >= 760 || screenHeight >= 800;
   const { signIn } = useAuth();
 
   const [mpin, setMpin] = useState('');
@@ -164,7 +166,8 @@ const SetMpinScreen = ({ navigation, route }) => {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible
                 ? (keyboardHeight || bottomInset)
-                : (safeBottomInset + (isSmallScreen ? 8 : 12)),
+                : safeBottomInset + (isSmallScreen ? 6 : 14),
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -175,16 +178,16 @@ const SetMpinScreen = ({ navigation, route }) => {
         >
           <View style={styles.topSection}>
             {/* Header Layout Row: Headline Left, 3D Hero Right */}
-            <View style={styles.headerLayoutRow}>
+            <View style={[styles.headerLayoutRow, isTallScreen && { marginBottom: 12 }]}>
               <View style={styles.headerTextCol}>
-                <Text style={[styles.heroHeadline, { fontSize: isSmallScreen ? 19 : 22, lineHeight: isSmallScreen ? 23 : 26, color: textMain }]}>
+                <Text style={[styles.heroHeadline, { fontSize: isSmallScreen ? 19 : isTallScreen ? 24 : 22, lineHeight: isSmallScreen ? 23 : isTallScreen ? 28 : 26, color: textMain }]}>
                   Create{'\n'}
                   <Text style={{ color: PURPLE }}>4-Digit MPIN</Text>
                 </Text>
-                <Text style={[styles.heroSub, { color: textSub }]}>
+                <Text style={[styles.heroSub, { color: textSub }, isTallScreen && { fontSize: 12, marginTop: 4 }]}>
                   Use this secure MPIN to sign in quickly anytime
                 </Text>
-                <View style={styles.safeShieldPill}>
+                <View style={[styles.safeShieldPill, isTallScreen && { marginTop: 6 }]}>
                   <ShieldCheck size={14} color={PURPLE} />
                   <Text style={styles.safeShieldText}>Your data is safe with us</Text>
                 </View>
@@ -195,15 +198,15 @@ const SetMpinScreen = ({ navigation, route }) => {
                     ? require('../../assets/images/hero_mpin_dark.png')
                     : require('../../assets/images/hero_mpin.png')
                 }
-                style={styles.heroMpinImg}
+                style={[styles.heroMpinImg, isTallScreen && { width: 110, height: 90 }]}
                 resizeMode="contain"
               />
             </View>
 
             {/* Floating Form Card */}
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 }]}>
               {/* User Info Chip */}
-              <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+              <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }, isTallScreen && { paddingVertical: 10, paddingHorizontal: 12, marginBottom: 14 }]}>
                 <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
                   <RoleIcon size={16} color={roleMeta.color} />
                 </View>
@@ -231,7 +234,7 @@ const SetMpinScreen = ({ navigation, route }) => {
               </View>
 
               {/* Visual 4-box display for MPIN with touchable overlay */}
-              <View style={styles.pinContainer}>
+              <View style={[styles.pinContainer, isTallScreen && { marginBottom: 16 }]}>
                 <View
                   pointerEvents="none"
                   style={styles.pinRow}
@@ -244,6 +247,7 @@ const SetMpinScreen = ({ navigation, route }) => {
                         key={i}
                         style={[
                           styles.pinBox,
+                          isTallScreen && { width: 56, height: 56, borderRadius: 16 },
                           { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : inputBorder },
                           active && styles.pinBoxActiveGlow,
                         ]}
@@ -286,7 +290,7 @@ const SetMpinScreen = ({ navigation, route }) => {
               </View>
 
               {/* Security hint */}
-              <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }]}>
+              <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }, isTallScreen && { paddingVertical: 12, paddingHorizontal: 14, marginTop: 12 }]}>
                 <Text style={styles.hintIcon}>💡</Text>
                 <Text style={[styles.hintText, { color: textSub }]}>
                   Never share your MPIN. Avoid simple sequences like 1234 or 0000.
@@ -295,7 +299,7 @@ const SetMpinScreen = ({ navigation, route }) => {
 
               {/* CTA Button */}
               <TouchableOpacity
-                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 16 }]}
+                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 18 : 14 }]}
                 onPress={() => handleSetMpin(mpin)}
                 disabled={mpin.length !== 4 || loading}
                 activeOpacity={0.88}
@@ -304,7 +308,7 @@ const SetMpinScreen = ({ navigation, route }) => {
                   colors={[PURPLE, '#582BE8']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={styles.ctaBtn}
+                  style={[styles.ctaBtn, isTallScreen && { height: 52 }]}
                 >
                   {loading ? (
                     <ActivityIndicator size="small" color="#FFF" />
@@ -320,7 +324,7 @@ const SetMpinScreen = ({ navigation, route }) => {
           </View>
 
           {/* Bottom Section */}
-          <View style={styles.bottomSection}>
+          <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
             {/* Bottom Trust Bar (3 Badges) */}
             <View style={styles.trustBarRow}>
               <View style={styles.trustItem}>
@@ -355,6 +359,15 @@ const SetMpinScreen = ({ navigation, route }) => {
                 </View>
               </View>
             </View>
+
+            {isTallScreen && (
+              <View style={styles.reassuranceRow}>
+                <ShieldCheck size={13} color="#10B981" />
+                <Text style={[styles.reassuranceText, { color: textSub }]}>
+                  Bank-grade 256-bit encryption · Quick PIN login enabled
+                </Text>
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -408,8 +421,7 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     width: '100%',
-    marginTop: 'auto',
-    paddingTop: 16,
+    paddingTop: 4,
     paddingBottom: 4,
   },
   backBtn: {
@@ -686,6 +698,18 @@ const styles = StyleSheet.create({
     width: 1,
     height: 22,
     backgroundColor: 'rgba(150, 150, 150, 0.25)',
+  },
+  reassuranceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  reassuranceText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });
 

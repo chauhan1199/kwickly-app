@@ -44,8 +44,9 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isSmallScreen = windowHeight < 760;
-  const isTallScreen = windowHeight >= 820;
+  const screenHeight = Dimensions.get('screen').height;
+  const isSmallScreen = windowHeight < 720;
+  const isTallScreen = windowHeight >= 760 || screenHeight >= 800;
   const { signIn } = useAuth();
 
   const [code, setCode] = useState(['', '', '', '']);
@@ -206,7 +207,8 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + (isSmallScreen ? 8 : 12)),
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -217,7 +219,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
         >
           <View style={styles.topSection}>
             {/* Top Brand Header */}
-            <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 6 }, isTallScreen && { marginBottom: 16 }]}>
+            <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 6 }, isTallScreen && { marginBottom: 20 }]}>
             <View style={styles.logoRow}>
               <KwicklyIcon size={38} />
               <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
@@ -248,7 +250,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           </View>
 
           {/* Floating Form Card */}
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, isTallScreen && { paddingVertical: 24, paddingHorizontal: 20 }]}>
             <Text style={[styles.cardHeading, { color: textMain }]}>
               Enter Verification Code
             </Text>
@@ -267,6 +269,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
                     ref={(ref) => (inputs.current[index] = ref)}
                     style={[
                       styles.codeBox,
+                      isTallScreen && { width: 60, height: 60, borderRadius: 18 },
                       {
                         backgroundColor: inputBg,
                         borderColor: isFocused ? PURPLE : isFilled ? PURPLE : inputBorder,
@@ -304,13 +307,13 @@ const OTPVerifyScreen = ({ navigation, route }) => {
               onPress={() => handleVerify()}
               disabled={!isComplete || loading}
               activeOpacity={0.88}
-              style={[styles.btnShadow, { opacity: isComplete && !loading ? 1 : 0.45, marginTop: 16 }]}
+              style={[styles.btnShadow, { opacity: isComplete && !loading ? 1 : 0.45, marginTop: isTallScreen ? 20 : 16 }]}
             >
               <LinearGradient
                 colors={[PURPLE, '#582BE8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.ctaBtn}
+                style={[styles.ctaBtn, isTallScreen && { height: 52 }]}
               >
                 {loading ? (
                   <ActivityIndicator size="small" color="#FFF" />
@@ -324,7 +327,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             </TouchableOpacity>
 
             {/* Resend & Alternative Method Row */}
-            <View style={styles.resendSection}>
+            <View style={[styles.resendSection, isTallScreen && { marginTop: 18 }]}>
               {countdown > 0 ? (
                 <View style={styles.countdownRow}>
                   <RefreshCw size={13} color={textSub} />
@@ -352,7 +355,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
         </View>
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { marginTop: isTallScreen ? 20 : 10 }]}>
           <View style={styles.trustFooter}>
             <ShieldCheck size={14} color="#10B981" />
             <Text style={[styles.trustText, { color: textSub }]}>
@@ -583,8 +586,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 'auto',
-    paddingTop: 16,
+    paddingTop: 4,
     paddingBottom: 4,
   },
   trustFooter: {
