@@ -531,27 +531,25 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
+            <View style={[styles.bottomSection, { marginTop: 12 }]}>
               {renderTrustBar()}
               <View style={styles.perksRow}>
-                <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
-                  <Text style={[styles.perkText, { color: textSub }]}>⚡ On-Time Service</Text>
+                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
+                  <Text style={[styles.perkText, { color: textSub }]} numberOfLines={1}>⚡ On-Time</Text>
                 </View>
-                <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
-                  <Text style={[styles.perkText, { color: textSub }]}>🛠️ 50+ Services</Text>
+                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
+                  <Text style={[styles.perkText, { color: textSub }]} numberOfLines={1}>🛠️ 50+ Services</Text>
                 </View>
-                <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
-                  <Text style={[styles.perkText, { color: textSub }]}>🛡️ Verified Pros</Text>
+                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
+                  <Text style={[styles.perkText, { color: textSub }]} numberOfLines={1}>🛡️ Verified Pros</Text>
                 </View>
               </View>
-              {isTallScreen && (
-                <View style={styles.socialProofRow}>
-                  <Text style={styles.socialProofStars}>★★★★★</Text>
-                  <Text style={[styles.socialProofText, { color: textSub }]}>
-                    Trusted by 10,000+ happy homes across India
-                  </Text>
-                </View>
-              )}
+              <View style={styles.socialProofRow}>
+                <Text style={styles.socialProofStars}>★★★★★</Text>
+                <Text style={[styles.socialProofText, { color: textSub }]} numberOfLines={1}>
+                  Trusted by 10,000+ happy homes across India
+                </Text>
+              </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -867,16 +865,14 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
+            <View style={[styles.bottomSection, { marginTop: 12 }]}>
               {renderTrustBar()}
-              {isTallScreen && (
-                <View style={styles.securityHighlightRow}>
-                  <ShieldCheck size={13} color="#10B981" />
-                  <Text style={[styles.securityHighlightText, { color: textSub }]}>
-                    256-bit encrypted · 100% Secure & Private
-                  </Text>
-                </View>
-              )}
+              <View style={styles.securityHighlightRow}>
+                <ShieldCheck size={13} color="#10B981" />
+                <Text style={[styles.securityHighlightText, { color: textSub }]}>
+                  256-bit encrypted · 100% Secure & Private
+                </Text>
+              </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -1021,16 +1017,14 @@ const LoginScreen = ({ navigation, route }) => {
           </View>
 
           {/* Bottom Section */}
-          <View style={[styles.bottomSection, { marginTop: 14 }]}>
+          <View style={[styles.bottomSection, { marginTop: 12 }]}>
             {renderTrustBar()}
-            {isTallScreen && (
-              <View style={styles.securityHighlightRow}>
-                <ShieldCheck size={13} color="#10B981" />
-                <Text style={[styles.securityHighlightText, { color: textSub }]}>
-                  256-bit encrypted · 100% Secure & Private
-                </Text>
-              </View>
-            )}
+            <View style={styles.securityHighlightRow}>
+              <ShieldCheck size={13} color="#10B981" />
+              <Text style={[styles.securityHighlightText, { color: textSub }]}>
+                256-bit encrypted · 100% Secure & Private
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1424,19 +1418,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     marginTop: 6,
-    marginBottom: 12,
+    marginBottom: 8,
     width: '100%',
-    flexWrap: 'wrap',
   },
   perkChip: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 5,
     borderRadius: 20,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   perkText: {
     fontSize: 10,
     fontWeight: '600',
+    textAlign: 'center',
   },
   socialProofRow: {
     flexDirection: 'row',

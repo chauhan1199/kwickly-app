@@ -207,22 +207,22 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 10) + 14,
+              justifyContent: 'flex-start',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible}
+          scrollEnabled={true}
         >
-          <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
+          <View style={styles.topSection}>
             {/* Top Brand Header */}
-            <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 6 }, isTallScreen && { marginBottom: 20 }]}>
+            <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 4 }, isTallScreen && { marginBottom: 18 }]}>
             <View style={styles.logoRow}>
-              <KwicklyIcon size={38} />
-              <Text style={[styles.wordmark, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+              <KwicklyIcon size={isSmallScreen ? 30 : 38} />
+              <Text style={[styles.wordmark, { fontSize: isSmallScreen ? 20 : 24, color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
                 Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
               </Text>
             </View>
@@ -253,8 +253,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           <View style={[
             styles.card,
             { backgroundColor: cardBg, borderColor: cardBorder },
-            isTallScreen && { paddingVertical: 24, paddingHorizontal: 20 },
-            isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
+            isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
           ]}>
             <View>
               <Text style={[styles.cardHeading, { color: textMain }]}>
@@ -364,21 +363,19 @@ const OTPVerifyScreen = ({ navigation, route }) => {
         </View>
 
         {/* Bottom Section */}
-        <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
+        <View style={[styles.bottomSection, { marginTop: 10 }]}>
           <View style={styles.trustFooter}>
             <ShieldCheck size={14} color="#10B981" />
             <Text style={[styles.trustText, { color: textSub }]}>
               Bank-grade 256-bit encryption · 100% Secure
             </Text>
           </View>
-          {isTallScreen && (
-            <View style={styles.supportRow}>
-              <MessageSquare size={13} color={PURPLE} />
-              <Text style={[styles.supportText, { color: textSub }]}>
-                Need help? <Text style={{ color: PURPLE, fontWeight: '700' }}>Kwickly Support is available 24/7</Text>
-              </Text>
-            </View>
-          )}
+          <View style={styles.supportRow}>
+            <MessageSquare size={13} color={PURPLE} />
+            <Text style={[styles.supportText, { color: textSub }]}>
+              Need help? <Text style={{ color: PURPLE, fontWeight: '700' }}>Kwickly Support is available 24/7</Text>
+            </Text>
+          </View>
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
