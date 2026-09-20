@@ -207,7 +207,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + (isSmallScreen ? 8 : 12)),
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -584,9 +584,8 @@ const styles = StyleSheet.create({
   bottomSection: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 8,
-    marginBottom: 2,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   trustFooter: {
     flexDirection: 'row',

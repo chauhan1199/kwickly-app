@@ -165,7 +165,7 @@ const SetMpinScreen = ({ navigation, route }) => {
               paddingBottom: keyboardVisible
                 ? (keyboardHeight || bottomInset)
                 : (safeBottomInset + (isSmallScreen ? 8 : 12)),
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -409,7 +409,8 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     width: '100%',
-    marginTop: 8,
+    paddingTop: 10,
+    paddingBottom: 4,
   },
   backBtn: {
     width: 38,
