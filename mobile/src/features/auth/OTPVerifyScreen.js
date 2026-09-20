@@ -60,8 +60,6 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
-  const topSectionDynamicStyle = null;
-  const cardDynamicStyle = null;
 
   useEffect(() => {
     const t = setTimeout(() => { if (inputs.current[0]) inputs.current[0].focus(); }, 350);
@@ -209,7 +207,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : (safeBottomInset + (isSmallScreen ? 8 : 12)),
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -218,7 +216,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           overScrollMode="never"
           scrollEnabled={keyboardVisible}
         >
-          <View style={[styles.topSection, topSectionDynamicStyle]}>
+          <View style={styles.topSection}>
             {/* Top Brand Header */}
             <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 6 }, isTallScreen && { marginBottom: 16 }]}>
             <View style={styles.logoRow}>
@@ -251,7 +249,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           </View>
 
           {/* Floating Form Card */}
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             <Text style={[styles.cardHeading, { color: textMain }]}>
               Enter Verification Code
             </Text>

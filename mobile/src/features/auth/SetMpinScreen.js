@@ -67,8 +67,6 @@ const SetMpinScreen = ({ navigation, route }) => {
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
-  const topSectionDynamicStyle = null;
-  const cardDynamicStyle = null;
 
   useEffect(() => {
     const timer1 = setTimeout(() => {
@@ -167,7 +165,7 @@ const SetMpinScreen = ({ navigation, route }) => {
               paddingBottom: keyboardVisible
                 ? (keyboardHeight || bottomInset)
                 : (safeBottomInset + (isSmallScreen ? 8 : 12)),
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -176,7 +174,7 @@ const SetMpinScreen = ({ navigation, route }) => {
           overScrollMode="never"
           scrollEnabled={keyboardVisible}
         >
-          <View style={[styles.topSection, topSectionDynamicStyle]}>
+          <View style={styles.topSection}>
             {/* Header Layout Row: Headline Left, 3D Hero Right */}
             <View style={styles.headerLayoutRow}>
               <View style={styles.headerTextCol}>
@@ -204,7 +202,7 @@ const SetMpinScreen = ({ navigation, route }) => {
             </View>
 
             {/* Floating Form Card */}
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
               {/* User Info Chip */}
               <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }]}>
                 <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>

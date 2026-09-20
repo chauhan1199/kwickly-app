@@ -69,8 +69,6 @@ const RoleSelection = ({ navigation, route }) => {
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
-  const topSectionDynamicStyle = null;
-  const cardDynamicStyle = null;
 
   // Legal Modal
   const [legalModalVisible, setLegalModalVisible] = useState(false);
@@ -214,7 +212,7 @@ const RoleSelection = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 8 : 12),
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -223,9 +221,9 @@ const RoleSelection = ({ navigation, route }) => {
           overScrollMode="never"
           scrollEnabled={keyboardVisible}
         >
-          <View style={[styles.topSection, topSectionDynamicStyle]}>
+          <View style={styles.topSection}>
             {/* Top Header Row with Left Headline & Right 3D Art */}
-            <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 3 }, isTallScreen && { marginBottom: 12 }]}>
+            <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 3 }, isTallScreen && { marginBottom: 10 }]}>
               <View style={styles.headerTextCol}>
                 <Text style={styles.scriptBadge}>Join Our Growing Community</Text>
                 <Text style={[styles.title, { color: textMain }, isSmallScreen && { fontSize: 18 }]}>
@@ -254,7 +252,6 @@ const RoleSelection = ({ navigation, route }) => {
             <View style={[
               styles.card,
               { backgroundColor: cardBg, borderColor: cardBorder },
-              cardDynamicStyle,
               isSmallScreen && { paddingHorizontal: 12, paddingVertical: 10 },
               isTallScreen && { paddingHorizontal: 18, paddingVertical: 16 },
             ]}>

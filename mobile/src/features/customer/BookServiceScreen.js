@@ -369,11 +369,12 @@ const BookServiceScreen = ({ navigation, route }) => {
 
         {/* Dynamic Promotional Banners */}
         {banners.length > 0 && (
-          <View style={{ marginBottom: 18, alignItems: 'center' }}>
+          <View style={{ height: 135, marginBottom: 18, alignItems: 'center', overflow: 'hidden' }}>
             <BannerCarousel 
               banners={banners} 
               itemWidth={bannerWidth} 
               itemHeight={135}
+              style={{ height: 135 }}
               autoPlayInterval={4000}
               contentContainerStyle={{ paddingHorizontal: 14 }}
             />

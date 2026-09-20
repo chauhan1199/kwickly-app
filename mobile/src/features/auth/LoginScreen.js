@@ -88,8 +88,6 @@ const LoginScreen = ({ navigation, route }) => {
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
-  const topSectionDynamicStyle = null;
-  const cardDynamicStyle = null;
 
   useEffect(() => {
     if (prefillPhone && prefillPhone.length === 10) handleCheckNumber(prefillPhone);
@@ -399,7 +397,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -408,7 +406,7 @@ const LoginScreen = ({ navigation, route }) => {
             overScrollMode="never"
             scrollEnabled={keyboardVisible}
           >
-            <View style={[styles.topSection, topSectionDynamicStyle]}>
+            <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={styles.headerLayoutRow}>
                 <View style={styles.headerTextCol}>
@@ -432,7 +430,7 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
 
               {/* Floating Form Card */}
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
+              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
                 <Text style={[styles.cardTitle, { color: textMain }]}>Welcome Back!</Text>
                 <Text style={[styles.cardSub, { color: textSub }]}>Enter your 10-digit mobile number to sign in</Text>
 
@@ -571,7 +569,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -580,7 +578,7 @@ const LoginScreen = ({ navigation, route }) => {
             overScrollMode="never"
             scrollEnabled={keyboardVisible}
           >
-            <View style={[styles.topSection, topSectionDynamicStyle]}>
+            <View style={styles.topSection}>
               <View style={styles.headerBlock}>
                 <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                   <User size={12} color="#6C47FF" />
@@ -597,7 +595,7 @@ const LoginScreen = ({ navigation, route }) => {
                 </Text>
               </View>
 
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
+              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
                 {availableAccounts.map((acc, idx) => {
                   const meta = ROLE_META[acc.role] || ROLE_META.CUSTOMER;
                   const Icon = meta.icon;
@@ -652,7 +650,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: keyboardVisible ? 'flex-start' : 'center',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -661,7 +659,7 @@ const LoginScreen = ({ navigation, route }) => {
             overScrollMode="never"
             scrollEnabled={keyboardVisible}
           >
-            <View style={[styles.topSection, topSectionDynamicStyle]}>
+            <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={[styles.headerLayoutRow, { marginBottom: 6 }]}>
                 <View style={styles.headerTextCol}>
@@ -689,7 +687,7 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
 
               {/* Floating Form Card */}
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: 16, paddingVertical: 14 }, cardDynamicStyle]}>
+              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: 16, paddingVertical: isTallScreen ? 18 : 14 }]}>
                 {/* User Profile Pill */}
                 <View style={[styles.userProfileBox, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF', paddingVertical: 6, paddingHorizontal: 10, marginBottom: 8 }]}>
                   <View style={[styles.avatarCircle, { width: 30, height: 30, borderRadius: 15 }]}>
@@ -882,7 +880,7 @@ const LoginScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: keyboardVisible ? 'flex-start' : 'center',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -891,7 +889,7 @@ const LoginScreen = ({ navigation, route }) => {
           overScrollMode="never"
           scrollEnabled={keyboardVisible}
         >
-          <View style={[styles.topSection, topSectionDynamicStyle]}>
+          <View style={styles.topSection}>
             <View style={styles.headerBlock}>
               <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                 <KeyRound size={12} color="#6C47FF" />
@@ -908,7 +906,7 @@ const LoginScreen = ({ navigation, route }) => {
               </Text>
             </View>
 
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, cardDynamicStyle]}>
+            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
               {/* OTP Input */}
               <Text style={[styles.fieldLabel, { color: textSub }]}>VERIFICATION OTP</Text>
               <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : inputBorder, marginBottom: 14 }]}>

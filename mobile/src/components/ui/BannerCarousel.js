@@ -56,7 +56,7 @@ const BannerCarousel = ({
   if (!banners || banners.length === 0) return null;
 
   return (
-    <View style={style}>
+    <View style={[{ height: itemHeight }, style]}>
       <FlatList
         ref={flatListRef}
         data={banners}
@@ -67,6 +67,7 @@ const BannerCarousel = ({
         snapToInterval={itemWidth + 10}
         decelerationRate="fast"
         onMomentumScrollEnd={handleScroll}
+        style={{ height: itemHeight }}
         contentContainerStyle={contentContainerStyle}
         ItemSeparatorComponent={() => <View style={{ width: 10 }} />}
       />
