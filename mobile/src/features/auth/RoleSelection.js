@@ -213,7 +213,7 @@ const RoleSelection = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -222,7 +222,7 @@ const RoleSelection = ({ navigation, route }) => {
           overScrollMode="never"
           scrollEnabled={keyboardVisible}
         >
-          <View style={styles.topSection}>
+          <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
             {/* Top Header Row with Left Headline & Right 3D Art */}
             <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 3 }, isTallScreen && { marginBottom: 12 }]}>
               <View style={styles.headerTextCol}>
@@ -255,10 +255,11 @@ const RoleSelection = ({ navigation, route }) => {
               { backgroundColor: cardBg, borderColor: cardBorder },
               isSmallScreen && { paddingHorizontal: 12, paddingVertical: 10 },
               isTallScreen && { paddingHorizontal: 18, paddingVertical: 20 },
+              isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
             ]}>
-            
-            {/* Registering As */}
-            <Text style={[styles.fieldLabel, { color: textSub }]}>Registering As</Text>
+              <View>
+                {/* Registering As */}
+                <Text style={[styles.fieldLabel, { color: textSub }]}>Registering As</Text>
             <View style={styles.roleTabsContainer}>
               {ROLE_OPTIONS.map((r) => {
                 const Icon = r.icon;
@@ -460,47 +461,50 @@ const RoleSelection = ({ navigation, route }) => {
                 </Text>
               </Text>
             </TouchableOpacity>
+          </View>
 
-            {/* Primary Action Button (HomeScreen CTA standard) */}
-            <TouchableOpacity
-              onPress={handlePhoneSubmit}
-              disabled={!canSubmit}
-              activeOpacity={0.88}
-              style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: isTallScreen ? 18 : 14 }]}
-            >
-              <LinearGradient
-                colors={[PURPLE, '#582BE8']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.ctaBtn, isTallScreen && { height: 50 }]}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <>
-                    <Text style={styles.ctaText}>Send OTP</Text>
-                    <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+          <View>
+                {/* Primary Action Button (HomeScreen CTA standard) */}
+                <TouchableOpacity
+                  onPress={handlePhoneSubmit}
+                  disabled={!canSubmit}
+                  activeOpacity={0.88}
+                  style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: isTallScreen ? 18 : 14 }]}
+                >
+                  <LinearGradient
+                    colors={[PURPLE, '#582BE8']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.ctaBtn, isTallScreen && { height: 50 }]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <>
+                        <Text style={styles.ctaText}>Send OTP</Text>
+                        <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
 
-            {/* Bottom Navigation Link */}
-            <View style={[styles.footerRow, isTallScreen && { marginTop: 12 }]}>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Login', { role: selectedRole })}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.footerText, { color: textSub }]}>
-                  Already registered? <Text style={[styles.footerLink, { color: PURPLE }]}>Sign In</Text>
-                </Text>
-              </TouchableOpacity>
+                {/* Bottom Navigation Link */}
+                <View style={[styles.footerRow, isTallScreen && { marginTop: 12 }]}>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('Login', { role: selectedRole })}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.footerText, { color: textSub }]}>
+                      Already registered? <Text style={[styles.footerLink, { color: PURPLE }]}>Sign In</Text>
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Bottom Section */}
-        <View style={[styles.bottomSection, { marginTop: isTallScreen ? 16 : 8 }]}>
+          {/* Bottom Section */}
+          <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
           {/* Trust Bar Row (3 Badges) */}
           <View style={styles.trustBarRow}>
             <View style={styles.trustItem}>

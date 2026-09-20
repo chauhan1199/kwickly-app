@@ -45,7 +45,7 @@ const PURPLE_LIGHT = '#F5F3FF';
 
 const ROLE_META = {
   CUSTOMER: { label: 'Customer', icon: User, color: PURPLE, bg: PURPLE_LIGHT },
-  WORKER: { label: 'Worker / Pro', icon: Wrench, color: '#10B981', bg: '#D1FAE5' },
+  WORKER: { label: 'Worker', icon: Wrench, color: '#10B981', bg: '#D1FAE5' },
   SHOP: { label: 'Shop Owner', icon: Store, color: '#F59E0B', bg: '#FEF3C7' },
 };
 
@@ -166,8 +166,8 @@ const SetMpinScreen = ({ navigation, route }) => {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible
                 ? (keyboardHeight || bottomInset)
-                : safeBottomInset + (isSmallScreen ? 6 : 14),
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                : safeBottomInset + (isSmallScreen ? 4 : 8),
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -176,7 +176,7 @@ const SetMpinScreen = ({ navigation, route }) => {
           overScrollMode="never"
           scrollEnabled={keyboardVisible}
         >
-          <View style={styles.topSection}>
+          <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
             {/* Header Layout Row: Headline Left, 3D Hero Right */}
             <View style={[styles.headerLayoutRow, isTallScreen && { marginBottom: 12 }]}>
               <View style={styles.headerTextCol}>
@@ -204,97 +204,128 @@ const SetMpinScreen = ({ navigation, route }) => {
             </View>
 
             {/* Floating Form Card */}
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 }]}>
-              {/* User Info Chip */}
-              <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }, isTallScreen && { paddingVertical: 10, paddingHorizontal: 12, marginBottom: 14 }]}>
-                <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
-                  <RoleIcon size={16} color={roleMeta.color} />
+            <View style={[
+              styles.card,
+              { backgroundColor: cardBg, borderColor: cardBorder },
+              isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
+              isTallScreen && { paddingVertical: 20, paddingHorizontal: 20 },
+            ]}>
+              <View>
+                {/* User Info Chip */}
+                <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }, isTallScreen && { paddingVertical: 10, paddingHorizontal: 12, marginBottom: 14 }]}>
+                  <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
+                    <RoleIcon size={16} color={roleMeta.color} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
+                    <Text style={[styles.userName, { color: textMain }]} numberOfLines={1} ellipsizeMode="tail">
+                      {name || 'User'}
+                    </Text>
+                    <Text style={[styles.userPhone, { color: textSub }]} numberOfLines={1} ellipsizeMode="tail">
+                      +91 {phone} · {roleMeta.label}
+                    </Text>
+                  </View>
+                  <View style={[styles.verifiedBadge, { flexShrink: 0 }]}>
+                    <ShieldCheck size={13} color="#10B981" />
+                    <Text style={styles.verifiedText}>Verified</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.userName, { color: textMain }]} numberOfLines={1}>
-                    {name || 'User'}
-                  </Text>
-                  <Text style={[styles.userPhone, { color: textSub }]}>
-                    +91 {phone} · {roleMeta.label}
-                  </Text>
-                </View>
-                <View style={styles.verifiedBadge}>
-                  <ShieldCheck size={13} color="#10B981" />
-                  <Text style={styles.verifiedText}>Verified</Text>
-                </View>
-              </View>
 
-              {/* ── 4-DIGIT MPIN SECTION ── */}
-              <View style={styles.fieldHeader}>
-                <Text style={[styles.fieldLabel, { color: textSub }]}>ENTER 4-DIGIT MPIN</Text>
-                <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.toggleRow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
-                  <Text style={[styles.toggleText, { color: PURPLE }]}>{showMpin ? 'Hide PIN' : 'Show PIN'}</Text>
-                </TouchableOpacity>
-              </View>
+                {/* ── 4-DIGIT MPIN SECTION ── */}
+                <View style={styles.fieldHeader}>
+                  <Text style={[styles.fieldLabel, { color: textSub }]}>ENTER 4-DIGIT MPIN</Text>
+                  <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.toggleRow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
+                    <Text style={[styles.toggleText, { color: PURPLE }]}>{showMpin ? 'Hide PIN' : 'Show PIN'}</Text>
+                  </TouchableOpacity>
+                </View>
 
-              {/* Visual 4-box display for MPIN with touchable overlay */}
-              <View style={[styles.pinContainer, isTallScreen && { marginBottom: 16 }]}>
-                <View
-                  pointerEvents="none"
-                  style={styles.pinRow}
-                >
-                  {[0, 1, 2, 3].map((i) => {
-                    const filled = mpin.length > i;
-                    const active = mpin.length === i && isMpinFocused;
-                    return (
-                      <View
-                        key={i}
-                        style={[
-                          styles.pinBox,
-                          isTallScreen && { width: 56, height: 56, borderRadius: 16 },
-                          { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : inputBorder },
-                          active && styles.pinBoxActiveGlow,
-                        ]}
-                      >
-                        {filled ? (
-                          showMpin ? (
-                            <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                {/* Visual 4-box display for MPIN with touchable overlay */}
+                <View style={[styles.pinContainer, isTallScreen && { marginBottom: 16 }]}>
+                  <View
+                    pointerEvents="none"
+                    style={styles.pinRow}
+                  >
+                    {[0, 1, 2, 3].map((i) => {
+                      const filled = mpin.length > i;
+                      const active = mpin.length === i && isMpinFocused;
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            styles.pinBox,
+                            isTallScreen && { width: 56, height: 56, borderRadius: 16 },
+                            { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : inputBorder },
+                            active && styles.pinBoxActiveGlow,
+                          ]}
+                        >
+                          {filled ? (
+                            showMpin ? (
+                              <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                            ) : (
+                              <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
+                            )
                           ) : (
-                            <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
-                          )
-                        ) : (
-                          <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
-                        )}
-                      </View>
-                    );
-                  })}
+                            <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {/* Real touchable input overlay */}
+                  <TextInput
+                    ref={mpinInputRef}
+                    style={styles.realMpinOverlay}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    editable={!loading}
+                    value={mpin}
+                    onChangeText={(t) => {
+                      const clean = t.replace(/\D/g, '').slice(0, 4);
+                      setMpin(clean);
+                      if (clean.length === 4) {
+                        Keyboard.dismiss();
+                        handleSetMpin(clean);
+                      }
+                    }}
+                    onFocus={() => setIsMpinFocused(true)}
+                    onBlur={() => setIsMpinFocused(false)}
+                    caretHidden
+                    autoFocus={true}
+                  />
                 </View>
 
-                {/* Real touchable input overlay */}
-                <TextInput
-                  ref={mpinInputRef}
-                  style={styles.realMpinOverlay}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  editable={!loading}
-                  value={mpin}
-                  onChangeText={(t) => {
-                    const clean = t.replace(/\D/g, '').slice(0, 4);
-                    setMpin(clean);
-                    if (clean.length === 4) {
-                      Keyboard.dismiss();
-                      handleSetMpin(clean);
-                    }
-                  }}
-                  onFocus={() => setIsMpinFocused(true)}
-                  onBlur={() => setIsMpinFocused(false)}
-                  caretHidden
-                  autoFocus={true}
-                />
-              </View>
+                {/* Security hint */}
+                <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }, isTallScreen && { paddingVertical: 12, paddingHorizontal: 14, marginTop: 12 }]}>
+                  <Text style={styles.hintIcon}>💡</Text>
+                  <Text style={[styles.hintText, { color: textSub }]}>
+                    Never share your MPIN. Avoid simple sequences like 1234 or 0000.
+                  </Text>
+                </View>
 
-              {/* Security hint */}
-              <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }, isTallScreen && { paddingVertical: 12, paddingHorizontal: 14, marginTop: 12 }]}>
-                <Text style={styles.hintIcon}>💡</Text>
-                <Text style={[styles.hintText, { color: textSub }]}>
-                  Never share your MPIN. Avoid simple sequences like 1234 or 0000.
-                </Text>
+                {/* Security Benefits (only on tall screens when keyboard not visible) */}
+                {isTallScreen && !keyboardVisible && (
+                  <View style={[styles.securityBenefitsCard, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF', borderColor: isDarkMode ? '#2D3760' : '#EDE9FE' }]}>
+                    <View style={styles.benefitRow}>
+                      <View style={[styles.benefitIconWrap, { backgroundColor: isDarkMode ? '#2D3760' : '#EDE9FE' }]}>
+                        <Zap size={13} color={PURPLE} />
+                      </View>
+                      <View style={styles.benefitContent}>
+                        <Text style={[styles.benefitTitle, { color: textMain }]}>Instant 1-Tap Login</Text>
+                        <Text style={[styles.benefitDesc, { color: textSub }]}>No waiting for SMS OTP on your trusted device</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.benefitRow, { marginTop: 8 }]}>
+                      <View style={[styles.benefitIconWrap, { backgroundColor: isDarkMode ? '#133929' : '#DCFCE7' }]}>
+                        <ShieldCheck size={13} color="#10B981" />
+                      </View>
+                      <View style={styles.benefitContent}>
+                        <Text style={[styles.benefitTitle, { color: textMain }]}>Bank-Grade 256-Bit Protection</Text>
+                        <Text style={[styles.benefitDesc, { color: textSub }]}>Hardware-backed security for all transactions</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* CTA Button */}
@@ -324,7 +355,7 @@ const SetMpinScreen = ({ navigation, route }) => {
           </View>
 
           {/* Bottom Section */}
-          <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
+          <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
             {/* Bottom Trust Bar (3 Badges) */}
             <View style={styles.trustBarRow}>
               <View style={styles.trustItem}>
@@ -710,6 +741,37 @@ const styles = StyleSheet.create({
   reassuranceText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  securityBenefitsCard: {
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  benefitIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  benefitContent: {
+    flex: 1,
+  },
+  benefitTitle: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  benefitDesc: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 1,
   },
 });
 

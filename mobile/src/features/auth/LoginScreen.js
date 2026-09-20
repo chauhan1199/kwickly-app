@@ -50,7 +50,7 @@ const PURPLE_LIGHT = '#F5F3FF';
 
 const ROLE_META = {
   CUSTOMER: { label: 'Customer', icon: User, color: PURPLE, bg: PURPLE_LIGHT },
-  WORKER: { label: 'Worker / Pro', icon: Wrench, color: '#10B981', bg: '#D1FAE5' },
+  WORKER: { label: 'Worker', icon: Wrench, color: '#10B981', bg: '#D1FAE5' },
   SHOP: { label: 'Shop Owner', icon: Store, color: '#F59E0B', bg: '#FEF3C7' },
 };
 
@@ -397,8 +397,8 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 4 : 8),
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -407,7 +407,7 @@ const LoginScreen = ({ navigation, route }) => {
             overScrollMode="never"
             scrollEnabled={keyboardVisible}
           >
-            <View style={styles.topSection}>
+            <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={[styles.headerLayoutRow, isTallScreen && { marginBottom: 16 }]}>
                 <View style={styles.headerTextCol}>
@@ -431,103 +431,112 @@ const LoginScreen = ({ navigation, route }) => {
               </View>
 
               {/* Floating Form Card */}
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, isTallScreen && { paddingVertical: 24, paddingHorizontal: 20 }]}>
-                <Text style={[styles.cardTitle, { color: textMain }]}>Welcome Back!</Text>
-                <Text style={[styles.cardSub, { color: textSub }]}>Enter your 10-digit mobile number to sign in</Text>
+              <View style={[
+                styles.card,
+                { backgroundColor: cardBg, borderColor: cardBorder },
+                isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
+                isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
+              ]}>
+                <View>
+                  <Text style={[styles.cardTitle, { color: textMain }]}>Welcome Back!</Text>
+                  <Text style={[styles.cardSub, { color: textSub }]}>Enter your 10-digit mobile number to sign in</Text>
 
-                <TouchableOpacity
-                  activeOpacity={1}
-                  onPress={() => phoneInputRef.current?.focus()}
-                  style={[
-                    styles.inputContainer,
-                    isTallScreen && { height: 54 },
-                    {
-                      backgroundColor: inputBg,
-                      borderColor: phone.length === 10 ? '#10B981' : focusedInput === 'phone' ? PURPLE : inputBorder,
-                    },
-                    focusedInput === 'phone' && styles.inputFocusGlow,
-                  ]}
-                >
-                  <View pointerEvents="none" style={styles.prefixWrapper}>
-                    <Text style={styles.flagText}>🇮🇳</Text>
-                    <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
-                    <View style={[styles.prefixDivider, { backgroundColor: inputBorder }]} />
+                  <TouchableOpacity
+                    activeOpacity={1}
+                    onPress={() => phoneInputRef.current?.focus()}
+                    style={[
+                      styles.inputContainer,
+                      isTallScreen && { height: 54 },
+                      {
+                        backgroundColor: inputBg,
+                        borderColor: phone.length === 10 ? '#10B981' : focusedInput === 'phone' ? PURPLE : inputBorder,
+                      },
+                      focusedInput === 'phone' && styles.inputFocusGlow,
+                    ]}
+                  >
+                    <View pointerEvents="none" style={styles.prefixWrapper}>
+                      <Text style={styles.flagText}>🇮🇳</Text>
+                      <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
+                      <View style={[styles.prefixDivider, { backgroundColor: inputBorder }]} />
+                    </View>
+                    <TextInput
+                      ref={phoneInputRef}
+                      style={[styles.inputText, { color: textMain }]}
+                      placeholder="10-digit number"
+                      placeholderTextColor={textSub}
+                      keyboardType="phone-pad"
+                      maxLength={15}
+                      editable={!loading}
+                      value={phone}
+                      onChangeText={handlePhoneChange}
+                      onFocus={() => {
+                        setFocusedInput('phone');
+                      }}
+                      onBlur={() => setFocusedInput(null)}
+                      returnKeyType="done"
+                      onSubmitEditing={() => { if (phone.length === 10) handleCheckNumber(phone); }}
+                    />
+                    {phone.length === 10 ? (
+                      <CheckCircle2 size={18} color="#10B981" />
+                    ) : phone.length > 0 ? (
+                      <TouchableOpacity onPress={() => setPhone('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <X size={16} color={textSub} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </TouchableOpacity>
+
+                  {/* Auto Detect Hint */}
+                  <View style={[styles.autoDetectRow, isTallScreen && { marginTop: 12 }]}>
+                    <Zap size={14} color={PURPLE} />
+                    <Text style={[styles.autoDetectText, { color: textSub }]} numberOfLines={1}>We'll automatically find your account</Text>
                   </View>
-                  <TextInput
-                    ref={phoneInputRef}
-                    style={[styles.inputText, { color: textMain }]}
-                    placeholder="10-digit number"
-                    placeholderTextColor={textSub}
-                    keyboardType="phone-pad"
-                    maxLength={15}
-                    editable={!loading}
-                    value={phone}
-                    onChangeText={handlePhoneChange}
-                    onFocus={() => {
-                      setFocusedInput('phone');
-                    }}
-                    onBlur={() => setFocusedInput(null)}
-                    returnKeyType="done"
-                    onSubmitEditing={() => { if (phone.length === 10) handleCheckNumber(phone); }}
-                  />
-                  {phone.length === 10 ? (
-                    <CheckCircle2 size={18} color="#10B981" />
-                  ) : phone.length > 0 ? (
-                    <TouchableOpacity onPress={() => setPhone('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                      <X size={16} color={textSub} />
-                    </TouchableOpacity>
-                  ) : null}
-                </TouchableOpacity>
-
-                {/* Auto Detect Hint */}
-                <View style={[styles.autoDetectRow, isTallScreen && { marginTop: 12 }]}>
-                  <Zap size={14} color={PURPLE} />
-                  <Text style={[styles.autoDetectText, { color: textSub }]}>We'll automatically find your account</Text>
                 </View>
 
-                {/* Continue Button */}
-                <TouchableOpacity
-                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 20 : 16 }]}
-                  onPress={() => handleCheckNumber()}
-                  disabled={phone.length !== 10 || loading}
-                  activeOpacity={0.88}
-                >
-                  <LinearGradient
-                    colors={[PURPLE, '#582BE8']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[styles.ctaBtn, isTallScreen && { height: 54 }]}
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <>
-                        <Text style={styles.ctaText}>Continue</Text>
-                        <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
-                      </>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                {/* Divider with Create Account */}
-                <View style={[styles.orDividerRow, isTallScreen && { marginTop: 22 }]}>
-                  <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
+                <View>
+                  {/* Continue Button */}
                   <TouchableOpacity
-                    onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}
-                    activeOpacity={0.75}
-                    style={styles.orContent}
+                    style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 18 : 14 }]}
+                    onPress={() => handleCheckNumber()}
+                    disabled={phone.length !== 10 || loading}
+                    activeOpacity={0.88}
                   >
-                    <Text style={[styles.footerText, { color: textSub }]}>
-                      New here? <Text style={[styles.footerLink, { color: PURPLE }]}>Create Account</Text>
-                    </Text>
+                    <LinearGradient
+                      colors={[PURPLE, '#582BE8']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.ctaBtn, isTallScreen && { height: 54 }]}
+                    >
+                      {loading ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <>
+                          <Text style={styles.ctaText}>Continue</Text>
+                          <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                        </>
+                      )}
+                    </LinearGradient>
                   </TouchableOpacity>
-                  <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
+
+                  {/* Divider with Create Account */}
+                  <View style={[styles.orDividerRow, isTallScreen && { marginTop: 16 }]}>
+                    <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
+                    <TouchableOpacity
+                      onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}
+                      activeOpacity={0.75}
+                      style={styles.orContent}
+                    >
+                      <Text style={[styles.footerText, { color: textSub }]}>
+                        New here? <Text style={[styles.footerLink, { color: PURPLE }]}>Create Account</Text>
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
+                  </View>
                 </View>
               </View>
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 20 : 10 }]}>
+            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
               {renderTrustBar()}
               <View style={styles.perksRow}>
                 <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
@@ -571,7 +580,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -580,7 +589,7 @@ const LoginScreen = ({ navigation, route }) => {
             overScrollMode="never"
             scrollEnabled={keyboardVisible}
           >
-            <View style={styles.topSection}>
+            <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
               <View style={styles.headerBlock}>
                 <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                   <User size={12} color="#6C47FF" />
@@ -597,28 +606,34 @@ const LoginScreen = ({ navigation, route }) => {
                 </Text>
               </View>
 
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-                {availableAccounts.map((acc, idx) => {
-                  const meta = ROLE_META[acc.role] || ROLE_META.CUSTOMER;
-                  const Icon = meta.icon;
-                  return (
-                    <TouchableOpacity
-                      key={idx}
-                      style={[styles.accountCard, { backgroundColor: inputBg, borderColor: inputBorder }]}
-                      onPress={() => handleSelectAccount(acc)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.accountIconWrap, { backgroundColor: meta.bg }]}>
-                        <Icon size={20} color={meta.color} />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={[styles.accountRole, { color: textMain }]}>{meta.label}</Text>
-                        <Text style={[styles.accountName, { color: textSub }]}>{acc.name || 'Registered Profile'}</Text>
-                      </View>
-                      <ArrowRight size={16} color={textSub} />
-                    </TouchableOpacity>
-                  );
-                })}
+              <View style={[
+                styles.card,
+                { backgroundColor: cardBg, borderColor: cardBorder },
+                isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
+              ]}>
+                <View>
+                  {availableAccounts.map((acc, idx) => {
+                    const meta = ROLE_META[acc.role] || ROLE_META.CUSTOMER;
+                    const Icon = meta.icon;
+                    return (
+                      <TouchableOpacity
+                        key={idx}
+                        style={[styles.accountCard, { backgroundColor: inputBg, borderColor: inputBorder }]}
+                        onPress={() => handleSelectAccount(acc)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={[styles.accountIconWrap, { backgroundColor: meta.bg }]}>
+                          <Icon size={20} color={meta.color} />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={[styles.accountRole, { color: textMain }]} numberOfLines={1}>{meta.label}</Text>
+                          <Text style={[styles.accountName, { color: textSub }]} numberOfLines={1}>{acc.name || 'Registered Profile'}</Text>
+                        </View>
+                        <ArrowRight size={16} color={textSub} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
 
                 <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('PHONE')}>
                   <Text style={[styles.footerLink, { color: PURPLE }]}>Use a different number</Text>
@@ -627,7 +642,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
+            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
               {renderTrustBar()}
             </View>
           </ScrollView>
@@ -652,7 +667,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
-                justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -661,9 +676,9 @@ const LoginScreen = ({ navigation, route }) => {
             overScrollMode="never"
             scrollEnabled={keyboardVisible}
           >
-            <View style={styles.topSection}>
+            <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
-              <View style={[styles.headerLayoutRow, { marginBottom: isTallScreen ? 12 : 6 }]}>
+              <View style={[styles.headerLayoutRow, { marginBottom: isTallScreen ? 14 : 6 }]}>
                 <View style={styles.headerTextCol}>
                   <Text style={[styles.heroHeadline, { fontSize: 24, lineHeight: 28, color: textMain }]}>
                     Welcome{'\n'}
@@ -683,175 +698,183 @@ const LoginScreen = ({ navigation, route }) => {
                       ? require('../../assets/images/hero_mpin_dark.png')
                       : require('../../assets/images/hero_mpin.png')
                   }
-                  style={[styles.heroMpinImg, { width: isTallScreen ? 115 : 95, height: isTallScreen ? 95 : 80 }]}
+                  style={[styles.heroMpinImg, { width: isTallScreen ? 120 : 95, height: isTallScreen ? 100 : 80 }]}
                   resizeMode="contain"
                 />
               </View>
 
               {/* Floating Form Card */}
-              <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: isTallScreen ? 20 : 16, paddingVertical: isTallScreen ? 22 : 14 }]}>
-                {/* User Profile Pill */}
-                <View style={[styles.userProfileBox, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF', paddingVertical: isTallScreen ? 10 : 6, paddingHorizontal: isTallScreen ? 12 : 10, marginBottom: isTallScreen ? 12 : 8 }]}>
-                  <View style={[styles.avatarCircle, { width: 30, height: 30, borderRadius: 15 }]}>
-                    <User size={15} color={PURPLE} />
+              <View style={[
+                styles.card,
+                { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: isTallScreen ? 20 : 16, paddingVertical: isTallScreen ? 22 : 14 },
+                isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
+              ]}>
+                <View>
+                  {/* User Profile Pill */}
+                  <View style={[styles.userProfileBox, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF', paddingVertical: isTallScreen ? 10 : 6, paddingHorizontal: isTallScreen ? 12 : 10, marginBottom: isTallScreen ? 12 : 8 }]}>
+                    <View style={[styles.avatarCircle, { width: 30, height: 30, borderRadius: 15 }]}>
+                      <User size={15} color={PURPLE} />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 8, minWidth: 0, justifyContent: 'center' }}>
+                      <Text style={[styles.profileRoleText, { fontSize: 12, color: textMain }]} numberOfLines={1}>{selectedRole.toUpperCase()}</Text>
+                      <Text style={[styles.profilePhoneText, { fontSize: 11, color: textSub }]} numberOfLines={1}>+91 {phone}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.changeBtn, { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF', paddingVertical: 3, paddingHorizontal: 8 }]}
+                      onPress={() => setStep('PHONE')}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.changeBtnText, { fontSize: 11, color: PURPLE }]}>Change</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={{ flex: 1, marginLeft: 8 }}>
-                    <Text style={[styles.profileRoleText, { fontSize: 12, color: textMain }]}>{selectedRole.toUpperCase()}</Text>
-                    <Text style={[styles.profilePhoneText, { fontSize: 11, color: textSub }]}>+91 {phone}</Text>
+
+                  {/* PIN Header Row */}
+                  <View style={[styles.pinHeaderRow, { marginBottom: isTallScreen ? 12 : 8 }]}>
+                    <Text style={[styles.pinHeaderTitle, { fontSize: 13, color: textMain }]}>Enter 4-Digit MPIN</Text>
+                    <TouchableOpacity onPress={handleForgotMpin} activeOpacity={0.75}>
+                      <Text style={[styles.forgotMpinText, { fontSize: 12, color: PURPLE }]}>Forgot MPIN?</Text>
+                    </TouchableOpacity>
                   </View>
+
+                  {/* PIN Boxes Container with Touchable Overlay */}
+                  <View style={[styles.pinContainer, isTallScreen && { marginBottom: 16 }]}>
+                    <Animated.View
+                      style={[
+                        styles.pinRow,
+                        {
+                          transform: [{ translateX: shakeAnim }],
+                        },
+                      ]}
+                    >
+                      {[0, 1, 2, 3].map((i) => {
+                        const filled = mpin.length > i;
+                        const current = mpin.length === i && focusedInput === 'mpin';
+                        return (
+                          <View
+                            key={i}
+                            style={[
+                              styles.pinBox,
+                              {
+                                width: isTallScreen ? 56 : 50,
+                                height: isTallScreen ? 56 : 50,
+                                borderRadius: 14,
+                                backgroundColor: inputBg,
+                                borderColor: inputBorder,
+                              },
+                              current && styles.pinBoxActiveGlow,
+                              filled && { borderColor: PURPLE },
+                              mpinError && { borderColor: '#EF4444' },
+                            ]}
+                          >
+                            {filled ? (
+                              showMpin ? (
+                                <Text style={[styles.pinDigit, { fontSize: 18, color: textMain }]}>{mpin[i]}</Text>
+                              ) : (
+                                <View style={[styles.pinDot, { width: 10, height: 10, borderRadius: 5, backgroundColor: PURPLE }]} />
+                              )
+                            ) : (
+                              <View style={[styles.pinEmptyDot, { width: 6, height: 6, borderRadius: 3, backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
+                            )}
+                          </View>
+                        );
+                      })}
+                    </Animated.View>
+
+                    {/* Real Touchable Input Overlay covering entire PIN area */}
+                    <TextInput
+                      ref={mpinInputRef}
+                      style={styles.realMpinOverlay}
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      value={mpin}
+                      onChangeText={handleMpinChange}
+                      onFocus={() => {
+                        setFocusedInput('mpin');
+                        setMpinError('');
+                      }}
+                      onBlur={() => setFocusedInput(null)}
+                      caretHidden
+                      autoFocus={step === 'MPIN'}
+                    />
+                  </View>
+
+                  {/* Error Banner */}
+                  {mpinError ? (
+                    <View style={[styles.errorBox, { backgroundColor: isDarkMode ? '#3B1219' : '#FEF2F2', borderColor: '#FCA5A5' }]}>
+                      <AlertCircle size={14} color="#EF4444" style={{ marginRight: 6 }} />
+                      <Text style={styles.errorText}>{mpinError}</Text>
+                    </View>
+                  ) : null}
+
+                  {/* Show/Hide PIN toggle button */}
                   <TouchableOpacity
-                    style={[styles.changeBtn, { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF', paddingVertical: 3, paddingHorizontal: 8 }]}
+                    style={[styles.eyePill, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF' }]}
+                    onPress={() => setShowMpin(!showMpin)}
+                    activeOpacity={0.7}
+                  >
+                    {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
+                    <Text style={[styles.eyePillText, { color: PURPLE }]}>{showMpin ? 'Hide MPIN' : 'Show MPIN'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View>
+                  {/* Sign In CTA Button */}
+                  <TouchableOpacity
+                    style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 16 : 12 }]}
+                    onPress={() => handleMpinSubmit(mpin)}
+                    disabled={mpin.length !== 4 || loading}
+                    activeOpacity={0.88}
+                  >
+                    <LinearGradient
+                      colors={[PURPLE, '#582BE8']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.ctaBtn, { height: isTallScreen ? 52 : 46 }]}
+                    >
+                      {loading ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <>
+                          <Text style={[styles.ctaText, { fontSize: 15 }]}>Sign In with MPIN</Text>
+                          <ArrowRight size={16} color="#FFF" style={{ marginLeft: 6 }} />
+                        </>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  {/* OR Divider */}
+                  <View style={[styles.orRow, { marginVertical: isTallScreen ? 10 : 6 }]}>
+                    <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
+                    <Text style={[styles.orText, { fontSize: 11, color: textSub }]}>OR</Text>
+                    <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
+                  </View>
+
+                  {/* Sign in with OTP instead button */}
+                  <TouchableOpacity
+                    style={[styles.otpOutlineBtn, { height: isTallScreen ? 46 : 40, borderColor: inputBorder, backgroundColor: isDarkMode ? '#1E2540' : '#FFFFFF' }]}
+                    onPress={handleDirectOtpLogin}
+                    activeOpacity={0.8}
+                  >
+                    <MessageSquare size={14} color={PURPLE} style={{ marginRight: 6 }} />
+                    <Text style={[styles.otpOutlineText, { fontSize: 12, color: textSub }]}>
+                      Sign in with <Text style={{ color: PURPLE, fontWeight: '800' }}>OTP instead</Text>
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Switch mobile number */}
+                  <TouchableOpacity
+                    style={{ alignItems: 'center', marginTop: isTallScreen ? 10 : 6 }}
                     onPress={() => setStep('PHONE')}
                     activeOpacity={0.75}
                   >
-                    <Text style={[styles.changeBtnText, { fontSize: 11, color: PURPLE }]}>Change</Text>
+                    <Text style={[styles.footerLink, { fontSize: 12, color: PURPLE }]}>Switch mobile number</Text>
                   </TouchableOpacity>
                 </View>
-
-                {/* PIN Header Row */}
-                <View style={[styles.pinHeaderRow, { marginBottom: isTallScreen ? 12 : 8 }]}>
-                  <Text style={[styles.pinHeaderTitle, { fontSize: 13, color: textMain }]}>Enter 4-Digit MPIN</Text>
-                  <TouchableOpacity onPress={handleForgotMpin} activeOpacity={0.75}>
-                    <Text style={[styles.forgotMpinText, { fontSize: 12, color: PURPLE }]}>Forgot MPIN?</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* PIN Boxes Container with Touchable Overlay */}
-                <View style={[styles.pinContainer, isTallScreen && { marginBottom: 16 }]}>
-                  <Animated.View
-                    style={[
-                      styles.pinRow,
-                      {
-                        transform: [{ translateX: shakeAnim }],
-                      },
-                    ]}
-                  >
-                    {[0, 1, 2, 3].map((i) => {
-                      const filled = mpin.length > i;
-                      const current = mpin.length === i && focusedInput === 'mpin';
-                      return (
-                        <View
-                          key={i}
-                          style={[
-                            styles.pinBox,
-                            {
-                              width: isTallScreen ? 56 : 50,
-                              height: isTallScreen ? 56 : 50,
-                              borderRadius: 14,
-                              backgroundColor: inputBg,
-                              borderColor: inputBorder,
-                            },
-                            current && styles.pinBoxActiveGlow,
-                            filled && { borderColor: PURPLE },
-                            mpinError && { borderColor: '#EF4444' },
-                          ]}
-                        >
-                          {filled ? (
-                            showMpin ? (
-                              <Text style={[styles.pinDigit, { fontSize: 18, color: textMain }]}>{mpin[i]}</Text>
-                            ) : (
-                              <View style={[styles.pinDot, { width: 10, height: 10, borderRadius: 5, backgroundColor: PURPLE }]} />
-                            )
-                          ) : (
-                            <View style={[styles.pinEmptyDot, { width: 6, height: 6, borderRadius: 3, backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
-                          )}
-                        </View>
-                      );
-                    })}
-                  </Animated.View>
-
-                  {/* Real Touchable Input Overlay covering entire PIN area */}
-                  <TextInput
-                    ref={mpinInputRef}
-                    style={styles.realMpinOverlay}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    value={mpin}
-                    onChangeText={handleMpinChange}
-                    onFocus={() => {
-                      setFocusedInput('mpin');
-                      setMpinError('');
-                    }}
-                    onBlur={() => setFocusedInput(null)}
-                    caretHidden
-                    autoFocus={step === 'MPIN'}
-                  />
-                </View>
-
-                {/* Error Banner */}
-                {mpinError ? (
-                  <View style={[styles.errorBox, { backgroundColor: isDarkMode ? '#3B1219' : '#FEF2F2', borderColor: '#FCA5A5' }]}>
-                    <AlertCircle size={14} color="#EF4444" style={{ marginRight: 6 }} />
-                    <Text style={styles.errorText}>{mpinError}</Text>
-                  </View>
-                ) : null}
-
-                {/* Show/Hide PIN toggle button */}
-                <TouchableOpacity
-                  style={[styles.eyePill, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF' }]}
-                  onPress={() => setShowMpin(!showMpin)}
-                  activeOpacity={0.7}
-                >
-                  {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
-                  <Text style={[styles.eyePillText, { color: PURPLE }]}>{showMpin ? 'Hide MPIN' : 'Show MPIN'}</Text>
-                </TouchableOpacity>
-
-                {/* Sign In CTA Button */}
-                <TouchableOpacity
-                  style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 18 : 14 }]}
-                  onPress={() => handleMpinSubmit(mpin)}
-                  disabled={mpin.length !== 4 || loading}
-                  activeOpacity={0.88}
-                >
-                  <LinearGradient
-                    colors={[PURPLE, '#582BE8']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[styles.ctaBtn, { height: isTallScreen ? 52 : 46 }]}
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <>
-                        <Text style={[styles.ctaText, { fontSize: 15 }]}>Sign In with MPIN</Text>
-                        <ArrowRight size={16} color="#FFF" style={{ marginLeft: 6 }} />
-                      </>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                {/* OR Divider */}
-                <View style={[styles.orRow, { marginVertical: isTallScreen ? 10 : 6 }]}>
-                  <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
-                  <Text style={[styles.orText, { fontSize: 11, color: textSub }]}>OR</Text>
-                  <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
-                </View>
-
-                {/* Sign in with OTP instead button */}
-                <TouchableOpacity
-                  style={[styles.otpOutlineBtn, { height: isTallScreen ? 46 : 40, borderColor: inputBorder, backgroundColor: isDarkMode ? '#1E2540' : '#FFFFFF' }]}
-                  onPress={handleDirectOtpLogin}
-                  activeOpacity={0.8}
-                >
-                  <MessageSquare size={14} color={PURPLE} style={{ marginRight: 6 }} />
-                  <Text style={[styles.otpOutlineText, { fontSize: 12, color: textSub }]}>
-                    Sign in with <Text style={{ color: PURPLE, fontWeight: '800' }}>OTP instead</Text>
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Switch mobile number */}
-                <TouchableOpacity
-                  style={{ alignItems: 'center', marginTop: isTallScreen ? 10 : 6 }}
-                  onPress={() => setStep('PHONE')}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.footerLink, { fontSize: 12, color: PURPLE }]}>Switch mobile number</Text>
-                </TouchableOpacity>
               </View>
             </View>
 
             {/* Bottom Section */}
-            <View style={styles.bottomSection}>
+            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
               {renderTrustBar()}
               {isTallScreen && (
                 <View style={styles.securityHighlightRow}>
@@ -883,7 +906,7 @@ const LoginScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
-              justifyContent: keyboardVisible ? 'flex-start' : 'center',
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -892,7 +915,7 @@ const LoginScreen = ({ navigation, route }) => {
           overScrollMode="never"
           scrollEnabled={keyboardVisible}
         >
-          <View style={styles.topSection}>
+          <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
             <View style={styles.headerBlock}>
               <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                 <KeyRound size={12} color="#6C47FF" />
@@ -909,83 +932,99 @@ const LoginScreen = ({ navigation, route }) => {
               </Text>
             </View>
 
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }, isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 }]}>
-              {/* OTP Input */}
-              <Text style={[styles.fieldLabel, { color: textSub }]}>VERIFICATION OTP</Text>
-              <View style={[styles.inputContainer, isTallScreen && { height: 52 }, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : inputBorder, marginBottom: 14 }]}>
-                <MessageSquare size={16} color={focusedInput === 'resetOtp' ? PURPLE : textSub} style={{ marginRight: 10 }} />
-                <TextInput
-                  style={[styles.inputText, { color: textMain, letterSpacing: resetOtp.length > 0 ? 8 : 0, fontWeight: '800' }]}
-                  placeholder="4-digit OTP"
-                  placeholderTextColor={textSub}
-                  keyboardType="phone-pad"
-                  maxLength={4}
-                  value={resetOtp}
-                  onChangeText={(t) => setResetOtp(t.replace(/\D/g, '').slice(0, 4))}
-                  onFocus={() => setFocusedInput('resetOtp')}
-                  onBlur={() => setFocusedInput(null)}
-                />
+            <View style={[
+              styles.card,
+              { backgroundColor: cardBg, borderColor: cardBorder },
+              isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
+              isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
+            ]}>
+              <View>
+                {/* OTP Input */}
+                <Text style={[styles.fieldLabel, { color: textSub }]}>VERIFICATION OTP</Text>
+                <View style={[styles.inputContainer, isTallScreen && { height: 52 }, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : inputBorder, marginBottom: 14 }]}>
+                  <MessageSquare size={16} color={focusedInput === 'resetOtp' ? PURPLE : textSub} style={{ marginRight: 10 }} />
+                  <TextInput
+                    style={[styles.inputText, { color: textMain, letterSpacing: resetOtp.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                    placeholder="4-digit OTP"
+                    placeholderTextColor={textSub}
+                    keyboardType="phone-pad"
+                    maxLength={4}
+                    value={resetOtp}
+                    onChangeText={(t) => setResetOtp(t.replace(/\D/g, '').slice(0, 4))}
+                    onFocus={() => setFocusedInput('resetOtp')}
+                    onBlur={() => setFocusedInput(null)}
+                  />
+                </View>
+
+                {/* New MPIN */}
+                <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
+                <View style={[styles.inputContainer, isTallScreen && { height: 52 }, { backgroundColor: inputBg, borderColor: focusedInput === 'newMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
+                  <Lock size={16} color={focusedInput === 'newMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
+                  <TextInput
+                    style={[styles.inputText, { color: textMain, letterSpacing: newMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                    placeholder="New MPIN"
+                    placeholderTextColor={textSub}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    secureTextEntry={!showNewMpin}
+                    value={newMpin}
+                    onChangeText={(t) => setNewMpin(t.replace(/\D/g, '').slice(0, 4))}
+                    onFocus={() => setFocusedInput('newMpin')}
+                    onBlur={() => setFocusedInput(null)}
+                  />
+                  <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    {showNewMpin ? <EyeOff size={16} color={textSub} /> : <Eye size={16} color={textSub} />}
+                  </TouchableOpacity>
+                </View>
+
+                {/* Confirm New MPIN */}
+                <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM NEW MPIN</Text>
+                <View style={[styles.inputContainer, isTallScreen && { height: 52 }, { backgroundColor: inputBg, borderColor: isResetMismatched ? '#EF4444' : isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
+                  <ShieldCheck size={16} color={isResetMismatched ? '#EF4444' : isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
+                  <TextInput
+                    style={[styles.inputText, { color: textMain, letterSpacing: confirmNewMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                    placeholder="Re-enter MPIN"
+                    placeholderTextColor={textSub}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    secureTextEntry={!showNewMpin}
+                    value={confirmNewMpin}
+                    onChangeText={(t) => setConfirmNewMpin(t.replace(/\D/g, '').slice(0, 4))}
+                    onFocus={() => setFocusedInput('confirmMpin')}
+                    onBlur={() => setFocusedInput(null)}
+                  />
+                </View>
               </View>
 
-              {/* New MPIN */}
-              <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
-              <View style={[styles.inputContainer, isTallScreen && { height: 52 }, { backgroundColor: inputBg, borderColor: focusedInput === 'newMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
-                <Lock size={16} color={focusedInput === 'newMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
-                <TextInput
-                  style={[styles.inputText, { color: textMain, letterSpacing: newMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
-                  placeholder="New MPIN"
-                  placeholderTextColor={textSub}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  secureTextEntry={!showNewMpin}
-                  value={newMpin}
-                  onChangeText={(t) => setNewMpin(t.replace(/\D/g, '').slice(0, 4))}
-                  onFocus={() => setFocusedInput('newMpin')}
-                  onBlur={() => setFocusedInput(null)}
-                />
-                <TouchableOpacity onPress={() => setShowNewMpin(!showNewMpin)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  {showNewMpin ? <EyeOff size={16} color={textSub} /> : <Eye size={16} color={textSub} />}
+              <View>
+                {/* Reset CTA */}
+                <TouchableOpacity
+                  style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 16 : 12 }]}
+                  onPress={handleResetMpinWithOtp}
+                  disabled={resetOtp.length !== 4 || !isResetMatched || loading}
+                  activeOpacity={0.88}
+                >
+                  <LinearGradient
+                    colors={[PURPLE, '#582BE8']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.ctaBtn, isTallScreen && { height: 52 }]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.ctaText}>Reset MPIN & Sign In</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ alignItems: 'center', marginTop: isTallScreen ? 16 : 12 }}
+                  onPress={() => setStep('MPIN')}
+                >
+                  <Text style={[styles.footerLink, { color: PURPLE }]}>Back to MPIN sign in</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Confirm New MPIN */}
-              <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM NEW MPIN</Text>
-              <View style={[styles.inputContainer, isTallScreen && { height: 52 }, { backgroundColor: inputBg, borderColor: isResetMismatched ? '#EF4444' : isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
-                <ShieldCheck size={16} color={isResetMismatched ? '#EF4444' : isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
-                <TextInput
-                  style={[styles.inputText, { color: textMain, letterSpacing: confirmNewMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
-                  placeholder="Re-enter MPIN"
-                  placeholderTextColor={textSub}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  secureTextEntry={!showNewMpin}
-                  value={confirmNewMpin}
-                  onChangeText={(t) => setConfirmNewMpin(t.replace(/\D/g, '').slice(0, 4))}
-                  onFocus={() => setFocusedInput('confirmMpin')}
-                  onBlur={() => setFocusedInput(null)}
-                />
-              </View>
-
-              {/* Reset CTA */}
-              <TouchableOpacity
-                style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 20 : 16 }]}
-                onPress={handleResetMpin}
-                disabled={resetOtp.length !== 4 || !isResetMatched || loading}
-                activeOpacity={0.88}
-              >
-                <LinearGradient
-                  colors={[PURPLE, '#582BE8']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.ctaBtn, isTallScreen && { height: 52 }]}
-                >
-                  {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.ctaText}>Reset MPIN & Sign In</Text>}
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={{ alignItems: 'center', marginTop: isTallScreen ? 18 : 14 }} onPress={() => setStep('MPIN')}>
-                <Text style={[styles.footerLink, { color: PURPLE }]}>Back to MPIN sign in</Text>
-              </TouchableOpacity>
             </View>
           </View>
 
