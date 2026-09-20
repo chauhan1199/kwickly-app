@@ -166,7 +166,7 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 110 }]}
       >
         {/* Top Add Address Button */}
         <TouchableOpacity
@@ -269,8 +269,8 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
                   {/* Default / Make Default Button */}
                   {isPrimary ? (
                     <View style={styles.defaultPill}>
-                      <CheckCircle2 size={14} color="#059669" style={{ marginRight: 5 }} />
-                      <Text style={styles.defaultPillText}>Default Address</Text>
+                      <CheckCircle2 size={13} color="#059669" style={{ marginRight: 4 }} />
+                      <Text style={styles.defaultPillText} numberOfLines={1}>Default</Text>
                     </View>
                   ) : (
                     <TouchableOpacity
@@ -283,8 +283,8 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
                         <ActivityIndicator size="small" color="#6C47FF" />
                       ) : (
                         <>
-                          <Star size={13} color="#6C47FF" style={{ marginRight: 4 }} />
-                          <Text style={styles.actionBtnOutlineText}>Set Default</Text>
+                          <Star size={12} color="#6C47FF" style={{ marginRight: 3 }} />
+                          <Text style={styles.actionBtnOutlineText} numberOfLines={1}>Set Default</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -513,7 +513,9 @@ const createStyles = (theme, isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingTop: 12,
+      flexWrap: 'wrap',
+      gap: 6,
+      paddingTop: 10,
       borderTopWidth: 1,
       borderTopColor: isDarkMode ? '#334155' : '#F1F5F9'
     },
@@ -521,47 +523,48 @@ const createStyles = (theme, isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: '#ECFDF5',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: '#A7F3D0'
     },
     defaultPillText: {
-      fontSize: 12,
+      fontSize: 11.5,
       fontWeight: '700',
       color: '#059669'
     },
     actionBtnOutline: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: '#6C47FF33',
       backgroundColor: '#6C47FF0D'
     },
     actionBtnOutlineText: {
-      fontSize: 12,
+      fontSize: 11.5,
       fontWeight: '700',
       color: '#6C47FF'
     },
     rightActionsRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6
+      gap: 6,
+      flexShrink: 0
     },
     iconActionBtn: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
       borderRadius: 8,
       backgroundColor: isDarkMode ? '#334155' : '#F1F5F9'
     },
     iconActionBtnText: {
-      fontSize: 12,
+      fontSize: 11.5,
       fontWeight: '700',
       color: isDarkMode ? '#CBD5E1' : '#475569'
     },
@@ -569,7 +572,7 @@ const createStyles = (theme, isDarkMode) =>
       backgroundColor: '#FEF2F2'
     },
     deleteActionBtnText: {
-      fontSize: 12,
+      fontSize: 11.5,
       fontWeight: '700',
       color: '#EF4444'
     },

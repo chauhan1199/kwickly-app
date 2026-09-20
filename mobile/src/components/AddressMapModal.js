@@ -1096,7 +1096,7 @@ const createStyles = (theme, isDarkMode) =>
       zIndex: 15
     },
     bottomSheet: {
-      maxHeight: '52%',
+      maxHeight: '70%',
       backgroundColor: isDarkMode ? '#1E293B' : '#fff',
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
@@ -1112,7 +1112,7 @@ const createStyles = (theme, isDarkMode) =>
     formScroll: {
       paddingHorizontal: 20,
       paddingTop: 16,
-      paddingBottom: 24
+      paddingBottom: 60
     },
     addressBanner: {
       flexDirection: 'row',

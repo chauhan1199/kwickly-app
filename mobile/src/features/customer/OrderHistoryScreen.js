@@ -79,7 +79,9 @@ const OrderHistoryScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.shopRow}>
-          <Text style={styles.shopName}>{item.shopId?.name || 'Shop'}</Text>
+          <Text style={styles.shopName} numberOfLines={1} ellipsizeMode="tail">
+            {item.shopId?.name || 'Shop'}
+          </Text>
           <Text style={styles.orderTotal}>₹{item.total}</Text>
         </View>
 
@@ -143,25 +145,27 @@ const OrderHistoryScreen = ({ navigation }) => {
       </View>
 
       {/* Filter Tabs */}
-      <View style={styles.filterRow}>
-        {['all', 'NEW', 'OUT_FOR_DELIVERY', 'DELIVERED'].map(f => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.filterTab, filter === f && styles.filterTabActive]}
-            onPress={() => setFilter(f)}
-          >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-              {f === 'all' ? 'All' : STATUS_COLORS[f]?.label || f}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={{ marginBottom: 4 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {['all', 'NEW', 'OUT_FOR_DELIVERY', 'DELIVERED'].map(f => (
+            <TouchableOpacity
+              key={f}
+              style={[styles.filterTab, filter === f && styles.filterTabActive]}
+              onPress={() => setFilter(f)}
+            >
+              <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
+                {f === 'all' ? 'All' : STATUS_COLORS[f]?.label || f}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       <FlatList
         data={filteredOrders}
         keyExtractor={item => item._id}
         renderItem={renderOrder}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 110 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
         ListEmptyComponent={
@@ -180,7 +184,7 @@ const OrderHistoryScreen = ({ navigation }) => {
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
   container:    { flex: 1, backgroundColor: theme.colors.background },
-  filterRow:    { flexDirection: 'row', paddingHorizontal: 16, gap: 8, paddingVertical: 8 },
+  filterRow:    { flexDirection: 'row', paddingHorizontal: 16, gap: 8, paddingVertical: 6, paddingRight: 24 },
   filterTab:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
   filterTabActive:{ borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '15' },
   filterText:   { fontSize: 12, fontWeight: '700', color: theme.colors.textDim },
@@ -193,9 +197,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   orderDate:    { fontSize: 12, color: theme.colors.textDim, marginTop: 2 },
   statusBadge:  { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusText:   { fontSize: 11, fontWeight: '700' },
-  shopRow:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  shopName:     { fontSize: 14, fontWeight: '600', color: theme.colors.text },
-  orderTotal:   { fontSize: 15, fontWeight: '800', color: theme.colors.text },
+  shopRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 10 },
+  shopName:     { fontSize: 14, fontWeight: '600', color: theme.colors.text, flex: 1, minWidth: 0 },
+  orderTotal:   { fontSize: 15, fontWeight: '800', color: theme.colors.text, flexShrink: 0 },
   itemsPreview: { marginBottom: 10 },
   itemPreview:  { fontSize: 12, color: theme.colors.textDim, marginBottom: 2 },
   moreItems:    { fontSize: 12, color: theme.colors.primary, fontWeight: '600' },

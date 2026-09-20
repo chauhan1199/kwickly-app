@@ -132,7 +132,12 @@ const PrivacyScreen = ({ navigation }) => {
             activeOpacity={0.8}
             onPress={() => setActiveTab('TOS')}
           >
-            <Text style={[styles.tabText, activeTab === 'TOS' && styles.tabTextActive]}>
+            <Text
+              style={[styles.tabText, activeTab === 'TOS' && styles.tabTextActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit={true}
+              minimumFontScale={0.8}
+            >
               📜 Terms & Conditions
             </Text>
           </TouchableOpacity>
@@ -141,14 +146,19 @@ const PrivacyScreen = ({ navigation }) => {
             activeOpacity={0.8}
             onPress={() => setActiveTab('PRIVACY')}
           >
-            <Text style={[styles.tabText, activeTab === 'PRIVACY' && styles.tabTextActive]}>
+            <Text
+              style={[styles.tabText, activeTab === 'PRIVACY' && styles.tabTextActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit={true}
+              minimumFontScale={0.8}
+            >
               🔒 Privacy Policy
             </Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: 110 }]}>
         {loading ? (
           <ActivityIndicator color={theme.colors.primary} style={{ marginTop: 40 }} />
         ) : (
@@ -174,15 +184,17 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255,255,255,0.18)',
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginTop: 8,
     borderRadius: 14,
     padding: 4,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 6,
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 10,
   },
   tabButtonActive: {
@@ -194,7 +206,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     elevation: 3,
   },
   tabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.85)',
   },

@@ -132,7 +132,7 @@ const HelpSupportScreen = ({ navigation }) => {
         />
       </LinearGradient>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: 110 }]}>
         
         <Text style={styles.headerTitle}>Hi {user?.name ? user.name.split(' ')[0] : 'User'},</Text>
         <Text style={styles.headerSub}>How can we help you today?</Text>
@@ -177,13 +177,17 @@ const HelpSupportScreen = ({ navigation }) => {
           <ChevronRight size={20} color={theme.colors.textDim} />
         </TouchableOpacity>
 
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-          <Text style={{ fontSize: 12, fontWeight: '700', color: theme.colors.primary }}>{filteredFaqs.length} FAQs</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+          <Text style={[styles.sectionTitle, { flex: 1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+            Frequently Asked Questions
+          </Text>
+          <View style={{ backgroundColor: theme.colors.primary + '18', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, flexShrink: 0 }}>
+            <Text style={{ fontSize: 11.5, fontWeight: '800', color: theme.colors.primary }}>{filteredFaqs.length} FAQs</Text>
+          </View>
         </View>
 
         {/* Topic Filter Chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topicScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.topicScroll, { paddingRight: 24 }]}>
           {[
             { id: 'ALL', label: '🌟 All' },
             { id: 'BOOKING', label: '⚡ Services & Bids' },
@@ -273,7 +277,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 5,
     marginBottom: 30
   },
-  sectionTitle: { fontSize: 20, fontWeight: '800', color: theme.colors.text },
+  sectionTitle: { fontSize: 17, fontWeight: '800', color: theme.colors.text },
   topicScroll: { paddingBottom: 14, gap: 8 },
   topicChip: {
     paddingHorizontal: 14,
