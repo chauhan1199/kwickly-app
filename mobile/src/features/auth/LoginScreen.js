@@ -304,8 +304,8 @@ const LoginScreen = ({ navigation, route }) => {
     }
   };
 
-  const safeTopPadding = getSafeTopInset(insets, 14);
-  const safeBottomInset = getSafeBottomInset(insets, 8);
+  const safeTopPadding = getSafeTopInset(insets, isSmallScreen ? 8 : 14);
+  const safeBottomInset = getSafeBottomInset(insets, isSmallScreen ? 4 : 8);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -369,13 +369,13 @@ const LoginScreen = ({ navigation, route }) => {
           alignItems: 'center',
           flexDirection: 'row',
           gap: 8,
-          paddingVertical: isSmallScreen ? 7 : 10,
-          marginTop: isSmallScreen ? 6 : 10,
+          paddingVertical: isSmallScreen ? 6 : 10,
+          marginTop: isSmallScreen ? 4 : 10,
         },
       ]}
     >
-      <ShieldCheck size={16} color="#10B981" />
-      <Text style={[styles.trustTitle, { color: textMain, fontSize: 12, fontWeight: '700' }]}>
+      <ShieldCheck size={isSmallScreen ? 14 : 16} color="#10B981" />
+      <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 11 : 12, fontWeight: '700' }]}>
         100% Secure & Encrypted
       </Text>
     </View>
@@ -397,25 +397,25 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
-                justifyContent: 'flex-start',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={true}
+            scrollEnabled={keyboardVisible}
           >
             <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
-              <View style={[styles.headerLayoutRow, isTallScreen && { marginBottom: 16 }]}>
+              <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 6 }, isTallScreen && { marginBottom: 16 }]}>
                 <View style={styles.headerTextCol}>
-                  <Text style={[styles.heroHeadline, { color: textMain }]}>
+                  <Text style={[styles.heroHeadline, { color: textMain, fontSize: isSmallScreen ? 20 : 25, lineHeight: isSmallScreen ? 24 : 30 }]}>
                     Glad to{'\n'}See You{'\n'}
                     <Text style={{ color: PURPLE }}>Again!</Text>
                   </Text>
-                  <Text style={[styles.heroSub, { color: textSub }]}>
+                  <Text style={[styles.heroSub, { color: textSub, fontSize: isSmallScreen ? 11 : 12.5 }]}>
                     Log in to continue your services, anytime & near you.
                   </Text>
                 </View>
@@ -425,7 +425,7 @@ const LoginScreen = ({ navigation, route }) => {
                       ? require('../../assets/images/hero_login_dark.png')
                       : require('../../assets/images/hero_login.png')
                   }
-                  style={[styles.heroLoginImg, isTallScreen && { width: 140, height: 105 }]}
+                  style={[styles.heroLoginImg, isSmallScreen && { width: 90, height: 65 }, isTallScreen && { width: 140, height: 105 }]}
                   resizeMode="contain"
                 />
               </View>
@@ -434,16 +434,18 @@ const LoginScreen = ({ navigation, route }) => {
               <View style={[
                 styles.card,
                 { backgroundColor: cardBg, borderColor: cardBorder },
+                isSmallScreen && { paddingVertical: 12, paddingHorizontal: 14 },
                 isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
               ]}>
-                <Text style={[styles.cardTitle, { color: textMain }]}>Welcome Back!</Text>
-                <Text style={[styles.cardSub, { color: textSub }]}>Enter your 10-digit mobile number to sign in</Text>
+                <Text style={[styles.cardTitle, { color: textMain, fontSize: isSmallScreen ? 16 : 18 }]}>Welcome Back!</Text>
+                <Text style={[styles.cardSub, { color: textSub, fontSize: isSmallScreen ? 11 : 11.5, marginBottom: isSmallScreen ? 6 : 10 }]}>Enter your 10-digit mobile number to sign in</Text>
 
                 <TouchableOpacity
                   activeOpacity={1}
                   onPress={() => phoneInputRef.current?.focus()}
                   style={[
                     styles.inputContainer,
+                    isSmallScreen && { height: 44 },
                     isTallScreen && { height: 54 },
                     {
                       backgroundColor: inputBg,
@@ -453,13 +455,13 @@ const LoginScreen = ({ navigation, route }) => {
                   ]}
                 >
                   <View pointerEvents="none" style={styles.prefixWrapper}>
-                    <Text style={styles.flagText}>🇮🇳</Text>
-                    <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
+                    <Text style={[styles.flagText, isSmallScreen && { fontSize: 13 }]}>🇮🇳</Text>
+                    <Text style={[styles.prefixNumber, { color: textMain, fontSize: isSmallScreen ? 13.5 : 14.5 }]}>+91</Text>
                     <View style={[styles.prefixDivider, { backgroundColor: inputBorder }]} />
                   </View>
                   <TextInput
                     ref={phoneInputRef}
-                    style={[styles.inputText, { color: textMain }]}
+                    style={[styles.inputText, { color: textMain, fontSize: isSmallScreen ? 13.5 : 15 }]}
                     placeholder="10-digit number"
                     placeholderTextColor={textSub}
                     keyboardType="phone-pad"
@@ -484,14 +486,14 @@ const LoginScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
 
                 {/* Auto Detect Hint */}
-                <View style={[styles.autoDetectRow, { marginTop: 10 }]}>
-                  <Zap size={14} color={PURPLE} />
-                  <Text style={[styles.autoDetectText, { color: textSub }]} numberOfLines={1}>We'll automatically find your account</Text>
+                <View style={[styles.autoDetectRow, { marginTop: isSmallScreen ? 6 : 10 }]}>
+                  <Zap size={isSmallScreen ? 12 : 14} color={PURPLE} />
+                  <Text style={[styles.autoDetectText, { color: textSub, fontSize: isSmallScreen ? 11 : 12 }]} numberOfLines={1}>We'll automatically find your account</Text>
                 </View>
 
                 {/* Continue Button */}
                 <TouchableOpacity
-                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: 18 }]}
+                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: isSmallScreen ? 10 : 18 }]}
                   onPress={() => handleCheckNumber()}
                   disabled={phone.length !== 10 || loading}
                   activeOpacity={0.88}
@@ -500,28 +502,28 @@ const LoginScreen = ({ navigation, route }) => {
                     colors={[PURPLE, '#582BE8']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={[styles.ctaBtn, isTallScreen && { height: 54 }]}
+                    style={[styles.ctaBtn, isSmallScreen && { height: 44 }, isTallScreen && { height: 54 }]}
                   >
                     {loading ? (
                       <ActivityIndicator size="small" color="#FFF" />
                     ) : (
                       <>
-                        <Text style={styles.ctaText}>Continue</Text>
-                        <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                        <Text style={[styles.ctaText, isSmallScreen && { fontSize: 14.5 }]}>Continue</Text>
+                        <ArrowRight size={isSmallScreen ? 16 : 18} color="#FFF" style={{ marginLeft: 8 }} />
                       </>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
 
                 {/* Divider with Create Account */}
-                <View style={[styles.orDividerRow, { marginTop: 16 }]}>
+                <View style={[styles.orDividerRow, { marginTop: isSmallScreen ? 10 : 16 }]}>
                   <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
                   <TouchableOpacity
                     onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}
                     activeOpacity={0.75}
                     style={styles.orContent}
                   >
-                    <Text style={[styles.footerText, { color: textSub }]}>
+                    <Text style={[styles.footerText, { color: textSub, fontSize: isSmallScreen ? 12 : 13 }]}>
                       New here? <Text style={[styles.footerLink, { color: PURPLE }]}>Create Account</Text>
                     </Text>
                   </TouchableOpacity>
@@ -531,22 +533,22 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: 12 }]}>
+            <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }]}>
               {renderTrustBar()}
-              <View style={styles.perksRow}>
-                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
-                  <Text style={[styles.perkText, { color: textSub }]} numberOfLines={1}>⚡ On-Time</Text>
+              <View style={[styles.perksRow, isSmallScreen && { marginTop: 3, marginBottom: 4, gap: 4 }]}>
+                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
+                  <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>⚡ On-Time</Text>
                 </View>
-                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
-                  <Text style={[styles.perkText, { color: textSub }]} numberOfLines={1}>🛠️ 50+ Services</Text>
+                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
+                  <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>🛠️ 50+ Services</Text>
                 </View>
-                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
-                  <Text style={[styles.perkText, { color: textSub }]} numberOfLines={1}>🛡️ Verified Pros</Text>
+                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
+                  <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>🛡️ Verified Pros</Text>
                 </View>
               </View>
-              <View style={styles.socialProofRow}>
-                <Text style={styles.socialProofStars}>★★★★★</Text>
-                <Text style={[styles.socialProofText, { color: textSub }]} numberOfLines={1}>
+              <View style={[styles.socialProofRow, isSmallScreen && { marginTop: 2, marginBottom: 2 }]}>
+                <Text style={[styles.socialProofStars, isSmallScreen && { fontSize: 11 }]}>★★★★★</Text>
+                <Text style={[styles.socialProofText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]} numberOfLines={1}>
                   Trusted by 10,000+ happy homes across India
                 </Text>
               </View>
@@ -572,29 +574,29 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
-                justifyContent: 'flex-start',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={true}
+            scrollEnabled={keyboardVisible || availableAccounts.length > 3}
           >
             <View style={styles.topSection}>
-              <View style={styles.headerBlock}>
-                <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+              <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 6 }]}>
+                <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }, isSmallScreen && { paddingVertical: 2, paddingHorizontal: 8, marginBottom: 4 }]}>
                   <User size={12} color="#6C47FF" />
-                  <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
+                  <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569', fontSize: isSmallScreen ? 10 : 10.5 }]}>
                     Multiple Profiles Found
                   </Text>
                 </View>
 
-                <Text style={[styles.title, { color: textMain }]}>
+                <Text style={[styles.title, { color: textMain, fontSize: isSmallScreen ? 19 : 22 }]}>
                   Select <Text style={{ color: '#6C47FF' }}>Profile</Text>
                 </Text>
-                <Text style={[styles.subtitle, { color: textSub }]}>
+                <Text style={[styles.subtitle, { color: textSub, fontSize: isSmallScreen ? 11 : 11.5 }]}>
                   Accounts linked with +91 {phone}
                 </Text>
               </View>
@@ -602,6 +604,7 @@ const LoginScreen = ({ navigation, route }) => {
               <View style={[
                 styles.card,
                 { backgroundColor: cardBg, borderColor: cardBorder },
+                isSmallScreen && { paddingVertical: 10, paddingHorizontal: 12 },
               ]}>
                 <View>
                   {availableAccounts.map((acc, idx) => {
@@ -610,16 +613,16 @@ const LoginScreen = ({ navigation, route }) => {
                     return (
                       <TouchableOpacity
                         key={idx}
-                        style={[styles.accountCard, { backgroundColor: inputBg, borderColor: inputBorder }]}
+                        style={[styles.accountCard, { backgroundColor: inputBg, borderColor: inputBorder }, isSmallScreen && { padding: 10, marginBottom: 6 }]}
                         onPress={() => handleSelectAccount(acc)}
                         activeOpacity={0.8}
                       >
-                        <View style={[styles.accountIconWrap, { backgroundColor: meta.bg }]}>
-                          <Icon size={20} color={meta.color} />
+                        <View style={[styles.accountIconWrap, { backgroundColor: meta.bg }, isSmallScreen && { width: 36, height: 36 }]}>
+                          <Icon size={isSmallScreen ? 17 : 20} color={meta.color} />
                         </View>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={[styles.accountRole, { color: textMain }]} numberOfLines={1}>{meta.label}</Text>
-                          <Text style={[styles.accountName, { color: textSub }]} numberOfLines={1}>{acc.name || 'Registered Profile'}</Text>
+                        <View style={{ flex: 1, marginLeft: isSmallScreen ? 8 : 12 }}>
+                          <Text style={[styles.accountRole, { color: textMain, fontSize: isSmallScreen ? 13 : 15 }]} numberOfLines={1}>{meta.label}</Text>
+                          <Text style={[styles.accountName, { color: textSub, fontSize: isSmallScreen ? 11 : 12.5 }]} numberOfLines={1}>{acc.name || 'Registered Profile'}</Text>
                         </View>
                         <ArrowRight size={16} color={textSub} />
                       </TouchableOpacity>
@@ -627,14 +630,14 @@ const LoginScreen = ({ navigation, route }) => {
                   })}
                 </View>
 
-                <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('PHONE')}>
-                  <Text style={[styles.footerLink, { color: PURPLE }]}>Use a different number</Text>
+                <TouchableOpacity style={{ alignItems: 'center', marginTop: isSmallScreen ? 10 : 16 }} onPress={() => setStep('PHONE')}>
+                  <Text style={[styles.footerLink, { color: PURPLE, fontSize: isSmallScreen ? 12 : 13 }]}>Use a different number</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
+            <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }]}>
               {renderTrustBar()}
             </View>
           </ScrollView>
@@ -658,30 +661,30 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
-                justifyContent: 'flex-start',
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={true}
+            scrollEnabled={keyboardVisible}
           >
             <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
-              <View style={[styles.headerLayoutRow, { marginBottom: isTallScreen ? 14 : 6 }]}>
+              <View style={[styles.headerLayoutRow, { marginBottom: isSmallScreen ? 4 : (isTallScreen ? 14 : 6) }]}>
                 <View style={styles.headerTextCol}>
-                  <Text style={[styles.heroHeadline, { fontSize: 24, lineHeight: 28, color: textMain }]}>
+                  <Text style={[styles.heroHeadline, { fontSize: isSmallScreen ? 20 : 24, lineHeight: isSmallScreen ? 24 : 28, color: textMain }]}>
                     Welcome{'\n'}
                     <Text style={{ color: PURPLE }}>Back!</Text>
                   </Text>
-                  <Text style={[styles.heroSub, { fontSize: 11.5, lineHeight: 15, marginTop: 3, color: textSub }]}>
+                  <Text style={[styles.heroSub, { fontSize: isSmallScreen ? 11 : 11.5, lineHeight: isSmallScreen ? 14 : 15, marginTop: 2, color: textSub }]}>
                     Enter your 4-digit MPIN to access your account
                   </Text>
-                  <View style={[styles.safeShieldPill, { paddingVertical: 2, paddingHorizontal: 8, marginTop: 4 }]}>
+                  <View style={[styles.safeShieldPill, { paddingVertical: 2, paddingHorizontal: 6, marginTop: 3 }]}>
                     <ShieldCheck size={12} color={PURPLE} />
-                    <Text style={[styles.safeShieldText, { fontSize: 10 }]}>Your data is safe with us</Text>
+                    <Text style={[styles.safeShieldText, { fontSize: isSmallScreen ? 9.5 : 10 }]}>Your data is safe with us</Text>
                   </View>
                 </View>
                 <Image
@@ -690,7 +693,7 @@ const LoginScreen = ({ navigation, route }) => {
                       ? require('../../assets/images/hero_mpin_dark.png')
                       : require('../../assets/images/hero_mpin.png')
                   }
-                  style={[styles.heroMpinImg, { width: isTallScreen ? 120 : 95, height: isTallScreen ? 100 : 80 }]}
+                  style={[styles.heroMpinImg, { width: isSmallScreen ? 80 : (isTallScreen ? 120 : 95), height: isSmallScreen ? 65 : (isTallScreen ? 100 : 80) }]}
                   resizeMode="contain"
                 />
               </View>
@@ -698,37 +701,37 @@ const LoginScreen = ({ navigation, route }) => {
               {/* Floating Form Card */}
               <View style={[
                 styles.card,
-                { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: isTallScreen ? 20 : 16, paddingVertical: isTallScreen ? 22 : 14 },
+                { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: isSmallScreen ? 14 : (isTallScreen ? 20 : 16), paddingVertical: isSmallScreen ? 10 : (isTallScreen ? 22 : 14) },
               ]}>
                 <View>
                   {/* User Profile Pill */}
-                  <View style={[styles.userProfileBox, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF', paddingVertical: isTallScreen ? 10 : 6, paddingHorizontal: isTallScreen ? 12 : 10, marginBottom: isTallScreen ? 12 : 8 }]}>
-                    <View style={[styles.avatarCircle, { width: 30, height: 30, borderRadius: 15 }]}>
-                      <User size={15} color={PURPLE} />
+                  <View style={[styles.userProfileBox, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF', paddingVertical: isSmallScreen ? 4 : (isTallScreen ? 10 : 6), paddingHorizontal: isSmallScreen ? 8 : (isTallScreen ? 12 : 10), marginBottom: isSmallScreen ? 6 : (isTallScreen ? 12 : 8) }]}>
+                    <View style={[styles.avatarCircle, { width: isSmallScreen ? 26 : 30, height: isSmallScreen ? 26 : 30, borderRadius: 13 }]}>
+                      <User size={isSmallScreen ? 13 : 15} color={PURPLE} />
                     </View>
                     <View style={{ flex: 1, marginLeft: 8, minWidth: 0, justifyContent: 'center' }}>
-                      <Text style={[styles.profileRoleText, { fontSize: 12, color: textMain }]} numberOfLines={1}>{selectedRole.toUpperCase()}</Text>
-                      <Text style={[styles.profilePhoneText, { fontSize: 11, color: textSub }]} numberOfLines={1}>+91 {phone}</Text>
+                      <Text style={[styles.profileRoleText, { fontSize: isSmallScreen ? 11 : 12, color: textMain }]} numberOfLines={1}>{selectedRole.toUpperCase()}</Text>
+                      <Text style={[styles.profilePhoneText, { fontSize: isSmallScreen ? 10 : 11, color: textSub }]} numberOfLines={1}>+91 {phone}</Text>
                     </View>
                     <TouchableOpacity
-                      style={[styles.changeBtn, { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF', paddingVertical: 3, paddingHorizontal: 8 }]}
+                      style={[styles.changeBtn, { backgroundColor: isDarkMode ? '#111827' : '#FFFFFF', paddingVertical: isSmallScreen ? 2 : 3, paddingHorizontal: isSmallScreen ? 6 : 8 }]}
                       onPress={() => setStep('PHONE')}
                       activeOpacity={0.75}
                     >
-                      <Text style={[styles.changeBtnText, { fontSize: 11, color: PURPLE }]}>Change</Text>
+                      <Text style={[styles.changeBtnText, { fontSize: isSmallScreen ? 10 : 11, color: PURPLE }]}>Change</Text>
                     </TouchableOpacity>
                   </View>
 
                   {/* PIN Header Row */}
-                  <View style={[styles.pinHeaderRow, { marginBottom: isTallScreen ? 12 : 8 }]}>
-                    <Text style={[styles.pinHeaderTitle, { fontSize: 13, color: textMain }]}>Enter 4-Digit MPIN</Text>
+                  <View style={[styles.pinHeaderRow, { marginBottom: isSmallScreen ? 6 : (isTallScreen ? 12 : 8) }]}>
+                    <Text style={[styles.pinHeaderTitle, { fontSize: isSmallScreen ? 12 : 13, color: textMain }]}>Enter 4-Digit MPIN</Text>
                     <TouchableOpacity onPress={handleForgotMpin} activeOpacity={0.75}>
-                      <Text style={[styles.forgotMpinText, { fontSize: 12, color: PURPLE }]}>Forgot MPIN?</Text>
+                      <Text style={[styles.forgotMpinText, { fontSize: isSmallScreen ? 11 : 12, color: PURPLE }]}>Forgot MPIN?</Text>
                     </TouchableOpacity>
                   </View>
 
                   {/* PIN Boxes Container with Touchable Overlay */}
-                  <View style={[styles.pinContainer, isTallScreen && { marginBottom: 16 }]}>
+                  <View style={[styles.pinContainer, { marginBottom: isSmallScreen ? 6 : (isTallScreen ? 16 : 14) }]}>
                     <Animated.View
                       style={[
                         styles.pinRow,
@@ -746,9 +749,9 @@ const LoginScreen = ({ navigation, route }) => {
                             style={[
                               styles.pinBox,
                               {
-                                width: isTallScreen ? 56 : 50,
-                                height: isTallScreen ? 56 : 50,
-                                borderRadius: 14,
+                                width: isSmallScreen ? 46 : (isTallScreen ? 56 : 50),
+                                height: isSmallScreen ? 46 : (isTallScreen ? 56 : 50),
+                                borderRadius: 12,
                                 backgroundColor: inputBg,
                                 borderColor: inputBorder,
                               },
@@ -759,7 +762,7 @@ const LoginScreen = ({ navigation, route }) => {
                           >
                             {filled ? (
                               showMpin ? (
-                                <Text style={[styles.pinDigit, { fontSize: 18, color: textMain }]}>{mpin[i]}</Text>
+                                <Text style={[styles.pinDigit, { fontSize: isSmallScreen ? 16 : 18, color: textMain }]}>{mpin[i]}</Text>
                               ) : (
                                 <View style={[styles.pinDot, { width: 10, height: 10, borderRadius: 5, backgroundColor: PURPLE }]} />
                               )
@@ -799,19 +802,19 @@ const LoginScreen = ({ navigation, route }) => {
 
                   {/* Show/Hide PIN toggle button */}
                   <TouchableOpacity
-                    style={[styles.eyePill, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF' }]}
+                    style={[styles.eyePill, { backgroundColor: isDarkMode ? '#1E2540' : '#F5F3FF', paddingVertical: isSmallScreen ? 3 : 6, paddingHorizontal: isSmallScreen ? 8 : 12, marginTop: 2 }]}
                     onPress={() => setShowMpin(!showMpin)}
                     activeOpacity={0.7}
                   >
-                    {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
-                    <Text style={[styles.eyePillText, { color: PURPLE }]}>{showMpin ? 'Hide MPIN' : 'Show MPIN'}</Text>
+                    {showMpin ? <EyeOff size={12} color={PURPLE} /> : <Eye size={12} color={PURPLE} />}
+                    <Text style={[styles.eyePillText, { color: PURPLE, fontSize: isSmallScreen ? 11 : 12 }]}>{showMpin ? 'Hide MPIN' : 'Show MPIN'}</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View>
                   {/* Sign In CTA Button */}
                   <TouchableOpacity
-                    style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 16 : 12 }]}
+                    style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: isSmallScreen ? 8 : (isTallScreen ? 16 : 12) }]}
                     onPress={() => handleMpinSubmit(mpin)}
                     disabled={mpin.length !== 4 || loading}
                     activeOpacity={0.88}
@@ -820,56 +823,56 @@ const LoginScreen = ({ navigation, route }) => {
                       colors={[PURPLE, '#582BE8']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
-                      style={[styles.ctaBtn, { height: isTallScreen ? 52 : 46 }]}
+                      style={[styles.ctaBtn, { height: isSmallScreen ? 42 : (isTallScreen ? 52 : 46) }]}
                     >
                       {loading ? (
                         <ActivityIndicator size="small" color="#FFF" />
                       ) : (
                         <>
-                          <Text style={[styles.ctaText, { fontSize: 15 }]}>Sign In with MPIN</Text>
-                          <ArrowRight size={16} color="#FFF" style={{ marginLeft: 6 }} />
+                          <Text style={[styles.ctaText, { fontSize: isSmallScreen ? 14 : 15 }]}>Sign In with MPIN</Text>
+                          <ArrowRight size={isSmallScreen ? 15 : 16} color="#FFF" style={{ marginLeft: 6 }} />
                         </>
                       )}
                     </LinearGradient>
                   </TouchableOpacity>
 
                   {/* OR Divider */}
-                  <View style={[styles.orRow, { marginVertical: isTallScreen ? 10 : 6 }]}>
+                  <View style={[styles.orRow, { marginVertical: isSmallScreen ? 4 : (isTallScreen ? 10 : 6) }]}>
                     <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
-                    <Text style={[styles.orText, { fontSize: 11, color: textSub }]}>OR</Text>
+                    <Text style={[styles.orText, { fontSize: isSmallScreen ? 10.5 : 11, color: textSub }]}>OR</Text>
                     <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
                   </View>
 
                   {/* Sign in with OTP instead button */}
                   <TouchableOpacity
-                    style={[styles.otpOutlineBtn, { height: isTallScreen ? 46 : 40, borderColor: inputBorder, backgroundColor: isDarkMode ? '#1E2540' : '#FFFFFF' }]}
+                    style={[styles.otpOutlineBtn, { height: isSmallScreen ? 38 : (isTallScreen ? 46 : 40), borderColor: inputBorder, backgroundColor: isDarkMode ? '#1E2540' : '#FFFFFF' }]}
                     onPress={handleDirectOtpLogin}
                     activeOpacity={0.8}
                   >
-                    <MessageSquare size={14} color={PURPLE} style={{ marginRight: 6 }} />
-                    <Text style={[styles.otpOutlineText, { fontSize: 12, color: textSub }]}>
+                    <MessageSquare size={13} color={PURPLE} style={{ marginRight: 6 }} />
+                    <Text style={[styles.otpOutlineText, { fontSize: isSmallScreen ? 11.5 : 12, color: textSub }]}>
                       Sign in with <Text style={{ color: PURPLE, fontWeight: '800' }}>OTP instead</Text>
                     </Text>
                   </TouchableOpacity>
 
                   {/* Switch mobile number */}
                   <TouchableOpacity
-                    style={{ alignItems: 'center', marginTop: isTallScreen ? 10 : 6 }}
+                    style={{ alignItems: 'center', marginTop: isSmallScreen ? 4 : (isTallScreen ? 10 : 6) }}
                     onPress={() => setStep('PHONE')}
                     activeOpacity={0.75}
                   >
-                    <Text style={[styles.footerLink, { fontSize: 12, color: PURPLE }]}>Switch mobile number</Text>
+                    <Text style={[styles.footerLink, { fontSize: isSmallScreen ? 11.5 : 12, color: PURPLE }]}>Switch mobile number</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: 12 }]}>
+            <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }]}>
               {renderTrustBar()}
-              <View style={styles.securityHighlightRow}>
+              <View style={[styles.securityHighlightRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
                 <ShieldCheck size={13} color="#10B981" />
-                <Text style={[styles.securityHighlightText, { color: textSub }]}>
+                <Text style={[styles.securityHighlightText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
                   256-bit encrypted · 100% Secure & Private
                 </Text>
               </View>
@@ -894,29 +897,29 @@ const LoginScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
-              justifyContent: 'flex-start',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={true}
+          scrollEnabled={keyboardVisible}
         >
           <View style={styles.topSection}>
-            <View style={styles.headerBlock}>
-              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
+            <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 4 }]}>
+              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }, isSmallScreen && { marginBottom: 3, paddingVertical: 2, paddingHorizontal: 8 }]}>
                 <KeyRound size={12} color="#6C47FF" />
-                <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569' }]}>
+                <Text style={[styles.pillText, { color: isDarkMode ? '#C4B5FD' : '#475569', fontSize: isSmallScreen ? 10 : 10.5 }]}>
                   MPIN Recovery
                 </Text>
               </View>
 
-              <Text style={[styles.title, { color: textMain }]}>
+              <Text style={[styles.title, { color: textMain, fontSize: isSmallScreen ? 19 : 22 }]}>
                 Reset <Text style={{ color: '#6C47FF' }}>MPIN</Text>
               </Text>
-              <Text style={[styles.subtitle, { color: textSub }]}>
+              <Text style={[styles.subtitle, { color: textSub, fontSize: isSmallScreen ? 11 : 11.5 }]}>
                 Enter OTP sent to +91 {phone}
               </Text>
             </View>
@@ -924,15 +927,16 @@ const LoginScreen = ({ navigation, route }) => {
             <View style={[
               styles.card,
               { backgroundColor: cardBg, borderColor: cardBorder },
+              isSmallScreen && { paddingVertical: 10, paddingHorizontal: 14 },
               isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
             ]}>
               <View>
                 {/* OTP Input */}
-                <Text style={[styles.fieldLabel, { color: textSub }]}>VERIFICATION OTP</Text>
-                <View style={[styles.inputContainer, isTallScreen && { height: 52 }, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : inputBorder, marginBottom: 14 }]}>
+                <Text style={[styles.fieldLabel, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5, marginBottom: isSmallScreen ? 3 : 8 }]}>VERIFICATION OTP</Text>
+                <View style={[styles.inputContainer, { height: isSmallScreen ? 42 : (isTallScreen ? 52 : 48), marginBottom: isSmallScreen ? 6 : 14 }, { backgroundColor: inputBg, borderColor: focusedInput === 'resetOtp' ? PURPLE : inputBorder }]}>
                   <MessageSquare size={16} color={focusedInput === 'resetOtp' ? PURPLE : textSub} style={{ marginRight: 10 }} />
                   <TextInput
-                    style={[styles.inputText, { color: textMain, letterSpacing: resetOtp.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                    style={[styles.inputText, { color: textMain, letterSpacing: resetOtp.length > 0 ? 8 : 0, fontWeight: '800', fontSize: isSmallScreen ? 13.5 : 15 }]}
                     placeholder="4-digit OTP"
                     placeholderTextColor={textSub}
                     keyboardType="phone-pad"
@@ -945,11 +949,11 @@ const LoginScreen = ({ navigation, route }) => {
                 </View>
 
                 {/* New MPIN */}
-                <Text style={[styles.fieldLabel, { color: textSub }]}>NEW 4-DIGIT MPIN</Text>
-                <View style={[styles.inputContainer, isTallScreen && { height: 52 }, { backgroundColor: inputBg, borderColor: focusedInput === 'newMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
+                <Text style={[styles.fieldLabel, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5, marginBottom: isSmallScreen ? 3 : 8 }]}>NEW 4-DIGIT MPIN</Text>
+                <View style={[styles.inputContainer, { height: isSmallScreen ? 42 : (isTallScreen ? 52 : 48), marginBottom: isSmallScreen ? 6 : 14 }, { backgroundColor: inputBg, borderColor: focusedInput === 'newMpin' ? PURPLE : inputBorder }]}>
                   <Lock size={16} color={focusedInput === 'newMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
                   <TextInput
-                    style={[styles.inputText, { color: textMain, letterSpacing: newMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                    style={[styles.inputText, { color: textMain, letterSpacing: newMpin.length > 0 ? 8 : 0, fontWeight: '800', fontSize: isSmallScreen ? 13.5 : 15 }]}
                     placeholder="New MPIN"
                     placeholderTextColor={textSub}
                     keyboardType="number-pad"
@@ -966,11 +970,11 @@ const LoginScreen = ({ navigation, route }) => {
                 </View>
 
                 {/* Confirm New MPIN */}
-                <Text style={[styles.fieldLabel, { color: textSub }]}>CONFIRM NEW MPIN</Text>
-                <View style={[styles.inputContainer, isTallScreen && { height: 52 }, { backgroundColor: inputBg, borderColor: isResetMismatched ? '#EF4444' : isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : inputBorder, marginBottom: 14 }]}>
+                <Text style={[styles.fieldLabel, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5, marginBottom: isSmallScreen ? 3 : 8 }]}>CONFIRM NEW MPIN</Text>
+                <View style={[styles.inputContainer, { height: isSmallScreen ? 42 : (isTallScreen ? 52 : 48), marginBottom: isSmallScreen ? 6 : 14 }, { backgroundColor: inputBg, borderColor: isResetMismatched ? '#EF4444' : isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : inputBorder }]}>
                   <ShieldCheck size={16} color={isResetMismatched ? '#EF4444' : isResetMatched ? '#10B981' : focusedInput === 'confirmMpin' ? PURPLE : textSub} style={{ marginRight: 10 }} />
                   <TextInput
-                    style={[styles.inputText, { color: textMain, letterSpacing: confirmNewMpin.length > 0 ? 8 : 0, fontWeight: '800' }]}
+                    style={[styles.inputText, { color: textMain, letterSpacing: confirmNewMpin.length > 0 ? 8 : 0, fontWeight: '800', fontSize: isSmallScreen ? 13.5 : 15 }]}
                     placeholder="Re-enter MPIN"
                     placeholderTextColor={textSub}
                     keyboardType="number-pad"
@@ -987,7 +991,7 @@ const LoginScreen = ({ navigation, route }) => {
               <View>
                 {/* Reset CTA */}
                 <TouchableOpacity
-                  style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 16 : 12 }]}
+                  style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45, marginTop: isSmallScreen ? 8 : (isTallScreen ? 16 : 12) }]}
                   onPress={handleResetMpin}
                   disabled={resetOtp.length !== 4 || !isResetMatched || loading}
                   activeOpacity={0.88}
@@ -996,32 +1000,32 @@ const LoginScreen = ({ navigation, route }) => {
                     colors={[PURPLE, '#582BE8']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={[styles.ctaBtn, isTallScreen && { height: 52 }]}
+                    style={[styles.ctaBtn, { height: isSmallScreen ? 42 : (isTallScreen ? 52 : 48) }]}
                   >
                     {loading ? (
                       <ActivityIndicator size="small" color="#FFF" />
                     ) : (
-                      <Text style={styles.ctaText}>Reset MPIN & Sign In</Text>
+                      <Text style={[styles.ctaText, { fontSize: isSmallScreen ? 14 : 16 }]}>Reset MPIN & Sign In</Text>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={{ alignItems: 'center', marginTop: isTallScreen ? 16 : 12 }}
+                  style={{ alignItems: 'center', marginTop: isSmallScreen ? 6 : (isTallScreen ? 16 : 12) }}
                   onPress={() => setStep('MPIN')}
                 >
-                  <Text style={[styles.footerLink, { color: PURPLE }]}>Back to MPIN sign in</Text>
+                  <Text style={[styles.footerLink, { color: PURPLE, fontSize: isSmallScreen ? 11.5 : 13 }]}>Back to MPIN sign in</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
 
           {/* Bottom Section */}
-          <View style={[styles.bottomSection, { marginTop: 12 }]}>
+          <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }]}>
             {renderTrustBar()}
-            <View style={styles.securityHighlightRow}>
+            <View style={[styles.securityHighlightRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
               <ShieldCheck size={13} color="#10B981" />
-              <Text style={[styles.securityHighlightText, { color: textSub }]}>
+              <Text style={[styles.securityHighlightText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
                 256-bit encrypted · 100% Secure & Private
               </Text>
             </View>

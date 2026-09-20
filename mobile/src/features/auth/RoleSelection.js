@@ -163,8 +163,8 @@ const RoleSelection = ({ navigation, route }) => {
     }
   };
 
-  const safeTopPadding = getSafeTopInset(insets, 14);
-  const safeBottomInset = getSafeBottomInset(insets, 8);
+  const safeTopPadding = getSafeTopInset(insets, isSmallScreen ? 8 : 14);
+  const safeBottomInset = getSafeBottomInset(insets, isSmallScreen ? 4 : 8);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -212,15 +212,15 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 20,
-              justifyContent: 'flex-start',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={true}
+          scrollEnabled={keyboardVisible}
         >
           <View style={styles.topSection}>
             {/* Top Header Row with Left Headline & Right 3D Art */}
@@ -253,247 +253,253 @@ const RoleSelection = ({ navigation, route }) => {
             <View style={[
               styles.card,
               { backgroundColor: cardBg, borderColor: cardBorder },
-              isSmallScreen && { paddingHorizontal: 12, paddingVertical: 10 },
+              isSmallScreen && { paddingHorizontal: 12, paddingVertical: 8 },
               isTallScreen && { paddingHorizontal: 18, paddingVertical: 20 },
             ]}>
               <View>
                 {/* Registering As */}
-                <Text style={[styles.fieldLabel, { color: textSub }]}>Registering As</Text>
-            <View style={styles.roleTabsContainer}>
-              {ROLE_OPTIONS.map((r) => {
-                const Icon = r.icon;
-                const active = selectedRole === r.id;
-                return (
+                <Text style={[styles.fieldLabel, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5, marginBottom: isSmallScreen ? 4 : 8 }]}>Registering As</Text>
+                <View style={styles.roleTabsContainer}>
+                  {ROLE_OPTIONS.map((r) => {
+                    const Icon = r.icon;
+                    const active = selectedRole === r.id;
+                    return (
+                      <TouchableOpacity
+                        key={r.id}
+                        style={[
+                          styles.roleCard,
+                          isSmallScreen && { paddingVertical: 4, paddingHorizontal: 4 },
+                          {
+                            backgroundColor: active ? (isDarkMode ? '#1E1B4B' : '#F5F3FF') : inputBg,
+                            borderColor: active ? PURPLE : inputBorder,
+                          },
+                        ]}
+                        onPress={() => { setSelectedRole(r.id); Keyboard.dismiss(); }}
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.roleTopRow}>
+                          <Icon size={isSmallScreen ? 15 : 18} color={active ? PURPLE : textSub} />
+                          {active && (
+                            <View style={[styles.roleCheckBadge, isSmallScreen && { width: 14, height: 14, borderRadius: 7 }]}>
+                              <Check size={8} color="#FFF" strokeWidth={3} />
+                            </View>
+                          )}
+                        </View>
+                        <Text style={[styles.roleCardLabel, { color: active ? PURPLE : textMain, fontSize: isSmallScreen ? 11 : 12.5 }]}>
+                          {r.label}
+                        </Text>
+                        <Text style={[styles.roleCardSub, { color: textSub, fontSize: isSmallScreen ? 8.5 : 10 }]} numberOfLines={1}>
+                          {r.sub}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Full Name Field */}
+                <Text style={[styles.fieldLabel, { color: textSub, marginTop: isSmallScreen ? 4 : 8, fontSize: isSmallScreen ? 9.5 : 10.5, marginBottom: isSmallScreen ? 3 : 6 }]}>Full Name</Text>
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPress={() => nameInputRef.current?.focus()}
+                  style={[
+                    styles.inputContainer,
+                    isSmallScreen && { height: 40, paddingHorizontal: 10 },
+                    {
+                      backgroundColor: inputBg,
+                      borderColor: focusedInput === 'name' ? PURPLE : inputBorder,
+                    },
+                    focusedInput === 'name' && styles.inputFocusGlow,
+                  ]}
+                >
+                  <User size={isSmallScreen ? 15 : 17} color={focusedInput === 'name' ? PURPLE : textSub} style={{ marginRight: 8 }} />
+                  <TextInput
+                    ref={nameInputRef}
+                    style={[styles.inputText, { color: textMain, fontSize: isSmallScreen ? 13.5 : 15 }]}
+                    placeholder="Enter your full name"
+                    placeholderTextColor={textSub}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    value={fullName}
+                    onChangeText={setFullName}
+                    onFocus={() => setFocusedInput('name')}
+                    onBlur={() => setFocusedInput(null)}
+                    returnKeyType="next"
+                    onSubmitEditing={() => phoneInputRef.current?.focus()}
+                  />
+                  {fullName.trim().length >= 2 && <CheckCircle2 size={16} color="#10B981" />}
+                </TouchableOpacity>
+
+                {/* Mobile Number Field */}
+                <Text style={[styles.fieldLabel, { color: textSub, marginTop: isSmallScreen ? 4 : 8, fontSize: isSmallScreen ? 9.5 : 10.5, marginBottom: isSmallScreen ? 3 : 6 }]}>Mobile Number</Text>
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPress={() => phoneInputRef.current?.focus()}
+                  style={[
+                    styles.inputContainer,
+                    isSmallScreen && { height: 40, paddingHorizontal: 10 },
+                    {
+                      backgroundColor: inputBg,
+                      borderColor: validatePhone(phoneNumber) ? '#10B981' : focusedInput === 'phone' ? PURPLE : inputBorder,
+                    },
+                    focusedInput === 'phone' && styles.inputFocusGlow,
+                  ]}
+                >
+                  <View pointerEvents="none" style={styles.prefixWrapper}>
+                    <Text style={[styles.flagText, isSmallScreen && { fontSize: 13 }]}>🇮🇳</Text>
+                    <Text style={[styles.prefixNumber, { color: textMain, fontSize: isSmallScreen ? 13.5 : 14.5 }]}>+91</Text>
+                    <View style={[styles.prefixDivider, { backgroundColor: inputBorder }]} />
+                  </View>
+                  <TextInput
+                    ref={phoneInputRef}
+                    style={[styles.inputText, { color: textMain, fontSize: isSmallScreen ? 13.5 : 15 }]}
+                    placeholder="10-digit number"
+                    placeholderTextColor={textSub}
+                    keyboardType="phone-pad"
+                    maxLength={15}
+                    editable={!loading}
+                    value={phoneNumber}
+                    onChangeText={(t) => {
+                      let digits = (t || '').replace(/\D/g, '');
+                      if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(2);
+                      else if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1);
+                      setPhoneNumber(digits.slice(0, 10));
+                    }}
+                    onFocus={() => setFocusedInput('phone')}
+                    onBlur={() => setFocusedInput(null)}
+                    returnKeyType="done"
+                    onSubmitEditing={handlePhoneSubmit}
+                  />
+                  {validatePhone(phoneNumber) ? (
+                    <CheckCircle2 size={16} color="#10B981" />
+                  ) : phoneNumber.length > 0 ? (
+                    <TouchableOpacity onPress={() => setPhoneNumber('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <X size={15} color={textSub} />
+                    </TouchableOpacity>
+                  ) : null}
+                </TouchableOpacity>
+
+                {/* OTP Delivery Method Selection */}
+                <Text style={[styles.fieldLabel, { color: textSub, marginTop: isSmallScreen ? 4 : 8, fontSize: isSmallScreen ? 9.5 : 10.5, marginBottom: isSmallScreen ? 3 : 6 }]}>Receive OTP Via</Text>
+                <View style={styles.methodRow}>
                   <TouchableOpacity
-                    key={r.id}
                     style={[
-                      styles.roleCard,
+                      styles.methodCard,
+                      isSmallScreen && { paddingVertical: 4, paddingHorizontal: 6 },
                       {
-                        backgroundColor: active ? (isDarkMode ? '#1E1B4B' : '#F5F3FF') : inputBg,
-                        borderColor: active ? PURPLE : inputBorder,
+                        backgroundColor: otpMethod === 'SMS' ? (isDarkMode ? '#1E1B4B' : '#F5F3FF') : inputBg,
+                        borderColor: otpMethod === 'SMS' ? PURPLE : inputBorder,
                       },
                     ]}
-                    onPress={() => { setSelectedRole(r.id); Keyboard.dismiss(); }}
-                    activeOpacity={0.85}
+                    onPress={() => setOtpMethod('SMS')}
+                    activeOpacity={0.8}
                   >
-                    <View style={styles.roleTopRow}>
-                      <Icon size={18} color={active ? PURPLE : textSub} />
-                      {active && (
-                        <View style={styles.roleCheckBadge}>
-                          <Check size={9} color="#FFF" strokeWidth={3} />
-                        </View>
-                      )}
+                    <View style={[styles.methodIconBox, isSmallScreen && { width: 22, height: 22 }, { backgroundColor: PURPLE }]}>
+                      <MessageSquare size={isSmallScreen ? 12 : 14} color="#FFF" />
                     </View>
-                    <Text style={[styles.roleCardLabel, { color: active ? PURPLE : textMain }]}>
-                      {r.label}
-                    </Text>
-                    <Text style={[styles.roleCardSub, { color: textSub }]} numberOfLines={1}>
-                      {r.sub}
-                    </Text>
+                    <View style={styles.methodTextBox}>
+                      <Text style={[styles.methodTitle, { color: textMain, fontSize: isSmallScreen ? 11 : 12.5 }]} numberOfLines={1}>SMS</Text>
+                      <Text style={[styles.methodSub, { color: textSub, fontSize: isSmallScreen ? 8.5 : 9.5 }]} numberOfLines={1}>Quick SMS</Text>
+                    </View>
+                    <View style={[styles.checkCircle, isSmallScreen && { width: 14, height: 14 }, { backgroundColor: otpMethod === 'SMS' ? PURPLE : 'transparent', borderColor: otpMethod === 'SMS' ? PURPLE : inputBorder }]}>
+                      {otpMethod === 'SMS' && <Check size={8} color="#FFF" strokeWidth={3} />}
+                    </View>
                   </TouchableOpacity>
-                );
-              })}
-            </View>
 
-            {/* Full Name Field */}
-            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 8 }]}>Full Name</Text>
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={() => nameInputRef.current?.focus()}
-              style={[
-                styles.inputContainer,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: focusedInput === 'name' ? PURPLE : inputBorder,
-                },
-                focusedInput === 'name' && styles.inputFocusGlow,
-              ]}
-            >
-              <User size={17} color={focusedInput === 'name' ? PURPLE : textSub} style={{ marginRight: 8 }} />
-              <TextInput
-                ref={nameInputRef}
-                style={[styles.inputText, { color: textMain }]}
-                placeholder="Enter your full name"
-                placeholderTextColor={textSub}
-                autoCapitalize="words"
-                autoCorrect={false}
-                value={fullName}
-                onChangeText={setFullName}
-                onFocus={() => setFocusedInput('name')}
-                onBlur={() => setFocusedInput(null)}
-                returnKeyType="next"
-                onSubmitEditing={() => phoneInputRef.current?.focus()}
-              />
-              {fullName.trim().length >= 2 && <CheckCircle2 size={18} color="#10B981" />}
-            </TouchableOpacity>
-
-            {/* Mobile Number Field */}
-            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 8 }]}>Mobile Number</Text>
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={() => phoneInputRef.current?.focus()}
-              style={[
-                styles.inputContainer,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: validatePhone(phoneNumber) ? '#10B981' : focusedInput === 'phone' ? PURPLE : inputBorder,
-                },
-                focusedInput === 'phone' && styles.inputFocusGlow,
-              ]}
-            >
-              <View pointerEvents="none" style={styles.prefixWrapper}>
-                <Text style={[styles.flagText]}>🇮🇳</Text>
-                <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
-                <View style={[styles.prefixDivider, { backgroundColor: inputBorder }]} />
-              </View>
-              <TextInput
-                ref={phoneInputRef}
-                style={[styles.inputText, { color: textMain }]}
-                placeholder="10-digit number"
-                placeholderTextColor={textSub}
-                keyboardType="phone-pad"
-                maxLength={15}
-                editable={!loading}
-                value={phoneNumber}
-                onChangeText={(t) => {
-                  let digits = (t || '').replace(/\D/g, '');
-                  if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(2);
-                  else if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1);
-                  setPhoneNumber(digits.slice(0, 10));
-                }}
-                onFocus={() => setFocusedInput('phone')}
-                onBlur={() => setFocusedInput(null)}
-                returnKeyType="done"
-                onSubmitEditing={handlePhoneSubmit}
-              />
-              {validatePhone(phoneNumber) ? (
-                <CheckCircle2 size={18} color="#10B981" />
-              ) : phoneNumber.length > 0 ? (
-                <TouchableOpacity onPress={() => setPhoneNumber('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <X size={16} color={textSub} />
-                </TouchableOpacity>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* OTP Delivery Method Selection */}
-            <Text style={[styles.fieldLabel, { color: textSub, marginTop: 8 }]}>Receive OTP Via</Text>
-            <View style={styles.methodRow}>
-              <TouchableOpacity
-                style={[
-                  styles.methodCard,
-                  {
-                    backgroundColor: otpMethod === 'SMS' ? (isDarkMode ? '#1E1B4B' : '#F5F3FF') : inputBg,
-                    borderColor: otpMethod === 'SMS' ? PURPLE : inputBorder,
-                  },
-                ]}
-                onPress={() => setOtpMethod('SMS')}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.methodIconBox, { backgroundColor: PURPLE }]}>
-                  <MessageSquare size={14} color="#FFF" />
-                </View>
-                <View style={styles.methodTextBox}>
-                  <Text style={[styles.methodTitle, { color: textMain }]} numberOfLines={1}>SMS</Text>
-                  <Text style={[styles.methodSub, { color: textSub }]} numberOfLines={1}>Quick SMS</Text>
-                </View>
-                <View style={[styles.checkCircle, { backgroundColor: otpMethod === 'SMS' ? PURPLE : 'transparent', borderColor: otpMethod === 'SMS' ? PURPLE : inputBorder }]}>
-                  {otpMethod === 'SMS' && <Check size={10} color="#FFF" strokeWidth={3} />}
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.methodCard,
-                  {
-                    backgroundColor: otpMethod === 'WHATSAPP' ? (isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#F0FDF4') : inputBg,
-                    borderColor: otpMethod === 'WHATSAPP' ? '#10B981' : inputBorder,
-                  },
-                ]}
-                onPress={() => setOtpMethod('WHATSAPP')}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.methodIconBox, { backgroundColor: '#10B981' }]}>
-                  <Smartphone size={14} color="#FFF" />
-                </View>
-                <View style={styles.methodTextBox}>
-                  <Text 
-                    style={[styles.methodTitle, { color: textMain }]} 
-                    numberOfLines={1}
-                    adjustsFontSizeToFit={true}
-                    minimumFontScale={0.85}
+                  <TouchableOpacity
+                    style={[
+                      styles.methodCard,
+                      isSmallScreen && { paddingVertical: 4, paddingHorizontal: 6 },
+                      {
+                        backgroundColor: otpMethod === 'WHATSAPP' ? (isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#F0FDF4') : inputBg,
+                        borderColor: otpMethod === 'WHATSAPP' ? '#10B981' : inputBorder,
+                      },
+                    ]}
+                    onPress={() => setOtpMethod('WHATSAPP')}
+                    activeOpacity={0.8}
                   >
-                    WhatsApp
+                    <View style={[styles.methodIconBox, isSmallScreen && { width: 22, height: 22 }, { backgroundColor: '#10B981' }]}>
+                      <Smartphone size={isSmallScreen ? 12 : 14} color="#FFF" />
+                    </View>
+                    <View style={styles.methodTextBox}>
+                      <Text 
+                        style={[styles.methodTitle, { color: textMain, fontSize: isSmallScreen ? 11 : 12.5 }]} 
+                        numberOfLines={1}
+                        adjustsFontSizeToFit={true}
+                        minimumFontScale={0.85}
+                      >
+                        WhatsApp
+                      </Text>
+                      <Text style={[styles.methodSub, { color: textSub, fontSize: isSmallScreen ? 8.5 : 9.5 }]} numberOfLines={1}>Instant</Text>
+                    </View>
+                    <View style={[styles.radioCircle, isSmallScreen && { width: 14, height: 14 }, { borderColor: otpMethod === 'WHATSAPP' ? '#10B981' : inputBorder }]}>
+                      {otpMethod === 'WHATSAPP' && <View style={[styles.radioDot, isSmallScreen && { width: 7, height: 7, borderRadius: 3.5 }, { backgroundColor: '#10B981' }]} />}
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Terms of Service & Privacy Policy Checkbox */}
+                <TouchableOpacity
+                  style={[styles.termsRow, isSmallScreen && { marginTop: 4 }]}
+                  onPress={() => setAcceptedLegal(!acceptedLegal)}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      isSmallScreen && { width: 16, height: 16, borderRadius: 4 },
+                      {
+                        backgroundColor: acceptedLegal ? PURPLE : 'transparent',
+                        borderColor: acceptedLegal ? PURPLE : inputBorder,
+                      },
+                    ]}
+                  >
+                    {acceptedLegal && <Check size={10} color="#FFF" strokeWidth={3} />}
+                  </View>
+                  <Text style={[styles.termsText, { color: textSub, fontSize: isSmallScreen ? 10.5 : 11.5 }]}>
+                    I agree to the{' '}
+                    <Text style={[styles.termsLink, { color: PURPLE }]} onPress={() => openLegalModal('terms')}>
+                      Terms of Service
+                    </Text>
+                    {' '}&{' '}
+                    <Text style={[styles.termsLink, { color: PURPLE }]} onPress={() => openLegalModal('privacy')}>
+                      Privacy Policy
+                    </Text>
                   </Text>
-                  <Text style={[styles.methodSub, { color: textSub }]} numberOfLines={1}>Instant</Text>
-                </View>
-                <View style={[styles.radioCircle, { borderColor: otpMethod === 'WHATSAPP' ? '#10B981' : inputBorder }]}>
-                  {otpMethod === 'WHATSAPP' && <View style={[styles.radioDot, { backgroundColor: '#10B981' }]} />}
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {/* Terms of Service & Privacy Policy Checkbox */}
-            <TouchableOpacity
-              style={styles.termsRow}
-              onPress={() => setAcceptedLegal(!acceptedLegal)}
-              activeOpacity={0.8}
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  {
-                    backgroundColor: acceptedLegal ? PURPLE : 'transparent',
-                    borderColor: acceptedLegal ? PURPLE : inputBorder,
-                  },
-                ]}
-              >
-                {acceptedLegal && <Check size={11} color="#FFF" strokeWidth={3} />}
+                </TouchableOpacity>
               </View>
-              <Text style={[styles.termsText, { color: textSub }]}>
-                I agree to the{' '}
-                <Text style={[styles.termsLink, { color: PURPLE }]} onPress={() => openLegalModal('terms')}>
-                  Terms of Service
-                </Text>
-                {' '}&{' '}
-                <Text style={[styles.termsLink, { color: PURPLE }]} onPress={() => openLegalModal('privacy')}>
-                  Privacy Policy
-                </Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
 
-          <View>
+              <View>
                 {/* Primary Action Button (HomeScreen CTA standard) */}
                 <TouchableOpacity
                   onPress={handlePhoneSubmit}
                   disabled={!canSubmit}
                   activeOpacity={0.88}
-                  style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: isTallScreen ? 18 : 14 }]}
+                  style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: isSmallScreen ? 6 : (isTallScreen ? 18 : 14) }]}
                 >
                   <LinearGradient
                     colors={[PURPLE, '#582BE8']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={[styles.ctaBtn, isTallScreen && { height: 50 }]}
+                    style={[styles.ctaBtn, isSmallScreen && { height: 42 }, isTallScreen && { height: 50 }]}
                   >
                     {loading ? (
                       <ActivityIndicator size="small" color="#FFF" />
                     ) : (
                       <>
-                        <Text style={styles.ctaText}>Send OTP</Text>
-                        <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
+                        <Text style={[styles.ctaText, isSmallScreen && { fontSize: 14.5 }]}>Send OTP</Text>
+                        <ArrowRight size={isSmallScreen ? 15 : 17} color="#FFF" style={{ marginLeft: 6 }} />
                       </>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
 
                 {/* Bottom Navigation Link */}
-                <View style={[styles.footerRow, isTallScreen && { marginTop: 12 }]}>
+                <View style={[styles.footerRow, isSmallScreen && { marginTop: 4 }, isTallScreen && { marginTop: 12 }]}>
                   <TouchableOpacity
                     onPress={() => navigation.navigate('Login', { role: selectedRole })}
                     activeOpacity={0.75}
                   >
-                    <Text style={[styles.footerText, { color: textSub }]}>
+                    <Text style={[styles.footerText, { color: textSub, fontSize: isSmallScreen ? 11.5 : 13 }]}>
                       Already registered? <Text style={[styles.footerLink, { color: PURPLE }]}>Sign In</Text>
                     </Text>
                   </TouchableOpacity>
@@ -503,51 +509,49 @@ const RoleSelection = ({ navigation, route }) => {
           </View>
 
           {/* Bottom Section */}
-          <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
-          {/* Trust Bar Row (3 Badges) */}
-          <View style={styles.trustBarRow}>
-            <View style={styles.trustItem}>
-              <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                <ShieldCheck size={14} color="#10B981" />
+          <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }, isTallScreen && { marginTop: 14 }]}>
+            {/* Trust Bar Row (3 Badges) */}
+            <View style={[styles.trustBarRow, isSmallScreen && { paddingVertical: 2 }]}>
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                  <ShieldCheck size={14} color="#10B981" />
+                </View>
+                <View style={styles.trustTextCol}>
+                  <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>100% Safe</Text>
+                  <Text style={[styles.trustSub, { color: textSub, fontSize: isSmallScreen ? 8 : 8.5 }]} numberOfLines={1}>Data Safe</Text>
+                </View>
               </View>
-              <View style={styles.trustTextCol}>
-                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>100% Safe</Text>
-                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Data Safe</Text>
+
+              <View style={styles.trustDivider} />
+
+              <View style={styles.trustItem}>
+                <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                  <Zap size={14} color="#6C47FF" />
+                </View>
+                <View style={styles.trustTextCol}>
+                  <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>Instant</Text>
+                  <Text style={[styles.trustSub, { color: textSub, fontSize: isSmallScreen ? 8 : 8.5 }]} numberOfLines={1}>Access</Text>
+                </View>
+              </View>
+
+              <View style={styles.trustDivider} />
+
+              <View style={styles.trustItem}>
+                <Text style={{ fontSize: isSmallScreen ? 14 : 16 }}>🇮🇳</Text>
+                <View style={styles.trustTextCol}>
+                  <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>India App</Text>
+                  <Text style={[styles.trustSub, { color: textSub, fontSize: isSmallScreen ? 8 : 8.5 }]} numberOfLines={1}>Trusted App</Text>
+                </View>
               </View>
             </View>
 
-            <View style={styles.trustDivider} />
-
-            <View style={styles.trustItem}>
-              <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                <Zap size={14} color="#6C47FF" />
-              </View>
-              <View style={styles.trustTextCol}>
-                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>Instant</Text>
-                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Access</Text>
-              </View>
-            </View>
-
-            <View style={styles.trustDivider} />
-
-            <View style={styles.trustItem}>
-              <Text style={{ fontSize: 16 }}>🇮🇳</Text>
-              <View style={styles.trustTextCol}>
-                <Text style={[styles.trustTitle, { color: textMain }]} numberOfLines={1}>India App</Text>
-                <Text style={[styles.trustSub, { color: textSub }]} numberOfLines={1}>Trusted App</Text>
-              </View>
-            </View>
-          </View>
-
-          {isTallScreen && (
-            <View style={styles.reassuranceRow}>
-              <ShieldCheck size={13} color="#10B981" />
-              <Text style={[styles.reassuranceText, { color: textSub }]}>
+            <View style={[styles.reassuranceRow, isSmallScreen && { marginTop: 3 }]}>
+              <ShieldCheck size={isSmallScreen ? 12 : 13} color="#10B981" />
+              <Text style={[styles.reassuranceText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
                 Bank-grade 256-bit encryption · Your data is never shared
               </Text>
             </View>
-          )}
-        </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 

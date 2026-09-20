@@ -83,8 +83,8 @@ const SetMpinScreen = ({ navigation, route }) => {
     };
   }, []);
 
-  const safeTopPadding = getSafeTopInset(insets, 14);
-  const safeBottomInset = getSafeBottomInset(insets, 8);
+  const safeTopPadding = getSafeTopInset(insets, isSmallScreen ? 8 : 14);
+  const safeBottomInset = getSafeBottomInset(insets, isSmallScreen ? 4 : 8);
 
   const normalizedRole = (role || 'CUSTOMER').toUpperCase();
   const roleMeta = ROLE_META[normalizedRole] || ROLE_META.CUSTOMER;
@@ -166,30 +166,30 @@ const SetMpinScreen = ({ navigation, route }) => {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible
                 ? (keyboardHeight || bottomInset)
-                : Math.max(safeBottomInset, 20) + 24,
-              justifyContent: 'flex-start',
+                : safeBottomInset,
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={true}
+          scrollEnabled={keyboardVisible}
         >
           <View style={styles.topSection}>
             {/* Header Layout Row: Headline Left, 3D Hero Right */}
-            <View style={[styles.headerLayoutRow, isTallScreen && { marginBottom: 12 }]}>
+            <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 4 }, isTallScreen && { marginBottom: 12 }]}>
               <View style={styles.headerTextCol}>
                 <Text style={[styles.heroHeadline, { fontSize: isSmallScreen ? 19 : isTallScreen ? 24 : 22, lineHeight: isSmallScreen ? 23 : isTallScreen ? 28 : 26, color: textMain }]}>
                   Create{'\n'}
                   <Text style={{ color: PURPLE }}>4-Digit MPIN</Text>
                 </Text>
-                <Text style={[styles.heroSub, { color: textSub }, isTallScreen && { fontSize: 12, marginTop: 4 }]}>
+                <Text style={[styles.heroSub, { color: textSub }, isSmallScreen && { fontSize: 11 }, isTallScreen && { fontSize: 12, marginTop: 4 }]}>
                   Use this secure MPIN to sign in quickly anytime
                 </Text>
-                <View style={[styles.safeShieldPill, isTallScreen && { marginTop: 6 }]}>
-                  <ShieldCheck size={14} color={PURPLE} />
-                  <Text style={styles.safeShieldText}>Your data is safe with us</Text>
+                <View style={[styles.safeShieldPill, isSmallScreen && { paddingVertical: 2, paddingHorizontal: 6, marginTop: 3 }, isTallScreen && { marginTop: 6 }]}>
+                  <ShieldCheck size={isSmallScreen ? 12 : 14} color={PURPLE} />
+                  <Text style={[styles.safeShieldText, isSmallScreen && { fontSize: 9.5 }]}>Your data is safe with us</Text>
                 </View>
               </View>
               <Image
@@ -198,7 +198,7 @@ const SetMpinScreen = ({ navigation, route }) => {
                     ? require('../../assets/images/hero_mpin_dark.png')
                     : require('../../assets/images/hero_mpin.png')
                 }
-                style={[styles.heroMpinImg, isTallScreen && { width: 110, height: 90 }]}
+                style={[styles.heroMpinImg, isSmallScreen && { width: 80, height: 65 }, isTallScreen && { width: 110, height: 90 }]}
                 resizeMode="contain"
               />
             </View>
@@ -207,39 +207,40 @@ const SetMpinScreen = ({ navigation, route }) => {
             <View style={[
               styles.card,
               { backgroundColor: cardBg, borderColor: cardBorder },
+              isSmallScreen && { paddingVertical: 10, paddingHorizontal: 14 },
               isTallScreen && { paddingVertical: 20, paddingHorizontal: 20 },
             ]}>
               <View>
                 {/* User Info Chip */}
-                <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }, isTallScreen && { paddingVertical: 10, paddingHorizontal: 12, marginBottom: 14 }]}>
-                  <View style={[styles.roleIconCircle, { backgroundColor: roleMeta.bg }]}>
-                    <RoleIcon size={16} color={roleMeta.color} />
+                <View style={[styles.userChip, { backgroundColor: inputBg, borderColor: inputBorder }, isSmallScreen && { paddingVertical: 4, paddingHorizontal: 8, marginBottom: 6 }, isTallScreen && { paddingVertical: 10, paddingHorizontal: 12, marginBottom: 14 }]}>
+                  <View style={[styles.roleIconCircle, isSmallScreen && { width: 26, height: 26, borderRadius: 13 }, { backgroundColor: roleMeta.bg }]}>
+                    <RoleIcon size={isSmallScreen ? 13 : 16} color={roleMeta.color} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
-                    <Text style={[styles.userName, { color: textMain }]} numberOfLines={1} ellipsizeMode="tail">
+                    <Text style={[styles.userName, { color: textMain, fontSize: isSmallScreen ? 12 : 13 }]} numberOfLines={1} ellipsizeMode="tail">
                       {name || 'User'}
                     </Text>
-                    <Text style={[styles.userPhone, { color: textSub }]} numberOfLines={1} ellipsizeMode="tail">
+                    <Text style={[styles.userPhone, { color: textSub, fontSize: isSmallScreen ? 10.5 : 11.5 }]} numberOfLines={1} ellipsizeMode="tail">
                       +91 {phone} · {roleMeta.label}
                     </Text>
                   </View>
                   <View style={[styles.verifiedBadge, { flexShrink: 0 }]}>
-                    <ShieldCheck size={13} color="#10B981" />
-                    <Text style={styles.verifiedText}>Verified</Text>
+                    <ShieldCheck size={isSmallScreen ? 11 : 13} color="#10B981" />
+                    <Text style={[styles.verifiedText, isSmallScreen && { fontSize: 10 }]}>Verified</Text>
                   </View>
                 </View>
 
                 {/* ── 4-DIGIT MPIN SECTION ── */}
-                <View style={styles.fieldHeader}>
-                  <Text style={[styles.fieldLabel, { color: textSub }]}>ENTER 4-DIGIT MPIN</Text>
+                <View style={[styles.fieldHeader, isSmallScreen && { marginBottom: 4 }]}>
+                  <Text style={[styles.fieldLabel, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5 }]}>ENTER 4-DIGIT MPIN</Text>
                   <TouchableOpacity onPress={() => setShowMpin(!showMpin)} style={styles.toggleRow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     {showMpin ? <EyeOff size={13} color={PURPLE} /> : <Eye size={13} color={PURPLE} />}
-                    <Text style={[styles.toggleText, { color: PURPLE }]}>{showMpin ? 'Hide PIN' : 'Show PIN'}</Text>
+                    <Text style={[styles.toggleText, { color: PURPLE, fontSize: isSmallScreen ? 11 : 12 }]}>{showMpin ? 'Hide PIN' : 'Show PIN'}</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Visual 4-box display for MPIN with touchable overlay */}
-                <View style={[styles.pinContainer, isTallScreen && { marginBottom: 16 }]}>
+                <View style={[styles.pinContainer, isSmallScreen && { marginBottom: 6 }, isTallScreen && { marginBottom: 16 }]}>
                   <View
                     pointerEvents="none"
                     style={styles.pinRow}
@@ -252,6 +253,7 @@ const SetMpinScreen = ({ navigation, route }) => {
                           key={i}
                           style={[
                             styles.pinBox,
+                            isSmallScreen && { width: 46, height: 46, borderRadius: 12 },
                             isTallScreen && { width: 56, height: 56, borderRadius: 16 },
                             { backgroundColor: inputBg, borderColor: active ? PURPLE : filled ? PURPLE : inputBorder },
                             active && styles.pinBoxActiveGlow,
@@ -259,9 +261,9 @@ const SetMpinScreen = ({ navigation, route }) => {
                         >
                           {filled ? (
                             showMpin ? (
-                              <Text style={[styles.pinDigit, { color: textMain }]}>{mpin[i]}</Text>
+                              <Text style={[styles.pinDigit, { color: textMain, fontSize: isSmallScreen ? 16 : 18 }]}>{mpin[i]}</Text>
                             ) : (
-                              <View style={[styles.pinDot, { backgroundColor: PURPLE }]} />
+                              <View style={[styles.pinDot, isSmallScreen && { width: 8, height: 8, borderRadius: 4 }, { backgroundColor: PURPLE }]} />
                             )
                           ) : (
                             <View style={[styles.pinEmptyDot, { backgroundColor: isDarkMode ? '#2D3454' : '#CBD5E1' }]} />
@@ -295,9 +297,9 @@ const SetMpinScreen = ({ navigation, route }) => {
                 </View>
 
                 {/* Security hint */}
-                <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }, isTallScreen && { paddingVertical: 12, paddingHorizontal: 14, marginTop: 12 }]}>
+                <View style={[styles.hintBox, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.08)' : '#F8FAFC', borderColor: inputBorder }, isSmallScreen && { paddingVertical: 6, paddingHorizontal: 8, marginTop: 4 }, isTallScreen && { paddingVertical: 12, paddingHorizontal: 14, marginTop: 12 }]}>
                   <Text style={styles.hintIcon}>💡</Text>
-                  <Text style={[styles.hintText, { color: textSub }]}>
+                  <Text style={[styles.hintText, { color: textSub, fontSize: isSmallScreen ? 10.5 : 11.5 }]}>
                     Never share your MPIN. Avoid simple sequences like 1234 or 0000.
                   </Text>
                 </View>
@@ -329,7 +331,7 @@ const SetMpinScreen = ({ navigation, route }) => {
 
               {/* CTA Button */}
               <TouchableOpacity
-                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 18 : 14 }]}
+                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: isSmallScreen ? 8 : (isTallScreen ? 18 : 14) }]}
                 onPress={() => handleSetMpin(mpin)}
                 disabled={mpin.length !== 4 || loading}
                 activeOpacity={0.88}
@@ -338,14 +340,14 @@ const SetMpinScreen = ({ navigation, route }) => {
                   colors={[PURPLE, '#582BE8']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={[styles.ctaBtn, isTallScreen && { height: 52 }]}
+                  style={[styles.ctaBtn, isSmallScreen && { height: 42 }, isTallScreen && { height: 52 }]}
                 >
                   {loading ? (
                     <ActivityIndicator size="small" color="#FFF" />
                   ) : (
                     <>
-                      <Text style={styles.ctaText}>Complete & Sign In</Text>
-                      <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
+                      <Text style={[styles.ctaText, isSmallScreen && { fontSize: 14.5 }]}>Complete & Sign In</Text>
+                      <ArrowRight size={isSmallScreen ? 15 : 17} color="#FFF" style={{ marginLeft: 6 }} />
                     </>
                   )}
                 </LinearGradient>
@@ -354,10 +356,11 @@ const SetMpinScreen = ({ navigation, route }) => {
           </View>
 
           {/* Bottom Section */}
-          <View style={[styles.bottomSection, { marginTop: 18 }]}>
+          <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }, isTallScreen && { marginTop: 18 }]}>
             {/* Bottom Trust Bar Pill */}
             <View style={[
               styles.trustBarCard,
+              isSmallScreen && { paddingVertical: 5, paddingHorizontal: 8 },
               {
                 backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
                 borderColor: cardBorder,
@@ -365,27 +368,27 @@ const SetMpinScreen = ({ navigation, route }) => {
             ]}>
               <View style={styles.trustBadgeItem}>
                 <ShieldCheck size={14} color="#10B981" />
-                <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
+                <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 10 : 11 }]}>100% Secure</Text>
               </View>
 
               <View style={styles.trustDividerDot} />
 
               <View style={styles.trustBadgeItem}>
                 <Zap size={14} color={PURPLE} />
-                <Text style={[styles.trustTitle, { color: textMain }]}>Quick Access</Text>
+                <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 10 : 11 }]}>Quick Access</Text>
               </View>
 
               <View style={styles.trustDividerDot} />
 
               <View style={styles.trustBadgeItem}>
                 <Text style={{ fontSize: 13 }}>🇮🇳</Text>
-                <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
+                <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 10 : 11 }]}>Made in India</Text>
               </View>
             </View>
 
-            <View style={styles.reassuranceRow}>
+            <View style={[styles.reassuranceRow, isSmallScreen && { marginTop: 3 }]}>
               <ShieldCheck size={13} color="#10B981" />
-              <Text style={[styles.reassuranceText, { color: textSub }]}>
+              <Text style={[styles.reassuranceText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
                 Bank-grade 256-bit encryption · Quick PIN login enabled
               </Text>
             </View>

@@ -156,8 +156,8 @@ const OTPVerifyScreen = ({ navigation, route }) => {
     sendOtp(next);
   };
 
-  const safeTopPadding = getSafeTopInset(insets, 14);
-  const safeBottomInset = getSafeBottomInset(insets, 10);
+  const safeTopPadding = getSafeTopInset(insets, isSmallScreen ? 8 : 14);
+  const safeBottomInset = getSafeBottomInset(insets, isSmallScreen ? 4 : 8);
 
   const cardBg = isDarkMode ? '#131B2E' : '#FFFFFF';
   const cardBorder = isDarkMode ? '#1E293B' : '#EDF0F7';
@@ -207,176 +207,178 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 10) + 14,
-              justifyContent: 'flex-start',
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={true}
+          scrollEnabled={keyboardVisible}
         >
           <View style={styles.topSection}>
             {/* Top Brand Header */}
             <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 4 }, isTallScreen && { marginBottom: 18 }]}>
-            <View style={styles.logoRow}>
-              <KwicklyIcon size={isSmallScreen ? 30 : 38} />
-              <Text style={[styles.wordmark, { fontSize: isSmallScreen ? 20 : 24, color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
-              </Text>
-            </View>
-
-            <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
-              {isWa ? <Smartphone size={12} color="#10B981" /> : <MessageSquare size={12} color="#6C47FF" />}
-              <Text style={[styles.pillText, { color: isWa ? '#10B981' : (isDarkMode ? '#C4B5FD' : '#475569') }]}>
-                {isWa ? 'WhatsApp Verification' : 'SMS Verification'}
-              </Text>
-            </View>
-
-            <Text style={[styles.title, { color: textMain }]}>
-              Verify Your <Text style={{ color: '#6C47FF' }}>Number</Text>
-            </Text>
-
-            {/* Masked Phone Pill with Edit Button */}
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={[styles.phonePill, { backgroundColor: isDarkMode ? '#1E2540' : '#F0F2FF', borderColor: isDarkMode ? '#2D3760' : '#E0E4FF' }]}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.phonePillText, { color: PURPLE }]}>{maskedPhone}</Text>
-              <Edit3 size={13} color={PURPLE} style={{ marginLeft: 4 }} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Floating Form Card */}
-          <View style={[
-            styles.card,
-            { backgroundColor: cardBg, borderColor: cardBorder },
-            isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
-          ]}>
-            <View>
-              <Text style={[styles.cardHeading, { color: textMain }]}>
-                Enter Verification Code
-              </Text>
-              <Text style={[styles.cardSubheading, { color: textSub }]}>
-                Type the 4-digit code. It auto-verifies when complete.
-              </Text>
-
-              {/* 4-Box PIN Layout */}
-              <View style={styles.codeContainer}>
-                {[0, 1, 2, 3].map((index) => {
-                  const isFocused = focusedIndex === index;
-                  const isFilled = !!code[index];
-                  return (
-                    <TextInput
-                      key={index}
-                      ref={(ref) => (inputs.current[index] = ref)}
-                      style={[
-                        styles.codeBox,
-                        isTallScreen && { width: 60, height: 60, borderRadius: 18 },
-                        {
-                          backgroundColor: inputBg,
-                          borderColor: isFocused ? PURPLE : isFilled ? PURPLE : inputBorder,
-                          color: textMain,
-                        },
-                        isFocused && styles.codeBoxActiveGlow,
-                      ]}
-                      keyboardType="number-pad"
-                      maxLength={index === 0 ? 4 : 1}
-                      value={code[index]}
-                      onChangeText={(text) => handleChange(text, index)}
-                      onKeyPress={(e) => handleKeyPress(e, index)}
-                      onFocus={() => {
-                        setFocusedIndex(index);
-                        setTimeout(() => scrollRef.current?.scrollTo({ y: 70, animated: true }), 100);
-                      }}
-                      onBlur={() => setFocusedIndex(null)}
-                      selectTextOnFocus
-                      caretHidden
-                    />
-                  );
-                })}
-              </View>
-
-              {/* Auto-verification status indicator */}
-              <View style={[styles.statusBadge, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.25)' : '#A7F3D0' }]}>
-                <ShieldCheck size={14} color="#10B981" />
-                <Text style={[styles.statusText, { color: '#059669' }]}>
-                  Auto-verifying your single-use OTP securely
+              <View style={[styles.logoRow, isSmallScreen && { marginBottom: 3 }]}>
+                <KwicklyIcon size={isSmallScreen ? 26 : 38} />
+                <Text style={[styles.wordmark, { fontSize: isSmallScreen ? 19 : 24, color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
                 </Text>
               </View>
+
+              <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }, isSmallScreen && { paddingVertical: 2, paddingHorizontal: 9, marginBottom: 4 }]}>
+                {isWa ? <Smartphone size={11} color="#10B981" /> : <MessageSquare size={11} color="#6C47FF" />}
+                <Text style={[styles.pillText, { fontSize: isSmallScreen ? 10 : 11, color: isWa ? '#10B981' : (isDarkMode ? '#C4B5FD' : '#475569') }]}>
+                  {isWa ? 'WhatsApp Verification' : 'SMS Verification'}
+                </Text>
+              </View>
+
+              <Text style={[styles.title, { color: textMain, fontSize: isSmallScreen ? 20 : 26 }]}>
+                Verify Your <Text style={{ color: '#6C47FF' }}>Number</Text>
+              </Text>
+
+              {/* Masked Phone Pill with Edit Button */}
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                style={[styles.phonePill, { backgroundColor: isDarkMode ? '#1E2540' : '#F0F2FF', borderColor: isDarkMode ? '#2D3760' : '#E0E4FF' }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 9, marginTop: 4 }]}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.phonePillText, { color: PURPLE, fontSize: isSmallScreen ? 11.5 : 13 }]}>{maskedPhone}</Text>
+                <Edit3 size={isSmallScreen ? 11 : 13} color={PURPLE} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
             </View>
 
-            <View>
-              {/* Verify & Continue Button */}
-              <TouchableOpacity
-                onPress={() => handleVerify()}
-                disabled={!isComplete || loading}
-                activeOpacity={0.88}
-                style={[styles.btnShadow, { opacity: isComplete && !loading ? 1 : 0.45, marginTop: isTallScreen ? 20 : 16 }]}
-              >
-                <LinearGradient
-                  colors={[PURPLE, '#582BE8']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.ctaBtn, isTallScreen && { height: 52 }]}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <>
-                      <Text style={styles.ctaText}>Verify & Continue</Text>
-                      <ArrowRight size={17} color="#FFF" style={{ marginLeft: 6 }} />
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
+            {/* Floating Form Card */}
+            <View style={[
+              styles.card,
+              { backgroundColor: cardBg, borderColor: cardBorder },
+              isSmallScreen && { paddingVertical: 12, paddingHorizontal: 14 },
+              isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
+            ]}>
+              <View>
+                <Text style={[styles.cardHeading, { color: textMain, fontSize: isSmallScreen ? 16 : 18 }]}>
+                  Enter Verification Code
+                </Text>
+                <Text style={[styles.cardSubheading, { color: textSub, fontSize: isSmallScreen ? 11.5 : 13, marginTop: 2, marginBottom: isSmallScreen ? 8 : 20 }]}>
+                  Type the 4-digit code. It auto-verifies when complete.
+                </Text>
 
-              {/* Resend & Alternative Method Row */}
-              <View style={[styles.resendSection, isTallScreen && { marginTop: 18 }]}>
-                {countdown > 0 ? (
-                  <View style={styles.countdownRow}>
-                    <RefreshCw size={13} color={textSub} />
-                    <Text style={[styles.countdownText, { color: textSub }]}>
-                      {' '}Resend in <Text style={{ color: PURPLE, fontWeight: '700' }}>{countdown}s</Text>
-                    </Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity onPress={handleResend} style={styles.resendBtn} activeOpacity={0.75}>
-                    <RefreshCw size={14} color={PURPLE} />
-                    <Text style={[styles.resendBtnText, { color: PURPLE }]}> Resend Code</Text>
-                  </TouchableOpacity>
-                )}
+                {/* 4-Box PIN Layout */}
+                <View style={[styles.codeContainer, isSmallScreen && { gap: 8, marginBottom: 8 }]}>
+                  {[0, 1, 2, 3].map((index) => {
+                    const isFocused = focusedIndex === index;
+                    const isFilled = !!code[index];
+                    return (
+                      <TextInput
+                        key={index}
+                        ref={(ref) => (inputs.current[index] = ref)}
+                        style={[
+                          styles.codeBox,
+                          isSmallScreen && { width: 48, height: 48, borderRadius: 12, fontSize: 20 },
+                          isTallScreen && { width: 60, height: 60, borderRadius: 18 },
+                          {
+                            backgroundColor: inputBg,
+                            borderColor: isFocused ? PURPLE : isFilled ? PURPLE : inputBorder,
+                            color: textMain,
+                          },
+                          isFocused && styles.codeBoxActiveGlow,
+                        ]}
+                        keyboardType="number-pad"
+                        maxLength={index === 0 ? 4 : 1}
+                        value={code[index]}
+                        onChangeText={(text) => handleChange(text, index)}
+                        onKeyPress={(e) => handleKeyPress(e, index)}
+                        onFocus={() => {
+                          setFocusedIndex(index);
+                          setTimeout(() => scrollRef.current?.scrollTo({ y: 70, animated: true }), 100);
+                        }}
+                        onBlur={() => setFocusedIndex(null)}
+                        selectTextOnFocus
+                        caretHidden
+                      />
+                    );
+                  })}
+                </View>
 
-                <TouchableOpacity onPress={toggleMethod} style={styles.switchMethodBtn} activeOpacity={0.75}>
-                  <Text style={[styles.switchMethodText, { color: textSub }]}>
-                    Didn't receive code?{' '}
-                    <Text style={{ color: PURPLE, fontWeight: '700' }}>
-                      {isWa ? 'Send via SMS' : 'Send via WhatsApp'}
-                    </Text>
+                {/* Auto-verification status indicator */}
+                <View style={[styles.statusBadge, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.25)' : '#A7F3D0' }, isSmallScreen && { paddingVertical: 5, paddingHorizontal: 8, marginVertical: 2 }]}>
+                  <ShieldCheck size={isSmallScreen ? 12 : 14} color="#10B981" />
+                  <Text style={[styles.statusText, { color: '#059669', fontSize: isSmallScreen ? 10.5 : 12 }]}>
+                    Auto-verifying your single-use OTP securely
                   </Text>
+                </View>
+              </View>
+
+              <View>
+                {/* Verify & Continue Button */}
+                <TouchableOpacity
+                  onPress={() => handleVerify()}
+                  disabled={!isComplete || loading}
+                  activeOpacity={0.88}
+                  style={[styles.btnShadow, { opacity: isComplete && !loading ? 1 : 0.45, marginTop: isSmallScreen ? 8 : (isTallScreen ? 20 : 16) }]}
+                >
+                  <LinearGradient
+                    colors={[PURPLE, '#582BE8']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.ctaBtn, isSmallScreen && { height: 42 }, isTallScreen && { height: 52 }]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <>
+                        <Text style={[styles.ctaText, isSmallScreen && { fontSize: 14 }]}>Verify & Continue</Text>
+                        <ArrowRight size={isSmallScreen ? 15 : 17} color="#FFF" style={{ marginLeft: 6 }} />
+                      </>
+                    )}
+                  </LinearGradient>
                 </TouchableOpacity>
+
+                {/* Resend & Alternative Method Row */}
+                <View style={[styles.resendSection, isSmallScreen && { marginTop: 8, gap: 4 }, isTallScreen && { marginTop: 18 }]}>
+                  {countdown > 0 ? (
+                    <View style={styles.countdownRow}>
+                      <RefreshCw size={12} color={textSub} />
+                      <Text style={[styles.countdownText, { color: textSub, fontSize: isSmallScreen ? 11.5 : 13 }]}>
+                        {' '}Resend in <Text style={{ color: PURPLE, fontWeight: '700' }}>{countdown}s</Text>
+                      </Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity onPress={handleResend} style={[styles.resendBtn, isSmallScreen && { paddingVertical: 2 }]} activeOpacity={0.75}>
+                      <RefreshCw size={13} color={PURPLE} />
+                      <Text style={[styles.resendBtnText, { color: PURPLE, fontSize: isSmallScreen ? 11.5 : 13 }]}> Resend Code</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity onPress={toggleMethod} style={[styles.switchMethodBtn, isSmallScreen && { paddingVertical: 2 }]} activeOpacity={0.75}>
+                    <Text style={[styles.switchMethodText, { color: textSub, fontSize: isSmallScreen ? 11 : 12.5 }]}>
+                      Didn't receive code?{' '}
+                      <Text style={{ color: PURPLE, fontWeight: '700' }}>
+                        {isWa ? 'Send via SMS' : 'Send via WhatsApp'}
+                      </Text>
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
-        </View>
 
-        {/* Bottom Section */}
-        <View style={[styles.bottomSection, { marginTop: 10 }]}>
-          <View style={styles.trustFooter}>
-            <ShieldCheck size={14} color="#10B981" />
-            <Text style={[styles.trustText, { color: textSub }]}>
-              Bank-grade 256-bit encryption · 100% Secure
-            </Text>
+          {/* Bottom Section */}
+          <View style={[styles.bottomSection, isSmallScreen && { marginTop: 6 }]}>
+            <View style={[styles.trustFooter, isSmallScreen && { marginTop: 2 }]}>
+              <ShieldCheck size={13} color="#10B981" />
+              <Text style={[styles.trustText, { color: textSub, fontSize: isSmallScreen ? 10.5 : 11.5 }]}>
+                Bank-grade 256-bit encryption · 100% Secure
+              </Text>
+            </View>
+            <View style={[styles.supportRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
+              <MessageSquare size={12} color={PURPLE} />
+              <Text style={[styles.supportText, { color: textSub, fontSize: isSmallScreen ? 10.5 : 11.5 }]}>
+                Need help? <Text style={{ color: PURPLE, fontWeight: '700' }}>Kwickly Support is available 24/7</Text>
+              </Text>
+            </View>
           </View>
-          <View style={styles.supportRow}>
-            <MessageSquare size={13} color={PURPLE} />
-            <Text style={[styles.supportText, { color: textSub }]}>
-              Need help? <Text style={{ color: PURPLE, fontWeight: '700' }}>Kwickly Support is available 24/7</Text>
-            </Text>
-          </View>
-        </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
