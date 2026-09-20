@@ -398,7 +398,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: 'flex-start',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -531,7 +531,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
+            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
               {renderTrustBar()}
               <View style={styles.perksRow}>
                 <View style={[styles.perkChip, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }]}>
@@ -575,7 +575,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: 'flex-start',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -636,7 +636,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
+            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
               {renderTrustBar()}
             </View>
           </ScrollView>
@@ -661,7 +661,7 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: 'flex-start',
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -867,7 +867,7 @@ const LoginScreen = ({ navigation, route }) => {
             </View>
 
             {/* Bottom Section */}
-            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
+            <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
               {renderTrustBar()}
               {isTallScreen && (
                 <View style={styles.securityHighlightRow}>
@@ -899,7 +899,7 @@ const LoginScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: 'flex-start',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -1021,7 +1021,7 @@ const LoginScreen = ({ navigation, route }) => {
           </View>
 
           {/* Bottom Section */}
-          <View style={[styles.bottomSection, { marginTop: isTallScreen ? 18 : 10 }]}>
+          <View style={[styles.bottomSection, { marginTop: 14 }]}>
             {renderTrustBar()}
             {isTallScreen && (
               <View style={styles.securityHighlightRow}>

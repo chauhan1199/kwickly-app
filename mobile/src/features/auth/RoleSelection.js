@@ -213,7 +213,7 @@ const RoleSelection = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 20,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: 'flex-start',
             },
           ]}
           keyboardShouldPersistTaps="handled"

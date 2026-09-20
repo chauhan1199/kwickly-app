@@ -787,7 +787,7 @@ export const AddressMapModal = ({
             <View style={dynamicStyles.tagRow}>
               {[
                 { key: 'Home', icon: Home, label: 'Home' },
-                { key: 'Office', icon: Briefcase, label: 'Work / Office' },
+                { key: 'Office', icon: Briefcase, label: 'Work' },
                 { key: 'Other', icon: MapPin, label: 'Other' }
               ].map((item) => {
                 const IconComponent = item.icon;
@@ -799,8 +799,12 @@ export const AddressMapModal = ({
                     onPress={() => setLabel(item.key)}
                     activeOpacity={0.8}
                   >
-                    <IconComponent size={16} color={isSelected ? '#fff' : '#64748B'} style={{ marginRight: 6 }} />
-                    <Text style={[dynamicStyles.tagChipText, isSelected && dynamicStyles.tagChipTextActive]}>
+                    <IconComponent size={15} color={isSelected ? '#fff' : (isDarkMode ? '#94A3B8' : '#64748B')} style={{ marginRight: 5 }} />
+                    <Text 
+                      style={[dynamicStyles.tagChipText, isSelected && dynamicStyles.tagChipTextActive]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
                       {item.label}
                     </Text>
                   </TouchableOpacity>
@@ -1110,7 +1114,7 @@ const createStyles = (theme, isDarkMode) =>
       elevation: 12
     },
     formScroll: {
-      paddingHorizontal: 20,
+      paddingHorizontal: 16,
       paddingTop: 16,
       paddingBottom: 60
     },
@@ -1150,23 +1154,32 @@ const createStyles = (theme, isDarkMode) =>
     },
     tagRow: {
       flexDirection: 'row',
+      alignItems: 'center',
       gap: 8,
-      marginBottom: 14
+      marginBottom: 14,
+      width: '100%',
     },
     tagChip: {
       flex: 1,
+      minWidth: 0,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       paddingVertical: 10,
+      paddingHorizontal: 4,
       borderRadius: 12,
       backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: isDarkMode ? '#334155' : '#E2E8F0'
     },
     tagChipActive: {
       backgroundColor: '#6C47FF',
-      borderColor: '#6C47FF'
+      borderColor: '#6C47FF',
+      shadowColor: '#6C47FF',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 3,
     },
     tagChipText: {
       fontSize: 12,

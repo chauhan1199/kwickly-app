@@ -167,7 +167,7 @@ const SetMpinScreen = ({ navigation, route }) => {
               paddingBottom: keyboardVisible
                 ? (keyboardHeight || bottomInset)
                 : Math.max(safeBottomInset, 20) + 24,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: 'flex-start',
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -354,50 +354,41 @@ const SetMpinScreen = ({ navigation, route }) => {
           </View>
 
           {/* Bottom Section */}
-          <View style={[styles.bottomSection, { marginTop: isTallScreen ? 14 : 8 }]}>
-            {/* Bottom Trust Bar (3 Badges) */}
-            <View style={styles.trustBarRow}>
-              <View style={styles.trustItem}>
-                <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                  <ShieldCheck size={16} color="#10B981" />
-                </View>
-                <View>
-                  <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]}>Your data, our priority</Text>
-                </View>
+          <View style={[styles.bottomSection, { marginTop: 18 }]}>
+            {/* Bottom Trust Bar Pill */}
+            <View style={[
+              styles.trustBarCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                borderColor: cardBorder,
+              },
+            ]}>
+              <View style={styles.trustBadgeItem}>
+                <ShieldCheck size={14} color="#10B981" />
+                <Text style={[styles.trustTitle, { color: textMain }]}>100% Secure</Text>
               </View>
 
-              <View style={styles.trustDivider} />
+              <View style={styles.trustDividerDot} />
 
-              <View style={styles.trustItem}>
-                <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                  <Zap size={16} color="#6C47FF" />
-                </View>
-                <View>
-                  <Text style={[styles.trustTitle, { color: textMain }]}>Quick Access</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]}>Get things done faster</Text>
-                </View>
+              <View style={styles.trustBadgeItem}>
+                <Zap size={14} color={PURPLE} />
+                <Text style={[styles.trustTitle, { color: textMain }]}>Quick Access</Text>
               </View>
 
-              <View style={styles.trustDivider} />
+              <View style={styles.trustDividerDot} />
 
-              <View style={styles.trustItem}>
-                <Text style={{ fontSize: 18 }}>🇮🇳</Text>
-                <View>
-                  <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
-                  <Text style={[styles.trustSub, { color: textSub }]}>For a better tomorrow</Text>
-                </View>
+              <View style={styles.trustBadgeItem}>
+                <Text style={{ fontSize: 13 }}>🇮🇳</Text>
+                <Text style={[styles.trustTitle, { color: textMain }]}>Made in India</Text>
               </View>
             </View>
 
-            {isTallScreen && (
-              <View style={styles.reassuranceRow}>
-                <ShieldCheck size={13} color="#10B981" />
-                <Text style={[styles.reassuranceText, { color: textSub }]}>
-                  Bank-grade 256-bit encryption · Quick PIN login enabled
-                </Text>
-              </View>
-            )}
+            <View style={styles.reassuranceRow}>
+              <ShieldCheck size={13} color="#10B981" />
+              <Text style={[styles.reassuranceText, { color: textSub }]}>
+                Bank-grade 256-bit encryption · Quick PIN login enabled
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -696,51 +687,46 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.2,
   },
-  trustBarRow: {
+  trustBarCard: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
+    justifyContent: 'space-around',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 6,
     marginBottom: 8,
-    paddingHorizontal: 4,
   },
-  trustItem: {
+  trustBadgeItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
   },
-  trustIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  trustDividerDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#94A3B8',
   },
   trustTitle: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  trustSub: {
-    fontSize: 8.5,
-    fontWeight: '500',
-  },
-  trustDivider: {
-    width: 1,
-    height: 22,
-    backgroundColor: 'rgba(150, 150, 150, 0.25)',
+    fontSize: 11,
+    fontWeight: '700',
   },
   reassuranceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: 8,
+    marginTop: 4,
     marginBottom: 16,
   },
   reassuranceText: {
     fontSize: 11,
     fontWeight: '600',
     lineHeight: 16,
+    textAlign: 'center',
   },
   securityBenefitsCard: {
     marginTop: 12,
