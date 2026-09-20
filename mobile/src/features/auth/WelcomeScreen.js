@@ -102,11 +102,13 @@ const WelcomeScreen = ({ navigation }) => {
           styles.mainContent,
           {
             paddingTop: safeTopPadding,
-            paddingBottom: safeBottomInset + 24,
+            paddingBottom: safeBottomInset + (isSmallScreen ? 12 : 20),
           },
         ]}
         showsVerticalScrollIndicator={false}
         bounces={false}
+        overScrollMode="never"
+        scrollEnabled={false}
       >
         {/* TOP BRAND LOGO ROW */}
         <View style={styles.logoRow}>
@@ -327,7 +329,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 16,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-evenly',
     width: '100%',
     maxWidth: 500,
     alignSelf: 'center',
@@ -480,8 +482,8 @@ const styles = StyleSheet.create({
   ctaBlock: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 'auto',
-    paddingTop: 8,
+    marginTop: 12,
+    paddingTop: 4,
     marginBottom: 4,
   },
   btnShadow: {

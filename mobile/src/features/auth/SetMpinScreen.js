@@ -67,8 +67,8 @@ const SetMpinScreen = ({ navigation, route }) => {
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
-  const topSectionDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
-  const cardDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
+  const topSectionDynamicStyle = null;
+  const cardDynamicStyle = null;
 
   useEffect(() => {
     const timer1 = setTimeout(() => {
@@ -174,7 +174,7 @@ const SetMpinScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible || isSmallScreen}
+          scrollEnabled={keyboardVisible}
         >
           <View style={[styles.topSection, topSectionDynamicStyle]}>
             {/* Header Layout Row: Headline Left, 3D Hero Right */}
@@ -296,12 +296,9 @@ const SetMpinScreen = ({ navigation, route }) => {
                 </Text>
               </View>
 
-              {/* Spacer to push actions cleanly */}
-              {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
-
               {/* CTA Button */}
               <TouchableOpacity
-                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 14 }]}
+                style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 16 }]}
                 onPress={() => handleSetMpin(mpin)}
                 disabled={mpin.length !== 4 || loading}
                 activeOpacity={0.88}

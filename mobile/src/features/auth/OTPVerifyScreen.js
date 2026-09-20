@@ -60,8 +60,8 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
-  const topSectionDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
-  const cardDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
+  const topSectionDynamicStyle = null;
+  const cardDynamicStyle = null;
 
   useEffect(() => {
     const t = setTimeout(() => { if (inputs.current[0]) inputs.current[0].focus(); }, 350);
@@ -216,7 +216,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible || isSmallScreen}
+          scrollEnabled={keyboardVisible}
         >
           <View style={[styles.topSection, topSectionDynamicStyle]}>
             {/* Top Brand Header */}
@@ -302,15 +302,12 @@ const OTPVerifyScreen = ({ navigation, route }) => {
               </Text>
             </View>
 
-            {/* Spacer to push actions cleanly */}
-            {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
-
             {/* Verify & Continue Button */}
             <TouchableOpacity
               onPress={() => handleVerify()}
               disabled={!isComplete || loading}
               activeOpacity={0.88}
-              style={[styles.btnShadow, { opacity: isComplete && !loading ? 1 : 0.45, marginTop: 10 }]}
+              style={[styles.btnShadow, { opacity: isComplete && !loading ? 1 : 0.45, marginTop: 16 }]}
             >
               <LinearGradient
                 colors={[PURPLE, '#582BE8']}

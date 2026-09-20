@@ -155,7 +155,10 @@ const BookServiceScreen = ({ navigation, route }) => {
         if (catJson) {
           try {
             const parsed = JSON.parse(catJson);
-            if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setCategories(parsed);
+              setIsLoading(false);
+            }
           } catch (_) {}
         }
       })
@@ -259,19 +262,23 @@ const BookServiceScreen = ({ navigation, route }) => {
         setWorkers(mappedWorkers);
       }
 
-      if (catRes.status !== 'fulfilled' && categories.length === 0) {
-        setError('Unable to load services right now. Pull down to retry.');
+      if (catRes.status !== 'fulfilled') {
+        setCategories(prev => {
+          if (prev.length === 0) setError('Unable to load services right now. Pull down to retry.');
+          return prev;
+        });
       }
     } catch (e) {
       console.log('[BookServiceScreen] Fetch error:', e?.message);
-      if (categories.length === 0) {
-        setError('Unable to load services right now. Pull down to retry.');
-      }
+      setCategories(prev => {
+        if (prev.length === 0) setError('Unable to load services right now. Pull down to retry.');
+        return prev;
+      });
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, [customerCoords, categories.length]);
+  }, [customerCoords.lat, customerCoords.lng]);
 
   useEffect(() => {
     fetchData();
@@ -341,8 +348,9 @@ const BookServiceScreen = ({ navigation, route }) => {
       </View>
 
       <ScrollView 
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false} 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { flexGrow: 1, paddingBottom: 60 }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6C47FF']} />
         }
@@ -382,22 +390,23 @@ const BookServiceScreen = ({ navigation, route }) => {
 
         {/* Dynamic Service Categories Grid */}
         <View style={styles.categoryGrid}>
-          {isLoading ? (
+          {isLoading && categories.length === 0 ? (
             <ActivityIndicator size="small" color="#6C47FF" style={{ marginVertical: 20, width: '100%' }} />
           ) : categories.length === 0 ? (
             <Text style={styles.emptyText}>No categories found.</Text>
           ) : (
             categories
-              .filter(cat => !searchQuery || (cat.label || cat.name).toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter(cat => !searchQuery || (cat.label || cat.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
               .map((cat, index) => {
-                const localImg = getCategoryLocalImage(cat.name);
+                const catName = cat.name || cat.label || 'Service';
+                const localImg = getCategoryLocalImage(catName);
                 const resolvedNetworkImg = getImageUrl(cat.imageUrl);
                 const cardImg = localImg || (resolvedNetworkImg ? { uri: resolvedNetworkImg } : null);
-                const displayIcon = getCategoryIcon(cat.name, cat.icon);
+                const displayIcon = getCategoryIcon(catName, cat.icon);
 
                 return (
                   <TouchableOpacity
-                    key={cat.id || index}
+                    key={cat.id || cat._id || index}
                     style={styles.categoryCard}
                     activeOpacity={0.8}
                     onPress={() => navigation.navigate('SubCategories', { ...cat, icon: displayIcon })}
@@ -410,7 +419,7 @@ const BookServiceScreen = ({ navigation, route }) => {
                       )}
                     </View>
                     <Text style={styles.categoryName} numberOfLines={2}>
-                      {cat.name}
+                      {catName}
                     </Text>
                     <View style={styles.categoryBadge}>
                       <Text style={styles.categoryBadgeText}>
@@ -486,7 +495,7 @@ const BookServiceScreen = ({ navigation, route }) => {
 
         {/* Pros List */}
         <View style={styles.workersList}>
-          {isLoading ? (
+          {isLoading && workers.length === 0 ? (
             <ActivityIndicator size="large" color="#6C47FF" style={{ marginVertical: 30 }} />
           ) : filteredWorkers.length === 0 ? (
             <View style={styles.emptyCard}>

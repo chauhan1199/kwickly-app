@@ -88,8 +88,8 @@ const LoginScreen = ({ navigation, route }) => {
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
-  const topSectionDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
-  const cardDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
+  const topSectionDynamicStyle = null;
+  const cardDynamicStyle = null;
 
   useEffect(() => {
     if (prefillPhone && prefillPhone.length === 10) handleCheckNumber(prefillPhone);
@@ -406,7 +406,7 @@ const LoginScreen = ({ navigation, route }) => {
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={keyboardVisible || isSmallScreen}
+            scrollEnabled={keyboardVisible}
           >
             <View style={[styles.topSection, topSectionDynamicStyle]}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
@@ -485,12 +485,9 @@ const LoginScreen = ({ navigation, route }) => {
                   <Text style={[styles.autoDetectText, { color: textSub }]}>We'll automatically find your account</Text>
                 </View>
 
-                {/* Spacer to push actions cleanly */}
-                {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
-
                 {/* Continue Button */}
                 <TouchableOpacity
-                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: 14 }]}
+                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: 16 }]}
                   onPress={() => handleCheckNumber()}
                   disabled={phone.length !== 10 || loading}
                   activeOpacity={0.88}
@@ -581,7 +578,7 @@ const LoginScreen = ({ navigation, route }) => {
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={keyboardVisible || isSmallScreen}
+            scrollEnabled={keyboardVisible}
           >
             <View style={[styles.topSection, topSectionDynamicStyle]}>
               <View style={styles.headerBlock}>
@@ -623,8 +620,6 @@ const LoginScreen = ({ navigation, route }) => {
                   );
                 })}
 
-                {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
-
                 <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setStep('PHONE')}>
                   <Text style={[styles.footerLink, { color: PURPLE }]}>Use a different number</Text>
                 </TouchableOpacity>
@@ -664,7 +659,7 @@ const LoginScreen = ({ navigation, route }) => {
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={keyboardVisible || isSmallScreen}
+            scrollEnabled={keyboardVisible}
           >
             <View style={[styles.topSection, topSectionDynamicStyle]}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
@@ -722,10 +717,10 @@ const LoginScreen = ({ navigation, route }) => {
                 </View>
 
                 {/* PIN Boxes Container with Touchable Overlay */}
-                <View style={styles.pinBoxesContainer}>
+                <View style={styles.pinContainer}>
                   <Animated.View
                     style={[
-                      styles.pinBoxesRow,
+                      styles.pinRow,
                       {
                         transform: [{ translateX: shakeAnim }],
                       },
@@ -800,12 +795,9 @@ const LoginScreen = ({ navigation, route }) => {
                   </View>
                 )}
 
-                {/* Spacer to push actions cleanly */}
-                {!keyboardVisible && <View style={{ flex: 1, minHeight: 10 }} />}
-
                 {/* Sign In CTA */}
                 <TouchableOpacity
-                  style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 10 }]}
+                  style={[styles.btnShadow, { opacity: (mpin.length === 4 && !loading) ? 1 : 0.45, marginTop: 16 }]}
                   onPress={() => handleMpinSubmit(mpin)}
                   disabled={mpin.length !== 4 || loading}
                   activeOpacity={0.88}
@@ -897,7 +889,7 @@ const LoginScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible || isSmallScreen}
+          scrollEnabled={keyboardVisible}
         >
           <View style={[styles.topSection, topSectionDynamicStyle]}>
             <View style={styles.headerBlock}>
@@ -973,12 +965,9 @@ const LoginScreen = ({ navigation, route }) => {
                 />
               </View>
 
-              {/* Spacer to push actions cleanly */}
-              {!keyboardVisible && <View style={{ flex: 1, minHeight: 12 }} />}
-
               {/* Reset CTA */}
               <TouchableOpacity
-                style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45 }]}
+                style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45, marginTop: 16 }]}
                 onPress={handleResetMpin}
                 disabled={resetOtp.length !== 4 || !isResetMatched || loading}
                 activeOpacity={0.88}

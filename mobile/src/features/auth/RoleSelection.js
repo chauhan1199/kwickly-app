@@ -69,8 +69,8 @@ const RoleSelection = ({ navigation, route }) => {
   const scrollRef = useRef(null);
 
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
-  const topSectionDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
-  const cardDynamicStyle = !keyboardVisible ? { flex: 1 } : null;
+  const topSectionDynamicStyle = null;
+  const cardDynamicStyle = null;
 
   // Legal Modal
   const [legalModalVisible, setLegalModalVisible] = useState(false);
@@ -221,7 +221,7 @@ const RoleSelection = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible || isSmallScreen}
+          scrollEnabled={keyboardVisible}
         >
           <View style={[styles.topSection, topSectionDynamicStyle]}>
             {/* Top Header Row with Left Headline & Right 3D Art */}
@@ -463,15 +463,12 @@ const RoleSelection = ({ navigation, route }) => {
               </Text>
             </TouchableOpacity>
 
-            {/* Spacer to push actions cleanly */}
-            {!keyboardVisible && <View style={{ flex: 1, minHeight: 8 }} />}
-
             {/* Primary Action Button (HomeScreen CTA standard) */}
             <TouchableOpacity
               onPress={handlePhoneSubmit}
               disabled={!canSubmit}
               activeOpacity={0.88}
-              style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: 10 }]}
+              style={[styles.btnShadow, { opacity: canSubmit ? 1 : 0.45, marginTop: 16 }]}
             >
               <LinearGradient
                 colors={[PURPLE, '#582BE8']}
