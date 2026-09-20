@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, FlatList,
+  View, Text, StyleSheet, SafeAreaView, FlatList, ScrollView,
   TouchableOpacity, StatusBar, ActivityIndicator, RefreshControl, TextInput, Alert
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';

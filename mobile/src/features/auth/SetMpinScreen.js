@@ -56,7 +56,7 @@ const SetMpinScreen = ({ navigation, route }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const screenHeight = Dimensions.get('screen').height;
   const isSmallScreen = windowHeight < 720;
-  const isTallScreen = windowHeight >= 760 || screenHeight >= 800;
+  const isTallScreen = windowHeight >= 760;
   const { signIn } = useAuth();
 
   const [mpin, setMpin] = useState('');
@@ -166,7 +166,7 @@ const SetMpinScreen = ({ navigation, route }) => {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible
                 ? (keyboardHeight || bottomInset)
-                : safeBottomInset + (isSmallScreen ? 4 : 8),
+                : Math.max(safeBottomInset, 20) + 24,
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
@@ -174,9 +174,9 @@ const SetMpinScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible}
+          scrollEnabled={true}
         >
-          <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
+          <View style={styles.topSection}>
             {/* Header Layout Row: Headline Left, 3D Hero Right */}
             <View style={[styles.headerLayoutRow, isTallScreen && { marginBottom: 12 }]}>
               <View style={styles.headerTextCol}>
@@ -207,7 +207,6 @@ const SetMpinScreen = ({ navigation, route }) => {
             <View style={[
               styles.card,
               { backgroundColor: cardBg, borderColor: cardBorder },
-              isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
               isTallScreen && { paddingVertical: 20, paddingHorizontal: 20 },
             ]}>
               <View>
@@ -453,7 +452,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     width: '100%',
     paddingTop: 4,
-    paddingBottom: 4,
+    paddingBottom: 16,
   },
   backBtn: {
     width: 38,
@@ -736,11 +735,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     marginTop: 8,
-    marginBottom: 4,
+    marginBottom: 16,
   },
   reassuranceText: {
     fontSize: 11,
     fontWeight: '600',
+    lineHeight: 16,
   },
   securityBenefitsCard: {
     marginTop: 12,

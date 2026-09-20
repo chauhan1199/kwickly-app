@@ -55,7 +55,7 @@ const RoleSelection = ({ navigation, route }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const screenHeight = Dimensions.get('screen').height;
   const isSmallScreen = windowHeight < 720;
-  const isTallScreen = windowHeight >= 760 || screenHeight >= 800;
+  const isTallScreen = windowHeight >= 760;
 
   const [selectedRole, setSelectedRole] = useState(route?.params?.role || 'CUSTOMER');
   const [phoneNumber, setPhoneNumber] = useState(route?.params?.prefillPhone || '');
@@ -212,7 +212,7 @@ const RoleSelection = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 20,
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
@@ -220,9 +220,9 @@ const RoleSelection = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible}
+          scrollEnabled={true}
         >
-          <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
+          <View style={styles.topSection}>
             {/* Top Header Row with Left Headline & Right 3D Art */}
             <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 3 }, isTallScreen && { marginBottom: 12 }]}>
               <View style={styles.headerTextCol}>
@@ -255,7 +255,6 @@ const RoleSelection = ({ navigation, route }) => {
               { backgroundColor: cardBg, borderColor: cardBorder },
               isSmallScreen && { paddingHorizontal: 12, paddingVertical: 10 },
               isTallScreen && { paddingHorizontal: 18, paddingVertical: 20 },
-              isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
             ]}>
               <View>
                 {/* Registering As */}

@@ -61,7 +61,7 @@ const LoginScreen = ({ navigation, route }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const screenHeight = Dimensions.get('screen').height;
   const isSmallScreen = windowHeight < 720;
-  const isTallScreen = windowHeight >= 760 || screenHeight >= 800;
+  const isTallScreen = windowHeight >= 760;
   const { signIn } = useAuth();
 
   const [step, setStep] = useState('PHONE');
@@ -397,7 +397,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 4 : 8),
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -405,9 +405,9 @@ const LoginScreen = ({ navigation, route }) => {
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={keyboardVisible}
+            scrollEnabled={true}
           >
-            <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
+            <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={[styles.headerLayoutRow, isTallScreen && { marginBottom: 16 }]}>
                 <View style={styles.headerTextCol}>
@@ -434,103 +434,98 @@ const LoginScreen = ({ navigation, route }) => {
               <View style={[
                 styles.card,
                 { backgroundColor: cardBg, borderColor: cardBorder },
-                isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
                 isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
               ]}>
-                <View>
-                  <Text style={[styles.cardTitle, { color: textMain }]}>Welcome Back!</Text>
-                  <Text style={[styles.cardSub, { color: textSub }]}>Enter your 10-digit mobile number to sign in</Text>
+                <Text style={[styles.cardTitle, { color: textMain }]}>Welcome Back!</Text>
+                <Text style={[styles.cardSub, { color: textSub }]}>Enter your 10-digit mobile number to sign in</Text>
 
-                  <TouchableOpacity
-                    activeOpacity={1}
-                    onPress={() => phoneInputRef.current?.focus()}
-                    style={[
-                      styles.inputContainer,
-                      isTallScreen && { height: 54 },
-                      {
-                        backgroundColor: inputBg,
-                        borderColor: phone.length === 10 ? '#10B981' : focusedInput === 'phone' ? PURPLE : inputBorder,
-                      },
-                      focusedInput === 'phone' && styles.inputFocusGlow,
-                    ]}
-                  >
-                    <View pointerEvents="none" style={styles.prefixWrapper}>
-                      <Text style={styles.flagText}>🇮🇳</Text>
-                      <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
-                      <View style={[styles.prefixDivider, { backgroundColor: inputBorder }]} />
-                    </View>
-                    <TextInput
-                      ref={phoneInputRef}
-                      style={[styles.inputText, { color: textMain }]}
-                      placeholder="10-digit number"
-                      placeholderTextColor={textSub}
-                      keyboardType="phone-pad"
-                      maxLength={15}
-                      editable={!loading}
-                      value={phone}
-                      onChangeText={handlePhoneChange}
-                      onFocus={() => {
-                        setFocusedInput('phone');
-                      }}
-                      onBlur={() => setFocusedInput(null)}
-                      returnKeyType="done"
-                      onSubmitEditing={() => { if (phone.length === 10) handleCheckNumber(phone); }}
-                    />
-                    {phone.length === 10 ? (
-                      <CheckCircle2 size={18} color="#10B981" />
-                    ) : phone.length > 0 ? (
-                      <TouchableOpacity onPress={() => setPhone('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                        <X size={16} color={textSub} />
-                      </TouchableOpacity>
-                    ) : null}
-                  </TouchableOpacity>
-
-                  {/* Auto Detect Hint */}
-                  <View style={[styles.autoDetectRow, isTallScreen && { marginTop: 12 }]}>
-                    <Zap size={14} color={PURPLE} />
-                    <Text style={[styles.autoDetectText, { color: textSub }]} numberOfLines={1}>We'll automatically find your account</Text>
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPress={() => phoneInputRef.current?.focus()}
+                  style={[
+                    styles.inputContainer,
+                    isTallScreen && { height: 54 },
+                    {
+                      backgroundColor: inputBg,
+                      borderColor: phone.length === 10 ? '#10B981' : focusedInput === 'phone' ? PURPLE : inputBorder,
+                    },
+                    focusedInput === 'phone' && styles.inputFocusGlow,
+                  ]}
+                >
+                  <View pointerEvents="none" style={styles.prefixWrapper}>
+                    <Text style={styles.flagText}>🇮🇳</Text>
+                    <Text style={[styles.prefixNumber, { color: textMain }]}>+91</Text>
+                    <View style={[styles.prefixDivider, { backgroundColor: inputBorder }]} />
                   </View>
+                  <TextInput
+                    ref={phoneInputRef}
+                    style={[styles.inputText, { color: textMain }]}
+                    placeholder="10-digit number"
+                    placeholderTextColor={textSub}
+                    keyboardType="phone-pad"
+                    maxLength={15}
+                    editable={!loading}
+                    value={phone}
+                    onChangeText={handlePhoneChange}
+                    onFocus={() => {
+                      setFocusedInput('phone');
+                    }}
+                    onBlur={() => setFocusedInput(null)}
+                    returnKeyType="done"
+                    onSubmitEditing={() => { if (phone.length === 10) handleCheckNumber(phone); }}
+                  />
+                  {phone.length === 10 ? (
+                    <CheckCircle2 size={18} color="#10B981" />
+                  ) : phone.length > 0 ? (
+                    <TouchableOpacity onPress={() => setPhone('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <X size={16} color={textSub} />
+                    </TouchableOpacity>
+                  ) : null}
+                </TouchableOpacity>
+
+                {/* Auto Detect Hint */}
+                <View style={[styles.autoDetectRow, { marginTop: 10 }]}>
+                  <Zap size={14} color={PURPLE} />
+                  <Text style={[styles.autoDetectText, { color: textSub }]} numberOfLines={1}>We'll automatically find your account</Text>
                 </View>
 
-                <View>
-                  {/* Continue Button */}
-                  <TouchableOpacity
-                    style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 18 : 14 }]}
-                    onPress={() => handleCheckNumber()}
-                    disabled={phone.length !== 10 || loading}
-                    activeOpacity={0.88}
+                {/* Continue Button */}
+                <TouchableOpacity
+                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: 18 }]}
+                  onPress={() => handleCheckNumber()}
+                  disabled={phone.length !== 10 || loading}
+                  activeOpacity={0.88}
+                >
+                  <LinearGradient
+                    colors={[PURPLE, '#582BE8']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.ctaBtn, isTallScreen && { height: 54 }]}
                   >
-                    <LinearGradient
-                      colors={[PURPLE, '#582BE8']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={[styles.ctaBtn, isTallScreen && { height: 54 }]}
-                    >
-                      {loading ? (
-                        <ActivityIndicator size="small" color="#FFF" />
-                      ) : (
-                        <>
-                          <Text style={styles.ctaText}>Continue</Text>
-                          <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
-                        </>
-                      )}
-                    </LinearGradient>
-                  </TouchableOpacity>
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <>
+                        <Text style={styles.ctaText}>Continue</Text>
+                        <ArrowRight size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
 
-                  {/* Divider with Create Account */}
-                  <View style={[styles.orDividerRow, isTallScreen && { marginTop: 16 }]}>
-                    <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
-                    <TouchableOpacity
-                      onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}
-                      activeOpacity={0.75}
-                      style={styles.orContent}
-                    >
-                      <Text style={[styles.footerText, { color: textSub }]}>
-                        New here? <Text style={[styles.footerLink, { color: PURPLE }]}>Create Account</Text>
-                      </Text>
-                    </TouchableOpacity>
-                    <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
-                  </View>
+                {/* Divider with Create Account */}
+                <View style={[styles.orDividerRow, { marginTop: 16 }]}>
+                  <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('RoleSelection', { prefillPhone: phone })}
+                    activeOpacity={0.75}
+                    style={styles.orContent}
+                  >
+                    <Text style={[styles.footerText, { color: textSub }]}>
+                      New here? <Text style={[styles.footerLink, { color: PURPLE }]}>Create Account</Text>
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
                 </View>
               </View>
             </View>
@@ -579,7 +574,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -587,9 +582,9 @@ const LoginScreen = ({ navigation, route }) => {
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={keyboardVisible}
+            scrollEnabled={true}
           >
-            <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
+            <View style={styles.topSection}>
               <View style={styles.headerBlock}>
                 <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                   <User size={12} color="#6C47FF" />
@@ -609,7 +604,6 @@ const LoginScreen = ({ navigation, route }) => {
               <View style={[
                 styles.card,
                 { backgroundColor: cardBg, borderColor: cardBorder },
-                isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
               ]}>
                 <View>
                   {availableAccounts.map((acc, idx) => {
@@ -666,7 +660,7 @@ const LoginScreen = ({ navigation, route }) => {
               styles.scrollContent,
               {
                 paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
                 justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
               },
             ]}
@@ -674,9 +668,9 @@ const LoginScreen = ({ navigation, route }) => {
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={keyboardVisible}
+            scrollEnabled={true}
           >
-            <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
+            <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
               <View style={[styles.headerLayoutRow, { marginBottom: isTallScreen ? 14 : 6 }]}>
                 <View style={styles.headerTextCol}>
@@ -707,7 +701,6 @@ const LoginScreen = ({ navigation, route }) => {
               <View style={[
                 styles.card,
                 { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: isTallScreen ? 20 : 16, paddingVertical: isTallScreen ? 22 : 14 },
-                isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
               ]}>
                 <View>
                   {/* User Profile Pill */}
@@ -905,7 +898,7 @@ const LoginScreen = ({ navigation, route }) => {
             styles.scrollContent,
             {
               paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + (isSmallScreen ? 6 : 14),
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : Math.max(safeBottomInset, 16) + 16,
               justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
             },
           ]}
@@ -913,9 +906,9 @@ const LoginScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible}
+          scrollEnabled={true}
         >
-          <View style={[styles.topSection, isTallScreen && !keyboardVisible && { flex: 1 }]}>
+          <View style={styles.topSection}>
             <View style={styles.headerBlock}>
               <View style={[styles.pillBadge, { backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#FFFFFF', borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#E2E8F0' }]}>
                 <KeyRound size={12} color="#6C47FF" />
@@ -936,7 +929,6 @@ const LoginScreen = ({ navigation, route }) => {
               styles.card,
               { backgroundColor: cardBg, borderColor: cardBorder },
               isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
-              isTallScreen && !keyboardVisible && { flex: 1, justifyContent: 'space-between' },
             ]}>
               <View>
                 {/* OTP Input */}
@@ -1000,7 +992,7 @@ const LoginScreen = ({ navigation, route }) => {
                 {/* Reset CTA */}
                 <TouchableOpacity
                   style={[styles.btnShadow, { opacity: (resetOtp.length === 4 && isResetMatched && !loading) ? 1 : 0.45, marginTop: isTallScreen ? 16 : 12 }]}
-                  onPress={handleResetMpinWithOtp}
+                  onPress={handleResetMpin}
                   disabled={resetOtp.length !== 4 || !isResetMatched || loading}
                   activeOpacity={0.88}
                 >
