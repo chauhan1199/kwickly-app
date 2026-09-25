@@ -58,7 +58,7 @@ const ProfileScreen = ({ navigation }) => {
         colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
+        style={{ paddingBottom: 30, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', position: 'relative' }}
       >
         {/* Dynamic background shapes */}
         <View style={{ position: 'absolute', top: -50, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.08)' }} />
@@ -66,11 +66,12 @@ const ProfileScreen = ({ navigation }) => {
 
         <AppBar 
           title="My Profile" 
+          subtitle="Account & preferences"
           transparent={true} 
           showLogo={false} 
           showBack={false} 
           showProfile={false} 
-          showCart={false} 
+          showCart={true} 
           showNotifications={true} 
         />
       </LinearGradient>

@@ -102,6 +102,47 @@ const CategoryGridCard = React.memo(({ cat, index, onPress, styles }) => {
   );
 });
 
+const MatchingSubCategoryCard = React.memo(({ item, navigation, styles, theme }) => {
+  const [imgError, setImgError] = useState(false);
+  const rawImg = item.imageUrl || item.parentImageUrl;
+  const resolvedImg = getImageUrl(rawImg);
+  const localImg = getCategoryLocalImage(item.parentName);
+  const cardImg = (!imgError && resolvedImg) ? { uri: resolvedImg } : localImg;
+  const icon = getCategoryIcon(item.parentName, item.parentIcon);
+
+  return (
+    <TouchableOpacity
+      style={styles.matchedSubCard}
+      activeOpacity={0.82}
+      onPress={() => navigation.navigate('DescribeJob', {
+        category: {
+          id: item.parentCat.id || item.parentCat._id,
+          name: item.parentName,
+          icon: item.parentIcon,
+          imageUrl: item.parentImageUrl,
+        },
+        subcategory: item.name,
+      })}
+    >
+      <View style={styles.matchedSubImgBox}>
+        {cardImg ? (
+          <Image source={cardImg} style={styles.matchedSubImg} resizeMode="cover" onError={() => setImgError(true)} />
+        ) : (
+          <Text style={{ fontSize: 18 }}>{icon}</Text>
+        )}
+      </View>
+      <View style={{ flex: 1, paddingHorizontal: 10 }}>
+        <Text style={styles.matchedSubTitle} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.matchedSubCatName} numberOfLines={1}>in {item.parentName}</Text>
+      </View>
+      <View style={styles.matchedSubBookBadge}>
+        <Text style={styles.matchedSubBookText}>Book</Text>
+        <ChevronRight size={13} color="#6C47FF" />
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 const BookServiceScreen = ({ navigation, route }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
@@ -330,7 +371,51 @@ const BookServiceScreen = ({ navigation, route }) => {
     fetchData(true);
   };
 
-  // Filter workers based on search query and category filter
+  // ── Search & Filter Memoization (Categories, Subcategories & Pros) ──
+  const isSearching = searchQuery.trim().length > 0;
+  const q = searchQuery.toLowerCase().trim();
+
+  // 1. Filtered Categories (matches category name OR any subcategory name)
+  const filteredCategories = useMemo(() => {
+    if (!isSearching) return categories;
+    return categories.filter(cat => {
+      const catName = (cat.name || cat.label || '').toLowerCase();
+      if (catName.includes(q)) return true;
+      const subs = Array.isArray(cat.subs) ? cat.subs : [];
+      return subs.some(s => {
+        const sName = typeof s === 'string' ? s : (s.name || '');
+        return sName.toLowerCase().includes(q);
+      });
+    });
+  }, [categories, isSearching, q]);
+
+  // 2. Direct Matching Subcategories (for fast 1-tap booking from search)
+  const matchedSubcategories = useMemo(() => {
+    if (!isSearching) return [];
+    const results = [];
+    categories.forEach(cat => {
+      const subs = Array.isArray(cat.subs) ? cat.subs : [];
+      const catName = cat.name || cat.label || 'Service';
+      subs.forEach(s => {
+        const sName = typeof s === 'string' ? s : (s.name || '');
+        const sImage = typeof s === 'object' ? s.imageUrl : null;
+        if (sName.toLowerCase().includes(q) || catName.toLowerCase().includes(q)) {
+          results.push({
+            id: (typeof s === 'object' && s.id) || `${cat.id || cat._id}_${sName}`,
+            name: sName,
+            imageUrl: sImage,
+            parentCat: cat,
+            parentName: catName,
+            parentIcon: cat.icon,
+            parentImageUrl: cat.imageUrl,
+          });
+        }
+      });
+    });
+    return results;
+  }, [categories, isSearching, q]);
+
+  // 3. Filtered Workers (matches worker name, category, services, subcategories, or bio)
   const filteredWorkers = useMemo(() => {
     return workers.filter(w => {
       // Category filter
@@ -343,20 +428,21 @@ const BookServiceScreen = ({ navigation, route }) => {
       }
 
       // Search query
-      if (searchQuery.trim().length > 0) {
-        const query = searchQuery.toLowerCase().trim();
-        const matchesName = w.name.toLowerCase().includes(query);
-        const matchesCat = w.cat.toLowerCase().includes(query);
+      if (isSearching) {
+        const matchesName = (w.name || '').toLowerCase().includes(q);
+        const matchesCat = (w.cat || '').toLowerCase().includes(q);
         const matchesService = (w.services || []).some(s => 
-          s.catName.toLowerCase().includes(query) ||
-          s.subs.some(sub => sub.toLowerCase().includes(query))
+          (s.catName || '').toLowerCase().includes(q) ||
+          (s.subs || []).some(sub => (typeof sub === 'string' ? sub : sub?.name || '').toLowerCase().includes(q))
         );
-        return matchesName || matchesCat || matchesService;
+        const matchesBio = (w.bio || '').toLowerCase().includes(q);
+        const matchesCity = (w.city || '').toLowerCase().includes(q);
+        return matchesName || matchesCat || matchesService || matchesBio || matchesCity;
       }
 
       return true;
     });
-  }, [workers, selectedCategoryFilter, searchQuery]);
+  }, [workers, selectedCategoryFilter, isSearching, q]);
 
   const styles = createStyles(theme, isDarkMode);
 
@@ -366,15 +452,23 @@ const BookServiceScreen = ({ navigation, route }) => {
 
       {/* Unified Purple Gradient App Header */}
       <LinearGradient
-        colors={['#5535d4', '#6C47FF', '#8B6FFF']}
+        colors={['#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.gradientHeader, { paddingTop: safeTop }]}
+        style={styles.gradientHeader}
       >
         <View style={styles.ambientShape1} />
         <View style={styles.ambientShape2} />
 
-        <AppBar title="Book a Service" transparent={true} showBack={false} showLogo={false} />
+        <AppBar 
+          title="Book a Service" 
+          subtitle="Instant doorstep service booking"
+          transparent={true} 
+          showBack={false} 
+          showLogo={false}
+          showCart={true}
+          showNotifications={true}
+        />
       </LinearGradient>
 
       {/* Floating Search Bar */}
@@ -382,7 +476,7 @@ const BookServiceScreen = ({ navigation, route }) => {
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Search electricians, plumbers, AC repair..."
+          placeholder="Search categories, subcategories (e.g. AC, Tap, Fan)..."
           theme={theme}
           onFilterPress={() => {}}
         />
@@ -408,8 +502,8 @@ const BookServiceScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* Dynamic Promotional Banners */}
-        {banners.length > 0 && (
+        {/* Dynamic Promotional Banners (Hidden during active search) */}
+        {!isSearching && banners.length > 0 && (
           <View style={{ height: 135, marginBottom: 18, alignItems: 'center', overflow: 'hidden' }}>
             <BannerCarousel 
               banners={banners} 
@@ -422,11 +516,56 @@ const BookServiceScreen = ({ navigation, route }) => {
           </View>
         )}
 
+        {/* ── SEARCH RESULTS BANNER (When Searching) ── */}
+        {isSearching && (
+          <View style={styles.searchActiveHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.searchActiveTitle}>Search Results</Text>
+              <Text style={styles.searchActiveSub} numberOfLines={1}>
+                Matching "{searchQuery}" • {filteredCategories.length} categories, {matchedSubcategories.length} sub-services, {filteredWorkers.length} pros
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearchBtn} activeOpacity={0.8}>
+              <Text style={styles.clearSearchText}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── MATCHING SUBCATEGORIES QUICK LIST (1-Tap Direct Booking) ── */}
+        {isSearching && matchedSubcategories.length > 0 && (
+          <View style={{ marginBottom: 14 }}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>Matching Sub-Services ({matchedSubcategories.length})</Text>
+                <Text style={styles.sectionSubtitle}>Tap to book this exact service instantly</Text>
+              </View>
+            </View>
+            {matchedSubcategories.slice(0, 8).map((subItem, idx) => (
+              <MatchingSubCategoryCard
+                key={subItem.id || idx}
+                item={subItem}
+                navigation={navigation}
+                styles={styles}
+                theme={theme}
+              />
+            ))}
+            {matchedSubcategories.length > 8 && (
+              <Text style={{ textAlign: 'center', fontSize: 11.5, color: theme.colors.textDim, marginVertical: 4 }}>
+                + {matchedSubcategories.length - 8} more sub-services matching "{searchQuery}"
+              </Text>
+            )}
+          </View>
+        )}
+
         {/* Service Categories Grid Header */}
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>Explore Service Categories</Text>
-            <Text style={styles.sectionSubtitle}>Verified doorstep professionals & instant booking</Text>
+            <Text style={styles.sectionTitle}>
+              {isSearching ? `Matching Categories (${filteredCategories.length})` : 'Explore Service Categories'}
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              {isSearching ? 'Browse related category details' : 'Verified doorstep professionals & instant booking'}
+            </Text>
           </View>
         </View>
 
@@ -434,73 +573,96 @@ const BookServiceScreen = ({ navigation, route }) => {
         <View style={styles.categoryGrid}>
           {isLoading && categories.length === 0 ? (
             <ActivityIndicator size="small" color="#6C47FF" style={{ marginVertical: 20, width: '100%' }} />
-          ) : categories.length === 0 ? (
-            <Text style={styles.emptyText}>No categories found.</Text>
+          ) : filteredCategories.length === 0 ? (
+            <View style={{ width: '100%', paddingVertical: 14, alignItems: 'center' }}>
+              <Text style={styles.emptyText}>
+                {isSearching ? `No categories matching "${searchQuery}"` : 'No categories found.'}
+              </Text>
+            </View>
           ) : (
-            categories
-              .filter(cat => !searchQuery || (cat.label || cat.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((cat, index) => (
-                <CategoryGridCard
-                  key={cat.id || cat._id || index}
-                  cat={cat}
-                  index={index}
-                  onPress={(selectedCat, displayIcon) => navigation.navigate('SubCategories', { ...selectedCat, icon: displayIcon })}
-                  styles={styles}
-                />
-              ))
+            filteredCategories.map((cat, index) => (
+              <CategoryGridCard
+                key={cat.id || cat._id || index}
+                cat={cat}
+                index={index}
+                onPress={(selectedCat, displayIcon) => navigation.navigate('SubCategories', { ...selectedCat, icon: displayIcon })}
+                styles={styles}
+              />
+            ))
           )}
         </View>
 
-        {/* Dynamic Category Filter Pills */}
-        <View style={styles.filterSection}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
-            contentContainerStyle={styles.filterScroll}
-          >
-            <TouchableOpacity
-              style={[
-                styles.filterPill,
-                selectedCategoryFilter === 'ALL' && styles.filterPillActive
-              ]}
-              onPress={() => setSelectedCategoryFilter('ALL')}
-              activeOpacity={0.75}
-            >
-              <Text style={[
-                styles.filterPillText,
-                selectedCategoryFilter === 'ALL' && styles.filterPillTextActive
-              ]}>
-                🔥 All Pros ({workers.length})
-              </Text>
-            </TouchableOpacity>
-
-            {categories.map(c => {
-              const count = workers.filter(w => 
-                (w.services || []).some(s => s.catName.toLowerCase().includes(c.name.toLowerCase())) ||
-                w.cat.toLowerCase().includes(c.name.toLowerCase())
-              ).length;
-
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[
-                    styles.filterPill,
-                    selectedCategoryFilter === c.name && styles.filterPillActive
-                  ]}
-                  onPress={() => setSelectedCategoryFilter(selectedCategoryFilter === c.name ? 'ALL' : c.name)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[
-                    styles.filterPillText,
-                    selectedCategoryFilter === c.name && styles.filterPillTextActive
-                  ]}>
-                    {c.icon} {c.name} {count > 0 ? `(${count})` : ''}
-                  </Text>
+        {/* ── NO RESULTS STATE (If nothing matched categories, subcategories, or pros) ── */}
+        {isSearching && filteredCategories.length === 0 && matchedSubcategories.length === 0 && filteredWorkers.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Sparkles size={40} color="#6C47FF" style={{ marginBottom: 10 }} />
+            <Text style={styles.emptyTitle}>No matching services found</Text>
+            <Text style={styles.emptySub}>
+              We couldn't find any category, subcategory, or pro matching "{searchQuery}".
+            </Text>
+            <View style={styles.popularTagsRow}>
+              <Text style={styles.popularTagsLabel}>Try searching:</Text>
+              {['AC Repair', 'Plumbing', 'Electrical', 'Salon', 'Cleaning', 'Pest Control', 'Carpentry', 'Bike Service'].map((tag, idx) => (
+                <TouchableOpacity key={idx} style={styles.popularTagPill} onPress={() => setSearchQuery(tag)}>
+                  <Text style={styles.popularTagText}>{tag}</Text>
                 </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Dynamic Category Filter Pills */}
+        {!isSearching && (
+          <View style={styles.filterSection}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={styles.filterScroll}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.filterPill,
+                  selectedCategoryFilter === 'ALL' && styles.filterPillActive
+                ]}
+                onPress={() => setSelectedCategoryFilter('ALL')}
+                activeOpacity={0.75}
+              >
+                <Text style={[
+                  styles.filterPillText,
+                  selectedCategoryFilter === 'ALL' && styles.filterPillTextActive
+                ]}>
+                  🔥 All Pros ({workers.length})
+                </Text>
+              </TouchableOpacity>
+
+              {categories.map(c => {
+                const count = workers.filter(w => 
+                  (w.services || []).some(s => s.catName.toLowerCase().includes(c.name.toLowerCase())) ||
+                  w.cat.toLowerCase().includes(c.name.toLowerCase())
+                ).length;
+
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[
+                      styles.filterPill,
+                      selectedCategoryFilter === c.name && styles.filterPillActive
+                    ]}
+                    onPress={() => setSelectedCategoryFilter(selectedCategoryFilter === c.name ? 'ALL' : c.name)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[
+                      styles.filterPillText,
+                      selectedCategoryFilter === c.name && styles.filterPillTextActive
+                    ]}>
+                      {c.icon} {c.name} {count > 0 ? `(${count})` : ''}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Section Header: Top Pros Near You */}
         <View style={[styles.sectionHeader, { marginTop: 14 }]}>
@@ -795,8 +957,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   gradientHeader: {
     paddingBottom: 30,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -804,9 +966,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     position: 'absolute',
     top: -50,
     right: -30,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   ambientShape2: {
@@ -822,12 +984,139 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 4,
   },
   searchBarWrapper: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     marginTop: -22,
     zIndex: 10,
     width: '100%',
     maxWidth: 760,
     alignSelf: 'center',
+  },
+  searchActiveHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.12)' : '#F5F3FF',
+    borderRadius: 14,
+    marginHorizontal: 14,
+    borderWidth: 1,
+    borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.25)' : '#EDE9FE',
+  },
+  searchActiveTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#6C47FF',
+  },
+  searchActiveSub: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  clearSearchBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#6C47FF',
+  },
+  clearSearchText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  matchedSubCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 8,
+    marginHorizontal: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  matchedSubImgBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : '#F3F0FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  matchedSubImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+  },
+  matchedSubTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  matchedSubCatName: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  matchedSubBookBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.2)' : '#F3F0FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  matchedSubBookText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#6C47FF',
+    marginRight: 2,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    marginHorizontal: 14,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: 20,
+  },
+  popularTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    justifyContent: 'center',
+  },
+  popularTagsLabel: {
+    width: '100%',
+    textAlign: 'center',
+    fontSize: 12,
+    color: theme.colors.textDim,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  popularTagPill: {
+    backgroundColor: isDarkMode ? 'rgba(108, 71, 255, 0.15)' : '#F3F0FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDarkMode ? 'rgba(108, 71, 255, 0.3)' : '#DDD6FE',
+  },
+  popularTagText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#6C47FF',
   },
   scrollContent: {
     paddingTop: 16,
