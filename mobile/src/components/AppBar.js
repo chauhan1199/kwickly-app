@@ -43,6 +43,18 @@ const AppBar = ({
     }
   };
 
+  const handleShopOrders = () => {
+    try {
+      navigation.navigate('CustomerShopOrders');
+    } catch (e) {
+      try {
+        navigation.navigate('Shop', { screen: 'CustomerShopOrders' });
+      } catch (err) {
+        console.log('Navigation to CustomerShopOrders failed:', err?.message);
+      }
+    }
+  };
+
   const insets = useSafeAreaInsets();
   const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 0;
   const safeTop = Math.max(insets.top, androidHeight, Platform.OS === 'android' ? 36 : 20);
@@ -114,7 +126,7 @@ const AppBar = ({
               {showCart && (
                 <TouchableOpacity
                   style={[styles.iconBtn, { backgroundColor: iconBg }]}
-                  onPress={() => navigation.navigate('CustomerShopOrders')}
+                  onPress={handleShopOrders}
                   activeOpacity={0.7}
                 >
                   <Package size={18} color={textColor} />

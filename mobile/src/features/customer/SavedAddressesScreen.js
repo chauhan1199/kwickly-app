@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   StatusBar,
@@ -139,8 +138,8 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
   const styles = createStyles(theme, isDarkMode);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
       {/* Header Gradient */}
       <LinearGradient
@@ -166,7 +165,7 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: 110 }]}
+        contentContainerStyle={styles.content}
       >
         {/* Top Add Address Button */}
         <TouchableOpacity
@@ -318,7 +317,6 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
           })
         )}
 
-        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Interactive Map Modal */}
@@ -330,7 +328,7 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
         theme={theme}
         isDarkMode={isDarkMode}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

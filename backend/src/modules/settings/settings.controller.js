@@ -292,9 +292,26 @@ exports.updateSettings = catchAsync(async (req, res) => {
     );
     
     await delCache(CACHE_KEY);
-    await delCache('public_settings');
     await delCache('app_branding');
     await delCache('admin_dashboard_stats');
+
+    // Immediately pre-warm public_settings in Redis with fresh database values
+    const publicSettings = {
+        subscriptionPlans: (settings.subscriptionPlans && settings.subscriptionPlans.length > 0) ? settings.subscriptionPlans : DEFAULT_SUBSCRIPTION_PLANS,
+        maintenanceMode: settings.maintenance?.mode || false,
+        maintenanceMsg: settings.maintenance?.message || '',
+        appName: settings.branding?.appName || 'Kwickly',
+        logoUrl: settings.branding?.logoUrl || '',
+        iconUrl: settings.branding?.iconUrl || '',
+        maxRadius: settings.radius?.maxKm || 25,
+        searchRadius: settings.radius?.maxKm || 25,
+        freeTrialDays: settings.subscription?.freeTrialDays || 14,
+        termsOfService: settings.legal?.termsOfService || DEFAULT_TERMS_OF_SERVICE,
+        privacyPolicy: settings.legal?.privacyPolicy || DEFAULT_PRIVACY_POLICY,
+        faqs: isFaqListValid(settings.faqs) ? settings.faqs : DEFAULT_FAQS
+    };
+    await setCache('public_settings', publicSettings, 86400);
+
     triggerDashboardUpdate();
 
     logAdminActivity('UPDATE', 'SETTINGS', req.user?._id, 'Platform Settings Updated', 'Admin updated core platform settings', req.user?._id);

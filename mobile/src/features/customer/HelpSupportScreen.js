@@ -3,12 +3,12 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
   StatusBar,
   Linking,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
@@ -16,36 +16,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import settingsService from '../../services/settingsService';
 import { MessageSquare, PhoneCall, Mail, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react-native';
-
-const FALLBACK_FAQS = {
-  CUSTOMER: [
-    { question: 'How do I book a local service worker (e.g., Electrician, Plumber, Cleaner)?', answer: 'Tap "Book" or select a category on the home screen, specify your task details, preferred time, and location, and post your request. Nearby verified professionals will send you quotes with their rates and ratings. You can compare quotes and accept the best worker in one tap.', category: 'booking' },
-    { question: 'What are the Arrival OTP and Completion OTP?', answer: 'For your security, Kwickly uses dual OTP verification: 1) The Arrival OTP is shared with the worker when they arrive at your location to confirm arrival. 2) The Completion OTP should ONLY be shared after the worker finishes the task and you have inspected and approved the work.', category: 'safety' },
-    { question: 'How do I order groceries or products from nearby shops?', answer: 'Browse local stores in your area, add items to your cart, choose your delivery slot or instant delivery, and proceed to checkout. You will be able to track your order preparation and live delivery on the interactive map.', category: 'orders' },
-    { question: 'What payment methods are supported on Kwickly?', answer: 'You can pay using your Kwickly In-App Wallet, 1-Click Direct UPI Intent (Google Pay, PhonePe, Paytm, BHIM, CRED), or Cash on Delivery / Pay after Service. All online UPI payments are 0% MDR surcharge-free and verified in real-time.', category: 'payments' },
-    { question: 'How do I add money to my Kwickly Wallet and what are the benefits?', answer: 'Go to "My Wallet" from your profile or side drawer, select or enter the top-up amount, and pay seamlessly via UPI. Wallet payments offer instant 1-tap checkout, zero transaction failures, and immediate automatic refunds for any cancelled orders.', category: 'payments' },
-    { question: 'What is the cancellation and refund policy?', answer: 'You can cancel any service booking or shop order before the worker arrives or before the store dispatches your items without any cancellation fee. If you paid online or via wallet, 100% of the amount is immediately credited back to your Kwickly Wallet.', category: 'orders' },
-    { question: 'Are Kwickly service professionals verified and safe?', answer: 'Yes. Every service partner on Kwickly must complete mandatory Know-Your-Customer (KYC) verification with government ID proof (Aadhaar/PAN/Driving License) and trade validation before they can receive job broadcasts.', category: 'safety' },
-    { question: 'Can I track my service worker or delivery partner in real-time?', answer: 'Yes! Once a worker accepts your booking or an order is dispatched, you can view their real-time GPS location and estimated time of arrival (ETA) live on the map in your booking details screen.', category: 'booking' },
-    { question: 'How does the Kwickly Referral Program work?', answer: 'Share your unique referral code or link with friends and family from the "Refer & Earn" screen. When they sign up and complete their first verified booking or order, both of you receive bonus wallet cash.', category: 'payments' }
-  ],
-  WORKER: [
-    { question: 'How do I register as a Service Partner and start receiving jobs?', answer: 'Download the Kwickly app, register with your mobile number, select "Worker/Service Partner", choose your service skills, and upload your government ID proof for KYC. Once approved (usually within 24 hours), turn your toggle "Online" to receive nearby job alerts.', category: 'booking' },
-    { question: 'How do I get notified of customer jobs and submit quotes?', answer: 'Ensure your app is Online and location permissions are set to "Always" or "While Using App". When a customer posts a job in your service radius, you will receive an instant audio/push alert. Review the task details and submit your competitive price quote.', category: 'booking' },
-    { question: 'When and how do I receive payment for completed jobs?', answer: 'Upon finishing the work, ask the customer for their 4-digit Completion OTP and enter it in your app. The earnings (minus any platform convenience fee) are instantly credited to your Kwickly Worker Wallet balance.', category: 'payments' },
-    { question: 'How do I withdraw my earnings to my bank account or UPI?', answer: 'Navigate to the "Earnings / Wallet" section in your app, tap "Withdraw", enter the amount, and select your verified Bank Account (via IFSC) or UPI ID. Withdrawal requests are processed quickly into your bank account.', category: 'payments' },
-    { question: 'How does the Partner Free Trial and Subscription work?', answer: 'New service partners receive a complimentary 14-Day Free Trial. After the trial, you can subscribe to affordable Monthly or Annual plans to enjoy unlimited bidding, verified badge, priority job matching, and reduced commission rates.', category: 'booking' },
-    { question: 'What happens if a customer cancels after I arrive?', answer: 'If the customer cancels after you have arrived and entered the Arrival OTP, you may be eligible for a doorstep travel compensation credited directly to your wallet.', category: 'safety' },
-    { question: 'How do customer ratings affect my earnings?', answer: 'Partners with high ratings (4.5 stars and above) receive priority lead dispatches and higher placement on customer quote comparisons, leading to significantly higher monthly earnings.', category: 'booking' }
-  ],
-  SHOP: [
-    { question: 'How do I list my store and products on Kwickly?', answer: 'Register as a Shop Merchant, complete your store profile (store name, category, opening hours, address), and start adding products with photos, prices, unit weights, and stock levels from the "Product Catalog" tab.', category: 'orders' },
-    { question: 'How do I process incoming shop orders?', answer: 'When a nearby customer places an order, you will receive a loud real-time order notification. Tap to accept the order, pack the requested items, and mark "Ready for Pickup". Provide the package to the delivery partner upon verifying the Delivery OTP.', category: 'orders' },
-    { question: 'What is the 30-minute auto-cancellation rule for shops?', answer: 'To guarantee fast fulfillment for customers, shops have 30 minutes to accept incoming orders. Unaccepted orders are automatically cancelled and refunded to the customer. Keep your store notifications active during business hours.', category: 'orders' },
-    { question: 'How do merchant settlements and payouts work?', answer: 'The net value of completed orders is automatically credited to your Merchant Wallet upon delivery. You can initiate payouts directly to your registered business bank account at any time.', category: 'payments' },
-    { question: 'Can I manage product inventory, discounts, and out-of-stock items?', answer: 'Yes! From your Merchant Dashboard, you can toggle item availability on/off instantly, update prices, add promotional discounts, and edit inventory with zero delay.', category: 'orders' }
-  ]
-};
 
 const HelpSupportScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -56,43 +26,45 @@ const HelpSupportScreen = ({ navigation }) => {
   const isWorker = role === 'WORKER';
   const isShop = role === 'SHOP';
 
-  const defaultRoleFaqs = isWorker ? FALLBACK_FAQS.WORKER : isShop ? FALLBACK_FAQS.SHOP : FALLBACK_FAQS.CUSTOMER;
-
-  const [faqs, setFaqs] = useState(defaultRoleFaqs);
+  const [faqs, setFaqs] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState('ALL');
   const [expandedIndex, setExpandedIndex] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchFaqs();
   }, [role]);
 
-  const fetchFaqs = async () => {
+  const fetchFaqs = async (isPullToRefresh = false) => {
     try {
-      setLoading(true);
+      if (isPullToRefresh) setRefreshing(true);
+      else setLoading(true);
+
       const res = await settingsService.getPublicSettings();
       const serverFaqs = res.data?.data?.faqs;
       if (Array.isArray(serverFaqs) && serverFaqs.length > 0) {
-        // Filter out dummy placeholder questions
-        const validFaqs = serverFaqs.filter(f => 
-          f && f.question && 
-          f.question.trim() !== 'New Question?' && 
-          f.question.trim() !== 'Enter new question here...' &&
-          f.answer && f.answer.trim().length > 5
-        );
+        // Filter out dummy placeholder questions and sort by order
+        const validFaqs = serverFaqs
+          .filter(f => 
+            f && f.question && 
+            f.question.trim() !== 'New Question?' && 
+            f.question.trim() !== 'Enter new question here...' &&
+            f.answer && f.answer.trim().length > 5
+          )
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
 
         // Filter FAQs for current user role or 'ALL'
         const relevant = validFaqs.filter(f => !f.targetRole || f.targetRole === 'ALL' || f.targetRole === role);
-        if (relevant.length > 0) {
-          setFaqs(relevant);
-          return;
-        }
+        setFaqs(relevant);
+      } else {
+        setFaqs([]);
       }
-      setFaqs(defaultRoleFaqs);
     } catch (e) {
-      setFaqs(defaultRoleFaqs);
+      console.log('Error fetching dynamic FAQs from Redis/server:', e.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -109,8 +81,8 @@ const HelpSupportScreen = ({ navigation }) => {
   });
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
       
       {/* App Bar inside purple gradient */}
       <LinearGradient
@@ -132,7 +104,18 @@ const HelpSupportScreen = ({ navigation }) => {
         />
       </LinearGradient>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: 110 }]}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={() => fetchFaqs(true)} 
+            colors={['#6C47FF']} 
+            tintColor="#6C47FF" 
+          />
+        }
+      >
         
         <Text style={styles.headerTitle}>Hi {user?.name ? user.name.split(' ')[0] : 'User'},</Text>
         <Text style={styles.headerSub}>How can we help you today?</Text>
@@ -250,9 +233,8 @@ const HelpSupportScreen = ({ navigation }) => {
           </View>
         )}
 
-        <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

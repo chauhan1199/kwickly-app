@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, FlatList, ScrollView,
+  View, Text, StyleSheet, FlatList, ScrollView,
   TouchableOpacity, StatusBar, ActivityIndicator, RefreshControl, TextInput, Alert
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
@@ -107,8 +107,8 @@ const OrderHistoryScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
       
       {/* Unified App Bar inside a purple gradient */}
       <LinearGradient
@@ -165,7 +165,7 @@ const OrderHistoryScreen = ({ navigation }) => {
         data={filteredOrders}
         keyExtractor={item => item._id}
         renderItem={renderOrder}
-        contentContainerStyle={[styles.list, { paddingBottom: 110 }]}
+        contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
         ListEmptyComponent={
@@ -178,7 +178,7 @@ const OrderHistoryScreen = ({ navigation }) => {
           ) : null
         }
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

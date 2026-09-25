@@ -83,25 +83,31 @@ const ShopStack = () => (
 
 const BookStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="BookMain"         component={BookServiceScreen} />
-    <Stack.Screen name="SubCategories"    component={SubCategoriesScreen} />
-    <Stack.Screen name="DescribeJob"      component={DescribeJobScreen} />
-    <Stack.Screen name="SavedAddresses"   component={SavedAddressesScreen} />
-    <Stack.Screen name="LiveBids"         component={LiveBidsScreen} />
-    <Stack.Screen name="LiveTracking"     component={LiveTrackingScreen} />
-    <Stack.Screen name="WorkCompleted"    component={WorkCompletedScreen} />
-    <Stack.Screen name="RateExperience"   component={RateExperienceScreen} />
-    <Stack.Screen name="WorkerProfile"    component={WorkerProfileScreen} />
-    <Stack.Screen name="Quotes"           component={QuotesScreen} />
-    <Stack.Screen name="Notifications"    component={NotificationsScreen} />
+    <Stack.Screen name="BookMain"           component={BookServiceScreen} />
+    <Stack.Screen name="SubCategories"      component={SubCategoriesScreen} />
+    <Stack.Screen name="DescribeJob"        component={DescribeJobScreen} />
+    <Stack.Screen name="SavedAddresses"     component={SavedAddressesScreen} />
+    <Stack.Screen name="LiveBids"           component={LiveBidsScreen} />
+    <Stack.Screen name="LiveTracking"       component={LiveTrackingScreen} />
+    <Stack.Screen name="WorkCompleted"      component={WorkCompletedScreen} />
+    <Stack.Screen name="RateExperience"     component={RateExperienceScreen} />
+    <Stack.Screen name="WorkerProfile"      component={WorkerProfileScreen} />
+    <Stack.Screen name="Quotes"             component={QuotesScreen} />
+    <Stack.Screen name="CustomerShopOrders" component={CustomerShopOrdersScreen} />
+    <Stack.Screen name="ShopOrderDetails"   component={ShopOrderDetailsScreen} />
+    <Stack.Screen name="OrderTracking"      component={OrderTrackingScreen} />
+    <Stack.Screen name="Notifications"      component={NotificationsScreen} />
   </Stack.Navigator>
 );
 
 const WalletStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="WalletMain"       component={CustomerWalletScreen} />
-    <Stack.Screen name="WalletTopup"      component={WalletTopupScreen} />
-    <Stack.Screen name="Notifications"    component={NotificationsScreen} />
+    <Stack.Screen name="WalletMain"         component={CustomerWalletScreen} />
+    <Stack.Screen name="WalletTopup"        component={WalletTopupScreen} />
+    <Stack.Screen name="CustomerShopOrders" component={CustomerShopOrdersScreen} />
+    <Stack.Screen name="ShopOrderDetails"   component={ShopOrderDetailsScreen} />
+    <Stack.Screen name="OrderTracking"      component={OrderTrackingScreen} />
+    <Stack.Screen name="Notifications"      component={NotificationsScreen} />
   </Stack.Navigator>
 );
 
