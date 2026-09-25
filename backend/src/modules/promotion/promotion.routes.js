@@ -13,6 +13,7 @@ const {
 } = require('../../validators/promotion.validator');
 
 router.get('/banners', promoController.getBanners);
+router.get('/active',  promoController.getActivePromotions);
 router.post('/validate', authMiddleware, validate(validatePromoCodeSchema), promoController.validatePromoCode);
 
 router.use(authMiddleware);

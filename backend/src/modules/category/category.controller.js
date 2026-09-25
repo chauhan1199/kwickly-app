@@ -13,6 +13,109 @@ const logger = require('../../helpers/logger.helper');
 
 const CACHE_KEY = 'categories_list';
 
+// High-demand, frequently used consumer service categories ranking
+const FREQUENT_SERVICES_PRIORITY = [
+    'clean',       // Cleaning Service
+    'plumb',       // Plumbing Service
+    'electric',    // Electrical service
+    'ac &',        // Ac & Hvac service
+    'hvac',
+    'car',         // Car service
+    'bike',        // Bike / Two wheeler service
+    'wheeler',
+    'appliance',   // Home appliance repair
+    'carpenter',   // Carpentry & furniture
+    'furniture',
+    'paint',       // Painting & waterproofing
+    'cook',        // Cook & food service
+    'salon',       // Beauty & saloon at home
+    'beauty',
+    'pest',        // Pest control service
+    'spa',         // Spa & massage therapy
+    'child',       // Baby & child care
+    'fitness',     // Fitness & wellness at home
+    'packers',     // Packers & movers
+];
+
+const normalizeForMatch = (str) => {
+    return (str || '')
+        .toLowerCase()
+        .replace(/\b(services?|at home|repair|work|technician|expert)\b/g, '')
+        .replace(/[^a-z0-9]/g, ' ')
+        .trim();
+};
+
+const matchesCategory = (categoryName, jobCategory) => {
+    if (!categoryName || !jobCategory) return false;
+    const cWords = normalizeForMatch(categoryName).split(/\s+/).filter(w => w.length >= 3);
+    const jWords = normalizeForMatch(jobCategory).split(/\s+/).filter(w => w.length >= 3);
+    return jWords.some(jw => cWords.some(cw => cw === jw || (cw.startsWith(jw) && jw.length >= 4) || (jw.startsWith(cw) && cw.length >= 4)));
+};
+
+const COMMON_SUB_PRIORITY = [
+    'general',
+    'deep clean',
+    'foam wash',
+    'wash',
+    'tuning',
+    'service',
+    'inspection',
+    'repair',
+    'leak',
+    'oil change',
+    'cooling',
+    'gas',
+    'facial',
+    'hair',
+    'massage',
+    'wiring',
+    'installation',
+    'switch',
+    'board',
+];
+
+const getSubFrequencyScore = (subName, subCountsMap = {}) => {
+    let score = 0;
+    const lower = (subName || '').toLowerCase();
+
+    for (const [jobSub, count] of Object.entries(subCountsMap)) {
+        if (matchesCategory(subName, jobSub)) {
+            score += count * 50;
+        }
+    }
+
+    for (let i = 0; i < COMMON_SUB_PRIORITY.length; i++) {
+        if (lower.includes(COMMON_SUB_PRIORITY[i])) {
+            score += (COMMON_SUB_PRIORITY.length - i) * 10;
+            break;
+        }
+    }
+
+    return score;
+};
+
+const getCategoryFrequencyScore = (catName, jobCountsMap = {}) => {
+    let score = 0;
+    const lower = (catName || '').toLowerCase();
+
+    // 1. Boost based on actual real-time jobs in the database
+    for (const [jobCat, count] of Object.entries(jobCountsMap)) {
+        if (matchesCategory(catName, jobCat)) {
+            score += count * 50;
+        }
+    }
+
+    // 2. Priority weighting for everyday household services
+    for (let i = 0; i < FREQUENT_SERVICES_PRIORITY.length; i++) {
+        if (lower.includes(FREQUENT_SERVICES_PRIORITY[i])) {
+            score += (FREQUENT_SERVICES_PRIORITY.length - i) * 20;
+            break;
+        }
+    }
+
+    return score;
+};
+
 exports.getCategories = catchAsync(async (req, res) => {
     const isAdmin = req.originalUrl.includes('/admin');
     const forceRefresh = req.query.refresh === 'true' || req.headers['cache-control'] === 'no-cache';
@@ -23,7 +126,70 @@ exports.getCategories = catchAsync(async (req, res) => {
     if (cachedData) {
         categories = cachedData;
     } else {
-        categories = await Category.find().sort('name').lean();
+        const rawCategories = await Category.find().lean();
+        let jobCountsMap = {};
+        let subCountsMap = {};
+        try {
+            const Job = require('../job/job.model');
+            const jobs = await Job.find({}).select('category subcategory').lean();
+            jobs.forEach(j => {
+                if (j.category) {
+                    jobCountsMap[j.category] = (jobCountsMap[j.category] || 0) + 1;
+                }
+                if (j.subcategory) {
+                    subCountsMap[j.subcategory] = (subCountsMap[j.subcategory] || 0) + 1;
+                }
+            });
+        } catch (_) {}
+
+        categories = rawCategories.map(c => {
+            const bookingCount = Object.entries(jobCountsMap).reduce((acc, [k, v]) => {
+                return matchesCategory(c.name, k) ? acc + v : acc;
+            }, c.bookingCount || 0);
+            const frequencyScore = getCategoryFrequencyScore(c.name, jobCountsMap);
+
+            let sortedSubs = (c.subcategories || []).map(s => {
+                const subBookingCount = Object.entries(subCountsMap).reduce((acc, [k, v]) => {
+                    return matchesCategory(s.name, k) ? acc + v : acc;
+                }, s.bookingCount || 0);
+                const subFrequencyScore = getSubFrequencyScore(s.name, subCountsMap);
+                return {
+                    ...s,
+                    bookingCount: subBookingCount,
+                    frequencyScore: subFrequencyScore
+                };
+            });
+
+            // Sort subcategories by most frequently used first
+            sortedSubs.sort((s1, s2) => {
+                if ((s2.frequencyScore || 0) !== (s1.frequencyScore || 0)) {
+                    return (s2.frequencyScore || 0) - (s1.frequencyScore || 0);
+                }
+                if ((s2.bookingCount || 0) !== (s1.bookingCount || 0)) {
+                    return (s2.bookingCount || 0) - (s1.bookingCount || 0);
+                }
+                return (s1.name || '').localeCompare(s2.name || '');
+            });
+
+            return {
+                ...c,
+                bookingCount,
+                frequencyScore,
+                subcategories: sortedSubs
+            };
+        });
+
+        // Sort descending by frequencyScore / bookingCount, then alphabetical
+        categories.sort((a, b) => {
+            if ((b.frequencyScore || 0) !== (a.frequencyScore || 0)) {
+                return (b.frequencyScore || 0) - (a.frequencyScore || 0);
+            }
+            if ((b.bookingCount || 0) !== (a.bookingCount || 0)) {
+                return (b.bookingCount || 0) - (a.bookingCount || 0);
+            }
+            return (a.name || '').localeCompare(b.name || '');
+        });
+
         await setCache(CACHE_KEY, categories, 3600);
     }
 

@@ -116,43 +116,79 @@ exports.validatePromoCode = catchAsync(async (req, res) => {
     return successResponse(res, { code: promo.code, discount, type: promo.type, title: promo.title, description: promo.description }, 'Promo code valid');
 });
 
-// â”€â”€â”€ Admin: list all promotions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Public: mobile app fetches active promo codes ────────────────────────────
+exports.getActivePromotions = catchAsync(async (req, res) => {
+    const cacheKey = 'promotions_public_active';
+    const cached = await getCache(cacheKey);
+    if (cached) return successResponse(res, cached, 'Active promotions fetched from cache');
+
+    const now = new Date();
+    const filter = {
+        isActive: true,
+        $or: [
+            { startAt: { $exists: false } },
+            { startAt: null },
+            { startAt: { $lte: now } },
+        ],
+        $and: [
+            {
+                $or: [
+                    { endAt: { $exists: false } },
+                    { endAt: null },
+                    { endAt: { $gte: now } },
+                ],
+            },
+        ],
+    };
+    const promos = await Promotion.find(filter)
+        .select('code title description type value maxDiscountCap minOrderAmount')
+        .sort({ createdAt: -1 })
+        .lean();
+
+    await setCache(cacheKey, promos, 600); // 10 mins TTL
+    return successResponse(res, promos, 'Active promotions fetched');
+});
+
+// ─── Admin: list all promotions ───────────────────────────────────────────────
 exports.getAllPromotions = catchAsync(async (req, res) => {
     const promos = await Promotion.find({}).sort({ createdAt: -1 }).lean();
     return successResponse(res, promos, 'All promotions');
 });
 
-// â”€â”€â”€ Admin: create promotion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Admin: create promotion ──────────────────────────────────────────────────
 exports.createPromotion = catchAsync(async (req, res) => {
     const promo = await Promotion.create({ ...req.body, createdBy: req.user._id });
+    await delCacheByPattern('*promotions_public*');
     logAdminActivity(
         'CREATE', 'PROMO', promo._id,
         'Promo Code Created',
-        `Admin created promo code "${promo.code}" â€” ${promo.title} (${promo.type}, value: ${promo.value})`,
+        `Admin created promo code "${promo.code}" — ${promo.title} (${promo.type}, value: ${promo.value})`,
         req.user._id
     );
     emitToAll('DASHBOARD_UPDATE', { type: 'PROMO_CREATED', id: promo._id });
     return successResponse(res, promo, 'Promotion created', StatusCodes.CREATED);
 });
 
-// â”€â”€â”€ Admin: update promotion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Admin: update promotion ──────────────────────────────────────────────────
 exports.updatePromotion = catchAsync(async (req, res) => {
     const promo = await Promotion.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!promo) return errorResponse(res, 'Promotion not found', StatusCodes.NOT_FOUND);
+    await delCacheByPattern('*promotions_public*');
     logAdminActivity(
         'UPDATE', 'PROMO', promo._id,
         'Promo Code Updated',
-        `Admin updated promo code "${promo.code}" â€” active: ${promo.isActive}, value: ${promo.value}`,
+        `Admin updated promo code "${promo.code}" — active: ${promo.isActive}, value: ${promo.value}`,
         req.user._id
     );
     emitToAll('DASHBOARD_UPDATE', { type: 'PROMO_UPDATED', id: promo._id });
     return successResponse(res, promo, 'Promotion updated');
 });
 
-// â”€â”€â”€ Admin: delete promotion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Admin: delete promotion ──────────────────────────────────────────────────
 exports.deletePromotion = catchAsync(async (req, res) => {
     const promo = await Promotion.findByIdAndDelete(req.params.id);
     if (!promo) return errorResponse(res, 'Promotion not found', StatusCodes.NOT_FOUND);
+    await delCacheByPattern('*promotions_public*');
     logAdminActivity(
         'DELETE', 'PROMO', promo._id,
         'Promo Code Deleted',

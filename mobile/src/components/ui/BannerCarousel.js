@@ -8,25 +8,54 @@ const BannerCarousel = ({
   banners, 
   itemWidth, 
   itemHeight = 160, 
-  autoPlayInterval = 3000, 
+  autoPlayInterval = 2000, 
   style, 
   contentContainerStyle = { paddingHorizontal: 14 } 
 }) => {
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const directionRef = useRef(1);
   const navigation = useNavigation();
 
   useEffect(() => {
     if (!banners || banners.length <= 1) return;
     
     const interval = setInterval(() => {
-      const nextIndex = (currentIndex + 1) % banners.length;
-      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-      setCurrentIndex(nextIndex);
+      let nextIndex = currentIndex + directionRef.current;
+      if (nextIndex >= banners.length) {
+        directionRef.current = -1;
+        nextIndex = Math.max(0, banners.length - 2);
+      } else if (nextIndex < 0) {
+        directionRef.current = 1;
+        nextIndex = Math.min(1, banners.length - 1);
+      }
+
+      try {
+        flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+        setCurrentIndex(nextIndex);
+      } catch (_) {
+        flatListRef.current?.scrollToOffset({ offset: nextIndex * (itemWidth + 10), animated: true });
+        setCurrentIndex(nextIndex);
+      }
     }, autoPlayInterval);
 
     return () => clearInterval(interval);
-  }, [currentIndex, banners, autoPlayInterval]);
+  }, [currentIndex, banners, autoPlayInterval, itemWidth]);
+
+  const getItemLayout = (_, index) => ({
+    length: itemWidth + 10,
+    offset: (itemWidth + 10) * index,
+    index,
+  });
+
+  const onScrollToIndexFailed = (info) => {
+    setTimeout(() => {
+      flatListRef.current?.scrollToOffset({
+        offset: info.index * (itemWidth + 10),
+        animated: true,
+      });
+    }, 80);
+  };
 
   const handleScroll = (event) => {
     const offsetX = event.nativeEvent.contentOffset.x;
@@ -70,6 +99,8 @@ const BannerCarousel = ({
         style={{ height: itemHeight }}
         contentContainerStyle={contentContainerStyle}
         ItemSeparatorComponent={() => <View style={{ width: 10 }} />}
+        getItemLayout={getItemLayout}
+        onScrollToIndexFailed={onScrollToIndexFailed}
       />
     </View>
   );

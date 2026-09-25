@@ -145,6 +145,15 @@ const SubCategoriesScreen = ({ route, navigation }) => {
     return () => sub.remove();
   }, [route.params, loadSubs]);
 
+  const sortedSubs = React.useMemo(() => {
+    return [...localSubs].sort((a, b) => {
+      const scoreA = (a.frequencyScore || 0) + (a.bookingCount || 0) * 10;
+      const scoreB = (b.frequencyScore || 0) + (b.bookingCount || 0) * 10;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }, [localSubs]);
+
   const styles = createStyles(theme, isDarkMode);
 
   return (
@@ -165,7 +174,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
             <Text style={styles.heroTitle} numberOfLines={2}>{name}</Text>
             <View style={styles.servicesBadge}>
               <Clock size={12} color="#E0E7FF" style={{ marginRight: 4 }} />
-              <Text style={styles.heroSubtitle}>{localSubs.length} service{localSubs.length !== 1 ? 's' : ''} available</Text>
+              <Text style={styles.heroSubtitle}>{sortedSubs.length} service{sortedSubs.length !== 1 ? 's' : ''} available</Text>
             </View>
           </View>
 
@@ -192,7 +201,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
 
       </View>
 
-      {/* ── Subcategory List ── */}
+      {/* ── Subcategory List (Sorted by most used first) ── */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
@@ -202,7 +211,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
       >
         <Text style={styles.listHeading}>Choose a service type</Text>
 
-        {localSubs
+        {sortedSubs
           .filter(sub => !searchQuery || sub.name.toLowerCase().includes(searchQuery.toLowerCase()))
           .map((sub, index) => (
             <SubCategoryCardItem

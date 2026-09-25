@@ -510,7 +510,7 @@ const BookServiceScreen = ({ navigation, route }) => {
               itemWidth={bannerWidth} 
               itemHeight={135}
               style={{ height: 135 }}
-              autoPlayInterval={4000}
+              autoPlayInterval={2000}
               contentContainerStyle={{ paddingHorizontal: 14 }}
             />
           </View>

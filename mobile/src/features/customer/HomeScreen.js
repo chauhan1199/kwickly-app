@@ -22,6 +22,9 @@ import { jobService } from '../../services/jobService';
 import { shopService } from '../../services/shopService';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../../services/api';
+import BannerCarousel from '../../components/ui/BannerCarousel';
+import PromoCarousel from '../../components/ui/PromoCarousel';
 import { ServiceCard, getServiceImage, getServiceRating } from '../../components/ui/ServiceCard';
 import LinearGradient from 'react-native-linear-gradient';
 import { ChevronRight, Star, Zap, MapPin, Bell, Package, Store, Clock, RotateCcw, X, Radio, CheckCircle2 } from 'lucide-react-native';
@@ -66,6 +69,18 @@ const HomeScreen = ({ navigation }) => {
   const [categories, setCategories] = useState([]);
   const [shops, setShops] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [promos, setPromos] = useState([]);
+  const [homeBanners, setHomeBanners] = useState([]);
+
+  // Sort Top Services by frequency and booking counts (most frequently used first)
+  const sortedTopServices = useMemo(() => {
+    return [...categories].sort((a, b) => {
+      const scoreA = (a.frequencyScore || 0) + (a.bookingCount || 0) * 10;
+      const scoreB = (b.frequencyScore || 0) + (b.bookingCount || 0) * 10;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }, [categories]);
 
   // Animations
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -81,10 +96,10 @@ const HomeScreen = ({ navigation }) => {
     ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || 'Ahmedabad'}`
     : (user?.city || 'Ahmedabad');
 
-  // Load cached categories and shops immediately on launch
+  // Load cached categories, shops, promos and banners immediately on launch
   useEffect(() => {
-    AsyncStorage.multiGet(['kwickly_cache_categories', 'kwickly_cache_shops'])
-      .then(([[, catJson], [, shopJson]]) => {
+    AsyncStorage.multiGet(['kwickly_cache_categories', 'kwickly_cache_shops', 'kwickly_cache_promos', 'kwickly_cache_home_banners'])
+      .then(([[, catJson], [, shopJson], [, promoJson], [, bannerJson]]) => {
         if (catJson) {
           try {
             const parsed = JSON.parse(catJson);
@@ -95,6 +110,18 @@ const HomeScreen = ({ navigation }) => {
           try {
             const parsedS = JSON.parse(shopJson);
             if (Array.isArray(parsedS) && parsedS.length > 0) setShops(parsedS);
+          } catch (_) {}
+        }
+        if (promoJson) {
+          try {
+            const parsedP = JSON.parse(promoJson);
+            if (Array.isArray(parsedP) && parsedP.length > 0) setPromos(parsedP);
+          } catch (_) {}
+        }
+        if (bannerJson) {
+          try {
+            const parsedB = JSON.parse(bannerJson);
+            if (Array.isArray(parsedB) && parsedB.length > 0) setHomeBanners(parsedB);
           } catch (_) {}
         }
       })
@@ -110,12 +137,14 @@ const HomeScreen = ({ navigation }) => {
 
       const params = { limit: 10, lng: userLng, lat: userLat };
 
-      // Parallelize all requests
-      const [catRes, shopsRes, jobsRes, oRes] = await Promise.allSettled([
+      // Parallelize all requests including dynamic banners and promos from admin
+      const [catRes, shopsRes, jobsRes, oRes, bannersRes, promosRes] = await Promise.allSettled([
         jobService.getCategories(),
         shopService.getShops(params),
         userToken ? jobService.getMyJobs() : Promise.resolve(null),
-        userToken ? shopService.getCustomerOrders() : Promise.resolve(null)
+        userToken ? shopService.getCustomerOrders() : Promise.resolve(null),
+        api.get('/promotions/banners'),
+        api.get('/promotions/active'),
       ]);
 
       // Categories
@@ -127,6 +156,8 @@ const HomeScreen = ({ navigation }) => {
           name: c.name,
           color: c.color,
           imageUrl: c.imageUrl || null,
+          bookingCount: c.bookingCount || 0,
+          frequencyScore: c.frequencyScore || 0,
           subs: c.subcategories?.map(s => ({
             id: s._id,
             name: s.name,
@@ -136,6 +167,24 @@ const HomeScreen = ({ navigation }) => {
         }));
         setCategories(mappedCats);
         AsyncStorage.setItem('kwickly_cache_categories', JSON.stringify(mappedCats)).catch(() => {});
+      }
+
+      // Dynamic Home Banners
+      if (bannersRes.status === 'fulfilled' && bannersRes.value?.data?.status === 'success') {
+        const allB = Array.isArray(bannersRes.value.data.data) ? bannersRes.value.data.data : [];
+        const hBanners = allB.filter(b => b.position === 'HOME_TOP' || b.position === 'HOME_MIDDLE');
+        const finalB = hBanners.length > 0 ? hBanners : allB.slice(0, 3);
+        setHomeBanners(finalB);
+        AsyncStorage.setItem('kwickly_cache_home_banners', JSON.stringify(finalB)).catch(() => {});
+      }
+
+      // Dynamic Active Promotions
+      if (promosRes.status === 'fulfilled' && promosRes.value?.data?.status === 'success') {
+        const fetchedPromos = Array.isArray(promosRes.value.data.data) ? promosRes.value.data.data : [];
+        if (fetchedPromos.length > 0) {
+          setPromos(fetchedPromos);
+          AsyncStorage.setItem('kwickly_cache_promos', JSON.stringify(fetchedPromos)).catch(() => {});
+        }
       }
 
       // Shops
@@ -562,6 +611,20 @@ const HomeScreen = ({ navigation }) => {
                 </View>
               )}
 
+              {/* ── DYNAMIC HOME BANNERS (Auto-scrolls every 2s, left/right) ── */}
+              {homeBanners.length > 0 && (
+                <View style={{ height: 135, marginBottom: 16, alignItems: 'center', overflow: 'hidden' }}>
+                  <BannerCarousel
+                    banners={homeBanners}
+                    itemWidth={Math.min(windowWidth - 32, 680)}
+                    itemHeight={135}
+                    style={{ height: 135 }}
+                    autoPlayInterval={2000}
+                    contentContainerStyle={{ paddingHorizontal: 0 }}
+                  />
+                </View>
+              )}
+
               {/* ── TOP SERVICES ── */}
               <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Top Services</Text>
@@ -571,13 +634,13 @@ const HomeScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* Horizontal service slider */}
+              {/* Horizontal service slider (Sorted by frequency of usage) */}
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false} 
                 contentContainerStyle={styles.serviceSlider}
               >
-                {categories.map((cat, index, arr) => (
+                {sortedTopServices.map((cat, index, arr) => (
                   <ServiceCard 
                     key={cat.id || index} 
                     cat={cat} 
@@ -655,26 +718,14 @@ const HomeScreen = ({ navigation }) => {
                 )}
               </ScrollView>
 
-              {/* ── PROMO BANNER ── */}
-              <LinearGradient
-                colors={[PURPLE, '#9575FF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.promoBanner}
-              >
-                <View style={styles.promoDiscCircle}>
-                  <Text style={styles.promoDiscText}>%</Text>
-                </View>
-                <View style={{ flex: 1, paddingLeft: 12 }}>
-                  <Text style={styles.promoLine1}>
-                    Get <Text style={{ fontWeight: '900', color: '#FFE082' }}>20% OFF</Text> on your first service!
-                  </Text>
-                  <Text style={styles.promoLine2}>Use code:  <Text style={styles.promoCode}>WELCOME20</Text></Text>
-                </View>
-                <TouchableOpacity style={styles.promoBookBtn} onPress={() => navigation.navigate('Book')}>
-                  <Text style={styles.promoBookBtnText}>Book Now</Text>
-                </TouchableOpacity>
-              </LinearGradient>
+              {/* ── DYNAMIC PROMO CAROUSEL (Auto-scrolls every 2s, left/right) ── */}
+              <PromoCarousel
+                promos={promos}
+                itemWidth={Math.min(windowWidth - 32, 680)}
+                autoPlayInterval={2000}
+                onPress={() => navigation.navigate('Book')}
+                style={{ marginTop: 8, marginBottom: 16 }}
+              />
 
               {/* ── WHY CHOOSE US ── */}
               <View style={[styles.sectionHeader, { marginTop: 24 }]}>
@@ -1125,7 +1176,7 @@ const styles = StyleSheet.create({
   // ── Service Cards ──
   serviceSlider: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingBottom: 24,
   },
   serviceCard: {
@@ -1161,17 +1212,21 @@ const styles = StyleSheet.create({
   serviceCardFooter: {
     padding: 10,
     paddingBottom: 12,
+    height: 72,
+    justifyContent: 'space-between',
   },
   serviceCardName: {
     fontSize: 13,
     fontWeight: '700',
     color: '#1a1a2e',
-    lineHeight: 16,
+    lineHeight: 17,
+    height: 34,
     marginBottom: 4,
   },
   serviceCardRatingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    height: 16,
   },
   serviceCardRating: {
     fontSize: 11,

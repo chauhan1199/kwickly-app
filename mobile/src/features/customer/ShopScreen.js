@@ -262,7 +262,7 @@ const ShopScreen = ({ navigation }) => {
             itemWidth={Math.min(windowWidth - 28, 680)} 
             itemHeight={140}
             style={{ marginBottom: 14, alignItems: 'center' }}
-            autoPlayInterval={4000}
+            autoPlayInterval={2000}
           />
         )}
 

@@ -171,17 +171,21 @@ const styles = StyleSheet.create({
   serviceCardFooter: {
     padding: 10,
     paddingBottom: 12,
+    height: 72,
+    justifyContent: 'space-between',
   },
   serviceCardName: {
     fontSize: 13,
     fontWeight: '700',
     color: '#1a1a2e',
-    lineHeight: 16,
+    lineHeight: 17,
+    height: 34,
     marginBottom: 4,
   },
   serviceCardRatingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    height: 16,
   },
   serviceCardRating: {
     fontSize: 11,
