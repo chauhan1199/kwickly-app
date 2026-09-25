@@ -61,9 +61,11 @@ const LoginScreen = ({ navigation, route }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const screenHeight = Dimensions.get('screen').height;
   const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
-  const isSmallScreen = windowHeight < 720;
-  const isTallScreen = windowHeight >= 760;
-  const shouldCenter = !keyboardVisible && (windowHeight >= 740 || screenHeight >= 780);
+  const isCompactScreen = windowHeight < 640;
+  const isRegularScreen = windowHeight >= 640 && windowHeight < 760;
+  const isTallScreen = windowHeight >= 760 || screenHeight >= 800;
+  const isSmallScreen = isCompactScreen;
+  const shouldCenter = !keyboardVisible;
   const { signIn } = useAuth();
 
   const [step, setStep] = useState('PHONE');
@@ -382,59 +384,63 @@ const LoginScreen = ({ navigation, route }) => {
   );
 
   const renderBottomSection = (type = 'PHONE') => (
-    <View style={[styles.bottomSection, { marginTop: isSmallScreen ? 8 : (isTallScreen ? 16 : 12) }]}>
-      {renderTrustBar()}
+    <View style={[
+      styles.trustCardContainer,
+      {
+        backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.95)',
+        borderColor: cardBorder,
+        marginTop: isCompactScreen ? 8 : (isTallScreen ? 16 : 12),
+      },
+    ]}>
+      {/* Security & Verification Header Row */}
+      <View style={styles.trustHeaderRow}>
+        <View style={[styles.trustIconWrap, { backgroundColor: isDarkMode ? '#133929' : '#ECFDF5' }]}>
+          <ShieldCheck size={isCompactScreen ? 15 : 17} color="#10B981" />
+        </View>
+        <View style={styles.trustHeaderContent}>
+          <Text style={[styles.trustHeaderTitle, { color: textMain, fontSize: isCompactScreen ? 11.5 : 12.5 }]}>
+            {type === 'MPIN' ? 'Bank-Grade 256-Bit Protection' : '100% Secure & Verified Platform'}
+          </Text>
+          <Text style={[styles.trustHeaderSub, { color: textSub, fontSize: isCompactScreen ? 9.5 : 10.5 }]}>
+            {type === 'MPIN' ? 'Hardware-backed biometric & PIN security' : 'Encrypted payments · Zero spam guaranteed'}
+          </Text>
+        </View>
+      </View>
+
+      {/* 3 Pillar Features Grid */}
       {type === 'PHONE' ? (
-        <>
-          <View style={[styles.perksRow, isSmallScreen && { marginTop: 3, marginBottom: 4, gap: 4 }]}>
-            <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
-              <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5 }]} numberOfLines={1}>⚡ On-Time</Text>
-            </View>
-            <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
-              <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5 }]} numberOfLines={1}>🛠️ 50+ Services</Text>
-            </View>
-            <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
-              <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5 }]} numberOfLines={1}>🛡️ Verified Pros</Text>
-            </View>
+        <View style={[styles.perksRow, isCompactScreen && { marginTop: 6, marginBottom: 6 }]}>
+          <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : '#F8FAFC', borderColor: cardBorder }]}>
+            <Text style={[styles.perkText, { color: textMain, fontSize: isCompactScreen ? 9.5 : 10.5 }]} numberOfLines={1}>⚡ Rapid 15m</Text>
           </View>
-          <View style={[styles.socialProofRow, isSmallScreen && { marginTop: 2, marginBottom: 2 }]}>
-            <Text style={[styles.socialProofStars, isSmallScreen && { fontSize: 10.5, letterSpacing: 1 }]}>★★★★★</Text>
-            <Text style={[styles.socialProofText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]} numberOfLines={1} ellipsizeMode="tail">
-              {windowWidth < 350 ? 'Trusted by 10,000+ happy homes' : 'Trusted by 10,000+ happy homes across India'}
-            </Text>
+          <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : '#F8FAFC', borderColor: cardBorder }]}>
+            <Text style={[styles.perkText, { color: textMain, fontSize: isCompactScreen ? 9.5 : 10.5 }]} numberOfLines={1}>🛠️ 50+ Services</Text>
           </View>
-        </>
-      ) : type === 'SELECT_ROLE' ? (
-        <>
-          <View style={[styles.securityHighlightRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
-            <ShieldCheck size={13} color="#10B981" />
-            <Text style={[styles.securityHighlightText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
-              100% Verified Profiles · Fast & Secure Login
-            </Text>
+          <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : '#F8FAFC', borderColor: cardBorder }]}>
+            <Text style={[styles.perkText, { color: textMain, fontSize: isCompactScreen ? 9.5 : 10.5 }]} numberOfLines={1}>🛡️ Verified Pros</Text>
           </View>
-          <View style={[styles.socialProofRow, isSmallScreen && { marginTop: 2, marginBottom: 2 }]}>
-            <Text style={[styles.socialProofStars, isSmallScreen && { fontSize: 10.5, letterSpacing: 1 }]}>★★★★★</Text>
-            <Text style={[styles.socialProofText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]} numberOfLines={1} ellipsizeMode="tail">
-              {windowWidth < 350 ? 'Trusted by 10,000+ happy homes' : 'Trusted by 10,000+ happy homes across India'}
-            </Text>
-          </View>
-        </>
+        </View>
       ) : (
-        <>
-          <View style={[styles.securityHighlightRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
-            <ShieldCheck size={13} color="#10B981" />
-            <Text style={[styles.securityHighlightText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
-              256-bit encrypted · 100% Secure & Private
-            </Text>
+        <View style={[styles.perksRow, isCompactScreen && { marginTop: 6, marginBottom: 6 }]}>
+          <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : '#F8FAFC', borderColor: cardBorder }]}>
+            <Text style={[styles.perkText, { color: textMain, fontSize: isCompactScreen ? 9.5 : 10.5 }]} numberOfLines={1}>🔒 Safe Sign In</Text>
           </View>
-          <View style={[styles.socialProofRow, isSmallScreen && { marginTop: 2, marginBottom: 2 }]}>
-            <Text style={[styles.socialProofStars, isSmallScreen && { fontSize: 10.5, letterSpacing: 1 }]}>★★★★★</Text>
-            <Text style={[styles.socialProofText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]} numberOfLines={1} ellipsizeMode="tail">
-              {windowWidth < 350 ? 'Trusted by 10,000+ happy homes' : 'Trusted by 10,000+ happy homes across India'}
-            </Text>
+          <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : '#F8FAFC', borderColor: cardBorder }]}>
+            <Text style={[styles.perkText, { color: textMain, fontSize: isCompactScreen ? 9.5 : 10.5 }]} numberOfLines={1}>⚡ Instant Access</Text>
           </View>
-        </>
+          <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : '#F8FAFC', borderColor: cardBorder }]}>
+            <Text style={[styles.perkText, { color: textMain, fontSize: isCompactScreen ? 9.5 : 10.5 }]} numberOfLines={1}>🛡️ KYC Verified</Text>
+          </View>
+        </View>
       )}
+
+      {/* Social Proof Stars */}
+      <View style={[styles.socialProofRow, isCompactScreen && { marginTop: 2 }]}>
+        <Text style={[styles.socialProofStars, isCompactScreen && { fontSize: 10.5 }]}>★★★★★</Text>
+        <Text style={[styles.socialProofText, { color: textSub, fontSize: isCompactScreen ? 10 : 11 }]} numberOfLines={1} ellipsizeMode="tail">
+          {windowWidth < 350 ? 'Trusted by 10,000+ happy homes' : 'Trusted by 10,000+ happy homes across India'}
+        </Text>
+      </View>
     </View>
   );
 
@@ -453,8 +459,8 @@ const LoginScreen = ({ navigation, route }) => {
             contentContainerStyle={[
               styles.scrollContent,
               {
-                paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+                paddingTop: isCompactScreen ? safeTopPadding : Math.max(safeTopPadding, 16),
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
                 justifyContent: shouldCenter ? 'center' : 'flex-start',
               },
             ]}
@@ -466,13 +472,13 @@ const LoginScreen = ({ navigation, route }) => {
           >
             <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
-              <View style={[styles.headerLayoutRow, isSmallScreen && { marginBottom: 6 }, isTallScreen && { marginBottom: 16 }]}>
+              <View style={[styles.headerLayoutRow, isCompactScreen && { marginBottom: 6 }, !isCompactScreen && { marginBottom: isTallScreen ? 16 : 12 }]}>
                 <View style={styles.headerTextCol}>
-                  <Text style={[styles.heroHeadline, { color: textMain, fontSize: isSmallScreen ? 20 : 25, lineHeight: isSmallScreen ? 24 : 30 }]}>
+                  <Text style={[styles.heroHeadline, { color: textMain, fontSize: isCompactScreen ? 20 : (isTallScreen ? 27 : 24), lineHeight: isCompactScreen ? 24 : (isTallScreen ? 33 : 29) }]}>
                     Glad to{'\n'}See You{'\n'}
                     <Text style={{ color: PURPLE }}>Again!</Text>
                   </Text>
-                  <Text style={[styles.heroSub, { color: textSub, fontSize: isSmallScreen ? 11 : 12.5 }]}>
+                  <Text style={[styles.heroSub, { color: textSub, fontSize: isCompactScreen ? 11 : 12.5 }]}>
                     Log in to continue your services, anytime & near you.
                   </Text>
                 </View>
@@ -482,7 +488,7 @@ const LoginScreen = ({ navigation, route }) => {
                       ? require('../../assets/images/hero_login_dark.png')
                       : require('../../assets/images/hero_login.png')
                   }
-                  style={[styles.heroLoginImg, isSmallScreen && { width: 90, height: 65 }, isTallScreen && { width: 140, height: 105 }]}
+                  style={[styles.heroLoginImg, isCompactScreen && { width: 90, height: 65 }, !isCompactScreen && { width: isTallScreen ? 140 : 120, height: isTallScreen ? 105 : 90 }]}
                   resizeMode="contain"
                 />
               </View>
@@ -491,19 +497,19 @@ const LoginScreen = ({ navigation, route }) => {
               <View style={[
                 styles.card,
                 { backgroundColor: cardBg, borderColor: cardBorder },
-                isSmallScreen && { paddingVertical: 12, paddingHorizontal: 14 },
-                isTallScreen && { paddingVertical: 22, paddingHorizontal: 20 },
+                isCompactScreen && { paddingVertical: 14, paddingHorizontal: 14 },
+                !isCompactScreen && { paddingVertical: isTallScreen ? 22 : 18, paddingHorizontal: 18 },
               ]}>
-                <Text style={[styles.cardTitle, { color: textMain, fontSize: isSmallScreen ? 16 : 18 }]}>Welcome Back!</Text>
-                <Text style={[styles.cardSub, { color: textSub, fontSize: isSmallScreen ? 11 : 11.5, marginBottom: isSmallScreen ? 6 : 10 }]}>Enter your 10-digit mobile number to sign in</Text>
+                <Text style={[styles.cardTitle, { color: textMain, fontSize: isCompactScreen ? 16 : 18 }]}>Welcome Back!</Text>
+                <Text style={[styles.cardSub, { color: textSub, fontSize: isCompactScreen ? 11 : 11.5, marginBottom: isCompactScreen ? 6 : 10 }]}>Enter your 10-digit mobile number to sign in</Text>
 
                 <TouchableOpacity
                   activeOpacity={1}
                   onPress={() => phoneInputRef.current?.focus()}
                   style={[
                     styles.inputContainer,
-                    isSmallScreen && { height: 44 },
-                    isTallScreen && { height: 54 },
+                    isCompactScreen && { height: 44 },
+                    !isCompactScreen && { height: isTallScreen ? 54 : 50 },
                     {
                       backgroundColor: inputBg,
                       borderColor: phone.length === 10 ? '#10B981' : focusedInput === 'phone' ? PURPLE : inputBorder,
@@ -512,13 +518,13 @@ const LoginScreen = ({ navigation, route }) => {
                   ]}
                 >
                   <View pointerEvents="none" style={styles.prefixWrapper}>
-                    <Text style={[styles.flagText, isSmallScreen && { fontSize: 13 }]}>🇮🇳</Text>
-                    <Text style={[styles.prefixNumber, { color: textMain, fontSize: isSmallScreen ? 13.5 : 14.5 }]}>+91</Text>
+                    <Text style={[styles.flagText, isCompactScreen && { fontSize: 13 }]}>🇮🇳</Text>
+                    <Text style={[styles.prefixNumber, { color: textMain, fontSize: isCompactScreen ? 13.5 : 14.5 }]}>+91</Text>
                     <View style={[styles.prefixDivider, { backgroundColor: inputBorder }]} />
                   </View>
                   <TextInput
                     ref={phoneInputRef}
-                    style={[styles.inputText, { color: textMain, fontSize: isSmallScreen ? 13.5 : 15 }]}
+                    style={[styles.inputText, { color: textMain, fontSize: isCompactScreen ? 13.5 : 15 }]}
                     placeholder="10-digit number"
                     placeholderTextColor={textSub}
                     keyboardType="phone-pad"
@@ -543,14 +549,14 @@ const LoginScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
 
                 {/* Auto Detect Hint */}
-                <View style={[styles.autoDetectRow, { marginTop: isSmallScreen ? 6 : 10 }]}>
-                  <Zap size={isSmallScreen ? 12 : 14} color={PURPLE} />
-                  <Text style={[styles.autoDetectText, { color: textSub, fontSize: isSmallScreen ? 11 : 12 }]} numberOfLines={1}>We'll automatically find your account</Text>
+                <View style={[styles.autoDetectRow, { marginTop: isCompactScreen ? 6 : 10 }]}>
+                  <Zap size={isCompactScreen ? 12 : 14} color={PURPLE} />
+                  <Text style={[styles.autoDetectText, { color: textSub, fontSize: isCompactScreen ? 11 : 12 }]} numberOfLines={1}>We'll automatically find your account</Text>
                 </View>
 
                 {/* Continue Button */}
                 <TouchableOpacity
-                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: isSmallScreen ? 10 : 18 }]}
+                  style={[styles.btnShadow, { opacity: (phone.length === 10 && !loading) ? 1 : 0.45, marginTop: isCompactScreen ? 10 : 18 }]}
                   onPress={() => handleCheckNumber()}
                   disabled={phone.length !== 10 || loading}
                   activeOpacity={0.88}
@@ -559,7 +565,7 @@ const LoginScreen = ({ navigation, route }) => {
                     colors={[PURPLE, '#582BE8']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={[styles.ctaBtn, isSmallScreen && { height: 44 }, isTallScreen && { height: 54 }]}
+                    style={[styles.ctaBtn, isCompactScreen && { height: 44 }, !isCompactScreen && { height: isTallScreen ? 54 : 50 }]}
                   >
                     {loading ? (
                       <ActivityIndicator size="small" color="#FFF" />
@@ -611,8 +617,8 @@ const LoginScreen = ({ navigation, route }) => {
             contentContainerStyle={[
               styles.scrollContent,
               {
-                paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+                paddingTop: isCompactScreen ? safeTopPadding : Math.max(safeTopPadding, 16),
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
                 justifyContent: shouldCenter ? 'center' : 'flex-start',
               },
             ]}
@@ -696,8 +702,8 @@ const LoginScreen = ({ navigation, route }) => {
             contentContainerStyle={[
               styles.scrollContent,
               {
-                paddingTop: safeTopPadding,
-                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+                paddingTop: isCompactScreen ? safeTopPadding : Math.max(safeTopPadding, 16),
+                paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
                 justifyContent: shouldCenter ? 'center' : 'flex-start',
               },
             ]}
@@ -709,18 +715,18 @@ const LoginScreen = ({ navigation, route }) => {
           >
             <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
-              <View style={[styles.headerLayoutRow, { marginBottom: isSmallScreen ? 4 : (isTallScreen ? 14 : 6) }]}>
+              <View style={[styles.headerLayoutRow, { marginBottom: isCompactScreen ? 6 : (isTallScreen ? 16 : 10) }]}>
                 <View style={styles.headerTextCol}>
-                  <Text style={[styles.heroHeadline, { fontSize: isSmallScreen ? 20 : 24, lineHeight: isSmallScreen ? 24 : 28, color: textMain }]}>
+                  <Text style={[styles.heroHeadline, { fontSize: isCompactScreen ? 20 : (isTallScreen ? 26 : 23), lineHeight: isCompactScreen ? 24 : (isTallScreen ? 32 : 28), color: textMain }]}>
                     Welcome{'\n'}
                     <Text style={{ color: PURPLE }}>Back!</Text>
                   </Text>
-                  <Text style={[styles.heroSub, { fontSize: isSmallScreen ? 11 : 11.5, lineHeight: isSmallScreen ? 14 : 15, marginTop: 2, color: textSub }]}>
+                  <Text style={[styles.heroSub, { fontSize: isCompactScreen ? 11 : 12, lineHeight: isCompactScreen ? 14 : 16, marginTop: 2, color: textSub }]}>
                     Enter your 4-digit MPIN to access your account
                   </Text>
                   <View style={[styles.safeShieldPill, { paddingVertical: 2, paddingHorizontal: 6, marginTop: 3 }]}>
                     <ShieldCheck size={12} color={PURPLE} />
-                    <Text style={[styles.safeShieldText, { fontSize: isSmallScreen ? 9.5 : 10 }]}>Your data is safe with us</Text>
+                    <Text style={[styles.safeShieldText, { fontSize: isCompactScreen ? 9.5 : 10 }]}>Your data is safe with us</Text>
                   </View>
                 </View>
                 <Image
@@ -729,7 +735,7 @@ const LoginScreen = ({ navigation, route }) => {
                       ? require('../../assets/images/hero_mpin_dark.png')
                       : require('../../assets/images/hero_mpin.png')
                   }
-                  style={[styles.heroMpinImg, { width: isSmallScreen ? 80 : (isTallScreen ? 120 : 95), height: isSmallScreen ? 65 : (isTallScreen ? 100 : 80) }]}
+                  style={[styles.heroMpinImg, { width: isCompactScreen ? 85 : (isTallScreen ? 135 : 110), height: isCompactScreen ? 65 : (isTallScreen ? 105 : 85) }]}
                   resizeMode="contain"
                 />
               </View>
@@ -737,7 +743,7 @@ const LoginScreen = ({ navigation, route }) => {
               {/* Floating Form Card */}
               <View style={[
                 styles.card,
-                { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: isSmallScreen ? 14 : (isTallScreen ? 20 : 16), paddingVertical: isSmallScreen ? 10 : (isTallScreen ? 22 : 14) },
+                { backgroundColor: cardBg, borderColor: cardBorder, paddingHorizontal: isCompactScreen ? 14 : (isTallScreen ? 20 : 18), paddingVertical: isCompactScreen ? 12 : (isTallScreen ? 22 : 16) },
               ]}>
                 <View>
                   {/* User Profile Pill */}
@@ -924,8 +930,8 @@ const LoginScreen = ({ navigation, route }) => {
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: safeTopPadding,
-              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
+              paddingTop: isCompactScreen ? safeTopPadding : Math.max(safeTopPadding, 16),
+              paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset + 12,
               justifyContent: shouldCenter ? 'center' : 'flex-start',
             },
           ]}
@@ -1417,6 +1423,42 @@ const styles = StyleSheet.create({
   },
   topSection: {
     width: '100%',
+  },
+  trustCardContainer: {
+    width: '100%',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    shadowColor: '#6C47FF',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  trustHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  trustIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trustHeaderContent: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  trustHeaderTitle: {
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  trustHeaderSub: {
+    fontWeight: '500',
+    marginTop: 1,
   },
   bottomSection: {
     width: '100%',
