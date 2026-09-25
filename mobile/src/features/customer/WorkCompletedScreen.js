@@ -178,6 +178,9 @@ const WorkCompletedScreen = ({ route, navigation }) => {
     : (typeof rawMedia === 'string' && rawMedia.trim().length > 0 ? [rawMedia] : []);
 
   const finalPayable = Math.max(0, totalAmount - promoDiscount);
+  const formattedButtonAmount = Number.isInteger(finalPayable) 
+    ? finalPayable.toString() 
+    : finalPayable.toFixed(2);
 
   return (
     <View style={styles.container}>
@@ -401,8 +404,8 @@ const WorkCompletedScreen = ({ route, navigation }) => {
               onPress={() => handlePayment('CASH')}
               activeOpacity={0.8}
             >
-              <Banknote size={18} color={theme.colors.text} style={{ marginRight: 6 }} />
-              <Text style={styles.cashBtnText} numberOfLines={1} adjustsFontSizeToFit>Pay via Cash</Text>
+              <Banknote size={17} color={theme.colors.text} style={{ marginRight: 6 }} />
+              <Text style={styles.cashBtnText} numberOfLines={1}>Pay via Cash</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
@@ -416,8 +419,8 @@ const WorkCompletedScreen = ({ route, navigation }) => {
                 end={{ x: 1, y: 1 }}
                 style={styles.onlineBtnGradient}
               >
-                <CreditCard size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.onlineBtnText} numberOfLines={1} adjustsFontSizeToFit>Pay Online ₹{finalPayable.toFixed(2)}</Text>
+                <CreditCard size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.onlineBtnText} numberOfLines={1}>Pay Online ₹{formattedButtonAmount}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -529,7 +532,7 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: Math.max(insets?.bottom || 0, 16) + 120,
+    paddingBottom: 20,
   },
   card: {
     backgroundColor: isDarkMode ? '#1E2337' : '#FFFFFF',
@@ -765,14 +768,16 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   },
   payGrid: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
+    gap: 10,
+    marginTop: 6,
+    alignItems: 'center',
   },
   cashBtn: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#F1F5F9',
-    paddingVertical: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -781,11 +786,12 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   },
   cashBtnText: {
     color: theme.colors.text,
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
   onlineBtnWrap: {
-    flex: 1.3,
+    flex: 1.55,
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#6C47FF',
@@ -796,14 +802,17 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   },
   onlineBtnGradient: {
     flexDirection: 'row',
-    paddingVertical: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   onlineBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '800',
+    letterSpacing: -0.2,
+    flexShrink: 1,
   },
   zoomOverlay: {
     flex: 1,
