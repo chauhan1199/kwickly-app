@@ -13,8 +13,11 @@ import {
   PermissionsAndroid,
   Dimensions,
   Animated,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  StatusBar,
+  useWindowDimensions
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import Geolocation from '@react-native-community/geolocation';
 import CustomAlert from './ui/CustomAlert';
@@ -635,7 +638,9 @@ export const AddressMapModal = ({
     }
   };
 
-  const dynamicStyles = createStyles(theme, isDarkMode);
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const dynamicStyles = createStyles(theme, isDarkMode, insets, windowHeight);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -763,6 +768,7 @@ export const AddressMapModal = ({
           style={dynamicStyles.bottomSheet}
         >
           <ScrollView
+            style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={dynamicStyles.formScroll}
             keyboardShouldPersistTaps="handled"
@@ -868,8 +874,10 @@ export const AddressMapModal = ({
                 />
               </View>
             </View>
+          </ScrollView>
 
-            {/* Save Address Button */}
+          {/* Pinned Save Address Button */}
+          <View style={dynamicStyles.saveBtnContainer}>
             <TouchableOpacity
               style={dynamicStyles.saveBtn}
               onPress={handleSaveAddress}
@@ -894,7 +902,7 @@ export const AddressMapModal = ({
                 )}
               </LinearGradient>
             </TouchableOpacity>
-          </ScrollView>
+          </View>
         </KeyboardAvoidingView>
 
         {/* Custom Alert Modal */}
@@ -914,14 +922,18 @@ export const AddressMapModal = ({
   );
 };
 
-const createStyles = (theme, isDarkMode) =>
+const createStyles = (theme, isDarkMode, insets, windowHeight = 800) =>
   StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC'
     },
     headerGradient: {
-      paddingTop: Platform.OS === 'ios' ? 50 : 20,
+      paddingTop: Math.max(
+        insets?.top || 0,
+        Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44,
+        20
+      ),
       paddingHorizontal: 16,
       paddingBottom: 16,
       borderBottomLeftRadius: 24,
@@ -1012,7 +1024,8 @@ const createStyles = (theme, isDarkMode) =>
       marginTop: 2
     },
     mapWrapper: {
-      flex: 1,
+      height: Math.max(150, Math.min(230, Math.round(windowHeight * 0.26))),
+      width: '100%',
       position: 'relative'
     },
     map: {
@@ -1100,7 +1113,7 @@ const createStyles = (theme, isDarkMode) =>
       zIndex: 15
     },
     bottomSheet: {
-      maxHeight: '70%',
+      flex: 1,
       backgroundColor: isDarkMode ? '#1E293B' : '#fff',
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
@@ -1111,12 +1124,13 @@ const createStyles = (theme, isDarkMode) =>
       shadowOffset: { width: 0, height: -4 },
       shadowOpacity: 0.1,
       shadowRadius: 8,
-      elevation: 12
+      elevation: 12,
+      overflow: 'hidden'
     },
     formScroll: {
       paddingHorizontal: 16,
       paddingTop: 16,
-      paddingBottom: 60
+      paddingBottom: 20
     },
     addressBanner: {
       flexDirection: 'row',
@@ -1205,10 +1219,17 @@ const createStyles = (theme, isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center'
     },
+    saveBtnContainer: {
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: Math.max(insets?.bottom || 0, Platform.OS === 'android' ? 14 : 20),
+      backgroundColor: isDarkMode ? '#1E293B' : '#fff',
+      borderTopWidth: 1,
+      borderTopColor: isDarkMode ? '#334155' : '#F1F5F9',
+    },
     saveBtn: {
       borderRadius: 16,
       overflow: 'hidden',
-      marginTop: 8,
       shadowColor: '#6C47FF',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,

@@ -402,7 +402,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
               activeOpacity={0.8}
             >
               <Banknote size={18} color={theme.colors.text} style={{ marginRight: 6 }} />
-              <Text style={styles.cashBtnText}>Pay via Cash</Text>
+              <Text style={styles.cashBtnText} numberOfLines={1} adjustsFontSizeToFit>Pay via Cash</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
@@ -417,7 +417,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
                 style={styles.onlineBtnGradient}
               >
                 <CreditCard size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.onlineBtnText}>Pay Online ₹{finalPayable.toFixed(2)}</Text>
+                <Text style={styles.onlineBtnText} numberOfLines={1} adjustsFontSizeToFit>Pay Online ₹{finalPayable.toFixed(2)}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -529,7 +529,7 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: Math.max(insets?.bottom || 0, 16) + 40,
+    paddingBottom: Math.max(insets?.bottom || 0, 16) + 120,
   },
   card: {
     backgroundColor: isDarkMode ? '#1E2337' : '#FFFFFF',
@@ -562,6 +562,8 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
     fontSize: 14.5,
     fontWeight: '800',
     color: theme.colors.text,
+    flex: 1,
+    flexShrink: 1,
   },
   cardSub: {
     fontSize: 12.5,
