@@ -65,6 +65,7 @@ import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
 import { walletService } from '../../services/walletService';
 import LinearGradient from 'react-native-linear-gradient';
 import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
+import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const TOP_UP_PRESETS = [100, 200, 500, 1000];
 const MIN_SAFETY_FREEZE = 100; // ₹100 safety balance
@@ -1292,15 +1293,23 @@ const ShopWalletScreen = ({ navigation }) => {
       <Modal visible={transactionModalVisible} transparent animationType="fade" onRequestClose={() => setTransactionModalVisible(false)}>
         <View style={styles.centerOverlay}>
           <View style={styles.receiptCard}>
-            {/* Header with verified badge */}
+            {/* Header with brand logo and verified badge */}
             <View style={styles.receiptTopHeader}>
-              <View style={styles.receiptLogoBadge}>
-                <ShieldCheck size={14} color="#10B981" />
-                <Text style={styles.receiptLogoText}>KWICKLY VERIFIED RECEIPT</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <KwicklyIcon size={26} />
+                <Text style={{ fontSize: 16, fontWeight: '900', color: theme.colors.text, letterSpacing: -0.3 }}>
+                  Kwick<Text style={{ color: '#6C47FF' }}>ly</Text>
+                </Text>
               </View>
-              <TouchableOpacity onPress={() => setTransactionModalVisible(false)} style={styles.receiptCloseBtn}>
-                <X size={16} color={theme.colors.textDim} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={styles.receiptLogoBadge}>
+                  <ShieldCheck size={13} color="#10B981" />
+                  <Text style={styles.receiptLogoText}>VERIFIED</Text>
+                </View>
+                <TouchableOpacity onPress={() => setTransactionModalVisible(false)} style={styles.receiptCloseBtn}>
+                  <X size={16} color={theme.colors.textDim} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {selectedTransaction && (

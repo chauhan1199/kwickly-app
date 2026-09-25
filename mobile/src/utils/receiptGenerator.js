@@ -1,5 +1,6 @@
 import { Share, NativeModules, Platform } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { KWICKLY_LOGO_BASE64 } from '../assets/logoBase64';
 
 const { NativeUpiPayment } = NativeModules;
 
@@ -123,10 +124,13 @@ export const printReceiptPdf = async (txn) => {
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background: #F8FAFC; color: #0F172A; }
     .receipt-container { max-width: 500px; margin: 0 auto; background: #FFFFFF; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border: 1px solid #E2E8F0; }
-    .header { background: linear-gradient(135deg, #6C47FF 0%, #4F46E5 100%); padding: 24px; color: #FFFFFF; position: relative; }
-    .brand { font-size: 24px; font-weight: 900; letter-spacing: 0.5px; }
-    .subtitle { font-size: 11px; font-weight: 700; color: #E0E7FF; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.8px; }
-    .badge { position: absolute; top: 24px; right: 24px; background: #10B981; color: #FFFFFF; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; }
+    .header { background: linear-gradient(135deg, #6C47FF 0%, #4F46E5 100%); padding: 22px 24px; color: #FFFFFF; position: relative; display: flex; justify-content: space-between; align-items: center; }
+    .brand-row { display: flex; align-items: center; gap: 14px; }
+    .logo-box { width: 50px; height: 50px; background: #FFFFFF; border-radius: 14px; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
+    .logo-img { width: 42px; height: 42px; object-fit: contain; }
+    .brand { font-size: 26px; font-weight: 900; letter-spacing: -0.4px; line-height: 1.1; }
+    .subtitle { font-size: 10px; font-weight: 700; color: #E0E7FF; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.8px; }
+    .badge { background: #10B981; color: #FFFFFF; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; white-space: nowrap; }
     .amount-box { padding: 24px; text-align: center; border-bottom: 1px dashed #E2E8F0; }
     .desc { font-size: 13px; color: #64748B; font-weight: 600; margin-bottom: 6px; }
     .amount { font-size: 36px; font-weight: 900; color: #059669; letter-spacing: -1px; margin-bottom: 8px; }
@@ -145,9 +149,16 @@ export const printReceiptPdf = async (txn) => {
 <body>
   <div class="receipt-container">
     <div class="header">
-      <div class="brand">KWICKLY</div>
-      <div class="subtitle">Official Transaction Receipt & Audit Ledger</div>
-      <div class="badge">✓ VERIFIED</div>
+      <div class="brand-row">
+        <div class="logo-box">
+          <img class="logo-img" src="${KWICKLY_LOGO_BASE64}" alt="Kwickly Logo" />
+        </div>
+        <div>
+          <div class="brand">Kwick<span style="color:#C4B5FD">ly</span></div>
+          <div class="subtitle">Official Transaction Receipt & Audit Ledger</div>
+        </div>
+      </div>
+      <div class="badge">✓ VERIFIED RECEIPT</div>
     </div>
     <div class="amount-box">
       <div class="desc">${description}</div>

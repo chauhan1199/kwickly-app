@@ -336,22 +336,54 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             }
             canvas.drawRect(0f, 0f, 595f, 130f, headerPaint)
 
-            // Logo & Title
-            val titlePaint = Paint().apply {
+            // Official Kwickly Logo Icon & Wordmark
+            var textStartX = 36f
+            try {
+                val logoDrawableId = reactCtx.resources.getIdentifier("splash_logo", "drawable", reactCtx.packageName)
+                if (logoDrawableId != 0) {
+                    val logoBitmap = BitmapFactory.decodeResource(reactCtx.resources, logoDrawableId)
+                    if (logoBitmap != null) {
+                        // White rounded container for maximum contrast on purple gradient
+                        val logoBoxPaint = Paint().apply {
+                            color = Color.WHITE
+                            isAntiAlias = true
+                        }
+                        val logoBox = RectF(36f, 32f, 92f, 88f)
+                        canvas.drawRoundRect(logoBox, 14f, 14f, logoBoxPaint)
+
+                        val logoDest = RectF(40f, 36f, 88f, 84f)
+                        canvas.drawBitmap(logoBitmap, null, logoDest, Paint(Paint.FILTER_BITMAP_FLAG).apply { isAntiAlias = true })
+                        textStartX = 104f
+                    }
+                }
+            } catch (e: Exception) {
+                textStartX = 36f
+            }
+
+            // Wordmark: Kwick (White) + ly (Light Purple #DDD6FE)
+            val kwickPaint = Paint().apply {
                 color = Color.WHITE
                 textSize = 28f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 isAntiAlias = true
             }
-            canvas.drawText("KWICKLY", 36f, 58f, titlePaint)
-
-            val subTitlePaint = Paint().apply {
-                color = Color.parseColor("#E0E7FF")
-                textSize = 12f
+            val lyPaint = Paint().apply {
+                color = Color.parseColor("#DDD6FE")
+                textSize = 28f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 isAntiAlias = true
             }
-            canvas.drawText("OFFICIAL TRANSACTION RECEIPT & AUDIT LEDGER", 36f, 82f, subTitlePaint)
+            canvas.drawText("Kwick", textStartX, 62f, kwickPaint)
+            val kwickWidth = kwickPaint.measureText("Kwick")
+            canvas.drawText("ly", textStartX + kwickWidth, 62f, lyPaint)
+
+            val subTitlePaint = Paint().apply {
+                color = Color.parseColor("#E0E7FF")
+                textSize = 10.5f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                isAntiAlias = true
+            }
+            canvas.drawText("OFFICIAL TRANSACTION RECEIPT & AUDIT LEDGER", textStartX, 82f, subTitlePaint)
 
             // Verified Badge Pill (Top Right)
             val badgeBgPaint = Paint().apply {
