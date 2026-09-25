@@ -16,7 +16,7 @@ export const SearchBar = ({
     <View style={[styles.searchBar, { backgroundColor: theme?.colors?.card || '#fff', borderColor: theme?.colors?.border || '#E2E8F0', borderWidth: 1 }, style]}>
       <Search size={18} color={theme?.colors?.textMuted || '#9ca3af'} style={{ marginRight: 8, flexShrink: 0 }} />
       <TextInput
-        style={[styles.searchPlaceholder, { color: theme?.colors?.text || '#1E293B', flex: 1, paddingVertical: 8, paddingRight: 6 }]}
+        style={[styles.searchPlaceholder, { color: theme?.colors?.text || '#1E293B', flex: 1, paddingVertical: 8, paddingRight: 10, fontSize: 13 }]}
         placeholder={placeholder}
         placeholderTextColor={theme?.colors?.textMuted || '#9ca3af'}
         value={value}

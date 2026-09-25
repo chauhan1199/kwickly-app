@@ -24,7 +24,8 @@ import {
   Sparkles,
   Award,
   Zap,
-  Info
+  Info,
+  ChevronLeft
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { customerService } from '../../services/customerService';
@@ -171,6 +172,18 @@ const WorkerProfileScreen = ({ route, navigation }) => {
       >
         <View style={styles.heroDecor1} />
         <View style={styles.heroDecor2} />
+
+        {/* Back navigation button row */}
+        <View style={styles.heroTopBar}>
+          <TouchableOpacity 
+            style={styles.heroBackBtn} 
+            onPress={() => navigation.goBack()} 
+            activeOpacity={0.8}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <ChevronLeft size={22} color="#ffffff" />
+          </TouchableOpacity>
+        </View>
 
         {/* Content row: Left details, Right framed worker photo */}
         <View style={styles.heroContentRow}>
@@ -563,8 +576,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   hero: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 14 : 36,
-    paddingBottom: 22,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 32,
+    paddingBottom: 20,
     paddingHorizontal: 16,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -588,6 +601,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     height: 120,
     borderRadius: 60,
     backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  heroTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  heroBackBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   heroContentRow: {
     flexDirection: 'row',
@@ -782,20 +808,24 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   sectionTitleWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 6,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14.5,
     fontWeight: '800',
     color: theme.colors.text,
+    flexShrink: 1,
   },
   sectionSubtitleBadge: {
-    fontSize: 12,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#6C47FF',
     backgroundColor: 'rgba(108, 71, 255, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 7,
+    flexShrink: 0,
   },
   serviceItemCard: {
     backgroundColor: theme.colors.surface,
@@ -1050,9 +1080,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     right: 0,
     backgroundColor: theme.colors.surface,
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     elevation: 10,
@@ -1067,13 +1097,15 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     maxWidth: 720,
+    gap: 8,
   },
   bottomPriceCol: {
     flex: 1,
-    marginRight: 12,
+    minWidth: 80,
+    marginRight: 6,
   },
   bottomRateLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: theme.colors.textDim,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -1081,39 +1113,42 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   bottomPriceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     marginTop: 2,
+    flexWrap: 'nowrap',
   },
   bottomPrice: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '900',
     color: theme.colors.text,
   },
   selectedSubBadge: {
     backgroundColor: 'rgba(108, 71, 255, 0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 5,
     flexShrink: 1,
   },
   bottomSubPill: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: '#6C47FF',
   },
   bookButton: {
-    flex: 1.2,
-    borderRadius: 14,
+    borderRadius: 12,
     overflow: 'hidden',
+    flexShrink: 0,
   },
   bookButtonGradient: {
-    paddingVertical: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   bookButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 12.5,
     fontWeight: '800',
   }
 });

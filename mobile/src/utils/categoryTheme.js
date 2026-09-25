@@ -62,6 +62,7 @@ export const SERVICE_LOCAL_IMAGES = {
   driver:         require('../assets/services/driver.jpeg'),
   photo:          require('../assets/services/photography.jpeg'),
   camera:         require('../assets/services/photography.jpeg'),
+  creative:       require('../assets/services/photography.jpeg'),
   video:          require('../assets/services/photography.jpeg'),
   interior:       require('../assets/services/interior_design.jpeg'),
   decor:          require('../assets/services/interior_design.jpeg'),
@@ -69,9 +70,49 @@ export const SERVICE_LOCAL_IMAGES = {
   leakage:        require('../assets/services/waterproofing.jpeg'),
   laptop:         require('../assets/services/laptop_repair.jpeg'),
   computer:       require('../assets/services/computer_repair.jpeg'),
+  tech:           require('../assets/services/computer_repair.jpeg'),
+  support:        require('../assets/services/laptop_repair.jpeg'),
+  solar:          require('../assets/services/electrician.jpeg'),
+  renewable:      require('../assets/services/electrician.jpeg'),
+  pool:           require('../assets/services/cleaning.jpeg'),
+  gym:            require('../assets/services/yoga_fitness.jpeg'),
   appliance:      require('../assets/services/appliance_repair.jpeg'),
   repair:         require('../assets/services/appliance_repair.jpeg'),
   laundry:        require('../assets/services/laundry.jpeg'),
+};
+
+export const ICON_NAME_MAP = {
+  wrench: '🔧',
+  tool: '🛠️',
+  tools: '🛠️',
+  hammer: '🔨',
+  sun: '☀️',
+  solar: '☀️',
+  laptop: '💻',
+  computer: '💻',
+  tech: '💻',
+  camera: '📸',
+  photo: '📸',
+  video: '🎥',
+  zap: '⚡',
+  sparkles: '✨',
+  star: '⭐',
+  shield: '🛡️',
+  brush: '🖌️',
+  paint: '🎨',
+  car: '🚗',
+  truck: '🚚',
+  droplet: '💧',
+  water: '💧',
+  shower: '🚿',
+  fan: '💨',
+  plug: '🔌',
+  pool: '🏊‍♂️',
+  gym: '💪',
+  fitness: '🏋️‍♂️',
+  home: '🏠',
+  lock: '🔒',
+  briefcase: '💼',
 };
 
 export const CATEGORY_ICON_MAP = {
@@ -113,6 +154,8 @@ export const CATEGORY_ICON_MAP = {
   'training': '🧘‍♀️',
   'gym': '💪',
   'yoga': '🧘‍♀️',
+  'pool': '🏊‍♂️',
+  'swimming': '🏊‍♂️',
   'hr': '👥',
   'staffing': '👔',
   'cleaning': '🧹',
@@ -145,6 +188,10 @@ export const CATEGORY_ICON_MAP = {
   'water': '💧',
   'computer': '💻',
   'laptop': '💻',
+  'tech': '💻',
+  'tech support': '💻',
+  'solar': '☀️',
+  'renewable': '☀️',
   'tutor': '📚',
   'education': '🎓',
   'elder': '👵',
@@ -155,20 +202,51 @@ export const CATEGORY_ICON_MAP = {
   'interior': '🏡',
   'decor': '🖼️',
   'waterproofing': '☔',
+  'waterproof': '☔',
   'photography': '📸',
-  'videography': '🎥'
+  'videography': '🎥',
+  'creative': '🎨'
+};
+
+// Helper to determine if a string is a single emoji/symbol (not an English word like "Wrench")
+const isEmojiOrSymbol = (str) => {
+  if (!str) return false;
+  const trimmed = str.trim();
+  if (trimmed.length === 0) return false;
+  // If it's 1 or 2 characters and not pure ASCII letters
+  if (trimmed.length <= 2) return true;
+  // If it contains surrogate pairs or non-ASCII unicode
+  return /[^\u0000-\u007F]/.test(trimmed) && !/^[a-zA-Z0-9_\s]+$/.test(trimmed);
 };
 
 export const getCategoryIcon = (name, fallbackIcon) => {
-  if (fallbackIcon && fallbackIcon !== '⚡' && fallbackIcon !== '✨' && fallbackIcon.trim().length > 0) {
+  // If fallbackIcon is a known named string like "Wrench", translate it to emoji
+  if (fallbackIcon && typeof fallbackIcon === 'string') {
+    const trimmed = fallbackIcon.trim();
+    const lowerIcon = trimmed.toLowerCase();
+    if (ICON_NAME_MAP[lowerIcon]) {
+      return ICON_NAME_MAP[lowerIcon];
+    }
+    // If it's already an emoji/symbol, use it
+    if (isEmojiOrSymbol(trimmed) && trimmed !== '⚡' && trimmed !== '✨') {
+      return trimmed;
+    }
+  }
+
+  // Next, match against category name
+  if (name && typeof name === 'string') {
+    const lower = name.toLowerCase();
+    for (const [key, icon] of Object.entries(CATEGORY_ICON_MAP)) {
+      if (lower.includes(key)) return icon;
+    }
+  }
+
+  // If fallbackIcon is an emoji, use it
+  if (fallbackIcon && isEmojiOrSymbol(fallbackIcon)) {
     return fallbackIcon;
   }
-  if (!name) return '🛠️';
-  const lower = name.toLowerCase();
-  for (const [key, icon] of Object.entries(CATEGORY_ICON_MAP)) {
-    if (lower.includes(key)) return icon;
-  }
-  return fallbackIcon || '🛠️';
+
+  return '🛠️';
 };
 
 export const getCategoryLocalImage = (name) => {

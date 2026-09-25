@@ -585,7 +585,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.content, { paddingBottom: 16 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: 95 }]}
           keyboardShouldPersistTaps="handled"
         >
 
@@ -602,8 +602,8 @@ const DescribeJobScreen = ({ route, navigation }) => {
                   </Text>
                 </View>
               )}
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={styles.preferredWorkerInfo}>
+                <View style={styles.preferredWorkerNameRow}>
                   <Text style={styles.preferredWorkerName} numberOfLines={1}>{selectedWorker.name}</Text>
                   {selectedWorker.verified && (
                     <View style={styles.preferredWorkerKyc}>
@@ -1664,37 +1664,52 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
   },
+  preferredWorkerInfo: {
+    flex: 1,
+    marginLeft: 10,
+    marginRight: 6,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+  preferredWorkerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+    gap: 5,
+  },
   preferredWorkerName: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '800',
     color: theme.colors.text,
+    flexShrink: 1,
   },
   preferredWorkerKyc: {
     backgroundColor: 'rgba(16,185,129,0.18)',
     paddingHorizontal: 5,
     paddingVertical: 1.5,
-    borderRadius: 6,
-    marginLeft: 6,
+    borderRadius: 5,
+    flexShrink: 0,
   },
   preferredWorkerKycText: {
     color: '#10b981',
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '800',
   },
   preferredWorkerSub: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.colors.textDim,
     marginTop: 2,
   },
   preferredWorkerBadge: {
     backgroundColor: 'rgba(108,71,255,0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 3.5,
+    borderRadius: 6,
+    flexShrink: 0,
+    alignSelf: 'center',
   },
   preferredWorkerBadgeText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '800',
     color: '#6C47FF',
   },

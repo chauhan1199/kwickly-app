@@ -488,7 +488,7 @@ const BookServiceScreen = ({ navigation, route }) => {
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Search categories, subcategories (e.g. AC, Tap, Fan)..."
+          placeholder="Search services, pros, repair..."
           theme={theme}
           onFilterPress={() => {}}
         />
@@ -1176,11 +1176,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 16,
   },
   categoryCard: {
-    width: '31%',
+    width: '31.5%',
     backgroundColor: theme.colors.surface,
     borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     alignItems: 'center',
     marginBottom: 10,
     borderWidth: 1,
@@ -1208,14 +1208,16 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   categoryIconText: {
     fontSize: 22,
+    textAlign: 'center',
   },
   categoryName: {
-    fontSize: 12,
+    fontSize: 10.5,
     fontWeight: '700',
     color: theme.colors.text,
     textAlign: 'center',
-    lineHeight: 16,
-    minHeight: 32,
+    lineHeight: 14,
+    minHeight: 28,
+    paddingHorizontal: 2,
   },
   categoryBadge: {
     backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
@@ -1341,25 +1343,30 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   proInfoCol: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
+    marginRight: 8,
+    minWidth: 0,
   },
   proNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
+    flexWrap: 'nowrap',
   },
   proName: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '800',
     color: theme.colors.text,
+    flexShrink: 1,
   },
   kycBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(16, 185, 129, 0.14)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 5,
+    flexShrink: 0,
   },
   kycBadgeText: {
     fontSize: 9,
@@ -1398,6 +1405,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   proPriceCol: {
     alignItems: 'flex-end',
+    flexShrink: 0,
+    minWidth: 55,
   },
   priceLabel: {
     fontSize: 10,
@@ -1456,40 +1465,42 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flexShrink: 1,
   },
   etaText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#10b981',
   },
   actionBtnGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flexShrink: 0,
   },
   viewProfileBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 5.5,
+    borderRadius: 9,
     backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#F1F5F9',
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
   viewProfileBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: theme.colors.text,
   },
   bookNowBtn: {
-    borderRadius: 10,
+    borderRadius: 9,
     overflow: 'hidden',
   },
   bookNowBtnGradient: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 5.5,
   },
   bookNowBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     color: '#ffffff',
   },
