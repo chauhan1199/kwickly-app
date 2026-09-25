@@ -45,9 +45,10 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const screenHeight = Dimensions.get('screen').height;
+  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
   const isSmallScreen = windowHeight < 720;
   const isTallScreen = windowHeight >= 760 || screenHeight >= 800;
-  const shouldCenter = !keyboardVisible && windowHeight >= 700;
+  const shouldCenter = !keyboardVisible && (windowHeight >= 740 || screenHeight >= 780);
   const { signIn } = useAuth();
 
   const [code, setCode] = useState(['', '', '', '']);
@@ -60,8 +61,6 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const inputs = useRef([]);
   const timerRef = useRef(null);
   const scrollRef = useRef(null);
-
-  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
 
   useEffect(() => {
     const t = setTimeout(() => { if (inputs.current[0]) inputs.current[0].focus(); }, 350);

@@ -55,9 +55,10 @@ const SetMpinScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const screenHeight = Dimensions.get('screen').height;
+  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
   const isSmallScreen = windowHeight < 720;
   const isTallScreen = windowHeight >= 760;
-  const shouldCenter = !keyboardVisible && windowHeight >= 700;
+  const shouldCenter = !keyboardVisible && (windowHeight >= 740 || screenHeight >= 780);
   const { signIn } = useAuth();
 
   const [mpin, setMpin] = useState('');
@@ -68,8 +69,6 @@ const SetMpinScreen = ({ navigation, route }) => {
 
   const mpinInputRef = useRef(null);
   const scrollRef = useRef(null);
-
-  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
 
   useEffect(() => {
     const timer1 = setTimeout(() => {

@@ -60,9 +60,10 @@ const LoginScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const screenHeight = Dimensions.get('screen').height;
+  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
   const isSmallScreen = windowHeight < 720;
   const isTallScreen = windowHeight >= 760;
-  const shouldCenter = !keyboardVisible && windowHeight >= 700;
+  const shouldCenter = !keyboardVisible && (windowHeight >= 740 || screenHeight >= 780);
   const { signIn } = useAuth();
 
   const [step, setStep] = useState('PHONE');
@@ -88,8 +89,6 @@ const LoginScreen = ({ navigation, route }) => {
   const scrollRef = useRef(null);
   const isCheckingRef = useRef(false);
   const shakeAnim = useRef(new Animated.Value(0)).current;
-
-  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
 
   useEffect(() => {
     if (prefillPhone && prefillPhone.length === 10) handleCheckNumber(prefillPhone);

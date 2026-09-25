@@ -54,9 +54,10 @@ const RoleSelection = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const screenHeight = Dimensions.get('screen').height;
+  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
   const isSmallScreen = windowHeight < 720;
   const isTallScreen = windowHeight >= 760;
-  const shouldCenter = !keyboardVisible && windowHeight >= 700;
+  const shouldCenter = !keyboardVisible && (windowHeight >= 740 || screenHeight >= 780);
 
   const [selectedRole, setSelectedRole] = useState(route?.params?.role || 'CUSTOMER');
   const [phoneNumber, setPhoneNumber] = useState(route?.params?.prefillPhone || '');
@@ -69,8 +70,6 @@ const RoleSelection = ({ navigation, route }) => {
   const nameInputRef = useRef(null);
   const phoneInputRef = useRef(null);
   const scrollRef = useRef(null);
-
-  const { keyboardVisible, keyboardHeight, bottomInset } = useKeyboardBottomInset(30);
 
   // Legal Modal
   const [legalModalVisible, setLegalModalVisible] = useState(false);
