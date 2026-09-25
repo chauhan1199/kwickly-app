@@ -14,14 +14,20 @@ const BannerCarousel = ({
 }) => {
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
   const directionRef = useRef(1);
   const navigation = useNavigation();
+
+  // Sync ref whenever state changes
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
   useEffect(() => {
     if (!banners || banners.length <= 1) return;
     
     const interval = setInterval(() => {
-      let nextIndex = currentIndex + directionRef.current;
+      let nextIndex = currentIndexRef.current + directionRef.current;
       if (nextIndex >= banners.length) {
         directionRef.current = -1;
         nextIndex = Math.max(0, banners.length - 2);
@@ -30,37 +36,23 @@ const BannerCarousel = ({
         nextIndex = Math.min(1, banners.length - 1);
       }
 
-      try {
-        flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-        setCurrentIndex(nextIndex);
-      } catch (_) {
-        flatListRef.current?.scrollToOffset({ offset: nextIndex * (itemWidth + 10), animated: true });
-        setCurrentIndex(nextIndex);
-      }
+      currentIndexRef.current = nextIndex;
+      setCurrentIndex(nextIndex);
+
+      flatListRef.current?.scrollToOffset({
+        offset: nextIndex * (itemWidth + 10),
+        animated: true,
+      });
     }, autoPlayInterval);
 
     return () => clearInterval(interval);
-  }, [currentIndex, banners, autoPlayInterval, itemWidth]);
-
-  const getItemLayout = (_, index) => ({
-    length: itemWidth + 10,
-    offset: (itemWidth + 10) * index,
-    index,
-  });
-
-  const onScrollToIndexFailed = (info) => {
-    setTimeout(() => {
-      flatListRef.current?.scrollToOffset({
-        offset: info.index * (itemWidth + 10),
-        animated: true,
-      });
-    }, 80);
-  };
+  }, [banners?.length, autoPlayInterval, itemWidth]);
 
   const handleScroll = (event) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / (itemWidth + 10)); // 10 is the separator width
-    if (index !== currentIndex && index >= 0 && index < banners.length) {
+    const index = Math.round(offsetX / (itemWidth + 10));
+    if (index !== currentIndexRef.current && index >= 0 && index < banners.length) {
+      currentIndexRef.current = index;
       setCurrentIndex(index);
     }
   };
@@ -75,7 +67,7 @@ const BannerCarousel = ({
       }}
     >
       <Image source={{ uri: getImageUrl(item.imageUrl) }} style={styles.image} />
-      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.overlay}>
+      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={styles.overlay}>
         <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
         {item.subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{item.subtitle}</Text> : null}
       </LinearGradient>
@@ -90,18 +82,30 @@ const BannerCarousel = ({
         ref={flatListRef}
         data={banners}
         renderItem={renderItem}
-        keyExtractor={(item, index) => item._id || index.toString()}
+        keyExtractor={(item, index) => item._id || item.id || index.toString()}
         horizontal
         showsHorizontalScrollIndicator={false}
         snapToInterval={itemWidth + 10}
+        snapToAlignment="start"
         decelerationRate="fast"
         onMomentumScrollEnd={handleScroll}
         style={{ height: itemHeight }}
         contentContainerStyle={contentContainerStyle}
         ItemSeparatorComponent={() => <View style={{ width: 10 }} />}
-        getItemLayout={getItemLayout}
-        onScrollToIndexFailed={onScrollToIndexFailed}
       />
+      {banners.length > 1 && (
+        <View style={styles.paginationDots} pointerEvents="none">
+          {banners.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                currentIndex === i ? styles.dotActive : styles.dotInactive,
+              ]}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 };
@@ -135,7 +139,27 @@ const styles = StyleSheet.create({
   subtitle: {
     color: 'rgba(255,255,255,0.9)',
     fontSize: 12,
-  }
+  },
+  paginationDots: {
+    position: 'absolute',
+    bottom: 8,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  dot: {
+    height: 4,
+    borderRadius: 2,
+  },
+  dotActive: {
+    width: 14,
+    backgroundColor: '#ffffff',
+  },
+  dotInactive: {
+    width: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+  },
 });
 
 export default BannerCarousel;

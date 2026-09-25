@@ -230,16 +230,24 @@ const BookServiceScreen = ({ navigation, route }) => {
     return { lat: 23.0225, lng: 72.5714 };
   }, [route.params?.location, user]);
 
-  // Load cached categories immediately on launch
+  // Load cached categories and banners immediately on launch
   useEffect(() => {
-    AsyncStorage.getItem('kwickly_cache_categories')
-      .then(catJson => {
+    AsyncStorage.multiGet(['kwickly_cache_categories', 'kwickly_cache_category_banners'])
+      .then(([[ , catJson], [ , banJson]]) => {
         if (catJson) {
           try {
             const parsed = JSON.parse(catJson);
             if (Array.isArray(parsed) && parsed.length > 0) {
               setCategories(parsed);
               setIsLoading(false);
+            }
+          } catch (_) {}
+        }
+        if (banJson) {
+          try {
+            const parsedB = JSON.parse(banJson);
+            if (Array.isArray(parsedB) && parsedB.length > 0) {
+              setBanners(parsedB);
             }
           } catch (_) {}
         }
@@ -276,7 +284,11 @@ const BookServiceScreen = ({ navigation, route }) => {
       }
 
       if (bannerRes.status === 'fulfilled' && bannerRes.value?.data?.status === 'success') {
-        setBanners(bannerRes.value.data.data.filter(b => b.position === 'CATEGORY_PAGE'));
+        const allB = Array.isArray(bannerRes.value.data.data) ? bannerRes.value.data.data : [];
+        const catBanners = allB.filter(b => b.position === 'CATEGORY_PAGE');
+        const finalBanners = catBanners.length >= 2 ? catBanners : (allB.length > 0 ? allB : catBanners);
+        setBanners(finalBanners);
+        AsyncStorage.setItem('kwickly_cache_category_banners', JSON.stringify(finalBanners)).catch(() => {});
       }
 
       if (workerRes.status === 'fulfilled' && workerRes.value?.data?.status === 'success') {

@@ -146,8 +146,9 @@ const ShopScreen = ({ navigation }) => {
         const bList = bannersResult.value.data?.data;
         if (Array.isArray(bList)) {
           const shopBanners = bList.filter(b => b.position === 'SHOP_PAGE');
-          setBanners(shopBanners);
-          AsyncStorage.setItem('kwickly_cache_banners', JSON.stringify(shopBanners)).catch(() => {});
+          const finalBanners = shopBanners.length >= 2 ? shopBanners : (bList.length > 0 ? bList : shopBanners);
+          setBanners(finalBanners);
+          AsyncStorage.setItem('kwickly_cache_banners', JSON.stringify(finalBanners)).catch(() => {});
         }
       }
 

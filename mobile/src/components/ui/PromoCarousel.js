@@ -37,15 +37,20 @@ export const PromoCarousel = ({
   const cardWidth = itemWidth || (windowWidth - 32);
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
   const directionRef = useRef(1);
 
   const displayPromos = Array.isArray(promos) && promos.length > 0 ? promos : DEFAULT_PROMOS;
 
   useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
     if (displayPromos.length <= 1) return;
 
     const interval = setInterval(() => {
-      let nextIndex = currentIndex + directionRef.current;
+      let nextIndex = currentIndexRef.current + directionRef.current;
       if (nextIndex >= displayPromos.length) {
         directionRef.current = -1;
         nextIndex = Math.max(0, displayPromos.length - 2);
@@ -54,37 +59,23 @@ export const PromoCarousel = ({
         nextIndex = Math.min(1, displayPromos.length - 1);
       }
 
-      try {
-        flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-        setCurrentIndex(nextIndex);
-      } catch (_) {
-        flatListRef.current?.scrollToOffset({ offset: nextIndex * (cardWidth + 10), animated: true });
-        setCurrentIndex(nextIndex);
-      }
+      currentIndexRef.current = nextIndex;
+      setCurrentIndex(nextIndex);
+
+      flatListRef.current?.scrollToOffset({
+        offset: nextIndex * (cardWidth + 10),
+        animated: true,
+      });
     }, autoPlayInterval);
 
     return () => clearInterval(interval);
-  }, [currentIndex, displayPromos, autoPlayInterval, cardWidth]);
-
-  const getItemLayout = (_, index) => ({
-    length: cardWidth + 10,
-    offset: (cardWidth + 10) * index,
-    index,
-  });
-
-  const onScrollToIndexFailed = (info) => {
-    setTimeout(() => {
-      flatListRef.current?.scrollToOffset({
-        offset: info.index * (cardWidth + 10),
-        animated: true,
-      });
-    }, 80);
-  };
+  }, [displayPromos.length, autoPlayInterval, cardWidth]);
 
   const handleScroll = (event) => {
     const offsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(offsetX / (cardWidth + 10));
-    if (index !== currentIndex && index >= 0 && index < displayPromos.length) {
+    if (index !== currentIndexRef.current && index >= 0 && index < displayPromos.length) {
+      currentIndexRef.current = index;
       setCurrentIndex(index);
     }
   };
@@ -141,10 +132,9 @@ export const PromoCarousel = ({
         horizontal
         showsHorizontalScrollIndicator={false}
         snapToInterval={cardWidth + 10}
+        snapToAlignment="start"
         decelerationRate="fast"
         onMomentumScrollEnd={handleScroll}
-        getItemLayout={getItemLayout}
-        onScrollToIndexFailed={onScrollToIndexFailed}
         ItemSeparatorComponent={() => <View style={{ width: 10 }} />}
       />
 
