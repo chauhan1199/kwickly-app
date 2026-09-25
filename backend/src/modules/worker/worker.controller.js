@@ -229,6 +229,7 @@ exports.updateServices = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+    await delCache('top_pros_list');
     triggerDashboardUpdate();
     return successResponse(res, user.services, 'Services updated successfully');
 });
@@ -340,6 +341,7 @@ exports.toggleOnlineStatus = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+    await delCache('top_pros_list');
     triggerDashboardUpdate();
     
     return successResponse(res, { isOnline: user.isOnline }, `You are now ${user.isOnline ? 'online' : 'offline'}`);

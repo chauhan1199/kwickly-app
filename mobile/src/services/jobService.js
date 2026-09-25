@@ -68,8 +68,8 @@ export const jobService = {
       })
     ),
 
-  getCategories: () =>
-    withErrorHandling(() => api.get('/categories')),
+  getCategories: (params) =>
+    withErrorHandling(() => api.get('/categories', { params })),
 
   getCategoryById: (categoryId) =>
     withErrorHandling(() => api.get(`/categories/${categoryId}`)),

@@ -1,4 +1,4 @@
-﻿const { StatusCodes } = require('http-status-codes');
+const { StatusCodes } = require('http-status-codes');
 const Category = require('./category.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -15,10 +15,11 @@ const CACHE_KEY = 'categories_list';
 
 exports.getCategories = catchAsync(async (req, res) => {
     const isAdmin = req.originalUrl.includes('/admin');
+    const forceRefresh = req.query.refresh === 'true' || req.headers['cache-control'] === 'no-cache';
 
     let categories;
-    const cachedData = await getCache(CACHE_KEY);
-    
+    const cachedData = forceRefresh ? null : await getCache(CACHE_KEY);
+
     if (cachedData) {
         categories = cachedData;
     } else {
@@ -41,7 +42,7 @@ exports.getCategories = catchAsync(async (req, res) => {
     return successResponse(res, categories, 'Categories fetched successfully');
 });
 
-// â”€â”€â”€ GET /api/v1/categories/:categoryId (Public - subcategories by category) â”€â”€
+// GET /api/v1/categories/:categoryId (Public - subcategories by category) â”€â”€
 exports.getCategoryById = catchAsync(async (req, res) => {
     const { categoryId } = req.params;
 
@@ -59,7 +60,7 @@ exports.getCategoryById = catchAsync(async (req, res) => {
     return successResponse(res, { ...category, subcategories }, 'Category fetched');
 });
 
-// â”€â”€â”€ POST /api/v1/categories (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//POST /api/v1/categories (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.createCategory = catchAsync(async (req, res) => {
     const existing = await Category.findOne({ name: { $regex: new RegExp(`^${escapeRegex(req.body.name.trim())}$`, 'i') } }).lean();
     if (existing) {
@@ -84,9 +85,10 @@ exports.createCategory = catchAsync(async (req, res) => {
     }
 
     const category = await Category.create(categoryData);
-    
+
     await delCache(CACHE_KEY);
     await delCache('admin_dashboard_stats');
+    await delCache('top_pros_list');
     triggerDashboardUpdate();
 
     logAdminActivity(
@@ -95,7 +97,7 @@ exports.createCategory = catchAsync(async (req, res) => {
         `New category "${category.name}" created with ${category.subcategories.length} subcategories`,
         req.user?._id
     ).catch(e => logger.error('Activity log failed:', e.message));
-    
+
     return successResponse(res, category, 'Category created successfully', StatusCodes.CREATED);
 });
 
@@ -138,6 +140,7 @@ exports.updateCategory = catchAsync(async (req, res) => {
 
     await delCache(CACHE_KEY);
     await delCache('admin_dashboard_stats');
+    await delCache('top_pros_list');
     triggerDashboardUpdate();
 
     const changes = [];
@@ -177,6 +180,7 @@ exports.deleteCategory = catchAsync(async (req, res) => {
 
     await delCache(CACHE_KEY);
     await delCache('admin_dashboard_stats');
+    await delCache('top_pros_list');
     triggerDashboardUpdate();
 
     logAdminActivity(
@@ -213,6 +217,7 @@ exports.addSubcategory = catchAsync(async (req, res) => {
 
     await delCache(CACHE_KEY);
     await delCache('admin_dashboard_stats');
+    await delCache('top_pros_list');
     triggerDashboardUpdate();
 
     logAdminActivity(
@@ -265,6 +270,7 @@ exports.updateSubcategory = catchAsync(async (req, res) => {
 
     await delCache(CACHE_KEY);
     await delCache('admin_dashboard_stats');
+    await delCache('top_pros_list');
     triggerDashboardUpdate();
 
     logAdminActivity(
@@ -298,6 +304,7 @@ exports.deleteSubcategory = catchAsync(async (req, res) => {
 
     await delCache(CACHE_KEY);
     await delCache('admin_dashboard_stats');
+    await delCache('top_pros_list');
     triggerDashboardUpdate();
 
     logAdminActivity(
@@ -357,8 +364,17 @@ exports.processSuggestion = catchAsync(async (req, res) => {
         }
         await delCache(CACHE_KEY);
         await delCache('admin_dashboard_stats');
+        await delCache('top_pros_list');
         triggerDashboardUpdate();
     }
 
     return successResponse(res, suggestion, 'Suggestion processed successfully');
+});
+
+exports.clearCache = catchAsync(async (req, res) => {
+    await delCache(CACHE_KEY);
+    await delCache('top_pros_list');
+    await delCache('admin_dashboard_stats');
+    triggerDashboardUpdate();
+    return successResponse(res, null, 'Category and top pros cache cleared successfully');
 });

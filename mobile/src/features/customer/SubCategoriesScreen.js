@@ -40,6 +40,51 @@ const HERO_GRADIENTS = [
   ['#84fab0', '#8fd3f4'],
 ];
 
+const SubCategoryCardItem = React.memo(({ sub, index, category, displayIcon, finalHeroImage, localHeroImg, navigation, styles, theme }) => {
+  const [imgErr, setImgErr] = useState(false);
+  const resolvedSubImage = getImageUrl(sub.imageUrl);
+  // Uploaded subcategory image > category image > bundled local stock image
+  const cardImg = (!imgErr && resolvedSubImage) 
+    ? { uri: resolvedSubImage } 
+    : (finalHeroImage || localHeroImg);
+
+  return (
+    <TouchableOpacity
+      key={sub._id || sub.id || index}
+      style={styles.subCard}
+      activeOpacity={0.8}
+      onPress={() =>
+        navigation.navigate('DescribeJob', {
+          category: { ...category, id: category.id, name: category.name, icon: displayIcon, imageUrl: category.imageUrl },
+          subcategory: sub.name,
+        })
+      }
+    >
+      {/* Left accent strip */}
+      <View style={[styles.cardAccent, { backgroundColor: PURPLE }]} />
+
+      <View style={[styles.cardIconBox, cardImg && { backgroundColor: 'transparent', padding: 0 }]}>
+        {cardImg ? (
+          <Image 
+            source={cardImg} 
+            style={{ width: '100%', height: '100%', borderRadius: 14 }} 
+            resizeMode="cover" 
+            onError={() => setImgErr(true)}
+          />
+        ) : (
+          <Text style={styles.cardIcon}>{displayIcon}</Text>
+        )}
+      </View>
+
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle}>{sub.name}</Text>
+      </View>
+
+      <ChevronRight size={18} color={theme.colors.textDim} />
+    </TouchableOpacity>
+  );
+});
+
 const SubCategoriesScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   
@@ -61,9 +106,10 @@ const SubCategoriesScreen = ({ route, navigation }) => {
   const displayIcon = getCategoryIcon(name, icon);
   const localHeroImg = getCategoryLocalImage(name);
   const [categoryImageUrl, setCategoryImageUrl] = useState(imageUrl);
+  const [heroImgError, setHeroImgError] = useState(false);
   const heroGradient = ['#6C47FF', '#8B6FFF'];
   const resolvedHeroImage = getImageUrl(categoryImageUrl || imageUrl);
-  const finalHeroImage = resolvedHeroImage ? { uri: resolvedHeroImage } : localHeroImg;
+  const finalHeroImage = (!heroImgError && resolvedHeroImage) ? { uri: resolvedHeroImage } : localHeroImg;
 
   const [localSubs, setLocalSubs] = useState(subs || []);
   const [refreshing, setRefreshing] = useState(false);
@@ -125,7 +171,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
 
           {finalHeroImage ? (
             <View style={styles.heroImageCardWrapper}>
-              <Image source={finalHeroImage} style={styles.heroFramedImage} resizeMode="cover" />
+              <Image source={finalHeroImage} style={styles.heroFramedImage} resizeMode="cover" onError={() => setHeroImgError(true)} />
             </View>
           ) : (
             <View style={styles.heroIconCardWrapper}>
@@ -158,41 +204,20 @@ const SubCategoriesScreen = ({ route, navigation }) => {
 
         {localSubs
           .filter(sub => !searchQuery || sub.name.toLowerCase().includes(searchQuery.toLowerCase()))
-          .map((sub, index) => {
-            const resolvedSubImage = getImageUrl(sub.imageUrl);
-            const cardImg = resolvedSubImage ? { uri: resolvedSubImage } : localHeroImg;
-
-            return (
-              <TouchableOpacity
-                key={index}
-                style={styles.subCard}
-                activeOpacity={0.8}
-                onPress={() =>
-                  navigation.navigate('DescribeJob', {
-                    category: { ...route.params, id, name, icon: displayIcon, imageUrl: categoryImageUrl },
-                    subcategory: sub.name,
-                  })
-                }
-              >
-                {/* Left accent strip */}
-                <View style={[styles.cardAccent, { backgroundColor: PURPLE }]} />
-
-                <View style={[styles.cardIconBox, cardImg && { backgroundColor: 'transparent', padding: 0 }]}>
-                  {cardImg ? (
-                    <Image source={cardImg} style={{ width: '100%', height: '100%', borderRadius: 14 }} resizeMode="cover" />
-                  ) : (
-                    <Text style={styles.cardIcon}>{displayIcon}</Text>
-                  )}
-                </View>
-
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardTitle}>{sub.name}</Text>
-                </View>
-
-                <ChevronRight size={18} color={theme.colors.textDim} />
-              </TouchableOpacity>
-            );
-        })}
+          .map((sub, index) => (
+            <SubCategoryCardItem
+              key={sub._id || sub.id || index}
+              sub={sub}
+              index={index}
+              category={{ ...route.params, id, name, icon: displayIcon, imageUrl: categoryImageUrl }}
+              displayIcon={displayIcon}
+              finalHeroImage={finalHeroImage}
+              localHeroImg={localHeroImg}
+              navigation={navigation}
+              styles={styles}
+              theme={theme}
+            />
+          ))}
 
         {/* Suggest missing */}
         <TouchableOpacity style={styles.suggestBtn} activeOpacity={0.75} onPress={() => setModalVisible(true)}>

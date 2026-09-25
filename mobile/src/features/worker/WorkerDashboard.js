@@ -205,11 +205,14 @@ const WorkerDashboard = ({ navigation }) => {
     const rawServices = workerServices?.length > 0 ? workerServices : (user?.services || []);
     return rawServices.map(s => {
       const catId = s.category?._id || s.category;
-      const fullCat = allCategories.find(c => c._id === catId);
+      const fullCat = allCategories.find(c => 
+        (c._id && catId && (c._id === catId || c._id.toString() === catId?.toString())) ||
+        (c.name && (s.categoryName || s.category?.name) && c.name.toLowerCase() === (s.categoryName || s.category?.name).toLowerCase())
+      );
       return {
         ...s,
         resolvedName: s.categoryName || fullCat?.name || s.category?.name || 'Service Category',
-        resolvedImage: fullCat?.imageUrl || s.category?.imageUrl || null,
+        resolvedImage: fullCat?.imageUrl || s.category?.imageUrl || s.imageUrl || null,
         subCount: s.subcategories?.length || 0,
       };
     });

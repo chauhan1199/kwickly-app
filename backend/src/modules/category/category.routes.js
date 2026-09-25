@@ -17,6 +17,7 @@ router.use(authMiddleware);
 router.use(authorize('ADMIN'));
 
 // Admin suggestion routes (must be before /:categoryId catch-all)
+router.post('/clear-cache', categoryController.clearCache);
 router.get('/suggestions', categoryController.getSuggestions);
 router.patch('/suggestions/:id', categoryController.processSuggestion);
 

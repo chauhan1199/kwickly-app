@@ -95,7 +95,8 @@ export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = style?.width || Math.min(145, Math.max(96, Math.floor((windowWidth - 32 - 24) / 3)));
   const { rating, reviews } = getServiceRating(cat.label || cat.name);
-  const hasNetworkImg = !!cat.imageUrl;
+  const [imgError, setImgError] = React.useState(false);
+  const resolvedNetworkImg = !imgError && cat.imageUrl ? getImageUrl(cat.imageUrl) : null;
   const localImg = cat.localImage || getServiceImage(cat.name || cat.label);
 
   return (
@@ -114,11 +115,12 @@ export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
       activeOpacity={0.88}
     >
       <View style={[styles.serviceCardImgBox, { height: cardWidth * 0.95, backgroundColor: theme.colors.card }]}>
-        {hasNetworkImg ? (
+        {resolvedNetworkImg ? (
           <Image
-            source={{ uri: getImageUrl(cat.imageUrl) }}
+            source={{ uri: resolvedNetworkImg }}
             style={styles.serviceCardImg}
-            resizeMode="contain"
+            resizeMode="cover"
+            onError={() => setImgError(true)}
           />
         ) : localImg ? (
           <Image source={localImg} style={styles.serviceCardImg} resizeMode="cover" />

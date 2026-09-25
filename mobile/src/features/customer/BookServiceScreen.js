@@ -61,6 +61,47 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+const CategoryGridCard = React.memo(({ cat, index, onPress, styles }) => {
+  const catName = cat.name || cat.label || 'Service';
+  const resolvedNetworkImg = getImageUrl(cat.imageUrl);
+  const localImg = getCategoryLocalImage(catName);
+  const displayIcon = getCategoryIcon(catName, cat.icon);
+  const [imgError, setImgError] = useState(false);
+
+  // Uploaded admin/worker image strictly takes precedence over local stock illustration
+  const cardImg = (!imgError && resolvedNetworkImg) ? { uri: resolvedNetworkImg } : localImg;
+
+  return (
+    <TouchableOpacity
+      key={cat.id || cat._id || index}
+      style={styles.categoryCard}
+      activeOpacity={0.8}
+      onPress={() => onPress(cat, displayIcon)}
+    >
+      <View style={styles.categoryIconCircle}>
+        {cardImg ? (
+          <Image
+            source={cardImg}
+            style={styles.categoryCardImg}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <Text style={styles.categoryIconText}>{displayIcon}</Text>
+        )}
+      </View>
+      <Text style={styles.categoryName} numberOfLines={2}>
+        {catName}
+      </Text>
+      <View style={styles.categoryBadge}>
+        <Text style={styles.categoryBadgeText}>
+          {cat.subs?.length || 1} {cat.subs?.length === 1 ? 'Service' : 'Services'}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 const BookServiceScreen = ({ navigation, route }) => {
   const { theme, isDarkMode } = useTheme();
   const { user } = useAuth();
@@ -165,11 +206,11 @@ const BookServiceScreen = ({ navigation, route }) => {
       .catch(() => {});
   }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     try {
       setError(null);
       const [catRes, workerRes, bannerRes] = await Promise.allSettled([
-        jobService.getCategories(),
+        jobService.getCategories(forceRefresh ? { refresh: 'true' } : {}),
         customerService.getTopPros(),
         api.get('/promotions/banners')
       ]);
@@ -286,7 +327,7 @@ const BookServiceScreen = ({ navigation, route }) => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchData();
+    fetchData(true);
   };
 
   // Filter workers based on search query and category filter
@@ -398,38 +439,15 @@ const BookServiceScreen = ({ navigation, route }) => {
           ) : (
             categories
               .filter(cat => !searchQuery || (cat.label || cat.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((cat, index) => {
-                const catName = cat.name || cat.label || 'Service';
-                const localImg = getCategoryLocalImage(catName);
-                const resolvedNetworkImg = getImageUrl(cat.imageUrl);
-                const cardImg = localImg || (resolvedNetworkImg ? { uri: resolvedNetworkImg } : null);
-                const displayIcon = getCategoryIcon(catName, cat.icon);
-
-                return (
-                  <TouchableOpacity
-                    key={cat.id || cat._id || index}
-                    style={styles.categoryCard}
-                    activeOpacity={0.8}
-                    onPress={() => navigation.navigate('SubCategories', { ...cat, icon: displayIcon })}
-                  >
-                    <View style={styles.categoryIconCircle}>
-                      {cardImg ? (
-                        <Image source={cardImg} style={styles.categoryCardImg} resizeMode="cover" />
-                      ) : (
-                        <Text style={styles.categoryIconText}>{displayIcon}</Text>
-                      )}
-                    </View>
-                    <Text style={styles.categoryName} numberOfLines={2}>
-                      {catName}
-                    </Text>
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryBadgeText}>
-                        {cat.subs?.length || 1} {cat.subs?.length === 1 ? 'Service' : 'Services'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })
+              .map((cat, index) => (
+                <CategoryGridCard
+                  key={cat.id || cat._id || index}
+                  cat={cat}
+                  index={index}
+                  onPress={(selectedCat, displayIcon) => navigation.navigate('SubCategories', { ...selectedCat, icon: displayIcon })}
+                  styles={styles}
+                />
+              ))
           )}
         </View>
 
@@ -675,6 +693,10 @@ const BookServiceScreen = ({ navigation, route }) => {
                   : [{ catName: bookingWorker?.cat, catIcon: bookingWorker?.catIcon, subs: bookingWorker?.subcategories, basePrice: bookingWorker?.price }]
                 ).map((srv, idx) => {
                   const isCatSelected = selectedServiceIndex === idx;
+                  const matchedCat = categories.find(c => c.name?.toLowerCase() === srv.catName?.toLowerCase());
+                  const srvNetImg = getImageUrl(srv.catImageUrl || matchedCat?.imageUrl);
+                  const srvLocalImg = getCategoryLocalImage(srv.catName);
+                  const srvImg = srvNetImg ? { uri: srvNetImg } : srvLocalImg;
                   return (
                     <TouchableOpacity
                       key={idx}
@@ -685,8 +707,12 @@ const BookServiceScreen = ({ navigation, route }) => {
                       }}
                       style={[styles.modalCatCard, isCatSelected && styles.modalCatCardActive]}
                     >
-                      <View style={[styles.modalCatIconCircle, isCatSelected && styles.modalCatIconCircleActive]}>
-                        <Text style={{ fontSize: 18 }}>{srv.catIcon || '⚡'}</Text>
+                      <View style={[styles.modalCatIconCircle, isCatSelected && styles.modalCatIconCircleActive, { overflow: 'hidden' }]}>
+                        {srvImg ? (
+                          <Image source={srvImg} style={{ width: '100%', height: '100%', borderRadius: 10 }} resizeMode="cover" />
+                        ) : (
+                          <Text style={{ fontSize: 18 }}>{srv.catIcon || '⚡'}</Text>
+                        )}
                       </View>
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={[styles.modalCatName, isCatSelected && styles.modalCatNameActive]} numberOfLines={1}>
@@ -708,9 +734,12 @@ const BookServiceScreen = ({ navigation, route }) => {
                   const subList = (currentSrv.subs && currentSrv.subs.length > 0)
                     ? currentSrv.subs
                     : ['General Inspection & Diagnostics', 'Routine Maintenance'];
+                  const matchedCat = categories.find(c => c.name?.toLowerCase() === currentSrv.catName?.toLowerCase());
 
                   return subList.map((sub, sIdx) => {
                     const isSubSelected = selectedSubcategory === sub;
+                    const matchedSub = (matchedCat?.subs || []).find(s => s.name?.toLowerCase() === sub?.toLowerCase());
+                    const subImgUrl = getImageUrl(matchedSub?.imageUrl);
                     return (
                       <TouchableOpacity
                         key={sIdx}
@@ -718,7 +747,11 @@ const BookServiceScreen = ({ navigation, route }) => {
                         onPress={() => setSelectedSubcategory(sub)}
                         style={[styles.modalSubChip, isSubSelected && styles.modalSubChipActive]}
                       >
-                        <CheckCircle2 size={12} color={isSubSelected ? '#fff' : '#6C47FF'} style={{ marginRight: 5 }} />
+                        {subImgUrl ? (
+                          <Image source={{ uri: subImgUrl }} style={{ width: 16, height: 16, borderRadius: 4, marginRight: 6 }} resizeMode="cover" />
+                        ) : (
+                          <CheckCircle2 size={12} color={isSubSelected ? '#fff' : '#6C47FF'} style={{ marginRight: 5 }} />
+                        )}
                         <Text style={[styles.modalSubChipText, isSubSelected && styles.modalSubChipTextActive]}>
                           {sub}
                         </Text>

@@ -99,7 +99,7 @@ const WorkerManageServicesScreen = ({ navigation }) => {
     try {
       const [profileRes, catRes] = await Promise.all([
         workerService.getProfile().catch(() => null),
-        jobService.getCategories().catch(() => null)
+        jobService.getCategories({ refresh: 'true' }).catch(() => null)
       ]);
       const profileData = profileRes?.data?.data || {};
       const catData = catRes?.data?.data || [];
@@ -425,10 +425,15 @@ const WorkerManageServicesScreen = ({ navigation }) => {
 
           {services.map((cat, index) => {
             const categoryId = cat.category?._id || cat.category;
-            const fullCat = allCategories.find(c => c._id === categoryId);
-            const catTitle = fullCat?.name || cat.categoryName || cat.category?.name || 'Category';
+            const catName = cat.categoryName || cat.category?.name || '';
+            const fullCat = allCategories.find(c => 
+              (c._id && categoryId && (c._id === categoryId || c._id.toString() === categoryId?.toString())) ||
+              (c.name && catName && c.name.toLowerCase() === catName.toLowerCase())
+            );
+            const catTitle = fullCat?.name || catName || 'Category';
             const subCount = cat.subcategories?.length || 0;
-            const imageUri = fullCat?.imageUrl ? getImageUrl(fullCat.imageUrl) : null;
+            const rawCatImg = fullCat?.imageUrl || cat.category?.imageUrl || cat.imageUrl;
+            const imageUri = rawCatImg ? getImageUrl(rawCatImg) : null;
 
             return (
               <View key={index} style={styles.categoryCard}>
@@ -656,7 +661,9 @@ const WorkerManageServicesScreen = ({ navigation }) => {
               {fullCategoryDetail?.subcategories?.length > 0 ? (
                 fullCategoryDetail.subcategories.map(sub => {
                   const isChecked = tempSelectedSubCats.includes(sub.name);
-                  const subImageUri = sub.imageUrl ? getImageUrl(sub.imageUrl) : null;
+                  const subImageUri = sub.imageUrl 
+                    ? getImageUrl(sub.imageUrl) 
+                    : (fullCategoryDetail?.imageUrl ? getImageUrl(fullCategoryDetail.imageUrl) : null);
 
                   return (
                     <TouchableOpacity 

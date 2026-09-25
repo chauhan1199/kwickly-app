@@ -97,6 +97,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
 
     await delCache(`session:${req.user._id}`);
+    await delCache('top_pros_list');
     
     notifyUser({
         userId: req.user._id,
