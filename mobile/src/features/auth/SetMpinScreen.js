@@ -57,6 +57,7 @@ const SetMpinScreen = ({ navigation, route }) => {
   const screenHeight = Dimensions.get('screen').height;
   const isSmallScreen = windowHeight < 720;
   const isTallScreen = windowHeight >= 760;
+  const shouldCenter = !keyboardVisible && windowHeight >= 700;
   const { signIn } = useAuth();
 
   const [mpin, setMpin] = useState('');
@@ -167,14 +168,14 @@ const SetMpinScreen = ({ navigation, route }) => {
               paddingBottom: keyboardVisible
                 ? (keyboardHeight || bottomInset)
                 : safeBottomInset,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: shouldCenter ? 'center' : 'flex-start',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible}
+          scrollEnabled={true}
         >
           <View style={styles.topSection}>
             {/* Header Layout Row: Headline Left, 3D Hero Right */}
@@ -353,44 +354,44 @@ const SetMpinScreen = ({ navigation, route }) => {
                 </LinearGradient>
               </TouchableOpacity>
             </View>
-          </View>
 
-          {/* Bottom Section */}
-          <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }, isTallScreen && { marginTop: 18 }]}>
-            {/* Bottom Trust Bar Pill */}
-            <View style={[
-              styles.trustBarCard,
-              isSmallScreen && { paddingVertical: 5, paddingHorizontal: 8 },
-              {
-                backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
-                borderColor: cardBorder,
-              },
-            ]}>
-              <View style={styles.trustBadgeItem}>
-                <ShieldCheck size={14} color="#10B981" />
-                <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 10 : 11 }]}>100% Secure</Text>
+            {/* Bottom Section - cleanly grouped under card */}
+            <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }, isTallScreen && { marginTop: 14 }]}>
+              {/* Bottom Trust Bar Pill */}
+              <View style={[
+                styles.trustBarCard,
+                isSmallScreen && { paddingVertical: 5, paddingHorizontal: 8 },
+                {
+                  backgroundColor: isDarkMode ? 'rgba(19, 27, 46, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                  borderColor: cardBorder,
+                },
+              ]}>
+                <View style={styles.trustBadgeItem}>
+                  <ShieldCheck size={14} color="#10B981" />
+                  <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 10 : 11 }]}>100% Secure</Text>
+                </View>
+
+                <View style={styles.trustDividerDot} />
+
+                <View style={styles.trustBadgeItem}>
+                  <Zap size={14} color={PURPLE} />
+                  <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 10 : 11 }]}>Quick Access</Text>
+                </View>
+
+                <View style={styles.trustDividerDot} />
+
+                <View style={styles.trustBadgeItem}>
+                  <Text style={{ fontSize: 13 }}>🇮🇳</Text>
+                  <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 10 : 11 }]}>Made in India</Text>
+                </View>
               </View>
 
-              <View style={styles.trustDividerDot} />
-
-              <View style={styles.trustBadgeItem}>
-                <Zap size={14} color={PURPLE} />
-                <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 10 : 11 }]}>Quick Access</Text>
+              <View style={[styles.reassuranceRow, isSmallScreen && { marginTop: 3 }]}>
+                <ShieldCheck size={13} color="#10B981" />
+                <Text style={[styles.reassuranceText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
+                  Bank-grade 256-bit encryption · Quick PIN login enabled
+                </Text>
               </View>
-
-              <View style={styles.trustDividerDot} />
-
-              <View style={styles.trustBadgeItem}>
-                <Text style={{ fontSize: 13 }}>🇮🇳</Text>
-                <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 10 : 11 }]}>Made in India</Text>
-              </View>
-            </View>
-
-            <View style={[styles.reassuranceRow, isSmallScreen && { marginTop: 3 }]}>
-              <ShieldCheck size={13} color="#10B981" />
-              <Text style={[styles.reassuranceText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
-                Bank-grade 256-bit encryption · Quick PIN login enabled
-              </Text>
             </View>
           </View>
         </ScrollView>

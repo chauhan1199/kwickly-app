@@ -56,6 +56,7 @@ const RoleSelection = ({ navigation, route }) => {
   const screenHeight = Dimensions.get('screen').height;
   const isSmallScreen = windowHeight < 720;
   const isTallScreen = windowHeight >= 760;
+  const shouldCenter = !keyboardVisible && windowHeight >= 700;
 
   const [selectedRole, setSelectedRole] = useState(route?.params?.role || 'CUSTOMER');
   const [phoneNumber, setPhoneNumber] = useState(route?.params?.prefillPhone || '');
@@ -213,14 +214,14 @@ const RoleSelection = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: shouldCenter ? 'center' : 'flex-start',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible}
+          scrollEnabled={true}
         >
           <View style={styles.topSection}>
             {/* Top Header Row with Left Headline & Right 3D Art */}
@@ -505,51 +506,51 @@ const RoleSelection = ({ navigation, route }) => {
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
-          </View>
 
-          {/* Bottom Section */}
-          <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }, isTallScreen && { marginTop: 14 }]}>
-            {/* Trust Bar Row (3 Badges) */}
-            <View style={[styles.trustBarRow, isSmallScreen && { paddingVertical: 2 }]}>
-              <View style={styles.trustItem}>
-                <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                  <ShieldCheck size={14} color="#10B981" />
+              {/* Bottom Section - cleanly grouped under card */}
+              <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }, isTallScreen && { marginTop: 14 }]}>
+                {/* Trust Bar Row (3 Badges) */}
+                <View style={[styles.trustBarRow, isSmallScreen && { paddingVertical: 2 }]}>
+                  <View style={styles.trustItem}>
+                    <View style={[styles.trustIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                      <ShieldCheck size={14} color="#10B981" />
+                    </View>
+                    <View style={styles.trustTextCol}>
+                      <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>100% Safe</Text>
+                      <Text style={[styles.trustSub, { color: textSub, fontSize: isSmallScreen ? 8 : 8.5 }]} numberOfLines={1}>Data Safe</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.trustDivider} />
+
+                  <View style={styles.trustItem}>
+                    <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                      <Zap size={14} color="#6C47FF" />
+                    </View>
+                    <View style={styles.trustTextCol}>
+                      <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>Instant</Text>
+                      <Text style={[styles.trustSub, { color: textSub, fontSize: isSmallScreen ? 8 : 8.5 }]} numberOfLines={1}>Access</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.trustDivider} />
+
+                  <View style={styles.trustItem}>
+                    <Text style={{ fontSize: isSmallScreen ? 14 : 16 }}>🇮🇳</Text>
+                    <View style={styles.trustTextCol}>
+                      <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>India App</Text>
+                      <Text style={[styles.trustSub, { color: textSub, fontSize: isSmallScreen ? 8 : 8.5 }]} numberOfLines={1}>Trusted App</Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.trustTextCol}>
-                  <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>100% Safe</Text>
-                  <Text style={[styles.trustSub, { color: textSub, fontSize: isSmallScreen ? 8 : 8.5 }]} numberOfLines={1}>Data Safe</Text>
+
+                <View style={[styles.reassuranceRow, isSmallScreen && { marginTop: 3 }]}>
+                  <ShieldCheck size={isSmallScreen ? 12 : 13} color="#10B981" />
+                  <Text style={[styles.reassuranceText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
+                    Bank-grade 256-bit encryption · Your data is never shared
+                  </Text>
                 </View>
               </View>
-
-              <View style={styles.trustDivider} />
-
-              <View style={styles.trustItem}>
-                <View style={[styles.trustIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                  <Zap size={14} color="#6C47FF" />
-                </View>
-                <View style={styles.trustTextCol}>
-                  <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>Instant</Text>
-                  <Text style={[styles.trustSub, { color: textSub, fontSize: isSmallScreen ? 8 : 8.5 }]} numberOfLines={1}>Access</Text>
-                </View>
-              </View>
-
-              <View style={styles.trustDivider} />
-
-              <View style={styles.trustItem}>
-                <Text style={{ fontSize: isSmallScreen ? 14 : 16 }}>🇮🇳</Text>
-                <View style={styles.trustTextCol}>
-                  <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>India App</Text>
-                  <Text style={[styles.trustSub, { color: textSub, fontSize: isSmallScreen ? 8 : 8.5 }]} numberOfLines={1}>Trusted App</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={[styles.reassuranceRow, isSmallScreen && { marginTop: 3 }]}>
-              <ShieldCheck size={isSmallScreen ? 12 : 13} color="#10B981" />
-              <Text style={[styles.reassuranceText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
-                Bank-grade 256-bit encryption · Your data is never shared
-              </Text>
             </View>
           </View>
         </ScrollView>

@@ -47,6 +47,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const screenHeight = Dimensions.get('screen').height;
   const isSmallScreen = windowHeight < 720;
   const isTallScreen = windowHeight >= 760 || screenHeight >= 800;
+  const shouldCenter = !keyboardVisible && windowHeight >= 700;
   const { signIn } = useAuth();
 
   const [code, setCode] = useState(['', '', '', '']);
@@ -208,14 +209,14 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: shouldCenter ? 'center' : 'flex-start',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible}
+          scrollEnabled={true}
         >
           <View style={styles.topSection}>
             {/* Top Brand Header */}
@@ -362,24 +363,24 @@ const OTPVerifyScreen = ({ navigation, route }) => {
                 </View>
               </View>
             </View>
-          </View>
 
-          {/* Bottom Section */}
-          <View style={[styles.bottomSection, isSmallScreen && { marginTop: 6 }]}>
-            <View style={[styles.trustFooter, isSmallScreen && { marginTop: 2 }]}>
-              <ShieldCheck size={13} color="#10B981" />
-              <Text style={[styles.trustText, { color: textSub, fontSize: isSmallScreen ? 10.5 : 11.5 }]}>
-                Bank-grade 256-bit encryption · 100% Secure
-              </Text>
+            {/* Bottom Section - cleanly grouped under card */}
+            <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }, isTallScreen && { marginTop: 14 }]}>
+                <View style={[styles.trustFooter, isSmallScreen && { marginTop: 2 }]}>
+                  <ShieldCheck size={13} color="#10B981" />
+                  <Text style={[styles.trustText, { color: textSub, fontSize: isSmallScreen ? 10.5 : 11.5 }]}>
+                    Bank-grade 256-bit encryption · 100% Secure
+                  </Text>
+                </View>
+                <View style={[styles.supportRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
+                  <MessageSquare size={12} color={PURPLE} />
+                  <Text style={[styles.supportText, { color: textSub, fontSize: isSmallScreen ? 10.5 : 11.5 }]}>
+                    Need help? <Text style={{ color: PURPLE, fontWeight: '700' }}>Kwickly Support is available 24/7</Text>
+                  </Text>
+                </View>
+              </View>
             </View>
-            <View style={[styles.supportRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
-              <MessageSquare size={12} color={PURPLE} />
-              <Text style={[styles.supportText, { color: textSub, fontSize: isSmallScreen ? 10.5 : 11.5 }]}>
-                Need help? <Text style={{ color: PURPLE, fontWeight: '700' }}>Kwickly Support is available 24/7</Text>
-              </Text>
-            </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
       </KeyboardAvoidingView>
 
       <CustomAlert

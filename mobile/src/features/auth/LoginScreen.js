@@ -62,6 +62,7 @@ const LoginScreen = ({ navigation, route }) => {
   const screenHeight = Dimensions.get('screen').height;
   const isSmallScreen = windowHeight < 720;
   const isTallScreen = windowHeight >= 760;
+  const shouldCenter = !keyboardVisible && windowHeight >= 700;
   const { signIn } = useAuth();
 
   const [step, setStep] = useState('PHONE');
@@ -369,8 +370,8 @@ const LoginScreen = ({ navigation, route }) => {
           alignItems: 'center',
           flexDirection: 'row',
           gap: 8,
-          paddingVertical: isSmallScreen ? 6 : 10,
-          marginTop: isSmallScreen ? 4 : 10,
+          paddingVertical: isSmallScreen ? 6 : 9,
+          marginTop: 0,
         },
       ]}
     >
@@ -378,6 +379,63 @@ const LoginScreen = ({ navigation, route }) => {
       <Text style={[styles.trustTitle, { color: textMain, fontSize: isSmallScreen ? 11 : 12, fontWeight: '700' }]}>
         100% Secure & Encrypted
       </Text>
+    </View>
+  );
+
+  const renderBottomSection = (type = 'PHONE') => (
+    <View style={[styles.bottomSection, { marginTop: isSmallScreen ? 8 : (isTallScreen ? 16 : 12) }]}>
+      {renderTrustBar()}
+      {type === 'PHONE' ? (
+        <>
+          <View style={[styles.perksRow, isSmallScreen && { marginTop: 3, marginBottom: 4, gap: 4 }]}>
+            <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
+              <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5 }]} numberOfLines={1}>⚡ On-Time</Text>
+            </View>
+            <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
+              <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5 }]} numberOfLines={1}>🛠️ 50+ Services</Text>
+            </View>
+            <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
+              <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10.5 }]} numberOfLines={1}>🛡️ Verified Pros</Text>
+            </View>
+          </View>
+          <View style={[styles.socialProofRow, isSmallScreen && { marginTop: 2, marginBottom: 2 }]}>
+            <Text style={[styles.socialProofStars, isSmallScreen && { fontSize: 10.5, letterSpacing: 1 }]}>★★★★★</Text>
+            <Text style={[styles.socialProofText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]} numberOfLines={1} ellipsizeMode="tail">
+              {windowWidth < 350 ? 'Trusted by 10,000+ happy homes' : 'Trusted by 10,000+ happy homes across India'}
+            </Text>
+          </View>
+        </>
+      ) : type === 'SELECT_ROLE' ? (
+        <>
+          <View style={[styles.securityHighlightRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
+            <ShieldCheck size={13} color="#10B981" />
+            <Text style={[styles.securityHighlightText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
+              100% Verified Profiles · Fast & Secure Login
+            </Text>
+          </View>
+          <View style={[styles.socialProofRow, isSmallScreen && { marginTop: 2, marginBottom: 2 }]}>
+            <Text style={[styles.socialProofStars, isSmallScreen && { fontSize: 10.5, letterSpacing: 1 }]}>★★★★★</Text>
+            <Text style={[styles.socialProofText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]} numberOfLines={1} ellipsizeMode="tail">
+              {windowWidth < 350 ? 'Trusted by 10,000+ happy homes' : 'Trusted by 10,000+ happy homes across India'}
+            </Text>
+          </View>
+        </>
+      ) : (
+        <>
+          <View style={[styles.securityHighlightRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
+            <ShieldCheck size={13} color="#10B981" />
+            <Text style={[styles.securityHighlightText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
+              256-bit encrypted · 100% Secure & Private
+            </Text>
+          </View>
+          <View style={[styles.socialProofRow, isSmallScreen && { marginTop: 2, marginBottom: 2 }]}>
+            <Text style={[styles.socialProofStars, isSmallScreen && { fontSize: 10.5, letterSpacing: 1 }]}>★★★★★</Text>
+            <Text style={[styles.socialProofText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]} numberOfLines={1} ellipsizeMode="tail">
+              {windowWidth < 350 ? 'Trusted by 10,000+ happy homes' : 'Trusted by 10,000+ happy homes across India'}
+            </Text>
+          </View>
+        </>
+      )}
     </View>
   );
 
@@ -398,14 +456,14 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: shouldCenter ? 'center' : 'flex-start',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={keyboardVisible}
+            scrollEnabled={true}
           >
             <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
@@ -530,28 +588,9 @@ const LoginScreen = ({ navigation, route }) => {
                   <View style={[styles.orLine, { backgroundColor: inputBorder }]} />
                 </View>
               </View>
-            </View>
 
-            {/* Bottom Section */}
-            <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }]}>
-              {renderTrustBar()}
-              <View style={[styles.perksRow, isSmallScreen && { marginTop: 3, marginBottom: 4, gap: 4 }]}>
-                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
-                  <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>⚡ On-Time</Text>
-                </View>
-                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
-                  <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>🛠️ 50+ Services</Text>
-                </View>
-                <View style={[styles.perkChip, { flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: cardBorder }, isSmallScreen && { paddingVertical: 3, paddingHorizontal: 4 }]}>
-                  <Text style={[styles.perkText, { color: textSub, fontSize: isSmallScreen ? 9.5 : 10 }]} numberOfLines={1}>🛡️ Verified Pros</Text>
-                </View>
-              </View>
-              <View style={[styles.socialProofRow, isSmallScreen && { marginTop: 2, marginBottom: 2 }]}>
-                <Text style={[styles.socialProofStars, isSmallScreen && { fontSize: 11 }]}>★★★★★</Text>
-                <Text style={[styles.socialProofText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]} numberOfLines={1}>
-                  Trusted by 10,000+ happy homes across India
-                </Text>
-              </View>
+              {/* Bottom Section - cleanly grouped under card */}
+              {renderBottomSection('PHONE')}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -575,14 +614,14 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: shouldCenter ? 'center' : 'flex-start',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={keyboardVisible || availableAccounts.length > 3}
+            scrollEnabled={true}
           >
             <View style={styles.topSection}>
               <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 6 }]}>
@@ -634,11 +673,9 @@ const LoginScreen = ({ navigation, route }) => {
                   <Text style={[styles.footerLink, { color: PURPLE, fontSize: isSmallScreen ? 12 : 13 }]}>Use a different number</Text>
                 </TouchableOpacity>
               </View>
-            </View>
 
-            {/* Bottom Section */}
-            <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }]}>
-              {renderTrustBar()}
+              {/* Bottom Section - cleanly grouped under card */}
+              {renderBottomSection('SELECT_ROLE')}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -662,14 +699,14 @@ const LoginScreen = ({ navigation, route }) => {
               {
                 paddingTop: safeTopPadding,
                 paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
-                justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+                justifyContent: shouldCenter ? 'center' : 'flex-start',
               },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"
-            scrollEnabled={keyboardVisible}
+            scrollEnabled={true}
           >
             <View style={styles.topSection}>
               {/* Header Layout Row: Headline Left, 3D Hero Right */}
@@ -865,17 +902,9 @@ const LoginScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
 
-            {/* Bottom Section */}
-            <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }]}>
-              {renderTrustBar()}
-              <View style={[styles.securityHighlightRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
-                <ShieldCheck size={13} color="#10B981" />
-                <Text style={[styles.securityHighlightText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
-                  256-bit encrypted · 100% Secure & Private
-                </Text>
-              </View>
+              {/* Bottom Section - cleanly grouped under card */}
+              {renderBottomSection('MPIN')}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -898,14 +927,14 @@ const LoginScreen = ({ navigation, route }) => {
             {
               paddingTop: safeTopPadding,
               paddingBottom: keyboardVisible ? (keyboardHeight || bottomInset) : safeBottomInset,
-              justifyContent: keyboardVisible ? 'flex-start' : 'space-between',
+              justifyContent: shouldCenter ? 'center' : 'flex-start',
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
-          scrollEnabled={keyboardVisible}
+          scrollEnabled={true}
         >
           <View style={styles.topSection}>
             <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 4 }]}>
@@ -1018,17 +1047,9 @@ const LoginScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
 
-          {/* Bottom Section */}
-          <View style={[styles.bottomSection, isSmallScreen && { marginTop: 4 }]}>
-            {renderTrustBar()}
-            <View style={[styles.securityHighlightRow, isSmallScreen && { marginTop: 3, marginBottom: 2 }]}>
-              <ShieldCheck size={13} color="#10B981" />
-              <Text style={[styles.securityHighlightText, { color: textSub, fontSize: isSmallScreen ? 10 : 11 }]}>
-                256-bit encrypted · 100% Secure & Private
-              </Text>
-            </View>
+            {/* Bottom Section - cleanly grouped under card */}
+            {renderBottomSection('RESET_MPIN')}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1408,12 +1429,12 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
+    justifyContent: 'center',
+    paddingVertical: 9,
     paddingHorizontal: 12,
     borderRadius: 16,
     borderWidth: 1,
-    marginTop: 12,
+    marginTop: 0,
     marginBottom: 6,
   },
   perksRow: {
