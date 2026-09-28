@@ -385,7 +385,7 @@ const HomeScreen = ({ navigation }) => {
         </LinearGradient>
 
         {/* Search bar component - overlapping the header and body */}
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], zIndex: 11 }}>
+        <Animated.View pointerEvents="box-none" style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], zIndex: 11 }}>
           <SearchBar 
             value={searchQuery}
             onChangeText={setSearchQuery}
