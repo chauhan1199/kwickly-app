@@ -21,8 +21,12 @@ router.post('/:id/rate', authorize('CUSTOMER'), jobController.rateJob);
 // -- WORKER ROUTES --
 router.get('/available', authorize('WORKER'), jobController.getAvailableJobs);
 router.get('/worker', authorize('WORKER'), jobController.getWorkerJobs);
+// B1 FIX: ALLOCATED → ARRIVING transition
+router.post('/:id/arrive', authorize('WORKER'), jobController.arriveJob);
 router.post('/:id/start', authorize('WORKER'), jobController.startJob);
 router.post('/:id/complete', authorize('WORKER'), jobController.completeJob);
+// M2 FIX: Worker can rate the customer after job completion
+router.post('/:id/rate-customer', authorize('WORKER'), jobController.rateCustomer);
 
 // -- WORKER ROUTE: Report Partial Payment (Loophole #9 Fix) --
 router.post('/:id/report-partial-payment', authorize('WORKER'), jobController.reportPartialPayment);

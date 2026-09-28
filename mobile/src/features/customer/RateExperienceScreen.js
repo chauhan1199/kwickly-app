@@ -24,9 +24,8 @@ const RateExperienceScreen = ({ route, navigation }) => {
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    const jobId = worker?.jobId || route.params?.jobId;
+    const jobId = route.params?.job?._id || route.params?.jobId || worker?.jobId || worker?._id;
     if (!jobId) {
-      // Navigate back if no job ID
       navigation.navigate('Home');
       return;
     }
@@ -35,6 +34,7 @@ const RateExperienceScreen = ({ route, navigation }) => {
       await api.post(`/jobs/${jobId}/rate`, { score: rating, review });
       navigation.navigate('Home');
     } catch (e) {
+      console.warn('Rating submission error:', e?.response?.data?.message || e.message);
       navigation.navigate('Home');
     } finally {
       setSubmitting(false);

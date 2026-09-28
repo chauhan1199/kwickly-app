@@ -4,13 +4,13 @@ const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');
 const logger = require('../../helpers/logger.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { emitToAll, emitToRoom } = require('../../helpers/socket.helper');
+const { emitToRoom, emitToAll, triggerDashboardUpdate } = require('../../helpers/socket.helper');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { uploadImage } = require('../../services/cloudinary.service');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const { findEligibleWorkers } = require('../../helpers/worker.helper');
 const { haversineDistance, calculateETA } = require('../../helpers/geo.helper');
-const { MAX_ACTIVE_JOBS, MAX_AVAILABLE_JOBS, GEOFENCE_MAX_METERS, JOB_ELIGIBLE_WORKERS_TTL } = require('../../constants/business');
+const { MAX_ACTIVE_JOBS, MAX_AVAILABLE_JOBS, GEOFENCE_MAX_METERS, JOB_ELIGIBLE_WORKERS_TTL, OTP_MIN, OTP_MAX } = require('../../constants/business');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const crypto = require('crypto');
@@ -434,6 +434,38 @@ exports.getWorkerJobs = catchAsync(async (req, res) => {
 // â”€â”€â”€ PATCH /api/v1/jobs/:id/start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // LOOPHOLE FIX #3 â€” GPS Spoofing Mitigation
+// ─── POST /api/v1/jobs/:id/arrive (WORKER) ─────────────────────────────────
+// B1 FIX: Adds the ALLOCATED → ARRIVING transition that was previously missing.
+// Worker calls this when they start heading to the customer.
+// Triggers JOB_STATUS_CHANGED so LiveTrackingScreen shows "Worker En Route".
+exports.arriveJob = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const job = await Job.findOne({ _id: id, workerId: req.user._id });
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+    if (job.status !== 'ALLOCATED') {
+        return errorResponse(res, `Cannot mark as arriving — job is currently ${job.status}`, StatusCodes.BAD_REQUEST);
+    }
+
+    job.status = 'ARRIVING';
+    await job.save();
+
+    emitToRoom(`customer_${job.customerId}`, 'JOB_STATUS_CHANGED', {
+        jobId: job._id, status: 'ARRIVING', message: 'Your worker is on the way!'
+    });
+
+    notifyUser({
+        userId: job.customerId,
+        title: '🚗 Worker On The Way',
+        message: `Your worker is heading to your location for the ${job.category} service. Track them in real-time.`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'CUSTOMER'
+    });
+
+    return successResponse(res, job, 'Job marked as ARRIVING');
+});
+
 //   Verifies worker is within 200 meters of job location using Haversine distance
 //   This prevents workers from using GPS spoofing apps to fake arrival
 exports.startJob = catchAsync(async (req, res) => {
@@ -741,6 +773,10 @@ exports.rateJob = catchAsync(async (req, res) => {
     }
 
     job.rating = { score, review, createdAt: new Date() };
+    // B2 FIX: Transition PAID → CLOSED to complete the lifecycle
+    if (job.status === 'PAID') {
+        job.status = 'CLOSED';
+    }
     await job.save();
 
     if (job.workerId) {
@@ -764,8 +800,60 @@ exports.rateJob = catchAsync(async (req, res) => {
         }
     }
 
+    // B2 FIX: Notify admin dashboard that the job lifecycle is fully complete
+    if (job.status === 'CLOSED') {
+        triggerDashboardUpdate({ type: 'JOB_CLOSED', id: job._id });
+    }
+
     return successResponse(res, job, 'Job rated successfully');
 });
+
+// ─── POST /api/v1/jobs/:id/rate-customer (WORKER rates CUSTOMER) ─────────────
+// M2 FIX: Workers can now rate customers.
+exports.rateCustomer = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { score, review } = req.body;
+
+    if (typeof score !== 'number' || !Number.isInteger(score) || score < 1 || score > 5) {
+        return errorResponse(res, 'Rating score must be an integer between 1 and 5', StatusCodes.BAD_REQUEST);
+    }
+
+    const job = await Job.findOne({ _id: id, workerId: req.user._id });
+    if (!job) return errorResponse(res, 'Job not found or unauthorized', StatusCodes.NOT_FOUND);
+    if (!['COMPLETED', 'PAID', 'CLOSED'].includes(job.status)) {
+        return errorResponse(res, 'Job must be completed before rating the customer', StatusCodes.BAD_REQUEST);
+    }
+    if (job.customerRating?.score) {
+        return errorResponse(res, 'You have already rated this customer', StatusCodes.CONFLICT);
+    }
+
+    job.customerRating = { score, review, createdAt: new Date() };
+    await job.save();
+
+    const customer = await Customer.findById(job.customerId);
+    if (customer) {
+        if (!customer.customerRating) customer.customerRating = { average: 0, count: 0 };
+        const total = (customer.customerRating.average || 0) * (customer.customerRating.count || 0);
+        customer.customerRating.count = (customer.customerRating.count || 0) + 1;
+        customer.customerRating.average = parseFloat(
+            ((total + score) / customer.customerRating.count).toFixed(2)
+        );
+        await customer.save();
+    }
+
+    notifyUser({
+        userId: job.customerId,
+        title: '\u2b50 You Received a Review',
+        message: `Your service provider left a ${score}-star review for job #${String(job._id).slice(-6)}.`,
+        action: 'OTHER',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'CUSTOMER'
+    });
+
+    return successResponse(res, job, 'Customer rated successfully');
+});
+
 
 // â”€â”€â”€ PATCH /api/v1/jobs/:id/cancel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 exports.cancelJob = catchAsync(async (req, res) => {
@@ -787,6 +875,7 @@ exports.cancelJob = catchAsync(async (req, res) => {
     await job.save();
 
     await delCache(`job:${job._id}:assigned_worker`);
+    await delCache(`job:${job._id}:eligible_workers`);  // S7 FIX: clean up stale worker list cache
     await delCache('admin_dashboard_stats');
     emitToAll('DASHBOARD_UPDATE', { type: 'JOB_CANCELLED', id: job._id });
 
@@ -849,15 +938,19 @@ exports.reassignWorker = catchAsync(async (req, res) => {
     const job = await Job.findById(req.params.id);
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
 
+    // S6 FIX: Generate fresh OTPs — old ones are now cryptographically dead
+    const newArrivalOtp    = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
+    const newCompletionOtp = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
+
     job.workerId = workerId;
-    job.status = 'ALLOCATED';
+    job.status   = 'ALLOCATED';
+    job.security = { arrivalOtp: newArrivalOtp, completionOtp: newCompletionOtp };
     await job.save();
 
-    // Invalidate old assignment cache and set new one
     await delCache(`job:${job._id}:assigned_worker`);
     await setCache(`job:${job._id}:assigned_worker`, String(workerId), 7200);
 
-    emitToAll('DASHBOARD_UPDATE', { type: 'WORKER_REASSIGNED', id: job._id });
+    triggerDashboardUpdate({ type: 'WORKER_REASSIGNED', id: job._id });
 
     if (job.customerId) {
         notifyUser({
@@ -871,10 +964,17 @@ exports.reassignWorker = catchAsync(async (req, res) => {
         });
     }
 
+    // S6 FIX: Deliver fresh OTPs to new worker via real-time socket
+    emitToRoom(`worker_${workerId}`, 'QUOTE_ACCEPTED', {
+        jobId:      job._id,
+        arrivalOtp: newArrivalOtp,
+        amount:     job.payment?.workerPayout || job.payment?.amount,
+        address:    job.addressDetails
+    });
     notifyUser({
         userId: workerId,
-        title: 'New Job Assigned',
-        message: `You have been manually assigned to job #${String(job._id).slice(-6)} by the admin.`,
+        title: 'New Job Assigned By Admin',
+        message: `You have been assigned to job #${String(job._id).slice(-6)} by admin. Check app for OTP.`,
         action: 'JOB_UPDATED',
         entityType: 'JOB',
         entityId: job._id,
@@ -1022,6 +1122,8 @@ exports.resolveDispute = catchAsync(async (req, res) => {
 
         emitToRoom(`worker_${job.workerId}`, 'DISPUTE_RESOLVED', { jobId: job._id, resolution });
         emitToRoom(`customer_${job.customerId}`, 'DISPUTE_RESOLVED', { jobId: job._id, resolution });
+        // S5 FIX: Update admin dashboard so dispute count decreases in real-time
+        triggerDashboardUpdate({ type: 'DISPUTE_RESOLVED', id: job._id, resolution });
 
         return successResponse(res, job, `Dispute resolved: ${resolution}`);
     } catch (error) {

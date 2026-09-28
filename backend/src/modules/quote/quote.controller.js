@@ -11,7 +11,24 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { haversineDistance, calculateETA } = require('../../helpers/geo.helper');
-const { OTP_MIN, OTP_MAX } = require('../../constants/business');
+const { OTP_MIN, OTP_MAX, FREE_TRIAL_DAYS_DEFAULT } = require('../../constants/business');
+
+/**
+ * Central helper — checks if a worker's subscription is valid.
+ * Used by placeQuote AND acceptQuote to guarantee identical eligibility.
+ */
+const isWorkerSubscriptionValid = (worker, settings) => {
+    const now = new Date();
+    const isTrialActive = worker.subscription?.isTrial === true &&
+        worker.subscription?.trialEndDate &&
+        new Date(worker.subscription.trialEndDate) > now;
+    const isPaidSubActive = worker.subscription?.expiryDate &&
+        new Date(worker.subscription.expiryDate) > now;
+    const freeTrialDays = Number(settings?.subscription?.freeTrialDays || FREE_TRIAL_DAYS_DEFAULT);
+    const isFallbackTrialActive = worker.createdAt &&
+        new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
+    return isTrialActive || isPaidSubActive || isFallbackTrialActive;
+};
 
 /**
  * POST /api/v1/quotes
@@ -32,22 +49,10 @@ exports.placeQuote = catchAsync(async (req, res) => {
         return errorResponse(res, 'KYC must be approved before you can place quotes.', StatusCodes.FORBIDDEN);
     }
 
-    // Guard: Subscription check (matches getAvailableJobs fallback trial logic)
-    const now = new Date();
-    const isTrialActive = worker.subscription?.isTrial === true &&
-        worker.subscription?.trialEndDate &&
-        new Date(worker.subscription.trialEndDate) > now;
-    const isPaidSubActive = worker.subscription?.expiryDate &&
-        new Date(worker.subscription.expiryDate) > now;
-
-    // Fallback: Use freeTrialDays from registration
+    // Guard: Subscription check — uses shared helper for consistency with acceptQuote
     const SettingsService = require('../settings/settings.service');
     const settings = await SettingsService.getAppSettings();
-    const freeTrialDays = Number(settings?.subscription?.freeTrialDays || 30);
-    const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
-
-    const isSubscriptionValid = isTrialActive || isPaidSubActive || isFallbackTrialActive;
-    if (!isSubscriptionValid) {
+    if (!isWorkerSubscriptionValid(worker, settings)) {
         return errorResponse(res, 'Subscription expired. Please renew your subscription to place quotes.', StatusCodes.PAYMENT_REQUIRED);
     }
 
@@ -225,23 +230,13 @@ exports.acceptQuote = catchAsync(async (req, res) => {
     }
 
     try {
-        // Guard: Verify the worker's subscription is still valid at acceptance time
+        // Guard: Verify worker subscription is still valid at acceptance time — same helper as placeQuote
         const worker = await Customer.findById(quote.workerId).lean();
         if (!worker) return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
 
-        const now = new Date();
-        const isTrialActive = worker.subscription?.isTrial === true &&
-            worker.subscription?.trialEndDate &&
-            new Date(worker.subscription.trialEndDate) > now;
-        const isPaidSubActive = worker.subscription?.expiryDate &&
-            new Date(worker.subscription.expiryDate) > now;
-
         const SettingsService = require('../settings/settings.service');
         const settings = await SettingsService.getAppSettings();
-        const freeTrialDays = settings?.subscription?.freeTrialDays || 14;
-        const isFallbackTrialActive = worker.createdAt && new Date(worker.createdAt).getTime() + freeTrialDays * 24 * 60 * 60 * 1000 > now.getTime();
-
-        if (!isTrialActive && !isPaidSubActive && !isFallbackTrialActive) {
+        if (!isWorkerSubscriptionValid(worker, settings)) {
             return errorResponse(res, 'Worker subscription has expired. Cannot accept this quote.', StatusCodes.PAYMENT_REQUIRED);
         }
 

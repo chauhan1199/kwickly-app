@@ -214,7 +214,7 @@ describe('Cross-flow UTR Anti-Replay', () => {
                 .send({ amount: 500, utrNumber: '987653000001' });
             const r2 = await request(app).post('/api/v1/wallet/topup')
                 .set('Authorization', `Bearer ${workerToken}`)
-                .send({ amount: 500, utrNumber: '987653000002' });
+                .send({ amount: 500, utrNumber: '987653000100' });
             expect(r1.status).toBe(201);
             expect(r2.status).toBe(201);
         });

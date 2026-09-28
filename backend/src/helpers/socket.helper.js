@@ -116,6 +116,22 @@ const initSocket = (server) => {
                     socket.join(`worker_${socket.userId}`);
                 } else if (socket.userRole === 'SHOP') {
                     socket.join(`shop_${socket.userId}`);
+                    // Also join shop_{shopId} so order events (NEW_ORDER, ORDER_STATUS) reach the shop owner
+                    try {
+                        const Shop = require('../modules/shop/shop.model');
+                        Shop.findOne({ ownerId: socket.userId }).select('_id').lean()
+                            .then(shop => {
+                                if (shop) {
+                                    socket.join(`shop_${shop._id}`);
+                                    logger.info(`[Socket] Shop owner ${socket.userId} joined room shop_${shop._id}`);
+                                }
+                            })
+                            .catch(err => {
+                                logger.warn(`[Socket] Shop room lookup failed for ${socket.userId}: ${err.message}`);
+                            });
+                    } catch (e) {
+                        logger.warn(`[Socket] Shop room join error: ${e.message}`);
+                    }
                 } else if (socket.userRole === 'ADMIN') {
                     socket.join('admin_dashboard');
                 }

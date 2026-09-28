@@ -20,8 +20,14 @@ export const jobService = {
   completeJob: (id, data) =>
     withErrorHandling(() => api.post(`/jobs/${id}/complete`, data)),
 
+  arriveJob: (id) =>
+    withErrorHandling(() => api.post(`/jobs/${id}/arrive`)),
+
   rateJob: (id, data) =>
     withErrorHandling(() => api.post(`/jobs/${id}/rate`, data)),
+
+  rateCustomer: (id, data) =>
+    withErrorHandling(() => api.post(`/jobs/${id}/rate-customer`, data)),
 
   startJob: (id, data) =>
     withErrorHandling(() => api.post(`/jobs/${id}/start`, data)),

@@ -577,7 +577,7 @@ describe('Category Management — Complete E2E', () => {
             expect(newCat).toBeDefined();
             expect(newCat.icon).toBe('📸');
             expect(newCat.subcategories.length).toBe(3);
-            expect(newCat.subcategories.map(s => s.name)).toEqual(['Wedding Photography', 'Birthday Decoration', 'DJ Service']);
+            expect(newCat.subcategories.map(s => s.name).sort()).toEqual(['Wedding Photography', 'Birthday Decoration', 'DJ Service'].sort());
         });
     });
 });

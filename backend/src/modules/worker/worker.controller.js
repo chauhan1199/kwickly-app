@@ -300,12 +300,14 @@ exports.toggleOnlineStatus = catchAsync(async (req, res) => {
         // 3. Admin-Managed Platform Settings (Trial duration & Minimum frozen wallet balance)
         const SettingsService = require('../settings/settings.service');
         const settings = await SettingsService.getAppSettings();
-        const trialDays = Number(settings?.subscription?.freeTrialDays || 30);
+        const trialDays = Number(settings?.subscription?.freeTrialDays || 14);
         const minBalance = Number(settings?.wallet?.minimumBalance !== undefined ? settings.wallet.minimumBalance : 100);
 
         const registrationDate = user.createdAt || new Date();
-        const trialEndDate = new Date(registrationDate.getTime() + trialDays * 86400000);
-        const isTrialActive = trialEndDate > new Date();
+        const trialEndDate = user.subscription?.trialEndDate
+            ? new Date(user.subscription.trialEndDate)
+            : new Date(registrationDate.getTime() + trialDays * 86400000);
+        const isTrialActive = user.subscription?.isTrial !== false && trialEndDate > new Date();
         const isSubscriptionActive = user.subscription?.expiryDate && new Date(user.subscription.expiryDate) > new Date();
 
         if (!isTrialActive && !isSubscriptionActive) {

@@ -5,10 +5,11 @@ const Customer = require('../modules/customer/customer.model');
 const AppSettings = require('../modules/settings/settings.model');
 const WalletTxn = require('../modules/wallet/wallet.model');
 const logger = require('../helpers/logger.helper');
-const { emitToRoom, getIO } = require('../helpers/socket.helper');
+const { emitToRoom, emitToAll, getIO } = require('../helpers/socket.helper');
 const { findEligibleWorkers } = require('../helpers/worker.helper');
-const { getCache, setCache, acquireLock, releaseLock } = require('../helpers/redis.helper');
+const { getCache, setCache, delCache, acquireLock, releaseLock } = require('../helpers/redis.helper');
 const { notifyUser } = require('../helpers/notifyUser.helper');
+const Quote = require('../modules/quote/quote.model');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../helpers/transaction.helper');
 
@@ -181,9 +182,9 @@ const sweepBroadcastingJobs = async () => {
 };
 
 const sweepGhostQuotes = async () => {
-    // Cancel QUOTES_RECEIVED jobs that are older than 2 hours
+    // S4 FIX: Cancel QUOTES_RECEIVED jobs created > 2 hours ago that were never accepted
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const ghostJobs = await Job.find({ status: 'QUOTES_RECEIVED', updatedAt: { $lt: twoHoursAgo } });
+    const ghostJobs = await Job.find({ status: 'QUOTES_RECEIVED', createdAt: { $lt: twoHoursAgo } });
     
     for (const job of ghostJobs) {
         const isScheduled = job.preferredDate && new Date(job.preferredDate) > new Date();
@@ -194,8 +195,56 @@ const sweepGhostQuotes = async () => {
 
         logger.info(`[Cron] Cancelling ghost QUOTES_RECEIVED job ${job._id}`);
         job.status = 'CANCELLED';
+        job.cancelReason = 'Auto-cancelled: quote acceptance window expired (2 hours)';
         await job.save();
-        emitToRoom(`customer_${job.customerId}`, 'JOB_STATUS_CHANGED', { jobId: job._id, status: 'CANCELLED', reason: 'Quote acceptance timeout' });
+
+        await delCache(`job:${job._id}:assigned_worker`);
+        await delCache(`job:${job._id}:eligible_workers`);
+        await delCache('admin_dashboard_stats');
+        emitToAll('DASHBOARD_UPDATE', { type: 'JOB_CANCELLED', id: job._id });
+
+        emitToRoom(`customer_${job.customerId}`, 'JOB_STATUS_CHANGED', {
+            jobId: job._id,
+            status: 'CANCELLED',
+            reason: 'Quote acceptance timeout (2 hours)'
+        });
+
+        notifyUser({
+            userId: job.customerId,
+            title: 'Job Request Expired',
+            message: `Your request for ${job.category || 'Service'} (#${String(job._id).slice(-6)}) expired because no quote was accepted within 2 hours.`,
+            action: 'JOB_UPDATED',
+            entityType: 'JOB',
+            entityId: job._id,
+            targetRole: 'CUSTOMER'
+        });
+
+        // B4 FIX: Notify all workers who submitted quotes and update quote status to EXPIRED
+        try {
+            const quotes = await Quote.find({ jobId: job._id, status: 'PENDING' });
+            for (const q of quotes) {
+                q.status = 'EXPIRED';
+                await q.save();
+
+                emitToRoom(`worker_${q.workerId}`, 'JOB_STATUS_CHANGED', {
+                    jobId: job._id,
+                    status: 'CANCELLED',
+                    reason: 'Customer did not accept any quote within the 2-hour window'
+                });
+
+                notifyUser({
+                    userId: q.workerId,
+                    title: 'Quote Expired',
+                    message: `Job #${String(job._id).slice(-6)} (${job.category || 'Service'}) was closed because no quote was accepted by the customer.`,
+                    action: 'JOB_UPDATED',
+                    entityType: 'JOB',
+                    entityId: job._id,
+                    targetRole: 'WORKER'
+                });
+            }
+        } catch (quoteErr) {
+            logger.error(`[Cron] Error notifying quoting workers for job ${job._id}: ${quoteErr.message}`);
+        }
     }
 };
 
@@ -308,19 +357,50 @@ const sweepGhostOrders = async () => {
 const sweepExpiredSubscriptions = async () => {
     const now = new Date();
     
-    // Find workers/shops online with expired subscriptions
+    // Find workers/shops online whose paid plan or free trial has expired
     const expiredUsers = await Customer.find({
         role: { $in: ['WORKER', 'SHOP'] },
         isOnline: true,
-        'subscription.isTrial': false,
-        'subscription.expiryDate': { $lt: now }
+        $or: [
+            { 'subscription.isTrial': true, 'subscription.trialEndDate': { $lt: now } },
+            { 'subscription.isTrial': false, 'subscription.expiryDate': { $lt: now } }
+        ]
     });
 
     for (const user of expiredUsers) {
-        logger.info(`[Cron] Forcing user ${user._id} offline due to subscription expiry`);
+        logger.info(`[Cron] Forcing user ${user._id} (${user.role}) offline due to subscription expiry`);
         user.isOnline = false;
         await user.save();
-        emitToRoom(`${user.role.toLowerCase()}_${user._id}`, 'FORCED_OFFLINE', { reason: 'Subscription expired' });
+
+        const reason = user.subscription?.isTrial
+            ? 'Free trial has expired. Please purchase a subscription to go online.'
+            : 'Subscription has expired. Please renew to go online.';
+
+        emitToRoom(`${user.role.toLowerCase()}_${user._id}`, 'FORCED_OFFLINE', { reason });
+        emitToRoom(`user_${user._id}`, 'FORCED_OFFLINE', { reason });
+
+        // B5 FIX: For SHOP users, also emit to the shop_{shopId} room
+        if (user.role === 'SHOP') {
+            try {
+                const Shop = require('../modules/shop/shop.model');
+                const shop = await Shop.findOne({ ownerId: user._id }).select('_id').lean();
+                if (shop) {
+                    emitToRoom(`shop_${shop._id}`, 'FORCED_OFFLINE', { reason });
+                }
+            } catch (shopErr) {
+                logger.error(`[Cron] Error finding shop for user ${user._id}: ${shopErr.message}`);
+            }
+        }
+
+        notifyUser({
+            userId: user._id,
+            title: 'Subscription Expired',
+            message: reason,
+            action: 'FORCED_OFFLINE',
+            entityType: 'SUBSCRIPTION',
+            entityId: user._id,
+            targetRole: user.role
+        });
     }
 };
 

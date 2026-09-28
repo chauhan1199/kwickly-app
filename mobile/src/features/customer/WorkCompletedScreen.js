@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -10,7 +10,8 @@ import {
   TextInput,
   Image,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -38,21 +39,46 @@ const WorkCompletedScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
 
   const { worker, job } = route.params || {};
-  const workerName = worker?.name || job?.workerId?.name || job?.workerName || 'Technician';
+  const [currentJob, setCurrentJob] = useState(job || null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchLatestJob = useCallback(async () => {
+    const targetId = currentJob?._id || job?._id;
+    if (!targetId) return;
+    try {
+      const res = await jobService.getJobById(targetId);
+      if (res.data?.data) {
+        setCurrentJob(res.data.data);
+      }
+    } catch (e) {
+      console.log('[WorkCompleted] Refresh error:', e.message);
+    }
+  }, [currentJob?._id, job?._id]);
+
+  useEffect(() => {
+    fetchLatestJob();
+  }, [fetchLatestJob]);
+
+  const activeJob = currentJob || job;
+  const workerName = worker?.name || activeJob?.workerId?.name || activeJob?.workerName || 'Technician';
 
   // Dynamic Financial Calculations from Job Data
-  const workerPayout = Number(job?.payment?.workerPayout || job?.quote?.amount || job?.price || job?.budget || 0);
-  const platformFee = job?.payment?.platformFee !== undefined 
-    ? Number(job.payment.platformFee) 
-    : (job?.platformFee !== undefined ? Number(job.platformFee) : (workerPayout > 0 ? Math.round(workerPayout * 0.10) : 0));
-  const gst = job?.payment?.gst !== undefined 
-    ? Number(job.payment.gst) 
-    : (job?.gst !== undefined ? Number(job.gst) : (platformFee > 0 ? Math.round(platformFee * 0.18) : 0));
-  const totalAmount = job?.payment?.amount 
-    ? Number(job.payment.amount) 
+  const workerPayout = Number(activeJob?.payment?.workerPayout || activeJob?.quote?.amount || activeJob?.price || activeJob?.budget || 0);
+  const platformFee = activeJob?.payment?.platformFee !== undefined 
+    ? Number(activeJob.payment.platformFee) 
+    : (activeJob?.platformFee !== undefined ? Number(activeJob.platformFee) : (workerPayout > 0 ? Math.round(workerPayout * 0.10) : 0));
+  const gst = activeJob?.payment?.gst !== undefined 
+    ? Number(activeJob.payment.gst) 
+    : (activeJob?.gst !== undefined ? Number(activeJob.gst) : (platformFee > 0 ? Math.round(platformFee * 0.18) : 0));
+  const totalAmount = activeJob?.payment?.amount 
+    ? Number(activeJob.payment.amount) 
     : (workerPayout > 0 ? (workerPayout + platformFee + gst) : 0);
   const workerEarning = workerPayout;
   const jobAmount = totalAmount;
+
+  const isPaidOrClosed = activeJob?.status === 'PAID' || activeJob?.status === 'CLOSED' || activeJob?.payment?.status === 'PAID';
+  const isPendingVerification = activeJob?.payment?.status === 'PENDING_VERIFICATION';
+  const isInProgress = activeJob?.status === 'IN_PROGRESS';
 
   const [otp, setOtp] = useState('');
   const [paying, setPaying] = useState(false);
@@ -144,7 +170,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
 
     setPaying(true);
     try {
-      const res = await jobService.payForJob(job?._id, { 
+      const res = await jobService.payForJob(activeJob?._id, { 
         method, 
         completionOtp: otp.trim(),
         promoCode 
@@ -155,7 +181,11 @@ const WorkCompletedScreen = ({ route, navigation }) => {
           title: 'Payment Successful! 🎉',
           message: `Payment of ₹${Math.max(0, totalAmount - promoDiscount)} authorized. ₹${workerEarning} credited directly to ${workerName}'s wallet.`,
           confirmText: 'Rate Experience ⭐',
-          onConfirm: () => navigation.navigate('RateExperience', { worker: { name: workerName }, job })
+          onConfirm: () => navigation.navigate('RateExperience', { 
+            worker: { name: workerName }, 
+            job: res.data.data || activeJob, 
+            jobId: activeJob?._id 
+          })
         });
       }
     } catch (e) {
@@ -172,7 +202,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
   const styles = createStyles(theme, isDarkMode, insets);
 
   // Extract actual media if worker attached proof photos
-  const rawMedia = job?.completionDetails?.media || job?.proofImage || job?.media || [];
+  const rawMedia = activeJob?.completionDetails?.media || activeJob?.proofImage || activeJob?.media || [];
   const realMedia = Array.isArray(rawMedia) 
     ? rawMedia.filter(m => typeof m === 'string' && m.trim().length > 0)
     : (typeof rawMedia === 'string' && rawMedia.trim().length > 0 ? [rawMedia] : []);
@@ -217,6 +247,16 @@ const WorkCompletedScreen = ({ route, navigation }) => {
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={async () => {
+              setRefreshing(true);
+              await fetchLatestJob();
+              setRefreshing(false);
+            }} 
+          />
+        }
       >
         {/* ── 1. COMPLETION PROOF / VERIFICATION ── */}
         <View style={styles.card}>
@@ -366,64 +406,123 @@ const WorkCompletedScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* ── 4. AUTHORIZE WITH 4-DIGIT COMPLETION OTP ── */}
-        <View style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-            <View style={[styles.sectionIconWrap, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
-              <Lock size={18} color="#6C47FF" />
+        {/* ── 4. STATUS-AWARE PAYMENT & AUTHORIZATION SECTION ── */}
+        {isPaidOrClosed ? (
+          <View style={styles.card}>
+            <View style={[styles.cardHeaderRow, { justifyContent: 'center', marginBottom: 10 }]}>
+              <View style={[styles.sectionIconWrap, { backgroundColor: '#10B98118' }]}>
+                <CheckCircle2 size={24} color="#10B981" />
+              </View>
+              <Text style={[styles.cardTitle, { color: '#10B981', marginLeft: 8 }]}>Payment Completed</Text>
             </View>
-            <Text style={styles.cardTitle}>Authorize Payment Release</Text>
-          </View>
-          
-          <Text style={styles.cardSub}>
-            Enter the 4-digit Completion OTP provided by {workerName} to confirm completion and release funds.
-          </Text>
-          
-          <TextInput
-            style={styles.otpInput}
-            placeholder="• • • •"
-            placeholderTextColor={theme.colors.textDim}
-            keyboardType="numeric"
-            maxLength={4}
-            value={otp}
-            onChangeText={setOtp}
-            editable={!paying}
-          />
-        </View>
-
-        {/* ── 5. ACTION BUTTONS ── */}
-        {paying ? (
-          <View style={styles.payingContainer}>
-            <ActivityIndicator size="large" color="#6C47FF" />
-            <Text style={styles.payingText}>Authorizing and transferring funds securely...</Text>
-          </View>
-        ) : (
-          <View style={styles.payGrid}>
+            <Text style={[styles.cardSub, { textAlign: 'center', marginBottom: 16 }]}>
+              ₹{totalAmount} has been paid and credited to {workerName}.
+            </Text>
             <TouchableOpacity 
-              style={styles.cashBtn}
-              onPress={() => handlePayment('CASH')}
-              activeOpacity={0.8}
-            >
-              <Banknote size={17} color={theme.colors.text} style={{ marginRight: 6 }} />
-              <Text style={styles.cashBtnText} numberOfLines={1}>Pay via Cash</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.onlineBtnWrap}
-              onPress={() => handlePayment('ONLINE')}
+              style={[styles.onlineBtnWrap, { width: '100%' }]}
+              onPress={() => navigation.navigate('RateExperience', { 
+                worker: { name: workerName }, 
+                job: activeJob, 
+                jobId: activeJob?._id 
+              })}
               activeOpacity={0.85}
             >
               <LinearGradient
                 colors={['#6C47FF', '#8B6FFF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.onlineBtnGradient}
+                style={[styles.onlineBtnGradient, { justifyContent: 'center' }]}
               >
-                <CreditCard size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.onlineBtnText} numberOfLines={1}>Pay Online ₹{formattedButtonAmount}</Text>
+                <Text style={styles.onlineBtnText}>Rate Technician Experience ⭐</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
+        ) : isPendingVerification ? (
+          <View style={[styles.card, { borderColor: '#F59E0B40', backgroundColor: isDarkMode ? '#2A1F0C' : '#FEF3C7' }]}>
+            <View style={styles.cardHeaderRow}>
+              <View style={[styles.sectionIconWrap, { backgroundColor: '#F59E0B20' }]}>
+                <Text style={{ fontSize: 18 }}>⏳</Text>
+              </View>
+              <Text style={[styles.cardTitle, { color: '#B45309' }]}>Payment Under Verification</Text>
+            </View>
+            <Text style={[styles.cardSub, { color: isDarkMode ? '#FDE68A' : '#78350F' }]}>
+              Your payment is currently being verified by admin. The status will automatically update once verified.
+            </Text>
+          </View>
+        ) : isInProgress ? (
+          <View style={[styles.card, { borderColor: '#3B82F640', backgroundColor: isDarkMode ? '#1E293B' : '#EFF6FF' }]}>
+            <View style={styles.cardHeaderRow}>
+              <View style={[styles.sectionIconWrap, { backgroundColor: '#3B82F620' }]}>
+                <Text style={{ fontSize: 18 }}>🔨</Text>
+              </View>
+              <Text style={[styles.cardTitle, { color: '#2563EB' }]}>Work In Progress</Text>
+            </View>
+            <Text style={[styles.cardSub, { color: isDarkMode ? '#93C5FD' : '#1E40AF' }]}>
+              {workerName} is currently working on this service. Once finished, they will complete the job and share the Completion OTP with you to authorize payment.
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* ── 4. AUTHORIZE WITH 4-DIGIT COMPLETION OTP ── */}
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <View style={[styles.sectionIconWrap, { backgroundColor: 'rgba(108, 71, 255, 0.12)' }]}>
+                  <Lock size={18} color="#6C47FF" />
+                </View>
+                <Text style={styles.cardTitle}>Authorize Payment Release</Text>
+              </View>
+              
+              <Text style={styles.cardSub}>
+                Enter the 4-digit Completion OTP provided by {workerName} to confirm completion and release funds.
+              </Text>
+              
+              <TextInput
+                style={styles.otpInput}
+                placeholder="• • • •"
+                placeholderTextColor={theme.colors.textDim}
+                keyboardType="numeric"
+                maxLength={4}
+                value={otp}
+                onChangeText={setOtp}
+                editable={!paying}
+              />
+            </View>
+
+            {/* ── 5. ACTION BUTTONS ── */}
+            {paying ? (
+              <View style={styles.payingContainer}>
+                <ActivityIndicator size="large" color="#6C47FF" />
+                <Text style={styles.payingText}>Authorizing and transferring funds securely...</Text>
+              </View>
+            ) : (
+              <View style={styles.payGrid}>
+                <TouchableOpacity 
+                  style={styles.cashBtn}
+                  onPress={() => handlePayment('CASH')}
+                  activeOpacity={0.8}
+                >
+                  <Banknote size={17} color={theme.colors.text} style={{ marginRight: 6 }} />
+                  <Text style={styles.cashBtnText} numberOfLines={1}>Pay via Cash</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.onlineBtnWrap}
+                  onPress={() => handlePayment('ONLINE')}
+                  activeOpacity={0.85}
+                >
+                  <LinearGradient
+                    colors={['#6C47FF', '#8B6FFF']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.onlineBtnGradient}
+                  >
+                    <CreditCard size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.onlineBtnText} numberOfLines={1}>Pay Online ₹{formattedButtonAmount}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
 

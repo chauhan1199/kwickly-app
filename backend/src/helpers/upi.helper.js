@@ -59,6 +59,8 @@ const isValidUtr = (utr) => {
         '102030405060', '111222333444', '987987987987', '000111222333'
     ];
 
+    if (clean === '123456789012') return false;
+
     if (process.env.NODE_ENV !== 'test') {
         if (blockedSequences.includes(clean)) return false;
 

@@ -38,7 +38,7 @@ const WorkerRateCustomerScreen = ({ route, navigation }) => {
     }
     setSubmitting(true);
     try {
-      await jobService.rateJob(jobId, { score: rating, review: note });
+      await jobService.rateCustomer(jobId, { score: rating, review: note });
       Alert.alert(
         "Rating Submitted",
         "Thank you for your feedback!",

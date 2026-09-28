@@ -519,6 +519,7 @@ describe('Payment Model Tests', () => {
     });
 
     it('should enforce unique razorpayOrderId', async () => {
+        await Payment.init();
         await Payment.create({
             razorpayOrderId: 'upi_ord_unique_test',
             amount: 500,

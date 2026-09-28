@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ScrollView,
   View,
@@ -16,6 +16,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { Phone, MessageCircle, Navigation } from 'lucide-react-native';
+import { jobService } from '../../services/jobService';
 
 const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -38,6 +39,15 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
 
   const [distance, setDistance] = useState('...');
   const [eta, setEta] = useState('...');
+
+  // B1/M1 FIX: Transition job to ARRIVING when worker starts navigating to the job
+  useEffect(() => {
+    if (jobId && (job?.status === 'ALLOCATED' || !job?.status)) {
+      jobService.arriveJob(jobId).catch((err) => {
+        console.log('[WorkerNavigate] arriveJob notice:', err?.response?.data?.message || err.message);
+      });
+    }
+  }, [jobId, job?.status]);
 
   const mapHTML = `
     <!DOCTYPE html>

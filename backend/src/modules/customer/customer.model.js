@@ -40,13 +40,16 @@ const CustomerSchema = new mongoose.Schema({
         isActive: { type: Boolean, default: true }
     },
     activeLocation: {
-        type: { type: String, enum: ['Point'] },
-        coordinates: { type: [Number] }, // [longitude, latitude]
-        addressDetails: {
-            city: { type: String },
-            pincode: { type: String },
-            area: { type: String }
-        }
+        type: new mongoose.Schema({
+            type: { type: String, enum: ['Point'], default: 'Point' },
+            coordinates: { type: [Number], required: true },
+            addressDetails: {
+                city: { type: String },
+                pincode: { type: String },
+                area: { type: String }
+            }
+        }, { _id: false }),
+        default: undefined
     },
     addresses: {
         type: [{

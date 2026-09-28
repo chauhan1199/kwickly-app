@@ -19,9 +19,9 @@ const findEligibleWorkers = async (job, radiusKm, minBalance = 100) => {
         'kyc.status': 'APPROVED',
         isOnline: true,
         $or: [
-            { 'subscription.isTrial': true },
+            { 'subscription.isTrial': true, 'subscription.trialEndDate': { $gt: now } },
             { 'subscription.expiryDate': { $gt: now } },
-            { createdAt: { $gt: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000) } }
+            { 'subscription.isTrial': true, createdAt: { $gt: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000) } }
         ],
         'wallet.balance': { $gte: minBalance },
         activeLocation: {

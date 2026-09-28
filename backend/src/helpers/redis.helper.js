@@ -172,19 +172,32 @@ const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
     return data;
 };
 
+// In-memory locks fallback when Redis is unavailable
+const memoryLocks = new Map();
+
 /**
- * @desc Acquire a distributed lock for background jobs
+ * @desc Acquire a distributed lock for background jobs or allocation
  */
 const acquireLock = async (lockKey, ttlInSeconds = 50) => {
+    const holderId = `${process.pid}:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
     const client = getRedis();
-    if (!isClientReady(client)) return false; // If redis is down, deny lock to avoid chaos
-    const holderId = `${process.pid}:${Date.now()}`;
-    try {
-        const acquired = await client.set(`lock:${lockKey}`, holderId, 'NX', 'EX', ttlInSeconds);
-        return acquired ? holderId : false;
-    } catch (e) {
-        return false;
+    if (isClientReady(client)) {
+        try {
+            const acquired = await client.set(`lock:${lockKey}`, holderId, 'NX', 'EX', ttlInSeconds);
+            return acquired ? holderId : false;
+        } catch (e) {
+            // Redis error during command — fallback to in-memory lock
+        }
     }
+
+    // In-memory fallback lock (for local dev, tests, or when Redis is offline)
+    const existing = memoryLocks.get(lockKey);
+    const now = Date.now();
+    if (existing && existing.expiresAt > now) {
+        return false; // Still locked
+    }
+    memoryLocks.set(lockKey, { holderId, expiresAt: now + (ttlInSeconds * 1000) });
+    return holderId;
 };
 
 /**
@@ -192,15 +205,24 @@ const acquireLock = async (lockKey, ttlInSeconds = 50) => {
  */
 const releaseLock = async (lockKey, holderId) => {
     const client = getRedis();
-    if (!isClientReady(client)) return;
-    try {
-        if (holderId) {
-            const luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
-            await client.eval(luaScript, 1, `lock:${lockKey}`, holderId);
-        } else {
-            await client.del(`lock:${lockKey}`);
+    if (isClientReady(client)) {
+        try {
+            if (holderId) {
+                const luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+                await client.eval(luaScript, 1, `lock:${lockKey}`, holderId);
+            } else {
+                await client.del(`lock:${lockKey}`);
+            }
+        } catch (e) {}
+    }
+
+    // In-memory fallback release
+    const existing = memoryLocks.get(lockKey);
+    if (existing) {
+        if (!holderId || existing.holderId === holderId) {
+            memoryLocks.delete(lockKey);
         }
-    } catch (e) {}
+    }
 };
 
 module.exports = {
