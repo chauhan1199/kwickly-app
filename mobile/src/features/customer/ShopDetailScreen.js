@@ -233,7 +233,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
       </LinearGradient>
 
       {/* OVERLAPPING SEARCH BAR */}
-      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10 }}>
+      <View pointerEvents="box-none" style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10 }}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}

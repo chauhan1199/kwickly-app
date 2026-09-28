@@ -264,7 +264,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
       </LinearGradient>
 
       {/* Search - overlapping header */}
-      <View style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
+      <View pointerEvents="box-none" style={{ paddingHorizontal: 14, marginTop: -26, zIndex: 10, marginBottom: 10 }}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}

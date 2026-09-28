@@ -484,7 +484,7 @@ const BookServiceScreen = ({ navigation, route }) => {
       </LinearGradient>
 
       {/* Floating Search Bar */}
-      <View style={styles.searchBarWrapper}>
+      <View pointerEvents="box-none" style={styles.searchBarWrapper}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}

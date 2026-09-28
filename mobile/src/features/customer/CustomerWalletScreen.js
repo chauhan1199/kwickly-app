@@ -432,7 +432,7 @@ const CustomerWalletScreen = ({ navigation }) => {
       </LinearGradient>
 
       {/* Sticky Search - overlapping header */}
-      <View style={{ paddingHorizontal: 16, marginTop: -22, zIndex: 10, marginBottom: 10 }}>
+      <View pointerEvents="box-none" style={{ paddingHorizontal: 16, marginTop: -22, zIndex: 10, marginBottom: 10 }}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}

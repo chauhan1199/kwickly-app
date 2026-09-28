@@ -191,7 +191,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
       </LinearGradient>
 
       {/* Search - overlapping header */}
-      <View style={{ paddingHorizontal: 16, marginTop: -20, zIndex: 10, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
+      <View pointerEvents="box-none" style={{ paddingHorizontal: 16, marginTop: -20, zIndex: 10, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}

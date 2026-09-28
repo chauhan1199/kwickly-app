@@ -241,7 +241,7 @@ const ShopScreen = ({ navigation }) => {
       </LinearGradient>
 
       {/* Search - overlapping header */}
-      <View style={styles.searchOverlapBox}>
+      <View pointerEvents="box-none" style={styles.searchOverlapBox}>
         <SearchBar 
           value={searchQuery}
           onChangeText={setSearchQuery}
