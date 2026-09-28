@@ -331,7 +331,7 @@ exports.getCustomerOrders = catchAsync(async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const total = await ShopOrder.countDocuments({ customerId: req.user._id });
     const orders = await ShopOrder.find({ customerId: req.user._id })
-        .populate('shopId', 'name logoUrl address')
+        .populate('shopId', 'name logoUrl address location')
         .sort('-createdAt')
         .limit(Number(limit))
         .skip((Number(page) - 1) * Number(limit))
@@ -369,7 +369,7 @@ exports.getShopOrders = catchAsync(async (req, res) => {
  */
 exports.getOrderById = catchAsync(async (req, res) => {
     const order = await ShopOrder.findById(req.params.id)
-        .populate('shopId', 'name logoUrl address phone')
+        .populate('shopId', 'name logoUrl address phone location')
         .populate('customerId', 'name phone')
         .lean();
 

@@ -266,7 +266,7 @@ exports.getMyJobs = catchAsync(async (req, res) => {
     if (status) query.status = status.toUpperCase();
 
     const jobs = await Job.find(query)
-        .populate('workerId', 'name phone profileImage rating')
+        .populate('workerId', 'name phone profileImage rating activeLocation')
         .sort('-createdAt')
         .lean();
 
@@ -1206,7 +1206,7 @@ exports.getDisputes = catchAsync(async (req, res) => {
 exports.getJobById = catchAsync(async (req, res) => {
     const job = await Job.findById(req.params.id)
         .populate('customerId', 'name phone profileImage')
-        .populate('workerId', 'name phone profileImage rating')
+        .populate('workerId', 'name phone profileImage rating activeLocation')
         .lean();
 
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);

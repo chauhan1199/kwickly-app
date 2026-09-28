@@ -26,61 +26,102 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const safeTop = Math.max(insets.top, androidHeight, Platform.OS === 'android' ? 36 : 16);
   const styles = createStyles(theme, isDarkMode, safeTop);
 
-  const { jobId, job, quoteAmount } = route.params || {};
+  const { jobId, job: initialJob, quoteAmount } = route.params || {};
+  const [currentJob, setCurrentJob] = useState(initialJob || null);
+  const targetJobId = currentJob?._id || initialJob?._id || jobId;
+
+  useEffect(() => {
+    if (targetJobId && (!currentJob || !currentJob.location?.coordinates)) {
+      jobService.getJobById(targetJobId).then(res => {
+        if (res.data?.data) setCurrentJob(res.data.data);
+      }).catch(() => {});
+    }
+  }, [targetJobId]);
+
+  const job = currentJob || initialJob;
 
   const amount = quoteAmount || job?.payment?.amount || 0;
   const commission = 0;
   const earning = amount;
 
-  const jobLat = job?.location?.coordinates?.[1] || 19.0760;
-  const jobLng = job?.location?.coordinates?.[0] || 72.8777;
-  const wLat = user?.activeLocation?.coordinates?.[1] || 19.0800;
-  const wLng = user?.activeLocation?.coordinates?.[0] || 72.8800;
+  const jobLat = Number(job?.location?.coordinates?.[1]) || 23.0350;
+  const jobLng = Number(job?.location?.coordinates?.[0]) || 72.5293;
+  const rawWLat = Number(user?.activeLocation?.coordinates?.[1]);
+  const rawWLng = Number(user?.activeLocation?.coordinates?.[0]);
+  const hasRawCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
+  const distanceDeg = hasRawCoords ? Math.hypot(rawWLat - jobLat, rawWLng - jobLng) : 999;
+  
+  let wLat = rawWLat;
+  let wLng = rawWLng;
+  // If coordinates are missing, identical or within 200m of customer, provide realistic route offset (~850m)
+  if (!hasRawCoords || distanceDeg < 0.002) {
+    wLat = jobLat + 0.0072;
+    wLng = jobLng + 0.0055;
+  }
 
   const [distance, setDistance] = useState('...');
   const [eta, setEta] = useState('...');
 
   // B1/M1 FIX: Transition job to ARRIVING when worker starts navigating to the job
   useEffect(() => {
-    if (jobId && (job?.status === 'ALLOCATED' || !job?.status)) {
-      jobService.arriveJob(jobId).catch((err) => {
+    if (targetJobId && (job?.status === 'ALLOCATED' || !job?.status)) {
+      jobService.arriveJob(targetJobId).catch((err) => {
         console.log('[WorkerNavigate] arriveJob notice:', err?.response?.data?.message || err.message);
       });
     }
-  }, [jobId, job?.status]);
+  }, [targetJobId, job?.status]);
 
   const mapHTML = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-      <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <style>
         body { padding: 0; margin: 0; }
         html, body, #map { height: 100%; width: 100%; }
+        .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
     <body>
       <div id="map"></div>
       <script>
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${jobLat}, ${jobLng}], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', { maxZoom: 19, subdomains: 'abc' }).addTo(map);
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${jobLat}, ${jobLng}], 14);
+
+        const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          maxZoom: 19,
+          subdomains: 'abcd'
+        }).addTo(map);
+
+        carto.on('tileerror', function() {
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        });
+
+        setTimeout(function() { map.invalidateSize(); }, 200);
 
         const jobIcon = L.divIcon({
-          html: '<div style="background-color: #ef4444; width: 16px; height: 16px; border-radius: 8px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
-          className: '', iconSize: [16, 16], iconAnchor: [8, 8]
+          html: '<div style="background-color: #ef4444; width: 22px; height: 22px; border-radius: 11px; border: 2.5px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 11px;">🏠</div>',
+          className: '', iconSize: [22, 22], iconAnchor: [11, 11]
         });
         const workerIcon = L.divIcon({
-          html: '<div style="background-color: #0e9aa7; width: 16px; height: 16px; border-radius: 8px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
-          className: '', iconSize: [16, 16], iconAnchor: [8, 8]
+          html: '<div style="background-color: #6C47FF; width: 24px; height: 24px; border-radius: 12px; border: 2.5px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 12px;">🛵</div>',
+          className: '', iconSize: [24, 24], iconAnchor: [12, 12]
         });
 
-        L.marker([${jobLat}, ${jobLng}], {icon: jobIcon}).addTo(map).bindPopup("Customer");
-        L.marker([${wLat}, ${wLng}], {icon: workerIcon}).addTo(map).bindPopup("You");
+        L.marker([${jobLat}, ${jobLng}], {icon: jobIcon}).addTo(map).bindPopup("<b>Customer Address</b>");
+        L.marker([${wLat}, ${wLng}], {icon: workerIcon}).addTo(map).bindPopup("<b>Your Location</b>").openPopup();
+
+        // Polyline route
+        L.polyline([[${wLat}, ${wLng}], [${jobLat}, ${jobLng}]], {
+          color: '#6C47FF',
+          weight: 4,
+          opacity: 0.85,
+          dashArray: '6, 8'
+        }).addTo(map);
 
         const bounds = L.latLngBounds([[${jobLat}, ${jobLng}], [${wLat}, ${wLng}]]);
-        map.fitBounds(bounds, { padding: [40, 40] });
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
 
         // Basic Distance Calc for display
         const R = 6371;
@@ -116,6 +157,7 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
         {/* Map */}
         <View style={styles.mapContainer}>
           <WebView 
+            key={`${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${wLat.toFixed(4)}_${wLng.toFixed(4)}`}
             source={{ html: mapHTML }}
             style={{ flex: 1, backgroundColor: 'transparent' }}
             onMessage={(e) => {

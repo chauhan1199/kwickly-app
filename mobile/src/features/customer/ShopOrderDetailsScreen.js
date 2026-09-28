@@ -14,6 +14,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import useSocket from '../../hooks/useSocket';
 import { shopService } from '../../services/shopService';
 import { API_BASE_URL } from '../../config/env';
 import LinearGradient from 'react-native-linear-gradient';
@@ -25,7 +26,7 @@ import {
 
 const ShopOrderDetailsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
-  const { fetchUser } = useAuth();
+  const { user, fetchUser } = useAuth();
 
   const { orderId } = route.params || {};
   const [order, setOrder] = useState(null);
@@ -52,9 +53,19 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
   useEffect(() => {
     if (!orderId) return;
     fetchOrder(true);
-    const interval = setInterval(() => fetchOrder(false), 10000);
+    const interval = setInterval(() => fetchOrder(false), 5000);
     return () => clearInterval(interval);
   }, [orderId, fetchOrder]);
+
+  useSocket({
+    role: 'CUSTOMER',
+    userId: user?._id || user?.id,
+    onEvent: (event, data) => {
+      if (event === 'ORDER_STATUS' && (data?.orderId === orderId || !data?.orderId)) {
+        fetchOrder(false);
+      }
+    }
+  });
 
   const handleCancelOrder = () => {
     if (!order) return;
@@ -138,46 +149,142 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
   const platformFee = order.platformFee || 0;
   const gstAmount = order.gstAmount || 0;
 
+  const mapLat = Number(order.deliveryLocation?.coordinates?.[1]) || 23.0350;
+  const mapLng = Number(order.deliveryLocation?.coordinates?.[0]) || 72.5293;
+  let shopLat = Number(order.shopId?.location?.coordinates?.[1]) || 0;
+  let shopLng = Number(order.shopId?.location?.coordinates?.[0]) || 0;
+  if (!shopLat || !shopLng || (Math.abs(shopLat - mapLat) < 0.001 && Math.abs(shopLng - mapLng) < 0.001)) {
+    shopLat = mapLat + 0.014;
+    shopLng = mapLng + 0.008;
+  }
+
+  let trackingIcon = '📝';
+  let trackingTitle = 'Order Placed';
+  let trackingSub = 'Waiting for shop to confirm';
+  let trackingEta = 'Est. 25-30 mins';
+
+  if (o.s === 'CONFIRMED') {
+    trackingIcon = '✓';
+    trackingTitle = 'Order Confirmed';
+    trackingSub = `${o.shop} accepted your order`;
+    trackingEta = 'Est. 20-25 mins';
+  } else if (o.s === 'PACKING') {
+    trackingIcon = '📦';
+    trackingTitle = 'Processing & Packing';
+    trackingSub = 'Shop is preparing your items';
+    trackingEta = 'Est. 15-20 mins';
+  } else if (o.s === 'OUT_FOR_DELIVERY') {
+    trackingIcon = '🛵';
+    trackingTitle = 'Out for Delivery';
+    trackingSub = order.deliveryStaffName ? `Delivery partner: ${order.deliveryStaffName}` : 'Partner is on the way to your address';
+    trackingEta = 'Arriving in ~10 mins';
+  } else if (o.s === 'DELIVERED') {
+    trackingIcon = '🎉';
+    trackingTitle = 'Order Delivered';
+    trackingSub = 'Delivered to your address';
+    trackingEta = 'Delivered ✓';
+  }
+
   const mapHTML = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-      <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <style>
-        body { padding: 0; margin: 0; }
+        body { padding: 0; margin: 0; background: #f3f4f6; }
         html, body, #map { height: 100%; width: 100%; border-radius: 16px; overflow: hidden; }
+        .leaflet-control-attribution { display: none !important; }
+        @keyframes pulse {
+          0% { transform: scale(0.9); opacity: 0.8; }
+          50% { transform: scale(1.3); opacity: 0.3; }
+          100% { transform: scale(0.9); opacity: 0.8; }
+        }
+        .pulse-beacon {
+          animation: pulse 2s infinite ease-in-out;
+        }
       </style>
     </head>
     <body>
       <div id="map"></div>
       <script>
-        const lat = ${Number(order.deliveryLocation?.coordinates?.[1]) || 23.0225};
-        const lng = ${Number(order.deliveryLocation?.coordinates?.[0]) || 72.5714};
-        const sLat = ${Number(order.shopId?.location?.coordinates?.[1]) || ((Number(order.deliveryLocation?.coordinates?.[1]) || 23.0225) + 0.005)};
-        const sLng = ${Number(order.shopId?.location?.coordinates?.[0]) || ((Number(order.deliveryLocation?.coordinates?.[0]) || 72.5714) + 0.005)};
+        const lat = ${mapLat};
+        const lng = ${mapLng};
+        const sLat = ${shopLat};
+        const sLng = ${shopLng};
+        const status = "${o.s}";
 
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 14);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+        const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             maxZoom: 19,
-            subdomains: 'abc'
+            subdomains: 'abcd'
         }).addTo(map);
 
-        const homeIcon = L.divIcon({
-          html: '<div style="background-color: #ef4444; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
-          className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+        carto.on('tileerror', function() {
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         });
-        L.marker([lat, lng], {icon: homeIcon}).addTo(map).bindPopup("Delivery Location");
 
-        const shopIcon = L.divIcon({
-          html: '<div style="background-color: #0e9aa7; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
-          className: '', iconSize: [14, 14], iconAnchor: [7, 7]
-        });
-        L.marker([sLat, sLng], {icon: shopIcon}).addTo(map).bindPopup("Shop Owner").openPopup();
-        
-        map.fitBounds(L.latLngBounds([[lat, lng], [sLat, sLng]]), { padding: [30, 30] });
+        setTimeout(function() { map.invalidateSize(); }, 200);
+
+        if (status === 'DELIVERED') {
+          map.setView([lat, lng], 16);
+          const deliveredIcon = L.divIcon({
+            html: '<div style="background-color: #10B981; width: 34px; height: 34px; border-radius: 17px; border: 3px solid white; box-shadow: 0 4px 10px rgba(16,185,129,0.5); display: flex; align-items: center; justify-content: center; font-size: 16px;">✅</div>',
+            className: '', iconSize: [34, 34], iconAnchor: [17, 17]
+          });
+          L.marker([lat, lng], {icon: deliveredIcon}).addTo(map).bindPopup("<b>Delivered Successfully ✓</b><br/>Enjoy your order!").openPopup();
+        } else if (status === 'CANCELLED') {
+          map.setView([lat, lng], 15);
+          const cancelledIcon = L.divIcon({
+            html: '<div style="background-color: #EF4444; width: 30px; height: 30px; border-radius: 15px; border: 3px solid white; box-shadow: 0 4px 10px rgba(239,68,68,0.5); display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: bold;">✕</div>',
+            className: '', iconSize: [30, 30], iconAnchor: [15, 15]
+          });
+          L.marker([lat, lng], {icon: cancelledIcon}).addTo(map).bindPopup("<b>Order Cancelled</b>").openPopup();
+        } else {
+          // Home Pin
+          const homeIcon = L.divIcon({
+            html: '<div style="background-color: #6C47FF; width: 28px; height: 28px; border-radius: 14px; border: 3px solid white; box-shadow: 0 3px 8px rgba(108,71,255,0.45); display: flex; align-items: center; justify-content: center; font-size: 14px;">🏠</div>',
+            className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+          });
+          L.marker([lat, lng], {icon: homeIcon}).addTo(map).bindPopup("<b>Delivery Address</b><br/>Your Location");
+
+          // Shop Pin
+          const shopIcon = L.divIcon({
+            html: '<div style="background-color: #0e9aa7; width: 28px; height: 28px; border-radius: 14px; border: 3px solid white; box-shadow: 0 3px 8px rgba(14,154,167,0.45); display: flex; align-items: center; justify-content: center; font-size: 14px;">🏪</div>',
+            className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+          });
+          const shopPopup = status === 'NEW' ? '<b>${o.shop}</b><br/>Order placed · Awaiting acceptance' :
+                            status === 'CONFIRMED' ? '<b>${o.shop}</b><br/>Order confirmed ✓' :
+                            status === 'PACKING' ? '<b>${o.shop}</b><br/>Packing items 📦' :
+                            '<b>${o.shop}</b>';
+          const sMarker = L.marker([sLat, sLng], {icon: shopIcon}).addTo(map).bindPopup(shopPopup);
+          if (status !== 'OUT_FOR_DELIVERY') {
+            sMarker.openPopup();
+          }
+
+          // Polyline route
+          L.polyline([[sLat, sLng], [lat, lng]], {
+            color: '#6C47FF',
+            weight: 4,
+            opacity: 0.85,
+            dashArray: '6, 8'
+          }).addTo(map);
+
+          if (status === 'OUT_FOR_DELIVERY') {
+            const riderLat = sLat + (lat - sLat) * 0.65;
+            const riderLng = sLng + (lng - sLng) * 0.65;
+            const riderIcon = L.divIcon({
+              html: '<div style="background-color: #10B981; width: 32px; height: 32px; border-radius: 16px; border: 3px solid white; box-shadow: 0 4px 10px rgba(16,185,129,0.55); display: flex; align-items: center; justify-content: center; font-size: 16px;">🛵</div>',
+              className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+            });
+            L.marker([riderLat, riderLng], {icon: riderIcon}).addTo(map).bindPopup("<b>Out for Delivery 🛵</b><br/>Your order is on the way!").openPopup();
+            map.fitBounds(L.latLngBounds([[lat, lng], [sLat, sLng], [riderLat, riderLng]]), { padding: [45, 45], maxZoom: 16 });
+          } else {
+            map.fitBounds(L.latLngBounds([[lat, lng], [sLat, sLng]]), { padding: [45, 45], maxZoom: 16 });
+          }
+        }
       </script>
     </body>
     </html>
@@ -279,11 +386,12 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
               <View style={{ marginTop: 16 }}>
                 {[
                   { key: 'NEW', label: 'Order Placed', icon: '📝', sub: 'Waiting for shop to accept' },
+                  { key: 'CONFIRMED', label: 'Order Confirmed', icon: '✓', sub: 'Shop confirmed your order' },
                   { key: 'PACKING', label: 'Processing & Packing', icon: '📦', sub: 'Shop is preparing your items' },
-                  { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: '🛵', sub: 'Assigning delivery partner' },
+                  { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: '🛵', sub: 'Delivery partner on the way' },
                   { key: 'DELIVERED', label: 'Delivered', icon: '🎉', sub: 'Order completed' }
                 ].map((step, idx, arr) => {
-                  const statusOrder = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+                  const statusOrder = ['NEW', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
                   const currentIndex = statusOrder.indexOf(o.s);
                   const stepIndex = statusOrder.indexOf(step.key);
                   
@@ -315,23 +423,34 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
           )}
         </View>
 
-        {(isOutForDelivery || showMap) && !isCancelled && (
+        {!isCancelled && (
           <View style={styles.card}>
-            <Text style={styles.sectionHeader}>Live Tracking</Text>
-            <View style={{ height: 200, borderRadius: 16, overflow: 'hidden', marginTop: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={styles.sectionHeader}>Live Order Tracking</Text>
+              <View style={[styles.statusPill, { backgroundColor: isDelivered ? '#10b98118' : '#6C47FF18' }]}>
+                <Text style={[styles.statusText, { color: isDelivered ? '#10b981' : '#6C47FF' }]}>{o.s}</Text>
+              </View>
+            </View>
+
+            <View style={{ height: 210, borderRadius: 16, overflow: 'hidden', marginTop: 12, backgroundColor: '#e2e8f0' }}>
               <WebView 
+                key={`${o.s}_${mapLat.toFixed(4)}_${mapLng.toFixed(4)}_${shopLat.toFixed(4)}_${shopLng.toFixed(4)}`}
                 source={{ html: mapHTML }}
                 style={{ flex: 1, backgroundColor: 'transparent' }}
                 scrollEnabled={false}
               />
             </View>
-            <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center' }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.primary + '26', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                <Text style={{ fontSize: 18 }}>🚚</Text>
+
+            <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc', padding: 12, borderRadius: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: (isDelivered ? '#10b981' : '#6C47FF') + '20', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Text style={{ fontSize: 18 }}>{trackingIcon}</Text>
               </View>
-              <View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: theme.colors.text }}>Arriving soon</Text>
-                <Text style={{ fontSize: 12, color: theme.colors.textDim }}>ETA 15 mins</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: theme.colors.text }}>{trackingTitle}</Text>
+                <Text style={{ fontSize: 12, color: theme.colors.textDim, marginTop: 1 }}>{trackingSub}</Text>
+              </View>
+              <View style={{ backgroundColor: theme.colors.primary + '18', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: theme.colors.primary }}>{trackingEta}</Text>
               </View>
             </View>
           </View>

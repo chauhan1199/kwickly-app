@@ -507,7 +507,7 @@ const CartScreen = ({ route, navigation }) => {
     </View>
   );
 
-  if (loading && !cart) {
+  if (loading && !cart && !orderSuccessModal) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />

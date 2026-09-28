@@ -374,6 +374,7 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         targetRole: 'CUSTOMER'
     });
 
+        await updatedJob.populate('workerId', 'name phone profileImage rating activeLocation');
         return successResponse(res, { job: updatedJob, quote }, 'Quote accepted, worker assigned');
     } finally {
         await releaseLock(lockKey, lockHolderId);

@@ -36,7 +36,8 @@ const OrderHistoryScreen = ({ navigation }) => {
       setLoading(true);
       const res = await shopService.getCustomerOrders();
       const data = res.data?.data;
-      setOrders(data?.orders || []);
+      const list = data?.orders || (Array.isArray(data) ? data : []);
+      setOrders(list);
     } catch (e) {
       Alert.alert('Error', 'Failed to load orders. Please try again.');
     } finally {

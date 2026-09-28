@@ -386,15 +386,21 @@ export const AddressMapModal = ({
         .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
-    <body>
       <div id="map"></div>
       <script>
         var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${region.latitude}, ${region.longitude}], 16);
+        window.map = map;
         
-        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+        var carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
           maxZoom: 19,
-          subdomains: 'abc'
+          subdomains: 'abcd'
         }).addTo(map);
+
+        carto.on('tileerror', function() {
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        });
+
+        setTimeout(function() { if (window.map) map.invalidateSize(); }, 200);
 
         map.on('movestart', function() {
           if (window.ReactNativeWebView) {

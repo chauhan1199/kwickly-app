@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -8,22 +8,71 @@ import {
   TouchableOpacity, 
   StatusBar,
   ActivityIndicator,
-  Alert
+  Alert,
+  Linking,
+  Platform
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Button from '../../components/ui/Button';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
+import useSocket from '../../hooks/useSocket';
 import { jobService } from '../../services/jobService';
 
 const LiveTrackingScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const { user } = useAuth();
 
-  const { worker: routeWorker, job } = route.params || {};
+  const { worker: routeWorker, job: initialJob, jobId } = route.params || {};
+
+  const [currentJob, setCurrentJob] = useState(initialJob || null);
+  const [liveWorkerCoords, setLiveWorkerCoords] = useState(null);
+  const targetJobId = currentJob?._id || initialJob?._id || jobId;
+
+  // Poll backend every 3.5 seconds to keep screen synchronized with worker status changes
+  const fetchJobStatus = useCallback(async () => {
+    if (!targetJobId) return;
+    try {
+      const res = await jobService.getJobById(targetJobId);
+      if (res.data?.data) {
+        setCurrentJob(res.data.data);
+      }
+    } catch (e) {
+      // Non-blocking poll
+    }
+  }, [targetJobId]);
+
+  useEffect(() => {
+    fetchJobStatus();
+    const interval = setInterval(fetchJobStatus, 3500);
+    return () => clearInterval(interval);
+  }, [fetchJobStatus]);
+
+  useSocket({
+    role: user?.role || 'CUSTOMER',
+    userId: user?._id || user?.id,
+    onEvent: (event, data) => {
+      if (event === 'WORKER_LOCATION' && (data?.jobId === targetJobId || !data?.jobId)) {
+        const cLat = data?.coords?.latitude ?? data?.coords?.lat ?? data?.coords?.[1];
+        const cLng = data?.coords?.longitude ?? data?.coords?.lng ?? data?.coords?.[0];
+        if (cLat && cLng) {
+          setLiveWorkerCoords({ lat: Number(cLat), lng: Number(cLng) });
+        }
+      } else if (event === 'JOB_STATUS_CHANGED' || event === 'JOB_UPDATED' || event === 'JOB_COMPLETED') {
+        fetchJobStatus();
+      }
+    }
+  });
+
+  const job = currentJob || initialJob;
+  const status = job?.status || 'ALLOCATED';
 
   // Don't mock a worker. Get worker either directly from route or from job object
-  const w = routeWorker || job?.workerId;
+  const workerObj = typeof job?.workerId === 'object' ? job.workerId : null;
+  const w = { ...(workerObj || {}), ...(routeWorker || {}) };
+  const workerName = w.name || (typeof job?.workerName === 'string' ? job.workerName : 'Technician');
 
-  if (!w) {
+  if (!w || (!w.name && !w._id && !job?.workerId)) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <Text style={{ color: theme.colors.textDim }}>Waiting for worker assignment...</Text>
@@ -32,23 +81,71 @@ const LiveTrackingScreen = ({ route, navigation }) => {
     );
   }
 
-  const otp = job?.security?.arrivalOtp || '4729';
+  const isEnRoute = status === 'ALLOCATED' || status === 'ARRIVING';
+  const isInProgress = status === 'IN_PROGRESS';
+  const isCompleted = status === 'COMPLETED';
+  const isSettled = status === 'PAID' || status === 'CLOSED';
 
-  const jobLat = job?.location?.coordinates?.[1] || 19.0760;
-  const jobLng = job?.location?.coordinates?.[0] || 72.8777;
-  const workerLat = w?.activeLocation?.coordinates?.[1] || 19.0800;
-  const workerLng = w?.activeLocation?.coordinates?.[0] || 72.8800;
+  const otp = job?.security?.arrivalOtp || null;
 
+  // Job coordinates: prefer job location coordinates, fallback to Ahmedabad Vastrapur
+  const jobLat = Number(job?.location?.coordinates?.[1]) || 23.0350;
+  const jobLng = Number(job?.location?.coordinates?.[0]) || 72.5293;
+
+  // Worker coordinates: use live socket update, worker activeLocation, or nearby realistic offset from job
+  const rawWLat = liveWorkerCoords?.lat || Number(w?.activeLocation?.coordinates?.[1] || workerObj?.activeLocation?.coordinates?.[1]);
+  const rawWLng = liveWorkerCoords?.lng || Number(w?.activeLocation?.coordinates?.[0] || workerObj?.activeLocation?.coordinates?.[0]);
+  const hasRawCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
+  const distanceDeg = hasRawCoords ? Math.hypot(rawWLat - jobLat, rawWLng - jobLng) : 999;
+
+  let workerLat = rawWLat;
+  let workerLng = rawWLng;
+  // If en route and coordinates are missing or identical/too close to customer (< 200m),
+  // offset worker to a realistic starting position (~850m away along city roads) so route renders accurately
+  if (!hasRawCoords || (isEnRoute && distanceDeg < 0.002)) {
+    workerLat = jobLat + 0.0072;
+    workerLng = jobLng + 0.0055;
+  }
+
+  // App Bar and Status Badge labels
+  let appBarTitle = 'Live Tracking';
+  let appBarSub = `${workerName} is on the way`;
+  let mapPillText = `⏱ ETA ~${w.eta || '8'} min`;
+
+  if (isInProgress) {
+    appBarTitle = 'Service In Progress';
+    appBarSub = `${workerName} is at your location`;
+    mapPillText = '⚡ Service In Progress';
+  } else if (isCompleted) {
+    appBarTitle = 'Work Completed';
+    appBarSub = 'Please review work and verify';
+    mapPillText = '✓ Work Completed';
+  } else if (isSettled) {
+    appBarTitle = 'Job Closed';
+    appBarSub = 'Service finished & paid';
+    mapPillText = '✓ Completed & Paid';
+  }
+
+  // Generate Flow-Aware Leaflet Map HTML
   const mapHTML = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-      <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <style>
-        body { padding: 0; margin: 0; }
+        body { padding: 0; margin: 0; background: #f3f4f6; }
         html, body, #map { height: 100%; width: 100%; border-radius: 16px; overflow: hidden; }
+        @keyframes pulse {
+          0% { transform: scale(0.9); opacity: 0.8; }
+          50% { transform: scale(1.3); opacity: 0.3; }
+          100% { transform: scale(0.9); opacity: 0.8; }
+        }
+        .pulse-beacon {
+          animation: pulse 2s infinite ease-in-out;
+        }
+        .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
     <body>
@@ -58,35 +155,91 @@ const LiveTrackingScreen = ({ route, navigation }) => {
         const lng = ${jobLng};
         const wLat = ${workerLat};
         const wLng = ${workerLng};
+        const status = "${status}";
 
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 14);
+        const map = L.map('map', { zoomControl: false, attributionControl: false });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+        // Reliable fast CartoDB Voyager tiles with standard OSM fallback
+        const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             maxZoom: 19,
-            subdomains: 'abc'
+            subdomains: 'abcd'
         }).addTo(map);
 
-        // Job Pin
-        const jobIcon = L.divIcon({
-          html: '<div style="background-color: #ef4444; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
-          className: '',
-          iconSize: [14, 14],
-          iconAnchor: [7, 7]
+        carto.on('tileerror', function() {
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         });
-        L.marker([lat, lng], {icon: jobIcon}).addTo(map).bindPopup("Job Location");
 
-        // Worker Pin
-        if (wLat && wLng) {
-          const workerIcon = L.divIcon({
-            html: '<div style="background-color: #0e9aa7; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+        setTimeout(function() { map.invalidateSize(); }, 200);
+
+        if (status === 'IN_PROGRESS') {
+          // On Site: Single animated service beacon centered directly at job location
+          map.setView([lat, lng], 17);
+
+          const inProgressIcon = L.divIcon({
+            html: '<div style="position:relative; width:48px; height:48px; display:flex; align-items:center; justify-content:center;">' +
+                  '<div class="pulse-beacon" style="position:absolute; width:48px; height:48px; border-radius:24px; background:rgba(108,71,255,0.35);"></div>' +
+                  '<div style="background-color: #6C47FF; width: 30px; height: 30px; border-radius: 15px; border: 3px solid white; box-shadow: 0 4px 10px rgba(108,71,255,0.5); display: flex; align-items: center; justify-content: center; font-size: 14px; z-index:2;">🔧</div>' +
+                  '</div>',
             className: '',
-            iconSize: [14, 14],
-            iconAnchor: [7, 7]
+            iconSize: [48, 48],
+            iconAnchor: [24, 24]
           });
-          L.marker([wLat, wLng], {icon: workerIcon}).addTo(map).bindPopup("Worker").openPopup();
-          
+          L.marker([lat, lng], {icon: inProgressIcon}).addTo(map).bindPopup("<b>Service In Progress</b><br/>${workerName} is at your location").openPopup();
+
+        } else if (status === 'COMPLETED') {
+          // Completed: Centered on job location with completion checkmark
+          map.setView([lat, lng], 16);
+
+          const completedIcon = L.divIcon({
+            html: '<div style="background-color: #10B981; width: 30px; height: 30px; border-radius: 15px; border: 3px solid white; box-shadow: 0 4px 10px rgba(16,185,129,0.5); display: flex; align-items: center; justify-content: center; font-size: 15px;">✅</div>',
+            className: '',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          });
+          L.marker([lat, lng], {icon: completedIcon}).addTo(map).bindPopup("<b>Work Completed</b><br/>Please verify & pay").openPopup();
+
+        } else if (status === 'PAID' || status === 'CLOSED') {
+          // Closed & Paid: Centered with verified shield
+          map.setView([lat, lng], 16);
+
+          const closedIcon = L.divIcon({
+            html: '<div style="background-color: #059669; width: 30px; height: 30px; border-radius: 15px; border: 3px solid white; box-shadow: 0 4px 10px rgba(5,150,105,0.5); display: flex; align-items: center; justify-content: center; font-size: 15px;">🛡️</div>',
+            className: '',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          });
+          L.marker([lat, lng], {icon: closedIcon}).addTo(map).bindPopup("<b>Job Completed & Paid ✓</b><br/>Service finished successfully").openPopup();
+
+        } else {
+          // En Route (ALLOCATED / ARRIVING): Customer & Worker pins with dashed route
+          map.setView([lat, lng], 15);
+
+          const jobIcon = L.divIcon({
+            html: '<div style="background-color: #6C47FF; width: 26px; height: 26px; border-radius: 13px; border: 3px solid white; box-shadow: 0 3px 8px rgba(108,71,255,0.45); display: flex; align-items: center; justify-content: center; font-size: 13px;">🏠</div>',
+            className: '',
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
+          });
+          L.marker([lat, lng], {icon: jobIcon}).addTo(map).bindPopup("<b>Your Location</b>");
+
+          const workerIcon = L.divIcon({
+            html: '<div style="background-color: #10B981; width: 26px; height: 26px; border-radius: 13px; border: 3px solid white; box-shadow: 0 3px 8px rgba(16,185,129,0.45); display: flex; align-items: center; justify-content: center; font-size: 13px;">🛵</div>',
+            className: '',
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
+          });
+          L.marker([wLat, wLng], {icon: workerIcon}).addTo(map).bindPopup("<b>${workerName} (${status === 'ARRIVING' ? 'En Route' : 'Assigned'})</b>").openPopup();
+
+          // Connect with route path
+          L.polyline([[wLat, wLng], [lat, lng]], {
+            color: '#6C47FF',
+            weight: 4,
+            opacity: 0.85,
+            dashArray: '6, 8'
+          }).addTo(map);
+
           const bounds = L.latLngBounds([[lat, lng], [wLat, wLng]]);
-          map.fitBounds(bounds, { padding: [30, 30] });
+          map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 });
         }
       </script>
     </body>
@@ -118,6 +271,26 @@ const LiveTrackingScreen = ({ route, navigation }) => {
     );
   };
 
+  const handleCall = () => {
+    if (w.phone) {
+      Linking.openURL(`tel:${w.phone}`);
+    } else {
+      Alert.alert('Calling Worker', `Calling ${workerName}...`);
+    }
+  };
+
+  const handleChat = () => {
+    if (w._id) {
+      navigation.navigate('Chat', {
+        jobId: job?._id,
+        recipientId: w._id,
+        recipientName: workerName
+      });
+    } else {
+      Alert.alert('Chat', 'Opening chat with ' + workerName);
+    }
+  };
+
   const styles = createStyles(theme, isDarkMode);
 
   return (
@@ -129,13 +302,12 @@ const LiveTrackingScreen = ({ route, navigation }) => {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backBtnText}>‹</Text>
         </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.appBarTitle} numberOfLines={1}>Live Tracking</Text>
-          <Text style={styles.appBarSub} numberOfLines={1}>{w.name} is on the way</Text>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.appBarTitle} numberOfLines={1}>{appBarTitle}</Text>
+          <Text style={styles.appBarSub} numberOfLines={1}>{appBarSub}</Text>
         </View>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Text style={{fontSize: 16}}>🔔</Text>
-          <View style={styles.badge} />
+        <TouchableOpacity style={styles.bellBtn} onPress={fetchJobStatus}>
+          <Text style={{fontSize: 16}}>🔄</Text>
         </TouchableOpacity>
       </View>
 
@@ -144,6 +316,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
         {/* Leaflet Map Area */}
         <View style={styles.mapArea}>
           <WebView 
+            key={`${status}_${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${workerLat.toFixed(4)}_${workerLng.toFixed(4)}`}
             source={{ html: mapHTML }}
             style={{ flex: 1, backgroundColor: 'transparent' }}
             scrollEnabled={false}
@@ -151,7 +324,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
             showsHorizontalScrollIndicator={false}
           />
           <View style={styles.mapLabel}>
-            <Text style={styles.mapLabelText}>⏱ ETA {w.eta || 'Calculating'} min</Text>
+            <Text style={styles.mapLabelText}>{mapPillText}</Text>
           </View>
         </View>
 
@@ -159,35 +332,73 @@ const LiveTrackingScreen = ({ route, navigation }) => {
         <View style={styles.card}>
           <View style={styles.row}>
             <View style={styles.workerAvatar}>
-              <Text style={styles.workerAvatarText}>{w.name ? w.name[0] : 'W'}</Text>
+              <Text style={styles.workerAvatarText}>{workerName ? workerName[0] : 'W'}</Text>
             </View>
             <View style={{ flex: 1, marginLeft: 16 }}>
-              <Text style={styles.workerName}>{w.name || 'Worker'}</Text>
-              <Text style={styles.workerMuted}>★ {typeof w.rating === 'object' ? (w.rating?.average || 0) : (w.rating || 4.5)} · {w.dist}</Text>
+              <Text style={styles.workerName}>{workerName}</Text>
+              <Text style={styles.workerMuted}>★ {typeof w.rating === 'object' ? (w.rating?.average || 0) : (w.rating || 4.8)} · {w.category || job?.category || 'Professional'}</Text>
             </View>
-            <TouchableOpacity style={styles.actionBtn}>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleCall}>
               <Text style={{fontSize: 16}}>📞</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn}>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleChat}>
               <Text style={{fontSize: 16}}>💬</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* OTP Section */}
-        {(job?.status === 'ALLOCATED' || job?.status === 'ARRIVING' || !job?.status) && (
+        {/* Status Specific Cards */}
+        {isEnRoute && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Arrival OTP</Text>
-            <Text style={styles.cardSub}>Share with worker when they arrive</Text>
-            <View style={styles.otpBox}>
-              <Text style={styles.otpText}>{otp}</Text>
-            </View>
+            <Text style={styles.cardSub}>Share this 4-digit OTP with {workerName} upon arrival</Text>
+            {otp ? (
+              <View style={styles.otpBox}>
+                <Text style={styles.otpText}>{otp}</Text>
+              </View>
+            ) : (
+              <View style={[styles.otpBox, { backgroundColor: 'transparent' }]}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text style={[styles.cardSub, { marginTop: 6 }]}>Fetching OTP...</Text>
+              </View>
+            )}
           </View>
         )}
-        {job?.status === 'IN_PROGRESS' && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Work In Progress</Text>
-            <Text style={styles.cardSub}>The worker is currently working on your job.</Text>
+
+        {isInProgress && (
+          <View style={[styles.card, { borderColor: theme.colors.primary, borderWidth: 1 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 20, marginRight: 8 }}>⚡</Text>
+              <Text style={styles.cardTitle}>Work In Progress</Text>
+            </View>
+            <Text style={[styles.cardSub, { marginTop: 4 }]}>
+              {workerName} has arrived and is currently working on your {job?.category || 'service'}.
+            </Text>
+          </View>
+        )}
+
+        {isCompleted && (
+          <View style={[styles.card, { borderColor: '#10B981', borderWidth: 1.5 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 22, marginRight: 8 }}>🎉</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.cardTitle, { color: '#10B981' }]}>Work Completed!</Text>
+                <Text style={styles.cardSub}>{workerName} has finished the job. Please verify and complete payment.</Text>
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={[styles.simulateBtn, { marginTop: 16 }]}
+              onPress={() => navigation.navigate('WorkCompleted', { worker: w, job: currentJob || job })}
+            >
+              <Text style={styles.simulateBtnText}>Review Work & Make Payment →</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isSettled && (
+          <View style={[styles.card, { borderColor: '#10B981', borderWidth: 1 }]}>
+            <Text style={[styles.cardTitle, { color: '#10B981' }]}>Job Completed & Paid ✓</Text>
+            <Text style={styles.cardSub}>This service has been successfully completed and paid for.</Text>
           </View>
         )}
 
@@ -201,7 +412,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
               <View style={styles.tlLineDone} />
               <View style={styles.tlContent}>
                 <Text style={styles.tlTitle}>Job Posted</Text>
-                <Text style={styles.tlSub}>Just now</Text>
+                <Text style={styles.tlSub}>Category: {job?.category || 'Service'}</Text>
               </View>
             </View>
 
@@ -211,7 +422,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
               <View style={styles.tlLineDone} />
               <View style={styles.tlContent}>
                 <Text style={styles.tlTitle}>Pro Accepted</Text>
-                <Text style={styles.tlSub}>{w.name}</Text>
+                <Text style={styles.tlSub}>{workerName}</Text>
               </View>
             </View>
 
@@ -219,12 +430,12 @@ const LiveTrackingScreen = ({ route, navigation }) => {
             <View style={styles.tlItem}>
               <View style={[
                 styles.tlDot, 
-                job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlDotDone : styles.tlDotActive
+                (!isEnRoute) ? styles.tlDotDone : styles.tlDotActive
               ]} />
-              <View style={job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlLineDone : styles.tlLine} />
+              <View style={(!isEnRoute) ? styles.tlLineDone : styles.tlLine} />
               <View style={styles.tlContent}>
-                <Text style={[styles.tlTitle, (job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED') ? {} : {color: theme.colors.primary}]}>On the Way</Text>
-                <Text style={styles.tlSub}>ETA {w.eta} min</Text>
+                <Text style={[styles.tlTitle, isEnRoute ? {color: theme.colors.primary} : {}]}>On the Way</Text>
+                <Text style={styles.tlSub}>{isEnRoute ? `ETA ~${w.eta || '8'} min` : 'Completed'}</Text>
               </View>
             </View>
 
@@ -232,11 +443,12 @@ const LiveTrackingScreen = ({ route, navigation }) => {
             <View style={styles.tlItem}>
               <View style={[
                 styles.tlDot, 
-                job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlDotDone : {}
+                (!isEnRoute) ? styles.tlDotDone : {}
               ]} />
-              <View style={job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlLineDone : styles.tlLine} />
+              <View style={(!isEnRoute) ? styles.tlLineDone : styles.tlLine} />
               <View style={styles.tlContent}>
-                <Text style={job?.status === 'IN_PROGRESS' || job?.status === 'COMPLETED' ? styles.tlTitle : styles.tlTitleMuted}>Arrived (OTP)</Text>
+                <Text style={(!isEnRoute) ? styles.tlTitle : styles.tlTitleMuted}>Arrived (OTP)</Text>
+                <Text style={styles.tlSub}>{(!isEnRoute) ? 'OTP Verified' : 'Pending arrival'}</Text>
               </View>
             </View>
 
@@ -244,11 +456,12 @@ const LiveTrackingScreen = ({ route, navigation }) => {
             <View style={styles.tlItem}>
               <View style={[
                 styles.tlDot,
-                job?.status === 'IN_PROGRESS' ? styles.tlDotActive : (job?.status === 'COMPLETED' ? styles.tlDotDone : {})
+                isInProgress ? styles.tlDotActive : (isCompleted || isSettled ? styles.tlDotDone : {})
               ]} />
-              <View style={job?.status === 'COMPLETED' ? styles.tlLineDone : styles.tlLine} />
+              <View style={isCompleted || isSettled ? styles.tlLineDone : styles.tlLine} />
               <View style={styles.tlContent}>
-                <Text style={job?.status === 'IN_PROGRESS' ? [styles.tlTitle, {color: theme.colors.primary}] : (job?.status === 'COMPLETED' ? styles.tlTitle : styles.tlTitleMuted)}>Work in Progress</Text>
+                <Text style={isInProgress ? [styles.tlTitle, {color: theme.colors.primary}] : ((isCompleted || isSettled) ? styles.tlTitle : styles.tlTitleMuted)}>Work in Progress</Text>
+                <Text style={styles.tlSub}>{isInProgress ? 'Active' : ((isCompleted || isSettled) ? 'Completed' : 'Pending')}</Text>
               </View>
             </View>
 
@@ -256,20 +469,29 @@ const LiveTrackingScreen = ({ route, navigation }) => {
             <View style={styles.tlItem}>
               <View style={[
                 styles.tlDot,
-                job?.status === 'COMPLETED' ? styles.tlDotActive : {}
+                isCompleted ? styles.tlDotActive : (isSettled ? styles.tlDotDone : {})
               ]} />
               <View style={styles.tlContent}>
-                <Text style={job?.status === 'COMPLETED' ? [styles.tlTitle, {color: theme.colors.primary}] : styles.tlTitleMuted}>Payment & Rating</Text>
+                <Text style={isCompleted ? [styles.tlTitle, {color: theme.colors.primary}] : (isSettled ? styles.tlTitle : styles.tlTitleMuted)}>Payment & Rating</Text>
+                <Text style={styles.tlSub}>{isSettled ? 'Paid & Rated' : (isCompleted ? 'Pending payment' : 'Pending')}</Text>
               </View>
             </View>
 
           </View>
         </View>
 
-        {(job?.status === 'ALLOCATED' || job?.status === 'ARRIVING' || !job?.status) && (
+        {isEnRoute && (
           <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelJob}>
             <Text style={styles.cancelBtnText}>Cancel Job</Text>
           </TouchableOpacity>
+        )}
+
+        {isSettled && (
+          <Button 
+            title="Back to Home" 
+            onPress={() => navigation.navigate('Home', { screen: 'HomeMain', params: { refresh: Date.now() } })}
+            style={{ marginTop: 16 }}
+          />
         )}
 
         <View style={{ height: 40 }} />
@@ -291,7 +513,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingTop: 10,
+    paddingTop: Platform.OS === 'android' ? Math.max((StatusBar.currentHeight || 0) + 14, 46) : 14,
     paddingBottom: 14,
     width: '100%',
     maxWidth: 720,

@@ -329,6 +329,7 @@ export default function LeafletMapPicker({
           zoomControl: false, 
           attributionControl: false 
         }).setView([${coords.lat}, ${coords.lng}], 16);
+        window.map = map;
 
         // Primary: CartoDB Voyager tiles (100% reliable, fast global CDN, no rate limit blocks)
         var cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {

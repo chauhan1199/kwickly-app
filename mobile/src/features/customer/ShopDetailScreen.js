@@ -33,7 +33,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(!shopData);
   
-  const { cart: globalCart, addToCart, updateItem, removeItem, clearCart } = useCart();
+  const { cart: globalCart, addToCart, updateItem, removeItem, clearCart, fetchCart } = useCart();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
@@ -70,7 +70,8 @@ const ShopDetailScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     fetchShopAndProducts();
-  }, [shopId]);
+    if (fetchCart) fetchCart();
+  }, [shopId, fetchShopAndProducts, fetchCart]);
 
   const handleBack = () => {
     navigation.goBack();

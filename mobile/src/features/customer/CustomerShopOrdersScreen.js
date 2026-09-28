@@ -34,7 +34,8 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
       setLoading(true);
       const res = await shopService.getCustomerOrders();
       if (res.data?.status === 'success') {
-        const list = res.data.data.orders || res.data.data;
+        const data = res.data.data;
+        const list = data?.orders || (Array.isArray(data) ? data : []);
         setOrders(list);
       }
     } catch (e) {
@@ -53,11 +54,11 @@ const CustomerShopOrdersScreen = ({ navigation }) => {
   }, [orders, searchQuery]);
 
   const renderOrderItem = ({ item }) => {
-    const isActive = ['NEW', 'PACKING', 'OUT_FOR_DELIVERY'].includes(item.status);
+    const isActive = ['NEW', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(item.status);
     return (
       <TouchableOpacity 
         style={styles.orderCard} 
-        onPress={() => navigation.navigate('OrderTracking', { orderId: item._id })}
+        onPress={() => navigation.navigate('ShopOrderDetails', { orderId: item._id })}
       >
         <View style={styles.orderHeader}>
           <View style={styles.shopBox}>

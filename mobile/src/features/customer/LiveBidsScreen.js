@@ -199,7 +199,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
         });
       }
     } catch (e) {
-      Alert.alert('Error', e?.response?.data?.message || 'Failed to accept quote');
+      Alert.alert('Error', e?.message || e?.response?.data?.message || 'Failed to accept quote');
     } finally {
       setIsAccepting(false);
     }

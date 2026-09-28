@@ -204,7 +204,7 @@ const QuotesScreen = ({ navigation }) => {
               <TouchableOpacity
                 key={order._id}
                 style={styles.card}
-                onPress={() => navigation.navigate('ShopOrderDetails', { order })}
+                onPress={() => navigation.navigate('ShopOrderDetails', { orderId: order._id })}
               >
                 <View style={styles.cardRow}>
                   <View style={[styles.iconBox, { backgroundColor: '#10b98120' }]}>
@@ -215,7 +215,7 @@ const QuotesScreen = ({ navigation }) => {
                     <Text style={styles.cardSub}>
                       Order #{order._id?.slice(-6)} · {order.items?.length || 0} item{order.items?.length !== 1 ? 's' : ''}
                     </Text>
-                    <Text style={[styles.cardPrice, { color: theme.colors.primary }]}>₹{order.totalAmount || 0}</Text>
+                    <Text style={[styles.cardPrice, { color: theme.colors.primary }]}>₹{order.total ?? order.totalAmount ?? 0}</Text>
                   </View>
                   <View style={[styles.statusPill, { backgroundColor: color + '20' }]}>
                     <Text style={[styles.statusText, { color }]}>{order.status}</Text>

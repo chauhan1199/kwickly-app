@@ -49,10 +49,19 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
     ? new Date(job.preferredDate).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })
     : 'Today';
 
-  const jobLat = job?.location?.coordinates?.[1] || 19.0760;
-  const jobLng = job?.location?.coordinates?.[0] || 72.8777;
-  const initialWorkerLat = user?.activeLocation?.coordinates?.[1] || 19.0800;
-  const initialWorkerLng = user?.activeLocation?.coordinates?.[0] || 72.8800;
+  const jobLat = Number(job?.location?.coordinates?.[1]) || 23.0350;
+  const jobLng = Number(job?.location?.coordinates?.[0]) || 72.5293;
+  const rawWLat = Number(user?.activeLocation?.coordinates?.[1]);
+  const rawWLng = Number(user?.activeLocation?.coordinates?.[0]);
+  const hasRawCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
+  const distanceDeg = hasRawCoords ? Math.hypot(rawWLat - jobLat, rawWLng - jobLng) : 999;
+  
+  let initialWorkerLat = rawWLat;
+  let initialWorkerLng = rawWLng;
+  if (!hasRawCoords || distanceDeg < 0.002) {
+    initialWorkerLat = jobLat + 0.0072;
+    initialWorkerLng = jobLng + 0.0055;
+  }
 
   const [workerLat, setWorkerLat] = useState(initialWorkerLat);
   const [workerLng, setWorkerLng] = useState(initialWorkerLng);
@@ -64,11 +73,12 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-      <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <style>
         body { padding: 0; margin: 0; }
         html, body, #map { height: 100%; width: 100%; }
+        .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
     <body>
@@ -80,36 +90,53 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
         let wLng = ${initialWorkerLng};
 
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', { maxZoom: 19, subdomains: 'abc' }).addTo(map);
+        
+        const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          maxZoom: 19,
+          subdomains: 'abcd'
+        }).addTo(map);
+
+        carto.on('tileerror', function() {
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        });
+
+        setTimeout(function() { map.invalidateSize(); }, 200);
 
         // Job Pin
         const jobIcon = L.divIcon({
-          html: '<div style="background-color: #ef4444; width: 14px; height: 14px; border-radius: 7px; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
-          className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+          html: '<div style="background-color: #ef4444; width: 22px; height: 22px; border-radius: 11px; border: 2px solid white; box-shadow: 0 0 6px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 11px;">🏠</div>',
+          className: '', iconSize: [22, 22], iconAnchor: [11, 11]
         });
-        L.marker([lat, lng], {icon: jobIcon}).addTo(map).bindPopup("Customer Job Location");
+        L.marker([lat, lng], {icon: jobIcon}).addTo(map).bindPopup("<b>Customer Job Location</b>");
 
         // Worker Pin (Draggable)
         const workerIcon = L.divIcon({
-          html: '<div style="background-color: #6C47FF; width: 18px; height: 18px; border-radius: 9px; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5);"></div>',
-          className: '', iconSize: [18, 18], iconAnchor: [9, 9]
+          html: '<div style="background-color: #6C47FF; width: 24px; height: 24px; border-radius: 12px; border: 2px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div>',
+          className: '', iconSize: [24, 24], iconAnchor: [12, 12]
         });
         
-        const workerMarker = L.marker([wLat, wLng], {icon: workerIcon, draggable: true}).addTo(map).bindPopup("Your Location (Drag to adjust)").openPopup();
+        const workerMarker = L.marker([wLat, wLng], {icon: workerIcon, draggable: true}).addTo(map).bindPopup("<b>Your Location</b> (Drag to adjust)").openPopup();
         
+        // Connecting line
+        const routeLine = L.polyline([[wLat, wLng], [lat, lng]], {
+          color: '#6C47FF',
+          weight: 4,
+          opacity: 0.85,
+          dashArray: '6, 8'
+        }).addTo(map);
+
         const bounds = L.latLngBounds([[lat, lng], [wLat, wLng]]);
-        map.fitBounds(bounds, { padding: [40, 40] });
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
 
         // Initial calculate trigger
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'location_update', lat: wLat, lng: wLng }));
 
         workerMarker.on('dragend', function (e) {
             const position = workerMarker.getLatLng();
-            window.ReactNativeWebView.postMessage(JSON.stringify({ 
-                type: 'location_update', 
-                lat: position.lat, 
-                lng: position.lng 
-            }));
+            wLat = position.lat;
+            wLng = position.lng;
+            routeLine.setLatLngs([[wLat, wLng], [lat, lng]]);
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'location_update', lat: wLat, lng: wLng }));
         });
       </script>
     </body>
@@ -228,6 +255,7 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
           
           <View style={styles.mapArea}>
             <WebView 
+              key={`${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${initialWorkerLat.toFixed(4)}_${initialWorkerLng.toFixed(4)}`}
               source={{ html: mapHTML }}
               style={{ flex: 1, backgroundColor: 'transparent' }}
               onMessage={(event) => {
