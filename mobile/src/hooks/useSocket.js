@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
@@ -13,11 +13,13 @@ import { SOCKET_URL } from '../config/env';
  * @param {string}   [options.shopId]     — for SHOP role only
  * @param {function} [options.onEvent]    — callback(event, data)
  *
- * @returns {{ joinJobRoom, leaveJobRoom, emit, connected }}
+ * @returns {{ joinJobRoom, leaveJobRoom, emit, connected, socket }}
  */
 const useSocket = (options = {}) => {
   const { role, userId, shopId, onEvent } = options || {};
   const socketRef = useRef(null);
+  const [socketInstance, setSocketInstance] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
   const onEventRef = useRef(onEvent);
   const appState = useRef(AppState.currentState);
 
@@ -27,7 +29,11 @@ const useSocket = (options = {}) => {
   }, [onEvent]);
 
   const getOrCreate = useCallback(async () => {
-    if (socketRef.current?.connected) return socketRef.current;
+    if (socketRef.current?.connected) {
+      setSocketInstance(socketRef.current);
+      setIsConnected(true);
+      return socketRef.current;
+    }
 
     const token = await AsyncStorage.getItem('userToken');
 
@@ -47,6 +53,8 @@ const useSocket = (options = {}) => {
     socket.on('connect', () => {
       // Role rooms (customer_/worker_/shop_/user_) are joined server-side on
       // connection from the JWT in `auth.token` — nothing to request here.
+      setIsConnected(true);
+      setSocketInstance(socket);
     });
 
     // Forward all events to the consumer
@@ -70,10 +78,12 @@ const useSocket = (options = {}) => {
     });
 
     socket.on('disconnect', () => {
-      // silently handle disconnects; socket.io auto-reconnects
+      setIsConnected(false);
     });
 
     socketRef.current = socket;
+    setSocketInstance(socket);
+    setIsConnected(socket.connected);
     return socket;
   }, [role, userId, shopId, onEventRef]);
 
@@ -88,6 +98,8 @@ const useSocket = (options = {}) => {
         if (socketRef.current) {
           socketRef.current.disconnect();
           socketRef.current = null;
+          setSocketInstance(null);
+          setIsConnected(false);
         }
       }
       appState.current = nextAppState;
@@ -97,6 +109,8 @@ const useSocket = (options = {}) => {
       subscription.remove();
       socketRef.current?.disconnect();
       socketRef.current = null;
+      setSocketInstance(null);
+      setIsConnected(false);
     };
   }, [getOrCreate]);
 
@@ -113,8 +127,8 @@ const useSocket = (options = {}) => {
     joinJobRoom,
     leaveJobRoom,
     emit,
-    connected: socketRef.current?.connected ?? false,
-    socket: socketRef.current // Expose raw socket if manual on/off is needed
+    connected: isConnected,
+    socket: socketInstance || socketRef.current // Expose reactive socket instance
   };
 };
 

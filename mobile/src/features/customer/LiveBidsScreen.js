@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -15,6 +15,7 @@ import {
   Image,
   Modal
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
@@ -31,10 +32,6 @@ const LiveBidsScreen = ({ route, navigation }) => {
   const jobId = routeParams.jobId || (typeof routeParams.job === 'object' ? routeParams.job?._id : routeParams.job);
 
   const { user } = useAuth();
-  const { socket } = useSocket({
-    role: 'CUSTOMER',
-    userId: user?._id
-  });
   
   const [jobData, setJobData] = useState(typeof routeParams.job === 'object' ? routeParams.job : null);
   const [bids, setBids] = useState([]);
@@ -44,6 +41,52 @@ const LiveBidsScreen = ({ route, navigation }) => {
   const [cancelReason, setCancelReason] = useState(routeParams.job?.cancelReason || '');
   const [currentRadius, setCurrentRadius] = useState(routeParams.job?.broadcast?.radiusKm || 25);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+
+  const handleSocketEvent = useCallback((event, data) => {
+    if (!data) return;
+    if (event === 'NEW_QUOTE') {
+      const incomingJobId = data.jobId || data.job?._id || data.job;
+      if (String(incomingJobId) === String(jobId)) {
+        setBids(prev => {
+          const exists = prev.some(b => String(b._id || b.quoteId) === String(data._id || data.quoteId));
+          if (exists) return prev;
+          return [...prev, data];
+        });
+      }
+    } else if (event === 'JOB_STATUS_CHANGED') {
+      if (String(data.jobId) === String(jobId) && data.status === 'CANCELLED') {
+        setJobStatus('CANCELLED');
+        setCancelReason(data.reason || 'No workers found nearby after expanding search radius.');
+      }
+    } else if (event === 'JOB_RADIUS_EXPANDED') {
+      if (String(data.jobId) === String(jobId) && data.radiusKm) {
+        setCurrentRadius(data.radiusKm);
+      }
+    }
+  }, [jobId]);
+
+  const { socket } = useSocket({
+    role: 'CUSTOMER',
+    userId: user?._id,
+    onEvent: handleSocketEvent
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!jobId) return;
+      jobService.getJobById(jobId).then(res => {
+        const fetchedJob = res?.data?.data || res?.data;
+        if (fetchedJob) {
+          setJobData(fetchedJob);
+          setJobStatus(fetchedJob.status || 'BROADCASTING');
+          if (fetchedJob.cancelReason) setCancelReason(fetchedJob.cancelReason);
+          if (fetchedJob.broadcast?.radiusKm) {
+            setCurrentRadius(fetchedJob.broadcast.radiusKm);
+          }
+        }
+      }).catch(() => {});
+    }, [jobId])
+  );
 
   const [anims] = useState(() => [
     new Animated.Value(0),
@@ -152,9 +195,10 @@ const LiveBidsScreen = ({ route, navigation }) => {
     // 3. Listen for real-time bids and status changes
     if (socket) {
       const handleNewQuote = (newBid) => {
-        if (newBid.jobId === jobId || newBid.job?._id === jobId) {
+        const incomingJobId = newBid?.jobId || newBid?.job?._id || newBid?.job;
+        if (String(incomingJobId) === String(jobId)) {
           setBids(prev => {
-            const exists = prev.some(b => (b._id || b.quoteId) === (newBid._id || newBid.quoteId));
+            const exists = prev.some(b => String(b._id || b.quoteId) === String(newBid._id || newBid.quoteId));
             if (exists) return prev;
             return [...prev, newBid];
           });
@@ -162,14 +206,14 @@ const LiveBidsScreen = ({ route, navigation }) => {
       };
 
       const handleJobStatus = (data) => {
-        if (data.jobId === jobId && data.status === 'CANCELLED') {
+        if (String(data?.jobId) === String(jobId) && data?.status === 'CANCELLED') {
           setJobStatus('CANCELLED');
           setCancelReason(data.reason || 'No workers found nearby after expanding search radius.');
         }
       };
 
       const handleRadiusExpanded = (data) => {
-        if (data.jobId === jobId && data.radiusKm) {
+        if (String(data?.jobId) === String(jobId) && data?.radiusKm) {
           setCurrentRadius(data.radiusKm);
         }
       };
@@ -325,7 +369,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
           <View style={styles.waitingCard}>
             {jobStatus === 'CANCELLED' ? (
               <>
-                <View style={[styles.radarContainer, { backgroundColor: 'rgba(255, 71, 87, 0.1)' }]}>
+                <View style={[styles.radarContainer, { backgroundColor: 'rgba(255, 71, 87, 0.1)', borderRadius: 50 }]}>
                   <Text style={styles.radarIcon}>❌</Text>
                 </View>
                 <Text style={styles.waitingTitle}>Job Cancelled</Text>
@@ -514,7 +558,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   content: {
     paddingHorizontal: 14,
-    paddingBottom: 20,
+    paddingBottom: 110,
     width: '100%',
     maxWidth: 720,
     alignSelf: 'center',
@@ -615,6 +659,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.textDim,
     textAlign: 'center',
     paddingHorizontal: 20,
+    lineHeight: 20,
   },
   radarContainer: {
     width: 100,
