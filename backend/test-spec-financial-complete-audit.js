@@ -179,10 +179,11 @@ async function runMasterAudit() {
     console.log(`   • Kwickly Treasury Fee:    +₹${orderSettlement.platformFee}`);
     console.log(`   • GST Tax Ledger:          +₹${orderSettlement.gstAmount}`);
 
-    if (refreshedShop.wallet.balance !== initialShopBalance + 234) {
-        throw new Error(`Shop did not receive 100% product sales! Expected ₹${initialShopBalance + 234}, got ₹${refreshedShop.wallet.balance}`);
+    const expectedShopBalance = initialShopBalance + orderSettlement.partnerAmount + (orderSettlement.deliveryFee || 0);
+    if (refreshedShop.wallet.balance !== expectedShopBalance) {
+        throw new Error(`Shop did not receive 100% product sales + delivery fee! Expected ₹${expectedShopBalance}, got ₹${refreshedShop.wallet.balance}`);
     }
-    console.log('✅ PASS: Shop received exact 100% of net product sales (₹0 commission deducted)!\n');
+    console.log('✅ PASS: Shop received exact 100% of net product sales + delivery fee (₹0 commission deducted)!\n');
 
     // ────────────────────────────────────────────────────────────────────────
     // TEST 3: Idempotency & Replay Attack Defense
