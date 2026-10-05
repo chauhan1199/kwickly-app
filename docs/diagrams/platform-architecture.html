@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kwickly — Platform Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  :root {
+    --bg:#0a0c10; --surface:#141720; --surface2:#1c2030; --border:#252b3b;
+    --text:#e2e8f0; --muted:#64748b;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; overflow-x:hidden; }
+
+  .header { padding:24px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg,#0a0c10,#0e1018); }
+  .header h1 { font-size:22px; font-weight:700; background:linear-gradient(90deg,#f59e0b,#f97316); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .header p { color:var(--muted); font-size:13px; margin-top:4px; }
+  .badge { display:inline-flex; align-items:center; padding:5px 12px; border-radius:20px; font-size:11px; font-weight:600; font-family:'JetBrains Mono',monospace; }
+  .badge-amber { background:#451a03; color:#fde68a; border:1px solid #78350f; }
+
+  .diagram-container { padding:30px; overflow:auto; }
+  svg.diagram { display:block; margin:0 auto; }
+
+  @keyframes flow-dash { to { stroke-dashoffset: -20; } }
+  .flow-line { stroke-dasharray: 6,4; animation: flow-dash 1.5s linear infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .pulse-dot { animation: pulse 2s ease-in-out infinite; }
+
+  .legend { display:flex; gap:20px; flex-wrap:wrap; padding:14px 32px; background:var(--surface); border-bottom:1px solid var(--border); }
+  .legend-item { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+  .legend-dot { width:10px; height:10px; border-radius:2px; }
+  .legend-line { width:28px; height:2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🏗️ Kwickly Platform Architecture</h1>
+    <p>Full system · 4 roles · real-time · verified against codebase 2026-08-30</p>
+  </div>
+  <span class="badge badge-amber">architecture</span>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div> Mobile App (React Native)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Backend Engine (Node.js)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Data Layer (MongoDB + Redis)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div> Admin Panel (React)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#06b6d4"></div> External services</div>
+  <div class="legend-item">
+    <div class="legend-line" style="background:#6366f1;"></div> REST API
+  </div>
+  <div class="legend-item">
+    <div class="legend-line" style="background:#f59e0b; background: repeating-linear-gradient(to right,#f59e0b 0,#f59e0b 6px,transparent 6px,transparent 10px);"></div> Socket.IO
+  </div>
+</div>
+
+<div class="diagram-container">
+<svg class="diagram" width="1200" height="900" viewBox="0 0 1200 900">
+<defs>
+  <!-- Arrows -->
+  <marker id="a-api" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="#6366f1"/></marker>
+  <marker id="a-sock" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="#f59e0b"/></marker>
+  <marker id="a-db" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="#10b981"/></marker>
+  <marker id="a-ext" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="#06b6d4"/></marker>
+  <marker id="a-grey" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="#475569"/></marker>
+
+  <!-- Gradients -->
+  <linearGradient id="bg-mobile" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#1e1b4b"/><stop offset="100%" style="stop-color:#312e81"/></linearGradient>
+  <linearGradient id="bg-backend" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#1c1008"/><stop offset="100%" style="stop-color:#431407"/></linearGradient>
+  <linearGradient id="bg-data" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#052e16"/><stop offset="100%" style="stop-color:#14532d"/></linearGradient>
+  <linearGradient id="bg-admin" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#500724"/><stop offset="100%" style="stop-color:#831843"/></linearGradient>
+  <linearGradient id="bg-ext" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0c4a6e"/><stop offset="100%" style="stop-color:#075985"/></linearGradient>
+
+  <linearGradient id="g-node-purple" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4f46e5"/><stop offset="100%" style="stop-color:#7c3aed"/></linearGradient>
+  <linearGradient id="g-node-orange" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#d97706"/><stop offset="100%" style="stop-color:#b45309"/></linearGradient>
+  <linearGradient id="g-node-green" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#16a34a"/><stop offset="100%" style="stop-color:#15803d"/></linearGradient>
+  <linearGradient id="g-node-pink" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#be185d"/><stop offset="100%" style="stop-color:#9d174d"/></linearGradient>
+  <linearGradient id="g-node-cyan" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0891b2"/><stop offset="100%" style="stop-color:#0e7490"/></linearGradient>
+  <linearGradient id="g-node-red" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#dc2626"/><stop offset="100%" style="stop-color:#b91c1c"/></linearGradient>
+  <linearGradient id="g-node-mongo" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#15803d"/><stop offset="100%" style="stop-color:#166534"/></linearGradient>
+  <linearGradient id="g-node-redis" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#b91c1c"/><stop offset="100%" style="stop-color:#991b1b"/></linearGradient>
+
+  <!-- Drop shadow -->
+  <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.5)"/></filter>
+</defs>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- COLUMN 1: MOBILE APP -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<rect x="20" y="20" width="220" height="650" rx="14" fill="url(#bg-mobile)" stroke="#4f46e5" stroke-width="1.5" opacity="0.85" filter="url(#shadow)"/>
+<text x="130" y="46" font-family="Inter" font-size="13" font-weight="700" fill="#a5b4fc" text-anchor="middle">📱 Mobile App</text>
+<text x="130" y="60" font-family="Inter" font-size="10" fill="#6366f1" text-anchor="middle">React Native + Expo</text>
+
+<!-- Role: CUSTOMER -->
+<rect x="36" y="72" width="188" height="24" rx="6" fill="#312e81" stroke="#818cf8" stroke-width="1"/>
+<text x="130" y="87" font-family="Inter" font-size="10" font-weight="600" fill="#c7d2fe" text-anchor="middle">CUSTOMER screens</text>
+
+<rect x="36" y="100" width="188" height="120" rx="8" fill="rgba(79,70,229,0.15)" stroke="#3730a3" stroke-width="1"/>
+<text x="50" y="116" font-family="Inter" font-size="9" fill="#a5b4fc">HomeScreen · DescribeJobScreen</text>
+<text x="50" y="130" font-family="Inter" font-size="9" fill="#a5b4fc">LiveBidsScreen · QuotesScreen</text>
+<text x="50" y="144" font-family="Inter" font-size="9" fill="#a5b4fc">LiveTrackingScreen</text>
+<text x="50" y="158" font-family="Inter" font-size="9" fill="#a5b4fc">CartScreen · ShopDetailScreen</text>
+<text x="50" y="172" font-family="Inter" font-size="9" fill="#a5b4fc">WalletTopupScreen · Notifications</text>
+<text x="50" y="186" font-family="Inter" font-size="9" fill="#a5b4fc">OrderTrackingScreen</text>
+<text x="50" y="208" font-family="Inter" font-size="9.5" fill="#6366f1" font-weight="600">Socket: customer_{id}</text>
+
+<!-- Role: WORKER -->
+<rect x="36" y="232" width="188" height="24" rx="6" fill="#1a2744" stroke="#60a5fa" stroke-width="1"/>
+<text x="130" y="247" font-family="Inter" font-size="10" font-weight="600" fill="#bfdbfe" text-anchor="middle">WORKER screens</text>
+
+<rect x="36" y="260" width="188" height="110" rx="8" fill="rgba(37,99,235,0.12)" stroke="#1e40af" stroke-width="1"/>
+<text x="50" y="276" font-family="Inter" font-size="9" fill="#93c5fd">WorkerDashboard (toggle online)</text>
+<text x="50" y="290" font-family="Inter" font-size="9" fill="#93c5fd">WorkerMyQuotesScreen</text>
+<text x="50" y="304" font-family="Inter" font-size="9" fill="#93c5fd">WorkerNavigateJobScreen (GPS)</text>
+<text x="50" y="318" font-family="Inter" font-size="9" fill="#93c5fd">WorkerActiveJobScreen · Chat</text>
+<text x="50" y="332" font-family="Inter" font-size="9" fill="#93c5fd">WorkerEarningsScreen · Payouts</text>
+<text x="50" y="352" font-family="Inter" font-size="9.5" fill="#3b82f6" font-weight="600">Socket: worker_{id}</text>
+
+<!-- Role: SHOP -->
+<rect x="36" y="382" width="188" height="24" rx="6" fill="#0c2a1e" stroke="#34d399" stroke-width="1"/>
+<text x="130" y="397" font-family="Inter" font-size="10" font-weight="600" fill="#a7f3d0" text-anchor="middle">SHOP OWNER screens</text>
+
+<rect x="36" y="410" width="188" height="100" rx="8" fill="rgba(16,185,129,0.10)" stroke="#065f46" stroke-width="1"/>
+<text x="50" y="426" font-family="Inter" font-size="9" fill="#6ee7b7">ShopProductsScreen · Orders</text>
+<text x="50" y="440" font-family="Inter" font-size="9" fill="#6ee7b7">ShopDeliveryConfigScreen</text>
+<text x="50" y="454" font-family="Inter" font-size="9" fill="#6ee7b7">ShopOrderDetailScreen</text>
+<text x="50" y="468" font-family="Inter" font-size="9" fill="#6ee7b7">ShopWalletScreen · KYC</text>
+<text x="50" y="494" font-family="Inter" font-size="9.5" fill="#10b981" font-weight="600">Socket: shop_{shopId}</text>
+
+<!-- Shared: Auth + Hooks -->
+<rect x="36" y="524" width="188" height="90" rx="8" fill="rgba(148,163,184,0.07)" stroke="#334155" stroke-width="1"/>
+<text x="130" y="540" font-family="Inter" font-size="10" font-weight="600" fill="#94a3b8" text-anchor="middle">Shared Infrastructure</text>
+<text x="50" y="556" font-family="Inter" font-size="9" fill="#64748b">useSocket.js (Socket client)</text>
+<text x="50" y="570" font-family="Inter" font-size="9" fill="#64748b">LoginScreen (OTP flow)</text>
+<text x="50" y="584" font-family="Inter" font-size="9" fill="#64748b">axios → API base URL</text>
+<text x="50" y="598" font-family="Inter" font-size="9" fill="#64748b">JWT stored → auth header</text>
+<text x="50" y="612" font-family="Inter" font-size="9" fill="#64748b">Socket: job_{jobId} (chat)</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- COLUMN 2: BACKEND ENGINE -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<rect x="270" y="20" width="440" height="820" rx="14" fill="url(#bg-backend)" stroke="#d97706" stroke-width="1.5" opacity="0.9" filter="url(#shadow)"/>
+<text x="490" y="46" font-family="Inter" font-size="13" font-weight="700" fill="#fcd34d" text-anchor="middle">⚡ Backend Engine</text>
+<text x="490" y="60" font-family="Inter" font-size="10" fill="#f59e0b" text-anchor="middle">Node.js · Express · Socket.IO · Mongoose</text>
+
+<!-- Auth & Middleware -->
+<rect x="286" y="72" width="408" height="70" rx="8" fill="rgba(217,119,6,0.12)" stroke="#92400e" stroke-width="1"/>
+<text x="490" y="89" font-family="Inter" font-size="10" font-weight="600" fill="#fde68a" text-anchor="middle">Auth &amp; Middleware Layer</text>
+<text x="296" y="106" font-family="JetBrains Mono" font-size="9" fill="#a78bfa">JWT verify · RBAC role guard · FIRST_PARTY_ORIGINS CORS</text>
+<text x="296" y="120" font-family="JetBrains Mono" font-size="9" fill="#a78bfa">AdaptiveRateLimiter (global / auth / OTP) · ErrorHandler</text>
+<text x="296" y="133" font-family="JetBrains Mono" font-size="9" fill="#a78bfa">logger.helper.js · response.helper.js · crypto OTP (timingSafeEqual)</text>
+
+<!-- REST API routes -->
+<rect x="286" y="154" width="200" height="300" rx="8" fill="rgba(217,119,6,0.08)" stroke="#78350f" stroke-width="1"/>
+<text x="386" y="172" font-family="Inter" font-size="10" font-weight="600" fill="#fde68a" text-anchor="middle">REST API Routes</text>
+<text x="296" y="189" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">POST /auth/send-otp</text>
+<text x="296" y="202" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">POST /auth/verify-otp</text>
+<text x="296" y="215" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">GET/POST /jobs</text>
+<text x="296" y="228" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">POST /jobs/:id/quote</text>
+<text x="296" y="241" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">PATCH /jobs/:id/accept</text>
+<text x="296" y="254" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">POST /jobs/:id/otp/verify</text>
+<text x="296" y="267" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">POST /jobs/:id/complete</text>
+<text x="296" y="280" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">POST /jobs/:id/payment</text>
+<text x="296" y="293" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">POST /shops/:id/orders</text>
+<text x="296" y="306" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">PATCH /orders/:id/status</text>
+<text x="296" y="319" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">GET/POST /workers/kyc</text>
+<text x="296" y="332" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">POST /wallets/topup</text>
+<text x="296" y="345" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">POST /payouts/request</text>
+<text x="296" y="358" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">GET /admin/pending-kyc</text>
+<text x="296" y="371" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">PATCH /admin/verify-payment</text>
+<text x="296" y="384" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">GET /admin/ledger · /settings</text>
+<text x="296" y="397" font-family="JetBrains Mono" font-size="8.5" fill="#fdba74">GET /home · /shops · /workers</text>
+<text x="296" y="422" font-family="Inter" font-size="9" fill="#92400e">response.helper.js wraps all responses</text>
+<text x="296" y="435" font-family="Inter" font-size="9" fill="#92400e">.lean() + .select() on read-only queries</text>
+<text x="296" y="448" font-family="Inter" font-size="9" fill="#92400e">Compound indexes: userId/status/geo</text>
+
+<!-- Socket.IO layer -->
+<rect x="498" y="154" width="196" height="300" rx="8" fill="rgba(245,158,11,0.10)" stroke="#92400e" stroke-width="1"/>
+<text x="596" y="172" font-family="Inter" font-size="10" font-weight="600" fill="#fde68a" text-anchor="middle">Socket.IO Rooms</text>
+<text x="508" y="189" font-family="JetBrains Mono" font-size="8.5" fill="#fbbf24">customer_{userId}</text>
+<text x="508" y="202" font-family="JetBrains Mono" font-size="8.5" fill="#fbbf24">worker_{userId}</text>
+<text x="508" y="215" font-family="JetBrains Mono" font-size="8.5" fill="#fbbf24">shop_{shopId}</text>
+<text x="508" y="228" font-family="JetBrains Mono" font-size="8.5" fill="#fbbf24">job_{jobId}  (guarded)</text>
+<text x="508" y="241" font-family="JetBrains Mono" font-size="8.5" fill="#fbbf24">admin_dashboard</text>
+
+<text x="508" y="260" font-family="Inter" font-size="9" font-weight="600" fill="#a78bfa">Client → Server</text>
+<text x="508" y="273" font-family="JetBrains Mono" font-size="8" fill="#c4b5fd">JOIN_JOB_ROOM</text>
+<text x="508" y="285" font-family="JetBrains Mono" font-size="8" fill="#c4b5fd">WORKER_LOCATION_UPDATE</text>
+<text x="508" y="297" font-family="JetBrains Mono" font-size="8" fill="#c4b5fd">SEND_MESSAGE</text>
+
+<text x="508" y="316" font-family="Inter" font-size="9" font-weight="600" fill="#a78bfa">Server → Client (key events)</text>
+<text x="508" y="329" font-family="JetBrains Mono" font-size="8" fill="#fdba74">NEW_JOB_ALERT · NEW_QUOTE</text>
+<text x="508" y="341" font-family="JetBrains Mono" font-size="8" fill="#fdba74">JOB_STATUS_CHANGED</text>
+<text x="508" y="353" font-family="JetBrains Mono" font-size="8" fill="#fdba74">WORKER_LOCATION</text>
+<text x="508" y="365" font-family="JetBrains Mono" font-size="8" fill="#fdba74">ORDER_PLACED · ORDER_STATUS</text>
+<text x="508" y="377" font-family="JetBrains Mono" font-size="8" fill="#fdba74">WALLET_CREDIT · JOB_CREDIT</text>
+<text x="508" y="389" font-family="JetBrains Mono" font-size="8" fill="#fdba74">FORCED_OFFLINE</text>
+<text x="508" y="401" font-family="JetBrains Mono" font-size="8" fill="#fdba74">PAYOUT_STATUS_UPDATE</text>
+<text x="508" y="413" font-family="JetBrains Mono" font-size="8" fill="#fdba74">NEW_MESSAGE · NEW_NOTIFICATION</text>
+<text x="508" y="425" font-family="JetBrains Mono" font-size="8" fill="#fdba74">DASHBOARD_UPDATE (admin)</text>
+<text x="508" y="440" font-family="Inter" font-size="8.5" fill="#92400e">Anti-spoof: Redis assigned_worker check</text>
+<text x="508" y="452" font-family="Inter" font-size="8.5" fill="#92400e">Chat: strip HTML · 2000 char cap</text>
+
+<!-- Settlement engine -->
+<rect x="286" y="466" width="408" height="90" rx="8" fill="rgba(245,158,11,0.10)" stroke="#78350f" stroke-width="1"/>
+<text x="490" y="484" font-family="Inter" font-size="10" font-weight="600" fill="#fde68a" text-anchor="middle">Settlement Engine (settlementEngine.helper.js)</text>
+<text x="296" y="500" font-family="Inter" font-size="9" fill="#fdba74">Trigger A: Job → PAID &nbsp;→&nbsp; settleJobCompletion(): 100% worker, 10% treasury, GST tax</text>
+<text x="296" y="514" font-family="Inter" font-size="9" fill="#fdba74">Trigger B: Order → DELIVERED &nbsp;→&nbsp; settleShopOrderDelivery(): shop share, platform fee+GST</text>
+<text x="296" y="528" font-family="Inter" font-size="9" fill="#fdba74">Atomic: findOneAndUpdate({status:from}, {status:to}) · idempotency key in PlatformLedger</text>
+<text x="296" y="542" font-family="Inter" font-size="9" fill="#fdba74">Zero-trust: all UPI PENDING_VERIFICATION until admin bank-statement verify</text>
+
+<!-- Cron engine -->
+<rect x="286" y="568" width="408" height="110" rx="8" fill="rgba(148,163,184,0.06)" stroke="#334155" stroke-width="1"/>
+<text x="490" y="586" font-family="Inter" font-size="10" font-weight="600" fill="#94a3b8" text-anchor="middle">🕐  Cron Engine (cronEngine.js)</text>
+<text x="296" y="602" font-family="JetBrains Mono" font-size="9" fill="#64748b">every 1 min · cron:broadcast_sweep  →  expand radius / auto-cancel (3 rounds)</text>
+<text x="296" y="616" font-family="JetBrains Mono" font-size="9" fill="#64748b">every 1 min · cron:job_sweep        →  QUOTES_RECEIVED &gt;2h → CANCELLED</text>
+<text x="296" y="630" font-family="JetBrains Mono" font-size="9" fill="#64748b">every 5 min · cron:order_sweep      →  orders NEW &gt;30 min → cancel+restore</text>
+<text x="296" y="644" font-family="JetBrains Mono" font-size="9" fill="#64748b">every 10 min· cron:worker_sweep     →  expired sub → isOnline=false + FORCED_OFFLINE</text>
+<text x="296" y="658" font-family="JetBrains Mono" font-size="9" fill="#64748b">daily 00:00  · subscription.cron    →  3-day warn / expiry force-offline</text>
+<text x="296" y="672" font-family="Inter" font-size="9" fill="#475569">All crons: multi-node safe via Redis distributed lock (loser node skips)</text>
+
+<!-- Models -->
+<rect x="286" y="690" width="408" height="70" rx="8" fill="rgba(217,119,6,0.08)" stroke="#78350f" stroke-width="1"/>
+<text x="490" y="707" font-family="Inter" font-size="10" font-weight="600" fill="#fde68a" text-anchor="middle">Mongoose Models (backend/src/models/)</text>
+<text x="296" y="723" font-family="JetBrains Mono" font-size="9" fill="#fdba74">Job · Quote · ShopOrder · User · Worker · Shop</text>
+<text x="296" y="737" font-family="JetBrains Mono" font-size="9" fill="#fdba74">WalletTransaction · PlatformLedger · WorkerSubscription · ShopSubscription</text>
+<text x="296" y="751" font-family="JetBrains Mono" font-size="9" fill="#fdba74">Payout · Notification · SupportChat · AppSettings</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- COLUMN 3: DATA LAYER -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<rect x="740" y="20" width="220" height="500" rx="14" fill="url(#bg-data)" stroke="#16a34a" stroke-width="1.5" opacity="0.9" filter="url(#shadow)"/>
+<text x="850" y="46" font-family="Inter" font-size="13" font-weight="700" fill="#86efac" text-anchor="middle">🗄️ Data Layer</text>
+<text x="850" y="60" font-family="Inter" font-size="10" fill="#22c55e" text-anchor="middle">MongoDB · Upstash Redis</text>
+
+<!-- MongoDB -->
+<rect x="756" y="72" width="188" height="24" rx="6" fill="#14532d" stroke="#4ade80" stroke-width="1"/>
+<text x="850" y="87" font-family="Inter" font-size="10" font-weight="600" fill="#bbf7d0" text-anchor="middle">MongoDB (Mongoose)</text>
+
+<rect x="756" y="100" width="188" height="220" rx="8" fill="rgba(22,163,74,0.12)" stroke="#14532d" stroke-width="1"/>
+<text x="766" y="117" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">jobs (status, coordinates, geo)</text>
+<text x="766" y="131" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">quotes (jobId, workerId, status)</text>
+<text x="766" y="145" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">shoporders (status, statusHistory)</text>
+<text x="766" y="159" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">users (phone, role, wallet)</text>
+<text x="766" y="173" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">workers (KYC, services, isOnline)</text>
+<text x="766" y="187" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">shops (geo-point, products)</text>
+<text x="766" y="201" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">wallettransactions (idempotent)</text>
+<text x="766" y="215" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">platformledger (idempotencyKey)</text>
+<text x="766" y="229" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">workersubscriptions (UTR unique)</text>
+<text x="766" y="243" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">shopsubscriptions</text>
+<text x="766" y="257" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">payouts · notifications</text>
+<text x="766" y="271" font-family="JetBrains Mono" font-size="8.5" fill="#86efac">supportchats · appsettings</text>
+<text x="766" y="291" font-family="Inter" font-size="8.5" fill="#14532d">Compound indexes: userId+status</text>
+<text x="766" y="304" font-family="Inter" font-size="8.5" fill="#14532d">Geospatial: 2dsphere on coordinates</text>
+<text x="766" y="317" font-family="Inter" font-size="8.5" fill="#14532d">.lean() on read-only · .select() projection</text>
+
+<!-- Redis -->
+<rect x="756" y="332" width="188" height="24" rx="6" fill="#991b1b" stroke="#fca5a5" stroke-width="1"/>
+<text x="850" y="347" font-family="Inter" font-size="10" font-weight="600" fill="#fee2e2" text-anchor="middle">Upstash Redis (hot-path)</text>
+
+<rect x="756" y="360" width="188" height="148" rx="8" fill="rgba(185,28,28,0.15)" stroke="#7f1d1d" stroke-width="1"/>
+<text x="766" y="377" font-family="JetBrains Mono" font-size="8.5" fill="#fca5a5">otp:{phone} &nbsp; 10 min TTL</text>
+<text x="766" y="391" font-family="JetBrains Mono" font-size="8.5" fill="#fca5a5">session:{userId}</text>
+<text x="766" y="405" font-family="JetBrains Mono" font-size="8.5" fill="#fca5a5">blacklist:{token}</text>
+<text x="766" y="419" font-family="JetBrains Mono" font-size="8.5" fill="#fca5a5">job:{id}:assigned_worker</text>
+<text x="766" y="433" font-family="JetBrains Mono" font-size="8.5" fill="#fca5a5">job:{id}:eligible_workers</text>
+<text x="766" y="447" font-family="JetBrains Mono" font-size="8.5" fill="#fca5a5">cron:* (4 leader locks)</text>
+<text x="766" y="461" font-family="JetBrains Mono" font-size="8.5" fill="#fca5a5">top_pros_list · app_settings</text>
+<text x="766" y="493" font-family="Inter" font-size="8.5" fill="#7f1d1d">acquireLock/releaseLock used by</text>
+<text x="766" y="506" font-family="Inter" font-size="8.5" fill="#7f1d1d">crons + settlement claim guard</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- COLUMN 4: ADMIN PANEL -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<rect x="740" y="535" width="220" height="290" rx="14" fill="url(#bg-admin)" stroke="#be185d" stroke-width="1.5" opacity="0.9" filter="url(#shadow)"/>
+<text x="850" y="561" font-family="Inter" font-size="13" font-weight="700" fill="#fbcfe8" text-anchor="middle">🖥️ Admin Panel</text>
+<text x="850" y="575" font-family="Inter" font-size="10" fill="#ec4899" text-anchor="middle">React · recharts · lucide-react</text>
+
+<rect x="756" y="587" width="188" height="218" rx="8" fill="rgba(190,24,93,0.12)" stroke="#831843" stroke-width="1"/>
+<text x="766" y="604" font-family="Inter" font-size="9" fill="#f9a8d4">ADMIN-only JWT sessions</text>
+<text x="766" y="618" font-family="Inter" font-size="9" fill="#f9a8d4">KYC queue: workers + shops</text>
+<text x="766" y="632" font-family="Inter" font-size="9" fill="#f9a8d4">Wallet topup verify (UTR)</text>
+<text x="766" y="646" font-family="Inter" font-size="9" fill="#f9a8d4">Payouts: approve → transfer</text>
+<text x="766" y="660" font-family="Inter" font-size="9" fill="#f9a8d4">PlatformLedger · escrow reports</text>
+<text x="766" y="674" font-family="Inter" font-size="9" fill="#f9a8d4">Jobs · Orders · Disputes</text>
+<text x="766" y="688" font-family="Inter" font-size="9" fill="#f9a8d4">Support chats (live socket)</text>
+<text x="766" y="702" font-family="Inter" font-size="9" fill="#f9a8d4">Subscriptions · Users list</text>
+<text x="766" y="716" font-family="Inter" font-size="9" fill="#f9a8d4">App settings → Redis cache</text>
+<text x="766" y="730" font-family="Inter" font-size="9" fill="#f9a8d4">Notifications broadcast</text>
+<text x="766" y="744" font-family="Inter" font-size="9.5" fill="#be185d" font-weight="600">Socket: admin_dashboard</text>
+<text x="766" y="758" font-family="Inter" font-size="9" fill="#831843">DASHBOARD_UPDATE (live metrics)</text>
+<text x="766" y="792" font-family="Inter" font-size="9" fill="#831843">vercel.json → Vercel deploy</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- EXTERNAL SERVICES -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<rect x="980" y="20" width="200" height="340" rx="14" fill="url(#bg-ext)" stroke="#0891b2" stroke-width="1.5" opacity="0.9" filter="url(#shadow)"/>
+<text x="1080" y="46" font-family="Inter" font-size="13" font-weight="700" fill="#bae6fd" text-anchor="middle">🌐 External</text>
+<text x="1080" y="60" font-family="Inter" font-size="10" fill="#06b6d4" text-anchor="middle">Cloud services</text>
+
+<rect x="996" y="72" width="168" height="50" rx="8" fill="rgba(8,145,178,0.15)" stroke="#0e7490" stroke-width="1"/>
+<text x="1080" y="90" font-family="Inter" font-size="10" font-weight="600" fill="#7dd3fc" text-anchor="middle">Cloudinary</text>
+<text x="1000" y="108" font-family="Inter" font-size="9" fill="#38bdf8">KYC docs · shop logos</text>
+<text x="1000" y="120" font-family="Inter" font-size="9" fill="#38bdf8">profile images upload</text>
+
+<rect x="996" y="134" width="168" height="50" rx="8" fill="rgba(8,145,178,0.15)" stroke="#0e7490" stroke-width="1"/>
+<text x="1080" y="152" font-family="Inter" font-size="10" font-weight="600" fill="#7dd3fc" text-anchor="middle">Firebase / Push</text>
+<text x="1000" y="170" font-family="Inter" font-size="9" fill="#38bdf8">Push notifications</text>
+<text x="1000" y="182" font-family="Inter" font-size="9" fill="#38bdf8">(NEW_JOB_ALERT, status)</text>
+
+<rect x="996" y="196" width="168" height="50" rx="8" fill="rgba(8,145,178,0.15)" stroke="#0e7490" stroke-width="1"/>
+<text x="1080" y="214" font-family="Inter" font-size="10" font-weight="600" fill="#7dd3fc" text-anchor="middle">UPI / Bank</text>
+<text x="1000" y="232" font-family="Inter" font-size="9" fill="#38bdf8">Zero-trust UTR verify</text>
+<text x="1000" y="244" font-family="Inter" font-size="9" fill="#38bdf8">Admin bank-statement check</text>
+
+<rect x="996" y="258" width="168" height="40" rx="8" fill="rgba(8,145,178,0.15)" stroke="#0e7490" stroke-width="1"/>
+<text x="1080" y="276" font-family="Inter" font-size="10" font-weight="600" fill="#7dd3fc" text-anchor="middle">Upstash Redis</text>
+<text x="1000" y="290" font-family="Inter" font-size="9" fill="#38bdf8">Managed Redis cloud</text>
+
+<rect x="996" y="310" width="168" height="40" rx="8" fill="rgba(8,145,178,0.15)" stroke="#0e7490" stroke-width="1"/>
+<text x="1080" y="328" font-family="Inter" font-size="10" font-weight="600" fill="#7dd3fc" text-anchor="middle">Vercel</text>
+<text x="1000" y="344" font-family="Inter" font-size="9" fill="#38bdf8">Admin panel hosting</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- CONNECTION ARROWS -->
+<!-- ════════════════════════════════════════════════════════════ -->
+
+<!-- Mobile ↔ Backend (REST) -->
+<path d="M 240 200 L 268 200" fill="none" stroke="#6366f1" stroke-width="2" marker-end="url(#a-api)"/>
+<text x="254" y="193" font-family="Inter" font-size="8" fill="#6366f1" text-anchor="middle">REST</text>
+
+<!-- Mobile ↔ Backend (Socket) -->
+<path d="M 240 340 L 268 340" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#a-sock)"/>
+<text x="254" y="333" font-family="Inter" font-size="8" fill="#f59e0b" text-anchor="middle">Socket</text>
+
+<!-- Backend ↔ MongoDB -->
+<path d="M 710 250 L 738 250" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#a-db)"/>
+<text x="724" y="243" font-family="Inter" font-size="8" fill="#10b981" text-anchor="middle">Mongoose</text>
+
+<!-- Backend ↔ Redis -->
+<path d="M 710 430 L 738 430" fill="none" stroke="#ef4444" stroke-width="2" marker-end="url(#a-db)"/>
+<text x="724" y="423" font-family="Inter" font-size="8" fill="#ef4444" text-anchor="middle">ioredis</text>
+
+<!-- Admin ↔ Backend (REST) -->
+<path d="M 740 620 L 712 620 L 712 350 Q 712 330 710 330" fill="none" stroke="#ec4899" stroke-width="2" marker-end="url(#a-api)"/>
+<text x="724" y="490" font-family="Inter" font-size="8" fill="#ec4899" transform="rotate(-90 724 490)">Admin REST</text>
+
+<!-- Admin ↔ Backend (Socket) -->
+<path d="M 740 680 L 726 680 L 726 460 Q 726 440 710 440" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#a-sock)"/>
+
+<!-- Backend → Cloudinary -->
+<path d="M 710 165 L 978 165" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#a-ext)"/>
+<text x="844" y="158" font-family="Inter" font-size="8" fill="#06b6d4" text-anchor="middle">file upload</text>
+
+<!-- Backend → Push -->
+<path d="M 710 200 L 978 200" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#a-ext)"/>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Live flow indicator dots -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<circle cx="254" cy="200" r="4" fill="#6366f1" class="pulse-dot"/>
+<circle cx="254" cy="340" r="4" fill="#f59e0b" class="pulse-dot" style="animation-delay:0.5s"/>
+<circle cx="724" cy="250" r="4" fill="#10b981" class="pulse-dot" style="animation-delay:1s"/>
+<circle cx="724" cy="430" r="4" fill="#ef4444" class="pulse-dot" style="animation-delay:1.5s"/>
+
+<!-- Bottom note -->
+<text x="600" y="870" font-family="Inter" font-size="11" fill="#334155" text-anchor="middle">
+  Deployed: Backend on VM/VPS · Admin on Vercel · Mobile as APK (Expo build) · Redis on Upstash cloud
+</text>
+</svg>
+</div>
+
+</body>
+</html>

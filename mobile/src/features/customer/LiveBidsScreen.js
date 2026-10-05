@@ -85,6 +85,11 @@ const LiveBidsScreen = ({ route, navigation }) => {
           }
         }
       }).catch(() => {});
+      jobService.getQuotesForJob(jobId).then(res => {
+        if (res.data?.status === 'success' && Array.isArray(res.data.data)) {
+          setBids(res.data.data);
+        }
+      }).catch(() => {});
     }, [jobId])
   );
 

@@ -341,8 +341,8 @@ const HomeScreen = ({ navigation }) => {
           style={[styles.heroGradient, { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 36) : 20, 36) + 12, paddingBottom: 30 }]}
         >
           {/* Dynamic background shapes */}
-          <View style={styles.blob1} />
-          <View style={styles.blob2} />
+          <View style={styles.blob1} pointerEvents="none" />
+          <View style={styles.blob2} pointerEvents="none" />
 
           {/* Top row: Location on left, Orders + Notifications on right */}
           <View style={[styles.heroTopRow, { marginBottom: 12 }]}>

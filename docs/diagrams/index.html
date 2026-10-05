@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kwickly — Architecture Diagrams</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  :root { --bg:#0a0c10; --surface:#141720; --border:#252b3b; --text:#e2e8f0; --muted:#64748b; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:60px 24px; }
+
+  .hero { text-align:center; margin-bottom:60px; }
+  .hero h1 { font-size:40px; font-weight:800; background:linear-gradient(135deg,#f59e0b,#f97316,#ef4444); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-bottom:12px; }
+  .hero p { font-size:16px; color:var(--muted); max-width:500px; margin:0 auto; line-height:1.7; }
+
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:24px; max-width:1000px; width:100%; }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px; text-decoration:none; color:inherit; transition:all 0.3s ease; position:relative; overflow:hidden; }
+  .card::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity 0.3s; border-radius:16px; }
+  .card:hover { transform:translateY(-4px); box-shadow:0 20px 60px rgba(0,0,0,0.5); }
+  .card:hover::before { opacity:1; }
+
+  .card-job::before { background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(124,58,237,0.05)); }
+  .card-job:hover { border-color:#6366f1; box-shadow:0 20px 60px rgba(99,102,241,0.2); }
+  .card-shop::before { background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.05)); }
+  .card-shop:hover { border-color:#10b981; box-shadow:0 20px 60px rgba(16,185,129,0.2); }
+  .card-arch::before { background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(249,115,22,0.05)); }
+  .card-arch:hover { border-color:#f59e0b; box-shadow:0 20px 60px rgba(245,158,11,0.2); }
+
+  .card-icon { font-size:36px; margin-bottom:16px; }
+  .card h2 { font-size:18px; font-weight:700; margin-bottom:8px; }
+  .card p { font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:18px; }
+  .card-tag { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:12px; font-size:11px; font-weight:600; font-family:monospace; margin-bottom:6px; margin-right:6px; }
+  .tag-indigo { background:#312e81; color:#c7d2fe; }
+  .tag-green  { background:#14532d; color:#86efac; }
+  .tag-amber  { background:#451a03; color:#fde68a; }
+  .tag-red    { background:#7f1d1d; color:#fca5a5; }
+  .tag-cyan   { background:#0c4a6e; color:#bae6fd; }
+
+  .open-btn { display:inline-flex; align-items:center; gap:8px; padding:10px 18px; border-radius:10px; font-size:13px; font-weight:600; transition:all 0.2s; }
+  .btn-indigo { background:#4f46e5; color:white; }
+  .btn-indigo:hover { background:#4338ca; }
+  .btn-green  { background:#16a34a; color:white; }
+  .btn-green:hover  { background:#15803d; }
+  .btn-amber  { background:#d97706; color:white; }
+  .btn-amber:hover  { background:#b45309; }
+
+  .footer { margin-top:60px; color:var(--muted); font-size:12px; text-align:center; }
+  .footer a { color:#6366f1; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Kwickly Diagrams</h1>
+  <p>Interactive architecture and lifecycle diagrams for the Kwickly platform. Click any card to open the full interactive diagram.</p>
+</div>
+
+<div class="cards">
+  <!-- Job Lifecycle -->
+  <a href="job-lifecycle.html" class="card card-job">
+    <div class="card-icon">⚡</div>
+    <h2>Job Lifecycle</h2>
+    <p>Complete state machine for the service job flow — from BROADCASTING through QUOTES_RECEIVED, ALLOCATED, ARRIVING, IN_PROGRESS, to COMPLETED → PAID → CLOSED. Includes side exits, cron auto-transitions, OTP verification, and settlement details.</p>
+    <div>
+      <span class="card-tag tag-indigo">lifecycle</span>
+      <span class="card-tag tag-red">CANCELLED</span>
+      <span class="card-tag tag-cyan">DISPUTED</span>
+    </div>
+    <br/>
+    <span class="open-btn btn-indigo">Open Diagram →</span>
+  </a>
+
+  <!-- Shop Order Lifecycle -->
+  <a href="shop-order-lifecycle.html" class="card card-shop">
+    <div class="card-icon">🛒</div>
+    <h2>Shop Order Lifecycle</h2>
+    <p>State machine for the shop commerce flow — NEW → CONFIRMED → PACKING → OUT_FOR_DELIVERY → DELIVERED. Includes CANCELLED side exit with stock restoration, payment sub-states (WALLET / UPI / COD), and atomic delivery settlement.</p>
+    <div>
+      <span class="card-tag tag-green">lifecycle</span>
+      <span class="card-tag tag-amber">settlement</span>
+      <span class="card-tag tag-red">stock restore</span>
+    </div>
+    <br/>
+    <span class="open-btn btn-green">Open Diagram →</span>
+  </a>
+
+  <!-- Platform Architecture -->
+  <a href="platform-architecture.html" class="card card-arch">
+    <div class="card-icon">🏗️</div>
+    <h2>Platform Architecture</h2>
+    <p>Full system overview: Mobile App (4 role screens) ↔ Backend Engine (REST + Socket.IO) ↔ MongoDB + Redis ↔ Admin Panel. Shows all Socket rooms, REST routes, cron jobs, settlement engine, and external services (Cloudinary, UPI, Vercel).</p>
+    <div>
+      <span class="card-tag tag-amber">architecture</span>
+      <span class="card-tag tag-cyan">Socket.IO</span>
+      <span class="card-tag tag-green">4 roles</span>
+    </div>
+    <br/>
+    <span class="open-btn btn-amber">Open Diagram →</span>
+  </a>
+</div>
+
+<div class="footer">
+  <p>Generated from <a href="../PRODUCT-FLOWS.md">docs/PRODUCT-FLOWS.md</a> · Kwickly platform · verified 2026-08-30</p>
+</div>
+
+</body>
+</html>

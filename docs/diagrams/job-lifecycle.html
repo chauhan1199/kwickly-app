@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kwickly — Job Lifecycle State Machine</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #161922;
+    --surface2: #1e2330;
+    --border: #2a3045;
+    --accent: #6366f1;
+    --accent2: #8b5cf6;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --blue: #3b82f6;
+    --cyan: #06b6d4;
+    --pink: #ec4899;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --state-w: 140px;
+    --state-h: 52px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    padding: 24px 32px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, #0d0f14 0%, #12141c 100%);
+  }
+  .header-left h1 {
+    font-size: 22px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #6366f1, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header-left p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+  .badge-purple { background: #3730a3; color: #c4b5fd; border: 1px solid #4c1d95; }
+  .badge-green  { background: #14532d; color: #86efac; border: 1px solid #166534; }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    padding: 14px 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+
+  /* ── Main diagram ── */
+  .diagram-container {
+    padding: 40px 32px;
+    overflow-x: auto;
+    min-height: 600px;
+  }
+
+  svg.diagram {
+    display: block;
+    margin: 0 auto;
+    overflow: visible;
+  }
+
+  /* State node styles */
+  .state-node rect {
+    stroke-width: 2;
+    rx: 10;
+    transition: all 0.3s ease;
+  }
+  .state-node:hover rect { filter: brightness(1.3); }
+  .state-node text {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    fill: white;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+  }
+  .state-node .sub-label {
+    font-size: 9.5px;
+    font-weight: 400;
+    fill: rgba(255,255,255,0.6);
+  }
+
+  /* Arrow styles */
+  .arrow-path {
+    fill: none;
+    stroke-width: 2;
+    marker-end: url(#arrowhead);
+  }
+  .arrow-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 9.5px;
+    fill: var(--muted);
+    text-anchor: middle;
+  }
+
+  /* Animated pulse on active states */
+  @keyframes pulse-ring {
+    0%   { stroke-opacity: 0.8; stroke-width: 3; }
+    100% { stroke-opacity: 0; stroke-width: 8; }
+  }
+  .pulse-ring {
+    animation: pulse-ring 2s ease-out infinite;
+    fill: none;
+  }
+
+  /* Side exit styles */
+  .exit-node rect { stroke-dasharray: 5,3; }
+
+  /* ── Info panels ── */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 0 32px 40px;
+  }
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .info-card h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .info-card h3 .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .info-list { list-style: none; }
+  .info-list li {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+  .info-list li:last-child { border-bottom: none; }
+  .info-list li strong { color: var(--text); flex-shrink: 0; }
+
+  /* Divider */
+  .section-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0 32px 32px;
+  }
+
+  /* Glowing border on accent nodes */
+  .glow-indigo { filter: drop-shadow(0 0 8px rgba(99,102,241,0.5)); }
+  .glow-green  { filter: drop-shadow(0 0 8px rgba(34,197,94,0.5)); }
+  .glow-red    { filter: drop-shadow(0 0 8px rgba(239,68,68,0.5)); }
+
+  /* Animated flow particle */
+  @keyframes flow-particle {
+    0%   { offset-distance: 0%; opacity: 1; }
+    80%  { opacity: 1; }
+    100% { offset-distance: 100%; opacity: 0; }
+  }
+  .flow-particle {
+    animation: flow-particle 3s linear infinite;
+    offset-rotate: 0deg;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <h1>⚡ Kwickly Job Lifecycle</h1>
+    <p>Service Job State Machine · <span style="font-family: monospace; color: #6366f1">job.model.js</span> · verified against codebase 2026-08-30</p>
+  </div>
+  <div style="display:flex; gap:10px; align-items:center;">
+    <span class="badge badge-purple">lifecycle</span>
+    <span class="badge badge-green">✓ verified</span>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div> Main lifecycle states</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Terminal success</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Terminal failure / side-exit</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Payment / escrow states</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#64748b; border-radius:2px"></div> Cron-triggered transitions</div>
+</div>
+
+<!-- Diagram SVG -->
+<div class="diagram-container">
+<svg class="diagram" width="1100" height="720" viewBox="0 0 1100 720">
+  <defs>
+    <!-- Arrowheads -->
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4b5563"/>
+    </marker>
+    <marker id="arrowhead-green" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#22c55e"/>
+    </marker>
+    <marker id="arrowhead-red" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ef4444"/>
+    </marker>
+    <marker id="arrowhead-orange" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/>
+    </marker>
+    <marker id="arrowhead-indigo" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+    </marker>
+    <marker id="arrowhead-cyan" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#06b6d4"/>
+    </marker>
+
+    <!-- Gradients -->
+    <linearGradient id="grad-indigo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5"/>
+      <stop offset="100%" style="stop-color:#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#16a34a"/>
+      <stop offset="100%" style="stop-color:#15803d"/>
+    </linearGradient>
+    <linearGradient id="grad-orange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#d97706"/>
+      <stop offset="100%" style="stop-color:#b45309"/>
+    </linearGradient>
+    <linearGradient id="grad-red" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#dc2626"/>
+      <stop offset="100%" style="stop-color:#b91c1c"/>
+    </linearGradient>
+    <linearGradient id="grad-pink" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#be185d"/>
+      <stop offset="100%" style="stop-color:#9d174d"/>
+    </linearGradient>
+    <linearGradient id="grad-cyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0891b2"/>
+      <stop offset="100%" style="stop-color:#0e7490"/>
+    </linearGradient>
+    <linearGradient id="grad-teal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f766e"/>
+      <stop offset="100%" style="stop-color:#0d9488"/>
+    </linearGradient>
+
+    <!-- Glow filter -->
+    <filter id="glow-indigo">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-green">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- ═══════════════════════════════ MAIN HAPPY PATH (top row left→right) ═══════════════════════════════ -->
+
+  <!-- Start dot -->
+  <circle cx="60" cy="80" r="14" fill="url(#grad-indigo)" stroke="#818cf8" stroke-width="2"/>
+  <text x="60" y="84" font-family="Inter" font-size="18" fill="white" text-anchor="middle" dominant-baseline="middle">▶</text>
+  <text x="60" y="105" font-family="Inter" font-size="10" fill="#6366f1" text-anchor="middle">START</text>
+
+  <!-- Arrow: start → BROADCASTING -->
+  <path d="M 74 80 L 116 80" class="arrow-path" stroke="#6366f1" marker-end="url(#arrowhead-indigo)"/>
+
+  <!-- 1. BROADCASTING -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('broadcasting')">
+    <rect x="118" y="54" width="152" height="52" rx="10" fill="url(#grad-indigo)" stroke="#818cf8" stroke-width="2"/>
+    <text x="194" y="76" class="state-node-label" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">BROADCASTING</text>
+    <text x="194" y="93" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">radius expands per cron round</text>
+    <!-- Pulse ring -->
+    <rect x="114" y="50" width="160" height="60" rx="13" fill="none" stroke="#818cf8" class="pulse-ring"/>
+  </g>
+
+  <!-- Arrow: BROADCASTING → QUOTES_RECEIVED -->
+  <path d="M 270 80 L 316 80" class="arrow-path" stroke="#4b5563" marker-end="url(#arrowhead)"/>
+  <text x="293" y="70" class="arrow-label">workers quote</text>
+
+  <!-- 2. QUOTES_RECEIVED -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('quotes')">
+    <rect x="318" y="54" width="156" height="52" rx="10" fill="url(#grad-blue)" stroke="#60a5fa" stroke-width="2"/>
+    <text x="396" y="76" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">QUOTES_RECEIVED</text>
+    <text x="396" y="93" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">customer compares bids</text>
+  </g>
+
+  <!-- Arrow: QUOTES_RECEIVED → ALLOCATED -->
+  <path d="M 474 80 L 516 80" class="arrow-path" stroke="#4b5563" marker-end="url(#arrowhead)"/>
+  <text x="495" y="70" class="arrow-label">customer accepts</text>
+
+  <!-- 3. ALLOCATED -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('allocated')">
+    <rect x="518" y="54" width="130" height="52" rx="10" fill="url(#grad-cyan)" stroke="#22d3ee" stroke-width="2"/>
+    <text x="583" y="76" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">ALLOCATED</text>
+    <text x="583" y="93" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">Redis lock assigned_worker</text>
+  </g>
+
+  <!-- Arrow: ALLOCATED → ARRIVING -->
+  <path d="M 648 80 L 688 80" class="arrow-path" stroke="#4b5563" marker-end="url(#arrowhead)"/>
+  <text x="668" y="70" class="arrow-label">OTP verified</text>
+
+  <!-- 4. ARRIVING -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('arriving')">
+    <rect x="690" y="54" width="120" height="52" rx="10" fill="url(#grad-teal)" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="750" y="76" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">ARRIVING</text>
+    <text x="750" y="93" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">live GPS streaming</text>
+  </g>
+
+  <!-- Arrow: ARRIVING → IN_PROGRESS -->
+  <path d="M 810 80 L 850 80" class="arrow-path" stroke="#4b5563" marker-end="url(#arrowhead)"/>
+  <text x="830" y="70" class="arrow-label">work begins</text>
+
+  <!-- 5. IN_PROGRESS -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('in_progress')">
+    <rect x="852" y="54" width="126" height="52" rx="10" fill="url(#grad-orange)" stroke="#fbbf24" stroke-width="2"/>
+    <text x="915" y="76" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">IN_PROGRESS</text>
+    <text x="915" y="93" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">chat active · job room</text>
+  </g>
+
+  <!-- ─── Row 2: COMPLETED → PAID → CLOSED ─── -->
+
+  <!-- Arrow: IN_PROGRESS ↓ COMPLETED -->
+  <path d="M 978 80 L 1010 80 Q 1030 80 1030 104 L 1030 200 Q 1030 220 1010 220 L 938 220" class="arrow-path" stroke="#4b5563" marker-end="url(#arrowhead)"/>
+  <text x="1040" y="160" class="arrow-label" transform="rotate(-90 1040 160)">worker marks done</text>
+
+  <!-- 6. COMPLETED -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('completed')">
+    <rect x="792" y="194" width="144" height="52" rx="10" fill="url(#grad-orange)" stroke="#fbbf24" stroke-width="2"/>
+    <text x="864" y="216" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">COMPLETED</text>
+    <text x="864" y="233" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">escrow LOCKED if prepaid</text>
+  </g>
+
+  <!-- Arrow: COMPLETED → PAID -->
+  <path d="M 792 220 L 750 220" class="arrow-path" stroke="#f59e0b" marker-end="url(#arrowhead-orange)"/>
+  <text x="771" y="210" class="arrow-label">admin verifies UTR</text>
+
+  <!-- 7. PAID -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('paid')">
+    <rect x="604" y="194" width="144" height="52" rx="10" fill="url(#grad-orange)" stroke="#fbbf24" stroke-width="2"/>
+    <text x="676" y="216" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">PAID</text>
+    <text x="676" y="233" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">settlement engine fires</text>
+  </g>
+
+  <!-- Settlement detail annotation -->
+  <g>
+    <rect x="605" y="258" width="142" height="55" rx="6" fill="#1e2330" stroke="#2a3045" stroke-width="1"/>
+    <text x="676" y="273" font-family="JetBrains Mono" font-size="8.5" fill="#f59e0b" text-anchor="middle">settleJobCompletion()</text>
+    <text x="676" y="285" font-family="Inter" font-size="8.5" fill="#64748b" text-anchor="middle">100% → worker wallet</text>
+    <text x="676" y="297" font-family="Inter" font-size="8.5" fill="#64748b" text-anchor="middle">10% commission → treasury</text>
+    <text x="676" y="309" font-family="Inter" font-size="8.5" fill="#64748b" text-anchor="middle">GST → tax ledger</text>
+    <line x1="676" y1="253" x2="676" y2="258" stroke="#2a3045" stroke-width="1" stroke-dasharray="3,2"/>
+  </g>
+
+  <!-- Arrow: PAID → CLOSED -->
+  <path d="M 604 220 L 560 220" class="arrow-path" stroke="#22c55e" marker-end="url(#arrowhead-green)"/>
+  <text x="582" y="210" class="arrow-label">mutual review</text>
+
+  <!-- 8. CLOSED (terminal success) -->
+  <g class="state-node glow-green" style="cursor:pointer" onclick="showInfo('closed')">
+    <rect x="414" y="194" width="144" height="52" rx="10" fill="url(#grad-green)" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="486" y="216" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">✓  CLOSED</text>
+    <text x="486" y="233" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">terminal · both sides rated</text>
+  </g>
+
+  <!-- ─── Side exits ─── -->
+
+  <!-- CANCELLED node -->
+  <g class="state-node exit-node" style="cursor:pointer" onclick="showInfo('cancelled')">
+    <rect x="118" y="340" width="152" height="52" rx="10" fill="#1c1018" stroke="#ef4444" stroke-width="2"/>
+    <text x="194" y="361" font-family="Inter" font-size="11" font-weight="700" fill="#fca5a5" text-anchor="middle">✕  CANCELLED</text>
+    <text x="194" y="378" font-family="Inter" font-size="9.5" fill="rgba(252,165,165,0.6)" text-anchor="middle">3 exits possible</text>
+  </g>
+
+  <!-- BROADCASTING → CANCELLED (cron auto-cancel after 3 rounds) -->
+  <path d="M 194 106 L 194 340" class="arrow-path" stroke="#ef4444" stroke-dasharray="5,3" marker-end="url(#arrowhead-red)"/>
+  <text x="174" y="220" font-family="Inter" font-size="9" fill="#ef4444" text-anchor="middle" transform="rotate(-90 174 220)">3 rounds (75km) · cron</text>
+
+  <!-- QUOTES_RECEIVED → CANCELLED (2h timeout) -->
+  <path d="M 396 106 L 396 280 Q 396 300 376 300 L 280 300 Q 260 300 260 320 L 260 340" class="arrow-path" stroke="#ef4444" stroke-dasharray="5,3" marker-end="url(#arrowhead-red)"/>
+  <text x="310" y="293" font-family="Inter" font-size="9" fill="#ef4444" text-anchor="middle">2 h timeout · cron</text>
+
+  <!-- Customer cancel arrow label (general) -->
+  <path d="M 486 246 L 486 400 Q 486 420 466 420 L 276 420 Q 256 420 256 400 L 256 392" class="arrow-path" stroke="#ef4444" stroke-dasharray="5,3" marker-end="url(#arrowhead-red)"/>
+  <text x="380" y="414" font-family="Inter" font-size="9" fill="#ef4444" text-anchor="middle">customer cancel (pre-allocation)</text>
+
+  <!-- DISPUTED node -->
+  <g class="state-node exit-node" style="cursor:pointer" onclick="showInfo('disputed')">
+    <rect x="370" y="480" width="152" height="52" rx="10" fill="#1a1020" stroke="#c084fc" stroke-width="2"/>
+    <text x="446" y="501" font-family="Inter" font-size="11" font-weight="700" fill="#e9d5ff" text-anchor="middle">⚠  DISPUTED</text>
+    <text x="446" y="518" font-family="Inter" font-size="9.5" fill="rgba(233,213,255,0.6)" text-anchor="middle">admin resolution required</text>
+  </g>
+
+  <!-- IN_PROGRESS → DISPUTED -->
+  <path d="M 915 106 L 915 460 Q 915 480 895 480 L 522 480" class="arrow-path" stroke="#c084fc" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+  <text x="720" y="473" font-family="Inter" font-size="9" fill="#c084fc" text-anchor="middle">either party raises dispute</text>
+
+  <!-- Admin resolution options -->
+  <g>
+    <rect x="210" y="490" width="155" height="80" rx="6" fill="#1e2330" stroke="#2a3045" stroke-width="1"/>
+    <text x="287" y="507" font-family="Inter" font-size="10" font-weight="600" fill="#c084fc" text-anchor="middle">Admin Resolution</text>
+    <text x="287" y="522" font-family="Inter" font-size="9" fill="#64748b" text-anchor="middle">DEDUCT_FROM_WORKER</text>
+    <text x="287" y="535" font-family="Inter" font-size="9" fill="#64748b" text-anchor="middle">WAIVE_FEE</text>
+    <text x="287" y="548" font-family="Inter" font-size="9" fill="#64748b" text-anchor="middle">REFUND_CUSTOMER</text>
+    <text x="287" y="561" font-family="Inter" font-size="9" fill="#64748b" text-anchor="middle">CLOSE</text>
+    <path d="M 365 506 L 373 506" stroke="#c084fc" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  </g>
+
+  <!-- ─── Escrow sub-states ─── -->
+  <g>
+    <rect x="118" y="200" width="280" height="80" rx="8" fill="#161922" stroke="#2a3045" stroke-width="1.5"/>
+    <text x="258" y="217" font-family="Inter" font-size="10" font-weight="600" fill="#f59e0b" text-anchor="middle">Payment · Escrow Sub-states</text>
+    <!-- payment.status -->
+    <text x="132" y="233" font-family="JetBrains Mono" font-size="9" fill="#64748b">payment.status:</text>
+    <text x="132" y="246" font-family="JetBrains Mono" font-size="9" fill="#e2e8f0">PENDING → PAID → REFUNDED</text>
+    <!-- escrowStatus -->
+    <text x="132" y="261" font-family="JetBrains Mono" font-size="9" fill="#64748b">escrowStatus:</text>
+    <text x="132" y="274" font-family="JetBrains Mono" font-size="9" fill="#e2e8f0">UNLOCKED → LOCKED → SETTLED|REFUNDED</text>
+  </g>
+
+  <!-- ─── Cron indicator box ─── -->
+  <g>
+    <rect x="52" y="460" width="220" height="100" rx="8" fill="#161922" stroke="#2a3045" stroke-width="1.5"/>
+    <text x="162" y="477" font-family="Inter" font-size="10" font-weight="600" fill="#94a3b8" text-anchor="middle">🕐  Cron Auto-transitions</text>
+    <text x="66" y="494" font-family="JetBrains Mono" font-size="9" fill="#64748b">every 1 min: broadcast sweep</text>
+    <text x="66" y="507" font-family="Inter" font-size="9" fill="#94a3b8">  → radius expands (×3 rounds → cancel)</text>
+    <text x="66" y="521" font-family="JetBrains Mono" font-size="9" fill="#64748b">every 1 min: quote sweep</text>
+    <text x="66" y="534" font-family="Inter" font-size="9" fill="#94a3b8">  → 2h no accept → cancel</text>
+    <text x="66" y="548" font-family="JetBrains Mono" font-size="9" fill="#64748b">Redis lock: cron:job_sweep</text>
+  </g>
+
+  <!-- ─── Quote sub-states ─── -->
+  <g>
+    <rect x="700" y="340" width="230" height="70" rx="8" fill="#161922" stroke="#2a3045" stroke-width="1.5"/>
+    <text x="815" y="357" font-family="Inter" font-size="10" font-weight="600" fill="#60a5fa" text-anchor="middle">Quote Sub-states</text>
+    <text x="714" y="374" font-family="JetBrains Mono" font-size="9" fill="#e2e8f0">PENDING → ACCEPTED</text>
+    <text x="714" y="387" font-family="JetBrains Mono" font-size="9" fill="#e2e8f0">             → REJECTED</text>
+    <text x="714" y="400" font-family="JetBrains Mono" font-size="9" fill="#e2e8f0">             → WITHDRAWN</text>
+  </g>
+
+  <!-- ─── OTP verification detail ─── -->
+  <g>
+    <rect x="700" y="430" width="230" height="60" rx="8" fill="#161922" stroke="#2a3045" stroke-width="1.5"/>
+    <text x="815" y="447" font-family="Inter" font-size="10" font-weight="600" fill="#2dd4bf" text-anchor="middle">🔐  OTP Verification</text>
+    <text x="714" y="463" font-family="Inter" font-size="9" fill="#64748b">4-digit code · crypto.timingSafeEqual</text>
+    <text x="714" y="476" font-family="Inter" font-size="9" fill="#64748b">Anti-spoof: Redis assigned_worker check</text>
+  </g>
+
+  <!-- ─── Roles label ─── -->
+  <text x="550" y="660" font-family="Inter" font-size="11" fill="#334155" text-anchor="middle">
+    Roles involved: CUSTOMER · WORKER · ADMIN &nbsp;|&nbsp; Socket rooms: customer_{id} · worker_{id} · job_{id} · admin_dashboard
+  </text>
+
+</svg>
+</div>
+
+<!-- Info panel (shown on node click) -->
+<div id="info-panel" style="display:none; margin: 0 32px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <h3 id="info-title" style="font-size:15px; font-weight:700; color:#e2e8f0;"></h3>
+    <button onclick="document.getElementById('info-panel').style.display='none'" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;">✕</button>
+  </div>
+  <div id="info-body" style="font-size:13px; color:#94a3b8; line-height:1.7;"></div>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- Info cards -->
+<div class="info-grid">
+  <div class="info-card">
+    <h3><div class="dot" style="background:#6366f1"></div> Main State Sequence</h3>
+    <ul class="info-list">
+      <li><strong>1.</strong> BROADCASTING — Job posted, radius = 25km</li>
+      <li><strong>2.</strong> QUOTES_RECEIVED — Workers submit bids</li>
+      <li><strong>3.</strong> ALLOCATED — Customer accepts one quote</li>
+      <li><strong>4.</strong> ARRIVING — Worker travels, streams GPS</li>
+      <li><strong>5.</strong> IN_PROGRESS — Work executing, chat active</li>
+      <li><strong>6.</strong> COMPLETED — Worker marks done, escrow LOCKED</li>
+      <li><strong>7.</strong> PAID — Admin verifies UTR, settlement fires</li>
+      <li><strong>8.</strong> CLOSED — Both sides rated, terminal</li>
+    </ul>
+  </div>
+  <div class="info-card">
+    <h3><div class="dot" style="background:#ef4444"></div> Side Exits</h3>
+    <ul class="info-list">
+      <li><strong>CANCELLED</strong> 3 broadcast rounds → 75km → auto-cancel</li>
+      <li><strong>CANCELLED</strong> 2h in QUOTES_RECEIVED → cron sweeper</li>
+      <li><strong>CANCELLED</strong> Customer cancels pre-allocation</li>
+      <li><strong>DISPUTED</strong> Either party during/after job</li>
+      <li><strong>Dispute resolution:</strong> DEDUCT_FROM_WORKER / WAIVE_FEE / REFUND_CUSTOMER / CLOSE</li>
+    </ul>
+  </div>
+  <div class="info-card">
+    <h3><div class="dot" style="background:#f59e0b"></div> Settlement (settleJobCompletion)</h3>
+    <ul class="info-list">
+      <li><strong>Trigger</strong> Job transitions to PAID</li>
+      <li><strong>Worker</strong> 100% of agreed amount credited</li>
+      <li><strong>Platform</strong> 10% commission → treasury</li>
+      <li><strong>GST</strong> Tax ledger entry</li>
+      <li><strong>Idempotent</strong> <code>settle_job_{id}</code> unique sparse index</li>
+      <li><strong>Atomic</strong> findOneAndUpdate prevents double-settlement</li>
+    </ul>
+  </div>
+  <div class="info-card">
+    <h3><div class="dot" style="background:#06b6d4"></div> Security & Anti-fraud</h3>
+    <ul class="info-list">
+      <li><strong>OTP</strong> 4-digit, crypto.timingSafeEqual (timing-safe)</li>
+      <li><strong>Location</strong> Redis anti-spoof: only assigned worker may stream</li>
+      <li><strong>UTR</strong> 12-digit, dummy-pattern blacklist at all layers</li>
+      <li><strong>Zero-trust</strong> All UPI inflows PENDING until admin bank-verify</li>
+      <li><strong>Replay</strong> Unique UTR index in WorkerSubscription model</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const stateInfo = {
+  broadcasting: {
+    title: "BROADCASTING",
+    body: `<b>Initial state</b> when a customer posts a job.<br/>
+    • Broadcast round 1 starts at radius = <code>settings.maxKm</code> (default 25 km)<br/>
+    • Eligible workers cached: <code>job:{id}:eligible_workers</code><br/>
+    • Socket event <code>NEW_JOB_ALERT</code> emitted to each <code>worker_{id}</code> room + push notification<br/>
+    • <b>Cron (every 1 min):</b> <code>cron:broadcast_sweep</code> — if stuck, expand radius by round × maxKm<br/>
+    • After 3 rounds (up to 75 km) with no workers → auto-<b>CANCELLED</b>`
+  },
+  quotes: {
+    title: "QUOTES_RECEIVED",
+    body: `Workers have submitted bids.<br/>
+    • Each quote created with status <code>PENDING</code><br/>
+    • Customer sees live bids on <code>LiveBidsScreen.js</code><br/>
+    • Socket: <code>NEW_QUOTE</code> emitted to customer<br/>
+    • <b>Cron (every 1 min):</b> jobs stuck here for <b>&gt;2 hours</b> → <b>CANCELLED</b><br/>
+    • Exception: scheduled jobs wait until preferredDate passes`
+  },
+  allocated: {
+    title: "ALLOCATED",
+    body: `Customer accepted one worker's quote.<br/>
+    • Accepted quote → <code>ACCEPTED</code>, all others → <code>REJECTED</code> or <code>WITHDRAWN</code><br/>
+    • <b>Redis lock set:</b> <code>job:{id}:assigned_worker = workerId</code><br/>
+    • Worker notified, navigates to customer`
+  },
+  arriving: {
+    title: "ARRIVING",
+    body: `Worker is en route. OTP has been verified.<br/>
+    • Worker streams <code>WORKER_LOCATION_UPDATE</code> events<br/>
+    • Server verifies against Redis <code>assigned_worker</code> (anti-spoof)<br/>
+    • Customer sees live map marker via <code>WORKER_LOCATION</code> event on <code>LiveTrackingScreen.js</code>`
+  },
+  in_progress: {
+    title: "IN_PROGRESS",
+    body: `Work is actively being executed.<br/>
+    • In-app chat enabled via <code>job_{jobId}</code> Socket room<br/>
+    • Events: <code>SEND_MESSAGE</code> → server sanitizes (strips HTML, 2000 char cap) → <code>NEW_MESSAGE</code><br/>
+    • Either party can raise a dispute → <b>DISPUTED</b>`
+  },
+  completed: {
+    title: "COMPLETED",
+    body: `Worker has marked the job as done.<br/>
+    • If prepaid (wallet/UPI), escrow status → <code>LOCKED</code><br/>
+    • Awaiting customer payment confirmation or admin UTR verification`
+  },
+  paid: {
+    title: "PAID",
+    body: `Admin has verified the 12-digit UTR against bank statement.<br/>
+    • <b>Settlement fires automatically:</b> <code>settleJobCompletion()</code><br/>
+    • 100% to worker wallet + <code>WALLET_CREDIT</code> socket event<br/>
+    • 10% platform commission → treasury<br/>
+    • GST → tax ledger<br/>
+    • Idempotency key: <code>settle_job_{id}</code> in PlatformLedger (unique sparse index)`
+  },
+  closed: {
+    title: "CLOSED — Terminal",
+    body: `Final state. Job fully complete.<br/>
+    • Both customer and worker have submitted mutual reviews<br/>
+    • Ratings recorded on both user profiles<br/>
+    • No further transitions possible`
+  },
+  cancelled: {
+    title: "CANCELLED — Side Exit",
+    body: `Three possible triggers:<br/>
+    1. <b>Broadcast cron</b>: 3 rounds (75 km) with no workers accepting<br/>
+    2. <b>Quote cron</b>: QUOTES_RECEIVED for &gt;2 hours without customer acceptance<br/>
+    3. <b>Customer cancel</b>: Manual cancellation before allocation<br/>
+    <br/>Customer notified via <code>JOB_STATUS_CHANGED</code> + <code>JOB_CANCELLED</code> socket events`
+  },
+  disputed: {
+    title: "DISPUTED — Side Exit",
+    body: `Either party raises a dispute.<br/>
+    • Admin reviews via Admin Panel<br/>
+    • Resolution options:<br/>
+    &nbsp;&nbsp;– <code>DEDUCT_FROM_WORKER</code><br/>
+    &nbsp;&nbsp;– <code>WAIVE_FEE</code><br/>
+    &nbsp;&nbsp;– <code>REFUND_CUSTOMER</code><br/>
+    &nbsp;&nbsp;– <code>CLOSE</code><br/>
+    • Settlements are reversible post-dispute`
+  }
+};
+
+function showInfo(key) {
+  const s = stateInfo[key];
+  if (!s) return;
+  document.getElementById('info-title').textContent = s.title;
+  document.getElementById('info-body').innerHTML = s.body;
+  document.getElementById('info-panel').style.display = 'block';
+  document.getElementById('info-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+
+</body>
+</html>

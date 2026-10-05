@@ -29,3 +29,5 @@ mobile/.env
 .secrets-rotation.txt
 backend/test-artifacts/
 mobile/serve_apk.js
+live_*.png
+backend/scratch_*.js

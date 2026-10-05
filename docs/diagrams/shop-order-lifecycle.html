@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kwickly — Shop Order State Machine</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  :root {
+    --bg:#0d0f14; --surface:#161922; --surface2:#1e2330; --border:#2a3045;
+    --text:#e2e8f0; --muted:#64748b;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; }
+
+  .header { padding:24px 32px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg,#0d0f14,#12141c); }
+  .header h1 { font-size:22px; font-weight:700; background:linear-gradient(90deg,#10b981,#059669); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .header p { color:var(--muted); font-size:13px; margin-top:4px; }
+  .badge { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:20px; font-size:11px; font-weight:600; font-family:'JetBrains Mono',monospace; }
+  .badge-green { background:#14532d; color:#86efac; border:1px solid #166534; }
+  .badge-blue  { background:#1e3a5f; color:#93c5fd; border:1px solid #1e40af; }
+
+  .legend { display:flex; gap:20px; padding:14px 32px; background:var(--surface); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .legend-item { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+  .legend-dot { width:10px; height:10px; border-radius:50%; }
+
+  .diagram-container { padding:40px 32px; overflow-x:auto; }
+  svg.diagram { display:block; margin:0 auto; overflow:visible; }
+
+  .state-node:hover rect { filter:brightness(1.3); }
+
+  @keyframes pulse-ring {
+    0%   { stroke-opacity:0.8; stroke-width:3; }
+    100% { stroke-opacity:0; stroke-width:8; }
+  }
+  .pulse-ring { animation:pulse-ring 2.5s ease-out infinite; fill:none; }
+
+  .info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; padding:0 32px 40px; }
+  .info-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; }
+  .info-card h3 { font-size:13px; font-weight:600; color:var(--text); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .info-card h3 .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .info-list { list-style:none; }
+  .info-list li { font-size:12px; color:var(--muted); padding:5px 0; border-bottom:1px solid var(--border); display:flex; gap:8px; }
+  .info-list li:last-child { border-bottom:none; }
+  .info-list li strong { color:var(--text); flex-shrink:0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>🛒 Kwickly Shop Order Lifecycle</h1>
+    <p>Shop Order State Machine · <span style="font-family:monospace;color:#10b981">shoporder.model.js</span> · verified against codebase 2026-08-30</p>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <span class="badge badge-blue">lifecycle</span>
+    <span class="badge badge-green">✓ verified</span>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Main order states</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Terminal success</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Cancelled (side exit)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Payment states</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#64748b; border-radius:2px"></div> Cron-triggered (30-min ghost)</div>
+</div>
+
+<div class="diagram-container">
+<svg class="diagram" width="1060" height="680" viewBox="0 0 1060 680">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4b5563"/></marker>
+    <marker id="arr-g" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#22c55e"/></marker>
+    <marker id="arr-r" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#ef4444"/></marker>
+    <marker id="arr-o" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#f59e0b"/></marker>
+    <marker id="arr-em" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#10b981"/></marker>
+
+    <linearGradient id="g-em"  x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#059669"/><stop offset="100%" style="stop-color:#047857"/></linearGradient>
+    <linearGradient id="g-em2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0d9488"/><stop offset="100%" style="stop-color:#0f766e"/></linearGradient>
+    <linearGradient id="g-blue" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#2563eb"/><stop offset="100%" style="stop-color:#1d4ed8"/></linearGradient>
+    <linearGradient id="g-indigo" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4f46e5"/><stop offset="100%" style="stop-color:#4338ca"/></linearGradient>
+    <linearGradient id="g-orange" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#d97706"/><stop offset="100%" style="stop-color:#b45309"/></linearGradient>
+    <linearGradient id="g-green2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#16a34a"/><stop offset="100%" style="stop-color:#15803d"/></linearGradient>
+    <linearGradient id="g-red" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#dc2626"/><stop offset="100%" style="stop-color:#b91c1c"/></linearGradient>
+  </defs>
+
+  <!-- Start -->
+  <circle cx="52" cy="82" r="14" fill="url(#g-em)" stroke="#34d399" stroke-width="2"/>
+  <text x="52" y="86" font-family="Inter" font-size="18" fill="white" text-anchor="middle" dominant-baseline="middle">▶</text>
+  <text x="52" y="107" font-family="Inter" font-size="10" fill="#10b981" text-anchor="middle">CHECKOUT</text>
+
+  <!-- Arrow start → NEW -->
+  <path d="M 66 82 L 108 82" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#arr-em)"/>
+
+  <!-- 1. NEW -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('new')">
+    <rect x="110" y="56" width="140" height="52" rx="10" fill="url(#g-indigo)" stroke="#818cf8" stroke-width="2"/>
+    <rect x="106" y="52" width="148" height="60" rx="13" fill="none" stroke="#818cf8" class="pulse-ring"/>
+    <text x="180" y="78" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">NEW</text>
+    <text x="180" y="95" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">stock reserved atomically</text>
+  </g>
+
+  <!-- NEW → CONFIRMED -->
+  <path d="M 250 82 L 296 82" fill="none" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="273" y="72" font-family="Inter" font-size="9" fill="#64748b" text-anchor="middle">shop confirms</text>
+
+  <!-- 2. CONFIRMED -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('confirmed')">
+    <rect x="298" y="56" width="140" height="52" rx="10" fill="url(#g-blue)" stroke="#60a5fa" stroke-width="2"/>
+    <text x="368" y="78" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">CONFIRMED</text>
+    <text x="368" y="95" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">within 30-min window</text>
+  </g>
+
+  <!-- CONFIRMED → PACKING -->
+  <path d="M 438 82 L 484 82" fill="none" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="461" y="72" font-family="Inter" font-size="9" fill="#64748b" text-anchor="middle">staff assigned</text>
+
+  <!-- 3. PACKING -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('packing')">
+    <rect x="486" y="56" width="130" height="52" rx="10" fill="url(#g-em2)" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="551" y="78" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">PACKING</text>
+    <text x="551" y="95" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">delivery staff set</text>
+  </g>
+
+  <!-- PACKING → OUT_FOR_DELIVERY -->
+  <path d="M 616 82 L 660 82" fill="none" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="638" y="72" font-family="Inter" font-size="9" fill="#64748b" text-anchor="middle">dispatched</text>
+
+  <!-- 4. OUT_FOR_DELIVERY -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('ofd')">
+    <rect x="662" y="56" width="155" height="52" rx="10" fill="url(#g-orange)" stroke="#fbbf24" stroke-width="2"/>
+    <text x="739" y="73" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">OUT_FOR_DELIVERY</text>
+    <text x="739" y="90" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">customer tracks live</text>
+  </g>
+
+  <!-- 5. DELIVERED (terminal) — below OFD -->
+  <path d="M 739 108 L 739 190" fill="none" stroke="#22c55e" stroke-width="2" marker-end="url(#arr-g)"/>
+  <text x="750" y="155" font-family="Inter" font-size="9" fill="#22c55e">atomic claim</text>
+
+  <g class="state-node" style="cursor:pointer; filter:drop-shadow(0 0 10px rgba(34,197,94,0.4))" onclick="showInfo('delivered')">
+    <rect x="662" y="192" width="155" height="52" rx="10" fill="url(#g-green2)" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="739" y="214" font-family="Inter" font-size="11" font-weight="700" fill="white" text-anchor="middle">✓  DELIVERED</text>
+    <text x="739" y="231" font-family="Inter" font-size="9.5" fill="rgba(255,255,255,0.65)" text-anchor="middle">settlement fires</text>
+  </g>
+
+  <!-- Settlement annotation -->
+  <rect x="560" y="255" width="250" height="75" rx="8" fill="#1e2330" stroke="#2a3045" stroke-width="1"/>
+  <text x="685" y="272" font-family="JetBrains Mono" font-size="9" fill="#f59e0b" text-anchor="middle">settleShopOrderDelivery()</text>
+  <text x="685" y="286" font-family="Inter" font-size="8.5" fill="#64748b" text-anchor="middle">shop credited (order amount - platform fee)</text>
+  <text x="685" y="298" font-family="Inter" font-size="8.5" fill="#64748b" text-anchor="middle">platform fee + GST → PlatformLedger</text>
+  <text x="685" y="310" font-family="Inter" font-size="8.5" fill="#64748b" text-anchor="middle">idempotencyKey: settle_order_{id}</text>
+  <text x="685" y="322" font-family="Inter" font-size="8.5" fill="#64748b" text-anchor="middle">atomic: findOneAndUpdate({status:OUT_FOR_DELIVERY})</text>
+  <line x1="739" y1="244" x2="739" y2="255" stroke="#2a3045" stroke-width="1" stroke-dasharray="3,2"/>
+
+  <!-- CANCELLED side exit -->
+  <g class="state-node" style="cursor:pointer" onclick="showInfo('cancelled')">
+    <rect x="110" y="340" width="155" height="52" rx="10" fill="#1c1018" stroke="#ef4444" stroke-width="2" stroke-dasharray="6,3"/>
+    <text x="187" y="361" font-family="Inter" font-size="11" font-weight="700" fill="#fca5a5" text-anchor="middle">✕  CANCELLED</text>
+    <text x="187" y="378" font-family="Inter" font-size="9.5" fill="rgba(252,165,165,0.6)" text-anchor="middle">stock restored + refund</text>
+  </g>
+
+  <!-- NEW → CANCELLED (30-min cron) -->
+  <path d="M 180 108 L 180 340" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arr-r)"/>
+  <text x="160" y="224" font-family="Inter" font-size="9" fill="#ef4444" text-anchor="middle" transform="rotate(-90 160 224)">30 min unconfirmed · cron</text>
+
+  <!-- CONFIRMED → CANCELLED (manual) -->
+  <path d="M 368 108 L 368 280 Q 368 305 348 305 L 280 305 Q 260 305 260 330 L 260 340" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arr-r)"/>
+  <text x="300" y="298" font-family="Inter" font-size="9" fill="#ef4444" text-anchor="middle">customer / shop cancel</text>
+
+  <!-- Stock restore annotation -->
+  <rect x="110" y="408" width="230" height="72" rx="8" fill="#1e2330" stroke="#2a3045" stroke-width="1"/>
+  <text x="225" y="424" font-family="Inter" font-size="10" font-weight="600" fill="#fca5a5" text-anchor="middle">On CANCELLED</text>
+  <text x="125" y="440" font-family="JetBrains Mono" font-size="9" fill="#64748b">bulkWrite $inc: { stock: +qty }</text>
+  <text x="125" y="453" font-family="Inter" font-size="9" fill="#64748b">Wallet refund txn: REFUND type</text>
+  <text x="125" y="466" font-family="Inter" font-size="9" fill="#64748b">ORDER_CANCELLED socket → customer</text>
+  <text x="125" y="478" font-family="Inter" font-size="9" fill="#64748b">If post-delivery: settlement reversed</text>
+
+  <!-- Payment sub-states -->
+  <rect x="298" y="190" width="320" height="95" rx="8" fill="#161922" stroke="#2a3045" stroke-width="1.5"/>
+  <text x="458" y="208" font-family="Inter" font-size="10" font-weight="600" fill="#f59e0b" text-anchor="middle">Payment Methods &amp; Status Flow</text>
+
+  <text x="312" y="224" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">WALLET:</text>
+  <text x="375" y="224" font-family="Inter" font-size="9" fill="#e2e8f0">instant debit → status: PAID</text>
+
+  <text x="312" y="238" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">UPI:</text>
+  <text x="355" y="238" font-family="Inter" font-size="9" fill="#e2e8f0">12-digit UTR → PENDING_VERIFICATION → admin verify → PAID</text>
+
+  <text x="312" y="252" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">COD:</text>
+  <text x="354" y="252" font-family="Inter" font-size="9" fill="#e2e8f0">settle on delivery</text>
+
+  <text x="312" y="267" font-family="JetBrains Mono" font-size="9" fill="#ef4444">UTR fake:</text>
+  <text x="378" y="267" font-family="Inter" font-size="9" fill="#fca5a5">order cancelled + stock restored immediately</text>
+
+  <text x="312" y="279" font-family="JetBrains Mono" font-size="9" fill="#64748b">enums:</text>
+  <text x="354" y="279" font-family="Inter" font-size="9" fill="#94a3b8">PENDING → PENDING_VERIFICATION → PAID → FAILED | REFUNDED</text>
+
+  <!-- Delivery staff guard note -->
+  <rect x="662" y="360" width="250" height="62" rx="8" fill="#1e2330" stroke="#2a3045" stroke-width="1"/>
+  <text x="787" y="377" font-family="Inter" font-size="10" font-weight="600" fill="#2dd4bf" text-anchor="middle">Delivery Staff Guard</text>
+  <text x="676" y="393" font-family="Inter" font-size="9" fill="#64748b">Cannot delete staff mid-delivery</text>
+  <text x="676" y="406" font-family="Inter" font-size="9" fill="#64748b">(activeOrderId guard on staff record)</text>
+  <text x="676" y="419" font-family="Inter" font-size="9" fill="#64748b">activeOrderId cleared after DELIVERED</text>
+
+  <!-- Cron box -->
+  <rect x="52" y="498" width="250" height="80" rx="8" fill="#161922" stroke="#2a3045" stroke-width="1.5"/>
+  <text x="177" y="515" font-family="Inter" font-size="10" font-weight="600" fill="#94a3b8" text-anchor="middle">🕐  Ghost Order Sweeper</text>
+  <text x="66" y="531" font-family="JetBrains Mono" font-size="9" fill="#64748b">every 5 min · lock: cron:order_sweep</text>
+  <text x="66" y="544" font-family="Inter" font-size="9" fill="#94a3b8">Orders in NEW &gt; 30 min → CANCELLED</text>
+  <text x="66" y="557" font-family="Inter" font-size="9" fill="#94a3b8">+ stock restored (transactional)</text>
+  <text x="66" y="570" font-family="Inter" font-size="9" fill="#94a3b8">+ wallet refund if PAID</text>
+
+  <!-- Sockets box -->
+  <rect x="320" y="498" width="360" height="80" rx="8" fill="#161922" stroke="#2a3045" stroke-width="1.5"/>
+  <text x="500" y="515" font-family="Inter" font-size="10" font-weight="600" fill="#94a3b8" text-anchor="middle">⚡  Socket Events</text>
+  <text x="334" y="531" font-family="Inter" font-size="9" fill="#64748b">ORDER_PLACED → shop_{shopId} room</text>
+  <text x="334" y="544" font-family="Inter" font-size="9" fill="#64748b">ORDER_STATUS → customer_{id} on every transition</text>
+  <text x="334" y="557" font-family="Inter" font-size="9" fill="#64748b">ORDER_DELIVERED, ORDER_CANCELLED, ORDER_PAYMENT</text>
+  <text x="334" y="570" font-family="Inter" font-size="9" fill="#64748b">statusHistory[] appended on every state change</text>
+
+  <!-- Footer -->
+  <text x="530" y="645" font-family="Inter" font-size="11" fill="#334155" text-anchor="middle">
+    Roles: CUSTOMER · SHOP · ADMIN &nbsp;|&nbsp; Socket rooms: shop_{shopId} · customer_{id} · admin_dashboard
+  </text>
+</svg>
+</div>
+
+<div id="info-panel" style="display:none; margin:0 32px 24px; background:#161922; border:1px solid #2a3045; border-radius:12px; padding:20px 24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h3 id="info-title" style="font-size:15px;font-weight:700;color:#e2e8f0;"></h3>
+    <button onclick="document.getElementById('info-panel').style.display='none'" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;">✕</button>
+  </div>
+  <div id="info-body" style="font-size:13px;color:#94a3b8;line-height:1.7;"></div>
+</div>
+
+<div style="height:1px;background:#2a3045;margin:0 32px 32px;"></div>
+
+<div class="info-grid">
+  <div class="info-card">
+    <h3><div class="dot" style="background:#10b981"></div> Order Lifecycle</h3>
+    <ul class="info-list">
+      <li><strong>NEW</strong> Stock reserved atomically on checkout</li>
+      <li><strong>CONFIRMED</strong> Shop accepts within 30-min window</li>
+      <li><strong>PACKING</strong> Delivery staff assigned (activeOrderId set)</li>
+      <li><strong>OUT_FOR_DELIVERY</strong> Customer tracks live</li>
+      <li><strong>DELIVERED</strong> Atomic claim → settlement fires</li>
+    </ul>
+  </div>
+  <div class="info-card">
+    <h3><div class="dot" style="background:#ef4444"></div> Cancellation Rules</h3>
+    <ul class="info-list">
+      <li><strong>Ghost cron</strong> NEW for &gt;30 min → auto-cancel</li>
+      <li><strong>Stock restore</strong> bulkWrite $inc: stock +qty</li>
+      <li><strong>Refund</strong> Wallet refund txn if payment was PAID</li>
+      <li><strong>Post-delivery</strong> Settlement reversal possible</li>
+      <li><strong>Fake UTR</strong> Order cancelled + stock restored immediately</li>
+    </ul>
+  </div>
+  <div class="info-card">
+    <h3><div class="dot" style="background:#f59e0b"></div> Settlement Details</h3>
+    <ul class="info-list">
+      <li><strong>Trigger</strong> DELIVERED state transition</li>
+      <li><strong>Atomic</strong> findOneAndUpdate prevents race condition</li>
+      <li><strong>Idempotent</strong> settle_order_{id} key in PlatformLedger</li>
+      <li><strong>COD/Cash</strong> Settled on delivery without pre-payment</li>
+    </ul>
+  </div>
+  <div class="info-card">
+    <h3><div class="dot" style="background:#2dd4bf"></div> Shop Eligibility Gate</h3>
+    <ul class="info-list">
+      <li><strong>Subscription</strong> Active ShopSubscription required</li>
+      <li><strong>KYC</strong> Verified — shop owner cannot self-approve</li>
+      <li><strong>Status</strong> isOnline=true required to receive orders</li>
+      <li><strong>Cron</strong> Expired subscription → forced offline in ≤10 min</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const stateInfo = {
+  new: { title:"NEW", body:`Order placed, stock reserved.<br/>• <b>Stock reserved atomically</b>: <code>$inc: { stock: -qty }</code><br/>• Payment method determines immediate status:<br/>&nbsp;&nbsp;WALLET → instant PAID<br/>&nbsp;&nbsp;UPI → PENDING_VERIFICATION<br/>&nbsp;&nbsp;COD/CASH → settle on delivery<br/>• Socket: <code>ORDER_PLACED</code> to shop_{shopId}` },
+  confirmed: { title:"CONFIRMED", body:`Shop owner accepted the order.<br/>• Must happen within <b>30-minute window</b><br/>• Ghost sweeper (every 5 min) auto-cancels if missed<br/>• Socket: <code>ORDER_STATUS</code> → customer` },
+  packing: { title:"PACKING", body:`Order being prepared.<br/>• Delivery staff assigned (<code>activeOrderId</code> set on staff record)<br/>• Staff <b>cannot be deleted</b> while activeOrderId is set<br/>• Socket: <code>ORDER_STATUS</code> update` },
+  ofd: { title:"OUT_FOR_DELIVERY", body:`Order dispatched to customer.<br/>• Customer tracks via <code>OrderTrackingScreen.js</code><br/>• Socket: <code>ORDER_STATUS</code> update<br/>• Awaiting delivery confirmation` },
+  delivered: { title:"DELIVERED — Terminal", body:`Order successfully delivered.<br/>• <b>Atomic claim</b>: <code>findOneAndUpdate({status:OUT_FOR_DELIVERY})</code> — exactly one settlement<br/>• <code>settleShopOrderDelivery()</code> fires<br/>• activeOrderId cleared from delivery staff<br/>• Socket: <code>ORDER_DELIVERED</code>` },
+  cancelled: { title:"CANCELLED — Side Exit", body:`Multiple triggers:<br/>1. <b>Ghost cron</b>: NEW &gt;30 min unconfirmed<br/>2. <b>Customer cancel</b>: before PACKING<br/>3. <b>Shop cancel</b>: before PACKING<br/>4. <b>Fake UTR</b>: dummy pattern detected<br/><br/>Always triggers: <code>bulkWrite $inc: { stock: +qty }</code><br/>If PAID: wallet refund txn (type: REFUND)<br/>Socket: <code>ORDER_CANCELLED</code>` }
+};
+function showInfo(key) {
+  const s = stateInfo[key]; if(!s) return;
+  document.getElementById('info-title').textContent = s.title;
+  document.getElementById('info-body').innerHTML = s.body;
+  document.getElementById('info-panel').style.display = 'block';
+  document.getElementById('info-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+</script>
+</body>
+</html>
