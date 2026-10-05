@@ -36,7 +36,7 @@ function escapeHtml(str) {
  * Customer places a shop order with ATOMIC stock reservation
  */
 exports.placeOrder = catchAsync(async (req, res) => {
-    const { shopId, items, deliveryAddress, deliveryLocation, paymentMethod, promoCode, deliverySlot } = req.body;
+    const { shopId, items, deliveryAddress, deliveryLocation, paymentMethod, promoCode, deliverySlot, utrNumber, isPaid, paymentOrderId } = req.body;
 
     if (!items || items.length === 0) {
         return errorResponse(res, 'Order must contain at least one item', StatusCodes.BAD_REQUEST);
@@ -204,6 +204,12 @@ exports.placeOrder = catchAsync(async (req, res) => {
 
             paymentStatus = 'PAID';
             await delCache(`session:${req.user._id}`);
+        } else if (paymentMethod === 'UPI') {
+            if (isPaid || utrNumber) {
+                paymentStatus = 'PAID';
+            } else {
+                paymentStatus = 'PENDING';
+            }
         }
 
         const deliveryOtp = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
@@ -265,7 +271,13 @@ exports.placeOrder = catchAsync(async (req, res) => {
             deliverySlot: slotData,
             deliveryOtp,
             deliveryOtpGeneratedAt: new Date(),
-            payment: { amount: total, status: paymentStatus, method: paymentMethod || 'WALLET' },
+            payment: {
+                amount: total,
+                status: paymentStatus,
+                method: paymentMethod || 'WALLET',
+                utrNumber: utrNumber || undefined,
+                razorpayOrderId: paymentOrderId || undefined
+            },
             promoCode: promoDetails?.code || undefined,
             promoDiscount: discount > 0 ? discount : undefined,
             statusHistory: [{ status: 'NEW', timestamp: new Date(), note: 'Order placed' }]
@@ -274,8 +286,8 @@ exports.placeOrder = catchAsync(async (req, res) => {
         let upiIntentUri = null;
         let gatewayOrderId = null;
 
-        // If UPI payment method, register payment intent with overlay provider
-        if (paymentMethod === 'UPI') {
+        // If UPI payment method and not already paid, register payment intent with overlay provider
+        if (paymentMethod === 'UPI' && !isPaid && !utrNumber) {
             const intentRes = await registerPaymentIntent({
                 amount: total,
                 internalId: order._id,
@@ -294,20 +306,25 @@ exports.placeOrder = catchAsync(async (req, res) => {
         if (useTransaction) await session.commitTransaction();
         if (session) session.endSession();
 
-        // Notify shop owner
-        emitToRoom(`shop_${shopId}`, 'NEW_ORDER', { orderId: order._id, total });
-        emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SHOP_ORDER', id: order._id });
+        // ONLY notify shop owner if payment is successful/confirmed (WALLET, verified UPI, or COD)
+        const isOrderConfirmed = paymentStatus === 'PAID' || paymentStatus === 'PENDING_VERIFICATION' || paymentMethod === 'CASH' || paymentMethod === 'COD';
 
-        // Notify customer: order placed
-        notifyUser({
-            userId: req.user._id,
-            title: 'Order Placed Successfully',
-            message: `Your order has been placed with ${shop.name}. Total: ₹${total}. Order ID: #${String(order._id).slice(-6).toUpperCase()}`,
-            action: 'ORDER_PLACED',
-            entityType: 'ORDER',
-            entityId: order._id,
-            targetRole: 'CUSTOMER'
-        });
+        if (isOrderConfirmed) {
+            // Notify shop owner
+            emitToRoom(`shop_${shopId}`, 'NEW_ORDER', { orderId: order._id, total });
+            emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SHOP_ORDER', id: order._id });
+
+            // Notify customer: order placed
+            notifyUser({
+                userId: req.user._id,
+                title: 'Order Placed Successfully',
+                message: `Your order has been placed with ${shop.name}. Total: ₹${total}. Order ID: #${String(order._id).slice(-6).toUpperCase()}`,
+                action: 'ORDER_PLACED',
+                entityType: 'ORDER',
+                entityId: order._id,
+                targetRole: 'CUSTOMER'
+            });
+        }
 
         const orderData = order.toObject();
         if (upiIntentUri) {
@@ -329,8 +346,12 @@ exports.placeOrder = catchAsync(async (req, res) => {
  */
 exports.getCustomerOrders = catchAsync(async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
-    const total = await ShopOrder.countDocuments({ customerId: req.user._id });
-    const orders = await ShopOrder.find({ customerId: req.user._id })
+    const baseQuery = {
+        customerId: req.user._id,
+        $nor: [{ 'payment.method': 'UPI', 'payment.status': 'PENDING' }]
+    };
+    const total = await ShopOrder.countDocuments(baseQuery);
+    const orders = await ShopOrder.find(baseQuery)
         .populate('shopId', 'name logoUrl address location')
         .sort('-createdAt')
         .limit(Number(limit))
@@ -348,7 +369,10 @@ exports.getShopOrders = catchAsync(async (req, res) => {
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
     const { status, page = 1, limit = 20 } = req.query;
-    const query = { shopId: shop._id };
+    const query = {
+        shopId: shop._id,
+        $nor: [{ 'payment.method': 'UPI', 'payment.status': 'PENDING' }]
+    };
     if (status && status !== 'all') query.status = status.toUpperCase();
 
     const [total, orders] = await Promise.all([
@@ -645,6 +669,10 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
     }
     if (!allowedNext.includes(status)) {
         return errorResponse(res, `Cannot transition from "${order.status}" to "${status}". Allowed: ${allowedNext.join(', ') || 'none'}`, StatusCodes.BAD_REQUEST);
+    }
+
+    if (status === 'CONFIRMED' && order.payment?.method === 'UPI' && order.payment?.status === 'PENDING') {
+        return errorResponse(res, 'Cannot confirm order before payment is received', StatusCodes.BAD_REQUEST);
     }
 
     order.statusHistory.push({ status, timestamp: new Date(), note: note || `Status changed to ${status}` });

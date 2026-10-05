@@ -274,7 +274,8 @@ exports.verifyPayment = catchAsync(async (req, res) => {
         if (targetOrderId && mongoose.Types.ObjectId.isValid(targetOrderId)) {
             const order = await ShopOrder.findById(targetOrderId).session(session);
             if (order) {
-                order.payment.status = 'PENDING_VERIFICATION';
+                const wasPending = order.payment?.status === 'PENDING';
+                order.payment.status = 'PAID';
                 order.payment.razorpayOrderId = orderRef;
                 order.payment.razorpayPaymentId = payment.razorpayPaymentId;
                 order.payment.utrNumber = finalPaymentId;
@@ -282,21 +283,24 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 order.statusHistory.push({
                     status: order.status,
                     timestamp: new Date(),
-                    note: `Direct UPI payment submitted (UTR: ${finalPaymentId} - Pending Verification)`
+                    note: `Direct UPI payment verified (UTR: ${finalPaymentId})`
                 });
                 await order.save(sessOpts);
 
                 const orderAmount = order.total || order.totalAmount || payment.amount || req.body.amount || 0;
 
                 // Notify shop
+                if (wasPending) {
+                    emitToRoom(`shop_${order.shopId}`, 'NEW_ORDER', { orderId: order._id, total: orderAmount });
+                }
                 emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', {
                     orderId: order._id,
                     status: order.status,
-                    paymentStatus: 'PENDING_VERIFICATION',
+                    paymentStatus: 'PAID',
                     utr: finalPaymentId
                 });
                 emitToAll('DASHBOARD_UPDATE', {
-                    type: 'PENDING_ORDER_PAYMENT',
+                    type: wasPending ? 'NEW_SHOP_ORDER' : 'ORDER_PAYMENT_VERIFIED',
                     id: order._id,
                     orderNumber: order.orderNumber,
                     utr: finalPaymentId,
@@ -307,11 +311,11 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 if (useTransaction) session.endSession();
                 return successResponse(res, {
                     paymentId: payment._id,
-                    status: 'PENDING_VERIFICATION',
+                    status: 'PAID',
                     utr: finalPaymentId,
                     orderId: order._id,
                     orderNumber: order.orderNumber
-                }, `Order placed! UPI Reference (UTR: ${finalPaymentId}) submitted for verification.`);
+                }, `Order payment verified! (UTR: ${finalPaymentId})`);
             }
         }
 

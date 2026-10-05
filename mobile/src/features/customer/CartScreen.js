@@ -95,6 +95,7 @@ const CartScreen = ({ route, navigation }) => {
   const [showUpiModal, setShowUpiModal] = useState(false);
   const [showWaitingModal, setShowWaitingModal] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(null);
+  const [pendingOrderData, setPendingOrderData] = useState(null);
   const [upiOrderData, setUpiOrderData] = useState(null);
   const [customUpiId, setCustomUpiId] = useState('');
   const [upiVerifying, setUpiVerifying] = useState(false);
@@ -104,14 +105,23 @@ const CartScreen = ({ route, navigation }) => {
 
   const [selectedDate, setSelectedDate] = useState(0); // 0 = Today, 1 = Tomorrow, 2 = Day After
 
-  const isSlotPassed = useCallback((slot, dayOffset = selectedDate) => {
+  // Pure helper: checks if a slot has passed for a given day offset (0 = today)
+  const isSlotPassed = useCallback((slot, dayOffset = 0) => {
     if (dayOffset > 0) return false;
-    if (!slot.slotClose) return false;
+    if (!slot?.slotClose) return false;
     const [h, m] = slot.slotClose.split(':').map(Number);
     if (isNaN(h)) return false;
     const now = new Date();
-    return (now.getHours() * 60 + now.getMinutes()) >= (h * 60 + (m || 0));
-  }, [selectedDate]);
+    return (now.getHours() * 60 + (now.getMinutes() || 0)) >= (h * 60 + (m || 0));
+  }, []);
+
+  const getDateTabLabel = (offset) => {
+    if (offset === 0) return 'Today';
+    if (offset === 1) return 'Tomorrow';
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+  };
 
   const getDateLabel = (offset) => {
     const d = new Date();
@@ -134,8 +144,9 @@ const CartScreen = ({ route, navigation }) => {
       const res = await shopService.getShopById(shopId);
       const shopData = res.data?.data || res.data;
       const rawSlots = shopData?.deliveryConfig?.deliverySlots || shopData?.deliverySlots || [];
+      let formatted = [];
       if (Array.isArray(rawSlots) && rawSlots.length > 0) {
-        const formatted = rawSlots.map(s => {
+        formatted = rawSlots.map(s => {
           const slotLabel = (s.label || '').trim();
           const timeRange = s.slotOpen && s.slotClose ? `${s.slotOpen} - ${s.slotClose}` : '';
           const display = slotLabel && timeRange ? `${slotLabel} (${timeRange})` : (slotLabel || timeRange || 'Standard');
@@ -146,36 +157,42 @@ const CartScreen = ({ route, navigation }) => {
             time: display
           };
         });
-        setSlots(formatted);
-        
-        // Pick first slot that hasn't passed today
-        const firstAvailable = formatted.find(s => !isSlotPassed(s, 0));
-        if (firstAvailable) {
-          setSelectedSlot(firstAvailable);
-          setSelectedDate(0);
-        } else {
-          // If all slots passed today, default to tomorrow
-          setSelectedDate(1);
-          setSelectedSlot(formatted[0]);
-        }
       } else {
         const now = new Date();
         const eta = new Date(now.getTime() + 45 * 60000);
-        const fallbackSlots = [
+        formatted = [
           { label: `Instant Delivery (By ${eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`, time: 'Instant Delivery' },
           { label: 'Morning Slot (10:00 AM - 1:00 PM)', slotClose: '13:00', time: 'Morning (10:00 - 13:00)' },
           { label: 'Evening Slot (5:00 PM - 8:00 PM)', slotClose: '20:00', time: 'Evening (17:00 - 20:00)' }
         ];
-        setSlots(fallbackSlots);
-        const firstAvailable = fallbackSlots.find(s => !isSlotPassed(s, 0));
-        if (firstAvailable) {
-          setSelectedSlot(firstAvailable);
-          setSelectedDate(0);
-        } else {
-          setSelectedDate(1);
-          setSelectedSlot(fallbackSlots[0]);
-        }
       }
+      setSlots(formatted);
+
+      setSelectedSlot(prevSlot => {
+        // Keep already picked slot if user selected one
+        if (prevSlot && prevSlot.label) return prevSlot;
+
+        // Pick first slot that hasn't passed today
+        const firstAvailable = formatted.find(s => !isSlotPassed(s, 0));
+        if (firstAvailable) {
+          setSelectedDate(0);
+          return {
+            ...firstAvailable,
+            dateOffset: 0,
+            date: getFullDateString(0),
+            dateLabel: 'Today'
+          };
+        } else {
+          // If all slots passed today, default to tomorrow
+          setSelectedDate(1);
+          return {
+            ...formatted[0],
+            dateOffset: 1,
+            date: getFullDateString(1),
+            dateLabel: 'Tomorrow'
+          };
+        }
+      });
     } catch (e) {
       console.warn('Could not load delivery slots:', e);
     }
@@ -258,13 +275,16 @@ const CartScreen = ({ route, navigation }) => {
       });
     }
 
-    if (selectedSlot && isSlotPassed(selectedSlot, selectedDate)) {
+    if (selectedSlot && (selectedSlot.dateOffset === 0 || selectedSlot.date === getFullDateString(0)) && isSlotPassed(selectedSlot, 0)) {
       return showAlert({
         type: 'warning',
         title: 'Slot Unavailable',
         message: `The slot "${selectedSlot.label}" has already passed for today. Please select an upcoming slot or choose Tomorrow.`,
         confirmText: 'Select Slot',
-        onConfirm: () => setShowSlotModal(true)
+        onConfirm: () => {
+          setSelectedDate(1);
+          setShowSlotModal(true);
+        }
       });
     }
 
@@ -278,8 +298,7 @@ const CartScreen = ({ route, navigation }) => {
 
       const fullAddressStr = `${defaultAddress.label || 'Home'}: ${defaultAddress.street || defaultAddress.address || ''}, ${defaultAddress.city || 'Ahmedabad'}`.trim();
 
-      // Step 1: Place order on backend
-      const orderData = {
+      const orderPayload = {
         shopId,
         items: cart.items.map(i => ({
           productId: typeof i.productId === 'object' ? (i.productId._id || i.productId.id) : (i.productId || i._id),
@@ -288,28 +307,27 @@ const CartScreen = ({ route, navigation }) => {
           qty: Number(i.qty) || 1
         })),
         deliveryAddress: fullAddressStr,
-        paymentMethod: paymentMethod === 'WALLET' ? 'WALLET' : 'UPI',
         deliveryLocation: {
           type: 'Point',
           coordinates: validCoords
         },
         deliverySlot: {
-          date: getFullDateString(selectedDate),
+          date: selectedSlot?.date || getFullDateString(selectedDate),
           time: selectedSlot?.label || selectedSlot?.time || 'Standard Delivery',
-          label: `${getDateLabel(selectedDate)}: ${selectedSlot?.label || 'Standard'}`
-        }
+          label: `${selectedSlot?.dateLabel || getDateLabel(selectedDate)}: ${selectedSlot?.label || 'Standard'}`
+        },
+        promoCode: promoCode || undefined
       };
 
-      const res = await shopService.placeOrder(orderData);
-      if (res.data?.status !== 'success') {
-        throw new Error(res.data?.message || 'Failed to place order');
-      }
-
-      const order = res.data.data;
-      setCurrentOrder(order);
-
-      // Step 2: If Wallet payment -> complete immediately
+      // Case 1: If Wallet payment -> place order directly on backend with WALLET
       if (paymentMethod === 'WALLET') {
+        const res = await shopService.placeOrder({ ...orderPayload, paymentMethod: 'WALLET' });
+        if (res.data?.status !== 'success') {
+          throw new Error(res.data?.message || 'Failed to place order');
+        }
+
+        const order = res.data.data;
+        setCurrentOrder(order);
         await clearCart();
         if (fetchUser) await fetchUser();
         setOrderSuccessModal({
@@ -319,32 +337,32 @@ const CartScreen = ({ route, navigation }) => {
           method: 'Wallet',
           isPaid: true,
           utr: null,
-          slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
+          slot: selectedSlot ? `${selectedSlot.dateLabel || 'Today'} • ${selectedSlot.label}` : 'Standard Delivery'
         });
         return;
       }
 
-      // Step 3: If UPI payment -> create payment session and open UPI modal
+      // Case 2: If UPI payment -> create payment session first (do NOT place order before payment)
+      setPendingOrderData(orderPayload);
       const payRes = await walletService.createPaymentOrder({
         amount: total,
-        orderId: order._id,
-        purpose: 'order_payment',
+        purpose: 'shop_order',
         paymentMethod: 'UPI'
       });
       const payData = payRes?.data?.data || {};
       const platformUpi = (payData.upiVpa || '').trim();
       const platformPayee = (payData.payeeName || 'Kwickly Admin').trim().replace(/\s+/g, ' ');
-      const orderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
+      const paymentOrderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
       const amtStr = Number(total).toFixed(2);
-      const shortTr = `KWIK${String(order._id || Date.now()).slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
+      const shortTr = `KWIK${String(shopId || Date.now()).slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
 
       if (!platformUpi) {
-        throw new Error('Admin UPI ID is currently not configured. Please choose Cash on Delivery or contact support.');
+        throw new Error('Admin UPI ID is currently not configured. Please choose Wallet or contact support.');
       }
 
       setUpiOrderData({
-        razorpayOrderId: orderId,
-        upiOrderId: orderId,
+        razorpayOrderId: paymentOrderId,
+        upiOrderId: paymentOrderId,
         upiVpa: platformUpi,
         payeeName: platformPayee,
         upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${platformUpi}&pn=${encodeURIComponent(platformPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Order Payment')}&tr=${shortTr}`,
@@ -356,17 +374,76 @@ const CartScreen = ({ route, navigation }) => {
       showAlert({
         type: 'error',
         title: 'Order Error',
-        message: e?.response?.data?.message || e.message || 'Failed to place order. Please check your connection and try again.'
+        message: e?.response?.data?.message || e.message || 'Failed to initiate order checkout. Please check your connection and try again.'
       });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleManualUtrVerification = async (utr, extraMeta = {}) => {
-    if (!currentOrder?._id && !upiOrderData?.razorpayOrderId) {
-      throw new Error('No active order session found');
+  const handleCancelPayment = async () => {
+    setShowUpiModal(false);
+    setShowWaitingModal(false);
+    if (upiOrderData?.razorpayOrderId) {
+      try {
+        await walletService.cancelPayment({
+          razorpayOrderId: upiOrderData.razorpayOrderId,
+          reason: 'Cancelled by user before payment'
+        });
+      } catch (e) {}
     }
+    setPendingOrderData(null);
+    showAlert({
+      type: 'info',
+      title: 'Payment Cancelled',
+      message: 'Your payment was cancelled. Your items are still safely saved in your cart.'
+    });
+  };
+
+  const finalizePaidUpiOrder = async (utr, paymentData = null) => {
+    try {
+      const payload = {
+        ...(pendingOrderData || {}),
+        paymentMethod: 'UPI',
+        utrNumber: utr,
+        paymentOrderId: upiOrderData?.razorpayOrderId,
+        isPaid: true
+      };
+
+      const res = await shopService.placeOrder(payload);
+      if (res.data?.status !== 'success') {
+        throw new Error(res.data?.message || 'Failed to place order');
+      }
+
+      const order = res.data.data;
+      setCurrentOrder(order);
+      setShowUpiModal(false);
+      setShowWaitingModal(false);
+      setUpiTxnId('');
+      setPendingOrderData(null);
+      await clearCart();
+      if (fetchUser) await fetchUser();
+
+      setOrderSuccessModal({
+        orderNumber: order.orderNumber || `#${order._id?.slice(-6).toUpperCase()}`,
+        orderId: order._id,
+        total: Number(total).toFixed(2),
+        method: 'UPI',
+        isPaid: true,
+        utr: utr || 'Auto Verified',
+        slot: selectedSlot ? `${selectedSlot.dateLabel || 'Today'} • ${selectedSlot.label}` : 'Standard Delivery'
+      });
+    } catch (err) {
+      console.error('[CartScreen] Finalize order error:', err);
+      showAlert({
+        type: 'error',
+        title: 'Order Notice',
+        message: err?.response?.data?.message || err.message || `Payment verified (UTR: ${utr}), but order placement encountered an issue. Our support team will assist you.`
+      });
+    }
+  };
+
+  const handleManualUtrVerification = async (utr, extraMeta = {}) => {
     const cleanUtr = (utr || '').trim();
     if (!cleanUtr || !isValidUtr(cleanUtr)) {
       throw new Error('Please enter the valid 12-digit UPI Reference Number.');
@@ -378,19 +455,19 @@ const CartScreen = ({ route, navigation }) => {
         razorpayOrderId: upiOrderData?.razorpayOrderId || `upi_${Date.now()}`,
         upiTransactionId: cleanUtr,
         utrNumber: cleanUtr,
-        orderId: currentOrder?._id,
         amount: total,
-        purpose: 'order_payment',
+        purpose: 'shop_order',
         ...extraMeta
       });
 
       const isSuccess = verifyRes?.data?.status === 'success' ||
                         verifyRes?.status === 'success' ||
                         verifyRes?.data?.data?.status === 'PENDING_VERIFICATION' ||
+                        verifyRes?.data?.data?.status === 'PAID' ||
                         verifyRes?.data?.data?.status === 'COMPLETED';
 
       if (isSuccess) {
-        await handlePaymentSuccess(cleanUtr);
+        await finalizePaidUpiOrder(cleanUtr, verifyRes?.data?.data || verifyRes?.data);
         return { verified: true, data: verifyRes?.data?.data || verifyRes?.data };
       }
       return verifyRes?.data || verifyRes;
@@ -400,21 +477,7 @@ const CartScreen = ({ route, navigation }) => {
   };
 
   const handlePaymentSuccess = async (detectedUtr = null) => {
-    setShowUpiModal(false);
-    setShowWaitingModal(false);
-    setUpiTxnId('');
-    await clearCart();
-    if (fetchUser) await fetchUser();
-
-    setOrderSuccessModal({
-      orderNumber: currentOrder?.orderNumber || `#${currentOrder?._id?.slice(-6).toUpperCase()}`,
-      orderId: currentOrder?._id,
-      total: Number(total).toFixed(2),
-      method: 'UPI',
-      isPaid: true,
-      utr: detectedUtr || 'Auto Verified',
-      slot: selectedSlot?.label || (typeof selectedSlot === 'string' ? selectedSlot : 'Standard Delivery')
-    });
+    await finalizePaidUpiOrder(detectedUtr || 'Auto Verified');
   };
 
   const handleOpenUpiApp = async (appScheme = null) => {
@@ -428,7 +491,7 @@ const CartScreen = ({ route, navigation }) => {
         name: upiOrderData?.payeeName || 'Kwickly Admin',
         amount: upiOrderData?.amount || total,
         txnRef: upiOrderData?.razorpayOrderId,
-        note: `Order #${currentOrder?.orderNumber || ''}`,
+        note: 'Order Payment',
         appKey: chosen,
       });
 
@@ -600,12 +663,20 @@ const CartScreen = ({ route, navigation }) => {
 
                 {/* Delivery Slot */}
                 {slots.length > 0 && (
-                  <TouchableOpacity style={styles.slotCard} onPress={() => setShowSlotModal(true)}>
+                  <TouchableOpacity
+                    style={styles.slotCard}
+                    onPress={() => {
+                      if (selectedSlot?.dateOffset !== undefined) {
+                        setSelectedDate(selectedSlot.dateOffset);
+                      }
+                      setShowSlotModal(true);
+                    }}
+                  >
                     <Clock size={18} color={theme.colors.primary} />
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={styles.slotLabel}>Delivery Slot</Text>
                       <Text style={styles.slotValue}>
-                        {selectedSlot ? selectedSlot.label : 'Select delivery time'}
+                        {selectedSlot ? `${selectedSlot.dateLabel || 'Today'} • ${selectedSlot.label}` : 'Select delivery time'}
                       </Text>
                     </View>
                     <ChevronRight size={18} color={theme.colors.textDim} />
@@ -835,13 +906,8 @@ const CartScreen = ({ route, navigation }) => {
               <ArrowRight size={18} color="#001016" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.cancelUpiBtn} onPress={() => {
-              setShowUpiModal(false);
-              if (currentOrder?._id) {
-                navigation.navigate('OrderTracking', { orderId: currentOrder._id });
-              }
-            }}>
-              <Text style={styles.cancelUpiText}>Pay Later / View Pending Order</Text>
+            <TouchableOpacity style={styles.cancelUpiBtn} onPress={handleCancelPayment}>
+              <Text style={styles.cancelUpiText}>✕ Cancel Payment</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -851,12 +917,7 @@ const CartScreen = ({ route, navigation }) => {
       {showWaitingModal && (
         <UpiPaymentWaitingModal
           visible={showWaitingModal}
-          onClose={() => {
-            setShowWaitingModal(false);
-            if (currentOrder?._id) {
-              navigation.navigate('OrderTracking', { orderId: currentOrder._id });
-            }
-          }}
+          onClose={handleCancelPayment}
           onSuccess={(data) => handlePaymentSuccess(data?.utr || data?.approvalRefNo)}
           amount={total}
           orderId={upiOrderData?.razorpayOrderId}
@@ -885,23 +946,19 @@ const CartScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   key={offset}
                   style={[styles.dateTabPill, selectedDate === offset && styles.dateTabPillActive]}
-                  onPress={() => {
-                    setSelectedDate(offset);
-                    const firstAvail = slots.find(s => !isSlotPassed(s, offset)) || slots[0];
-                    if (firstAvail) setSelectedSlot(firstAvail);
-                  }}
+                  onPress={() => setSelectedDate(offset)}
                 >
                   <Text style={[styles.dateTabPillText, selectedDate === offset && styles.dateTabPillTextActive]}>
-                    {offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : getDateLabel(offset).split(' ')[0]}
+                    {getDateTabLabel(offset)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <ScrollView style={{ maxHeight: 300 }}>
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
               {slots.map((slot, idx) => {
                 const passed = isSlotPassed(slot, selectedDate);
-                const isSelected = selectedSlot?.label === slot.label && !passed;
+                const isSelected = selectedSlot?.label === slot.label && (selectedSlot?.dateOffset ?? 0) === selectedDate;
                 return (
                   <TouchableOpacity
                     key={idx}
@@ -913,7 +970,13 @@ const CartScreen = ({ route, navigation }) => {
                     disabled={passed}
                     onPress={() => {
                       if (!passed) {
-                        setSelectedSlot(slot);
+                        const chosen = {
+                          ...slot,
+                          dateOffset: selectedDate,
+                          date: getFullDateString(selectedDate),
+                          dateLabel: getDateTabLabel(selectedDate)
+                        };
+                        setSelectedSlot(chosen);
                         setShowSlotModal(false);
                       }
                     }}
