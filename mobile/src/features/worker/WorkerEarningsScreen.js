@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { getSubscriptionState } from '../../utils/subscription';
 import { 
   ScrollView, 
   View, 
@@ -143,23 +144,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
     return () => sub.remove();
   }, [upiPaymentModalVisible]);
 
-  // Trial / Plan Calculation
-  let daysLeft = 0;
-  let isTrialActive = false;
-  let isPlanActive = false;
-
-  if (profile?.subscription?.expiryDate && new Date(profile.subscription.expiryDate) > new Date()) {
-    isPlanActive = true;
-    daysLeft = Math.ceil((new Date(profile.subscription.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-  } else if (profile?.subscription?.trialEndDate) {
-    daysLeft = Math.ceil((new Date(profile.subscription.trialEndDate) - new Date()) / (1000 * 60 * 60 * 24));
-    isTrialActive = daysLeft > 0;
-    daysLeft = Math.max(0, daysLeft);
-  } else {
-    isTrialActive = false;
-    daysLeft = 0;
-  }
-  const isActive = isTrialActive || isPlanActive;
+  // Trial / Plan Calculation (shared with the dashboard, same rules as the backend)
+  const { isTrialActive, isPaidActive: isPlanActive, isActive, daysLeft } = getSubscriptionState(profile);
 
   const fetchWalletAndProfile = useCallback(async () => {
     try {

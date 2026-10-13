@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { getSubscriptionState } from '../../utils/subscription';
 import { useFocusEffect } from '@react-navigation/native';
 import { 
   ScrollView, 
@@ -218,21 +219,11 @@ const WorkerDashboard = ({ navigation }) => {
     });
   }, [workerServices, user?.services, allCategories]);
 
-  // Subscription calculation (30 days admin free trial)
-  const registrationDate = user?.createdAt ? new Date(user.createdAt) : new Date();
-  const trialDays = 30;
-  const trialEndDate = new Date(registrationDate.getTime() + trialDays * 86400000);
-  const trialDiffTime = trialEndDate.getTime() - new Date().getTime();
-  const trialDaysLeft = Math.ceil(trialDiffTime / (1000 * 60 * 60 * 24));
-  const isTrialActive = trialDaysLeft > 0;
-
-  const expiryDate = user?.subscription?.expiryDate;
-  const paidDiffTime = expiryDate ? new Date(expiryDate).getTime() - new Date().getTime() : 0;
-  const paidDaysLeft = Math.ceil(paidDiffTime / (1000 * 60 * 60 * 24));
-  const isPaidActive = paidDaysLeft > 0;
-
-  const isSubscriptionValid = isTrialActive || isPaidActive;
-  const activeDaysRemaining = isPaidActive ? paidDaysLeft : (isTrialActive ? trialDaysLeft : 0);
+  // Same rules as the backend's go-online check, so the banner never disagrees with the toggle
+  const subState = getSubscriptionState(user);
+  const { isTrialActive, isPaidActive, trialDaysLeft, paidDaysLeft } = subState;
+  const isSubscriptionValid = subState.isActive;
+  const activeDaysRemaining = subState.daysLeft;
 
   const getJobLocation = (j) => {
     if (!j) return 'Local Area';
