@@ -32,6 +32,7 @@ const CustomerWalletScreen = ({ navigation }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [balance, setBalance] = useState(user?.wallet?.balance || 0);
+  const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -109,6 +110,7 @@ const CustomerWalletScreen = ({ navigation }) => {
         const wallet = res.data.data;
         setBalance(wallet?.balance ?? user?.wallet?.balance ?? 0);
         setTransactions(Array.isArray(wallet?.transactions) ? wallet.transactions : []);
+        setSummary(wallet?.summary || null);
       }
     } catch (e) {
       console.warn('[Wallet] fetch error:', e?.message);
@@ -127,12 +129,14 @@ const CustomerWalletScreen = ({ navigation }) => {
     }, [])
   );
 
-  const isCredit = (t) => ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP', 'TRANSFER_RECEIVED'].includes(t.type);
+  const isCredit = (t) => ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP', 'TRANSFER_RECEIVED'].includes(t.type)
+    || (t.type === 'ADJUSTMENT' && !/debit|deduct/i.test(t.description || ''));
   const formatInr = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   // Pending or failed entries never moved money, so they stay out of the totals
   const settledTxns = transactions.filter(t => !t.status || t.status === 'COMPLETED');
-  const totalCredits = settledTxns.filter(isCredit).reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-  const totalDebits = settledTxns.filter(t => !isCredit(t)).reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  // Server sends all-time totals; summing the loaded page is only a fallback for older backends
+  const totalCredits = summary ? summary.totalCredits : settledTxns.filter(isCredit).reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const totalDebits = summary ? summary.totalDebits : settledTxns.filter(t => !isCredit(t)).reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
 
 

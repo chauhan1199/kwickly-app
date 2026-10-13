@@ -95,9 +95,33 @@ exports.getWallet = catchAsync(async (req, res) => {
         .skip((Number(page) - 1) * Number(limit))
         .lean();
 
+    // All-time totals, so the summary is not limited to the current page of transactions
+    const CREDIT_TYPES = ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP', 'TRANSFER_RECEIVED'];
+    const [agg] = await WalletTxn.aggregate([
+        { $match: { userId: new mongoose.Types.ObjectId(String(req.user._id)), $or: [{ status: 'COMPLETED' }, { status: { $exists: false } }] } },
+        { $addFields: {
+            isCredit: { $or: [
+                { $in: ['$type', CREDIT_TYPES] },
+                { $and: [
+                    { $eq: ['$type', 'ADJUSTMENT'] },
+                    { $not: [{ $regexMatch: { input: { $ifNull: ['$description', ''] }, regex: /debit|deduct/i } }] }
+                ] }
+            ] }
+        } },
+        { $group: {
+            _id: null,
+            totalCredits: { $sum: { $cond: ['$isCredit', '$amount', 0] } },
+            totalDebits: { $sum: { $cond: ['$isCredit', 0, '$amount'] } }
+        } }
+    ]);
+
     return successResponse(res, {
         balance,
         transactions,
+        summary: {
+            totalCredits: Math.round((agg?.totalCredits || 0) * 100) / 100,
+            totalDebits: Math.round((agg?.totalDebits || 0) * 100) / 100
+        },
         total,
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit))
