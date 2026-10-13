@@ -31,7 +31,7 @@ import { ChevronRight, Star, Zap, MapPin, Bell, Package, Store, Clock, RotateCcw
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchBar } from '../../components/ui/SearchBar';
 import GlassCard from '../../components/ui/GlassCard';
-import { getImageUrl } from '../../utils/helpers';
+import { getImageUrl, formatStatus } from '../../utils/helpers';
 
 // ── Purple accent ──
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -610,7 +610,7 @@ const HomeScreen = ({ navigation }) => {
                         </View>
                         <View style={{ flex: 1, marginLeft: 12 }}>
                           <Text style={[styles.jobTitle, { color: theme.colors.text }]} numberOfLines={1}>Order from {order.shopId?.name || 'Shop'}</Text>
-                          <Text style={styles.jobSub}>Status: {order.status} • Total: ₹{Number(order.total ?? order.payment?.amount ?? order.totalAmount ?? 0).toFixed(2)}</Text>
+                          <Text style={styles.jobSub}>Status: {formatStatus(order.status)} • Total: ₹{Number(order.total ?? order.payment?.amount ?? order.totalAmount ?? 0).toFixed(2)}</Text>
                         </View>
                         <View style={[styles.statusPill, { backgroundColor: PURPLE + '18' }]}>
                           <Text style={[styles.statusPillText, { color: PURPLE }]}>TRACK</Text>

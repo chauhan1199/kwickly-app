@@ -443,7 +443,7 @@ export default function LeafletMapPicker({
         <WebView
           ref={webViewRef}
           originWhitelist={['*']}
-          source={{ html: leafletHTML }}
+          source={{ html: leafletHTML, baseUrl: 'https://kwickly.app/' }}
           style={styles.webView}
           javaScriptEnabled={true}
           domStorageEnabled={true}

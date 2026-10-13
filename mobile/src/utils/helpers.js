@@ -41,3 +41,10 @@ export const requestCameraPermission = async () => {
   }
   return true;
 };
+
+// 'OUT_FOR_DELIVERY' -> 'Out for delivery', for showing raw API status codes to people
+export const formatStatus = (status) => {
+  if (!status) return '';
+  const s = String(status).replace(/_/g, ' ').toLowerCase();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};

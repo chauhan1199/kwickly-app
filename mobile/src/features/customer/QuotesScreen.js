@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatStatus } from '../../utils/helpers';
 import {
   View,
   Text,
@@ -218,7 +219,7 @@ const QuotesScreen = ({ navigation }) => {
                     <Text style={[styles.cardPrice, { color: theme.colors.primary }]}>₹{order.total ?? order.totalAmount ?? 0}</Text>
                   </View>
                   <View style={[styles.statusPill, { backgroundColor: color + '20' }]}>
-                    <Text style={[styles.statusText, { color }]}>{order.status}</Text>
+                    <Text style={[styles.statusText, { color }]}>{formatStatus(order.status)}</Text>
                   </View>
                 </View>
               </TouchableOpacity>

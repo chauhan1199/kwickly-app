@@ -397,6 +397,7 @@ export const AddressMapModal = ({
         }).addTo(map);
 
         carto.on('tileerror', function() {
+          if (window.__osmFallback) return; window.__osmFallback = true;
           L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         });
 
@@ -726,7 +727,7 @@ export const AddressMapModal = ({
           <WebView
             ref={webviewRef}
             originWhitelist={['*']}
-            source={{ html: leafletMapHTML }}
+            source={{ html: leafletMapHTML, baseUrl: 'https://kwickly.app/' }}
             style={dynamicStyles.map}
             onMessage={handleWebViewMessage}
             javaScriptEnabled={true}

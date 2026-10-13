@@ -90,6 +90,7 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
         }).addTo(map);
 
         carto.on('tileerror', function() {
+          if (window.__osmFallback) return; window.__osmFallback = true;
           L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         });
 
@@ -147,7 +148,7 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
         <View style={styles.mapContainer}>
           <WebView 
             key={`${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${hasRawCoords ? `${wLat.toFixed(4)}_${wLng.toFixed(4)}` : 'nopos'}`}
-            source={{ html: mapHTML }}
+            source={{ html: mapHTML, baseUrl: 'https://kwickly.app/' }}
             style={{ flex: 1, backgroundColor: 'transparent' }}
           />
           <View style={styles.etaBadge}>

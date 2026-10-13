@@ -169,6 +169,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
         }).addTo(map);
 
         carto.on('tileerror', function() {
+            if (window.__osmFallback) return; window.__osmFallback = true;
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         });
 
@@ -323,7 +324,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
         <View style={styles.mapArea}>
           <WebView 
             key={`${status}_${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${hasWorkerCoords ? `${workerLat.toFixed(4)}_${workerLng.toFixed(4)}` : 'nopos'}`}
-            source={{ html: mapHTML }}
+            source={{ html: mapHTML, baseUrl: 'https://kwickly.app/' }}
             style={{ flex: 1, backgroundColor: 'transparent' }}
             scrollEnabled={false}
             showsVerticalScrollIndicator={false}

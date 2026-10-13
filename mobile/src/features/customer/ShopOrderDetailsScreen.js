@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatStatus } from '../../utils/helpers';
 import { 
   View, 
   Text, 
@@ -244,6 +245,7 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
         }).addTo(map);
 
         carto.on('tileerror', function() {
+            if (window.__osmFallback) return; window.__osmFallback = true;
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         });
 
@@ -387,7 +389,7 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
             </View>
             <View style={[styles.statusPill, { backgroundColor: isCancelled ? '#ef444418' : (isActive ? '#6C47FF18' : '#10b98118') }]}>
               <Text style={[styles.statusText, { color: isCancelled ? '#ef4444' : (isActive ? '#6C47FF' : '#10b981') }]}>
-                {o.s}
+                {formatStatus(o.s)}
               </Text>
             </View>
           </View>
@@ -441,14 +443,14 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={styles.sectionHeader}>Live Order Tracking</Text>
               <View style={[styles.statusPill, { backgroundColor: isDelivered ? '#10b98118' : '#6C47FF18' }]}>
-                <Text style={[styles.statusText, { color: isDelivered ? '#10b981' : '#6C47FF' }]}>{o.s}</Text>
+                <Text style={[styles.statusText, { color: isDelivered ? '#10b981' : '#6C47FF' }]}>{formatStatus(o.s)}</Text>
               </View>
             </View>
 
             <View style={{ height: 210, borderRadius: 16, overflow: 'hidden', marginTop: 12, backgroundColor: '#e2e8f0' }}>
               <WebView 
                 key={`${o.s}_${mapLat.toFixed(4)}_${mapLng.toFixed(4)}_${shopLat.toFixed(4)}_${shopLng.toFixed(4)}`}
-                source={{ html: mapHTML }}
+                source={{ html: mapHTML, baseUrl: 'https://kwickly.app/' }}
                 style={{ flex: 1, backgroundColor: 'transparent' }}
                 scrollEnabled={false}
               />

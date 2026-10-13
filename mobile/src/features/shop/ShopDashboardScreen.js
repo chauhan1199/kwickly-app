@@ -17,7 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { shopService } from '../../services/shopService';
-import { getImageUrl } from '../../utils/helpers';
+import { getImageUrl, formatStatus } from '../../utils/helpers';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   Store,
@@ -494,7 +494,7 @@ const ShopDashboardScreen = ({ navigation }) => {
                         <Text style={s.orderMeta}>{order.customer} · {order.items} item(s) · ₹{order.total}</Text>
                       </View>
                       <View style={[s.statusPill, { backgroundColor: order.bg }]}>
-                        <Text style={[s.statusPillText, { color: order.color }]}>{order.status}</Text>
+                        <Text style={[s.statusPillText, { color: order.color }]}>{formatStatus(order.status)}</Text>
                       </View>
                       <ChevronRight size={16} color={theme.colors.textDim} style={{ marginLeft: 6 }} />
                     </TouchableOpacity>
