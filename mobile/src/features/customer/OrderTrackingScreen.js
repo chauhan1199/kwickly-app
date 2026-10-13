@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatStatus } from '../../utils/helpers';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, StatusBar, ActivityIndicator, Alert
@@ -275,7 +276,7 @@ const OrderTrackingScreen = ({ route, navigation }) => {
               <View key={idx} style={styles.historyRow}>
                 <View style={[styles.historyDot, idx === 0 && styles.historyDotActive]} />
                 <View style={styles.historyContent}>
-                  <Text style={styles.historyStatus}>{h.status}</Text>
+                  <Text style={styles.historyStatus}>{formatStatus(h.status)}</Text>
                   <Text style={styles.historyTime}>
                     {new Date(h.timestamp).toLocaleString('en-IN', {
                       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
