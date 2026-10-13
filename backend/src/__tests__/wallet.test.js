@@ -27,6 +27,23 @@ describe('Wallet Routes', () => {
             expect(res.body.data).toBeDefined();
         });
 
+        it('should return all-time credit/debit totals beyond the first page', async () => {
+            const WalletTxn = require('../modules/wallet/wallet.model');
+            const txns = [];
+            for (let i = 0; i < 25; i++) txns.push({ userId: customerId, type: 'TOPUP', amount: 10, balance: 0 });
+            txns.push({ userId: customerId, type: 'ORDER_PAYMENT', amount: 40, balance: 0 });
+            txns.push({ userId: customerId, type: 'ADJUSTMENT', amount: 5, balance: 0, description: 'Admin debit adjustment' });
+            txns.push({ userId: customerId, type: 'ADJUSTMENT', amount: 7, balance: 0, description: 'Admin credit adjustment' });
+            txns.push({ userId: customerId, type: 'TOPUP', amount: 999, balance: 0, status: 'PENDING' });
+            await WalletTxn.insertMany(txns);
+            const res = await request(app)
+                .get('/api/v1/wallet/balance')
+                .set('Authorization', `Bearer ${customerToken}`);
+            expect(res.status).toBe(200);
+            expect(res.body.data.transactions.length).toBe(20);
+            expect(res.body.data.summary).toEqual({ totalCredits: 257, totalDebits: 45 });
+        });
+
         it('should reject unauthenticated request', async () => {
             const res = await request(app).get('/api/v1/wallet/balance');
             expect(res.status).toBe(401);
