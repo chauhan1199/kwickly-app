@@ -39,3 +39,17 @@ export const calculateJobFee = (quote, cfg = DEFAULT_SERVICE_JOB_FEE) => {
   }
   return withGst(fee, num(c.gstPercent, 0));
 };
+
+// Lowest admin-set minimum price across a category's active subcategories
+// (Category.subcategories[].minPrice). Returns null when admin has not set one,
+// so the UI can say "Get quotes" instead of showing an invented price.
+export const getCategoryStartingPrice = (category) => {
+  const subs = Array.isArray(category?.subcategories) ? category.subcategories : [];
+  const prices = subs
+    .filter(s => s && s.active !== false)
+    .map(s => Number(s.minPrice))
+    .filter(p => Number.isFinite(p) && p > 0);
+  if (prices.length > 0) return Math.min(...prices);
+  const base = Number(category?.basePrice);
+  return Number.isFinite(base) && base > 0 ? base : null;
+};

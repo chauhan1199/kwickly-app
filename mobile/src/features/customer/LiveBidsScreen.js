@@ -21,6 +21,7 @@ import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
 import { jobService } from '../../services/jobService';
 import { settingsService } from '../../services/settingsService';
+import { formatDistance, getRealRating } from '../../utils/geo';
 import LinearGradient from 'react-native-linear-gradient';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { Bell, ChevronLeft, Radio, MapPin, Calendar, Clock, Image as ImageIcon, X } from 'lucide-react-native';
@@ -465,11 +466,29 @@ const LiveBidsScreen = ({ route, navigation }) => {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.workerStars}>
-                    <Text style={{ color: '#f5b300' }}>★★★★★</Text>
-                    <Text style={styles.workerMuted}> {worker.rating?.average || '0.0'} · {worker.jobsCompleted || 0} jobs</Text>
-                  </Text>
-                  <Text style={styles.workerMuted}>📍 {bid.distanceKm ? bid.distanceKm + ' km' : 'Nearby'} · ⏱ {bid.timeToReach} min away</Text>
+                  {(() => {
+                    // Real rating/jobs/distance/ETA only — each piece is omitted when unknown
+                    const avg = getRealRating(worker.rating);
+                    const jobs = Number(worker.completedJobs ?? worker.jobsCompleted) || 0;
+                    const etaText = bid.timeToReach ? String(bid.timeToReach).replace(/\s*mins?$/i, '') : null;
+                    const locBits = [
+                      bid.distanceKm ? `📍 ${formatDistance(Number(bid.distanceKm))}` : null,
+                      etaText ? `⏱ ${etaText} min away` : null,
+                    ].filter(Boolean);
+                    return (
+                      <>
+                        <Text style={styles.workerStars}>
+                          {avg ? (
+                            <Text style={{ color: '#f5b300' }}>{'★'.repeat(Math.round(avg))}{'☆'.repeat(5 - Math.round(avg))}</Text>
+                          ) : null}
+                          <Text style={styles.workerMuted}>{avg ? ` ${avg.toFixed(1)}` : 'New'} · {jobs} {jobs === 1 ? 'job' : 'jobs'}</Text>
+                        </Text>
+                        {locBits.length > 0 ? (
+                          <Text style={styles.workerMuted}>{locBits.join(' · ')}</Text>
+                        ) : null}
+                      </>
+                    );
+                  })()}
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={styles.workerPrice}>₹{bid.customerPayable || bid.amount}</Text>

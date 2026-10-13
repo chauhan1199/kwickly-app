@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { Phone, MessageCircle, Navigation } from 'lucide-react-native';
 import { jobService } from '../../services/jobService';
+import { distanceKm, estimateEtaMinutes, formatDistance } from '../../utils/geo';
 
 const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -49,18 +50,12 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const rawWLat = Number(user?.activeLocation?.coordinates?.[1]);
   const rawWLng = Number(user?.activeLocation?.coordinates?.[0]);
   const hasRawCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
-  const distanceDeg = hasRawCoords ? Math.hypot(rawWLat - jobLat, rawWLng - jobLng) : 999;
-  
-  let wLat = rawWLat;
-  let wLng = rawWLng;
-  // If coordinates are missing, identical or within 200m of customer, provide realistic route offset (~850m)
-  if (!hasRawCoords || distanceDeg < 0.002) {
-    wLat = jobLat + 0.0072;
-    wLng = jobLng + 0.0055;
-  }
-
-  const [distance, setDistance] = useState('...');
-  const [eta, setEta] = useState('...');
+  // Real position only: when the worker's location is unknown we draw no worker pin and no ETA
+  const wLat = hasRawCoords ? rawWLat : null;
+  const wLng = hasRawCoords ? rawWLng : null;
+  const routeKm = hasRawCoords ? distanceKm({ lat: wLat, lng: wLng }, { lat: jobLat, lng: jobLng }) : null;
+  const eta = estimateEtaMinutes(routeKm);
+  const distance = formatDistance(routeKm);
 
   // B1/M1 FIX: Transition job to ARRIVING when worker starts navigating to the job
   useEffect(() => {
@@ -109,30 +104,24 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
           className: '', iconSize: [24, 24], iconAnchor: [12, 12]
         });
 
-        L.marker([${jobLat}, ${jobLng}], {icon: jobIcon}).addTo(map).bindPopup("<b>Customer Address</b>");
-        L.marker([${wLat}, ${wLng}], {icon: workerIcon}).addTo(map).bindPopup("<b>Your Location</b>").openPopup();
+        const jobMarker = L.marker([${jobLat}, ${jobLng}], {icon: jobIcon}).addTo(map).bindPopup("<b>Customer Address</b>");
 
-        // Polyline route
-        L.polyline([[${wLat}, ${wLng}], [${jobLat}, ${jobLng}]], {
-          color: '#6C47FF',
-          weight: 4,
-          opacity: 0.85,
-          dashArray: '6, 8'
-        }).addTo(map);
+        if (${hasRawCoords ? 'true' : 'false'}) {
+          L.marker([${wLat}, ${wLng}], {icon: workerIcon}).addTo(map).bindPopup("<b>Your Location</b>").openPopup();
 
-        const bounds = L.latLngBounds([[${jobLat}, ${jobLng}], [${wLat}, ${wLng}]]);
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+          // Polyline route
+          L.polyline([[${wLat}, ${wLng}], [${jobLat}, ${jobLng}]], {
+            color: '#6C47FF',
+            weight: 4,
+            opacity: 0.85,
+            dashArray: '6, 8'
+          }).addTo(map);
 
-        // Basic Distance Calc for display
-        const R = 6371;
-        const dLat = (${wLat} - ${jobLat}) * Math.PI / 180;
-        const dLon = (${wLng} - ${jobLng}) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(${jobLat} * Math.PI / 180) * Math.cos(${wLat} * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const dist = (R * c).toFixed(1);
-        const time = Math.round(dist * 2 + 5);
-
-        window.ReactNativeWebView.postMessage(JSON.stringify({ dist, time }));
+          const bounds = L.latLngBounds([[${jobLat}, ${jobLng}], [${wLat}, ${wLng}]]);
+          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+        } else {
+          jobMarker.openPopup();
+        }
       </script>
     </body>
     </html>
@@ -157,17 +146,12 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
         {/* Map */}
         <View style={styles.mapContainer}>
           <WebView 
-            key={`${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${wLat.toFixed(4)}_${wLng.toFixed(4)}`}
+            key={`${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${hasRawCoords ? `${wLat.toFixed(4)}_${wLng.toFixed(4)}` : 'nopos'}`}
             source={{ html: mapHTML }}
             style={{ flex: 1, backgroundColor: 'transparent' }}
-            onMessage={(e) => {
-                const data = JSON.parse(e.nativeEvent.data);
-                setDistance(data.dist);
-                setEta(data.time);
-            }}
           />
           <View style={styles.etaBadge}>
-            <Text style={styles.etaText}>🚗 {eta} min - {distance} km</Text>
+            <Text style={styles.etaText}>{eta ? `🚗 ${eta} min - ${distance}` : '📍 Your location is not available yet'}</Text>
           </View>
         </View>
 

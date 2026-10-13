@@ -44,6 +44,8 @@ import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryThem
 import { getImageUrl } from '../../utils/helpers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
+import { formatDistance, estimateEtaMinutes, getRealRating } from '../../utils/geo';
+import { getCategoryStartingPrice } from '../../utils/fees';
 
 // Haversine formula to calculate accurate distance between two coordinates in km
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -169,7 +171,7 @@ const BookServiceScreen = ({ navigation, route }) => {
   const handleBookNowPress = (worker) => {
     const services = worker.services && worker.services.length > 0
       ? worker.services
-      : [{ catName: worker.cat, catIcon: worker.catIcon || '🛠️', subs: worker.subcategories || [], basePrice: worker.price || 199 }];
+      : [{ catName: worker.cat, catIcon: worker.catIcon || '🛠️', subs: worker.subcategories || [], basePrice: worker.price || null }];
 
     if (services.length > 1 || (services[0]?.subs && services[0].subs.length > 1)) {
       setBookingWorker(worker);
@@ -188,7 +190,7 @@ const BookServiceScreen = ({ navigation, route }) => {
     if (!bookingWorker) return;
     const services = bookingWorker.services && bookingWorker.services.length > 0
       ? bookingWorker.services
-      : [{ catName: bookingWorker.cat, catIcon: bookingWorker.catIcon || '🛠️', subs: bookingWorker.subcategories || [], basePrice: bookingWorker.price || 199 }];
+      : [{ catName: bookingWorker.cat, catIcon: bookingWorker.catIcon || '🛠️', subs: bookingWorker.subcategories || [], basePrice: bookingWorker.price || null }];
 
     const chosenService = services[selectedServiceIndex] || services[0];
     const chosenSub = selectedSubcategory || chosenService?.subs?.[0] || 'General Service';
@@ -210,24 +212,27 @@ const BookServiceScreen = ({ navigation, route }) => {
     if (route.params?.location?.latitude && route.params?.location?.longitude) {
       return {
         lat: route.params.location.latitude,
-        lng: route.params.location.longitude
+        lng: route.params.location.longitude,
+        isReal: true
       };
     }
     const primaryAddr = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
     if (primaryAddr?.location?.coordinates?.length === 2) {
       return {
         lat: primaryAddr.location.coordinates[1],
-        lng: primaryAddr.location.coordinates[0]
+        lng: primaryAddr.location.coordinates[0],
+        isReal: true
       };
     }
     if (user?.activeLocation?.coordinates?.length === 2) {
       return {
         lat: user.activeLocation.coordinates[1],
-        lng: user.activeLocation.coordinates[0]
+        lng: user.activeLocation.coordinates[0],
+        isReal: true
       };
     }
-    // Default fallback coordinates (Ahmedabad city center)
-    return { lat: 23.0225, lng: 72.5714 };
+    // Default map centre only — isReal:false stops us showing distances measured from it
+    return { lat: 23.0225, lng: 72.5714, isReal: false };
   }, [route.params?.location, user]);
 
   // Load cached categories and banners immediately on launch
@@ -272,7 +277,7 @@ const BookServiceScreen = ({ navigation, route }) => {
           name: c.name,
           label: c.name,
           imageUrl: c.imageUrl || null,
-          basePrice: c.basePrice || 199,
+          basePrice: getCategoryStartingPrice(c),
           subs: (c.subcategories || []).map(s => ({
             id: s._id,
             name: s.name,
@@ -293,15 +298,16 @@ const BookServiceScreen = ({ navigation, route }) => {
 
       if (workerRes.status === 'fulfilled' && workerRes.value?.data?.status === 'success') {
         const mappedWorkers = workerRes.value.data.data.map(w => {
-          const wLat = w.activeLocation?.coordinates?.[1] || customerCoords.lat + (Math.random() * 0.04 - 0.02);
-          const wLon = w.activeLocation?.coordinates?.[0] || customerCoords.lng + (Math.random() * 0.04 - 0.02);
-          
-          let distKm = calculateDistance(customerCoords.lat, customerCoords.lng, wLat, wLon);
-          if (distKm === null || isNaN(distKm)) distKm = 1.8;
-          
-          // Clamp realistic urban distance & ETA
-          const formattedDist = distKm < 1 ? `${(distKm * 1000).toFixed(0)} m` : `${distKm.toFixed(1)} km`;
-          const etaMins = Math.max(5, Math.min(60, Math.round(distKm * 4.5)));
+          // Distance/ETA only from a real worker location and a real customer location — never randomised
+          const wLat = Number(w.activeLocation?.coordinates?.[1]);
+          const wLon = Number(w.activeLocation?.coordinates?.[0]);
+          let distKm = null;
+          if (customerCoords.isReal && wLat && wLon) {
+            const d = calculateDistance(customerCoords.lat, customerCoords.lng, wLat, wLon);
+            if (d !== null && !isNaN(d)) distKm = d;
+          }
+          const formattedDist = formatDistance(distKm);
+          const etaMins = estimateEtaMinutes(distKm);
 
           // Extract all structured services
           const servicesList = (w.services || [])
@@ -311,7 +317,7 @@ const BookServiceScreen = ({ navigation, route }) => {
               const catIcon = getCategoryIcon(catName, s.category?.icon);
               const catImageUrl = s.category?.imageUrl || s.categoryImageUrl || null;
               const subs = Array.isArray(s.subcategories) ? s.subcategories : [];
-              const basePrice = s.category?.basePrice || 199;
+              const basePrice = getCategoryStartingPrice(s.category);
               return { catName, catIcon, catImageUrl, category: s.category, subs, basePrice };
             });
 
@@ -319,11 +325,13 @@ const BookServiceScreen = ({ navigation, route }) => {
           const primaryIcon = servicesList[0]?.catIcon || getCategoryIcon(primaryCategory, '🛠️');
           const primaryImageUrl = servicesList[0]?.catImageUrl || null;
           const allSubs = servicesList.flatMap(s => s.subs);
-          const startingPrice = servicesList.length > 0
-            ? Math.min(...servicesList.map(s => s.basePrice))
-            : (w.price || 199);
+          const knownPrices = servicesList.map(s => s.basePrice).filter(p => p > 0);
+          const startingPrice = knownPrices.length > 0
+            ? Math.min(...knownPrices)
+            : (w.price || null);
 
-          const ratingAvg = typeof w.rating === 'object' ? (w.rating?.average || 5.0) : (Number(w.rating) || 5.0);
+          // Real rating only; 0 means "not rated yet" and renders as "New"
+          const ratingAvg = getRealRating(w.rating) || 0;
           const ratingCount = typeof w.rating === 'object' ? (w.rating?.count || 0) : 0;
           const totalJobs = w.completedJobs !== undefined ? w.completedJobs : (w.jobs || 0);
 
@@ -331,7 +339,7 @@ const BookServiceScreen = ({ navigation, route }) => {
             ...w,
             id: w._id || w.id,
             _id: w._id || w.id,
-            name: w.name || 'Verified Professional',
+            name: w.name || 'Professional',
             profileImage: w.profileImage || null,
             phone: w.phone,
             rating: { average: ratingAvg, count: ratingCount },
@@ -351,8 +359,8 @@ const BookServiceScreen = ({ navigation, route }) => {
           };
         });
 
-        // Sort nearest pros first
-        mappedWorkers.sort((a, b) => (a.distNumeric || 0) - (b.distNumeric || 0));
+        // Sort nearest pros first when distance is known; otherwise keep the server's rating order
+        mappedWorkers.sort((a, b) => (a.distNumeric ?? Infinity) - (b.distNumeric ?? Infinity));
         setWorkers(mappedWorkers);
       }
 
@@ -372,7 +380,7 @@ const BookServiceScreen = ({ navigation, route }) => {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, [customerCoords.lat, customerCoords.lng]);
+  }, [customerCoords.lat, customerCoords.lng, customerCoords.isReal]);
 
   useEffect(() => {
     fetchData();
@@ -744,21 +752,31 @@ const BookServiceScreen = ({ navigation, route }) => {
                       <View style={styles.starPill}>
                         <Star size={11} color="#f59e0b" fill="#f59e0b" />
                         <Text style={styles.starText}>
-                          {worker.rating?.average > 0 ? worker.rating.average.toFixed(1) : '5.0'}
+                          {worker.rating?.average > 0 ? worker.rating.average.toFixed(1) : 'New'}
                         </Text>
                       </View>
                       <Text style={styles.dotDivider}>·</Text>
                       <Text style={styles.jobsDoneText}>
                         {worker.jobs} {worker.jobs === 1 ? 'job done' : 'jobs done'}
                       </Text>
-                      <Text style={styles.dotDivider}>·</Text>
-                      <Text style={styles.distanceText}>📍 {worker.dist}</Text>
+                      {worker.dist ? (
+                        <>
+                          <Text style={styles.dotDivider}>·</Text>
+                          <Text style={styles.distanceText}>📍 {worker.dist}</Text>
+                        </>
+                      ) : null}
                     </View>
                   </View>
 
                   <View style={styles.proPriceCol}>
-                    <Text style={styles.priceLabel}>From</Text>
-                    <Text style={styles.priceValue}>₹{worker.price}</Text>
+                    {worker.price ? (
+                      <>
+                        <Text style={styles.priceLabel}>From</Text>
+                        <Text style={styles.priceValue}>₹{worker.price}</Text>
+                      </>
+                    ) : (
+                      <Text style={styles.priceLabel}>Get quotes</Text>
+                    )}
                   </View>
                 </View>
 
@@ -793,7 +811,7 @@ const BookServiceScreen = ({ navigation, route }) => {
                 <View style={styles.proCardFooter}>
                   <View style={styles.etaContainer}>
                     <Clock size={13} color="#10b981" />
-                    <Text style={styles.etaText}>Arrives in ~{worker.eta} mins</Text>
+                    <Text style={styles.etaText}>{worker.eta ? `Arrives in ~${worker.eta} mins` : (worker.isOnline ? 'Available now' : 'Book ahead')}</Text>
                   </View>
 
                   <View style={styles.actionBtnGroup}>
@@ -892,7 +910,7 @@ const BookServiceScreen = ({ navigation, route }) => {
                         <Text style={[styles.modalCatName, isCatSelected && styles.modalCatNameActive]} numberOfLines={1}>
                           {srv.catName}
                         </Text>
-                        <Text style={styles.modalCatPrice}>Starting from ₹{srv.basePrice || 199}</Text>
+                        <Text style={styles.modalCatPrice}>{srv.basePrice ? `Starting from ₹${srv.basePrice}` : 'Price on quote'}</Text>
                       </View>
                       {isCatSelected && <CheckCircle2 size={18} color="#6C47FF" />}
                     </TouchableOpacity>

@@ -22,7 +22,7 @@ import AppBar from '../../components/AppBar';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useCart } from '../../context/CartContext';
 
-import { getImageUrl } from '../../utils/helpers';
+import ProductImage from '../../components/ui/ProductImage';
 
 const ShopDetailScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -137,24 +137,30 @@ const ShopDetailScreen = ({ route, navigation }) => {
   const renderProduct = ({ item }) => {
     const cartItem = getProductCartInfo(item._id);
     const qty = cartItem ? cartItem.qty : 0;
+    const mrp = Number(item.mrp);
+    const price = Number(item.price);
+    const hasMrpDiscount = mrp > 0 && price > 0 && mrp > price;
+    const discountPct = hasMrpDiscount ? Math.round(((mrp - price) / mrp) * 100) : 0;
 
     return (
       <View style={styles.productCard}>
         {/* Top Image Section */}
         <View style={styles.imageContainer}>
-          {item.imageUrl ? (
-            <Image 
-              source={{ uri: getImageUrl(item.imageUrl) }} 
-              style={styles.productImage} 
-              resizeMode="contain" 
-            />
-          ) : (
-            <View style={[styles.productImage, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9' }]} />
-          )}
-          <View style={styles.ratingPill}>
-            <Star size={10} color="#EAB308" fill="#EAB308" />
-            <Text style={styles.ratingText}>4.5</Text>
-          </View>
+          <ProductImage
+            imageUrl={item.imageUrl}
+            name={item.name}
+            style={[styles.productImage, { borderRadius: 10 }]}
+            resizeMode="contain"
+            iconSize={36}
+            isDarkMode={isDarkMode}
+          />
+          {/* Rating pill only when the product carries a real rating */}
+          {Number(item.rating?.average ?? item.rating) > 0 ? (
+            <View style={styles.ratingPill}>
+              <Star size={10} color="#EAB308" fill="#EAB308" />
+              <Text style={styles.ratingText}>{Number(item.rating?.average ?? item.rating).toFixed(1)}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Info Section */}
@@ -167,10 +173,15 @@ const ShopDetailScreen = ({ route, navigation }) => {
 
             <View style={styles.priceRow}>
               <View>
-                <Text style={styles.mrpText}>MRP ₹{item.mrp || item.price}</Text>
+                {/* MRP strike-through and discount only when the shop set a real MRP above the price */}
+                {hasMrpDiscount ? (
+                  <Text style={styles.mrpText}>MRP ₹{item.mrp}</Text>
+                ) : null}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.priceText}>₹{item.price}</Text>
-                  <Text style={styles.discountText}>15% OFF</Text>
+                  {hasMrpDiscount ? (
+                    <Text style={styles.discountText}>{discountPct}% OFF</Text>
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -250,7 +261,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
             <View style={styles.shopMetaRow}>
               <View style={styles.shopRatingBox}>
                 <Star size={12} color="#fff" fill="#fff" />
-                <Text style={styles.shopRatingText}>{shop.rating || '4.5'}</Text>
+                <Text style={styles.shopRatingText}>{Number(shop.rating) > 0 ? Number(shop.rating).toFixed(1) : 'New'}</Text>
               </View>
               <Text style={styles.shopCategoryText}>{shop.category}</Text>
               <Text style={[styles.shopStatusText, { color: shop.isOnline ? (isDarkMode ? '#34D399' : '#10B981') : '#EF4444' }]}>

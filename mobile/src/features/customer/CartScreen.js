@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView,
   TouchableOpacity, StatusBar, FlatList, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal, Image, Linking, AppState
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal, Linking, AppState
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -22,7 +22,7 @@ import {
   ShoppingCart, Minus, Plus, Trash2, MapPin, CreditCard,
   Tag, Clock, ChevronRight, Check, X, Truck, Zap, Shield, Smartphone, QrCode, ArrowRight, ExternalLink, Copy, CheckCircle2, ChevronDown, ChevronUp
 } from 'lucide-react-native';
-import { getImageUrl } from '../../utils/helpers';
+import ProductImage from '../../components/ui/ProductImage';
 import { isValidUtr, utrValidationError } from '../../utils/upiValidation';
 import { nativeUpiService } from '../../services/nativeUpiService';
 import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
@@ -296,7 +296,7 @@ const CartScreen = ({ route, navigation }) => {
         ? [Number(rawCoords[0]), Number(rawCoords[1])]
         : [72.5714, 23.0225];
 
-      const fullAddressStr = `${defaultAddress.label || 'Home'}: ${defaultAddress.street || defaultAddress.address || ''}, ${defaultAddress.city || 'Ahmedabad'}`.trim();
+      const fullAddressStr = `${defaultAddress.label || 'Home'}: ${[defaultAddress.street || defaultAddress.address, defaultAddress.city].filter(Boolean).join(', ')}`.trim();
 
       const orderPayload = {
         shopId,
@@ -538,15 +538,14 @@ const CartScreen = ({ route, navigation }) => {
   const renderCartItem = ({ item }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemEmoji}>
-        {item.imageUrl && getImageUrl(item.imageUrl) ? (
-          <Image 
-            source={{ uri: getImageUrl(item.imageUrl) }} 
-            style={{ width: '100%', height: '100%', borderRadius: 12 }} 
-            resizeMode="contain" 
-          />
-        ) : (
-          <Text style={{ fontSize: 24 }}>📦</Text>
-        )}
+        <ProductImage
+          imageUrl={item.imageUrl}
+          name={item.name}
+          style={{ width: '100%', height: '100%', borderRadius: 12 }}
+          resizeMode="contain"
+          iconSize={20}
+          isDarkMode={isDarkMode}
+        />
       </View>
       <View style={styles.itemInfo}>
         <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>

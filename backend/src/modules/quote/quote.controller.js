@@ -79,7 +79,8 @@ exports.placeQuote = catchAsync(async (req, res) => {
     if (existing) return errorResponse(res, 'You already placed a quote on this job', StatusCodes.CONFLICT);
 
     // Calculate ETA via Haversine
-    let calculatedTimeToReach = timeToReach || '20 mins';
+    // Worker-supplied or measured only; null (not a made-up default) when neither is available
+    let calculatedTimeToReach = timeToReach || null;
     const jobLat = job.location?.coordinates?.[1];
     const jobLon = job.location?.coordinates?.[0];
     const workerLat = workerLocation?.coordinates?.[1] || worker.activeLocation?.coordinates?.[1];
@@ -152,9 +153,19 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
     }
 
     let quotes = await Quote.find({ jobId: req.params.jobId, status: { $in: ['PENDING', 'ACCEPTED'] } })
-        .populate('workerId', 'name profileImage rating kyc.status activeLocation jobsCompleted')
+        .populate('workerId', 'name profileImage rating kyc.status activeLocation')
         .sort('amount')
         .lean();
+
+    // Real completed-job counts for the quoting workers (one grouped query)
+    const workerIds = quotes.map(q => q.workerId?._id).filter(Boolean);
+    const completedCounts = workerIds.length > 0
+        ? await Job.aggregate([
+            { $match: { workerId: { $in: workerIds }, status: { $in: ['COMPLETED', 'PAID', 'CLOSED'] } } },
+            { $group: { _id: '$workerId', n: { $sum: 1 } } }
+        ])
+        : [];
+    const completedByWorker = new Map(completedCounts.map(c => [String(c._id), c.n]));
 
     // Fetch Global Settings for fee calculation
     const SettingsService = require('../settings/settings.service');
@@ -178,6 +189,10 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
         // --- UNIFIED PRICING MODEL ---
         // Worker quote is their exact payout. Platform fee and GST added on top dynamically.
         const feeBreakdown = calculateJobFee(quote.amount, feeConfig);
+
+        if (quote.workerId && typeof quote.workerId === 'object') {
+            quote.workerId = { ...quote.workerId, completedJobs: completedByWorker.get(String(quote.workerId._id)) || 0 };
+        }
 
         return {
             ...quote,

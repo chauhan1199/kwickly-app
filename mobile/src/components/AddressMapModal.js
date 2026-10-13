@@ -199,8 +199,8 @@ export const AddressMapModal = ({
         const bld = addr.building || addr.house_number || addr.amenity || addr.shop || data.name || '';
         const road = addr.road || addr.residential || addr.street || '';
         const suburb = addr.suburb || addr.neighbourhood || addr.subdistrict || addr.district || '';
-        const cityName = addr.city || addr.town || addr.village || addr.state_district || 'Ahmedabad';
-        const st = addr.state || 'Gujarat';
+        const cityName = addr.city || addr.town || addr.village || addr.state_district || '';
+        const st = addr.state || '';
         const pin = addr.postcode ? addr.postcode.replace(/\D/g, '').slice(0, 6) : '';
 
         const areaJoined = [road, suburb].filter(Boolean).join(', ');
@@ -211,7 +211,7 @@ export const AddressMapModal = ({
         if (st) setStateName(st);
         if (pin && pin.length === 6) setPincode(pin);
 
-        setFormattedAddress(data.display_name || `${bld ? bld + ', ' : ''}${areaJoined}, ${cityName}, ${st} ${pin}`.trim());
+        setFormattedAddress(data.display_name || [bld, areaJoined, cityName, [st, pin].filter(Boolean).join(' ')].filter(Boolean).join(', '));
         return;
       }
 
@@ -224,8 +224,8 @@ export const AddressMapModal = ({
         const bld = p.name || '';
         const road = p.street || '';
         const suburb = p.district || p.locality || '';
-        const cityName = p.city || 'Ahmedabad';
-        const st = p.state || 'Gujarat';
+        const cityName = p.city || '';
+        const st = p.state || '';
         const pin = (p.postcode || '').replace(/\D/g, '').slice(0, 6);
 
         const areaJoined = [road, suburb].filter(Boolean).join(', ');
@@ -297,8 +297,8 @@ export const AddressMapModal = ({
                 name: p.name || '',
                 street: p.street || '',
                 district: p.district || p.locality || '',
-                city: p.city || 'Ahmedabad',
-                state: p.state || 'Gujarat',
+                city: p.city || '',
+                state: p.state || '',
                 postcode: (p.postcode || '').replace(/\D/g, '').slice(0, 6),
                 display_name: fullAddr,
                 title: name,
@@ -333,8 +333,8 @@ export const AddressMapModal = ({
                   name: item.name || title,
                   street: addr.road || addr.residential || '',
                   district: addr.suburb || addr.neighbourhood || addr.district || '',
-                  city: addr.city || addr.town || addr.village || 'Ahmedabad',
-                  state: addr.state || 'Gujarat',
+                  city: addr.city || addr.town || addr.village || '',
+                  state: addr.state || '',
                   postcode: (addr.postcode || '').replace(/\D/g, '').slice(0, 6),
                   display_name: item.display_name,
                   title: title,
@@ -481,7 +481,7 @@ export const AddressMapModal = ({
     const bld = item.name || item.title || '';
     const street = item.street || '';
     const district = item.district || '';
-    const cityName = item.city || 'Ahmedabad';
+    const cityName = item.city || '';
     const pin = item.postcode ? item.postcode.replace(/\D/g, '').slice(0, 6) : '';
 
     const areaCombined = [street, district].filter(Boolean).join(', ') || bld;

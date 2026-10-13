@@ -35,6 +35,7 @@ import {
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { shopService } from '../../services/shopService';
 import { getImageUrl, requestCameraPermission } from '../../utils/helpers';
+import ProductImage from '../../components/ui/ProductImage';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -442,17 +443,14 @@ const ShopProductsScreen = ({ navigation }) => {
                     {/* Top Row: Thumbnail + Details */}
                     <View style={styles.productTopRow}>
                       <View style={styles.productThumbnailWrap}>
-                        {resolvedImage ? (
-                          <Image 
-                            source={{ uri: resolvedImage }} 
-                            style={styles.productThumbnail} 
-                            resizeMode="cover" 
-                          />
-                        ) : (
-                          <View style={[styles.productThumbnail, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
-                            <Text style={{ fontSize: 26 }}>{product.icon}</Text>
-                          </View>
-                        )}
+                        <ProductImage
+                          imageUrl={resolvedImage}
+                          name={product.name}
+                          style={styles.productThumbnail}
+                          resizeMode="cover"
+                          iconSize={26}
+                          isDarkMode={isDarkMode}
+                        />
                         {/* Stock status overlay */}
                         <View style={[
                           styles.stockOverlay,

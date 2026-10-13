@@ -247,7 +247,7 @@ export const SavedAddressesScreen = ({ route, navigation }) => {
                     </Text>
                   )}
                   <Text style={styles.addressCityPin}>
-                    {addr.city || 'Ahmedabad'}{addr.pincode ? ` - ${addr.pincode}` : ''}
+                    {addr.city || ''}{addr.pincode ? `${addr.city ? ' - ' : ''}${addr.pincode}` : ''}
                   </Text>
                 </TouchableOpacity>
 

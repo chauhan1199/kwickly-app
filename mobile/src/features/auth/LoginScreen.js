@@ -44,6 +44,7 @@ import CustomAlert from '../../components/ui/CustomAlert';
 import LinearGradient from 'react-native-linear-gradient';
 import { useKeyboardBottomInset } from '../../hooks/useKeyboardBottomInset';
 import { getSafeBottomInset, getSafeTopInset } from '../../utils/safeInsets';
+import settingsService from '../../services/settingsService';
 
 const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#F5F3FF';
@@ -91,6 +92,21 @@ const LoginScreen = ({ navigation, route }) => {
   const scrollRef = useRef(null);
   const isCheckingRef = useRef(false);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  // Social proof from real platform data only (average job rating + number of ratings)
+  const [socialProof, setSocialProof] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    settingsService.getPublicStats()
+      .then((res) => {
+        const d = res?.data?.data;
+        const avg = Number(d?.averageRating) || 0;
+        const count = Number(d?.ratingCount) || 0;
+        if (alive && avg > 0 && count > 0) setSocialProof({ avg, count });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     if (prefillPhone && prefillPhone.length === 10) handleCheckNumber(prefillPhone);
@@ -434,13 +450,19 @@ const LoginScreen = ({ navigation, route }) => {
         </View>
       )}
 
-      {/* Social Proof Stars */}
-      <View style={[styles.socialProofRow, isCompactScreen && { marginTop: 2 }]}>
-        <Text style={[styles.socialProofStars, isCompactScreen && { fontSize: 10.5 }]}>★★★★★</Text>
-        <Text style={[styles.socialProofText, { color: textSub, fontSize: isCompactScreen ? 10 : 11 }]} numberOfLines={1} ellipsizeMode="tail">
-          {windowWidth < 350 ? 'Trusted by 10,000+ happy homes' : 'Trusted by 10,000+ happy homes across India'}
-        </Text>
-      </View>
+      {/* Social Proof — real average rating, hidden until there are ratings */}
+      {socialProof ? (
+        <View style={[styles.socialProofRow, isCompactScreen && { marginTop: 2 }]}>
+          <Text style={[styles.socialProofStars, isCompactScreen && { fontSize: 10.5 }]}>
+            {'★'.repeat(Math.round(socialProof.avg))}{'☆'.repeat(5 - Math.round(socialProof.avg))}
+          </Text>
+          <Text style={[styles.socialProofText, { color: textSub, fontSize: isCompactScreen ? 10 : 11 }]} numberOfLines={1} ellipsizeMode="tail">
+            {windowWidth < 350
+              ? `${socialProof.avg.toFixed(1)} from ${socialProof.count} ${socialProof.count === 1 ? 'rating' : 'ratings'}`
+              : `Rated ${socialProof.avg.toFixed(1)} by customers · ${socialProof.count} ${socialProof.count === 1 ? 'rating' : 'ratings'}`}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 

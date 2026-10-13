@@ -275,6 +275,41 @@ exports.getPublicSettings = catchAsync(async (req, res) => {
     return successResponse(res, publicSettings, 'Public settings fetched');
 });
 
+/**
+ * @desc Public platform stats for the app's welcome screen — real counts only.
+ *       Each value is computed from the database; nothing is padded or rounded up.
+ * @route GET /api/v1/settings/public/stats
+ */
+exports.getPublicStats = catchAsync(async (req, res) => {
+    const CACHE_KEY = 'public_platform_stats';
+    const cachedData = await getCache(CACHE_KEY);
+    if (cachedData) return successResponse(res, cachedData, 'Public stats from cache');
+
+    const Category = require('../category/category.model');
+    const Customer = require('../customer/customer.model');
+    const Job = require('../job/job.model');
+
+    const [categories, customers, ratingAgg] = await Promise.all([
+        Category.countDocuments({ active: { $ne: false } }),
+        Customer.countDocuments({ role: 'CUSTOMER', isDeleted: { $ne: true } }),
+        Job.aggregate([
+            { $match: { 'rating.score': { $gt: 0 } } },
+            { $group: { _id: null, average: { $avg: '$rating.score' }, count: { $sum: 1 } } }
+        ])
+    ]);
+
+    const ratingRow = ratingAgg[0];
+    const stats = {
+        categories,
+        customers,
+        averageRating: ratingRow ? Math.round(ratingRow.average * 10) / 10 : 0,
+        ratingCount: ratingRow ? ratingRow.count : 0
+    };
+
+    await setCache(CACHE_KEY, stats, 3600);
+    return successResponse(res, stats, 'Public stats fetched');
+});
+
 exports.getBranding = catchAsync(async (req, res) => {
     const cachedData = await getCache('app_branding');
     if (cachedData) return successResponse(res, cachedData, 'Branding from cache');

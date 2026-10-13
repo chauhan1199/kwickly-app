@@ -72,29 +72,20 @@ export const getServiceImage = (categoryName) => {
   return null;
 };
 
-// Ratings data per service
-const SERVICE_RATINGS = {
-  default: { rating: 4.8, reviews: 230 },
-  cleaning: { rating: 4.8, reviews: 250 },
-  plumbing: { rating: 4.7, reviews: 210 },
-  car: { rating: 4.8, reviews: 180 },
-  'home cook': { rating: 4.8, reviews: 165 },
-  astrology: { rating: 4.7, reviews: 130 },
-  'yoga & fitness': { rating: 4.9, reviews: 150 },
-};
-
-export const getServiceRating = (name) => {
-  const lower = name?.toLowerCase() || '';
-  for (const [key, val] of Object.entries(SERVICE_RATINGS)) {
-    if (lower.includes(key)) return val;
-  }
-  return SERVICE_RATINGS.default;
+// Real customer rating for a category, as sent by GET /categories ({ average, count }).
+// Returns null when the category has no reviews yet so callers show "New" instead of a number.
+export const getServiceRating = (cat) => {
+  const r = cat?.rating;
+  const average = Number(r?.average) || 0;
+  const count = Number(r?.count) || 0;
+  if (average <= 0 || count <= 0) return null;
+  return { rating: Math.round(average * 10) / 10, reviews: count };
 };
 
 export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = style?.width || Math.min(145, Math.max(96, Math.floor((windowWidth - 32 - 24) / 3)));
-  const { rating, reviews } = getServiceRating(cat.label || cat.name);
+  const realRating = getServiceRating(cat);
   const [imgError, setImgError] = React.useState(false);
   const resolvedNetworkImg = !imgError && cat.imageUrl ? getImageUrl(cat.imageUrl) : null;
   const localImg = cat.localImage || getServiceImage(cat.name || cat.label);
@@ -131,8 +122,14 @@ export const ServiceCard = ({ cat, index, theme, isLast, onPress, style }) => {
       <View style={styles.serviceCardFooter}>
         <Text style={[styles.serviceCardName, { color: theme.colors.text }]} numberOfLines={2}>{cat.label || cat.name}</Text>
         <View style={styles.serviceCardRatingRow}>
-          <Star size={12} color="#F5A623" fill="#F5A623" />
-          <Text style={styles.serviceCardRating}> {rating} ({reviews})</Text>
+          {realRating ? (
+            <>
+              <Star size={12} color="#F5A623" fill="#F5A623" />
+              <Text style={styles.serviceCardRating}> {realRating.rating.toFixed(1)} ({realRating.reviews})</Text>
+            </>
+          ) : (
+            <Text style={styles.serviceCardRating}>New</Text>
+          )}
         </View>
       </View>
     </TouchableOpacity>

@@ -16,15 +16,6 @@ const GRADIENTS = [
   ['#2563EB', '#60A5FA'],
 ];
 
-const DEFAULT_PROMOS = [
-  {
-    code: 'WELCOME20',
-    title: 'Welcome 20% Discount',
-    description: 'Get 20% OFF on your first service!',
-    type: 'PERCENTAGE_DISCOUNT',
-    value: 20,
-  },
-];
 
 export const PromoCarousel = ({
   promos = [],
@@ -40,7 +31,8 @@ export const PromoCarousel = ({
   const currentIndexRef = useRef(0);
   const directionRef = useRef(1);
 
-  const displayPromos = Array.isArray(promos) && promos.length > 0 ? promos : DEFAULT_PROMOS;
+  // Only real, admin-created promotions — no placeholder code that would fail at checkout
+  const displayPromos = Array.isArray(promos) ? promos : [];
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -121,6 +113,8 @@ export const PromoCarousel = ({
       </LinearGradient>
     );
   };
+
+  if (displayPromos.length === 0) return null;
 
   return (
     <View style={[styles.container, style]}>

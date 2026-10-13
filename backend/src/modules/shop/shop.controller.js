@@ -215,8 +215,9 @@ exports.getAllShops = catchAsync(async (req, res) => {
 
     shops = shops.map(shop => {
         let distanceKm = null;
-        let distanceFormatted = '1.5 km';
-        let deliveryEstimate = '25-35 min';
+        // Unknown until we can measure it — never send a made-up distance/ETA
+        let distanceFormatted = null;
+        let deliveryEstimate = null;
 
         if (hasUserLocation && shop.location?.coordinates && shop.location.coordinates.length === 2) {
             const [shopLng, shopLat] = shop.location.coordinates;

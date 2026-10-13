@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 import { getSafeBottomInset, getSafeTopInset } from '../../utils/safeInsets';
+import settingsService from '../../services/settingsService';
 
 const LEFT_CHIPS = [
   { key: 'plumbing', label: 'Plumbing', icon: require('../../assets/images/icon_plumbing.png') },
@@ -45,11 +46,32 @@ const FEATURES = [
   { icon: Tag, label: 'Best\nPrices', color: '#EC4899', bg: '#FDF2F8' },
 ];
 
-const STATS = [
-  { icon: Package, value: '40+', label: 'Categories', bg: '#F5F3FF', border: '#DDD6FE', text: '#6C47FF' },
-  { icon: Users, value: '25K+', label: 'Happy Users', bg: '#ECFDF5', border: '#A7F3D0', text: '#059669' },
-  { icon: Star, value: '4.7★', label: 'Top Rated', bg: '#FEF3C7', border: '#FDE68A', text: '#D97706' },
-];
+// Compact count for display: 1234 -> "1.2K". Exact figures only, never rounded up with a "+".
+const formatCount = (n) => {
+  if (n >= 1000000) return `${(Math.floor(n / 100000) / 10).toString()}M`;
+  if (n >= 1000) return `${(Math.floor(n / 100) / 10).toString()}K`;
+  return String(n);
+};
+
+// Builds the stat cards from real platform numbers; a card is left out when its value is not known yet.
+export const buildWelcomeStats = (stats) => {
+  if (!stats) return [];
+  const items = [];
+  const categories = Number(stats.categories) || 0;
+  const customers = Number(stats.customers) || 0;
+  const avg = Number(stats.averageRating) || 0;
+  const ratingCount = Number(stats.ratingCount) || 0;
+  if (categories > 0) {
+    items.push({ icon: Package, value: formatCount(categories), label: categories === 1 ? 'Category' : 'Categories', bg: '#F5F3FF', border: '#DDD6FE', text: '#6C47FF' });
+  }
+  if (customers > 0) {
+    items.push({ icon: Users, value: formatCount(customers), label: customers === 1 ? 'Customer' : 'Customers', bg: '#ECFDF5', border: '#A7F3D0', text: '#059669' });
+  }
+  if (avg > 0 && ratingCount > 0) {
+    items.push({ icon: Star, value: `${avg.toFixed(1)}★`, label: `${formatCount(ratingCount)} ${ratingCount === 1 ? 'Rating' : 'Ratings'}`, bg: '#FEF3C7', border: '#FDE68A', text: '#D97706' });
+  }
+  return items;
+};
 
 const WelcomeScreen = ({ navigation }) => {
   const { isDarkMode } = useTheme();
@@ -67,6 +89,15 @@ const WelcomeScreen = ({ navigation }) => {
 
   const safeTopPadding = getSafeTopInset(insets, 14);
   const safeBottomInset = getSafeBottomInset(insets, 8);
+
+  const [stats, setStats] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    settingsService.getPublicStats()
+      .then((res) => { if (alive) setStats(buildWelcomeStats(res?.data?.data)); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   return (
     <View style={[styles.root, { backgroundColor: isDarkMode ? '#0B0F19' : '#F8F9FD' }]}>
@@ -240,9 +271,10 @@ const WelcomeScreen = ({ navigation }) => {
           })}
         </View>
 
-        {/* 3 STATS SUMMARY CARDS */}
+        {/* STATS SUMMARY CARDS — real platform numbers only, hidden until loaded */}
+        {stats.length > 0 && (
         <View style={styles.statsRow}>
-          {STATS.map((s) => {
+          {stats.map((s) => {
             const Icon = s.icon;
             return (
               <View
@@ -266,6 +298,7 @@ const WelcomeScreen = ({ navigation }) => {
             );
           })}
         </View>
+        )}
 
         {/* PRIMARY CTA & SIGN IN LINK */}
         <View style={styles.ctaBlock}>

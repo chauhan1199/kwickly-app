@@ -54,11 +54,11 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
   const rawWLat = Number(user?.activeLocation?.coordinates?.[1]);
   const rawWLng = Number(user?.activeLocation?.coordinates?.[0]);
   const hasRawCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
-  const distanceDeg = hasRawCoords ? Math.hypot(rawWLat - jobLat, rawWLng - jobLng) : 999;
-  
   let initialWorkerLat = rawWLat;
   let initialWorkerLng = rawWLng;
-  if (!hasRawCoords || distanceDeg < 0.002) {
+  // Unknown location: park the draggable pin beside the job so the worker can drag it to where they are.
+  // No distance/ETA is shown until it is a real position (saved location or a manual drag).
+  if (!hasRawCoords) {
     initialWorkerLat = jobLat + 0.0072;
     initialWorkerLng = jobLng + 0.0055;
   }
@@ -115,7 +115,7 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
           className: '', iconSize: [24, 24], iconAnchor: [12, 12]
         });
         
-        const workerMarker = L.marker([wLat, wLng], {icon: workerIcon, draggable: true}).addTo(map).bindPopup("<b>Your Location</b> (Drag to adjust)").openPopup();
+        const workerMarker = L.marker([wLat, wLng], {icon: workerIcon, draggable: true}).addTo(map).bindPopup(${hasRawCoords ? '"<b>Your Location</b> (Drag to adjust)"' : '"<b>Drag me to your location</b>"'}).openPopup();
         
         // Connecting line
         const routeLine = L.polyline([[wLat, wLng], [lat, lng]], {
@@ -128,8 +128,10 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
         const bounds = L.latLngBounds([[lat, lng], [wLat, wLng]]);
         map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
 
-        // Initial calculate trigger
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'location_update', lat: wLat, lng: wLng }));
+        // Initial calculate trigger — only for a real saved location
+        if (${hasRawCoords ? 'true' : 'false'}) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'location_update', lat: wLat, lng: wLng }));
+        }
 
         workerMarker.on('dragend', function (e) {
             const position = workerMarker.getLatLng();

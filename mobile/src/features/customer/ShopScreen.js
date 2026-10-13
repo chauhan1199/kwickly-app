@@ -58,6 +58,8 @@ const ShopScreen = ({ navigation }) => {
   const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
   const userLng = primaryAddress?.location?.coordinates?.[0] ?? 72.574115;
   const userLat = primaryAddress?.location?.coordinates?.[1] ?? 23.1222453;
+  // Distances are only shown when measured from the user's real saved address, never the fallback point
+  const hasUserLocation = Array.isArray(primaryAddress?.location?.coordinates) && primaryAddress.location.coordinates.length === 2;
 
   // Instant local cache restore
   useEffect(() => {
@@ -89,7 +91,7 @@ const ShopScreen = ({ navigation }) => {
       }
       setDebugError(null);
 
-      const params = { lng: userLng, lat: userLat };
+      const params = hasUserLocation ? { lng: userLng, lat: userLat } : {};
 
       // Parallel fetch for shops and banners
       const [shopsResult, bannersResult] = await Promise.allSettled([
@@ -102,11 +104,11 @@ const ShopScreen = ({ navigation }) => {
         const fetchedShops = Array.isArray(payload) ? payload : (payload?.shops || []);
         
         const mappedShops = fetchedShops.map((s) => {
-          let distanceKm = s.distanceKm;
-          let distanceFormatted = s.distanceFormatted;
-          let deliveryEstimate = s.deliveryEstimate || '20-35 min';
+          let distanceKm = hasUserLocation ? s.distanceKm : null;
+          let distanceFormatted = hasUserLocation ? s.distanceFormatted : null;
+          let deliveryEstimate = hasUserLocation ? (s.deliveryEstimate || null) : null;
 
-          if (s.location?.coordinates && s.location.coordinates.length === 2) {
+          if (hasUserLocation && s.location?.coordinates && s.location.coordinates.length === 2) {
             const rawDist = haversine([userLng, userLat], s.location.coordinates);
             if (rawDist !== null) {
               distanceKm = Math.round(rawDist * 10) / 10;
@@ -120,12 +122,13 @@ const ShopScreen = ({ navigation }) => {
             name: s.name,
             category: s.category || 'General',
             description: s.description || '',
-            rating: typeof s.rating === 'number' ? s.rating : 4.5,
+            // Real shop rating only; null (shown as "New") when the shop has none yet
+            rating: Number(s.rating) > 0 ? Number(s.rating).toFixed(1) : null,
             totalOrders: s.totalOrders || 0,
             distanceKm: distanceKm !== null && distanceKm !== undefined ? distanceKm : 999,
-            dist: distanceFormatted || '1.2 km',
+            dist: distanceFormatted || null, // hidden in the UI when unknown
             delivery: deliveryEstimate,
-            minFree: s.deliveryConfig?.freeDeliveryAbove || 500,
+            minFree: s.deliveryConfig?.freeDeliveryAbove || null,
             isOnline: s.isOnline !== false,
             address: s.address || '',
             logoUrl: s.logoUrl || null
@@ -160,7 +163,7 @@ const ShopScreen = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userLng, userLat, shops.length]);
+  }, [userLng, userLat, hasUserLocation, shops.length]);
 
   useEffect(() => {
     fetchShops();
@@ -357,8 +360,8 @@ const ShopScreen = ({ navigation }) => {
                       </View>
                     )}
                     <View style={styles.floatingRating}>
-                      <Star size={10} color="#F59E0B" fill="#F59E0B" />
-                      <Text style={styles.floatingRatingText}>{shop.rating}</Text>
+                      {shop.rating ? <Star size={10} color="#F59E0B" fill="#F59E0B" /> : null}
+                      <Text style={styles.floatingRatingText}>{shop.rating || 'New'}</Text>
                     </View>
                   </View>
 
@@ -372,19 +375,25 @@ const ShopScreen = ({ navigation }) => {
                     {/* Category & Distance */}
                     <View style={styles.categoryDistRow}>
                       <Text style={styles.shopCategoryText} numberOfLines={1}>{shop.category}</Text>
-                      <Text style={styles.dotSeparator}>•</Text>
-                      <View style={styles.distBadge}>
-                        <MapPin size={11} color="#6C47FF" style={{ marginRight: 2 }} />
-                        <Text style={styles.distText}>{shop.dist}</Text>
-                      </View>
+                      {shop.dist ? (
+                        <>
+                          <Text style={styles.dotSeparator}>•</Text>
+                          <View style={styles.distBadge}>
+                            <MapPin size={11} color="#6C47FF" style={{ marginRight: 2 }} />
+                            <Text style={styles.distText}>{shop.dist}</Text>
+                          </View>
+                        </>
+                      ) : null}
                     </View>
 
                     {/* Badges Row */}
                     <View style={styles.deliveryBadgeRow}>
-                      <View style={styles.deliveryTimePill}>
-                        <Clock size={11} color="#059669" style={{ marginRight: 3 }} />
-                        <Text style={styles.deliveryTimeText}>{shop.delivery}</Text>
-                      </View>
+                      {shop.delivery ? (
+                        <View style={styles.deliveryTimePill}>
+                          <Clock size={11} color="#059669" style={{ marginRight: 3 }} />
+                          <Text style={styles.deliveryTimeText}>{shop.delivery}</Text>
+                        </View>
+                      ) : null}
 
                       {shop.minFree ? (
                         <View style={styles.freeDeliveryPill}>

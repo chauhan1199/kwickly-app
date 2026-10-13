@@ -5,6 +5,7 @@ const { authMiddleware } = require('../../middleware/auth.middleware');
 const authorize = require('../../middleware/role.middleware');
 
 router.get('/public', settingsController.getPublicSettings);
+router.get('/public/stats', settingsController.getPublicStats);
 
 router.use(authMiddleware);
 router.use(authorize('ADMIN'));

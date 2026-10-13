@@ -129,12 +129,21 @@ exports.getCategories = catchAsync(async (req, res) => {
         const rawCategories = await Category.find().lean();
         let jobCountsMap = {};
         let subCountsMap = {};
+        // Real customer ratings per job category: { [category]: { sum, count } }
+        let ratingMap = {};
         try {
             const Job = require('../job/job.model');
-            const jobs = await Job.find({}).select('category subcategory').lean();
+            const jobs = await Job.find({}).select('category subcategory rating.score').lean();
             jobs.forEach(j => {
                 if (j.category) {
                     jobCountsMap[j.category] = (jobCountsMap[j.category] || 0) + 1;
+                    const score = Number(j.rating?.score);
+                    if (score > 0) {
+                        const r = ratingMap[j.category] || { sum: 0, count: 0 };
+                        r.sum += score;
+                        r.count += 1;
+                        ratingMap[j.category] = r;
+                    }
                 }
                 if (j.subcategory) {
                     subCountsMap[j.subcategory] = (subCountsMap[j.subcategory] || 0) + 1;
@@ -147,6 +156,15 @@ exports.getCategories = catchAsync(async (req, res) => {
                 return matchesCategory(c.name, k) ? acc + v : acc;
             }, c.bookingCount || 0);
             const frequencyScore = getCategoryFrequencyScore(c.name, jobCountsMap);
+            const ratingAgg = Object.entries(ratingMap).reduce((acc, [k, v]) => {
+                // Exact (case-insensitive) match so one category never borrows another's reviews
+                if ((c.name || '').trim().toLowerCase() !== (k || '').trim().toLowerCase()) return acc;
+                return { sum: acc.sum + v.sum, count: acc.count + v.count };
+            }, { sum: 0, count: 0 });
+            const rating = {
+                average: ratingAgg.count > 0 ? Math.round((ratingAgg.sum / ratingAgg.count) * 10) / 10 : 0,
+                count: ratingAgg.count
+            };
 
             let sortedSubs = (c.subcategories || []).map(s => {
                 const subBookingCount = Object.entries(subCountsMap).reduce((acc, [k, v]) => {
@@ -175,6 +193,7 @@ exports.getCategories = catchAsync(async (req, res) => {
                 ...c,
                 bookingCount,
                 frequencyScore,
+                rating,
                 subcategories: sortedSubs
             };
         });

@@ -17,7 +17,14 @@ const RateExperienceScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
 
   const { worker } = route.params || {};
-  const w = worker || { name: 'Ramesh Kumar', cat: 'Cleaning · Home Cleaning' };
+  // Real worker + service from the job; no placeholder person
+  const ratedJob = route.params?.job;
+  const jobWorker = ratedJob && typeof ratedJob.workerId === 'object' ? ratedJob.workerId : null;
+  const w = {
+    ...(jobWorker || {}),
+    ...(worker || {}),
+    cat: worker?.cat || [ratedJob?.category, ratedJob?.subcategory].filter(Boolean).join(' · '),
+  };
 
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
@@ -68,7 +75,7 @@ const RateExperienceScreen = ({ route, navigation }) => {
         </View>
 
         <Text style={styles.workerName}>{w.name || 'Worker'}</Text>
-        <Text style={styles.workerSub}>{w.cat}</Text>
+        {w.cat ? <Text style={styles.workerSub}>{w.cat}</Text> : null}
         
         <Text style={styles.successText}>✅ Job Completed Successfully</Text>
 

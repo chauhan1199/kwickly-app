@@ -166,7 +166,7 @@ const ShopSettingsScreen = ({ navigation }) => {
 
   // Analytics
   const [analyticsFilter, setAnalyticsFilter] = useState('ALL');
-  const [analyticsData, setAnalyticsData] = useState({ revenue: 0, orders: 0, rating: 5.0, repeatRate: '0%', topProducts: [] });
+  const [analyticsData, setAnalyticsData] = useState({ revenue: 0, orders: 0, rating: 0, repeatRate: '0%', topProducts: [] });
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -277,7 +277,7 @@ const ShopSettingsScreen = ({ navigation }) => {
         setAnalyticsData({
           revenue,
           orders: filtered.length,
-          rating: shop?.rating || 5.0,
+          rating: Number(shop?.rating) || 0, // real rating; 0 shows as "No ratings yet"
           repeatRate,
           topProducts
         });
@@ -564,7 +564,7 @@ const ShopSettingsScreen = ({ navigation }) => {
         `📅 *Period:* ${analyticsFilter === 'ALL' ? 'All Time' : analyticsFilter === 'WEEK' ? 'This Week' : 'This Month'}\n\n` +
         `💰 *Revenue:* ₹${analyticsData.revenue.toLocaleString('en-IN')}\n` +
         `📦 *Total Orders:* ${analyticsData.orders}\n` +
-        `⭐ *Store Rating:* ${analyticsData.rating} ★\n` +
+        `⭐ *Store Rating:* ${analyticsData.rating > 0 ? `${analyticsData.rating.toFixed(1)} ★` : 'No ratings yet'}\n` +
         `🔄 *Repeat Customer Rate:* ${analyticsData.repeatRate}\n\n` +
         `🔥 *Top Selling Products:*\n` +
         analyticsData.topProducts.map((p, i) => `${i + 1}. ${p.name} (${p.percent})`).join('\n');
@@ -637,7 +637,7 @@ const ShopSettingsScreen = ({ navigation }) => {
                     {shop?.address || 'Address not configured'}
                   </Text>
                 </View>
-                <Text style={[s.shopSub, { marginTop: 3 }]}>📞 {shop?.phone || '+91 9876543210'}  ·  {shop?.totalOrders ?? 0} orders</Text>
+                <Text style={[s.shopSub, { marginTop: 3 }]}>📞 {shop?.phone || shop?.ownerId?.phone || 'Phone not set'}  ·  {shop?.totalOrders ?? 0} orders</Text>
               </View>
             </View>
 
@@ -1170,7 +1170,7 @@ const ShopSettingsScreen = ({ navigation }) => {
                   <Text style={s.analyticsTileLabel}>Orders Completed</Text>
                 </View>
                 <View style={s.analyticsTile}>
-                  <Text style={[s.analyticsTileVal, { color: '#0284C7' }]}>{analyticsData.rating.toFixed(1)} ★</Text>
+                  <Text style={[s.analyticsTileVal, { color: '#0284C7' }]}>{analyticsData.rating > 0 ? `${analyticsData.rating.toFixed(1)} ★` : '—'}</Text>
                   <Text style={s.analyticsTileLabel}>Average Rating</Text>
                 </View>
                 <View style={s.analyticsTile}>

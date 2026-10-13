@@ -530,7 +530,7 @@ const WorkerProfileScreen = ({ navigation }) => {
       setAddrLabel('Home');
       setAddrStreet('');
       setAddrArea('');
-      setAddrCity(profile?.city || 'Ahmedabad');
+      setAddrCity(profile?.city || '');
       setAddrPincode('');
       setAddrIsPrimary(addressList.length === 0);
       setAddrCoordinate(null);
@@ -839,8 +839,15 @@ const WorkerProfileScreen = ({ navigation }) => {
             {renderMenuItem(
               <Star size={20} color="#F59E0B" />,
               'My Ratings & Reviews',
-              `${profile?.rating?.average || 5.0} ★ (${profile?.rating?.count || 0} reviews)`,
-              () => Alert.alert('Customer Reviews', `Your average customer rating is ${profile?.rating?.average || 5.0} stars across ${profile?.rating?.count || 0} completed orders.`)
+              profile?.rating?.count > 0 && profile?.rating?.average > 0
+                ? `${Number(profile.rating.average).toFixed(1)} ★ (${profile.rating.count} ${profile.rating.count === 1 ? 'review' : 'reviews'})`
+                : 'No reviews yet',
+              () => Alert.alert(
+                'Customer Reviews',
+                profile?.rating?.count > 0 && profile?.rating?.average > 0
+                  ? `Your average customer rating is ${Number(profile.rating.average).toFixed(1)} stars across ${profile.rating.count} rated ${profile.rating.count === 1 ? 'job' : 'jobs'}.`
+                  : 'You have no customer ratings yet. Ratings appear here after customers review completed jobs.'
+              )
             )}
           </View>
 

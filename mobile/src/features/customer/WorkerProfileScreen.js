@@ -32,6 +32,8 @@ import { customerService } from '../../services/customerService';
 import { jobService } from '../../services/jobService';
 import { getCategoryIcon, getCategoryLocalImage } from '../../utils/categoryTheme';
 import { getImageUrl } from '../../utils/helpers';
+import { formatDistance, estimateEtaMinutes, getRealRating } from '../../utils/geo';
+import { getCategoryStartingPrice } from '../../utils/fees';
 
 const WorkerProfileScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -67,8 +69,9 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             setWorkerData(prev => ({
               ...prev,
               ...data,
-              dist: prev.dist || `${data.distanceKm || '2.5'} km`,
-              eta: prev.eta || 15
+              // Only real values: keep what the list measured, else what the server measured, else unknown
+              dist: prev.dist || (data.distanceKm ? formatDistance(Number(data.distanceKm)) : null),
+              eta: prev.eta || estimateEtaMinutes(data.distanceKm ? Number(data.distanceKm) : null)
             }));
           }
 
@@ -109,7 +112,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
         };
       });
 
-      const basePrice = s.category?.basePrice || matchedCategory?.basePrice || w.price || 199;
+      const basePrice = getCategoryStartingPrice(s.category) || getCategoryStartingPrice(matchedCategory) || w.price || null;
       const desc = s.category?.description || matchedCategory?.description || '';
       return { catName, catIcon, catImageUrl, subs, subcategoriesWithData, basePrice, desc };
     });
@@ -120,7 +123,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
     catImageUrl: null,
     subs: ['General Maintenance & Diagnostics'],
     subcategoriesWithData: [{ name: 'General Maintenance & Diagnostics', imageUrl: null }],
-    basePrice: w.price || 199
+    basePrice: w.price || null
   };
 
   // Sync route params with selection or fallback to first
@@ -147,14 +150,16 @@ const WorkerProfileScreen = ({ route, navigation }) => {
 
   const activeService = servicesList[selectedCatIndex] || servicesList[0] || primaryService;
   const activeSub = selectedSubcategory || activeService.subs[0] || 'General Inspection';
-  const activePrice = activeService.basePrice || w.price || 199;
+  const activePrice = activeService.basePrice || w.price || null;
 
-  const startingPrice = servicesList.length > 0 
-    ? Math.min(...servicesList.map(s => s.basePrice || 199)) 
-    : (w.price || 199);
+  const knownPrices = servicesList.map(s => s.basePrice).filter(p => p > 0);
+  const startingPrice = knownPrices.length > 0
+    ? Math.min(...knownPrices)
+    : (w.price || null);
 
-  const ratingAvg = typeof w.rating === 'object' ? (w.rating?.average || 5.0) : (Number(w.rating) || 5.0);
-  const ratingCount = typeof w.rating === 'object' ? (w.rating?.count || (w.jobs > 0 ? w.jobs : 0)) : (w.jobs || 0);
+  // Real rating only — 0 renders as "New"; review count never borrows the job count
+  const ratingAvg = getRealRating(w.rating) || 0;
+  const ratingCount = typeof w.rating === 'object' ? (Number(w.rating?.count) || 0) : 0;
   const totalJobs = w.completedJobs !== undefined ? w.completedJobs : (w.jobs || 0);
 
   const reviewsList = Array.isArray(w.reviews) ? w.reviews : [];
@@ -209,12 +214,16 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             <View style={styles.heroMetaRow}>
               <View style={styles.starPill}>
                 <Star size={11} color="#f59e0b" fill="#f59e0b" />
-                <Text style={styles.starText}>{ratingAvg > 0 ? ratingAvg.toFixed(1) : '5.0'}</Text>
+                <Text style={styles.starText}>{ratingAvg > 0 ? ratingAvg.toFixed(1) : 'New'}</Text>
               </View>
               <Text style={styles.dotDivider}>·</Text>
               <Text style={styles.heroMetaText}>{totalJobs} jobs done</Text>
-              <Text style={styles.dotDivider}>·</Text>
-              <Text style={styles.heroMetaText}>📍 {w.dist || 'Nearby'}</Text>
+              {w.dist ? (
+                <>
+                  <Text style={styles.dotDivider}>·</Text>
+                  <Text style={styles.heroMetaText}>📍 {w.dist}</Text>
+                </>
+              ) : null}
             </View>
           </View>
 
@@ -229,9 +238,11 @@ const WorkerProfileScreen = ({ route, navigation }) => {
                 </Text>
               </LinearGradient>
             )}
-            <View style={styles.onlineBadge}>
-              <View style={styles.onlineDot} />
-            </View>
+            {w.isOnline ? (
+              <View style={styles.onlineBadge}>
+                <View style={styles.onlineDot} />
+              </View>
+            ) : null}
           </View>
         </View>
       </LinearGradient>
@@ -248,10 +259,10 @@ const WorkerProfileScreen = ({ route, navigation }) => {
               <Star size={16} color="#f59e0b" fill="#f59e0b" />
             </View>
             <Text style={styles.statValue}>
-              {ratingAvg > 0 ? ratingAvg.toFixed(1) : '5.0'}
+              {ratingAvg > 0 ? ratingAvg.toFixed(1) : 'New'}
             </Text>
             <Text style={styles.statLabel}>
-              {ratingCount > 0 ? `${ratingCount} reviews` : 'Top Rated'}
+              {ratingCount > 0 ? `${ratingCount} ${ratingCount === 1 ? 'review' : 'reviews'}` : 'No reviews yet'}
             </Text>
           </View>
 
@@ -271,7 +282,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             <View style={[styles.statIconWrap, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
               <MapPin size={16} color="#10b981" />
             </View>
-            <Text style={styles.statValue}>{w.dist || 'Nearby'}</Text>
+            <Text style={styles.statValue}>{w.dist || '—'}</Text>
             <Text style={styles.statLabel}>Distance</Text>
           </View>
 
@@ -281,7 +292,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             <View style={[styles.statIconWrap, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
               <Clock size={16} color="#f59e0b" />
             </View>
-            <Text style={styles.statValue}>~{w.eta || 15}m</Text>
+            <Text style={styles.statValue}>{w.eta ? `~${w.eta}m` : '—'}</Text>
             <Text style={styles.statLabel}>Est. Arrival</Text>
           </View>
         </View>
@@ -306,7 +317,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.serviceItemName}>{w.cat || 'General Service'}</Text>
-                  <Text style={styles.serviceItemRate}>Base fee ₹{startingPrice}</Text>
+                  <Text style={styles.serviceItemRate}>{startingPrice ? `Base fee ₹${startingPrice}` : 'Price on quote'}</Text>
                 </View>
               </View>
             </View>
@@ -356,9 +367,13 @@ const WorkerProfileScreen = ({ route, navigation }) => {
                           <Text style={styles.tapToSelectText}>Tap to select</Text>
                         )}
                       </View>
-                      <Text style={styles.serviceItemRate}>
-                        Starting from <Text style={styles.serviceItemPrice}>₹{srv.basePrice}</Text>
-                      </Text>
+                      {srv.basePrice ? (
+                        <Text style={styles.serviceItemRate}>
+                          Starting from <Text style={styles.serviceItemPrice}>₹{srv.basePrice}</Text>
+                        </Text>
+                      ) : (
+                        <Text style={styles.serviceItemRate}>Price on quote</Text>
+                      )}
                     </View>
                   </View>
 
@@ -459,7 +474,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>Customer Reviews</Text>
             {reviewsList.length > 0 && (
               <Text style={styles.reviewsCountText}>
-                ★ {ratingAvg.toFixed(1)} ({reviewsList.length})
+                {ratingAvg > 0 ? `★ ${ratingAvg.toFixed(1)} (${ratingCount || reviewsList.length})` : `${reviewsList.length} ${reviewsList.length === 1 ? 'review' : 'reviews'}`}
               </Text>
             )}
           </View>
@@ -526,7 +541,7 @@ const WorkerProfileScreen = ({ route, navigation }) => {
               {activeService.catName}
             </Text>
             <View style={styles.bottomPriceRow}>
-              <Text style={styles.bottomPrice}>₹{activePrice}</Text>
+              <Text style={styles.bottomPrice}>{activePrice ? `₹${activePrice}` : 'Get quotes'}</Text>
               <View style={styles.selectedSubBadge}>
                 <Text style={styles.bottomSubPill} numberOfLines={1}>
                   {activeSub}

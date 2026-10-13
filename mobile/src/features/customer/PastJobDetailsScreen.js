@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { jobService } from '../../services/jobService';
+import { getRealRating } from '../../utils/geo';
 import { 
   ChevronLeft, 
   Bell, 
@@ -128,11 +129,13 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
 
   const worker = jobData.workerId;
   const workerName = worker?.name || 'Assigned Professional';
-  const workerRating = worker?.rating?.average || 5;
+  // Real rating only (null = not rated yet)
+  const workerRating = getRealRating(worker?.rating);
 
   const totalAmount = jobData.payment?.amount || (jobData.budget ? Number(jobData.budget) : 0);
-  const workerPayout = jobData.payment?.workerPayout || (totalAmount > 50 ? totalAmount - 50 : totalAmount);
-  const taxesFees = jobData.payment?.platformFee ? (jobData.payment.platformFee + (jobData.payment.gst || 0)) : (totalAmount > 50 ? 50 : 0);
+  // Breakdown rows only when the server recorded them; no guessed flat fee
+  const workerPayout = jobData.payment?.workerPayout || null;
+  const taxesFees = jobData.payment?.platformFee ? (jobData.payment.platformFee + (jobData.payment.gst ?? jobData.payment.gstAmount ?? 0)) : 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -301,11 +304,15 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.workerName}>{workerName}</Text>
-                <Text style={styles.workerRating}>
-                  <Text style={{ color: '#f5b300' }}>{'★'.repeat(Math.round(workerRating))}</Text>
-                  <Text style={{ color: theme.colors.textDim }}>{'☆'.repeat(5 - Math.round(workerRating))}</Text>
-                  <Text style={{ color: theme.colors.textDim, fontSize: 12 }}> ({workerRating})</Text>
-                </Text>
+                {workerRating ? (
+                  <Text style={styles.workerRating}>
+                    <Text style={{ color: '#f5b300' }}>{'★'.repeat(Math.round(workerRating))}</Text>
+                    <Text style={{ color: theme.colors.textDim }}>{'☆'.repeat(5 - Math.round(workerRating))}</Text>
+                    <Text style={{ color: theme.colors.textDim, fontSize: 12 }}> ({workerRating.toFixed(1)})</Text>
+                  </Text>
+                ) : (
+                  <Text style={[styles.workerRating, { color: theme.colors.textDim, fontSize: 12 }]}>New · not rated yet</Text>
+                )}
               </View>
             </View>
           </View>
@@ -316,10 +323,12 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
           <View style={styles.card}>
             <Text style={styles.sectionHeader}>Payment Details</Text>
             <View style={{ marginTop: 12 }}>
-              <View style={styles.invoiceRow}>
-                <Text style={styles.invoiceText}>Service Charge</Text>
-                <Text style={styles.invoiceText}>₹{workerPayout}</Text>
-              </View>
+              {workerPayout ? (
+                <View style={styles.invoiceRow}>
+                  <Text style={styles.invoiceText}>Service Charge</Text>
+                  <Text style={styles.invoiceText}>₹{workerPayout}</Text>
+                </View>
+              ) : null}
               {taxesFees > 0 && (
                 <View style={styles.invoiceRow}>
                   <Text style={styles.invoiceMuted}>Platform Fee & GST</Text>

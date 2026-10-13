@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, StatusBar, ActivityIndicator, Alert, Image
+  TouchableOpacity, StatusBar, ActivityIndicator, Alert
 } from 'react-native';
 
 import { useTheme } from '../../context/ThemeContext';
@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import { shopService } from '../../services/shopService';
 import useSocket from '../../hooks/useSocket';
-import { getImageUrl } from '../../utils/helpers';
+import ProductImage from '../../components/ui/ProductImage';
 import {
   Check, Clock, Package, Truck, MapPin, Phone,
   Copy, FileText, MessageCircle, ChevronRight, XCircle
@@ -216,15 +216,14 @@ const OrderTrackingScreen = ({ route, navigation }) => {
           {order.items?.map((item, idx) => (
             <View key={idx} style={styles.itemRow}>
               <View style={styles.itemEmoji}>
-                {item.imageUrl && getImageUrl(item.imageUrl) ? (
-                  <Image 
-                    source={{ uri: getImageUrl(item.imageUrl) }} 
-                    style={{ width: 28, height: 28, borderRadius: 6 }} 
-                    resizeMode="contain" 
-                  />
-                ) : (
-                  <Text style={{ fontSize: 18 }}>📦</Text>
-                )}
+                <ProductImage
+                  imageUrl={item.imageUrl}
+                  name={item.name}
+                  style={{ width: 28, height: 28, borderRadius: 6 }}
+                  resizeMode="contain"
+                  iconSize={14}
+                  isDarkMode={isDarkMode}
+                />
               </View>
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>

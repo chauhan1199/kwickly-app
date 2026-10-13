@@ -19,6 +19,7 @@ import { shopService } from '../../services/shopService';
 import { API_BASE_URL } from '../../config/env';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
+import { distanceKm, estimateEtaMinutes, formatDistance } from '../../utils/geo';
 import { 
   Clock, CheckCircle2, XCircle, AlertTriangle, 
   Package, MapPin, FileText, ArrowLeft, RefreshCw, Wallet, RotateCcw 
@@ -167,33 +168,36 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
 
   const mapLat = Number(order.deliveryLocation?.coordinates?.[1]) || 23.0350;
   const mapLng = Number(order.deliveryLocation?.coordinates?.[0]) || 72.5293;
-  let shopLat = Number(order.shopId?.location?.coordinates?.[1]) || 0;
-  let shopLng = Number(order.shopId?.location?.coordinates?.[0]) || 0;
-  if (!shopLat || !shopLng || (Math.abs(shopLat - mapLat) < 0.001 && Math.abs(shopLng - mapLng) < 0.001)) {
-    shopLat = mapLat + 0.014;
-    shopLng = mapLng + 0.008;
-  }
+  // Real shop position only — no invented offset. Without it we skip the shop pin and route.
+  const shopLat = Number(order.shopId?.location?.coordinates?.[1]) || 0;
+  const shopLng = Number(order.shopId?.location?.coordinates?.[0]) || 0;
+  const hasShopCoords = !!(shopLat && shopLng);
+  const hasDeliveryCoords = !!(Number(order.deliveryLocation?.coordinates?.[1]) && Number(order.deliveryLocation?.coordinates?.[0]));
+  const routeKm = hasShopCoords && hasDeliveryCoords
+    ? distanceKm({ lat: shopLat, lng: shopLng }, { lat: mapLat, lng: mapLng })
+    : null;
+  const routeEta = estimateEtaMinutes(routeKm);
+  const routeDist = formatDistance(routeKm);
 
   let trackingIcon = '📝';
   let trackingTitle = 'Order Placed';
   let trackingSub = 'Waiting for shop to confirm';
-  let trackingEta = 'Est. 25-30 mins';
+  // Badge shows measured shop→address distance; drive ETA only once the order is on its way
+  let trackingEta = routeDist ? `${routeDist} away` : null;
 
   if (o.s === 'CONFIRMED') {
     trackingIcon = '✓';
     trackingTitle = 'Order Confirmed';
     trackingSub = `${o.shop} accepted your order`;
-    trackingEta = 'Est. 20-25 mins';
   } else if (o.s === 'PACKING') {
     trackingIcon = '📦';
     trackingTitle = 'Processing & Packing';
     trackingSub = 'Shop is preparing your items';
-    trackingEta = 'Est. 15-20 mins';
   } else if (o.s === 'OUT_FOR_DELIVERY') {
     trackingIcon = '🛵';
     trackingTitle = 'Out for Delivery';
     trackingSub = order.deliveryStaffName ? `Delivery partner: ${order.deliveryStaffName}` : 'Partner is on the way to your address';
-    trackingEta = 'Arriving in ~10 mins';
+    trackingEta = routeEta ? `~${routeEta} min drive` : null;
   } else if (o.s === 'DELIVERED') {
     trackingIcon = '🎉';
     trackingTitle = 'Order Delivered';
@@ -227,8 +231,9 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
       <script>
         const lat = ${mapLat};
         const lng = ${mapLng};
-        const sLat = ${shopLat};
-        const sLng = ${shopLng};
+        const hasShop = ${hasShopCoords ? 'true' : 'false'};
+        const sLat = ${hasShopCoords ? shopLat : 'null'};
+        const sLng = ${hasShopCoords ? shopLng : 'null'};
         const status = "${o.s}";
 
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 14);
@@ -275,29 +280,21 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
                             status === 'CONFIRMED' ? '<b>${o.shop}</b><br/>Order confirmed ✓' :
                             status === 'PACKING' ? '<b>${o.shop}</b><br/>Packing items 📦' :
                             '<b>${o.shop}</b>';
-          const sMarker = L.marker([sLat, sLng], {icon: shopIcon}).addTo(map).bindPopup(shopPopup);
-          if (status !== 'OUT_FOR_DELIVERY') {
+          // Shop pin + route only from the shop's real saved location.
+          // There is no live rider GPS for shop deliveries, so no rider pin is drawn.
+          if (hasShop) {
+            const outPopup = '<b>${o.shop}</b><br/>Out for delivery 🛵';
+            const sMarker = L.marker([sLat, sLng], {icon: shopIcon}).addTo(map).bindPopup(status === 'OUT_FOR_DELIVERY' ? outPopup : shopPopup);
             sMarker.openPopup();
-          }
 
-          // Polyline route
-          L.polyline([[sLat, sLng], [lat, lng]], {
-            color: '#6C47FF',
-            weight: 4,
-            opacity: 0.85,
-            dashArray: '6, 8'
-          }).addTo(map);
+            // Polyline route
+            L.polyline([[sLat, sLng], [lat, lng]], {
+              color: '#6C47FF',
+              weight: 4,
+              opacity: 0.85,
+              dashArray: '6, 8'
+            }).addTo(map);
 
-          if (status === 'OUT_FOR_DELIVERY') {
-            const riderLat = sLat + (lat - sLat) * 0.65;
-            const riderLng = sLng + (lng - sLng) * 0.65;
-            const riderIcon = L.divIcon({
-              html: '<div style="background-color: #10B981; width: 32px; height: 32px; border-radius: 16px; border: 3px solid white; box-shadow: 0 4px 10px rgba(16,185,129,0.55); display: flex; align-items: center; justify-content: center; font-size: 16px;">🛵</div>',
-              className: '', iconSize: [32, 32], iconAnchor: [16, 16]
-            });
-            L.marker([riderLat, riderLng], {icon: riderIcon}).addTo(map).bindPopup("<b>Out for Delivery 🛵</b><br/>Your order is on the way!").openPopup();
-            map.fitBounds(L.latLngBounds([[lat, lng], [sLat, sLng], [riderLat, riderLng]]), { padding: [45, 45], maxZoom: 16 });
-          } else {
             map.fitBounds(L.latLngBounds([[lat, lng], [sLat, sLng]]), { padding: [45, 45], maxZoom: 16 });
           }
         }
@@ -465,9 +462,11 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
                 <Text style={{ fontSize: 14, fontWeight: '700', color: theme.colors.text }}>{trackingTitle}</Text>
                 <Text style={{ fontSize: 12, color: theme.colors.textDim, marginTop: 1 }}>{trackingSub}</Text>
               </View>
+              {trackingEta ? (
               <View style={{ backgroundColor: theme.colors.primary + '18', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: theme.colors.primary }}>{trackingEta}</Text>
               </View>
+              ) : null}
             </View>
           </View>
         )}

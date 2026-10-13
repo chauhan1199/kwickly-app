@@ -25,7 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import BannerCarousel from '../../components/ui/BannerCarousel';
 import PromoCarousel from '../../components/ui/PromoCarousel';
-import { ServiceCard, getServiceImage, getServiceRating } from '../../components/ui/ServiceCard';
+import { ServiceCard, getServiceImage } from '../../components/ui/ServiceCard';
 import LinearGradient from 'react-native-linear-gradient';
 import { ChevronRight, Star, Zap, MapPin, Bell, Package, Store, Clock, RotateCcw, X, Radio, CheckCircle2 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -91,10 +91,12 @@ const HomeScreen = ({ navigation }) => {
   const userLng = primaryAddress?.location?.coordinates?.[0] ?? DEFAULT_COORDS[0];
   const userLat = primaryAddress?.location?.coordinates?.[1] ?? DEFAULT_COORDS[1];
   const userCoords = useMemo(() => [userLng, userLat], [userLng, userLat]);
+  // Distances are only shown when measured from the user's real saved address, never the fallback point
+  const hasUserLocation = Array.isArray(primaryAddress?.location?.coordinates) && primaryAddress.location.coordinates.length === 2;
 
   const displayLocation = primaryAddress 
-    ? `${primaryAddress.area ? primaryAddress.area + ', ' : ''}${primaryAddress.city || 'Ahmedabad'}`
-    : (user?.city || 'Ahmedabad');
+    ? ([primaryAddress.area, primaryAddress.city].filter(Boolean).join(', ') || primaryAddress.label || 'Saved address')
+    : (user?.city || 'Set your location');
 
   // Load cached categories, shops, promos and banners immediately on launch
   useEffect(() => {
@@ -135,7 +137,7 @@ const HomeScreen = ({ navigation }) => {
       }
       setInitialLoading((prev) => prev || true);
 
-      const params = { limit: 10, lng: userLng, lat: userLat };
+      const params = hasUserLocation ? { limit: 10, lng: userLng, lat: userLat } : { limit: 10 };
 
       // Parallelize all requests including dynamic banners and promos from admin
       const [catRes, shopsRes, jobsRes, oRes, bannersRes, promosRes] = await Promise.allSettled([
@@ -158,6 +160,7 @@ const HomeScreen = ({ navigation }) => {
           imageUrl: c.imageUrl || null,
           bookingCount: c.bookingCount || 0,
           frequencyScore: c.frequencyScore || 0,
+          rating: c.rating || null,
           subs: c.subcategories?.map(s => ({
             id: s._id,
             name: s.name,
@@ -193,11 +196,11 @@ const HomeScreen = ({ navigation }) => {
         const fetchedShops = Array.isArray(payload) ? payload : (payload?.shops || []);
 
         const mapped = fetchedShops.map((s) => {
-          let distanceKm = s.distanceKm;
-          let distanceFormatted = s.distanceFormatted;
-          let deliveryEstimate = s.deliveryEstimate || '20-35 min';
+          let distanceKm = hasUserLocation ? s.distanceKm : null;
+          let distanceFormatted = hasUserLocation ? s.distanceFormatted : null;
+          let deliveryEstimate = hasUserLocation ? (s.deliveryEstimate || null) : null;
 
-          if (s.location?.coordinates && s.location.coordinates.length === 2) {
+          if (hasUserLocation && s.location?.coordinates && s.location.coordinates.length === 2) {
             const raw = haversine([userLng, userLat], s.location.coordinates);
             if (raw !== null) {
               distanceKm = Math.round(raw * 10) / 10;
@@ -210,9 +213,10 @@ const HomeScreen = ({ navigation }) => {
             ...s,
             id: s._id,
             distanceKm: distanceKm !== null && distanceKm !== undefined ? distanceKm : 999,
-            dist: distanceFormatted || '1.2 km',
+            dist: distanceFormatted || null, // hidden in the UI when unknown
             delivery: deliveryEstimate,
-            rating: typeof s.rating === 'number' ? s.rating : 4.5,
+            // Real shop rating only; null (shown as "New") when the shop has none yet
+            rating: Number(s.rating) > 0 ? Number(s.rating).toFixed(1) : null,
             totalOrders: s.totalOrders || 0,
             category: s.category || 'General',
             logoUrl: s.logoUrl || null
@@ -270,7 +274,7 @@ const HomeScreen = ({ navigation }) => {
       setRefreshing(false);
       setInitialLoading(false);
     }
-  }, [userToken, userLng, userLat]);
+  }, [userToken, userLng, userLat, hasUserLocation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -503,17 +507,21 @@ const HomeScreen = ({ navigation }) => {
                           <Text style={styles.shopSearchCategory} numberOfLines={1}>{shop.category}</Text>
                           <View style={styles.statsRow}>
                             <View style={styles.ratingBadge}>
-                              <Star size={11} color="#F59E0B" fill="#F59E0B" />
-                              <Text style={styles.ratingText}>{shop.rating}</Text>
+                              {shop.rating ? <Star size={11} color="#F59E0B" fill="#F59E0B" /> : null}
+                              <Text style={styles.ratingText}>{shop.rating || 'New'}</Text>
                             </View>
-                            <View style={styles.distBadge}>
-                              <MapPin size={11} color="#6C47FF" />
-                              <Text style={styles.distText}>{shop.dist}</Text>
-                            </View>
-                            <View style={styles.timeBadge}>
-                              <Clock size={11} color="#10B981" />
-                              <Text style={styles.timeText}>{shop.delivery}</Text>
-                            </View>
+                            {shop.dist ? (
+                              <View style={styles.distBadge}>
+                                <MapPin size={11} color="#6C47FF" />
+                                <Text style={styles.distText}>{shop.dist}</Text>
+                              </View>
+                            ) : null}
+                            {shop.delivery ? (
+                              <View style={styles.timeBadge}>
+                                <Clock size={11} color="#10B981" />
+                                <Text style={styles.timeText}>{shop.delivery}</Text>
+                              </View>
+                            ) : null}
                           </View>
                         </View>
                         <View style={styles.shopActionBtn}>
@@ -704,14 +712,18 @@ const HomeScreen = ({ navigation }) => {
                       <Text style={{ fontSize: 11, color: PURPLE, fontWeight: '700', marginBottom: 4 }} numberOfLines={1}>{shop.category}</Text>
                       <View style={styles.serviceCardRatingRow}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                          <Star size={11} color="#F5A623" fill="#F5A623" />
-                          <Text style={styles.serviceCardRating}>{shop.rating}</Text>
+                          {shop.rating ? <Star size={11} color="#F5A623" fill="#F5A623" /> : null}
+                          <Text style={styles.serviceCardRating}>{shop.rating || 'New'}</Text>
                         </View>
-                        <Text style={{ fontSize: 10, color: theme.colors.textDim }}> • </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                          <MapPin size={10} color={PURPLE} />
-                          <Text style={{ fontSize: 10.5, fontWeight: '700', color: PURPLE }}>{shop.dist}</Text>
-                        </View>
+                        {shop.dist ? (
+                          <>
+                            <Text style={{ fontSize: 10, color: theme.colors.textDim }}> • </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                              <MapPin size={10} color={PURPLE} />
+                              <Text style={{ fontSize: 10.5, fontWeight: '700', color: PURPLE }}>{shop.dist}</Text>
+                            </View>
+                          </>
+                        ) : null}
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -788,7 +800,8 @@ const ActiveJobCard = ({ job, navigation, theme, categories = [] }) => {
       activeOpacity={0.85}
       onPress={() => {
         if (job.isCompleted) navigation.navigate('WorkCompleted', { worker: { name: job.worker }, job: job.rawJob });
-        else if (job.isIP) navigation.navigate('LiveTracking', { worker: { name: job.worker, rating: 4.8, jobs: 312, eta: 12, dist: '1.2 km' }, job: job.rawJob });
+        // Pass the real populated worker; LiveTracking computes ETA/distance from live location
+        else if (job.isIP) navigation.navigate('LiveTracking', { worker: typeof job.rawJob?.workerId === 'object' && job.rawJob.workerId ? job.rawJob.workerId : undefined, job: job.rawJob, jobId: job.id });
         else navigation.navigate('LiveBids', { jobId: job.id, job: job.rawJob, category: { name: job.category }, subcategory: job.subcategory || '', address: '', timeSlot: job.timeSlot === 'urgent' ? 'ASAP' : job.timeSlot });
       }}
     >

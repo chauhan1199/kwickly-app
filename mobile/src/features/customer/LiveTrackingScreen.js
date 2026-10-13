@@ -18,6 +18,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
 import { jobService } from '../../services/jobService';
+import { distanceKm, estimateEtaMinutes, formatDistance, getRealRating } from '../../utils/geo';
 
 const LiveTrackingScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -92,25 +93,26 @@ const LiveTrackingScreen = ({ route, navigation }) => {
   const jobLat = Number(job?.location?.coordinates?.[1]) || 23.0350;
   const jobLng = Number(job?.location?.coordinates?.[0]) || 72.5293;
 
-  // Worker coordinates: use live socket update, worker activeLocation, or nearby realistic offset from job
+  // Worker coordinates: live socket update first, then the worker's last known activeLocation.
+  // When neither exists we show no worker pin and no ETA rather than inventing a position.
   const rawWLat = liveWorkerCoords?.lat || Number(w?.activeLocation?.coordinates?.[1] || workerObj?.activeLocation?.coordinates?.[1]);
   const rawWLng = liveWorkerCoords?.lng || Number(w?.activeLocation?.coordinates?.[0] || workerObj?.activeLocation?.coordinates?.[0]);
-  const hasRawCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
-  const distanceDeg = hasRawCoords ? Math.hypot(rawWLat - jobLat, rawWLng - jobLng) : 999;
+  const hasWorkerCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
+  const workerLat = hasWorkerCoords ? rawWLat : null;
+  const workerLng = hasWorkerCoords ? rawWLng : null;
 
-  let workerLat = rawWLat;
-  let workerLng = rawWLng;
-  // If en route and coordinates are missing or identical/too close to customer (< 200m),
-  // offset worker to a realistic starting position (~850m away along city roads) so route renders accurately
-  if (!hasRawCoords || (isEnRoute && distanceDeg < 0.002)) {
-    workerLat = jobLat + 0.0072;
-    workerLng = jobLng + 0.0055;
-  }
+  const hasJobCoords = Array.isArray(job?.location?.coordinates) && job.location.coordinates.length === 2;
+  const liveDistanceKm = hasWorkerCoords && hasJobCoords
+    ? distanceKm({ lat: workerLat, lng: workerLng }, { lat: jobLat, lng: jobLng })
+    : null;
+  const etaMins = estimateEtaMinutes(liveDistanceKm);
+  const distLabel = formatDistance(liveDistanceKm);
+  const workerRating = getRealRating(w.rating);
 
   // App Bar and Status Badge labels
   let appBarTitle = 'Live Tracking';
   let appBarSub = `${workerName} is on the way`;
-  let mapPillText = `⏱ ETA ~${w.eta || '8'} min`;
+  let mapPillText = etaMins ? `⏱ ETA ~${etaMins} min · ${distLabel}` : '📍 Waiting for live location';
 
   if (isInProgress) {
     appBarTitle = 'Service In Progress';
@@ -153,8 +155,9 @@ const LiveTrackingScreen = ({ route, navigation }) => {
       <script>
         const lat = ${jobLat};
         const lng = ${jobLng};
-        const wLat = ${workerLat};
-        const wLng = ${workerLng};
+        const hasWorker = ${hasWorkerCoords ? 'true' : 'false'};
+        const wLat = ${hasWorkerCoords ? workerLat : 'null'};
+        const wLng = ${hasWorkerCoords ? workerLng : 'null'};
         const status = "${status}";
 
         const map = L.map('map', { zoomControl: false, attributionControl: false });
@@ -222,24 +225,27 @@ const LiveTrackingScreen = ({ route, navigation }) => {
           });
           L.marker([lat, lng], {icon: jobIcon}).addTo(map).bindPopup("<b>Your Location</b>");
 
-          const workerIcon = L.divIcon({
-            html: '<div style="background-color: #10B981; width: 26px; height: 26px; border-radius: 13px; border: 3px solid white; box-shadow: 0 3px 8px rgba(16,185,129,0.45); display: flex; align-items: center; justify-content: center; font-size: 13px;">🛵</div>',
-            className: '',
-            iconSize: [26, 26],
-            iconAnchor: [13, 13]
-          });
-          L.marker([wLat, wLng], {icon: workerIcon}).addTo(map).bindPopup("<b>${workerName} (${status === 'ARRIVING' ? 'En Route' : 'Assigned'})</b>").openPopup();
+          // Worker pin + route only once we know where the worker really is
+          if (hasWorker) {
+            const workerIcon = L.divIcon({
+              html: '<div style="background-color: #10B981; width: 26px; height: 26px; border-radius: 13px; border: 3px solid white; box-shadow: 0 3px 8px rgba(16,185,129,0.45); display: flex; align-items: center; justify-content: center; font-size: 13px;">🛵</div>',
+              className: '',
+              iconSize: [26, 26],
+              iconAnchor: [13, 13]
+            });
+            L.marker([wLat, wLng], {icon: workerIcon}).addTo(map).bindPopup("<b>${workerName} (${status === 'ARRIVING' ? 'En Route' : 'Assigned'})</b>").openPopup();
 
-          // Connect with route path
-          L.polyline([[wLat, wLng], [lat, lng]], {
-            color: '#6C47FF',
-            weight: 4,
-            opacity: 0.85,
-            dashArray: '6, 8'
-          }).addTo(map);
+            // Connect with route path
+            L.polyline([[wLat, wLng], [lat, lng]], {
+              color: '#6C47FF',
+              weight: 4,
+              opacity: 0.85,
+              dashArray: '6, 8'
+            }).addTo(map);
 
-          const bounds = L.latLngBounds([[lat, lng], [wLat, wLng]]);
-          map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 });
+            const bounds = L.latLngBounds([[lat, lng], [wLat, wLng]]);
+            map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 });
+          }
         }
       </script>
     </body>
@@ -275,7 +281,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
     if (w.phone) {
       Linking.openURL(`tel:${w.phone}`);
     } else {
-      Alert.alert('Calling Worker', `Calling ${workerName}...`);
+      Alert.alert('Call unavailable', `${workerName}'s phone number is not available yet. Try chat instead.`);
     }
   };
 
@@ -316,7 +322,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
         {/* Leaflet Map Area */}
         <View style={styles.mapArea}>
           <WebView 
-            key={`${status}_${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${workerLat.toFixed(4)}_${workerLng.toFixed(4)}`}
+            key={`${status}_${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${hasWorkerCoords ? `${workerLat.toFixed(4)}_${workerLng.toFixed(4)}` : 'nopos'}`}
             source={{ html: mapHTML }}
             style={{ flex: 1, backgroundColor: 'transparent' }}
             scrollEnabled={false}
@@ -336,7 +342,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
             </View>
             <View style={{ flex: 1, marginLeft: 16 }}>
               <Text style={styles.workerName}>{workerName}</Text>
-              <Text style={styles.workerMuted}>★ {typeof w.rating === 'object' ? (w.rating?.average || 0) : (w.rating || 4.8)} · {w.category || job?.category || 'Professional'}</Text>
+              <Text style={styles.workerMuted}>{workerRating ? `★ ${workerRating.toFixed(1)}` : 'New'} · {w.category || job?.category || 'Professional'}</Text>
             </View>
             <TouchableOpacity style={styles.actionBtn} onPress={handleCall}>
               <Text style={{fontSize: 16}}>📞</Text>
@@ -435,7 +441,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
               <View style={(!isEnRoute) ? styles.tlLineDone : styles.tlLine} />
               <View style={styles.tlContent}>
                 <Text style={[styles.tlTitle, isEnRoute ? {color: theme.colors.primary} : {}]}>On the Way</Text>
-                <Text style={styles.tlSub}>{isEnRoute ? `ETA ~${w.eta || '8'} min` : 'Completed'}</Text>
+                <Text style={styles.tlSub}>{isEnRoute ? (etaMins ? `ETA ~${etaMins} min` : 'Waiting for live location') : 'Completed'}</Text>
               </View>
             </View>
 
