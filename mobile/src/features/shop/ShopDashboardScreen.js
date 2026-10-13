@@ -115,7 +115,7 @@ const ShopDashboardScreen = ({ navigation }) => {
           }
 
           return {
-            id: order._id.slice(-6).toUpperCase(),
+            id: order.orderNumber || `#${order._id.slice(-6).toUpperCase()}`,
             rawId: order._id,
             customer: order.customerId?.name || 'Customer',
             items: order.items?.length || 0,
@@ -131,7 +131,13 @@ const ShopDashboardScreen = ({ navigation }) => {
 
         const today = new Date();
         const todayOrders = orders.filter(o => new Date(o.createdAt).toDateString() === today.toDateString());
-        const revenue = todayOrders.reduce((sum, o) => sum + (o.totalAmount || o.payment?.amount || 0), 0);
+        // Shop's share only (net product sales + delivery fee), skipping cancelled orders; platform fee and GST are not shop revenue
+        const revenue = todayOrders
+          .filter(o => (o.status || '').toUpperCase() !== 'CANCELLED')
+          .reduce((sum, o) => {
+            const net = o.netProductSales ?? ((o.subtotal || 0) - (o.promoDiscount || o.discount || 0));
+            return sum + Number(net || 0) + Number(o.deliveryFee || 0);
+          }, 0);
         setStats(prev => ({ ...prev, todayOrders: todayOrders.length, revenue }));
       }
 
@@ -484,7 +490,7 @@ const ShopDashboardScreen = ({ navigation }) => {
                         <Package size={20} color="#6C47FF" />
                       </View>
                       <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={s.orderId}>#{order.id}</Text>
+                        <Text style={s.orderId} numberOfLines={1}>{order.id}</Text>
                         <Text style={s.orderMeta}>{order.customer} · {order.items} item(s) · ₹{order.total}</Text>
                       </View>
                       <View style={[s.statusPill, { backgroundColor: order.bg }]}>

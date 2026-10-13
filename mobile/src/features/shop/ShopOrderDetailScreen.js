@@ -314,9 +314,28 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
               <Text style={[styles.infoValue, { color: '#10b981' }]}>-₹{order.discount || order.promoDiscount}</Text>
             </View>
           )}
+          {order.platformFee > 0 && (
+            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.infoLabel}>Platform Fee (paid by customer)</Text>
+              <Text style={styles.infoValue}>₹{Number(order.platformFee).toFixed(2)}</Text>
+            </View>
+          )}
+          {order.gstAmount > 0 && (
+            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.infoLabel}>GST on Fee (18%)</Text>
+              <Text style={styles.infoValue}>₹{Number(order.gstAmount).toFixed(2)}</Text>
+            </View>
+          )}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total Customer Paid</Text>
             <Text style={styles.totalValue}>₹{order.total}</Text>
+          </View>
+          {/* Same formula as settlementEngine: net product sales + delivery fee */}
+          <View style={[styles.infoRow, { borderBottomWidth: 0, marginTop: 6 }]}>
+            <Text style={[styles.infoLabel, { color: '#10b981', fontWeight: '700' }]}>You Receive</Text>
+            <Text style={[styles.infoValue, { color: '#10b981', fontWeight: '700' }]}>
+              ₹{(Number(order.netProductSales ?? ((order.subtotal || 0) - (order.promoDiscount || order.discount || 0))) + Number(order.deliveryFee || 0)).toFixed(2)}
+            </Text>
           </View>
         </View>
 

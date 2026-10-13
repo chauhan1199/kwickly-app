@@ -94,7 +94,7 @@ const ShopOrdersScreen = ({ navigation }) => {
           });
 
           return {
-            id: order._id.slice(-6).toUpperCase(),
+            id: order.orderNumber || `#${order._id.slice(-6).toUpperCase()}`,
             rawId: order._id,
             customer: order.customerId?.name || 'Customer',
             phone: order.customerId?.phone || '',
@@ -305,7 +305,7 @@ const ShopOrdersScreen = ({ navigation }) => {
                       </View>
                       <View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={styles.orderId}>#{order.id}</Text>
+                          <Text style={styles.orderId} numberOfLines={1}>{order.id}</Text>
                         </View>
                         <Text style={styles.orderTime}>{order.time}</Text>
                       </View>
@@ -613,6 +613,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexShrink: 1,
   },
   orderIconWrap: {
     width: 36,
