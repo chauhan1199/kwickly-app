@@ -215,7 +215,12 @@ exports.getWorkerQuotes = catchAsync(async (req, res) => {
     if (status && status !== 'all') query.status = status.toUpperCase();
 
     const quotes = await Quote.find(query)
-        .populate('jobId', 'category subcategory description location addressDetails status createdAt payment')
+        .populate({
+            path: 'jobId',
+            select: 'category subcategory description location addressDetails status createdAt payment customerId',
+            // Name only: the worker's quote list labels each job by customer
+            populate: { path: 'customerId', select: 'name' }
+        })
         .sort('-createdAt')
         .lean();
 

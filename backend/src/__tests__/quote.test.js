@@ -56,6 +56,11 @@ describe('Quote Routes', () => {
                 .get('/api/v1/quotes/worker')
                 .set('Authorization', `Bearer ${workerToken}`);
             expect(res.status).toBe(200);
+            // Customer is labelled by name only, never phone or email
+            const cust = res.body.data[0].jobId.customerId;
+            expect(cust.name).toBeDefined();
+            expect(cust.phone).toBeUndefined();
+            expect(cust.email).toBeUndefined();
         });
     });
 
