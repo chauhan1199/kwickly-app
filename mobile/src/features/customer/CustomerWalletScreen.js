@@ -128,6 +128,11 @@ const CustomerWalletScreen = ({ navigation }) => {
   );
 
   const isCredit = (t) => ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP', 'TRANSFER_RECEIVED'].includes(t.type);
+  const formatInr = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Pending or failed entries never moved money, so they stay out of the totals
+  const settledTxns = transactions.filter(t => !t.status || t.status === 'COMPLETED');
+  const totalCredits = settledTxns.filter(isCredit).reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const totalDebits = settledTxns.filter(t => !isCredit(t)).reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
 
 
@@ -451,7 +456,7 @@ const CustomerWalletScreen = ({ navigation }) => {
             </View>
             <Text style={styles.balanceLabel}>Available Balance</Text>
           </View>
-          <Text style={styles.balanceAmount}>₹{balance.toLocaleString('en-IN')}</Text>
+          <Text style={styles.balanceAmount}>₹{formatInr(balance)}</Text>
           <TouchableOpacity style={styles.addBtn} onPress={() => setAddMoneyModal(true)} activeOpacity={0.85}>
             <Plus size={18} color="#fff" />
             <Text style={styles.addBtnText}>Add Money</Text>
@@ -462,17 +467,17 @@ const CustomerWalletScreen = ({ navigation }) => {
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
             <TrendingUp size={18} color="#059669" />
-            <Text style={styles.statNum}>₹{transactions.filter(t => isCredit(t)).reduce((sum, t) => sum + t.amount, 0).toLocaleString('en-IN')}</Text>
+            <Text style={styles.statNum}>₹{formatInr(totalCredits)}</Text>
             <Text style={styles.statLabel}>Total Credits</Text>
           </View>
           <View style={[styles.statBox, { borderLeftWidth: 1, borderRightWidth: 1, borderColor: theme.colors.border }]}>
             <ArrowUp size={18} color="#dc2626" />
-            <Text style={styles.statNum}>₹{transactions.filter(t => !isCredit(t)).reduce((sum, t) => sum + t.amount, 0).toLocaleString('en-IN')}</Text>
+            <Text style={styles.statNum}>₹{formatInr(totalDebits)}</Text>
             <Text style={styles.statLabel}>Total Debits</Text>
           </View>
           <View style={styles.statBox}>
             <Wallet size={18} color={theme.colors.primary} />
-            <Text style={styles.statNum}>₹{balance.toLocaleString('en-IN')}</Text>
+            <Text style={styles.statNum}>₹{formatInr(balance)}</Text>
             <Text style={styles.statLabel}>Balance</Text>
           </View>
         </View>

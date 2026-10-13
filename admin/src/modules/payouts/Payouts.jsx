@@ -247,12 +247,12 @@ export default function Payouts() {
       </div>
 
       {/* KPI strip */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
+      <div className="summary-grid" style={{ display: 'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
         {[
           {label:'Pending Payout',   value:`₹${totalPending.toLocaleString()}`,      color:'var(--warning)'},
-          {label:'Transferred Today',value:`₹${totalTransferred.toLocaleString()}`,  color:'var(--success)'},
+          {label:'Total Transferred',value:`₹${totalTransferred.toLocaleString()}`,  color:'var(--success)'},
           {label:'Awaiting Approval',value:payouts.filter(p=>p.status==='pending').length, color:'var(--danger)'},
-          {label:'Total Workers',    value:payouts.length,                            color:'var(--primary)'},
+          {label:'Total Requests',   value:payouts.length,                            color:'var(--primary)'},
         ].map((s,i)=>(
           <div key={i} className="card" style={{padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
             <div style={{fontWeight:800,fontSize:22,color:s.color}}>{s.value}</div>

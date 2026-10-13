@@ -1,4 +1,3 @@
-const { StatusCodes } = require('http-status-codes');
 const Job = require('../job/job.model');
 const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');

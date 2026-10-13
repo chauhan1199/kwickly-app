@@ -4,7 +4,7 @@ const Shop       = require('../shop/shop.model');
 const { uploadImage, cleanupImage } = require('../../services/cloudinary.service');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { setCache, getCache, delCache, delCacheByPattern } = require('../../helpers/redis.helper');
+const { setCache, getCache, delCacheByPattern } = require('../../helpers/redis.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
 const Notification = require('../notification/notification.model');
 const logger = require('../../helpers/logger.helper');
@@ -14,7 +14,7 @@ const PRODUCT_CACHE_PREFIX = 'products_list';
 const logProductActivity = async (action, product, shop, adminId) => {
     try {
         const title = action === 'CREATE' ? 'Product Added' : action === 'UPDATE' ? 'Product Updated' : 'Product Deleted';
-        const msg = `"${product.name}" ${action === 'CREATE' ? 'added to' : action === 'UPDATE' ? 'updated in' : 'removed from'} "${shop.name}" (â‚¹${product.price}/${product.unit})`;
+        const msg = `"${product.name}" ${action === 'CREATE' ? 'added to' : action === 'UPDATE' ? 'updated in' : 'removed from'} "${shop.name}" (₹${product.price}/${product.unit})`;
 
         const adminNotification = await Notification.create({
             title,

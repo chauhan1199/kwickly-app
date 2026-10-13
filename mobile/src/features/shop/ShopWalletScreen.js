@@ -1996,27 +1996,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontWeight: '800',
     fontSize: 14,
   },
-  utrSection: {
-    marginBottom: 18,
-  },
   utrLabel: {
     fontSize: 13,
     fontWeight: '700',
     color: theme.colors.text,
     marginBottom: 6,
-  },
-  utrInput: {
-    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: isDarkMode ? '#334155' : '#CBD5E1',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.text,
-    textAlign: 'center',
-    letterSpacing: 1,
   },
   utrHint: {
     fontSize: 11,
@@ -2313,32 +2297,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center' 
   },
-  utrSection: { 
-    marginBottom: 8 
-  },
-  utrHeader: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8, 
-    marginBottom: 4 
-  },
-  pulseDot: { 
-    width: 8, 
-    height: 8, 
-    borderRadius: 4, 
-    backgroundColor: '#10B981' 
-  },
-  utrHeaderTitle: { 
-    fontSize: 13.5, 
-    fontWeight: '800', 
-    color: theme.colors.text 
-  },
-  utrHeaderSub: { 
-    fontSize: 12, 
-    color: theme.colors.textDim, 
-    lineHeight: 17, 
-    marginBottom: 12 
-  },
   confirmPayBtn: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -2358,26 +2316,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontWeight: '800', 
     color: '#fff', 
     textAlign: 'center' 
-  },
-  reopenRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
-    marginTop: 12 
-  },
-  reopenBtnFull: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 6, 
-    paddingVertical: 8, 
-    paddingHorizontal: 16, 
-    backgroundColor: '#6C47FF14', 
-    borderRadius: 12 
-  },
-  reopenText: { 
-    fontSize: 13, 
-    fontWeight: '700', 
-    color: '#6C47FF' 
   },
   centerOverlay: { 
     flex: 1, 

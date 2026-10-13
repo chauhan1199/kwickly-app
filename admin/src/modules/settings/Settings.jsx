@@ -104,7 +104,7 @@ export default function Settings() {
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border)', paddingBottom: '0' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, boxShadow: 'inset 0 -2px 0 var(--border)', paddingBottom: '0', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {tabs.map(t => (
           <button
             key={t.key}
@@ -119,9 +119,9 @@ export default function Settings() {
               cursor: 'pointer',
               color: activeTab === t.key ? 'var(--primary)' : 'var(--mid)',
               borderBottom: `2px solid ${activeTab === t.key ? 'var(--primary)' : 'transparent'}`,
-              marginBottom: '-2px',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
             {t.label}

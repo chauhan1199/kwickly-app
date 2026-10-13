@@ -67,7 +67,9 @@ if (process.env.NODE_ENV === 'development') {
     // Production structured logging: request ID, userId, route, status, response time
     morgan.token('reqId', (req) => req.id || '-');
     morgan.token('userId', (req) => (req.user?._id || req.user?.id || '-').toString());
-    app.use(morgan(':reqId :userId :method :url :status :response-time ms', {
+    // Mask credentials passed in the query string (e.g. the UPI webhook's ?secret=) so they never reach logs
+    morgan.token('safeUrl', require('./middleware/requestContext.middleware').safeUrl);
+    app.use(morgan(':reqId :userId :method :safeUrl :status :response-time ms', {
         stream: { write: (message) => require('./helpers/logger.helper').info(message.trim()) }
     }));
 }
@@ -75,6 +77,12 @@ if (process.env.NODE_ENV === 'development') {
 // Body parser with size limits
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Express 5 leaves req.body undefined when a request carries no body; handlers
+// destructure it, so give every request an empty object instead.
+app.use((req, res, next) => {
+    if (req.body === undefined) req.body = {};
+    next();
+});
 
 // HTTP Parameter Pollution Protection
 app.use(hpp());

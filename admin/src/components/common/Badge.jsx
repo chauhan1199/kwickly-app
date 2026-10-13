@@ -5,11 +5,13 @@ const COLORS = {
   warning: { bg: '#fef3c7', text: '#d97706' },
   danger:  { bg: '#fee2e2', text: '#dc2626' },
   info:    { bg: '#dbeafe', text: '#2563eb' },
+  primary: { bg: '#dbeafe', text: '#2563eb' },
   neutral: { bg: '#f3f4f6', text: '#6b7280' },
   purple:  { bg: '#ede9fe', text: '#7c3aed' },
 };
 
-export default function Badge({ label, variant = 'neutral', style }) {
+// Accepts the text either as `label` or as children (<Badge>TEXT</Badge>).
+export default function Badge({ label, children, variant = 'neutral', style }) {
   const c = COLORS[variant] || COLORS.neutral;
   return (
     <span
@@ -26,7 +28,7 @@ export default function Badge({ label, variant = 'neutral', style }) {
         ...style
       }}
     >
-      {label}
+      {label ?? children}
     </span>
   );
 }

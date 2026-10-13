@@ -41,6 +41,22 @@ const OrderTrackingScreen = ({ route, navigation }) => {
   const { orderId } = route.params || {};
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [renewingOtp, setRenewingOtp] = useState(false);
+  // Issue a fresh OTP when the old one expired or got locked by wrong attempts.
+  const renewOtp = async () => {
+    try {
+      setRenewingOtp(true);
+      const res = await shopService.regenerateDeliveryOtp(orderId);
+      const fresh = res.data?.data?.deliveryOtp;
+      if (fresh) setOrder(prev => (prev ? { ...prev, deliveryOtp: fresh } : prev));
+      Alert.alert('New OTP ready', 'Share the new code with the delivery partner.');
+    } catch (e) {
+      Alert.alert('Could not get a new OTP', e?.response?.data?.message || e?.message || 'Please try again.');
+    } finally {
+      setRenewingOtp(false);
+    }
+  };
+
   const fetchOrder = useCallback(async () => {
     try {
       const res = await shopService.getOrderById(orderId);
@@ -168,6 +184,11 @@ const OrderTrackingScreen = ({ route, navigation }) => {
                 <Text style={styles.otpCopyText}>Copy</Text>
               </TouchableOpacity>
             </View>
+            <TouchableOpacity style={styles.renewOtpBtn} onPress={renewOtp} disabled={renewingOtp}>
+              {renewingOtp
+                ? <ActivityIndicator size="small" color={theme.colors.primary} />
+                : <Text style={[styles.renewOtpText, { color: theme.colors.primary }]}>OTP not working? Get a new one</Text>}
+            </TouchableOpacity>
           </View>
         )}
 
@@ -310,6 +331,8 @@ const OrderTrackingScreen = ({ route, navigation }) => {
 };
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
+  renewOtpBtn: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, marginTop: 4 },
+  renewOtpText: { fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
   container:    { flex: 1, backgroundColor: theme.colors.background },
   content:      { padding: 16, width: '100%', maxWidth: 720, alignSelf: 'center' },
   emptyText:    { fontSize: 16, color: theme.colors.textDim },

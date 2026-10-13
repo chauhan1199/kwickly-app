@@ -33,6 +33,7 @@ const pageTitles = {
   '/disputes':      'Disputes',
   '/suggestions':   'Category Suggestions',
   '/notifications': 'Push Notifications',
+  '/support-chats': 'Support Chats',
   '/reports':       'Reports & Analytics',
   '/admin-users':   'Admin Profile & Security',
   '/settings':      'Platform Settings',

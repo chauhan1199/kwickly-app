@@ -1,10 +1,8 @@
-const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const Customer = require('../modules/customer/customer.model');
 const Category = require('../modules/category/category.model');
 const Job = require('../modules/job/job.model');
 const Payout = require('../modules/payout/payout.model');
-const Notification = require('../modules/notification/notification.model');
 const AppSettings = require('../modules/settings/settings.model');
 const Dispute = require('../modules/dispute/dispute.model');
 const Suggestion = require('../modules/suggestion/suggestion.model');
@@ -40,7 +38,6 @@ const Shop = require('../modules/shop/shop.model');
 const Product = require('../modules/product/product.model');
 const ShopOrder = require('../modules/shoporder/shoporder.model');
 const logger = require('./logger.helper');
-const { delCache } = require('./redis.helper');
 
 const seedData = async () => {
     try {

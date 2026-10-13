@@ -283,9 +283,9 @@ describe('Concurrency & Race Conditions', () => {
                 .set('Authorization', `Bearer ${shopToken}`).send({ status: 'CANCELLED', note: 'Customer returned goods' });
             expect(cancel.status).toBe(200);
 
-            // Shop payout clawed back (bounded by balance): 1240 - 200 = 1040
+            // Whole shop payout (products 200 + delivery 40) clawed back: 1240 - 240 = 1000
             const shopAfterReversal = await Shop.findById(shopId);
-            expect(shopAfterReversal.wallet.balance).toBe(1040);
+            expect(shopAfterReversal.wallet.balance).toBe(1000);
 
             // Ledger has BOTH original and reversal entries
             const original = await PlatformLedger.findOne({ idempotencyKey: `settle_order_${order._id}` });

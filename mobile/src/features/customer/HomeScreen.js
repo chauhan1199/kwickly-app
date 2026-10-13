@@ -226,8 +226,10 @@ const HomeScreen = ({ navigation }) => {
 
       // Active Jobs
       if (jobsRes.status === 'fulfilled' && jobsRes.value?.data?.status === 'success') {
+        // A COMPLETED job stays here only until it is paid
         const active = jobsRes.value.data.data.filter(j =>
-          ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'].includes(j.status)
+          ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'].includes(j.status) &&
+          !(j.status === 'COMPLETED' && j.payment?.status === 'PAID')
         ).map(j => ({
           id: j._id,
           title: `${j.category}${j.subcategory ? ' — ' + j.subcategory : ''}`,
@@ -810,7 +812,7 @@ const ActiveJobCard = ({ job, navigation, theme, categories = [] }) => {
                 {job.status === 'BROADCASTING' ? '📡 LIVE RADAR' :
                  job.hasQuotes ? '💬 QUOTES' :
                  job.isIP ? '⚡ IN PROGRESS' :
-                 job.isCompleted ? '✓ DONE' : 'ACTIVE'}
+                 job.isCompleted ? 'PAY NOW' : 'ACTIVE'}
               </Text>
             </View>
           </View>
@@ -819,7 +821,7 @@ const ActiveJobCard = ({ job, navigation, theme, categories = [] }) => {
             {job.status === 'BROADCASTING' ? '⚡ Searching for nearby workers...' :
              job.hasQuotes ? 'Quotes received — tap to accept!' :
              job.isIP ? `Worker: ${job.worker || 'On the way'}` :
-             job.isCompleted ? 'Service finished successfully' : 'Pending assignment'}
+             job.isCompleted ? 'Work finished · payment due' : 'Pending assignment'}
           </Text>
         </View>
       </View>

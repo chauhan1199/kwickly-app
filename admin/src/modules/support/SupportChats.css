@@ -37,6 +37,8 @@
   color: var(--primary);
   font-size: 20px;
   cursor: pointer;
+  min-width: 40px;
+  min-height: 40px;
 }
 
 .threads-list {

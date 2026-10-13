@@ -208,7 +208,7 @@ exports.getCategories = catchAsync(async (req, res) => {
     return successResponse(res, categories, 'Categories fetched successfully');
 });
 
-// GET /api/v1/categories/:categoryId (Public - subcategories by category) â”€â”€
+// GET /api/v1/categories/:categoryId (Public - subcategories by category) ──
 exports.getCategoryById = catchAsync(async (req, res) => {
     const { categoryId } = req.params;
 
@@ -226,7 +226,7 @@ exports.getCategoryById = catchAsync(async (req, res) => {
     return successResponse(res, { ...category, subcategories }, 'Category fetched');
 });
 
-//POST /api/v1/categories (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//POST /api/v1/categories (Admin) ────────────────────────────────────────
 exports.createCategory = catchAsync(async (req, res) => {
     const existing = await Category.findOne({ name: { $regex: new RegExp(`^${escapeRegex(req.body.name.trim())}$`, 'i') } }).lean();
     if (existing) {
@@ -318,7 +318,7 @@ exports.updateCategory = catchAsync(async (req, res) => {
     logAdminActivity(
         'UPDATE', 'CATEGORY', category._id,
         'Category Updated',
-        `Category "${category.name}" updated${changes.length ? ' â€” ' + changes.join(', ') : ''}`,
+        `Category "${category.name}" updated${changes.length ? ' — ' + changes.join(', ') : ''}`,
         req.user?._id
     ).catch(e => logger.error('Activity log failed:', e.message));
 
@@ -511,7 +511,7 @@ exports.processSuggestion = catchAsync(async (req, res) => {
             }
             await Category.create({
                 name: suggestion.payload?.name || suggestion.name,
-                icon: suggestion.payload?.icon || 'ðŸ“‹',
+                icon: suggestion.payload?.icon || '📋',
                 color: '#6366F1',
                 description: suggestion.payload?.description || '',
                 active: true,

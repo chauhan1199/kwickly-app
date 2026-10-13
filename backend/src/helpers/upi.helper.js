@@ -3,7 +3,6 @@
  * Replaces external payment gateways with Direct Bank & UPI Intent Transfers
  */
 
-const logger = require('./logger.helper');
 
 /**
  * Generate standard NPCI compliant UPI Intent URI

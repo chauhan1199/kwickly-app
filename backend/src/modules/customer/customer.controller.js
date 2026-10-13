@@ -16,22 +16,30 @@ exports.getTopPros = catchAsync(async (req, res) => {
         return successResponse(res, cached, 'Top pros fetched successfully (cached)');
     }
 
+    // Public endpoint: never expose phone, live location or KYC documents
     const pros = await Customer.find({ role: 'WORKER', isVerified: true })
-        .select('name phone profileImage activeLocation rating jobs services bio kyc serviceRadius isOnline city createdAt')
+        .select('name profileImage rating jobs services bio kyc.status isVerified serviceRadius isOnline city createdAt')
         .populate('services.category', 'name icon basePrice description imageUrl subcategories')
         .sort('-rating.average -rating.count -jobs')
         .limit(20)
         .lean();
 
-    const enrichedPros = await Promise.all(pros.map(async (p) => {
-        const completedJobs = await Job.countDocuments({ workerId: p._id, status: { $in: ['COMPLETED', 'PAID'] } });
+    // One grouped count instead of a countDocuments query per worker
+    const counts = await Job.aggregate([
+        { $match: { workerId: { $in: pros.map(p => p._id) }, status: { $in: ['COMPLETED', 'PAID'] } } },
+        { $group: { _id: '$workerId', n: { $sum: 1 } } }
+    ]);
+    const completedByWorker = new Map(counts.map(c => [String(c._id), c.n]));
+
+    const enrichedPros = pros.map((p) => {
+        const completedJobs = completedByWorker.get(String(p._id)) || 0;
         return {
             ...p,
             jobs: completedJobs || p.jobs || 0,
             completedJobs: completedJobs || p.jobs || 0,
             verified: p.kyc?.status === 'APPROVED' || p.isVerified
         };
-    }));
+    });
 
     await setCache(cacheKey, enrichedPros, 120); // 2 min TTL for zero latency
     return successResponse(res, enrichedPros, 'Top pros fetched successfully');
@@ -168,7 +176,7 @@ exports.getWorkerProfile = catchAsync(async (req, res) => {
     }
 
     const worker = await Customer.findById(req.params.id)
-        .select('name phone email profileImage rating services city kyc.status isOnline role bio activeLocation serviceRadius createdAt')
+        .select('name profileImage rating services city kyc.status isOnline role bio serviceRadius createdAt')
         .populate('services.category', 'name icon basePrice description imageUrl subcategories')
         .lean();
 

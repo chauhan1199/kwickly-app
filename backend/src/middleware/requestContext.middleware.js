@@ -1,4 +1,7 @@
 const crypto = require('crypto');
+
+// Mask credentials passed in the query string (e.g. the UPI webhook's ?secret=) before logging a URL
+const safeUrl = (req) => (req.originalUrl || req.url || '').replace(/([?&](?:secret|token|key)=)[^&]*/gi, '$1***');
 const logger = require('../helpers/logger.helper');
 
 /**
@@ -24,10 +27,10 @@ const slowRequestLogger = (req, res, next) => {
     res.on('finish', () => {
         const ms = Number(process.hrtime.bigint() - start) / 1e6;
         if (ms >= SLOW_REQUEST_MS) {
-            logger.warn(`SLOW ${req.method} ${req.originalUrl} ${res.statusCode} ${Math.round(ms)}ms [reqId=${req.id || '-'} userId=${req.user?._id || req.user?.id || '-'}]`);
+            logger.warn(`SLOW ${req.method} ${safeUrl(req)} ${res.statusCode} ${Math.round(ms)}ms [reqId=${req.id || '-'} userId=${req.user?._id || req.user?.id || '-'}]`);
         }
     });
     next();
 };
 
-module.exports = { requestId, slowRequestLogger, SLOW_REQUEST_MS };
+module.exports = { safeUrl, requestId, slowRequestLogger, SLOW_REQUEST_MS };

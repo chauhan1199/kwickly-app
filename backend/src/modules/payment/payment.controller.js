@@ -5,7 +5,6 @@ const Payment = require('./payment.model');
 const ShopOrder = require('../shoporder/shoporder.model');
 const Shop = require('../shop/shop.model');
 const Customer = require('../customer/customer.model');
-const Product = require('../product/product.model');
 const WalletTxn = require('../wallet/wallet.model');
 const AppSettings = require('../settings/settings.model');
 const catchAsync = require('../../helpers/async.helper');
@@ -14,8 +13,8 @@ const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
-const { generateUpiIntentUri, isValidUtr, findUtrUsage, extractSmsAmount, extractSmsDate, verifyIntentResponse, isAuthenticBankDebitSms, isAdjacentOrTamperedUtr } = require('../../helpers/upi.helper');
-const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
+const { isValidUtr, findUtrUsage, extractSmsAmount, verifyIntentResponse, isAuthenticBankDebitSms, isAdjacentOrTamperedUtr } = require('../../helpers/upi.helper');
+const { AdminWallet } = require('../adminWallet/adminWallet.model');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
 const {
     handleWalletTopupWebhook,
@@ -275,7 +274,20 @@ exports.verifyPayment = catchAsync(async (req, res) => {
             const order = await ShopOrder.findById(targetOrderId).session(session);
             if (order) {
                 const wasPending = order.payment?.status === 'PENDING';
-                order.payment.status = 'PAID';
+                const orderAmountDue = Number(order.total || order.totalAmount || payment.amount || req.body.amount || 0);
+
+                // Only a bank credit recorded server-side (bank-SMS webhook) for this
+                // UTR and amount marks the order PAID. A typed UTR alone leaves it
+                // PENDING_VERIFICATION for the shop or an admin to confirm.
+                const BankCredit = require('./bankCredit.model');
+                const bankCredit = await BankCredit.findOneAndUpdate(
+                    { utr: finalPaymentId, isClaimed: false, amount: { $gte: orderAmountDue - 0.5, $lte: orderAmountDue + 0.5 } },
+                    { $set: { isClaimed: true, claimedBy: req.user._id, claimedAt: new Date() } },
+                    { returnDocument: 'after', ...(useTransaction ? { session } : {}) }
+                );
+                const newPaymentStatus = bankCredit ? 'PAID' : 'PENDING_VERIFICATION';
+
+                order.payment.status = newPaymentStatus;
                 order.payment.razorpayOrderId = orderRef;
                 order.payment.razorpayPaymentId = payment.razorpayPaymentId;
                 order.payment.utrNumber = finalPaymentId;
@@ -283,7 +295,9 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 order.statusHistory.push({
                     status: order.status,
                     timestamp: new Date(),
-                    note: `Direct UPI payment verified (UTR: ${finalPaymentId})`
+                    note: bankCredit
+                        ? `Direct UPI payment verified against bank credit (UTR: ${finalPaymentId})`
+                        : `Direct UPI payment submitted, awaiting verification (UTR: ${finalPaymentId})`
                 });
                 await order.save(sessOpts);
 
@@ -296,11 +310,11 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', {
                     orderId: order._id,
                     status: order.status,
-                    paymentStatus: 'PAID',
+                    paymentStatus: newPaymentStatus,
                     utr: finalPaymentId
                 });
                 emitToAll('DASHBOARD_UPDATE', {
-                    type: wasPending ? 'NEW_SHOP_ORDER' : 'ORDER_PAYMENT_VERIFIED',
+                    type: wasPending ? 'NEW_SHOP_ORDER' : (bankCredit ? 'ORDER_PAYMENT_VERIFIED' : 'ORDER_PAYMENT_PENDING'),
                     id: order._id,
                     orderNumber: order.orderNumber,
                     utr: finalPaymentId,
@@ -311,11 +325,13 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                 if (useTransaction) session.endSession();
                 return successResponse(res, {
                     paymentId: payment._id,
-                    status: 'PAID',
+                    status: newPaymentStatus,
                     utr: finalPaymentId,
                     orderId: order._id,
                     orderNumber: order.orderNumber
-                }, `Order payment verified! (UTR: ${finalPaymentId})`);
+                }, bankCredit
+                    ? `Order payment verified! (UTR: ${finalPaymentId})`
+                    : `Payment submitted (UTR: ${finalPaymentId}). The shop will confirm it shortly.`);
             }
         }
 
@@ -428,72 +444,56 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     return errorResponse(res, 'This payment session has expired (exceeded 30 minutes). Please initiate a fresh top-up.', StatusCodes.BAD_REQUEST);
                 }
 
-                const isAutoVerified = Boolean(hasValidIntent || hasValidSms);
+                // A pasted SMS or UPI-app intent response comes from the client and can be
+                // fabricated, so it never auto-credits; only a server-recorded BankCredit
+                // (handled above) does. Everything else waits for the webhook or an admin.
+                // Zero-Trust Hold: Manual UTR without bank verification must be verified by admin
+                payment.status = 'PENDING_VERIFICATION';
+                payment.razorpayPaymentId = finalPaymentId;
+                payment.markModified('metadata');
+                await payment.save(sessOpts);
 
-                if (!isAutoVerified) {
-                    // Zero-Trust Hold: Manual UTR without bank verification must be verified by admin
-                    payment.status = 'PENDING_VERIFICATION';
-                    payment.razorpayPaymentId = finalPaymentId;
-                    payment.markModified('metadata');
-                    await payment.save(sessOpts);
+                let pendingTxn = await WalletTxn.findOne({
+                    userId: req.user._id,
+                    type: 'TOPUP',
+                    $or: [{ _id: payment._id }, { razorpayOrderId: orderRef }, { razorpayPaymentId: finalPaymentId }]
+                }).session(session);
 
-                    let pendingTxn = await WalletTxn.findOne({
+                if (pendingTxn) {
+                    pendingTxn.razorpayPaymentId = finalPaymentId;
+                    pendingTxn.status = 'PENDING';
+                    await pendingTxn.save(sessOpts);
+                } else {
+                    pendingTxn = await WalletTxn.create([{
                         userId: req.user._id,
                         type: 'TOPUP',
-                        $or: [{ _id: payment._id }, { razorpayOrderId: orderRef }, { razorpayPaymentId: finalPaymentId }]
-                    }).session(session);
-
-                    if (pendingTxn) {
-                        pendingTxn.razorpayPaymentId = finalPaymentId;
-                        pendingTxn.status = 'PENDING';
-                        await pendingTxn.save(sessOpts);
-                    } else {
-                        pendingTxn = await WalletTxn.create([{
-                            userId: req.user._id,
-                            type: 'TOPUP',
-                            amount: creditAmount,
-                            balance: (req.user?.wallet?.balance || 0),
-                            status: 'PENDING',
-                            razorpayOrderId: orderRef,
-                            razorpayPaymentId: finalPaymentId,
-                            description: `Wallet Top-up via Direct UPI (UTR: ${finalPaymentId} - Pending Verification)`
-                        }], sessOpts).then(arr => arr[0]);
-                    }
-
-                    emitToAll('DASHBOARD_UPDATE', {
-                        type: 'PENDING_WALLET_TOPUP',
-                        userId: req.user._id,
-                        userName: req.user.name,
                         amount: creditAmount,
-                        utr: finalPaymentId
-                    });
-
-                    if (useTransaction) await session.commitTransaction();
-                    if (useTransaction) session.endSession();
-
-                    return successResponse(res, {
-                        paymentId: payment._id,
-                        status: 'PENDING_VERIFICATION',
-                        verified: false,
-                        utr: finalPaymentId,
-                        amount: creditAmount
-                    }, `Top-up request for ₹${creditAmount} submitted! It will be verified and credited to your wallet.`);
+                        balance: (req.user?.wallet?.balance || 0),
+                        status: 'PENDING',
+                        razorpayOrderId: orderRef,
+                        razorpayPaymentId: finalPaymentId,
+                        description: `Wallet Top-up via Direct UPI (UTR: ${finalPaymentId} - Pending Verification)`
+                    }], sessOpts).then(arr => arr[0]);
                 }
 
-                let source = 'MANUAL_UTR';
-                if (hasValidIntent) source = 'UPI_INTENT';
-                else if (hasValidSms) source = 'BANK_SMS';
-
-                await BankCredit.create([{
-                    utr: finalPaymentId,
+                emitToAll('DASHBOARD_UPDATE', {
+                    type: 'PENDING_WALLET_TOPUP',
+                    userId: req.user._id,
+                    userName: req.user.name,
                     amount: creditAmount,
-                    rawMessage: hasValidIntent ? (rawResponse || `Direct UPI payment session ${orderRef} intent verified for user ${req.user._id}`) : (hasValidSms ? rawSms : `Manual UTR entry ${finalPaymentId} for session ${orderRef}`),
-                    source,
-                    receivedAt: new Date(),
-                    isClaimed: true,
-                    claimedBy: req.user._id,
-                    claimedAt: new Date()
-                }], sessOpts);
+                    utr: finalPaymentId
+                });
+
+                if (useTransaction) await session.commitTransaction();
+                if (useTransaction) session.endSession();
+
+                return successResponse(res, {
+                    paymentId: payment._id,
+                    status: 'PENDING_VERIFICATION',
+                    verified: false,
+                    utr: finalPaymentId,
+                    amount: creditAmount
+                }, `Top-up request for ₹${creditAmount} submitted! It will be verified and credited to your wallet.`);
             }
 
             // ─── 3. Credit the User Wallet Balance (Role-Aware) ───

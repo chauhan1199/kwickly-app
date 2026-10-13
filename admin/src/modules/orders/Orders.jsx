@@ -195,7 +195,7 @@ export default function Orders() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 20 }}>
+      <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 20 }}>
         {[
           { label: 'Total Orders', value: kpi.total, color: '#2EF7F0' },
           { label: 'New', value: kpi.new, color: '#2563EB' },
@@ -267,7 +267,7 @@ export default function Orders() {
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{o.orderNumber || o._id?.slice(-6)}</span>
-                            <button onClick={() => copyOrderId(o._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mid)', padding: 2 }} title="Copy ID"><Copy size={12} /></button>
+                            <button className="copy-btn" onClick={() => copyOrderId(o._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mid)', padding: 2 }} title="Copy ID"><Copy size={12} /></button>
                           </div>
                         </td>
                         <td>

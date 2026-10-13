@@ -98,6 +98,9 @@ export const handleError = (error) => {
   return {
     message,
     code,
+    // Screens read the server's message from e.response.data.message, so keep it reachable.
+    response: error.response,
+    friendlyMessage: error.friendlyMessage,
     originalError: error,
   };
 };

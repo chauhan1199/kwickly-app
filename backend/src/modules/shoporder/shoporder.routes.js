@@ -10,6 +10,7 @@ const { placeOrderSchema, updateOrderStatusSchema } = require('../../validators/
 router.post('/',            authMiddleware, authorize('CUSTOMER'), validate(placeOrderSchema), ctrl.placeOrder);
 router.get('/customer',     authMiddleware, authorize('CUSTOMER'), ctrl.getCustomerOrders);
 router.post('/:id/cancel',  authMiddleware, authorize('CUSTOMER'), ctrl.cancelOrder);
+router.post('/:id/delivery-otp', authMiddleware, authorize('CUSTOMER'), ctrl.regenerateDeliveryOtp);
 
 // Shop owner / Admin
 router.get('/shop',         authMiddleware, authorize('SHOP'),     ctrl.getShopOrders);

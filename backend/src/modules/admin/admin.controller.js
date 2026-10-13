@@ -6,7 +6,6 @@ const WalletTxn  = require('../wallet/wallet.model');
 const Payout     = require('../payout/payout.model');
 const Dispute    = require('../dispute/dispute.model');
 const Suggestion = require('../suggestion/suggestion.model');
-const Category   = require('../category/category.model');
 const Shop       = require('../shop/shop.model');
 const Product    = require('../product/product.model');
 const ShopOrder  = require('../shoporder/shoporder.model');
@@ -14,7 +13,7 @@ const Notification = require('../notification/notification.model');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { ADMIN, AUTH } = require('../../constants/messages');
-const { successResponse, errorResponse, extractPagination } = require('../../helpers/response.helper');
+const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { uploadImage, cleanupImage } = require('../../services/cloudinary.service');
 const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate, getIO, emitToAll, emitToRoom } = require('../../helpers/socket.helper');
@@ -29,7 +28,7 @@ const { BADGE_COUNTS_TTL, DASHBOARD_STATS_TTL } = require('../../constants/busin
 // Helper: escape user input to prevent ReDoS in regex queries
 const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// â”€â”€â”€ Dashboard Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Dashboard Stats ──────────────────────────────────────────────────────────
 exports.getBadgeCounts = catchAsync(async (req, res) => {
     const cacheKey = 'admin_badge_counts';
     const cached = await getCache(cacheKey);
@@ -72,7 +71,7 @@ exports.getStats = catchAsync(async (req, res) => {
         Customer.countDocuments({ role: 'CUSTOMER' }),
         Customer.countDocuments({ role: 'WORKER' }),
         Shop.countDocuments(),
-        Job.countDocuments({ status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'IN_PROGRESS'] } }),
+        Job.countDocuments({ status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'] } }),
         Job.aggregate([
             { $match: { createdAt: { $gte: matchDate }, status: { $ne: 'CANCELLED' } } },
             { $group: { _id: null, total: { $sum: '$payment.amount' } } }
@@ -112,7 +111,7 @@ exports.getStats = catchAsync(async (req, res) => {
 
     const activities = recentJobs.map(job => ({
         color: job.status === 'COMPLETED' || job.status === 'PAID' ? 'green' : job.status === 'CANCELLED' ? 'red' : 'blue',
-        text: `Job #${job._id.toString().slice(-6)} â€” ${job.category} [${job.status}]${job.customerId?.name ? ' by ' + job.customerId.name : ''}`,
+        text: `Job #${job._id.toString().slice(-6)} — ${job.category} [${job.status}]${job.customerId?.name ? ' by ' + job.customerId.name : ''}`,
         time: job.createdAt
     }));
 
@@ -130,7 +129,7 @@ exports.getStats = catchAsync(async (req, res) => {
         category: (row.worker.services?.[0]?.category) || 'Service',
         jobs:     row.totalJobs,
         rating:   row.worker.rating?.average?.toFixed(1) || '0.0',
-        earned:   `â‚¹${(row.totalEarnings || 0).toFixed(0)}`,
+        earned:   `₹${(row.totalEarnings || 0).toFixed(0)}`,
         status:   row.worker.isOnline ? 'online' : 'offline'
     }));
 
@@ -150,7 +149,7 @@ exports.getStats = catchAsync(async (req, res) => {
     return successResponse(res, responseData, ADMIN.STATS_FETCHED);
 });
 
-// â”€â”€â”€ User Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── User Management ──────────────────────────────────────────────────────────
 exports.getCustomers = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, search } = req.query;
     const query = { role: 'CUSTOMER' };
@@ -690,7 +689,7 @@ exports.impersonateUser = catchAsync(async (req, res) => {
     return successResponse(res, { token, user: { name: user.name, role: user.role } }, 'Impersonation token generated');
 });
 
-// â”€â”€â”€ Shop Management (P1 FIX: Missing admin shop visibility) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Shop Management (P1 FIX: Missing admin shop visibility) ─────────────────
 exports.getShops = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, search, kycStatus } = req.query;
     const query = { isDeleted: { $ne: true } };
@@ -979,7 +978,7 @@ exports.creditShopWallet = catchAsync(async (req, res) => {
     let adminWallet = await AdminWallet.findOne().lean();
     if (!adminWallet) adminWallet = await AdminWallet.create({ balance: 0 });
     if (adminWallet.balance < amount) {
-        return errorResponse(res, `Insufficient admin wallet balance. Available: â‚¹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
+        return errorResponse(res, `Insufficient admin wallet balance. Available: ₹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
     }
 
     // Atomic: debit admin wallet with $gte guard
@@ -989,7 +988,7 @@ exports.creditShopWallet = catchAsync(async (req, res) => {
         { returnDocument: 'after' }
     );
     if (!debitedAdminWallet) {
-        return errorResponse(res, `Insufficient admin wallet balance. Available: â‚¹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
+        return errorResponse(res, `Insufficient admin wallet balance. Available: ₹${adminWallet.balance}`, StatusCodes.BAD_REQUEST);
     }
 
     // Atomic: credit shop wallet
@@ -1014,19 +1013,19 @@ exports.creditShopWallet = catchAsync(async (req, res) => {
         type: 'SHOP_PAYOUT',
         amount,
         balanceAfter: debitedAdminWallet.balance,
-        description: `â‚¹${amount} credited to "${shop.name}" wallet`,
+        description: `₹${amount} credited to "${shop.name}" wallet`,
         referenceId: shop._id,
         referenceModel: 'Shop',
         meta: { performedBy: req.user?._id }
     });
 
-    logAdminActivity('WALLET_CREDIT', 'SHOP', shop._id, 'Shop Wallet Credited', `â‚¹${amount} credited to "${shop.name}" wallet from admin wallet`, req.user?._id);
+    logAdminActivity('WALLET_CREDIT', 'SHOP', shop._id, 'Shop Wallet Credited', `₹${amount} credited to "${shop.name}" wallet from admin wallet`, req.user?._id);
 
     await delCache('admin_badge_counts');
     await delCache('admin_dashboard_stats');
     triggerDashboardUpdate();
 
-    return successResponse(res, { shop: creditedShop, adminBalance: debitedAdminWallet.balance }, `â‚¹${amount} credited successfully`);
+    return successResponse(res, { shop: creditedShop, adminBalance: debitedAdminWallet.balance }, `₹${amount} credited successfully`);
 });
 
 exports.debitShopWallet = catchAsync(async (req, res) => {
@@ -1041,7 +1040,7 @@ exports.debitShopWallet = catchAsync(async (req, res) => {
         { returnDocument: 'after' }
     );
     if (!debitedShop) {
-        return errorResponse(res, `Insufficient balance. Available: â‚¹${shop.wallet.balance}`, StatusCodes.BAD_REQUEST);
+        return errorResponse(res, `Insufficient balance. Available: ₹${shop.wallet.balance}`, StatusCodes.BAD_REQUEST);
     }
 
     // Atomic: credit admin wallet
@@ -1067,19 +1066,19 @@ exports.debitShopWallet = catchAsync(async (req, res) => {
         type: 'COMMISSION_COLLECTED',
         amount,
         balanceAfter: creditedAdminWallet.balance,
-        description: `â‚¹${amount} debited from "${shop.name}" wallet to admin`,
+        description: `₹${amount} debited from "${shop.name}" wallet to admin`,
         referenceId: shop._id,
         referenceModel: 'Shop',
         meta: { performedBy: req.user?._id }
     });
 
-    logAdminActivity('WALLET_DEBIT', 'SHOP', shop._id, 'Shop Wallet Debited', `â‚¹${amount} debited from "${shop.name}" wallet to admin wallet`, req.user?._id);
+    logAdminActivity('WALLET_DEBIT', 'SHOP', shop._id, 'Shop Wallet Debited', `₹${amount} debited from "${shop.name}" wallet to admin wallet`, req.user?._id);
 
     await delCache('admin_badge_counts');
     await delCache('admin_dashboard_stats');
     triggerDashboardUpdate();
 
-    return successResponse(res, { shop: debitedShop, adminBalance: creditedAdminWallet.balance }, `â‚¹${amount} debited successfully`);
+    return successResponse(res, { shop: debitedShop, adminBalance: creditedAdminWallet.balance }, `₹${amount} debited successfully`);
 });
 
 exports.uploadShopKycDoc = catchAsync(async (req, res) => {
@@ -1148,16 +1147,16 @@ exports.editShopKycDoc = catchAsync(async (req, res) => {
     return successResponse(res, shop, 'KYC document updated');
 });
 
-// â”€â”€â”€ Platform Health (P1 FIX: Real socket count) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Platform Health (P1 FIX: Real socket count) ─────────────────────────────
 exports.getPlatformHealth = catchAsync(async (req, res) => {
-    const dbStatus = mongoose.connection.readyState === 1 ? 'âœ“ Connected' : 'âœ— Disconnected';
+    const dbStatus = mongoose.connection.readyState === 1 ? '✓ Connected' : '✗ Disconnected';
 
     let connectedClients = 0;
-    let socketStatus = 'âœ— Not initialized';
+    let socketStatus = '✗ Not initialized';
     try {
         const io = getIO();
         connectedClients = io.engine.clientsCount;
-        socketStatus = 'âœ“ Active';
+        socketStatus = '✓ Active';
     } catch (e) { /* io not ready */ }
 
     const health = {
@@ -1178,7 +1177,7 @@ exports.getPlatformHealth = catchAsync(async (req, res) => {
     return successResponse(res, health, 'Platform health fetched');
 });
 
-// â”€â”€â”€ P1 FIX: Ledger now uses WalletTxn (not legacy Transaction model) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── P1 FIX: Ledger now uses WalletTxn (not legacy Transaction model) ─────────
 exports.getLedger = catchAsync(async (req, res) => {
     const { page = 1, limit = 50, type } = req.query;
 
@@ -1200,7 +1199,7 @@ exports.getLedger = catchAsync(async (req, res) => {
     }, 'Ledger fetched');
 });
 
-// â”€â”€â”€ Detail Views â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Detail Views ────────────────────────────────────────────────────────────
 exports.getUserDetail = catchAsync(async (req, res) => {
     const user = await Customer.findById(req.params.id).select('-password').lean();
     if (!user) return errorResponse(res, AUTH.USER_NOT_FOUND, StatusCodes.NOT_FOUND);
@@ -1221,7 +1220,7 @@ exports.getUserDetail = catchAsync(async (req, res) => {
     return successResponse(res, { user, jobStats, recentJobs }, 'User detail fetched');
 });
 
-// â”€â”€â”€ Admin manages customer activities (jobs & orders on behalf of customer) â”€â”€â”€
+// ─── Admin manages customer activities (jobs & orders on behalf of customer) ───
 
 exports.getCustomerJobs = catchAsync(async (req, res) => {
     const { id } = req.params;
@@ -1305,7 +1304,8 @@ exports.adminCreateJob = catchAsync(async (req, res) => {
         }
     }).select('_id').lean();
 
-    emitToAll('NEW_JOB_ALERT', {
+    // Alert only the eligible workers (as the customer flow does), never every connected client
+    const alertPayload = {
         jobId: job._id,
         category: job.category,
         subcategory: job.subcategory,
@@ -1315,8 +1315,9 @@ exports.adminCreateJob = catchAsync(async (req, res) => {
         timeSlot: job.timeSlot,
         preferredDate: job.preferredDate,
         workerCount: eligibleWorkers.length,
-        customerId: { _id: customer._id, name: customer.name, phone: customer.phone, profileImage: customer.profileImage }
-    });
+        customerId: { _id: customer._id, name: customer.name, profileImage: customer.profileImage }
+    };
+    eligibleWorkers.forEach(w => emitToRoom(`worker_${w._id}`, 'NEW_JOB_ALERT', alertPayload));
 
     await delCache('admin_dashboard_stats');
     await delCache('admin_badge_counts');
@@ -1504,7 +1505,7 @@ exports.getJobDetail = catchAsync(async (req, res) => {
     return successResponse(res, { job, quotes, walletTxns }, 'Job detail fetched');
 });
 
-// â”€â”€â”€ CSV Export Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── CSV Export Helpers ──────────────────────────────────────────────────────
 
 exports.exportCustomers = catchAsync(async (req, res) => {
     res.setHeader('Content-Type', 'text/csv');
@@ -1558,7 +1559,7 @@ exports.exportPayments = catchAsync(async (req, res) => {
     res.end();
 });
 
-// â”€â”€â”€ Payout Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Payout Management ────────────────────────────────────────────────────────
 exports.getPayouts = catchAsync(async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query;
     const query = {};
@@ -1624,7 +1625,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
 
     // Send Notification
     let title = 'Withdrawal Request Updated';
-    let message = `Your withdrawal request of â‚¹${payout.amount} has been ${status.toLowerCase()}.`;
+    let message = `Your withdrawal request of ₹${payout.amount} has been ${status.toLowerCase()}.`;
     if (status === 'REJECTED') message += ` Reason: ${rejectReason}`;
     if (status === 'TRANSFERRED') message += ` Txn ID: ${txnId}`;
 
@@ -1645,7 +1646,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
     await delCache('admin_badge_counts');
     triggerDashboardUpdate();
 
-    logAdminActivity('PAYOUT', 'PAYOUT', payout._id, `Payout ${status}`, `Payout of â‚¹${payout.amount} was ${status.toLowerCase()}`, req.user?._id);
+    logAdminActivity('PAYOUT', 'PAYOUT', payout._id, `Payout ${status}`, `Payout of ₹${payout.amount} was ${status.toLowerCase()}`, req.user?._id);
 
     if (status === 'TRANSFERRED') {
         try {
@@ -1653,7 +1654,7 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
             const recipientName = payout.shopId ? 'shop' : 'worker';
             await debitForPayout(
                 payout.amount,
-                `Payout transferred to ${recipientName} â€” Txn: ${txnId || 'N/A'}`,
+                `Payout transferred to ${recipientName} — Txn: ${txnId || 'N/A'}`,
                 payout._id,
                 'Payout',
                 { workerId: payout.workerId, shopId: payout.shopId }

@@ -80,6 +80,20 @@ async function collectPlatformFee(amount, description, referenceId, referenceMod
     });
 }
 
+// A promo discount the platform absorbs (the partner is still paid in full).
+async function recordPromoCost(amount, description, referenceId, referenceModel, meta = {}, options = {}) {
+    return adjustWalletBalance({
+        amount,
+        increment: -1,
+        txnType: 'FEE_REVERSAL',
+        description,
+        referenceId,
+        referenceModel,
+        meta: { ...meta, reason: 'PROMO_DISCOUNT' },
+        session: options.session,
+    });
+}
+
 async function debitForPayout(amount, description, referenceId, referenceModel, meta = {}, options = {}) {
     return adjustWalletBalance({
         amount,
@@ -98,5 +112,6 @@ module.exports = {
     getOrCreateWallet,
     collectCommission,
     collectPlatformFee,
+    recordPromoCost,
     debitForPayout,
 };

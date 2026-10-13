@@ -22,7 +22,10 @@ const placeOrderSchema = Joi.object({
 
 const updateOrderStatusSchema = Joi.object({
     status: Joi.string().valid('CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED').required(),
-    otp: Joi.string().optional()
+    otp: Joi.string().optional(),
+    note: Joi.string().max(300).allow('').optional(),
+    // Who is carrying the order; only meaningful with OUT_FOR_DELIVERY.
+    deliveryStaffId: Joi.string().hex().length(24).allow(null, '').optional()
 });
 
 module.exports = {

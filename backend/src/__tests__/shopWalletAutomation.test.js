@@ -28,6 +28,7 @@ jest.mock('../services/sms.service', () => ({
     sendOTP: jest.fn().mockResolvedValue('1234')
 }));
 
+const BankCredit = require('../modules/payment/bankCredit.model');
 const request = require('supertest');
 const app = require('../app');
 const { setup, teardown, clearCollections, createTestUser, generateToken } = require('./testSetup');
@@ -97,6 +98,8 @@ describe('Shop & Worker Wallet Top-Up and Automated Subscription Lifecycle', () 
     describe('Shop Wallet Top-up with Direct Verified UTR', () => {
         it('should credit Shop.wallet.balance atomically and create COMPLETED transaction', async () => {
             const utr = '812345678901';
+            // The bank-SMS webhook has already recorded this credit
+            await BankCredit.create({ utr, amount: 500, source: 'BANK_SMS', receivedAt: new Date(), isClaimed: false });
             const res = await request(app)
                 .post('/api/v1/wallet/topup')
                 .set('Authorization', `Bearer ${shopToken}`)
@@ -151,9 +154,36 @@ describe('Shop & Worker Wallet Top-Up and Automated Subscription Lifecycle', () 
         });
     });
 
+    describe('Top-up with a UTR the bank has not confirmed', () => {
+        it('should hold it PENDING_VERIFICATION and leave the balance unchanged', async () => {
+            const res = await request(app)
+                .post('/api/v1/wallet/topup')
+                .set('Authorization', `Bearer ${shopToken}`)
+                .send({ amount: 50000, utrNumber: '873519246081' });
+
+            expect(res.status).toBe(201);
+            expect(res.body.data.status).toBe('PENDING_VERIFICATION');
+            const shop = await Shop.findById(shopDoc._id).lean();
+            expect(shop.wallet.balance).toBe(500);
+        });
+
+        it('should not activate a subscription without a bank-confirmed payment', async () => {
+            const res = await request(app)
+                .post('/api/v1/wallet/topup')
+                .set('Authorization', `Bearer ${workerToken}`)
+                .send({ amount: 299, planId: 'worker_pro', utrNumber: '873519246082' });
+
+            expect(res.body.data.status).toBe('PENDING_VERIFICATION');
+            const worker = await Customer.findById(workerUser._id).lean();
+            expect(worker.subscription?.planId).not.toBe('worker_pro');
+        });
+    });
+
     describe('Shop Subscription Purchase via Direct UPI Top-up Flow', () => {
         it('should activate Shop subscription atomically and create ShopSubscription record', async () => {
             const utr = '812345678903';
+            // The bank-SMS webhook has already recorded this credit
+            await BankCredit.create({ utr, amount: 499, source: 'BANK_SMS', receivedAt: new Date(), isClaimed: false });
             const res = await request(app)
                 .post('/api/v1/wallet/topup')
                 .set('Authorization', `Bearer ${shopToken}`)
@@ -211,6 +241,8 @@ describe('Shop & Worker Wallet Top-Up and Automated Subscription Lifecycle', () 
     describe('Worker Subscription Purchase via Direct UPI Top-up Flow', () => {
         it('should activate Worker subscription atomically and update Customer.subscription', async () => {
             const utr = '812345678906';
+            // The bank-SMS webhook has already recorded this credit
+            await BankCredit.create({ utr, amount: 299, source: 'BANK_SMS', receivedAt: new Date(), isClaimed: false });
             const res = await request(app)
                 .post('/api/v1/wallet/topup')
                 .set('Authorization', `Bearer ${workerToken}`)

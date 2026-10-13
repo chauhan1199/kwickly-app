@@ -93,7 +93,7 @@ exports.settle = catchAsync(async (req, res) => {
         const notif = await Notification.create({
             userId: shop.ownerId,
             title: 'Settlement Processed',
-            message: `Your settlement of â‚¹${settlement.shopEarning} has been credited to your wallet.`,
+            message: `Your settlement of ₹${settlement.shopEarning} has been credited to your wallet.`,
             type: 'DIRECT',
             action: 'SETTLE',
             entityType: 'PAYOUT',
@@ -160,7 +160,7 @@ exports.bulkSettle = catchAsync(async (req, res) => {
                 const notif = await Notification.create({
                     userId: shop.ownerId,
                     title: 'Settlement Processed',
-                    message: `Your settlement of â‚¹${settlement.shopEarning} has been credited to your wallet.`,
+                    message: `Your settlement of ₹${settlement.shopEarning} has been credited to your wallet.`,
                     type: 'DIRECT',
                     action: 'SETTLE',
                     entityType: 'PAYOUT',

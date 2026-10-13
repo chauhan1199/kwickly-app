@@ -5,7 +5,7 @@ const upload  = require('../../middleware/upload.middleware');
 const { authMiddleware } = require('../../middleware/auth.middleware');
 const authorize          = require('../../middleware/role.middleware');
 const validate           = require('../../middleware/validate.middleware');
-const { createShopSchema, updateShopSchema, updateShopAdminSchema, addPayoutMethodSchema, withdrawSchema, updateOwnerSchema, reviewKycSchema } = require('../../validators/shop.validator');
+const { createShopSchema, updateShopSchema, updateShopAdminSchema, addPayoutMethodSchema, withdrawSchema, updateOwnerSchema } = require('../../validators/shop.validator');
 
 // Shop owner routes
 router.post('/',                                    authMiddleware, validate(createShopSchema), ctrl.createShop);

@@ -585,7 +585,7 @@ export default function Categories() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 16, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 16, marginBottom: 20 }}>
           <button
             className={`btn ${tab === 'categories' ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => setTab('categories')}
@@ -628,7 +628,7 @@ export default function Categories() {
             {filteredCats.map(cat => (
               <div key={cat._id} className="card">
                 <div
-                  style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', borderBottom: expandedCat === cat._id ? '1px solid var(--border)' : 'none' }}
+                  style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14, cursor: 'pointer', borderBottom: expandedCat === cat._id ? '1px solid var(--border)' : 'none' }}
                   onClick={() => setExpandedCat(expandedCat === cat._id ? null : cat._id)}
                 >
                   <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--primary-light)', border: `2px solid var(--primary)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>

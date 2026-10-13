@@ -73,23 +73,23 @@ exports.deleteBanner = catchAsync(async (req, res) => {
     return successResponse(res, null, 'Banner deleted');
 });
 
-// â”€â”€â”€ Public: validate promo code at checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Public: validate promo code at checkout ──────────────────────────────────
 exports.validatePromoCode = catchAsync(async (req, res) => {
     const { code, orderAmount, userId, userRole } = req.body;
     const promo = await Promotion.findOne({ code: code.toUpperCase(), isActive: true }).lean();
     if (!promo) return errorResponse(res, 'Invalid promo code', StatusCodes.NOT_FOUND);
     if (promo.endAt && promo.endAt < new Date()) return errorResponse(res, 'Promo code expired', StatusCodes.BAD_REQUEST);
     if (promo.maxUsesTotal && promo.usesCount >= promo.maxUsesTotal) return errorResponse(res, 'Promo code usage limit reached', StatusCodes.BAD_REQUEST);
-    if (orderAmount < promo.minOrderAmount) return errorResponse(res, `Minimum order â‚¹${promo.minOrderAmount} required`, StatusCodes.BAD_REQUEST);
+    if (orderAmount < promo.minOrderAmount) return errorResponse(res, `Minimum order ₹${promo.minOrderAmount} required`, StatusCodes.BAD_REQUEST);
 
-    // Enforce applicableRoles â€” check if user's role is allowed
+    // Enforce applicableRoles — check if user's role is allowed
     if (promo.applicableRoles && promo.applicableRoles.length > 0 && userRole) {
         if (!promo.applicableRoles.includes(userRole)) {
             return errorResponse(res, 'This promo code is not available for your account type', StatusCodes.BAD_REQUEST);
         }
     }
 
-    // Enforce maxUsesPerUser â€” check if this user already used this promo
+    // Enforce maxUsesPerUser — check if this user already used this promo
     if (promo.maxUsesPerUser && userId) {
         const usageCount = await UserPromoUsage.countDocuments({ promoId: promo._id, userId });
         if (usageCount >= promo.maxUsesPerUser) {

@@ -2,12 +2,11 @@ const cron = require('node-cron');
 const Job = require('../modules/job/job.model');
 const ShopOrder = require('../modules/shoporder/shoporder.model');
 const Customer = require('../modules/customer/customer.model');
-const AppSettings = require('../modules/settings/settings.model');
 const WalletTxn = require('../modules/wallet/wallet.model');
 const logger = require('../helpers/logger.helper');
-const { emitToRoom, emitToAll, getIO } = require('../helpers/socket.helper');
+const { emitToRoom, emitToAll } = require('../helpers/socket.helper');
 const { findEligibleWorkers } = require('../helpers/worker.helper');
-const { getCache, setCache, delCache, acquireLock, releaseLock } = require('../helpers/redis.helper');
+const { delCache, acquireLock, releaseLock } = require('../helpers/redis.helper');
 const { notifyUser } = require('../helpers/notifyUser.helper');
 const Quote = require('../modules/quote/quote.model');
 const mongoose = require('mongoose');
@@ -420,7 +419,7 @@ const reconcilePendingUpiPayments = async () => {
 
     const pendingTxns = await WalletTxn.find({
         status: 'PENDING',
-        gatewayTransactionId: { $exists: true, $ne: null, $ne: '' },
+        gatewayTransactionId: { $exists: true, $nin: [null, ''] },
         createdAt: { $lt: twoMinAgo, $gt: oneDayAgo }
     }).limit(20);
 
@@ -461,7 +460,7 @@ const reconcilePendingUpiPayments = async () => {
     // 2. Reconcile ShopOrder PENDING records
     const pendingOrders = await ShopOrder.find({
         'payment.status': 'PENDING',
-        'payment.gatewayOrderId': { $exists: true, $ne: null, $ne: '' },
+        'payment.gatewayOrderId': { $exists: true, $nin: [null, ''] },
         createdAt: { $lt: twoMinAgo, $gt: oneDayAgo }
     }).limit(20);
 

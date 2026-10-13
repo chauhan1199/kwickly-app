@@ -13,7 +13,7 @@ const Modal = ({ open, onClose, title, children, width = '520px', closeOnBackdro
   if (!open) return null
 
   return (
-    <div className="modal-overlay" onClick={closeOnBackdrop ? onClose : undefined} aria-hidden="true">
+    <div className="modal-overlay" onClick={closeOnBackdrop ? onClose : undefined}>
       <div
         className="modal-box"
         style={{ maxWidth: width }}

@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import api from '../services/api';
+import { calculateShopOrderFee, DEFAULT_SHOP_ORDER_FEE } from '../utils/fees';
 
 const CartContext = createContext(null);
 
@@ -8,6 +9,18 @@ export const CartProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [promoCode, setPromoCode] = useState(null);
+  const [feeConfig, setFeeConfig] = useState(DEFAULT_SHOP_ORDER_FEE);
+
+  useEffect(() => {
+    let active = true;
+    api.get('/settings/public')
+      .then((res) => {
+        const cfg = res.data?.data?.shopOrderFee;
+        if (active && cfg) setFeeConfig({ ...DEFAULT_SHOP_ORDER_FEE, ...cfg });
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   const fetchCart = useCallback(async () => {
     try {
@@ -119,8 +132,7 @@ export const CartProvider = ({ children }) => {
   const shopDiscount = cart?.discount || 0;
   const effectiveDiscount = promoDiscount > 0 ? promoDiscount : shopDiscount;
   const netItems = Math.max(0, subtotal - effectiveDiscount);
-  const platformFee = (itemCount > 0 && netItems > 0) ? Math.round((netItems * 0.05) * 100) / 100 : 0;
-  const gstAmount = platformFee > 0 ? Math.round((platformFee * 0.18) * 100) / 100 : 0;
+  const { platformFee, gstAmount } = itemCount > 0 ? calculateShopOrderFee(netItems, feeConfig) : { platformFee: 0, gstAmount: 0 };
   const total = itemCount > 0 ? Math.round((netItems + deliveryCharge + platformFee + gstAmount) * 100) / 100 : 0;
 
   return (

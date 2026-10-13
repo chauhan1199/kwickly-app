@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, StatusBar, ActivityIndicator, Alert, TextInput, Modal
+  TouchableOpacity, StatusBar, ActivityIndicator, Alert, TextInput, Modal,
+  KeyboardAvoidingView, Platform
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -9,7 +10,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
 import {
   Check, Package, Truck, Bell,
-  ChevronLeft, XCircle
+  ChevronLeft, User, Phone, Plus
 } from 'lucide-react-native';
 
 const ShopOrderDetailScreen = ({ route, navigation }) => {
@@ -23,6 +24,13 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
   const [updating, setUpdating] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [showOtpModal, setShowOtpModal] = useState(false);
+  const [showStaffModal, setShowStaffModal] = useState(false);
+  const [staffList, setStaffList] = useState([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [selectedStaffId, setSelectedStaffId] = useState(null);
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffPhone, setNewStaffPhone] = useState('');
+  const [addingStaff, setAddingStaff] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -37,18 +45,60 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
 
   useEffect(() => { fetchOrder(); }, [fetchOrder]);
 
-  const updateStatus = async (status, otp, note) => {
+  const updateStatus = async (status, otp, note, deliveryStaffId) => {
     try {
       setUpdating(true);
-      await shopService.updateOrderStatus(orderId, status, otp, note);
+      await shopService.updateOrderStatus(orderId, status, otp, note, deliveryStaffId);
+      // Close the dialogs only on success, so a wrong OTP can be corrected in place.
+      setShowOtpModal(false);
+      setShowStaffModal(false);
+      setOtpInput('');
       fetchOrder();
     } catch (e) {
-      Alert.alert('Error', e?.response?.data?.message || 'Failed to update status');
+      Alert.alert('Could not update order', e?.response?.data?.message || e?.message || 'Failed to update status');
     } finally {
       setUpdating(false);
-      setShowOtpModal(false);
-      setOtpInput('');
     }
+  };
+
+  const openStaffPicker = async () => {
+    setSelectedStaffId(null);
+    setShowStaffModal(true);
+    setStaffLoading(true);
+    try {
+      const res = await shopService.getDeliveryStaff();
+      setStaffList(Array.isArray(res.data?.data) ? res.data.data : []);
+    } catch (e) {
+      setStaffList([]);
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
+  const handleAddStaff = async () => {
+    const name = newStaffName.trim();
+    const phone = newStaffPhone.replace(/\D/g, '');
+    if (!name) return Alert.alert('Name required', 'Enter the delivery person\'s name');
+    if (phone && phone.length !== 10) return Alert.alert('Invalid phone', 'Enter a 10-digit mobile number');
+    try {
+      setAddingStaff(true);
+      const res = await shopService.addDeliveryStaff({ name, phone: phone || undefined });
+      const created = res.data?.data;
+      if (created?._id) {
+        setStaffList(prev => [...prev, created]);
+        setSelectedStaffId(created._id);
+      }
+      setNewStaffName('');
+      setNewStaffPhone('');
+    } catch (e) {
+      Alert.alert('Could not add', e?.response?.data?.message || e?.message || 'Failed to add delivery person');
+    } finally {
+      setAddingStaff(false);
+    }
+  };
+
+  const confirmDispatch = () => {
+    updateStatus('OUT_FOR_DELIVERY', undefined, undefined, selectedStaffId || undefined);
   };
 
   const handleCancelOrder = () => {
@@ -89,6 +139,10 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
 
     if (action.needsOtp) {
       setShowOtpModal(true);
+      return;
+    }
+    if (action.status === 'OUT_FOR_DELIVERY') {
+      openStaffPicker();
       return;
     }
 
@@ -197,6 +251,22 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
 
+        {order.deliveryStaffName ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Delivery Partner</Text>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Name</Text>
+              <Text style={styles.infoValue}>{order.deliveryStaffName}</Text>
+            </View>
+            {order.deliveryStaffPhone ? (
+              <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+                <Text style={styles.infoLabel}>Phone</Text>
+                <Text style={styles.infoValue}>{order.deliveryStaffPhone}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Delivery Schedule & Slot */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Delivery Schedule</Text>
@@ -250,15 +320,6 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Delivery OTP */}
-        {order.deliveryOtp && order.status !== 'DELIVERED' && (
-          <View style={styles.otpCard}>
-            <Text style={styles.otpLabel}>Delivery OTP</Text>
-            <Text style={styles.otpCode}>{order.deliveryOtp}</Text>
-            <Text style={styles.otpHint}>Ask customer for this OTP on delivery</Text>
-          </View>
-        )}
-
         {/* Status History */}
         {order.statusHistory?.length > 0 && (
           <View style={styles.card}>
@@ -284,7 +345,7 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
 
       {/* Action Button */}
       {nextAction && order.status !== 'CANCELLED' && (
-        <View style={styles.actionBar}>
+        <View style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
           {nextAction.allowCancel && (
             <TouchableOpacity
               style={[styles.cancelOrderBtn, updating && { opacity: 0.6 }]}
@@ -313,19 +374,19 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
 
 
       {/* OTP Modal */}
-      {showOtpModal && (
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowOtpModal(false)} />
+      <Modal visible={showOtpModal} transparent animationType="fade" onRequestClose={() => setShowOtpModal(false)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowOtpModal(false)} />
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Enter Delivery OTP</Text>
-            <Text style={styles.modalDesc}>Ask the customer for the 4-digit OTP shown on their screen</Text>
+            <Text style={styles.modalDesc}>Ask the customer for the 4-digit OTP shown in their app</Text>
             <TextInput
               style={styles.otpInput}
-              placeholder="Enter 4-digit OTP"
+              placeholder="----"
               placeholderTextColor={theme.colors.textDim}
               value={otpInput}
-              onChangeText={setOtpInput}
-              keyboardType="numeric"
+              onChangeText={(t) => setOtpInput(t.replace(/\D/g, ''))}
+              keyboardType="number-pad"
               maxLength={4}
               autoFocus
             />
@@ -338,12 +399,101 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
                 disabled={updating}
                 onPress={handleConfirmDelivery}
               >
-                <Text style={styles.modalConfirmText}>Confirm Delivery</Text>
+                {updating ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.modalConfirmText}>Confirm Delivery</Text>}
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      )}
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Dispatch: choose who delivers */}
+      <Modal visible={showStaffModal} transparent animationType="fade" onRequestClose={() => setShowStaffModal(false)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowStaffModal(false)} />
+          <View style={[styles.modalContent, styles.staffModal]}>
+            <Text style={styles.modalTitle}>Who is delivering?</Text>
+            <Text style={styles.modalDesc}>The customer will see this name on their order</Text>
+            <ScrollView style={styles.staffScroll} keyboardShouldPersistTaps="handled">
+              <TouchableOpacity
+                style={[styles.staffRow, selectedStaffId === null && styles.staffRowActive]}
+                onPress={() => setSelectedStaffId(null)}
+              >
+                <Truck size={18} color={selectedStaffId === null ? theme.colors.primary : theme.colors.textDim} />
+                <Text style={styles.staffName}>I'll deliver it myself</Text>
+                {selectedStaffId === null && <Check size={18} color={theme.colors.primary} />}
+              </TouchableOpacity>
+              {staffLoading ? (
+                <ActivityIndicator style={{ marginVertical: 12 }} color={theme.colors.primary} />
+              ) : staffList.map(st => {
+                const active = selectedStaffId === st._id;
+                const busy = st.activeOrderId && st.activeOrderId !== order._id;
+                return (
+                  <TouchableOpacity
+                    key={st._id}
+                    style={[styles.staffRow, active && styles.staffRowActive]}
+                    onPress={() => setSelectedStaffId(st._id)}
+                  >
+                    <User size={18} color={active ? theme.colors.primary : theme.colors.textDim} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.staffName} numberOfLines={1}>{st.name}</Text>
+                      <Text style={styles.staffMeta} numberOfLines={1}>
+                        {[st.phone, busy ? 'On another delivery' : null].filter(Boolean).join(' · ') || 'No phone'}
+                      </Text>
+                    </View>
+                    {active && <Check size={18} color={theme.colors.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+              <View style={styles.addStaffBox}>
+                <Text style={styles.addStaffTitle}>Add a delivery person</Text>
+                <View style={styles.addStaffInputRow}>
+                  <User size={16} color={theme.colors.textDim} />
+                  <TextInput
+                    style={styles.addStaffInput}
+                    placeholder="Name"
+                    placeholderTextColor={theme.colors.textDim}
+                    value={newStaffName}
+                    onChangeText={setNewStaffName}
+                    maxLength={100}
+                  />
+                </View>
+                <View style={styles.addStaffInputRow}>
+                  <Phone size={16} color={theme.colors.textDim} />
+                  <TextInput
+                    style={styles.addStaffInput}
+                    placeholder="Mobile (optional)"
+                    placeholderTextColor={theme.colors.textDim}
+                    value={newStaffPhone}
+                    onChangeText={(t) => setNewStaffPhone(t.replace(/\D/g, ''))}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                </View>
+                <TouchableOpacity style={[styles.addStaffBtn, addingStaff && { opacity: 0.6 }]} disabled={addingStaff} onPress={handleAddStaff}>
+                  {addingStaff ? <ActivityIndicator size="small" color={theme.colors.primary} /> : (
+                    <>
+                      <Plus size={16} color={theme.colors.primary} />
+                      <Text style={styles.addStaffBtnText}>Add</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowStaffModal(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, { backgroundColor: '#f59e0b' }, updating && { opacity: 0.6 }]}
+                disabled={updating}
+                onPress={confirmDispatch}
+              >
+                {updating ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.modalConfirmText}>Send Out</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
       </View>
     </View>
   );
@@ -433,10 +583,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   totalRow:     { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 12 },
   totalLabel:   { fontSize: 15, fontWeight: '800', color: theme.colors.text },
   totalValue:   { fontSize: 18, fontWeight: '900', color: theme.colors.primary },
-  otpCard:      { backgroundColor: theme.colors.surface, borderRadius: 16, padding: 20, marginBottom: 12, borderWidth: 2, borderColor: '#f59e0b' + '40', alignItems: 'center' },
-  otpLabel:     { fontSize: 14, fontWeight: '700', color: theme.colors.textDim },
-  otpCode:      { fontSize: 40, fontWeight: '900', color: '#f59e0b', letterSpacing: 10, marginVertical: 8 },
-  otpHint:      { fontSize: 12, color: theme.colors.textDim },
   historyRow:   { flexDirection: 'row', marginBottom: 12 },
   historyDot:   { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.border, marginTop: 4, marginRight: 12 },
   historyDotActive:{ backgroundColor: theme.colors.primary },
@@ -449,16 +595,28 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   actionBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16, borderRadius: 14 },
 
   actionBtnText:{ fontSize: 16, fontWeight: '800', color: '#fff' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   modalBackdrop: StyleSheet.absoluteFill,
-  modalContent: { backgroundColor: theme.colors.surface, borderRadius: 20, padding: 24, width: '85%', borderWidth: 1, borderColor: theme.colors.border },
+  modalContent: { backgroundColor: theme.colors.surface, borderRadius: 20, padding: 20, width: '100%', maxWidth: 420, borderWidth: 1, borderColor: theme.colors.border },
+  staffModal:   { maxHeight: '85%' },
+  staffScroll:  { flexGrow: 0 },
+  staffRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 8 },
+  staffRowActive:{ borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '12' },
+  staffName:    { flex: 1, fontSize: 14, fontWeight: '700', color: theme.colors.text },
+  staffMeta:    { fontSize: 12, color: theme.colors.textDim, marginTop: 2 },
+  addStaffBox:  { marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: theme.colors.background, gap: 8 },
+  addStaffTitle:{ fontSize: 13, fontWeight: '800', color: theme.colors.text },
+  addStaffInputRow:{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, paddingHorizontal: 10, backgroundColor: theme.colors.surface },
+  addStaffInput:{ flex: 1, minHeight: 44, fontSize: 14, color: theme.colors.text },
+  addStaffBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: theme.colors.primary },
+  addStaffBtnText:{ fontSize: 14, fontWeight: '800', color: theme.colors.primary },
   modalTitle:   { fontSize: 18, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
   modalDesc:    { fontSize: 13, color: theme.colors.textDim, textAlign: 'center', marginTop: 8, marginBottom: 20 },
   otpInput:     { backgroundColor: theme.colors.background, borderRadius: 12, padding: 16, fontSize: 24, fontWeight: '800', color: theme.colors.text, textAlign: 'center', letterSpacing: 10, borderWidth: 1, borderColor: theme.colors.border },
   modalActions: { flexDirection: 'row', gap: 12, marginTop: 20 },
-  modalCancelBtn:{ flex: 1, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
+  modalCancelBtn:{ flex: 1, padding: 14, minHeight: 48, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
   modalCancelText:{ fontSize: 14, fontWeight: '700', color: theme.colors.textDim },
-  modalConfirmBtn:{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#10b981', alignItems: 'center' },
+  modalConfirmBtn:{ flex: 1, padding: 14, minHeight: 48, justifyContent: 'center', borderRadius: 12, backgroundColor: '#10b981', alignItems: 'center' },
   modalConfirmText:{ fontSize: 14, fontWeight: '800', color: '#fff' },
 });
 

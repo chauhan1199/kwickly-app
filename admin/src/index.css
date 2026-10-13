@@ -882,7 +882,7 @@ textarea.form-control { height: auto; padding: 10px 12px; resize: vertical; min-
   .modal-header { padding: 16px; }
   .modal-body { padding: 16px; }
   .modal-footer { padding: 12px 16px; flex-direction: column; }
-  .modal-footer .btn { width: 100%; justify-content: center; }
+  .modal-footer .btn, .modal-footer .btn-primary, .modal-footer .btn-secondary, .modal-footer .btn-danger { width: 100%; justify-content: center; }
 
   /* Card body padding */
   .card-header { padding: 12px 16px; }
@@ -1336,4 +1336,33 @@ textarea.form-control { height: auto; padding: 10px 12px; resize: vertical; min-
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ══════════════════ Responsive fixes ══════════════════ */
+/* Grid items default to min-width:auto, so a wide table inside a card stretched
+   the whole grid column past the viewport. Let tracks shrink; tables scroll inside. */
+.grid-2 > *, .grid-3 > *, .grid-4 > *, .kpi-grid > * { min-width: 0; }
+
+/* Page-header action rows wrap instead of pushing buttons off-screen. */
+@media (max-width: 1024px) {
+  .page-header > div:last-child,
+  .page-header > div:last-child > div { flex-wrap: wrap; }
+  .summary-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
+}
+@media (max-width: 767px) {
+  .page-header > div:last-child .search-box { flex: 1 1 100%; }
+  .page-header { align-items: stretch; }
+}
+
+/* Touch targets: every tappable control is at least 40px tall on phones. */
+@media (max-width: 767px) {
+  .btn, .btn-sm, .btn-primary, .btn-secondary, .btn-danger,
+  .btn-success-sm, .btn-danger-sm, .filter-tab, .filter-chip,
+  .topbar-btn, .hamburger, .btn-icon, .modal-close, .drawer-close {
+    min-height: 40px;
+  }
+  .topbar-btn, .hamburger, .btn-icon, .modal-close, .drawer-close { min-width: 40px; }
+  .filter-chip { display: inline-flex; align-items: center; }
+  .seg-btn { min-height: 40px; }
+  .copy-btn { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
 }

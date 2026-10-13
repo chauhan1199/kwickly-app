@@ -339,7 +339,7 @@ export default function Wallets() {
       {tab === 'users' && (
         <>
           {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+          <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'Total Wallet Balance', value: `₹${totalBalance.toLocaleString('en-IN')}`, color: '#10B981' },
               { label: 'Customers', value: users.filter(u => u._role === 'CUSTOMER').length, color: '#00B4D8' },
@@ -434,7 +434,7 @@ export default function Wallets() {
       {tab === 'pending' && (
         <>
           {/* Pending UTR Approvals Section */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+          <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
             <div className="stat-card-simple" style={{ borderTop: '3px solid #F59E0B' }}>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#F59E0B' }}>{pendingTopups.length}</div>
               <div style={{ fontSize: 13, color: 'var(--mid)', fontWeight: 600, marginTop: 4 }}>Pending UTR Submissions</div>
@@ -580,7 +580,7 @@ export default function Wallets() {
       {tab === 'transactions' && (
         <>
           {/* All Transactions Tab */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+          <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'Total Credits', value: `₹${totalCredit.toLocaleString('en-IN')}`, color: '#059669' },
               { label: 'Total Debits', value: `₹${totalDebit.toLocaleString('en-IN')}`, color: '#dc2626' },

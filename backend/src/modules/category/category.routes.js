@@ -5,8 +5,6 @@ const { authMiddleware } = require('../../middleware/auth.middleware');
 const authorize = require('../../middleware/role.middleware');
 const validate = require('../../middleware/validate.middleware');
 const { createCategorySchema, updateCategorySchema, addSubcategorySchema, updateSubcategorySchema } = require('../../validators/category.validator');
-const { logAdminActivity } = require('../../helpers/adminActivity.helper');
-const { delCache } = require('../../helpers/redis.helper');
 const upload = require('../../middleware/upload.middleware');
 
 // Public list route (No auth required to browse services)

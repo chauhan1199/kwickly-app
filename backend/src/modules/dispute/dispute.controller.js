@@ -91,7 +91,7 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
     const dispute = await Dispute.findById(id).populate('jobId').populate('shopOrderId');
     if (!dispute) return errorResponse(res, 'Dispute not found', StatusCodes.NOT_FOUND);
 
-    // Idempotency guard â”€ prevent double refund
+    // Idempotency guard ─ prevent double refund
     if (status === 'REFUNDED' && dispute.status === 'REFUNDED') {
         return errorResponse(res, 'This dispute has already been refunded', StatusCodes.CONFLICT);
     }
@@ -127,10 +127,10 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
 
                 await Notification.create({
                     userId: customer._id, title: 'Dispute Refunded',
-                    message: `Your dispute has been resolved. â‚¹${actualRefundAmount} has been refunded to your wallet.`,
+                    message: `Your dispute has been resolved. ₹${actualRefundAmount} has been refunded to your wallet.`,
                     type: 'DIRECT', action: 'WALLET_CREDIT', entityType: 'DISPUTE', entityId: dispute._id
                 });
-                emitToUser(customer._id.toString(), 'NEW_NOTIFICATION', { message: `â‚¹${actualRefundAmount} refunded for dispute.` });
+                emitToUser(customer._id.toString(), 'NEW_NOTIFICATION', { message: `₹${actualRefundAmount} refunded for dispute.` });
             }
 
             // 2. Handle Provider Deduction
@@ -150,7 +150,7 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
 
                     await Notification.create({
                         userId: dispute.workerId, title: 'Settlement Cancelled',
-                        message: `A dispute was resolved against you. Your pending settlement of â‚¹${settlement.shopEarning} has been cancelled.`,
+                        message: `A dispute was resolved against you. Your pending settlement of ₹${settlement.shopEarning} has been cancelled.`,
                         type: 'DIRECT', action: 'SYSTEM', entityType: 'DISPUTE', entityId: dispute._id
                     });
                     emitToUser(dispute.workerId.toString(), 'NEW_NOTIFICATION', { message: `Pending settlement cancelled due to dispute.` });
@@ -177,7 +177,7 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
                     // Check provider has sufficient balance before debiting
                     const provider = await pModel.findById(pQuery._id).select('wallet.balance').lean();
                     if (!provider || (provider.wallet?.balance || 0) < actualRefundAmount) {
-                        // Provider doesn't have enough â€” only deduct what they have
+                        // Provider doesn't have enough — only deduct what they have
                         const maxDeduct = Math.max(0, provider?.wallet?.balance || 0);
                         if (maxDeduct > 0) {
                             await pModel.findByIdAndUpdate(pQuery._id, { $inc: { 'wallet.balance': -maxDeduct } });
@@ -198,10 +198,10 @@ exports.updateDisputeStatus = catchAsync(async (req, res) => {
 
                     await Notification.create({
                         userId: dispute.workerId, title: 'Dispute Adjustment',
-                        message: `A dispute was resolved against you. â‚¹${actualRefundAmount} has been deducted from your wallet.`,
+                        message: `A dispute was resolved against you. ₹${actualRefundAmount} has been deducted from your wallet.`,
                         type: 'DIRECT', action: 'WALLET_DEBIT', entityType: 'DISPUTE', entityId: dispute._id
                     });
-                    emitToUser(dispute.workerId.toString(), 'NEW_NOTIFICATION', { message: `â‚¹${actualRefundAmount} deducted for dispute.` });
+                    emitToUser(dispute.workerId.toString(), 'NEW_NOTIFICATION', { message: `₹${actualRefundAmount} deducted for dispute.` });
                 }
             }
         }

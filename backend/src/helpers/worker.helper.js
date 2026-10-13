@@ -36,7 +36,15 @@ const findEligibleWorkers = async (job, radiusKm, minBalance = 100) => {
 
     if (targetCity) {
         const escaped = targetCity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        workerQuery.city = { $regex: new RegExp('^' + escaped + '$', 'i') }; // Case-insensitive exact match
+        const cityMatch = { $regex: new RegExp('^' + escaped + '$', 'i') }; // Case-insensitive exact match
+        // A worker's city can live on their profile or on their last reported location;
+        // either one matching is enough (the geo radius above still bounds the search).
+        workerQuery.$and = [{
+            $or: [
+                { city: cityMatch },
+                { 'activeLocation.addressDetails.city': cityMatch }
+            ]
+        }];
     }
 
     // Fetch candidate workers within global max radius

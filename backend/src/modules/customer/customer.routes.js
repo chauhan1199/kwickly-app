@@ -3,7 +3,6 @@ const router = express.Router();
 
 const { authMiddleware } = require('../../middleware/auth.middleware');
 const authorize = require('../../middleware/role.middleware');
-const jobController = require('../job/job.controller');
 const customerController = require('./customer.controller');
 const disputeController = require('../dispute/dispute.controller');
 const validate = require('../../middleware/validate.middleware');

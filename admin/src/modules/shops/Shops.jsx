@@ -947,7 +947,7 @@ export default function Shops() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+      <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
         {[
           { label: 'Total Shops', value: stats.total, color: '#2EF7F0' },
           { label: 'KYC Approved', value: stats.approved, color: '#10B981' },

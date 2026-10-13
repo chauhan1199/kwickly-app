@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const Customer = require('../modules/customer/customer.model');
 const Shop = require('../modules/shop/shop.model');
 const WalletTxn = require('../modules/wallet/wallet.model');
@@ -234,14 +233,14 @@ const settleShopOrderDelivery = async ({ order, session = null }) => {
     }], { session }).then(arr => arr[0]);
 
     emitToRoom(`shop_${order.shopId}`, 'WALLET_CREDITED', {
-        amount: netProductSales,
+        amount: shopPayout,
         balance: updatedShop?.wallet?.balance,
         orderId: order._id
     });
     emitToAll('DASHBOARD_UPDATE', {
         type: 'ORDER_SETTLED',
         orderId: order._id,
-        shopEarnings: netProductSales,
+        shopEarnings: shopPayout,
         deliveryFee,
         platformFee,
         gstAmount
@@ -276,6 +275,8 @@ const reverseShopOrderDelivery = async ({ order, session = null }) => {
     }
 
     const netProductSales = Number(original.partnerAmount || 0);
+    // The shop was credited product sales plus the delivery fee, so both come back.
+    const shopPayout = netProductSales + Number(original.deliveryFee || 0);
     const platformFee = Number(original.platformFee || 0);
     const gstAmount = Number(original.gstAmount || 0);
     const customerTotal = Number(original.grossAmount || order.total || 0);
@@ -288,7 +289,7 @@ const reverseShopOrderDelivery = async ({ order, session = null }) => {
     const shop = await Shop.findById(order.shopId).select('wallet.balance ownerId').session(session).lean();
     let clawedBack = 0;
     if (shop) {
-        clawedBack = Math.min(netProductSales, Math.max(0, shop.wallet?.balance || 0));
+        clawedBack = Math.min(shopPayout, Math.max(0, shop.wallet?.balance || 0));
         if (clawedBack > 0) {
             const updatedShop = await Shop.findByIdAndUpdate(
                 order.shopId,
@@ -373,7 +374,7 @@ const reverseShopOrderDelivery = async ({ order, session = null }) => {
         paymentMethod: order.payment?.method || 'WALLET',
         paymentStatus: 'REFUNDED',
         settlementStatus: 'REVERSED',
-        description: `Shop Order Reversal: shop clawed back ₹${clawedBack} of ₹${netProductSales}, customer refunded ₹${customerTotal}`,
+        description: `Shop Order Reversal: shop clawed back ₹${clawedBack} of ₹${shopPayout}, customer refunded ₹${customerTotal}`,
         configSnapshot: {
             appliedAt: new Date(),
             rule: 'Post-delivery cancellation reversal',

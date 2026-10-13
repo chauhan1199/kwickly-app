@@ -32,7 +32,6 @@ export const SERVICE_LOCAL_IMAGES = {
   party:          require('../assets/services/dj_event.jpeg'),
   yoga:           require('../assets/services/yoga_fitness.jpeg'),
   fitness:        require('../assets/services/yoga_fitness.jpeg'),
-  gym:            require('../assets/services/yoga_fitness.jpeg'),
   training:       require('../assets/services/yoga_fitness.jpeg'),
   cleaning:       require('../assets/services/cleaning.jpeg'),
   deep:           require('../assets/services/cleaning.jpeg'),

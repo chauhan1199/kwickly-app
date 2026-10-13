@@ -159,6 +159,25 @@ const getIO = () => {
 };
 
 /**
+ * The admin dashboard re-fetches /admin/stats whenever it receives DASHBOARD_UPDATE,
+ * so the cached stats are dropped first and the event goes out only after that,
+ * otherwise the refetch can race the delete and show stale numbers.
+ */
+const emitDashboardUpdate = (payload) => {
+    if (!io) return;
+    const send = () => io.to('admin_dashboard').emit('DASHBOARD_UPDATE', { ...payload, timestamp: new Date() });
+    let cleared;
+    try {
+        // Lazy require: redis.helper must not become a load-time dependency of sockets.
+        const { delCache } = require('./redis.helper');
+        cleared = delCache('admin_dashboard_stats');
+    } catch (e) {
+        cleared = null;
+    }
+    Promise.resolve(cleared).catch(() => {}).finally(send);
+};
+
+/**
  * Emit to ALL connected clients (use sparingly — only for global events).
  * When `data.targetRole` is set, emits only to sockets in that role's rooms
  * (worker_*, shop_*, customer_*) instead of broadcasting to every socket.
@@ -166,11 +185,16 @@ const getIO = () => {
 const emitToAll = (event, data) => {
     if (!io) return;
     if (event === 'DASHBOARD_UPDATE') {
-        io.to('admin_dashboard').emit(event, { ...data, timestamp: new Date() });
+        emitDashboardUpdate(data);
         return;
     }
 
     const targetRole = data && data.targetRole;
+    if (targetRole === 'ADMIN') {
+        // Admin-only notifications must never fall through to the all-clients broadcast
+        io.to('admin_dashboard').emit(event, data);
+        return;
+    }
     const rolePrefix = targetRole === 'WORKER' ? 'worker_'
         : targetRole === 'SHOP' ? 'shop_'
         : targetRole === 'CUSTOMER' ? 'customer_'
@@ -195,7 +219,12 @@ const emitToAll = (event, data) => {
  * Emit to a specific room (customer_X, worker_X, shop_X, admin_dashboard, job_X)
  */
 const emitToRoom = (room, event, data) => {
-    if (io) io.to(room).emit(event, data);
+    if (!io) return;
+    if (room === 'admin_dashboard' && event === 'DASHBOARD_UPDATE') {
+        emitDashboardUpdate(data);
+        return;
+    }
+    io.to(room).emit(event, data);
 };
 
 /**
@@ -217,9 +246,7 @@ const emitToUser = (userId, event, data) => {
  * Emit DASHBOARD_UPDATE only to the admin room
  */
 const triggerDashboardUpdate = (payload = {}) => {
-    if (io) {
-        io.to('admin_dashboard').emit('DASHBOARD_UPDATE', { ...payload, timestamp: new Date() });
-    }
+    emitDashboardUpdate(payload);
 };
 
 module.exports = { initSocket, getIO, emitToAll, emitToRoom, triggerDashboardUpdate, emitToUser };

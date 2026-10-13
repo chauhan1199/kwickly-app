@@ -34,7 +34,9 @@ export default function Disputes() {
     try {
       const res = await api.get('/admin/disputes')
       if (res.data.status === 'success') {
-        setDisputes(res.data.data?.disputes || res.data.data || [])
+        // API returns upper-case statuses (OPEN, IN_REVIEW…); the UI compares lower-case.
+        const list = res.data.data?.disputes || res.data.data || []
+        setDisputes(list.map(d => ({ ...d, status: String(d.status || '').toLowerCase() })))
       }
     } catch (err) {
       if (isAbortError(err)) return
@@ -93,7 +95,7 @@ export default function Disputes() {
   const handleResolve = async (status) => {
     setSaving(true)
     try {
-      await api.patch(`/admin/disputes/${detail._id}/status`, { status: status.toLowerCase(), resolution, refundAmount })
+      await api.patch(`/admin/disputes/${detail._id}/status`, { status: status.toLowerCase(), resolution, refundAmount: refundAmount === '' ? undefined : refundAmount })
       showToast(`Dispute marked as ${status.toLowerCase()}`)
       window.dispatchEvent(new Event('admin-action'))
       fetchDisputes()
@@ -173,7 +175,7 @@ export default function Disputes() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+      <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
         <div className="stat-card-simple" style={{ borderTop: `3px solid #EF4444` }}>
           <div style={{ fontSize: 28, fontWeight: 900, color: '#EF4444' }}>{stats.open}</div>
           <div style={{ fontSize: 13, color: 'var(--mid)', fontWeight: 600, marginTop: 4 }}>Action Required</div>
@@ -194,9 +196,9 @@ export default function Disputes() {
 
       <div className="filters-row">
         <div className="search-box"><Search size={16} /><input placeholder="Search issue, customer, or order..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-        <div style={{ display: 'flex', background: 'var(--input-bg)', padding: 4, borderRadius: 8, border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', background: 'var(--input-bg)', padding: 4, borderRadius: 8, border: '1px solid var(--border)' }}>
           {['all', 'open', 'in_review', 'resolved', 'dismissed'].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{
+            <button key={f} className="seg-btn" onClick={() => setFilter(f)} style={{
               padding: '6px 16px', background: filter === f ? 'var(--bg)' : 'transparent', border: 'none', borderRadius: 6,
               color: filter === f ? 'var(--text-primary)' : 'var(--mid)', fontWeight: 600, fontSize: 13, cursor: 'pointer',
               boxShadow: filter === f ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', textTransform: 'capitalize'

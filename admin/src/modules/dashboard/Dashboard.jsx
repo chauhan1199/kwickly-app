@@ -7,6 +7,8 @@ import { isAbortError } from '../../utils/errorUtils'
 import EmptyState from '../../components/EmptyState'
 import Toast from '../../components/Toast'
 
+const RANGE_LABELS = { today: 'Today', week: 'This Week', month: 'This Month', quarter: 'Quarter', year: 'Year', all: 'All Time' }
+
 export default function Dashboard() {
   const api = useAbortableRequest();
   const navigate = useNavigate()
@@ -160,12 +162,12 @@ export default function Dashboard() {
         {/* Chart */}
         <div className="card">
           <div className="card-header">
-            <div className="card-title">📈 Weekly Performance</div>
+            <div className="card-title">📈 Performance · {RANGE_LABELS[range]}</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {['today', 'week', 'month', 'quarter', 'year', 'all'].map(r => (
+              {Object.keys(RANGE_LABELS).map(r => (
                 <button key={r} className={`btn btn-sm ${range === r ? 'btn-primary' : 'btn-outline'}`}
                   onClick={() => setRange(r)}>
-                  {r === 'today' ? 'Today' : r === 'week' ? 'This Week' : r === 'month' ? 'This Month' : r === 'quarter' ? 'Quarter' : r === 'year' ? 'Year' : 'All Time'}
+                  {RANGE_LABELS[r]}
                 </button>
               ))}
               <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px' }} />

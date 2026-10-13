@@ -2,7 +2,6 @@ const { StatusCodes } = require('http-status-codes');
 const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { COMMON } = require('../../constants/messages');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const Suggestion = require('../suggestion/suggestion.model');
 const { delCache } = require('../../helpers/redis.helper');
@@ -120,7 +119,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
     const updateData = {};
     if (req.file) {
         const existing = await Customer.findById(req.user._id).select('profileImage').lean();
-        const { url, public_id } = await uploadImage(req.file.buffer, 'kwickly/profiles');
+        const { url } = await uploadImage(req.file.buffer, 'kwickly/profiles');
         updateData.profileImage = url;
         if (existing?.profileImage && existing.profileImage !== url) {
             cleanupImage(existing.profileImage);
@@ -501,14 +500,13 @@ exports.getProfile = catchAsync(async (req, res) => {
 });
 
 exports.updateFullProfile = catchAsync(async (req, res) => {
-    const { name, bio, city, primary_category, secondary_categories, working_days, availability_hours, email } = req.body;
+    const { name, bio, city, email } = req.body;
     const updateData = {};
 
     if (name !== undefined) updateData.name = name;
     if (bio !== undefined) updateData.bio = bio;
+    if (city !== undefined) updateData.city = city;
     if (email !== undefined) updateData.email = email;
-    if (working_days !== undefined) updateData.working_days = working_days;
-    if (availability_hours !== undefined) updateData.availability_hours = availability_hours;
 
     if (req.file) {
         const existing = await Customer.findById(req.user._id).select('profileImage').lean();
@@ -521,9 +519,7 @@ exports.updateFullProfile = catchAsync(async (req, res) => {
 
     const user = await Customer.findByIdAndUpdate(req.user._id, { $set: updateData }, { returnDocument: 'after' }).select('-password');
     if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
-    
-    await user.save();
-    
+
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
     triggerDashboardUpdate();

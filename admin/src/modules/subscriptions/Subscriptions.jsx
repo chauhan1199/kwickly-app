@@ -864,8 +864,8 @@ export default function Subscriptions() {
             <div style={{ fontSize: 15, fontWeight: 800 }}>👥 {activeRole === 'WORKER' ? 'Worker' : 'Shop'} Subscribers & Validity Queue</div>
             <div style={{ fontSize: 12, color: 'var(--mid)' }}>Track live expiration dates, subscription tiers, and grant validity extensions</div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div className="search-box" style={{ width: 220, height: 34 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="search-box" style={{ width: 220, maxWidth: '100%', height: 34 }}>
               <Search size={14} />
               <input
                 placeholder="Search subscriber..."

@@ -161,7 +161,7 @@ describe('Redis Helper Functions', () => {
 
             await delCache('admin_dashboard_stats');
 
-            const ranges = ['week', 'month', 'quarter', 'year', 'all'];
+            const ranges = ['today', 'week', 'month', 'quarter', 'year', 'all'];
             for (const r of ranges) {
                 expect(mockRedisInstance.del).toHaveBeenCalledWith(`admin_dashboard_stats_${r}`);
             }
@@ -320,12 +320,14 @@ describe('Redis Helper Functions', () => {
             expect(result).toBe(false);
         });
 
-        it('should return false on redis error', async () => {
+        it('should fall back to an in-memory lock on redis error', async () => {
             mockRedisInstance.set.mockRejectedValue(new Error('down'));
 
-            const result = await acquireLock('err:lock', 50);
+            const first = await acquireLock('err:lock', 50);
+            const second = await acquireLock('err:lock', 50);
 
-            expect(result).toBe(false);
+            expect(typeof first).toBe('string');
+            expect(second).toBe(false);
         });
 
         it('should use default TTL of 50 when not specified', async () => {

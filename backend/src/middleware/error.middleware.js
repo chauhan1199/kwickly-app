@@ -1,3 +1,4 @@
+const { safeUrl } = require('./requestContext.middleware');
 const { StatusCodes } = require('http-status-codes');
 const logger = require('../helpers/logger.helper');
 const { errorResponse } = require('../helpers/response.helper');
@@ -7,9 +8,9 @@ const { errorResponse } = require('../helpers/response.helper');
  */
 const errorHandler = (err, req, res, next) => {
     if (process.env.NODE_ENV === 'production') {
-        logger.error(`${err.message} - ${req.method} ${req.originalUrl} - ${req.ip}`);
+        logger.error(`${err.message} - ${req.method} ${safeUrl(req)} - ${req.ip}`);
     } else {
-        logger.error(`${err.message} - ${req.method} ${req.originalUrl} - ${req.ip}\n${err.stack}`);
+        logger.error(`${err.message} - ${req.method} ${safeUrl(req)} - ${req.ip}\n${err.stack}`);
     }
 
     let statusCode = err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;

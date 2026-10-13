@@ -48,6 +48,7 @@
   margin-bottom: 24px;
   border-bottom: 1px solid var(--border-color, #e2e8f0);
   padding-bottom: 8px;
+  overflow-x: auto;
 }
 
 .tab {
@@ -59,6 +60,12 @@
   font-weight: 500;
   border-radius: 6px;
   transition: all 0.2s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .tab { min-height: 40px; }
 }
 
 .tab:hover {

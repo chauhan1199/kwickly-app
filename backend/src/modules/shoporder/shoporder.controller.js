@@ -6,7 +6,7 @@ const Shop = require('../shop/shop.model');
 const Product = require('../product/product.model');
 const Customer = require('../customer/customer.model');
 const WalletTxn = require('../wallet/wallet.model');
-const Promotion = require('../promotion/promotion.model');
+const { Promotion, UserPromoUsage } = require('../promotion/promotion.model');
 const Settlement = require('../settlement/settlement.model');
 const AppSettings = require('../settings/settings.model');
 const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
@@ -15,10 +15,10 @@ const logger = require('../../helpers/logger.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
-const { collectCommission } = require('../adminWallet/adminWallet.service');
+const DeliveryStaff = require('../deliveryStaff/deliveryStaff.model');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
-const { OTP_MIN, OTP_MAX, OTP_TTL } = require('../../constants/business');
+const { OTP_MIN, OTP_MAX, DELIVERY_OTP_TTL } = require('../../constants/business');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
 
 function escapeHtml(str) {
@@ -35,8 +35,17 @@ function escapeHtml(str) {
  * POST /api/v1/shoporders
  * Customer places a shop order with ATOMIC stock reservation
  */
+// The delivery OTP is the customer's proof of handover: the shop and its delivery
+// staff must ask the customer for it, so only the customer (and admin) may read it.
+const hideDeliveryOtp = (doc) => {
+    const order = doc && typeof doc.toObject === 'function' ? doc.toObject() : doc;
+    if (!order) return order;
+    const { deliveryOtp, ...rest } = order;
+    return rest;
+};
+
 exports.placeOrder = catchAsync(async (req, res) => {
-    const { shopId, items, deliveryAddress, deliveryLocation, paymentMethod, promoCode, deliverySlot, utrNumber, isPaid, paymentOrderId } = req.body;
+    const { shopId, items, deliveryAddress, deliveryLocation, paymentMethod, promoCode, deliverySlot, utrNumber, paymentOrderId } = req.body;
 
     if (!items || items.length === 0) {
         return errorResponse(res, 'Order must contain at least one item', StatusCodes.BAD_REQUEST);
@@ -77,7 +86,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
             item.price = dbProduct.price;
         }
 
-        // Atomically decrement stock for each item â€” if any item has insufficient stock, the whole operation fails
+        // Atomically decrement stock for each item — if any item has insufficient stock, the whole operation fails
         for (const item of items) {
             if (!item.productId) continue;
 
@@ -142,6 +151,14 @@ exports.placeOrder = catchAsync(async (req, res) => {
                 if (session) session.endSession();
                 return errorResponse(res, `Minimum order ₹${promo.minOrderAmount} required for this promo`, StatusCodes.BAD_REQUEST);
             }
+            if (promo.maxUsesPerUser) {
+                const usedByMe = await UserPromoUsage.countDocuments({ promoId: promo._id, userId: req.user._id });
+                if (usedByMe >= promo.maxUsesPerUser) {
+                    if (useTransaction && session) await session.abortTransaction();
+                    if (session) session.endSession();
+                    return errorResponse(res, 'You have reached the usage limit for this promo code', StatusCodes.BAD_REQUEST);
+                }
+            }
 
             if (promo.type === 'FLAT_DISCOUNT') {
                 discount = promo.value;
@@ -151,8 +168,18 @@ exports.placeOrder = catchAsync(async (req, res) => {
             }
             discount = Math.min(discount, subtotal); // Discount cannot exceed subtotal
 
-            // Increment promo usage
-            await Promotion.findByIdAndUpdate(promo._id, { $inc: { usesCount: 1 } });
+            // Increment promo usage atomically against the total cap, and record per-user usage
+            const incremented = await Promotion.findOneAndUpdate(
+                { _id: promo._id, $or: [{ maxUsesTotal: { $in: [null, 0] } }, { $expr: { $lt: ['$usesCount', '$maxUsesTotal'] } }] },
+                { $inc: { usesCount: 1 } },
+                { returnDocument: 'after', ...(useTransaction ? { session } : {}) }
+            );
+            if (!incremented) {
+                if (useTransaction && session) await session.abortTransaction();
+                if (session) session.endSession();
+                return errorResponse(res, 'Promo code usage limit reached', StatusCodes.BAD_REQUEST);
+            }
+            await UserPromoUsage.create([{ promoId: promo._id, userId: req.user._id }], useTransaction ? { session } : {});
             promoDetails = { code: promo.code, discount, type: promo.type, title: promo.title };
         } else if (cfg.discountEnabled && subtotal >= (cfg.discountAbove || 500)) {
             // Auto shop discount
@@ -205,8 +232,17 @@ exports.placeOrder = catchAsync(async (req, res) => {
             paymentStatus = 'PAID';
             await delCache(`session:${req.user._id}`);
         } else if (paymentMethod === 'UPI') {
-            if (isPaid || utrNumber) {
-                paymentStatus = 'PAID';
+            // The client's isPaid flag and UTR are unverified claims. The order is PAID
+            // only when the bank-SMS webhook has recorded a matching credit; otherwise
+            // it waits in PENDING_VERIFICATION for the shop or an admin to confirm.
+            if (utrNumber) {
+                const BankCredit = require('../payment/bankCredit.model');
+                const bankCredit = await BankCredit.findOneAndUpdate(
+                    { utr: String(utrNumber).trim(), isClaimed: false, amount: { $gte: total - 0.5, $lte: total + 0.5 } },
+                    { $set: { isClaimed: true, claimedBy: req.user._id, claimedAt: new Date() } },
+                    { returnDocument: 'after', ...sessOpts }
+                );
+                paymentStatus = bankCredit ? 'PAID' : 'PENDING_VERIFICATION';
             } else {
                 paymentStatus = 'PENDING';
             }
@@ -287,7 +323,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
         let gatewayOrderId = null;
 
         // If UPI payment method and not already paid, register payment intent with overlay provider
-        if (paymentMethod === 'UPI' && !isPaid && !utrNumber) {
+        if (paymentMethod === 'UPI' && !utrNumber) {
             const intentRes = await registerPaymentIntent({
                 amount: total,
                 internalId: order._id,
@@ -385,7 +421,7 @@ exports.getShopOrders = catchAsync(async (req, res) => {
             .lean()
     ]);
 
-    return successResponse(res, { orders, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Shop orders fetched');
+    return successResponse(res, { orders: orders.map(hideDeliveryOtp), total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Shop orders fetched');
 });
 
 /**
@@ -415,7 +451,8 @@ exports.getOrderById = catchAsync(async (req, res) => {
         !isShopOwner) {
         return errorResponse(res, 'Unauthorized access to this order', StatusCodes.FORBIDDEN);
     }
-    return successResponse(res, order, 'Order fetched');
+    const isCustomer = orderCustomerId === req.user._id.toString();
+    return successResponse(res, req.user.role === 'ADMIN' || isCustomer ? order : hideDeliveryOtp(order), 'Order fetched');
 });
 
 /**
@@ -637,7 +674,7 @@ exports.cancelOrder = catchAsync(async (req, res) => {
  * PATCH /api/v1/shoporders/:id/status
  */
 exports.updateOrderStatus = catchAsync(async (req, res) => {
-    const { status, otp, note } = req.body;
+    const { status, otp, note, deliveryStaffId } = req.body;
     const validStatuses = ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
     if (!validStatuses.includes(status)) return errorResponse(res, 'Invalid status', StatusCodes.BAD_REQUEST);
 
@@ -696,17 +733,17 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
             try { await ShopOrder.findByIdAndUpdate(order._id, { status: 'OUT_FOR_DELIVERY' }); } catch (e) { /* best-effort revert */ }
         };
 
-        // H15: Check OTP expiry (OTP_TTL seconds from generation)
+        // The OTP clock starts at dispatch (OUT_FOR_DELIVERY), not at order placement.
         const otpAge = (Date.now() - new Date(order.deliveryOtpGeneratedAt || order.createdAt).getTime()) / 1000;
-        if (otpAge > OTP_TTL) {
+        if (otpAge > DELIVERY_OTP_TTL) {
             await revertClaim();
-            return errorResponse(res, 'Delivery OTP has expired. Please request a new one.', StatusCodes.BAD_REQUEST);
+            return errorResponse(res, 'Delivery OTP has expired. Ask the customer to tap "New OTP" on their order screen.', StatusCodes.BAD_REQUEST);
         }
 
-        // H15: Check attempt limit (max 5 attempts per OTP)
+        // Max 5 attempts per OTP; the customer can issue a fresh one.
         if ((order.deliveryOtpAttempts || 0) >= 5) {
             await revertClaim();
-            return errorResponse(res, 'Too many OTP attempts. Please request a new OTP.', StatusCodes.BAD_REQUEST);
+            return errorResponse(res, 'Too many wrong OTP attempts. Ask the customer to tap "New OTP" on their order screen.', StatusCodes.BAD_REQUEST);
         }
 
         if (String(otp) !== String(order.deliveryOtp)) {
@@ -725,6 +762,28 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
             order.payment.status = 'PAID';
         }
         order.payment.escrowStatus = 'SETTLED';
+        await order.save();
+
+        if (order.deliveryStaffId) {
+            await DeliveryStaff.updateOne(
+                { _id: order.deliveryStaffId, activeOrderId: order._id },
+                { $unset: { activeOrderId: 1 }, $inc: { totalDeliveries: 1 } }
+            );
+        }
+    } else if (status === 'OUT_FOR_DELIVERY') {
+        if (deliveryStaffId) {
+            const staff = await DeliveryStaff.findOne({ _id: deliveryStaffId, shopId: order.shopId });
+            if (!staff) return errorResponse(res, 'Delivery staff not found for this shop', StatusCodes.NOT_FOUND);
+            order.deliveryStaffId = staff._id;
+            order.deliveryStaffName = staff.name;
+            order.deliveryStaffPhone = staff.phone || undefined;
+            staff.activeOrderId = order._id;
+            await staff.save();
+        }
+        // Restart the OTP clock and attempt counter at dispatch.
+        order.deliveryOtpGeneratedAt = new Date();
+        order.deliveryOtpAttempts = 0;
+        order.status = status;
         await order.save();
     } else if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
         let session = null, useTransaction = false;
@@ -798,6 +857,13 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         await order.save();
     }
 
+    if (status === 'CANCELLED' && order.deliveryStaffId) {
+        await DeliveryStaff.updateOne(
+            { _id: order.deliveryStaffId, activeOrderId: order._id },
+            { $unset: { activeOrderId: 1 } }
+        );
+    }
+
     // Notify customer in real-time
     emitToRoom(`customer_${order.customerId}`, 'ORDER_STATUS', { orderId: order._id, status });
     emitToAll('DASHBOARD_UPDATE', { type: 'ORDER_STATUS_CHANGED', id: order._id });
@@ -823,9 +889,26 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         });
     }
 
-    return successResponse(res, order, 'Order status updated');
+    return successResponse(res, req.user.role === 'ADMIN' ? order : hideDeliveryOtp(order), 'Order status updated');
 });
 
+
+/**
+ * POST /api/v1/shoporders/:id/delivery-otp (Customer)
+ * Issues a fresh delivery OTP when the old one expired or was locked by wrong attempts.
+ */
+exports.regenerateDeliveryOtp = catchAsync(async (req, res) => {
+    const order = await ShopOrder.findOne({ _id: req.params.id, customerId: req.user._id });
+    if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
+    if (!['NEW', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(order.status)) {
+        return errorResponse(res, 'This order is no longer awaiting delivery', StatusCodes.BAD_REQUEST);
+    }
+    order.deliveryOtp = crypto.randomInt(OTP_MIN, OTP_MAX).toString();
+    order.deliveryOtpGeneratedAt = new Date();
+    order.deliveryOtpAttempts = 0;
+    await order.save();
+    return successResponse(res, { deliveryOtp: order.deliveryOtp }, 'New delivery OTP issued');
+});
 
 /**
  * GET /api/v1/shoporders (Admin)
@@ -889,6 +972,24 @@ exports.verifyShopOrderPayment = catchAsync(async (req, res) => {
 
     const order = await ShopOrder.findById(id).populate('customerId', 'name phone');
     if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
+
+    // A shop may only verify payments for its own orders.
+    if (req.user.role === 'SHOP') {
+        const ownShop = await Shop.findOne({ _id: order.shopId, ownerId: req.user._id }).select('_id').lean();
+        if (!ownShop) return errorResponse(res, 'You can only verify payments for your own orders', StatusCodes.FORBIDDEN);
+    }
+
+    // Only a payment still awaiting verification can be approved or rejected, and
+    // only once: claim it atomically so a repeat or concurrent call can't credit
+    // the treasury or refund the customer a second time.
+    const claimed = await ShopOrder.findOneAndUpdate(
+        { _id: order._id, 'payment.status': 'PENDING_VERIFICATION' },
+        { $set: { 'payment.status': action === 'approve' ? 'PAID' : 'FAILED' } },
+        { returnDocument: 'after' }
+    );
+    if (!claimed) {
+        return errorResponse(res, `This payment is not awaiting verification (current status: ${order.payment?.status || 'unknown'})`, StatusCodes.CONFLICT);
+    }
 
     if (action === 'approve') {
         order.payment.status = 'PAID';
@@ -983,8 +1084,9 @@ exports.verifyShopOrderPayment = catchAsync(async (req, res) => {
 
         return successResponse(res, order, 'Payment approved and confirmed successfully');
     } else {
-        // Reject fake UTR -> cancel order and restore stock
-        for (const item of order.items) {
+        // Reject fake UTR -> cancel order and restore stock (unless a cancel already restored it)
+        const stockAlreadyRestored = order.status === 'CANCELLED';
+        for (const item of stockAlreadyRestored ? [] : order.items) {
             if (item.productId) {
                 await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } });
             }

@@ -5,6 +5,7 @@ module.exports = {
     OTP_MIN: 1000,
     OTP_MAX: 9000,
     OTP_TTL: 300,                       // 5 minutes — OTP validity window
+    DELIVERY_OTP_TTL: 4 * 60 * 60,      // 4 hours from dispatch — a delivery can take a while
     OTP_BLOCK_TTL: 3600,                // 1 hour — block after max attempts
     SESSION_TTL: 86400,                 // 24 hours — Redis session cache
     DASHBOARD_STATS_TTL: 300,

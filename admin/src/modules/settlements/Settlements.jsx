@@ -180,7 +180,7 @@ export default function Settlements() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+      <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
         <div className="stat-card-simple" style={{ borderTop: `3px solid #F59E0B` }}>
           <div style={{ fontSize: 28, fontWeight: 900, color: '#F59E0B' }}>{pendingCount}</div>
           <div style={{ fontSize: 13, color: 'var(--mid)', fontWeight: 600, marginTop: 4 }}>Pending Settlements</div>
@@ -201,9 +201,9 @@ export default function Settlements() {
 
       <div className="filters-row">
         <div className="search-box"><Search size={16} /><input placeholder="Search shop or order ID..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-        <div style={{ display: 'flex', background: 'var(--input-bg)', padding: 4, borderRadius: 8, border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', background: 'var(--input-bg)', padding: 4, borderRadius: 8, border: '1px solid var(--border)' }}>
           {['all', 'PENDING', 'SETTLED', 'CANCELLED'].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{
+            <button key={f} className="seg-btn" onClick={() => setFilter(f)} style={{
               padding: '6px 16px', background: filter === f ? 'var(--bg)' : 'transparent', border: 'none', borderRadius: 6,
               color: filter === f ? 'var(--text-primary)' : 'var(--mid)', fontWeight: 600, fontSize: 13, cursor: 'pointer',
               boxShadow: filter === f ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', textTransform: 'capitalize'

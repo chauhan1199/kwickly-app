@@ -791,7 +791,7 @@ const CartScreen = ({ route, navigation }) => {
             <View style={styles.paymentRow}>
               {[
                 { key: 'UPI', icon: '⚡', label: 'UPI Payment', sub: 'GPay, PhonePe, Paytm, BHIM' },
-                { key: 'WALLET', icon: '💳', label: 'Wallet', sub: `Balance: ₹${user?.wallet?.balance || 0}` },
+                { key: 'WALLET', icon: '💳', label: 'Wallet', sub: `Balance: ₹${Number(user?.wallet?.balance || 0).toFixed(2)}` },
               ].map(m => (
                 <TouchableOpacity
                   key={m.key}

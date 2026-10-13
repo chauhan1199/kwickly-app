@@ -1,8 +1,5 @@
 const Joi = require('joi');
 
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-const passwordMessage = 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.';
-
 const loginSchema = Joi.object({
     email: Joi.string().email().optional(),
     phone: Joi.string().min(10).max(15).optional(),

@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { Platform, DeviceEventEmitter } from 'react-native';
+import { Platform, DeviceEventEmitter, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
 import { consumePendingDeepLink } from '../utils/deepLink';
@@ -81,8 +81,14 @@ export const AuthProvider = ({ children }) => {
     loadStorageData();
 
     // Listen for unauthorized access events from api interceptor
+    let alertShown = false;
     const subscription = DeviceEventEmitter.addListener('UNAUTHORIZED_ACCESS', () => {
       signOut();
+      // Several requests can fail at once; tell the user only once why they were signed out
+      if (!alertShown) {
+        alertShown = true;
+        Alert.alert('Session expired', 'Please sign in again to continue.', [{ text: 'OK', onPress: () => { alertShown = false; } }]);
+      }
     });
 
     return () => {

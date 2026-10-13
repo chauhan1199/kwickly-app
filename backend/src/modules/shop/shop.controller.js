@@ -1,5 +1,4 @@
 const { StatusCodes } = require('http-status-codes');
-const mongoose      = require('mongoose');
 const Shop       = require('./shop.model');
 const Payout     = require('../payout/payout.model');
 const WalletTxn  = require('../wallet/wallet.model');
@@ -7,9 +6,8 @@ const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { uploadImage, uploadBase64, cleanupImage } = require('../../services/cloudinary.service');
 const { emitToAll } = require('../../helpers/socket.helper');
-const { setCache, getCache, delCache, delCacheByPattern } = require('../../helpers/redis.helper');
+const { setCache, getCache, delCacheByPattern } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
-const { supportsTransactions } = require('../../helpers/transaction.helper');
 
 const SHOP_CACHE_PREFIX = 'shops_list';
 

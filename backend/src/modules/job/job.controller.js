@@ -5,7 +5,7 @@ const catchAsync = require('../../helpers/async.helper');
 const logger = require('../../helpers/logger.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToRoom, emitToAll, triggerDashboardUpdate } = require('../../helpers/socket.helper');
-const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
+const { setCache, delCache } = require('../../helpers/redis.helper');
 const { uploadImage } = require('../../services/cloudinary.service');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const { findEligibleWorkers } = require('../../helpers/worker.helper');
@@ -14,6 +14,19 @@ const { MAX_ACTIVE_JOBS, MAX_AVAILABLE_JOBS, GEOFENCE_MAX_METERS, JOB_ELIGIBLE_W
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const crypto = require('crypto');
+
+// Each OTP proves the *other* party was present: the customer reads out the arrival
+// OTP to the worker, and the worker reads out the completion OTP to the customer.
+// So a worker must never receive the arrival OTP, nor a customer the completion OTP.
+const hideOtpsFor = (doc, role) => {
+    const job = doc && typeof doc.toObject === 'function' ? doc.toObject() : doc;
+    if (!job || !job.security) return job;
+    const security = { ...job.security };
+    if (role === 'WORKER') delete security.arrivalOtp;
+    else if (role === 'CUSTOMER') delete security.completionOtp;
+    else if (role !== 'ADMIN') return { ...job, security: undefined };
+    return { ...job, security };
+};
 
 const timingSafeEqual = (a, b) => {
     if (typeof a !== 'string' || typeof b !== 'string') return false;
@@ -24,19 +37,19 @@ const timingSafeEqual = (a, b) => {
 };
 
 /**
- * â”€â”€â”€ WORKER ELIGIBILITY CRITERIA (ALL must be true) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ─── WORKER ELIGIBILITY CRITERIA (ALL must be true) ─────────────────────────
  *  1. role === 'WORKER'
  *  2. isVerified === true
  *  3. kyc.status === 'APPROVED'
  *  4. isOnline === true
  *  5. Subscription valid (trial active OR expiryDate > now)
- *  6. wallet.balance >= minimumBalance (from settings, default â‚¹100)
+ *  6. wallet.balance >= minimumBalance (from settings, default ₹100)
  *  7. Worker has the job's CATEGORY in their active services
  *  8. Job location is within the WORKER'S OWN serviceRadius (not global maxKm)
- * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
-// â”€â”€â”€ POST /api/v1/jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /api/v1/jobs ────────────────────────────────────────────────────────
 exports.createJob = catchAsync(async (req, res) => {
     const {
         category,
@@ -70,7 +83,7 @@ exports.createJob = catchAsync(async (req, res) => {
         return errorResponse(res, 'You can only have up to 5 ongoing requests at a time. Please wait for them to complete or cancel an existing request.', StatusCodes.BAD_REQUEST);
     }
 
-    // â”€â”€ Step 1: Load platform settings (Redis cached, 10 min TTL) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Step 1: Load platform settings (Redis cached, 10 min TTL) ──────────────
     const SettingsService = require('../settings/settings.service');
     const settings = await SettingsService.getAppSettings();
 
@@ -219,7 +232,7 @@ exports.createJob = catchAsync(async (req, res) => {
 });
 
 
-// â”€â”€â”€ GET /api/v1/jobs (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/jobs (Admin) ─────────────────────────────────────────────────
 exports.getJobs = catchAsync(async (req, res) => {
     const { status, search, limit = 20, page = 1 } = req.query;
     const query = {};
@@ -259,7 +272,7 @@ exports.getJobs = catchAsync(async (req, res) => {
     return successResponse(res, { jobs, totalPages: Math.ceil(total / Number(limit)) || 1, currentPage: Number(page), totalJobs: total }, 'Jobs fetched');
 });
 
-// â”€â”€â”€ GET /api/v1/jobs/my (Customer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/jobs/my (Customer) ──────────────────────────────────────────
 exports.getMyJobs = catchAsync(async (req, res) => {
     const { status } = req.query;
     const query = { customerId: req.user._id };
@@ -270,15 +283,15 @@ exports.getMyJobs = catchAsync(async (req, res) => {
         .sort('-createdAt')
         .lean();
 
-    return successResponse(res, jobs, 'My jobs fetched successfully');
+    return successResponse(res, jobs.map(j => hideOtpsFor(j, 'CUSTOMER')), 'My jobs fetched successfully');
 });
 
-// â”€â”€â”€ GET /api/v1/jobs/available (Worker) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/jobs/available (Worker) ─────────────────────────────────────
 //
 // Returns jobs that the requesting worker is eligible to bid on.
 // All 8 eligibility criteria are enforced here as well.
 exports.getAvailableJobs = catchAsync(async (req, res) => {
-    // â”€â”€ Fetch worker with populated category names â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Fetch worker with populated category names ──────────────────────────────
     const worker = await Customer.findById(req.user._id)
         .populate('services.category', 'name')
         .lean();
@@ -287,7 +300,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         return errorResponse(res, 'Worker not found', StatusCodes.NOT_FOUND);
     }
 
-    // â”€â”€ Criteria 3: KYC approved â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Criteria 3: KYC approved ────────────────────────────────────────────────
     if (worker.kyc?.status !== 'APPROVED') {
         return errorResponse(
             res,
@@ -296,7 +309,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         );
     }
 
-    // â”€â”€ Criteria 4: Online â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Criteria 4: Online ──────────────────────────────────────────────────────
     if (!worker.isOnline) {
         return errorResponse(
             res,
@@ -305,7 +318,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         );
     }
 
-    // â”€â”€ Criteria 5: Subscription valid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Criteria 5: Subscription valid ─────────────────────────────────────────
     const now = new Date();
     const isTrialActive = worker.subscription?.isTrial === true &&
         worker.subscription?.trialEndDate &&
@@ -329,17 +342,17 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         );
     }
 
-    // â”€â”€ Criteria 6: Wallet balance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Criteria 6: Wallet balance ──────────────────────────────────────────────
     const minBalance = settings?.wallet?.minimumBalance || 100;
     if ((worker.wallet?.balance || 0) < minBalance) {
         return errorResponse(
             res,
-            `Minimum wallet balance of â‚¹${minBalance} is required to view jobs. Please top up.`,
+            `Minimum wallet balance of ₹${minBalance} is required to view jobs. Please top up.`,
             StatusCodes.PAYMENT_REQUIRED
         );
     }
 
-    // â”€â”€ Criteria 7: Active service categories (worker's own selection) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Criteria 7: Active service categories (worker's own selection) ──────────
     const activeCategoryNames = (worker.services || [])
         .filter(s => s.isActive && s.category?.name)
         .map(s => s.category.name.trim());
@@ -404,7 +417,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
         const [jLng, jLat] = job.location?.coordinates || [0, 0];
         const distanceKm = parseFloat(haversineDistance([wLng, wLat], [jLng, jLat]).toFixed(2));
         const etaMins = calculateETA(distanceKm);
-        return { ...job, distanceKm, etaMins };
+        return { ...job, security: undefined, distanceKm, etaMins };
     });
 
     // Sort by distance (nearest first)
@@ -417,7 +430,7 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
     );
 });
 
-// â”€â”€â”€ GET /api/v1/jobs/worker (Worker's own jobs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/jobs/worker (Worker's own jobs) ──────────────────────────────
 exports.getWorkerJobs = catchAsync(async (req, res) => {
     const { status } = req.query;
     const query = { workerId: req.user._id };
@@ -428,12 +441,12 @@ exports.getWorkerJobs = catchAsync(async (req, res) => {
         .sort('-createdAt')
         .lean();
 
-    return successResponse(res, jobs, 'Worker jobs fetched');
+    return successResponse(res, jobs.map(j => hideOtpsFor(j, 'WORKER')), 'Worker jobs fetched');
 });
 
-// â”€â”€â”€ PATCH /api/v1/jobs/:id/start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /api/v1/jobs/:id/start ─────────────────────────────────────────────
 //
-// LOOPHOLE FIX #3 â€” GPS Spoofing Mitigation
+// LOOPHOLE FIX #3 — GPS Spoofing Mitigation
 // ─── POST /api/v1/jobs/:id/arrive (WORKER) ─────────────────────────────────
 // B1 FIX: Adds the ALLOCATED → ARRIVING transition that was previously missing.
 // Worker calls this when they start heading to the customer.
@@ -463,7 +476,7 @@ exports.arriveJob = catchAsync(async (req, res) => {
         targetRole: 'CUSTOMER'
     });
 
-    return successResponse(res, job, 'Job marked as ARRIVING');
+    return successResponse(res, hideOtpsFor(job, req.user.role), 'Job marked as ARRIVING');
 });
 
 //   Verifies worker is within 200 meters of job location using Haversine distance
@@ -483,7 +496,7 @@ exports.startJob = catchAsync(async (req, res) => {
         }
     }
 
-    // GPS Spoofing Check: Geofence verification (â‰¤200 meters)
+    // GPS Spoofing Check: Geofence verification (≤200 meters)
     const jobCoords = job.location?.coordinates;
     if (!currentCoordinates || currentCoordinates.length !== 2) {
         return errorResponse(
@@ -523,10 +536,10 @@ exports.startJob = catchAsync(async (req, res) => {
         targetRole: 'CUSTOMER'
     });
 
-    return successResponse(res, job, 'Job started successfully');
+    return successResponse(res, hideOtpsFor(job, req.user.role), 'Job started successfully');
 });
 
-// â”€â”€â”€ PATCH /api/v1/jobs/:id/complete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /api/v1/jobs/:id/complete ─────────────────────────────────────────
 exports.completeJob = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { media, report } = req.body;
@@ -555,10 +568,10 @@ exports.completeJob = catchAsync(async (req, res) => {
         targetRole: 'CUSTOMER'
     });
 
-    return successResponse(res, job, 'Job completed successfully');
+    return successResponse(res, hideOtpsFor(job, req.user.role), 'Job completed successfully');
 });
 
-// â”€â”€â”€ PATCH /api/v1/jobs/:id/pay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /api/v1/jobs/:id/pay ───────────────────────────────────────────────
 exports.payJob = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { method, completionOtp, promoCode } = req.body;
@@ -585,14 +598,20 @@ exports.payJob = catchAsync(async (req, res) => {
     job.status = 'PAID';
 
     let platformFee = job.payment?.platformFee || 0;
-    const workerPayout = job.payment?.workerPayout || 0;
     const gst = job.payment?.gst || 0;
     let promoDiscount = 0;
 
     // Validate and apply promo code
     if (promoCode) {
-        const { Promotion } = require('../promotion/promotion.model');
+        const { Promotion, UserPromoUsage } = require('../promotion/promotion.model');
         const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), isActive: true }).lean();
+        if (promo && promo.maxUsesPerUser) {
+            const usedByMe = await UserPromoUsage.countDocuments({ promoId: promo._id, userId: req.user._id });
+            if (usedByMe >= promo.maxUsesPerUser) {
+                await Job.findOneAndUpdate({ _id: job._id, status: 'PAID' }, { status: 'COMPLETED' });
+                return errorResponse(res, 'You have reached the usage limit for this promo code', StatusCodes.BAD_REQUEST);
+            }
+        }
         if (promo && (!promo.endAt || new Date(promo.endAt) > new Date())) {
             const amount = job.payment?.amount || 0;
             if (amount >= (promo.minOrderAmount || 0)) {
@@ -608,9 +627,12 @@ exports.payJob = catchAsync(async (req, res) => {
                     { returnDocument: 'after' }
                 );
                 if (!incremented) {
+                    // Release the PAID claim taken above so the customer can retry without the code
+                    await Job.findOneAndUpdate({ _id: job._id, status: 'PAID' }, { status: 'COMPLETED' });
                     return errorResponse(res, 'This promo code has reached its usage limit', StatusCodes.BAD_REQUEST);
                 }
 
+                await UserPromoUsage.create({ promoId: promo._id, userId: req.user._id });
                 // Save promo info on job
                 job.promoCode = promoCode;
                 job.promoDiscount = promoDiscount;
@@ -634,6 +656,7 @@ exports.payJob = catchAsync(async (req, res) => {
     }
     try {
         const WalletTxn = require('../wallet/wallet.model');
+        const { collectPlatformFee, recordPromoCost } = require('../adminWallet/adminWallet.service');
         const worker = await Customer.findById(job.workerId).session(session);
 
         if (worker) {
@@ -651,7 +674,15 @@ exports.payJob = catchAsync(async (req, res) => {
                             { $inc: { 'wallet.balance': -feeToDeduct } },
                             { returnDocument: 'after', session }
                         );
-                        if (debtUpdated && debtUpdated.wallet?.balance < 0) {
+                        if (!debtUpdated) {
+                            // Worker is already at the -₹500 credit limit: collecting the fee is
+                            // impossible, so refuse cash instead of silently waiving it.
+                            throw Object.assign(
+                                new Error('This worker has reached their credit limit and cannot accept cash. Please pay from your Kwickly wallet.'),
+                                { statusCode: StatusCodes.PAYMENT_REQUIRED }
+                            );
+                        }
+                        if (debtUpdated.wallet?.balance < 0) {
                             await Customer.findByIdAndUpdate(worker._id, { isOnline: false }, { session });
                             emitToRoom(`worker_${worker._id}`, 'FORCED_OFFLINE', {
                                 reason: 'Negative wallet balance from cash job fee. Please top-up to continue receiving jobs.',
@@ -660,7 +691,7 @@ exports.payJob = catchAsync(async (req, res) => {
                         }
                         await WalletTxn.create([{
                             userId: worker._id, type: 'JOB_DEBIT', amount: feeToDeduct,
-                            balance: debtUpdated?.wallet?.balance || 0,
+                            balance: debtUpdated.wallet.balance,
                             refId: job._id.toString(), status: 'COMPLETED',
                             description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
                         }], { session });
@@ -672,6 +703,18 @@ exports.payJob = catchAsync(async (req, res) => {
                             description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
                         }], { session });
                     }
+                }
+                // Cash never passes through the settlement engine, so the fee the
+                // worker just paid is booked to the treasury here (inside the transaction).
+                if (adminTotalRevenue > 0) {
+                    await collectPlatformFee(
+                        adminTotalRevenue,
+                        `Platform fee + GST ${promoDiscount > 0 ? `(less ₹${promoDiscount} promo discount)` : ''} from job #${job._id.toString().slice(-6)} (CASH)`,
+                        job._id,
+                        'Job',
+                        { workerId: job.workerId, customerId: job.customerId, method },
+                        { session }
+                    );
                 }
             } else {
                 // Online settlement via Centralized Settlement Engine (100% to worker, fee to treasury, GST to tax ledger)
@@ -703,8 +746,22 @@ exports.payJob = catchAsync(async (req, res) => {
                     }], { session });
                 }
 
+                // The settlement engine books the platform fee to the treasury; collecting it
+                // again here would count the same fee twice.
                 const { settleJobCompletion } = require('../../helpers/settlementEngine.helper');
                 await settleJobCompletion({ job, session });
+
+                // The worker is still paid the full quote, so a promo discount is funded by the platform.
+                if (promoDiscount > 0) {
+                    await recordPromoCost(
+                        promoDiscount,
+                        `Promo ${job.promoCode} discount on job #${job._id.toString().slice(-6)}`,
+                        job._id,
+                        'Job',
+                        { workerId: job.workerId, customerId: job.customerId, method },
+                        { session }
+                    );
+                }
             }
         }
 
@@ -714,17 +771,6 @@ exports.payJob = catchAsync(async (req, res) => {
         job.payment.escrowStatus = 'SETTLED';
         job.security = { ...job.security, completionOtp: undefined };
         await job.save({ session });
-
-        // Collect platform fee inside the transaction so it's atomic with the payment
-        const { collectPlatformFee } = require('../adminWallet/adminWallet.service');
-        await collectPlatformFee(
-                adminTotalRevenue,
-                `Platform fee + GST ${promoDiscount > 0 ? `(less â‚¹${promoDiscount} promo discount)` : ''} from job #${job._id.toString().slice(-6)} (${method})`,
-                job._id,
-                'Job',
-                { workerId: job.workerId, customerId: job.customerId, method },
-                { session }
-            );
 
         if (useTransaction) await session.commitTransaction();
         if (useTransaction) session.endSession();
@@ -742,7 +788,7 @@ exports.payJob = catchAsync(async (req, res) => {
             targetRole: 'WORKER'
         });
 
-        return successResponse(res, job, 'Payment completed successfully');
+        return successResponse(res, hideOtpsFor(job, req.user.role), 'Payment completed successfully');
     } catch (error) {
         if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
@@ -790,7 +836,7 @@ exports.rateJob = catchAsync(async (req, res) => {
             
             notifyUser({
                 userId: job.workerId,
-                title: 'â­ New Rating Received',
+                title: '⭐ New Rating Received',
                 message: `You received a ${score}-star rating for your recent job.`,
                 action: 'RATING_RECEIVED',
                 entityType: 'JOB',
@@ -805,7 +851,7 @@ exports.rateJob = catchAsync(async (req, res) => {
         triggerDashboardUpdate({ type: 'JOB_CLOSED', id: job._id });
     }
 
-    return successResponse(res, job, 'Job rated successfully');
+    return successResponse(res, hideOtpsFor(job, req.user.role), 'Job rated successfully');
 });
 
 // ─── POST /api/v1/jobs/:id/rate-customer (WORKER rates CUSTOMER) ─────────────
@@ -851,11 +897,11 @@ exports.rateCustomer = catchAsync(async (req, res) => {
         targetRole: 'CUSTOMER'
     });
 
-    return successResponse(res, job, 'Customer rated successfully');
+    return successResponse(res, hideOtpsFor(job, req.user.role), 'Customer rated successfully');
 });
 
 
-// â”€â”€â”€ PATCH /api/v1/jobs/:id/cancel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /api/v1/jobs/:id/cancel ───────────────────────────────────
 exports.cancelJob = catchAsync(async (req, res) => {
     const job = await Job.findById(req.params.id);
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
@@ -929,10 +975,10 @@ exports.cancelJob = catchAsync(async (req, res) => {
         });
     }
 
-    return successResponse(res, job, 'Job cancelled successfully');
+    return successResponse(res, hideOtpsFor(job, req.user.role), 'Job cancelled successfully');
 });
 
-// â”€â”€â”€ PATCH /api/v1/jobs/:id/reassign (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /api/v1/jobs/:id/reassign (Admin) ─────────────────────────────────
 exports.reassignWorker = catchAsync(async (req, res) => {
     const { workerId } = req.body;
     const job = await Job.findById(req.params.id);
@@ -981,12 +1027,12 @@ exports.reassignWorker = catchAsync(async (req, res) => {
         targetRole: 'WORKER'
     });
 
-    return successResponse(res, job, 'Worker reassigned successfully');
+    return successResponse(res, hideOtpsFor(job, req.user.role), 'Worker reassigned successfully');
 });
 
-// â”€â”€â”€ POST /api/v1/jobs/:id/report-partial-payment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /api/v1/jobs/:id/report-partial-payment ─────────────────────────────
 //
-// LOOPHOLE FIX #9 â€” Partial Cash Payment (Worker Short-Changing)
+// LOOPHOLE FIX #9 — Partial Cash Payment (Worker Short-Changing)
 //   If a customer pays less than the agreed amount, the worker can report it
 //   This shifts the job to DISPUTED status and freezes the commission deduction
 exports.reportPartialPayment = catchAsync(async (req, res) => {
@@ -1009,7 +1055,7 @@ exports.reportPartialPayment = catchAsync(async (req, res) => {
         return errorResponse(res, 'Amount received is equal to or greater than the agreed amount. Use normal payment flow instead.', StatusCodes.BAD_REQUEST);
     }
 
-    // Mark job as DISPUTED â€” freezes commission deduction
+    // Mark job as DISPUTED — freezes commission deduction
     job.status = 'DISPUTED';
     // Store dispute info on the job
     job.dispute = {
@@ -1039,11 +1085,11 @@ exports.reportPartialPayment = catchAsync(async (req, res) => {
         status: 'DISPUTED',
         amountReceived,
         shortAmount,
-        message: `Dispute reported. The remaining â‚¹${shortAmount} has been flagged. Admin will review and mediate.`
+        message: `Dispute reported. The remaining ₹${shortAmount} has been flagged. Admin will review and mediate.`
     }, 'Partial payment reported. Admin notified.');
 });
 
-// â”€â”€â”€ PATCH /api/v1/jobs/:id/resolve-dispute (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /api/v1/jobs/:id/resolve-dispute (Admin) ──────────────────────────
 exports.resolveDispute = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { resolution, adminNote } = req.body; // resolution: 'DEDUCT_FROM_WORKER' | 'WAIVE_FEE' | 'REFUND_CUSTOMER' | 'CLOSE'
@@ -1085,13 +1131,13 @@ exports.resolveDispute = catchAsync(async (req, res) => {
             await WalletTxn.create([{
                 userId: job.workerId, type: 'JOB_DEBIT', amount: actualFee,
                 refId: job._id.toString(), status: 'COMPLETED',
-                description: `Partial fee for disputed job #${job._id.toString().slice(-6)} (worker received â‚¹${actualAmount})`
+                description: `Partial fee for disputed job #${job._id.toString().slice(-6)} (worker received ₹${actualAmount})`
             }], { session });
 
             job.status = 'CLOSED';
             job.payment.status = 'PAID';
         } else if (resolution === 'WAIVE_FEE') {
-            // Platform waives the commission â€” worker keeps what they got
+            // Platform waives the commission — worker keeps what they got
             job.status = 'CLOSED';
             job.payment.status = 'PAID';
         } else if (resolution === 'REFUND_CUSTOMER') {
@@ -1107,7 +1153,7 @@ exports.resolveDispute = catchAsync(async (req, res) => {
             job.status = 'CLOSED';
             job.payment.status = 'REFUNDED';
         } else {
-            // CLOSE â€” just close without financial action
+            // CLOSE — just close without financial action
             job.status = 'CLOSED';
         }
 
@@ -1125,7 +1171,7 @@ exports.resolveDispute = catchAsync(async (req, res) => {
         // S5 FIX: Update admin dashboard so dispute count decreases in real-time
         triggerDashboardUpdate({ type: 'DISPUTE_RESOLVED', id: job._id, resolution });
 
-        return successResponse(res, job, `Dispute resolved: ${resolution}`);
+        return successResponse(res, hideOtpsFor(job, req.user.role), `Dispute resolved: ${resolution}`);
     } catch (error) {
         if (useTransaction && session) await session.abortTransaction();
         if (session) session.endSession();
@@ -1133,7 +1179,7 @@ exports.resolveDispute = catchAsync(async (req, res) => {
     }
 });
 
-// â”€â”€â”€ GET /api/v1/jobs/:id/receipt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/jobs/:id/receipt ─────────────────────────────────────────────
 exports.getJobReceipt = catchAsync(async (req, res) => {
     const job = await Job.findById(req.params.id)
         .populate('customerId', 'name phone email location')
@@ -1186,7 +1232,7 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
     return successResponse(res, receipt, 'Job receipt generated successfully');
 });
 
-// â”€â”€â”€ GET /api/v1/jobs/disputes (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/jobs/disputes (Admin) ───────────────────────────────────────
 exports.getDisputes = catchAsync(async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     
@@ -1202,7 +1248,7 @@ exports.getDisputes = catchAsync(async (req, res) => {
     return successResponse(res, { disputes, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Disputes fetched');
 });
 
-// â”€â”€â”€ GET /api/v1/jobs/:id (Job detail) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/jobs/:id (Job detail) ──────────────────────────────────────
 exports.getJobById = catchAsync(async (req, res) => {
     const job = await Job.findById(req.params.id)
         .populate('customerId', 'name phone profileImage')
@@ -1218,10 +1264,10 @@ exports.getJobById = catchAsync(async (req, res) => {
         return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
     }
 
-    return successResponse(res, job, 'Job fetched');
+    return successResponse(res, hideOtpsFor(job, req.user.role), 'Job fetched');
 });
 
-// â”€â”€â”€ POST /api/v1/jobs/upload-media â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /api/v1/jobs/upload-media ─────────────────────────────────────────
 exports.uploadMedia = catchAsync(async (req, res) => {
     if (!req.file) return errorResponse(res, 'No file uploaded', StatusCodes.BAD_REQUEST);
 

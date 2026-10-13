@@ -203,7 +203,7 @@ export default function KYC() {
               style={{ padding: 20, cursor: 'pointer', border: '1px solid var(--border)', transition: 'all 0.15s' }}
               onClick={() => setSelected(item)}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: 'var(--mid)', flexShrink: 0 }}>
                   {(page - 1) * PAGE_SIZE + i + 1}
                 </div>
@@ -212,8 +212,8 @@ export default function KYC() {
                   {item?.name ? item.name[0] : '?'}
                 </div>
 
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
                     <span style={{ fontWeight: 700, fontSize: 15 }}>{item?.name || 'Unknown'}</span>
                     <span className={`badge badge-${item?.kycType === 'SHOP' ? 'success' : 'info'}`} style={{ fontSize: 10 }}>
                       {item?.kycType === 'SHOP' ? <><Store size={10} /> Shop</> : <><User size={10} /> Worker</>}

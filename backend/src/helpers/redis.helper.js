@@ -104,7 +104,7 @@ const delCache = async (key) => {
     try {
         // Automatically handle range suffixes for dashboard stats invalidation
         if (key === 'admin_dashboard_stats') {
-            const ranges = ['week', 'month', 'quarter', 'year', 'all'];
+            const ranges = ['today', 'week', 'month', 'quarter', 'year', 'all'];
             for (const r of ranges) {
                 await client.del(`admin_dashboard_stats_${r}`);
             }

@@ -559,7 +559,7 @@ export default function Workers() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+      <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
         {[
           { label: 'Total Workers', value: stats.total, color: '#00B4D8' },
           { label: 'Active', value: stats.active, color: '#10B981' },

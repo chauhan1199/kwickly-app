@@ -1,7 +1,6 @@
 const { StatusCodes } = require('http-status-codes');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const WalletTxn = require('./wallet.model');
-const Payment = require('../payment/payment.model');
 const Customer = require('../customer/customer.model');
 const Shop = require('../shop/shop.model');
 const Payout = require('../payout/payout.model');
@@ -10,8 +9,8 @@ const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.mode
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { emitToAll, emitToRoom, emitToUser } = require('../../helpers/socket.helper');
-const { getCache, delCache, setCache } = require('../../helpers/redis.helper');
+const { emitToAll, emitToUser } = require('../../helpers/socket.helper');
+const { delCache } = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
@@ -73,7 +72,7 @@ const atomicCredit = async (userId, role, amount, session) => {
     }
 };
 
-// â”€â”€â”€ GET /api/v1/wallet/balance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/wallet/balance ───────────────────────────────────────────────
 // ─── GET /api/v1/wallet/balance ──────────────────────────────────────────────
 exports.getWallet = catchAsync(async (req, res) => {
     const { page = 1, limit = 20, type } = req.query;
@@ -205,14 +204,15 @@ exports.topupWallet = catchAsync(async (req, res) => {
                 return errorResponse(res, `This UPI Reference (UTR: ${utrNumber}) has already been used and credited.`, StatusCodes.BAD_REQUEST);
             }
 
-            // 2. Register & Claim Bank Credit
+            // 2. Claim a Bank Credit recorded server-side by the bank-SMS webhook.
+            // Only that record proves money arrived; a UTR, pasted SMS or intent
+            // response typed into the app is user-controlled and never credits on
+            // its own. Without a match the top-up waits for the webhook or an admin.
             const BankCredit = require('../payment/bankCredit.model');
-            const { extractSmsAmount } = require('../../helpers/upi.helper');
             const numAmount = Number(amount);
 
-            let existingBankCredit = await BankCredit.findOne({
-                utr: utrNumber
-            });
+            const existingBankCredit = await BankCredit.findOne({ utr: utrNumber });
+            let bankCreditMatched = false;
 
             if (existingBankCredit) {
                 if (existingBankCredit.isClaimed) {
@@ -228,64 +228,29 @@ exports.topupWallet = catchAsync(async (req, res) => {
                     );
                 }
 
-                existingBankCredit.isClaimed = true;
-                existingBankCredit.claimedBy = user._id;
-                existingBankCredit.claimedAt = new Date();
-                await existingBankCredit.save();
+                // Atomic claim so two concurrent submissions can't both credit
+                const claimed = await BankCredit.findOneAndUpdate(
+                    { _id: existingBankCredit._id, isClaimed: false },
+                    { $set: { isClaimed: true, claimedBy: user._id, claimedAt: new Date() } },
+                    { returnDocument: 'after' }
+                );
+                if (!claimed) {
+                    return errorResponse(res, `This UPI Reference (UTR: ${utrNumber}) has already been used and claimed.`, StatusCodes.BAD_REQUEST);
+                }
+                bankCreditMatched = true;
             } else {
-                const { verifyIntentResponse, isAuthenticBankDebitSms, isAdjacentOrTamperedUtr } = require('../../helpers/upi.helper');
-                const isIntentVerified = req.body.isIntentVerified === true;
-                const intentStatus = req.body.intentStatus;
-                const responseCode = req.body.responseCode;
-                const rawResponse = req.body.rawResponse;
-
-                const hasValidIntent = verifyIntentResponse({
-                    isIntentVerified: Boolean(isIntentVerified),
-                    intentStatus,
-                    responseCode,
-                    rawResponse,
-                    utr: utrNumber,
-                    expectedRef: req.body.upiOrderId || req.body.razorpayOrderId
-                });
-
-                const rawSms = (req.body.rawMessage || req.body.smsText || '').toString().trim();
-                const hasValidSms = isAuthenticBankDebitSms({
-                    rawMessage: rawSms,
-                    utr: utrNumber,
-                    expectedAmount: numAmount
-                });
-
-                // Anti-tamper & Loophole check:
-                // Check if candidate UTR is suspiciously adjacent (±15) to any recently recorded transaction
+                const { isAdjacentOrTamperedUtr } = require('../../helpers/upi.helper');
                 const recentCredits = await BankCredit.find({}).sort({ _id: -1 }).limit(50).select('utr').lean();
-                const recentUtrs = recentCredits.map(r => r.utr);
-                const isTampered = isAdjacentOrTamperedUtr(utrNumber, recentUtrs);
-
-                if (isTampered && !hasValidSms && !hasValidIntent) {
+                if (isAdjacentOrTamperedUtr(utrNumber, recentCredits.map(r => r.utr))) {
                     return errorResponse(
                         res,
-                        `Suspicious reference number: UTR ${utrNumber} is adjacent to a recently used transaction. To protect against unauthorized entry, please provide your authentic bank debit SMS text.`,
+                        `Suspicious reference number: UTR ${utrNumber} is adjacent to a recently used transaction. Please check the UTR on your bank receipt.`,
                         StatusCodes.BAD_REQUEST
                     );
                 }
-
-                let source = 'MANUAL_UTR';
-                if (hasValidIntent) source = 'UPI_INTENT';
-                else if (hasValidSms) source = 'BANK_SMS';
-
-                await BankCredit.create({
-                    utr: utrNumber,
-                    amount: numAmount,
-                    rawMessage: hasValidIntent ? (rawResponse || `Direct UPI topup intent verified for user ${user._id}`) : (hasValidSms ? rawSms : `Manual UTR entry ${utrNumber}`),
-                    source,
-                    receivedAt: new Date(),
-                    isClaimed: true,
-                    claimedBy: user._id,
-                    claimedAt: new Date()
-                });
             }
 
-            const shouldAutoCredit = true;
+            const shouldAutoCredit = bankCreditMatched;
             if (shouldAutoCredit) {
                 let newBalance = currentBalance;
                 if (plan) {
@@ -491,7 +456,7 @@ exports.topupWallet = catchAsync(async (req, res) => {
     }, `Please complete the UPI payment of ₹${amount}. Your wallet will be credited automatically once the payment is confirmed.`, StatusCodes.CREATED);
 });
 
-// â”€â”€â”€ POST /api/v1/wallet/withdraw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /api/v1/wallet/withdraw ─────────────────────────────────────────────
 exports.requestWithdrawal = catchAsync(async (req, res) => {
     const { amount, payoutMethod } = req.body;
 
@@ -559,7 +524,7 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
         notifyUser({
             userId: req.user._id,
             title: 'Withdrawal Requested',
-            message: `Your withdrawal request for â‚¹${amount} has been initiated and is pending approval.`,
+            message: `Your withdrawal request for ₹${amount} has been initiated and is pending approval.`,
             action: 'WITHDRAWAL',
             entityType: 'WALLET',
             entityId: txn[0]._id,
@@ -574,7 +539,7 @@ exports.requestWithdrawal = catchAsync(async (req, res) => {
     }
 });
 
-// â”€â”€â”€ GET /api/v1/wallet/transactions (Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/v1/wallet/transactions (Admin) ──────────────────────────────────
 exports.getAllTransactions = catchAsync(async (req, res) => {
     const { type, userId, page = 1, limit = 50 } = req.query;
     const query = {};
@@ -609,7 +574,7 @@ exports.getMyTransactions = catchAsync(async (req, res) => {
     return successResponse(res, { txns, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Transactions fetched');
 });
 
-// â”€â”€â”€ POST /api/v1/wallet/credit (Admin adjustment) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /api/v1/wallet/credit (Admin adjustment) ────────────────────────────
 exports.adminAdjust = catchAsync(async (req, res) => {
     const { userId, amount, type, description, debit } = req.body;
 
@@ -619,7 +584,7 @@ exports.adminAdjust = catchAsync(async (req, res) => {
     let adminWallet;
     let newBalance;
     if (debit) {
-        // Admin debits from user wallet â†’ money goes TO admin wallet
+        // Admin debits from user wallet → money goes TO admin wallet
         const result = await atomicDeduct(userId, user.role, Math.abs(amount), null);
         if (!result) return errorResponse(res, 'Insufficient balance for debit', StatusCodes.PAYMENT_REQUIRED);
         newBalance = result.newBalance;
@@ -634,13 +599,13 @@ exports.adminAdjust = catchAsync(async (req, res) => {
             type: 'COMMISSION_COLLECTED',
             amount: Math.abs(amount),
             balanceAfter: adminWallet.balance,
-            description: `â‚¹${Math.abs(amount)} debited from ${user.role?.toLowerCase() || 'user'} "${user.name || user._id}" wallet`,
+            description: `₹${Math.abs(amount)} debited from ${user.role?.toLowerCase() || 'user'} "${user.name || user._id}" wallet`,
             referenceId: userId,
             referenceModel: 'Customer',
             meta: { performedBy: req.user?._id }
         });
     } else {
-        // Admin credits to user wallet â†’ money comes FROM admin wallet (atomic balance check)
+        // Admin credits to user wallet → money comes FROM admin wallet (atomic balance check)
         adminWallet = await AdminWallet.findOneAndUpdate(
             { balance: { $gte: Math.abs(amount) } },
             { $inc: { balance: -Math.abs(amount) } },
@@ -657,7 +622,7 @@ exports.adminAdjust = catchAsync(async (req, res) => {
             type: 'SHOP_PAYOUT',
             amount: Math.abs(amount),
             balanceAfter: adminWallet.balance,
-            description: `â‚¹${Math.abs(amount)} credited to ${user.role?.toLowerCase() || 'user'} "${user.name || user._id}" wallet`,
+            description: `₹${Math.abs(amount)} credited to ${user.role?.toLowerCase() || 'user'} "${user.name || user._id}" wallet`,
             referenceId: userId,
             referenceModel: 'Customer',
             meta: { performedBy: req.user?._id }
@@ -681,14 +646,14 @@ exports.adminAdjust = catchAsync(async (req, res) => {
     const entityType = user.role === 'WORKER' ? 'WORKER' : 'CUSTOMER';
     logAdminActivity(debit ? 'WALLET_DEBIT' : 'WALLET_CREDIT', entityType, userId,
         `${entityType} Wallet ${debit ? 'Debited' : 'Credited'}`,
-        `â‚¹${Math.abs(amount)} ${actionLabel} ${user.name || 'user'} wallet${description ? ' â€” ' + description : ''}`,
+        `₹${Math.abs(amount)} ${actionLabel} ${user.name || 'user'} wallet${description ? ' — ' + description : ''}`,
         req.user?._id
     );
 
     try {
         const notif = await Notification.create({
             title: `Wallet ${debit ? 'Debited' : 'Credited'}`,
-            message: `â‚¹${Math.abs(amount)} ${actionLabel} your wallet${description ? ' â€” ' + description : ''}`,
+            message: `₹${Math.abs(amount)} ${actionLabel} your wallet${description ? ' — ' + description : ''}`,
             type: 'DIRECT',
             action: 'UPDATE',
             entityType: 'WALLET',

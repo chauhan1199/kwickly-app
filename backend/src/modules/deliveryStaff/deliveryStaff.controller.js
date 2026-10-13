@@ -20,8 +20,10 @@ exports.addStaff = catchAsync(async (req, res) => {
     if (phone && !/^\d{10,15}$/.test(phone)) {
         return errorResponse(res, 'Phone must be 10-15 digits', StatusCodes.BAD_REQUEST);
     }
-    const existing = await DeliveryStaff.findOne({ phone, shopId: shop._id }).lean();
-    if (existing) return errorResponse(res, 'Staff with this phone already exists', StatusCodes.CONFLICT);
+    if (phone) {
+        const existing = await DeliveryStaff.findOne({ phone, shopId: shop._id }).lean();
+        if (existing) return errorResponse(res, 'Staff with this phone already exists', StatusCodes.CONFLICT);
+    }
     const staff = await DeliveryStaff.create({ name, phone, shopId: shop._id });
     return successResponse(res, staff, 'Staff added', StatusCodes.CREATED);
 });
@@ -50,7 +52,7 @@ exports.removeStaff = catchAsync(async (req, res) => {
     if (!staff) return errorResponse(res, 'Staff not found', StatusCodes.NOT_FOUND);
     if (staff.activeOrderId) {
         const Order = require('../shoporder/shoporder.model');
-        const activeOrder = await Order.findOne({ _id: staff.activeOrderId, status: { $in: ['NEW', 'CONFIRMED', 'PACKING'] } }).lean();
+        const activeOrder = await Order.findOne({ _id: staff.activeOrderId, status: { $in: ['NEW', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY'] } }).lean();
         if (activeOrder) {
             return errorResponse(res, 'Cannot remove staff with active delivery', StatusCodes.BAD_REQUEST);
         }

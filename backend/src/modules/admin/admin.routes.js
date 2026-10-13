@@ -9,7 +9,6 @@ const { createShopAdminSchema, updateShopAdminSchema, shopWalletSchema } = requi
 const suggestionController = require('../suggestion/suggestion.controller');
 const disputeController = require('../dispute/dispute.controller');
 const settingsController = require('../settings/settings.controller');
-const { otpSendLimiter } = require('../../middleware/rateLimit.middleware');
 const logger = require('../../helpers/logger.helper');
 
 // Middleware to parse stringified JSON from FormData before Joi validation

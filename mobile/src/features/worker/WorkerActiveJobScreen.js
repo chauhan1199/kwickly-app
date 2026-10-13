@@ -189,7 +189,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
     return job?.location?.addressDetails?.city || 'Customer Location';
   };
 
-  const completionOtp = job?.security?.completionOtp || initialJob?.security?.completionOtp || '1234';
+  const completionOtp = job?.security?.completionOtp || initialJob?.security?.completionOtp || '';
   const customerName = job?.customerId?.name || initialJob?.customerId?.name || 'Customer';
   const customerPhone = job?.customerId?.phone || initialJob?.customerId?.phone || '';
   const serviceCategory = job?.category || initialJob?.category || 'Service';
@@ -197,6 +197,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
   const payoutAmount = initialQuoteAmount || job?.payment?.workerPayout || job?.payment?.amount || job?.budget || 0;
 
   const copyOtp = () => {
+    if (!completionOtp) return;
     Clipboard.setString(String(completionOtp));
     setCopiedOtp(true);
     setTimeout(() => setCopiedOtp(false), 2000);
@@ -521,7 +522,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
 
           {/* 4-Box PIN Display */}
           <View style={styles.otpBoxesContainer}>
-            {String(completionOtp).padEnd(4, '0').slice(0, 4).split('').map((digit, idx) => (
+            {(completionOtp ? String(completionOtp) : '----').split('').map((digit, idx) => (
               <View key={idx} style={styles.otpDigitBox}>
                 <Text style={styles.otpDigitText}>{digit}</Text>
               </View>

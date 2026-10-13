@@ -79,7 +79,7 @@ export default function AdminUsers() {
 
       {/* Profile Card */}
       <div className="card" style={{ padding: 28, marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 18, marginBottom: 20 }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%',
             background: 'linear-gradient(135deg, var(--primary), var(--purple))',
@@ -88,7 +88,7 @@ export default function AdminUsers() {
           }}>
             {adminInfo?.name ? adminInfo.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) : 'SA'}
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <span style={{ fontWeight: 800, fontSize: 18 }}>{adminInfo?.name || 'Super Admin'}</span>
               <span className="badge badge-success" style={{ fontSize: 11 }}>Active</span>
@@ -96,7 +96,7 @@ export default function AdminUsers() {
             <div style={{ color: 'var(--mid)', fontFamily: 'var(--font-body)', fontSize: 13 }}>{adminInfo?.email || 'admin@kwickly.com'}</div>
             <div style={{ color: 'var(--mid)', fontFamily: 'var(--font-body)', fontSize: 12, marginTop: 2 }}>{adminInfo?.phone}</div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <button className="btn btn-outline btn-sm" onClick={() => setEditMode(!editMode)}>
               {editMode ? 'Cancel' : '✏️ Edit Profile'}
             </button>

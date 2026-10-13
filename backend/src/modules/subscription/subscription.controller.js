@@ -5,13 +5,12 @@ const WalletTxn = require('../wallet/wallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToAll } = require('../../helpers/socket.helper');
-const { getCache, setCache, delCache } = require('../../helpers/redis.helper');
+const { delCache } = require('../../helpers/redis.helper');
 const Shop = require('../shop/shop.model');
 const Notification = require('../notification/notification.model');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
-const { registerPaymentIntent } = require('../../services/upiProvider.service');
 
 /* ─── Shared helpers ─────────────────────────────────────────────────── */
 

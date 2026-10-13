@@ -37,19 +37,18 @@ const WorkerProfileScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
   const { worker } = route.params || {};
 
-  // If no worker data passed, go back
-  if (!worker) {
-    navigation.goBack();
-    return null;
-  }
-
-  const [workerData, setWorkerData] = useState(worker);
+  const [workerData, setWorkerData] = useState(worker || {});
   const [allCategories, setAllCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCatIndex, setSelectedCatIndex] = useState(0);
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
 
-  const workerId = worker.id || worker._id;
+  const workerId = worker?.id || worker?._id;
+
+  // If no worker data passed, go back (from an effect: navigating during render is unsafe)
+  useEffect(() => {
+    if (!worker) navigation.goBack();
+  }, [worker, navigation]);
 
   // Fetch full live worker profile & reviews from backend
   useEffect(() => {
@@ -142,6 +141,9 @@ const WorkerProfileScreen = ({ route, navigation }) => {
       }
     }
   }, [servicesList.length, route.params]);
+
+  // All hooks above run on every render; only now is it safe to bail out
+  if (!worker) return null;
 
   const activeService = servicesList[selectedCatIndex] || servicesList[0] || primaryService;
   const activeSub = selectedSubcategory || activeService.subs[0] || 'General Inspection';

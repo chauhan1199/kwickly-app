@@ -218,7 +218,7 @@ export default function Jobs() {
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{fj.id}</span>
-            <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(j._id); showToast('Copied') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mid)', padding: 2 }}><Copy size={12} /></button>
+            <button className="copy-btn" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(j._id); showToast('Copied') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mid)', padding: 2 }}><Copy size={12} /></button>
           </div>
         );
     }},
@@ -303,7 +303,7 @@ export default function Jobs() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+      <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
         {statsCards.map(s => (
           <div key={s.label} className="stat-card-simple" style={{ borderTop: `3px solid ${s.color}` }}>
             <div style={{ fontSize: 28, fontWeight: 900, color: s.color }}>{s.value}</div>

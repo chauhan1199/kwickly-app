@@ -45,8 +45,21 @@ export const shopService = {
   updateDeliveryConfig: (shopId, config) =>
     withErrorHandling(() => api.patch(`/shops/${shopId}/delivery-config`, config)),
 
-  updateOrderStatus: (orderId, status, otp, note) =>
-    withErrorHandling(() => api.patch(`/shoporders/${orderId}/status`, { status, otp, note })),
+  updateOrderStatus: (orderId, status, otp, note, deliveryStaffId) =>
+    withErrorHandling(() => api.patch(`/shoporders/${orderId}/status`, { status, otp, note, deliveryStaffId })),
+
+  // Customer: issue a fresh delivery OTP (old one expired or locked by wrong attempts)
+  regenerateDeliveryOtp: (orderId) =>
+    withErrorHandling(() => api.post(`/shoporders/${orderId}/delivery-otp`)),
+
+  getDeliveryStaff: () =>
+    withErrorHandling(() => api.get('/delivery-staff')),
+
+  addDeliveryStaff: (data) =>
+    withErrorHandling(() => api.post('/delivery-staff', data)),
+
+  removeDeliveryStaff: (staffId) =>
+    withErrorHandling(() => api.delete(`/delivery-staff/${staffId}`)),
 
 
   cancelOrder: (orderId) =>

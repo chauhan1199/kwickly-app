@@ -44,6 +44,7 @@ const ShopOrderSchema = new mongoose.Schema({
     deliveryOtp: { type: String },
     deliveryOtpGeneratedAt: { type: Date },
     deliveryOtpAttempts: { type: Number, default: 0 },
+    deliveryStaffId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryStaff' },
     deliveryStaffName: { type: String },
     deliveryStaffPhone: { type: String },
 
@@ -72,7 +73,6 @@ const ShopOrderSchema = new mongoose.Schema({
     },
 
     promoCode: { type: String },
-    promoDiscount: { type: Number, default: 0 },
 
     invoiceUrl: { type: String },
     shopNote:   { type: String }

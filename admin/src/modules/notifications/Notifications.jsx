@@ -168,7 +168,7 @@ export default function Notifications() {
         <button className="btn btn-primary" onClick={()=>setCompose(true)}>+ Compose</button>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:20 }}>
+      <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:20 }}>
         {[
           { label:'Total Sent',    value:notifs.length,    color:'var(--primary)'  },
           { label:'Sent Today',    value:notifs.filter(n=>{ const d=new Date(n.createdAt); const today=new Date(); return d.toDateString()===today.toDateString() }).length,   color:'var(--success)'  },

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -18,11 +18,26 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import { getImageUrl } from '../../utils/helpers';
+import { jobService } from '../../services/jobService';
 import LinearGradient from 'react-native-linear-gradient';
 
 const ProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
+  const [jobCount, setJobCount] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    jobService.getMyJobs()
+      .then((res) => {
+        const list = res?.data?.data;
+        if (active && Array.isArray(list)) setJobCount(list.length);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const memberYears = user?.createdAt ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (365 * 24 * 60 * 60 * 1000)) : 0;
   let pmCount = 0;
   if (user?.wallet?.upiId && String(user.wallet.upiId).trim().length > 0) pmCount++;
   if (user?.wallet?.bankDetails?.accountNumber && String(user.wallet.bankDetails.accountNumber).trim().length > 0) pmCount++;
@@ -98,7 +113,7 @@ const ProfileScreen = ({ navigation }) => {
           
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
-              <Text style={styles.statVal}>{user?.jobs?.length || 0}</Text>
+              <Text style={styles.statVal}>{jobCount ?? '–'}</Text>
               <Text style={styles.statLabel}>Jobs</Text>
             </View>
             <View style={styles.statBox}>
@@ -106,7 +121,7 @@ const ProfileScreen = ({ navigation }) => {
               <Text style={styles.statLabel}>Rating</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statVal}>New</Text>
+              <Text style={styles.statVal}>{memberYears >= 1 ? `${memberYears}y` : 'New'}</Text>
               <Text style={styles.statLabel}>Member</Text>
             </View>
           </View>

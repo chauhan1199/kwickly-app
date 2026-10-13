@@ -1,7 +1,6 @@
-const { StatusCodes } = require('http-status-codes');
 const AppSettings = require('./settings.model');
 const catchAsync = require('../../helpers/async.helper');
-const { successResponse, errorResponse } = require('../../helpers/response.helper');
+const { successResponse } = require('../../helpers/response.helper');
 const { getCache, setCache, delCache, fetchWithCache } = require('../../helpers/redis.helper');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
 const { logAdminActivity } = require('../../helpers/adminActivity.helper');
@@ -208,9 +207,43 @@ exports.getSettings = catchAsync(async (req, res) => {
     return successResponse(res, flat, 'Settings fetched successfully');
 });
 
+// Settings the mobile app may read without logging in. Built in one place so the
+// cache pre-warm in updateSettings can never drift from getPublicSettings.
+const buildPublicSettings = (settings) => ({
+    subscriptionPlans: (settings.subscriptionPlans && settings.subscriptionPlans.length > 0) ? settings.subscriptionPlans : DEFAULT_SUBSCRIPTION_PLANS,
+    maintenanceMode: settings.maintenance?.mode || false,
+    maintenanceMsg: settings.maintenance?.message || '',
+    appName: settings.branding?.appName || 'Kwickly',
+    logoUrl: settings.branding?.logoUrl || '',
+    iconUrl: settings.branding?.iconUrl || '',
+    maxRadius: settings.radius?.maxKm || 25,
+    searchRadius: settings.radius?.maxKm || 25,
+    freeTrialDays: settings.subscription?.freeTrialDays || 14,
+    // Fee rules, so app-side totals match what the server will charge
+    serviceJobFee: {
+        mode: settings.serviceJobFee?.mode || 'TIERED',
+        threshold: settings.serviceJobFee?.threshold ?? 500,
+        minFee: settings.serviceJobFee?.minFee ?? 50,
+        percentAboveThreshold: settings.serviceJobFee?.percentAboveThreshold ?? 12,
+        percentage: settings.serviceJobFee?.percentage ?? 12,
+        fixedFee: settings.serviceJobFee?.fixedFee ?? 50,
+        gstPercent: settings.serviceJobFee?.gstPercent ?? 18
+    },
+    shopOrderFee: {
+        mode: settings.shopOrderFee?.mode || 'PERCENTAGE',
+        percentage: settings.shopOrderFee?.percentage ?? 5,
+        minFee: settings.shopOrderFee?.minFee ?? 10,
+        fixedFee: settings.shopOrderFee?.fixedFee ?? 10,
+        gstPercent: settings.shopOrderFee?.gstPercent ?? 18
+    },
+    termsOfService: settings.legal?.termsOfService || DEFAULT_TERMS_OF_SERVICE,
+    privacyPolicy: settings.legal?.privacyPolicy || DEFAULT_PRIVACY_POLICY,
+    faqs: isFaqListValid(settings.faqs) ? settings.faqs : DEFAULT_FAQS
+});
+
 exports.getPublicSettings = catchAsync(async (req, res) => {
     const cachedData = await getCache('public_settings');
-    if (cachedData && isFaqListValid(cachedData.faqs)) {
+    if (cachedData && cachedData.shopOrderFee && isFaqListValid(cachedData.faqs)) {
         return successResponse(res, cachedData, 'Public settings from cache');
     }
 
@@ -236,20 +269,7 @@ exports.getPublicSettings = catchAsync(async (req, res) => {
         }
     }
 
-    const publicSettings = {
-        subscriptionPlans: (settings.subscriptionPlans && settings.subscriptionPlans.length > 0) ? settings.subscriptionPlans : DEFAULT_SUBSCRIPTION_PLANS,
-        maintenanceMode: settings.maintenance?.mode || false,
-        maintenanceMsg: settings.maintenance?.message || '',
-        appName: settings.branding?.appName || 'Kwickly',
-        logoUrl: settings.branding?.logoUrl || '',
-        iconUrl: settings.branding?.iconUrl || '',
-        maxRadius: settings.radius?.maxKm || 25,
-        searchRadius: settings.radius?.maxKm || 25,
-        freeTrialDays: settings.subscription?.freeTrialDays || 14,
-        termsOfService: settings.legal?.termsOfService || DEFAULT_TERMS_OF_SERVICE,
-        privacyPolicy: settings.legal?.privacyPolicy || DEFAULT_PRIVACY_POLICY,
-        faqs: isFaqListValid(settings.faqs) ? settings.faqs : DEFAULT_FAQS
-    };
+    const publicSettings = buildPublicSettings(settings);
 
     await setCache('public_settings', publicSettings, 86400);
     return successResponse(res, publicSettings, 'Public settings fetched');
@@ -296,20 +316,7 @@ exports.updateSettings = catchAsync(async (req, res) => {
     await delCache('admin_dashboard_stats');
 
     // Immediately pre-warm public_settings in Redis with fresh database values
-    const publicSettings = {
-        subscriptionPlans: (settings.subscriptionPlans && settings.subscriptionPlans.length > 0) ? settings.subscriptionPlans : DEFAULT_SUBSCRIPTION_PLANS,
-        maintenanceMode: settings.maintenance?.mode || false,
-        maintenanceMsg: settings.maintenance?.message || '',
-        appName: settings.branding?.appName || 'Kwickly',
-        logoUrl: settings.branding?.logoUrl || '',
-        iconUrl: settings.branding?.iconUrl || '',
-        maxRadius: settings.radius?.maxKm || 25,
-        searchRadius: settings.radius?.maxKm || 25,
-        freeTrialDays: settings.subscription?.freeTrialDays || 14,
-        termsOfService: settings.legal?.termsOfService || DEFAULT_TERMS_OF_SERVICE,
-        privacyPolicy: settings.legal?.privacyPolicy || DEFAULT_PRIVACY_POLICY,
-        faqs: isFaqListValid(settings.faqs) ? settings.faqs : DEFAULT_FAQS
-    };
+    const publicSettings = buildPublicSettings(settings);
     await setCache('public_settings', publicSettings, 86400);
 
     triggerDashboardUpdate();

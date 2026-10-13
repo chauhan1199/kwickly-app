@@ -696,7 +696,7 @@ export default function Promotions() {
           { key: 'banners', label: `Banners`, icon: Image, count: banners.length, color: '#6366f1' },
           { key: 'promos',  label: `Promo Codes`, icon: Tag, count: promos.length,  color: '#f59e0b' },
         ].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
+          <button key={t.key} className="seg-btn" onClick={() => setTab(t.key)} style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
             background: tab === t.key ? (t.key === 'banners' ? '#6366f122' : '#f59e0b22') : 'transparent',
             color: tab === t.key ? (t.key === 'banners' ? '#6366f1' : '#f59e0b') : 'var(--text-muted)',

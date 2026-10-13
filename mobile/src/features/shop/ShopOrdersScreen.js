@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -46,13 +46,7 @@ const ShopOrdersScreen = ({ navigation }) => {
 
   const filters = ['All', 'New', 'Packing', 'Out', 'Delivered', 'Cancelled'];
 
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchOrders(orders.length > 0);
-    }, [orders.length])
-  );
-
-  const fetchOrders = async (isBackground = false) => {
+  const fetchOrders = useCallback(async (isBackground = false) => {
     try {
       if (!isBackground) setLoading(true);
       const res = await shopService.getShopOrders();
@@ -125,7 +119,16 @@ const ShopOrdersScreen = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [isDarkMode]);
+
+  // Refetch on every focus; only the very first load shows the full-screen spinner
+  const hasLoaded = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      fetchOrders(hasLoaded.current);
+      hasLoaded.current = true;
+    }, [fetchOrders])
+  );
 
   const getFilterCount = (filter) => {
     if (filter === 'All') return orders.length;
@@ -152,7 +155,7 @@ const ShopOrdersScreen = ({ navigation }) => {
     setRefreshing(true);
     await fetchOrders(true);
     setRefreshing(false);
-  }, []);
+  }, [fetchOrders]);
 
   return (
     <View style={styles.container}>

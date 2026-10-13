@@ -5,7 +5,7 @@ const Customer    = require('../customer/customer.model');
 const catchAsync  = require('../../helpers/async.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
-const { getCache, setCache } = require('../../helpers/redis.helper');
+const { setCache } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
@@ -65,7 +65,7 @@ exports.placeQuote = catchAsync(async (req, res) => {
     const job = await Job.findById(jobId);
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
 
-    // P0 FIX: Self-quote guard â€” worker cannot quote on a job they created
+    // P0 FIX: Self-quote guard — worker cannot quote on a job they created
     if (String(job.customerId) === String(workerId)) {
         return errorResponse(res, 'You cannot quote on your own job', StatusCodes.FORBIDDEN);
     }
@@ -152,7 +152,7 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
     }
 
     let quotes = await Quote.find({ jobId: req.params.jobId, status: { $in: ['PENDING', 'ACCEPTED'] } })
-        .populate('workerId', 'name profileImage rating wallet kyc activeLocation jobsCompleted')
+        .populate('workerId', 'name profileImage rating kyc.status activeLocation jobsCompleted')
         .sort('amount')
         .lean();
 
@@ -160,7 +160,8 @@ exports.getQuotesForJob = catchAsync(async (req, res) => {
     const SettingsService = require('../settings/settings.service');
     const settings = await SettingsService.getAppSettings();
     const { calculateJobFee } = require('../../helpers/feeCalculator.helper');
-    const feeConfig = settings?.fees || settings?.jobFee || { type: 'tiered', minFee: 50, threshold: 500, percentage: 12, gstPercentage: 18 };
+    // Same config acceptQuote charges with, so the listed total is what the customer pays
+    const feeConfig = settings?.serviceJobFee || settings?.fees || {};
 
     const jobLat = job.location?.coordinates?.[1];
     const jobLon = job.location?.coordinates?.[0];
@@ -330,13 +331,12 @@ exports.acceptQuote = catchAsync(async (req, res) => {
         throw error;
     }
 
-    // Cache jobâ†’worker assignment for socket location verification (TTL: 2 hours)
+    // Cache job→worker assignment for socket location verification (TTL: 2 hours)
     await setCache(`job:${updatedJob._id}:assigned_worker`, String(quote.workerId), 7200);
 
     // Notify assigned worker
     emitToRoom(`worker_${quote.workerId}`, 'QUOTE_ACCEPTED', {
         jobId:      updatedJob._id,
-        arrivalOtp,
         amount:     quote.amount,
         address:    updatedJob.addressDetails
     });
@@ -375,7 +375,13 @@ exports.acceptQuote = catchAsync(async (req, res) => {
     });
 
         await updatedJob.populate('workerId', 'name phone profileImage rating activeLocation');
-        return successResponse(res, { job: updatedJob, quote }, 'Quote accepted, worker assigned');
+        // The customer only ever sees the arrival OTP; the completion OTP is the worker's to show.
+        const jobForCustomer = updatedJob.toObject();
+        if (jobForCustomer.security) {
+            jobForCustomer.security = { ...jobForCustomer.security };
+            delete jobForCustomer.security.completionOtp;
+        }
+        return successResponse(res, { job: jobForCustomer, quote }, 'Quote accepted, worker assigned');
     } finally {
         await releaseLock(lockKey, lockHolderId);
     }

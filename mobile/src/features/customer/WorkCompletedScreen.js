@@ -33,6 +33,7 @@ import {
   ImageIcon,
   X
 } from 'lucide-react-native';
+import { calculateJobFee } from '../../utils/fees';
 
 const WorkCompletedScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -64,12 +65,14 @@ const WorkCompletedScreen = ({ route, navigation }) => {
 
   // Dynamic Financial Calculations from Job Data
   const workerPayout = Number(activeJob?.payment?.workerPayout || activeJob?.quote?.amount || activeJob?.price || activeJob?.budget || 0);
-  const platformFee = activeJob?.payment?.platformFee !== undefined 
-    ? Number(activeJob.payment.platformFee) 
-    : (activeJob?.platformFee !== undefined ? Number(activeJob.platformFee) : (workerPayout > 0 ? Math.round(workerPayout * 0.10) : 0));
-  const gst = activeJob?.payment?.gst !== undefined 
-    ? Number(activeJob.payment.gst) 
-    : (activeJob?.gst !== undefined ? Number(activeJob.gst) : (platformFee > 0 ? Math.round(platformFee * 0.18) : 0));
+  // Server stores the fee on quote acceptance; recompute with the same rules only if it's missing
+  const fallbackFee = calculateJobFee(workerPayout);
+  const platformFee = activeJob?.payment?.platformFee !== undefined
+    ? Number(activeJob.payment.platformFee)
+    : (activeJob?.platformFee !== undefined ? Number(activeJob.platformFee) : fallbackFee.platformFee);
+  const gst = activeJob?.payment?.gst !== undefined
+    ? Number(activeJob.payment.gst)
+    : (activeJob?.gst !== undefined ? Number(activeJob.gst) : fallbackFee.gstAmount);
   const totalAmount = activeJob?.payment?.amount 
     ? Number(activeJob.payment.amount) 
     : (workerPayout > 0 ? (workerPayout + platformFee + gst) : 0);
@@ -362,7 +365,8 @@ const WorkCompletedScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* ── 3. PROMO CODE SECTION ── */}
+        {/* ── 3. PROMO CODE SECTION (only while the bill is still payable) ── */}
+        {!isPaidOrClosed && !isPendingVerification && (
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <View style={[styles.sectionIconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
@@ -405,6 +409,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
             )}
           </View>
         </View>
+        )}
 
         {/* ── 4. STATUS-AWARE PAYMENT & AUTHORIZATION SECTION ── */}
         {isPaidOrClosed ? (

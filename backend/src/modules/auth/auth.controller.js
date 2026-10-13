@@ -4,7 +4,7 @@ const { StatusCodes } = require('http-status-codes');
 const Customer = require('../customer/customer.model');
 const catchAsync = require('../../helpers/async.helper');
 const { AUTH, COMMON } = require('../../constants/messages');
-const { OTP_TTL, OTP_BLOCK_TTL, SESSION_TTL, FREE_TRIAL_DAYS_DEFAULT } = require('../../constants/business');
+const { OTP_TTL, OTP_BLOCK_TTL, SESSION_TTL } = require('../../constants/business');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
 const { setCache, getCache, delCache, getRedis } = require('../../helpers/redis.helper');
 
