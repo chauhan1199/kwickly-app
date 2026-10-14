@@ -13,6 +13,7 @@ router.post('/withdraw',        authMiddleware, validate(withdrawSchema), ctrl.r
 router.post('/lookup-recipient', authMiddleware,                       ctrl.lookupRecipient);
 router.post('/transfer',        authMiddleware,                        ctrl.transferWallet);
 router.get('/my-transactions',  authMiddleware,                        ctrl.getMyTransactions);
+router.get('/transactions/:id/receipt-pdf', authMiddleware,           ctrl.getTransactionReceiptPdf);
 
 // Admin
 router.get('/transactions', authMiddleware, authorize('ADMIN'),   ctrl.getAllTransactions);

@@ -58,7 +58,8 @@ import {
 import { 
   generateAndSharePdfReceipt, 
   printReceiptPdf, 
-  formatReceiptData 
+  formatReceiptData,
+  paymentModeFor
 } from '../../utils/receiptGenerator';
 import { shopService } from '../../services/shopService';
 import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
@@ -237,6 +238,7 @@ const ShopWalletScreen = ({ navigation }) => {
             amountNum: numAmt,
             type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT', 'REFUND'].includes(t?.type) ? 'credit' : 'debit',
             rawType: t?.type || 'TRANSACTION',
+            balance: t?.balance,
             refId: safeRef,
             status: t?.status || 'COMPLETED'
           };
@@ -374,6 +376,7 @@ const ShopWalletScreen = ({ navigation }) => {
           createdAt: txn.rawDate || new Date().toISOString(),
           description: txn.title,
           status: txn.status || 'COMPLETED',
+          balance: txn.balance,
           razorpayPaymentId: txn.refId || txn.txnId || 'AUTO_CONFIRMED'
         },
         null,
@@ -398,6 +401,7 @@ const ShopWalletScreen = ({ navigation }) => {
           createdAt: txn.rawDate || new Date().toISOString(),
           description: txn.title,
           status: txn.status || 'COMPLETED',
+          balance: txn.balance,
           razorpayPaymentId: txn.refId || txn.txnId || 'AUTO_CONFIRMED'
         },
         null,
@@ -1350,15 +1354,15 @@ const ShopWalletScreen = ({ navigation }) => {
                   </View>
                   <View style={styles.receiptRow}>
                     <Text style={styles.receiptKey}>Payment Mode</Text>
-                    <Text style={styles.receiptVal}>Direct UPI / Bank</Text>
+                    <Text style={styles.receiptVal}>{paymentModeFor({ type: selectedTransaction.rawType })}</Text>
                   </View>
                   <View style={styles.receiptRow}>
                     <Text style={styles.receiptKey}>Reference / UTR</Text>
                     <Text style={styles.receiptVal}>{selectedTransaction.refId || selectedTransaction.txnId}</Text>
                   </View>
                   <View style={[styles.receiptRow, styles.receiptTotalRow]}>
-                    <Text style={styles.receiptTotalKey}>Wallet Balance</Text>
-                    <Text style={styles.receiptTotalVal}>₹{numBalance.toFixed(2)}</Text>
+                    <Text style={styles.receiptTotalKey}>Balance after</Text>
+                    <Text style={styles.receiptTotalVal}>₹{Number(selectedTransaction.balance ?? numBalance).toFixed(2)}</Text>
                   </View>
                 </View>
 

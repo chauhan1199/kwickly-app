@@ -8,6 +8,8 @@ const { setCache, getCache, delCache } = require('../../helpers/redis.helper');
 const { notifyUser } = require('../../helpers/notifyUser.helper');
 const Suggestion = require('../suggestion/suggestion.model');
 const { triggerDashboardUpdate } = require('../../helpers/socket.helper');
+const WalletTxn = require('../wallet/wallet.model');
+const { buildReceiptPdf, jobReceiptData } = require('../../helpers/receiptPdf.helper');
 
 exports.getTopPros = catchAsync(async (req, res) => {
     const cacheKey = 'top_pros_list';
@@ -256,6 +258,25 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
     };
 
     return successResponse(res, receipt, 'Receipt fetched');
+});
+
+// GET /customers/jobs/:id/receipt-pdf → { fileName, pdfBase64 }
+exports.getJobReceiptPdf = catchAsync(async (req, res) => {
+    const job = await Job.findById(req.params.id)
+        .populate('workerId', 'name phone')
+        .populate('customerId', 'name phone')
+        .lean();
+
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+    if (String(job.customerId?._id) !== String(req.user._id)) {
+        return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
+    }
+
+    const paymentTxn = await WalletTxn.findOne({ refId: String(job._id), type: 'JOB_PAYMENT', userId: req.user._id })
+        .select('createdAt').lean();
+    const data = jobReceiptData(job, paymentTxn?.createdAt);
+    const pdf = buildReceiptPdf(data);
+    return successResponse(res, { fileName: `Kwickly_Receipt_${data.receiptNo}.pdf`, pdfBase64: pdf.toString('base64') }, 'Receipt generated');
 });
 
 exports.addAddress = catchAsync(async (req, res) => {

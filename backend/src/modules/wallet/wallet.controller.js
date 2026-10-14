@@ -15,6 +15,7 @@ const logger = require('../../helpers/logger.helper');
 const mongoose = require('mongoose');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
+const { buildReceiptPdf, walletReceiptData } = require('../../helpers/receiptPdf.helper');
 
 // In-process lock against concurrent race condition UTR submissions
 const activeUtrSubmissions = new Set();
@@ -596,6 +597,24 @@ exports.getMyTransactions = catchAsync(async (req, res) => {
         .lean();
 
     return successResponse(res, { txns, total, page: Number(page), totalPages: Math.ceil(total / limit) }, 'Transactions fetched');
+});
+
+// ─── GET /api/v1/wallet/transactions/:id/receipt-pdf ─────────────────────────
+// Returns { fileName, pdfBase64 } for one of the caller's own transactions.
+exports.getTransactionReceiptPdf = catchAsync(async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
+    }
+    const txn = await WalletTxn.findById(req.params.id).lean();
+    if (!txn) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
+    if (String(txn.userId) !== String(req.user._id) && req.user.role !== 'ADMIN') {
+        return errorResponse(res, 'Forbidden', StatusCodes.FORBIDDEN);
+    }
+
+    const user = await Customer.findById(txn.userId).select('name phone role').lean();
+    const data = walletReceiptData(txn, user);
+    const pdf = buildReceiptPdf(data);
+    return successResponse(res, { fileName: `Kwickly_Receipt_${data.receiptNo}.pdf`, pdfBase64: pdf.toString('base64') }, 'Receipt generated');
 });
 
 // ─── POST /api/v1/wallet/credit (Admin adjustment) ────────────────────────────

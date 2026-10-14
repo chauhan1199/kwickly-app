@@ -16,6 +16,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { jobService } from '../../services/jobService';
 import { getRealRating } from '../../utils/geo';
+import { shareJobReceiptPdf } from '../../utils/receiptGenerator';
 import { 
   ChevronLeft, 
   Bell, 
@@ -42,6 +43,7 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
   const [jobData, setJobData] = useState(typeof job === 'object' && job?._id ? job : null);
   const [loading, setLoading] = useState(!jobData && !!resolvedJobId);
   const [error, setError] = useState(null);
+  const [sharingReceipt, setSharingReceipt] = useState(false);
 
   useEffect(() => {
     if (resolvedJobId) {
@@ -113,9 +115,12 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
   const categoryName = typeof jobData.category === 'object' ? jobData.category?.name : (jobData.category || 'Service');
   const subcategoryName = jobData.subcategory || 'General';
   const status = (jobData.status || 'PENDING').toUpperCase();
-  // Receipt built from the server's own figures, shared as text (WhatsApp, email, save to notes)
+  // Official PDF receipt from the server; plain-text receipt if the PDF can't be shared
   const shareReceipt = async () => {
+    if (sharingReceipt) return;
+    setSharingReceipt(true);
     try {
+      if (await shareJobReceiptPdf(jobData._id)) return;
       const res = await jobService.getJobReceipt(jobData._id);
       const r = res?.data?.data;
       if (!r) throw new Error('Receipt not available');
@@ -138,6 +143,8 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
       await Share.share({ title: 'Kwickly receipt', message: lines.join('\n') });
     } catch (e) {
       Alert.alert('Receipt', e?.response?.data?.message || 'Could not load the receipt. Please try again.');
+    } finally {
+      setSharingReceipt(false);
     }
   };
 
@@ -432,9 +439,10 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
             <TouchableOpacity 
               style={styles.invoiceBtn}
               onPress={shareReceipt}
+              disabled={sharingReceipt}
             >
               <FileText size={16} color={theme.colors.text} style={{ marginRight: 8 }} />
-              <Text style={styles.invoiceBtnText}>Share Receipt</Text>
+              <Text style={styles.invoiceBtnText}>{sharingReceipt ? 'Preparing PDF...' : 'Share Receipt'}</Text>
             </TouchableOpacity>
           </View>
         ) : null}

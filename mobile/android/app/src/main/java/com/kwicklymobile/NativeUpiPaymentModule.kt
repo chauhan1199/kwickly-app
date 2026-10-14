@@ -545,6 +545,43 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
     }
 
     /**
+     * Saves a server-generated PDF (base64) to the cache folder and opens the
+     * share sheet for it, so WhatsApp, Gmail, Drive etc. receive a real .pdf file.
+     */
+    @ReactMethod
+    fun sharePdfBase64(params: ReadableMap, promise: Promise) {
+        try {
+            val base64 = if (params.hasKey("base64")) params.getString("base64") ?: "" else ""
+            if (base64.isEmpty()) {
+                promise.reject("PDF_ERROR", "Empty receipt")
+                return
+            }
+            val rawName = if (params.hasKey("fileName")) params.getString("fileName") ?: "Kwickly_Receipt.pdf" else "Kwickly_Receipt.pdf"
+            val fileName = rawName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+            val title = if (params.hasKey("title")) params.getString("title") ?: "Kwickly Receipt" else "Kwickly Receipt"
+
+            val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+            val file = File(reactCtx.cacheDir, fileName)
+            FileOutputStream(file).use { it.write(bytes) }
+
+            val contentUri = FileProvider.getUriForFile(reactCtx, "${reactCtx.packageName}.fileprovider", file)
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                setType("application/pdf")
+                putExtra(Intent.EXTRA_STREAM, contentUri)
+                putExtra(Intent.EXTRA_SUBJECT, title)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(shareIntent, "Share Receipt PDF").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            reactCtx.startActivity(chooser)
+            promise.resolve(file.absolutePath)
+        } catch (e: Exception) {
+            promise.reject("PDF_ERROR", e.message, e)
+        }
+    }
+
+    /**
      * Opens Android's native system Print / Save as PDF manager
      */
     @ReactMethod

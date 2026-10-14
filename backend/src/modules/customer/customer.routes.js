@@ -31,6 +31,7 @@ router.patch('/me/addresses/:addressId/primary', authorize('CUSTOMER'), customer
 // -- Customer Jobs --
 router.get('/jobs/active', authorize('CUSTOMER'), customerController.getActiveJob);
 router.get('/jobs/:id/receipt', authorize('CUSTOMER'), customerController.getJobReceipt);
+router.get('/jobs/:id/receipt-pdf', authorize('CUSTOMER'), customerController.getJobReceiptPdf);
 
 // -- Customer Disputes --
 router.post('/disputes', authorize('CUSTOMER'), validate(openDisputeSchema), disputeController.openDispute);

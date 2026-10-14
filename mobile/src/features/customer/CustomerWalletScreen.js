@@ -11,7 +11,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { GooglePayIcon, PhonePeIcon, PaytmIcon, CredIcon, BhimIcon } from '../../components/ui/UpiBrandIcons';
-import { shareOfficialReceipt, printReceiptPdf } from '../../utils/receiptGenerator';
+import { shareOfficialReceipt, printReceiptPdf, paymentModeFor } from '../../utils/receiptGenerator';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 import { SearchBar } from '../../components/ui/SearchBar';
@@ -660,7 +660,7 @@ const CustomerWalletScreen = ({ navigation }) => {
                     <View style={[styles.txIconLarge, { backgroundColor: isCredit(selectedTxn) ? '#d1fae5' : '#fee2e2' }]}>
                       {isCredit(selectedTxn) ? <ArrowDown size={28} color="#059669" /> : <ArrowUp size={28} color="#dc2626" />}
                     </View>
-                    <Text style={styles.receiptDescText}>{selectedTxn.description || 'Wallet Top-up via Direct UPI (Verified)'}</Text>
+                    <Text style={styles.receiptDescText}>{selectedTxn.description || selectedTxn.type}</Text>
                     <Text style={[styles.receiptAmtValue, { color: isCredit(selectedTxn) ? '#059669' : '#dc2626' }]}>
                       {isCredit(selectedTxn) ? '+' : '-'}₹{selectedTxn.amount}
                     </Text>
@@ -702,7 +702,7 @@ const CustomerWalletScreen = ({ navigation }) => {
 
                     <View style={styles.receiptRow}>
                       <Text style={styles.receiptKey}>Payment Mode</Text>
-                      <Text style={styles.receiptVal}>UPI / Direct Bank Transfer</Text>
+                      <Text style={styles.receiptVal}>{paymentModeFor(selectedTxn)}</Text>
                     </View>
 
                     <View style={styles.receiptRow}>
@@ -713,8 +713,8 @@ const CustomerWalletScreen = ({ navigation }) => {
                     </View>
 
                     <View style={[styles.receiptRow, styles.receiptTotalRow]}>
-                      <Text style={styles.receiptTotalKey}>Wallet Balance</Text>
-                      <Text style={styles.receiptTotalVal}>₹{selectedTxn.balance || selectedTxn.balanceAfter || balance || 0}</Text>
+                      <Text style={styles.receiptTotalKey}>Balance after</Text>
+                      <Text style={styles.receiptTotalVal}>₹{selectedTxn.balance ?? selectedTxn.balanceAfter ?? balance ?? 0}</Text>
                     </View>
                   </View>
 

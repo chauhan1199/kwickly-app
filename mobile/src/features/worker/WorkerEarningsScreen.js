@@ -70,7 +70,8 @@ import {
 import { 
   generateAndSharePdfReceipt, 
   printReceiptPdf, 
-  formatReceiptData 
+  formatReceiptData,
+  paymentModeFor
 } from '../../utils/receiptGenerator';
 
 import { walletService } from '../../services/walletService';
@@ -200,7 +201,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
           amountNum: t.amount,
           rawDate: t.createdAt,
           rawType: t.type,
-          refId: t.razorpayPaymentId || t._id.slice(-8).toUpperCase(),
+          balance: t.balance,
+          description: t.description,
+          refId: t.gatewayTransactionId || t.razorpayPaymentId || (t.refId ? String(t.refId).slice(-8).toUpperCase() : t._id.slice(-8).toUpperCase()),
           type: ['TOPUP', 'ORDER_CREDIT', 'ADJUSTMENT', 'JOB_CREDIT', 'REFERRAL_BONUS'].includes(t.type) ? 'credit' : 'debit',
           status: t.status
         }));
@@ -1056,15 +1059,15 @@ const WorkerEarningsScreen = ({ navigation }) => {
                   </View>
                   <View style={styles.receiptRow}>
                     <Text style={styles.receiptKey}>Payment Mode</Text>
-                    <Text style={styles.receiptVal}>Direct UPI / Bank</Text>
+                    <Text style={styles.receiptVal}>{paymentModeFor({ type: selectedTransaction.rawType })}</Text>
                   </View>
                   <View style={styles.receiptRow}>
                     <Text style={styles.receiptKey}>Reference / UTR</Text>
                     <Text style={styles.receiptVal}>{selectedTransaction.refId || selectedTransaction.txnId}</Text>
                   </View>
                   <View style={[styles.receiptRow, styles.receiptTotalRow]}>
-                    <Text style={styles.receiptTotalKey}>Wallet Balance</Text>
-                    <Text style={styles.receiptTotalVal}>₹{(wallet.balance || 0).toFixed(2)}</Text>
+                    <Text style={styles.receiptTotalKey}>Balance after</Text>
+                    <Text style={styles.receiptTotalVal}>₹{Number(selectedTransaction.balance ?? wallet.balance ?? 0).toFixed(2)}</Text>
                   </View>
                 </View>
 

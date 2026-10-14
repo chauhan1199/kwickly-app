@@ -1,6 +1,7 @@
 import { Share, NativeModules, Platform } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { KWICKLY_LOGO_BASE64 } from '../assets/logoBase64';
+import api from '../services/api';
 
 const { NativeUpiPayment } = NativeModules;
 
@@ -15,6 +16,41 @@ const formatReceiptDate = (raw) => {
   }
 };
 
+const CREDIT_TYPES = ['JOB_CREDIT', 'REFUND', 'ORDER_CREDIT', 'REFERRAL_BONUS', 'TOPUP', 'TRANSFER_RECEIVED', 'CREDIT'];
+export const isCreditTxn = (txn) => CREDIT_TYPES.includes(txn?.type)
+  || (txn?.type === 'ADJUSTMENT' && !/debit/i.test(txn?.description || ''));
+
+export const paymentModeFor = (txn) => {
+  if (txn?.type === 'TOPUP') return 'UPI (direct bank transfer)';
+  if (txn?.type === 'WITHDRAWAL') return 'Bank / UPI payout';
+  if (txn?.type?.startsWith('TRANSFER')) return 'Kwickly Wallet transfer';
+  return 'Kwickly Wallet';
+};
+
+const isMongoId = (id) => /^[a-f0-9]{24}$/i.test(String(id || ''));
+
+/**
+ * Fetches a receipt PDF the server built ({ fileName, pdfBase64 }) and opens the
+ * Android share sheet with the real .pdf file. Returns null when that isn't possible
+ * so callers can fall back to a text receipt.
+ */
+const shareServerPdf = async (url) => {
+  if (Platform.OS !== 'android' || !NativeUpiPayment?.sharePdfBase64) return null;
+  try {
+    const res = await api.get(url);
+    const { fileName, pdfBase64 } = res?.data?.data || {};
+    if (!pdfBase64) return null;
+    const path = await NativeUpiPayment.sharePdfBase64({ base64: pdfBase64, fileName, title: 'Kwickly Receipt' });
+    return { action: 'SHARED_PDF', path };
+  } catch (e) {
+    console.warn('Server PDF receipt failed:', e?.message);
+    return null;
+  }
+};
+
+/** Shares the official PDF receipt for a paid service job (customer side). */
+export const shareJobReceiptPdf = (jobId) => shareServerPdf(`/customers/jobs/${jobId}/receipt-pdf`);
+
 /**
  * Formats a clean, official transaction receipt string without private payer data or generic website/email.
  */
@@ -23,10 +59,9 @@ export const formatOfficialReceiptText = (txn) => {
   const rawId = String(txn._id || txn.id || 'TXN');
   const receiptId = `KWIK-RCPT-${rawId.slice(-8).toUpperCase() || 'TXN'}`;
   const dateStr = formatReceiptDate(txn.createdAt || txn.txnDate);
-  const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || txn.utrNumber || txn.paymentId || 'AUTO_VERIFIED';
-  const isCr = txn.type === 'TOPUP' || txn.type === 'REFUND' || txn.type === 'CREDIT' || (txn.amount > 0 && !txn.type?.includes('DEBIT'));
-  const amountStr = `${isCr ? '+' : '-'}₹${Math.abs(txn.amount || 0)}`;
-  const balanceStr = `₹${txn.balance || txn.balanceAfter || 0}`;
+  const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || txn.utrNumber || txn.paymentId || '-';
+  const amountStr = `${isCreditTxn(txn) ? '+' : '-'}₹${Math.abs(txn.amount || 0)}`;
+  const balanceStr = `₹${txn.balance ?? txn.balanceAfter ?? 0}`;
 
   return `
 ========================================
@@ -37,13 +72,13 @@ Date & Time   : ${dateStr}
 Status        : ${txn.status || 'COMPLETED'}
 ----------------------------------------
 Transaction Details:
-Description   : ${txn.description || 'Wallet Top-up via Direct UPI (Verified)'}
-Type          : ${txn.type || 'TOPUP'}
-Payment Mode  : UPI / Direct Bank Transfer
+Description   : ${txn.description || txn.type || '-'}
+Type          : ${txn.type || '-'}
+Payment Mode  : ${paymentModeFor(txn)}
 Reference/UTR : ${refId}
 ----------------------------------------
 Amount Paid   : ${amountStr}
-Wallet Balance: ${balanceStr}
+Balance after : ${balanceStr}
 ========================================
 `.trim();
 };
@@ -55,32 +90,10 @@ export const shareOfficialReceipt = async (txn) => {
   if (!txn) return;
   const rawId = String(txn._id || txn.id || 'TXN');
   const receiptId = `KWIK-RCPT-${rawId.slice(-8).toUpperCase() || 'TXN'}`;
-  const dateStr = formatReceiptDate(txn.createdAt || txn.txnDate);
-  const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || txn.utrNumber || txn.paymentId || 'AUTO_VERIFIED';
-  const isCr = txn.type === 'TOPUP' || txn.type === 'REFUND' || txn.type === 'CREDIT' || (txn.amount > 0 && !txn.type?.includes('DEBIT'));
-  const amountStr = `${isCr ? '+' : '-'}₹${Math.abs(txn.amount || 0)}`;
-  const balanceStr = `₹${txn.balance || txn.balanceAfter || 0}`;
-  const description = txn.description || 'Wallet Top-up via Direct UPI (Verified)';
-  const status = txn.status || 'COMPLETED';
-  const type = txn.type || 'TOPUP';
 
-  if (Platform.OS === 'android' && NativeUpiPayment?.generateAndSharePdfReceipt) {
-    try {
-      const pdfPath = await NativeUpiPayment.generateAndSharePdfReceipt({
-        receiptId,
-        dateStr,
-        status,
-        description,
-        type,
-        paymentMode: 'UPI / Direct Bank Transfer',
-        refId,
-        amountStr,
-        balanceStr,
-      });
-      return { action: 'SHARED_PDF', path: pdfPath };
-    } catch (e) {
-      console.warn('Native PDF share error, falling back to standard share:', e);
-    }
+  if (isMongoId(rawId)) {
+    const shared = await shareServerPdf(`/wallet/transactions/${rawId}/receipt-pdf`);
+    if (shared) return shared;
   }
 
   // Fallback to text share
@@ -106,13 +119,13 @@ export const printReceiptPdf = async (txn) => {
   const receiptId = `KWIK-RCPT-${rawId.slice(-8).toUpperCase() || 'TXN'}`;
   const dateStr = formatReceiptDate(txn.createdAt || txn.txnDate);
 
-  const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || txn.utrNumber || txn.paymentId || 'AUTO_VERIFIED';
-  const isCr = txn.type === 'TOPUP' || txn.type === 'REFUND' || txn.type === 'CREDIT' || (txn.amount > 0 && !txn.type?.includes('DEBIT'));
+  const refId = txn.razorpayPaymentId || txn.gatewayTransactionId || txn.refId || txn.utrNumber || txn.paymentId || '-';
+  const isCr = isCreditTxn(txn);
   const amountStr = `${isCr ? '+' : '-'}₹${Math.abs(txn.amount || 0)}`;
-  const balanceStr = `₹${txn.balance || txn.balanceAfter || 0}`;
-  const description = txn.description || 'Wallet Top-up via Direct UPI (Verified)';
+  const balanceStr = `₹${txn.balance ?? txn.balanceAfter ?? 0}`;
+  const type = txn.type || 'TRANSACTION';
+  const description = txn.description || type;
   const status = txn.status || 'COMPLETED';
-  const type = txn.type || 'TOPUP';
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -133,7 +146,7 @@ export const printReceiptPdf = async (txn) => {
     .badge { background: #10B981; color: #FFFFFF; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; white-space: nowrap; }
     .amount-box { padding: 24px; text-align: center; border-bottom: 1px dashed #E2E8F0; }
     .desc { font-size: 13px; color: #64748B; font-weight: 600; margin-bottom: 6px; }
-    .amount { font-size: 36px; font-weight: 900; color: #059669; letter-spacing: -1px; margin-bottom: 8px; }
+    .amount { font-size: 36px; font-weight: 900; color: ${isCr ? '#059669' : '#DC2626'}; letter-spacing: -1px; margin-bottom: 8px; }
     .status-pill { display: inline-block; background: #D1FAE5; color: #059669; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; }
     .details-table { padding: 20px 24px; }
     .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #F1F5F9; font-size: 13px; }
@@ -155,27 +168,27 @@ export const printReceiptPdf = async (txn) => {
         </div>
         <div>
           <div class="brand">Kwick<span style="color:#C4B5FD">ly</span></div>
-          <div class="subtitle">Official Transaction Receipt & Audit Ledger</div>
+          <div class="subtitle">Transaction Receipt</div>
         </div>
       </div>
-      <div class="badge">✓ VERIFIED RECEIPT</div>
+      <div class="badge">${isCr ? 'CREDITED' : 'DEBITED'}</div>
     </div>
     <div class="amount-box">
       <div class="desc">${description}</div>
       <div class="amount">${amountStr}</div>
-      <div class="status-pill">● SUCCESSFUL • ${status}</div>
+      <div class="status-pill">${status}</div>
     </div>
     <div class="details-table">
       <div class="row"><span class="key">Receipt ID</span><span class="val val-highlight">${receiptId}</span></div>
       <div class="row"><span class="key">Date & Time</span><span class="val">${dateStr}</span></div>
       <div class="row"><span class="key">Transaction Type</span><span class="val">${type}</span></div>
-      <div class="row"><span class="key">Payment Mode</span><span class="val">UPI / Direct Bank Transfer</span></div>
+      <div class="row"><span class="key">Payment Mode</span><span class="val">${paymentModeFor(txn)}</span></div>
       <div class="row"><span class="key">Reference / UTR</span><span class="val val-highlight">${refId}</span></div>
-      <div class="row"><span class="key" style="font-weight:800;color:#0F172A;">Wallet Balance</span><span class="val val-balance">${balanceStr}</span></div>
+      <div class="row"><span class="key" style="font-weight:800;color:#0F172A;">Balance after this transaction</span><span class="val val-balance">${balanceStr}</span></div>
     </div>
     <div class="footer">
-      <div>AUTHENTICATED BY KWICKLY SECURE LEDGER ENGINE • 100% VERIFIED</div>
-      <div style="margin-top:4px;">This is an official computer-generated financial document.</div>
+      <div style="font-weight:700;color:#6C47FF;">Thank you for choosing Kwickly.</div>
+      <div style="margin-top:4px;">This is a computer-generated receipt and does not require a signature.</div>
     </div>
   </div>
 </body>
@@ -204,6 +217,7 @@ export const generateAndSharePdfReceipt = async (receiptData) => {
 export const formatReceiptData = (txn, user, balance) => {
   return {
     ...txn,
-    balance: balance !== undefined ? balance : txn?.balance,
+    // the receipt shows the balance right after this transaction, not today's balance
+    balance: txn?.balance ?? balance,
   };
 };
