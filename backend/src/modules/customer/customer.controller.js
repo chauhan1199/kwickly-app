@@ -247,7 +247,9 @@ exports.getJobReceipt = catchAsync(async (req, res) => {
         workerName: job.workerId?.name,
         amount: job.payment?.amount || 0,
         platformFee: job.payment?.platformFee || 0,
+        gst: job.payment?.gst || job.payment?.gstAmount || 0,
         workerPayout: job.payment?.workerPayout || 0,
+        method: job.payment?.method,
         status: job.payment?.status,
         completedAt: job.completionDetails?.completedAt,
         createdAt: job.createdAt

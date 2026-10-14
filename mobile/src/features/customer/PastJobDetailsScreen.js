@@ -7,7 +7,7 @@ import {
   ScrollView, 
   TouchableOpacity, 
   StatusBar,
-  Linking,
+  Share,
   Alert,
   ActivityIndicator,
   Image,
@@ -113,6 +113,34 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
   const categoryName = typeof jobData.category === 'object' ? jobData.category?.name : (jobData.category || 'Service');
   const subcategoryName = jobData.subcategory || 'General';
   const status = (jobData.status || 'PENDING').toUpperCase();
+  // Receipt built from the server's own figures, shared as text (WhatsApp, email, save to notes)
+  const shareReceipt = async () => {
+    try {
+      const res = await jobService.getJobReceipt(jobData._id);
+      const r = res?.data?.data;
+      if (!r) throw new Error('Receipt not available');
+      const money = (n) => `₹${Number(n || 0).toFixed(2)}`;
+      const when = r.completedAt || r.createdAt;
+      const lines = [
+        'Kwickly - Service Receipt',
+        `Job #${String(r.jobId).slice(-8).toUpperCase()}`,
+        when ? `Date: ${new Date(when).toLocaleString('en-IN')}` : null,
+        `Service: ${[r.category, r.subcategory].filter(Boolean).join(' - ')}`,
+        r.workerName ? `Worker: ${r.workerName}` : null,
+        '',
+        `Service charge: ${money(r.workerPayout)}`,
+        `Platform fee: ${money(r.platformFee)}`,
+        `GST (18% on fee): ${money(r.gst)}`,
+        `Total: ${money(r.amount)}`,
+        r.method ? `Paid via: ${r.method}` : null,
+        `Payment status: ${r.status || 'PENDING'}`,
+      ].filter(l => l !== null);
+      await Share.share({ title: 'Kwickly receipt', message: lines.join('\n') });
+    } catch (e) {
+      Alert.alert('Receipt', e?.response?.data?.message || 'Could not load the receipt. Please try again.');
+    }
+  };
+
   const isCancelled = status === 'CANCELLED';
   const isCompleted = status === 'COMPLETED' || status === 'PAID' || status === 'CLOSED';
   const isBroadcasting = status === 'BROADCASTING' || status === 'QUOTES_RECEIVED';
@@ -403,16 +431,10 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
             
             <TouchableOpacity 
               style={styles.invoiceBtn}
-              onPress={() => {
-                if (jobData.receipt?.invoiceUrl) {
-                  Linking.openURL(jobData.receipt.invoiceUrl);
-                } else {
-                  Alert.alert('Invoice', 'Tax invoice is being generated and will be available shortly.');
-                }
-              }}
+              onPress={shareReceipt}
             >
               <FileText size={16} color={theme.colors.text} style={{ marginRight: 8 }} />
-              <Text style={styles.invoiceBtnText}>Download Invoice</Text>
+              <Text style={styles.invoiceBtnText}>Share Receipt</Text>
             </TouchableOpacity>
           </View>
         ) : null}
