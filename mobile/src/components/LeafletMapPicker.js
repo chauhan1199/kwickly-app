@@ -331,8 +331,8 @@ export default function LeafletMapPicker({
         }).setView([${coords.lat}, ${coords.lng}], 16);
         window.map = map;
 
-        // Primary: CartoDB Voyager tiles (100% reliable, fast global CDN, no rate limit blocks)
-        var cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        // Primary: OpenStreetMap tiles (CARTO raster tiles now return an "API key required" image)
+        var cartoLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
           subdomains: 'abcd'
         });

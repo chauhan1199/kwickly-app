@@ -162,8 +162,8 @@ const LiveTrackingScreen = ({ route, navigation }) => {
 
         const map = L.map('map', { zoomControl: false, attributionControl: false });
 
-        // Reliable fast CartoDB Voyager tiles with standard OSM fallback
-        const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        // OpenStreetMap tiles (CARTO raster tiles now return an "API key required" image)
+        const carto = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             subdomains: 'abcd'
         }).addTo(map);
