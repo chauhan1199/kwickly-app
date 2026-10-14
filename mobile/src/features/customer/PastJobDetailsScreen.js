@@ -370,6 +370,25 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
           </View>
         ) : isCompleted ? (
           <View style={{ gap: 10, marginTop: 8 }}>
+            {status === 'COMPLETED' ? (
+              <TouchableOpacity
+                style={[styles.rebookBtn, { backgroundColor: '#10B981' }]}
+                onPress={() => navigation.navigate('WorkCompleted', { job: jobData, worker: jobData.workerId })}
+              >
+                <Text style={styles.rebookBtnText}>Enter PIN & Pay →</Text>
+              </TouchableOpacity>
+            ) : !jobData.rating?.score ? (
+              <TouchableOpacity
+                style={[styles.rebookBtn, { backgroundColor: '#f5b300' }]}
+                onPress={() => navigation.navigate('RateExperience', { job: jobData, jobId: jobData._id })}
+              >
+                <Text style={styles.rebookBtnText}>★ Rate Your Worker</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ textAlign: 'center', color: theme.colors.textDim, fontWeight: '600' }}>
+                You rated this job {jobData.rating.score}★
+              </Text>
+            )}
             <TouchableOpacity 
               style={styles.rebookBtn}
               onPress={() => navigation.navigate('DescribeJob', { 

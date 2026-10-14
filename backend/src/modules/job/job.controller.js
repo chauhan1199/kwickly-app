@@ -286,6 +286,7 @@ exports.getMyJobs = catchAsync(async (req, res) => {
     const jobs = await Job.find(query)
         .populate('workerId', 'name phone profileImage rating activeLocation')
         .sort('-createdAt')
+        .limit(100)
         .lean();
 
     return successResponse(res, jobs.map(j => hideOtpsFor(j, 'CUSTOMER')), 'My jobs fetched successfully');

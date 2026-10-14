@@ -22,6 +22,7 @@ import LiveBidsScreen          from '../../features/customer/LiveBidsScreen';
 import LiveTrackingScreen      from '../../features/customer/LiveTrackingScreen';
 import WorkCompletedScreen     from '../../features/customer/WorkCompletedScreen';
 import RateExperienceScreen    from '../../features/customer/RateExperienceScreen';
+import MyBookingsScreen        from '../../features/customer/MyBookingsScreen';
 import PastJobDetailsScreen    from '../../features/customer/PastJobDetailsScreen';
 import WorkerProfileScreen     from '../../features/customer/WorkerProfileScreen';
 import ShopOrderDetailsScreen  from '../../features/customer/ShopOrderDetailsScreen';
@@ -114,6 +115,12 @@ const WalletStack = () => (
 const ProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ProfileMain"         component={ProfileScreen} />
+    <Stack.Screen name="MyBookings"          component={MyBookingsScreen} />
+    <Stack.Screen name="PastJobDetails"      component={PastJobDetailsScreen} />
+    <Stack.Screen name="WorkCompleted"       component={WorkCompletedScreen} />
+    <Stack.Screen name="RateExperience"      component={RateExperienceScreen} />
+    <Stack.Screen name="LiveBids"            component={LiveBidsScreen} />
+    <Stack.Screen name="LiveTracking"        component={LiveTrackingScreen} />
     <Stack.Screen name="EditProfile"         component={EditProfileScreen} />
     <Stack.Screen name="SavedAddresses"      component={SavedAddressesScreen} />
     <Stack.Screen name="PaymentMethods"      component={PaymentMethodsScreen} />

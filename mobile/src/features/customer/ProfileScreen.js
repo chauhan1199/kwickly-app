@@ -56,7 +56,8 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const menuItems = [
-    { id: 7, title: 'My Orders', sub: 'Track & view all orders', icon: '📦', color: '#6C47FF' },
+    { id: 8, title: 'My Bookings', sub: 'Service jobs, payments & ratings', icon: '🛠️', color: '#10B981' },
+    { id: 7, title: 'My Orders', sub: 'Shop orders & delivery', icon: '📦', color: '#6C47FF' },
     { id: 1, title: 'Saved Addresses', sub: `${user?.addresses?.length || 0} saved`, icon: '📍', color: '#ef4444' },
     { id: 2, title: 'Payment Methods', sub: `${pmCount} saved`, icon: '💳', color: '#3b82f6' },
     { id: 3, title: 'Share App', sub: 'Invite friends & family', icon: '📢', color: '#f5b300' },
@@ -164,7 +165,9 @@ const ProfileScreen = ({ navigation }) => {
               key={item.id} 
               style={styles.menuItem}
               onPress={() => {
-                if (item.id === 1) {
+                if (item.id === 8) {
+                  navigation.navigate('MyBookings');
+                } else if (item.id === 1) {
                   navigation.navigate('SavedAddresses');
                 } else if (item.id === 2) {
                   navigation.navigate('PaymentMethods');
