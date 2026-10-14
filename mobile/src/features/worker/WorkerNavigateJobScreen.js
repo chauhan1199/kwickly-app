@@ -41,7 +41,7 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
 
   const job = currentJob || initialJob;
 
-  const amount = quoteAmount || job?.payment?.amount || 0;
+  const amount = quoteAmount || job?.payment?.workerPayout || job?.payment?.quotedAmount || 0;
   const commission = 0;
   const earning = amount;
 
@@ -56,6 +56,13 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const routeKm = hasRawCoords ? distanceKm({ lat: wLat, lng: wLng }, { lat: jobLat, lng: jobLng }) : null;
   const eta = estimateEtaMinutes(routeKm);
   const distance = formatDistance(routeKm);
+
+  // Already started (arrival OTP verified): the work screen is the right place
+  useEffect(() => {
+    if (job?.status === 'IN_PROGRESS') {
+      navigation.replace('WorkerActiveJob', { jobId: targetJobId, job, quoteAmount });
+    }
+  }, [job?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // B1/M1 FIX: Transition job to ARRIVING when worker starts navigating to the job
   useEffect(() => {
@@ -219,7 +226,7 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
         </View>
 
         {/* Arrived Action */}
-        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('WorkerArrivalOTP', { jobId })}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('WorkerArrivalOTP', { jobId: targetJobId })}>
           <Text style={styles.actionBtnText}>✓ I've Arrived → Enter OTP</Text>
         </TouchableOpacity>
 

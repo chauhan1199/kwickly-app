@@ -61,7 +61,7 @@ const WorkerArrivalOTPScreen = ({ route, navigation }) => {
       });
       const res = await jobService.startJob(jobId, { arrivalOtp: fullOtp, currentCoordinates });
       if (res.data.status === 'success') {
-        navigation.navigate('WorkerActiveJob', { jobId, job: res.data.data });
+        navigation.replace('WorkerActiveJob', { jobId, job: res.data.data });
       }
     } catch (e) {
       alert(e.response?.data?.message || e.message || 'Invalid OTP. Please try again.');

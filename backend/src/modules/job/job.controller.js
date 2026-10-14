@@ -22,7 +22,12 @@ const hideOtpsFor = (doc, role) => {
     const job = doc && typeof doc.toObject === 'function' ? doc.toObject() : doc;
     if (!job || !job.security) return job;
     const security = { ...job.security };
-    if (role === 'WORKER') delete security.arrivalOtp;
+    if (role === 'WORKER') {
+        delete security.arrivalOtp;
+        // The completion PIN only matters once work has started; before that the worker
+        // could hand it over without ever verifying arrival
+        if (!['IN_PROGRESS', 'COMPLETED'].includes(job.status)) delete security.completionOtp;
+    }
     else if (role === 'CUSTOMER') delete security.completionOtp;
     else if (role !== 'ADMIN') return { ...job, security: undefined };
     return { ...job, security };
@@ -548,6 +553,9 @@ exports.completeJob = catchAsync(async (req, res) => {
 
     const job = await Job.findOne({ _id: id, workerId: req.user._id });
     if (!job) return errorResponse(res, 'Job not found or unauthorized', StatusCodes.NOT_FOUND);
+    if (job.status === 'ALLOCATED' || job.status === 'ARRIVING') {
+        return errorResponse(res, "This job hasn't started yet. Enter the customer's arrival OTP to start it first.", StatusCodes.BAD_REQUEST);
+    }
     if (job.status !== 'IN_PROGRESS') {
         return errorResponse(res, 'Only in-progress jobs can be completed', StatusCodes.BAD_REQUEST);
     }

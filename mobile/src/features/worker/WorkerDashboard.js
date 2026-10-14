@@ -41,6 +41,14 @@ import {
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
+const CURRENT_JOB_STATUSES = ['ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'];
+const CURRENT_JOB_HINT = {
+  ALLOCATED: 'HIRED · Go to customer and enter arrival OTP',
+  ARRIVING: 'ON THE WAY · Enter arrival OTP at the door',
+  IN_PROGRESS: 'IN PROGRESS · Finish and mark complete',
+  COMPLETED: 'DONE · Waiting for customer payment'
+};
+
 const WorkerDashboard = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { user, fetchUser } = useAuth();
@@ -50,6 +58,7 @@ const WorkerDashboard = ({ navigation }) => {
   const [walletBalance, setWalletBalance] = useState(0);
   const [stats, setStats] = useState({ todayJobs: 0, completed: 0, inProgress: 0, cancelled: 0 });
   const [errorMsg, setErrorMsg] = useState('');
+  const [currentJobQuote, setCurrentJobQuote] = useState(null);
   const [searchQuery, setSearchQuery] = useState(undefined); // Undefined means no search bar on Home
   const [allCategories, setAllCategories] = useState([]);
   const [workerServices, setWorkerServices] = useState(user?.services || []);
@@ -61,11 +70,12 @@ const WorkerDashboard = ({ navigation }) => {
       setRefreshing(true);
       setErrorMsg('');
       
-      const [jobsRes, userRes, statsRes, catRes] = await Promise.allSettled([
+      const [jobsRes, userRes, statsRes, catRes, quotesRes] = await Promise.allSettled([
         jobService.getAvailableJobsForWorker(),
         authService.getProfile(),
         workerService.getStats(),
-        jobService.getCategories()
+        jobService.getCategories(),
+        jobService.getWorkerQuotes()
       ]);
 
       if (jobsRes.status === 'fulfilled' && jobsRes.value?.data?.status === 'success') {
@@ -84,6 +94,14 @@ const WorkerDashboard = ({ navigation }) => {
 
       if (statsRes.status === 'fulfilled' && statsRes.value?.data?.status === 'success') {
         setStats(statsRes.value.data.data || { todayJobs: 0, completed: 0, inProgress: 0, cancelled: 0 });
+      }
+
+      if (quotesRes.status === 'fulfilled' && quotesRes.value?.data?.status === 'success') {
+        // The job the customer hired this worker for, until it is paid
+        const quotes = quotesRes.value.data.data || [];
+        setCurrentJobQuote(quotes.find(q =>
+          q.status === 'ACCEPTED' && CURRENT_JOB_STATUSES.includes(q.jobId?.status)
+        ) || null);
       }
 
       if (catRes.status === 'fulfilled' && catRes.value?.data?.status === 'success') {
@@ -437,6 +455,27 @@ const WorkerDashboard = ({ navigation }) => {
           )}
         </ScrollView>
 
+        {currentJobQuote ? (
+          <TouchableOpacity
+            style={styles.currentJobCard}
+            activeOpacity={0.88}
+            onPress={() => navigation.navigate('WorkerActiveJob', {
+              jobId: currentJobQuote.jobId._id,
+              job: currentJobQuote.jobId,
+              quoteAmount: currentJobQuote.amount
+            })}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.currentJobLabel}>{CURRENT_JOB_HINT[currentJobQuote.jobId.status]}</Text>
+              <Text style={styles.currentJobTitle} numberOfLines={1}>
+                {currentJobQuote.jobId.category} · {currentJobQuote.jobId.customerId?.name || 'Customer'}
+              </Text>
+              <Text style={styles.currentJobAmount}>₹{currentJobQuote.amount}</Text>
+            </View>
+            <ChevronRight size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : null}
+
         {/* ═══════════════════════════════════════
             RECENT INCOMING JOBS
         ═══════════════════════════════════════ */}
@@ -524,6 +563,17 @@ const WorkerDashboard = ({ navigation }) => {
 };
 
 const createStyles = (theme, isDarkMode) => StyleSheet.create({
+  currentJobCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6C47FF',
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 20
+  },
+  currentJobLabel: { color: '#E0D7FF', fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
+  currentJobTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginTop: 4 },
+  currentJobAmount: { color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginTop: 2 },
   container: {
     flex: 1,
     backgroundColor: isDarkMode ? '#0B1120' : '#F8FAFC',

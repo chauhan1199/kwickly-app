@@ -58,7 +58,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
   const { jobId, job: initialJob, quoteAmount: initialQuoteAmount } = route.params || {};
   
   const [job, setJob] = useState(initialJob || null);
-  const [loadingJob, setLoadingJob] = useState(!initialJob);
+  const [loadingJob, setLoadingJob] = useState(!!jobId || !initialJob);
   const [seconds, setSeconds] = useState(0);
   const [completing, setCompleting] = useState(false);
   const [report, setReport] = useState('');
@@ -96,6 +96,23 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
     }
     return () => { isMounted = false; };
   }, [jobId]);
+
+  // This screen is only for a job that has started. A worker can open it from My Quotes or a
+  // notification at any stage, so send them to the step the job is actually at.
+  const jobStatus = job?.status;
+  const isStarted = jobStatus === 'IN_PROGRESS';
+  useEffect(() => {
+    if (!jobStatus || loadingJob) return;
+    const params = { jobId, job, quoteAmount: initialQuoteAmount };
+    if (jobStatus === 'ALLOCATED' || jobStatus === 'ARRIVING') {
+      navigation.replace('WorkerNavigateJob', params);
+    } else if (['COMPLETED', 'PAID', 'CLOSED'].includes(jobStatus)) {
+      navigation.replace('WorkerJobComplete', { job, quoteAmount: initialQuoteAmount });
+    } else if (jobStatus === 'CANCELLED') {
+      Alert.alert('Job Cancelled', 'The customer cancelled this job.');
+      navigation.goBack();
+    }
+  }, [jobStatus, loadingJob]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Elapsed Session Timer: real time since the arrival OTP was verified (job.startedAt),
   // or since this screen opened for older jobs that have no startedAt
@@ -162,6 +179,13 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
       );
     }
 
+    if (!isStarted) {
+      return Alert.alert(
+        'Job Not Started',
+        "Ask the customer for their arrival OTP and enter it to start this job first."
+      );
+    }
+
     const uploadedList = [mediaUrls.before, mediaUrls.after, mediaUrls.video].filter(Boolean);
 
     setCompleting(true);
@@ -172,12 +196,16 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
       });
       
       const payoutAmount = initialQuoteAmount || job?.payment?.workerPayout || job?.payment?.amount || job?.budget || 0;
-      navigation.navigate('WorkerJobComplete', { 
-        job: job || initialJob, 
+      navigation.replace('WorkerJobComplete', { 
+        job: { ...(job || initialJob), status: 'COMPLETED' }, 
         quoteAmount: payoutAmount 
       });
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to mark job as complete.');
+      Alert.alert('Could Not Complete', error.response?.data?.message || 'Failed to mark job as complete.');
+      // Refresh so the screen reflects the job's real status
+      jobService.getJobById(jobId).then(res => {
+        if (res?.data?.data) setJob(res.data.data);
+      }).catch(() => {});
     } finally {
       setCompleting(false);
     }
@@ -248,7 +276,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
         <View style={styles.appBarCenter}>
           <View style={styles.statusLivePill}>
             <View style={styles.pulsingDot} />
-            <Text style={styles.statusLiveText}>IN PROGRESS</Text>
+            <Text style={styles.statusLiveText}>{jobStatus ? jobStatus.replace(/_/g, ' ') : 'LOADING'}</Text>
           </View>
           <Text style={styles.appBarSub}>
             Job #{jobId ? String(jobId).substring(0, 6).toUpperCase() : '------'}

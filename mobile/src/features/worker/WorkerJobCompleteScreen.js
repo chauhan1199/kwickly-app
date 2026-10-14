@@ -24,6 +24,8 @@ const WorkerJobCompleteScreen = ({ route, navigation }) => {
   const { job, quoteAmount } = route.params || {};
 
   const amount = quoteAmount || job?.payment?.workerPayout || job?.payment?.amount || job?.budget || 0;
+  const completionPin = job?.security?.completionOtp ? String(job.security.completionOtp) : '';
+  const isPaid = job?.status === 'PAID' || job?.status === 'CLOSED';
   const commission = 0; // 0% Partner Commission in Kwickly
   const earning = amount;
 
@@ -41,18 +43,26 @@ const WorkerJobCompleteScreen = ({ route, navigation }) => {
         <View style={styles.headerBox}>
           <View style={styles.successBadge}>
             <CheckCircle2 size={16} color="#10B981" style={{ marginRight: 6 }} />
-            <Text style={styles.successBadgeText}>WORK MARKED COMPLETED</Text>
+            <Text style={styles.successBadgeText}>{isPaid ? 'PAYMENT RECEIVED' : 'WORK MARKED COMPLETED'}</Text>
           </View>
           <Text style={styles.mainTitle}>Job Complete!</Text>
-          <Text style={styles.mainSub}>Awaiting customer payment release & review</Text>
+          <Text style={styles.mainSub}>{isPaid ? 'The customer has paid for this job' : 'Awaiting customer payment release & review'}</Text>
         </View>
 
         {/* Celebration Graphic */}
         <View style={styles.graphicBox}>
           <Text style={styles.graphicEmoji}>🎉</Text>
           <Text style={styles.congratsText}>Great job, partner!</Text>
-          <Text style={styles.congratsSub}>The customer has been notified and can finalize payment now</Text>
+          <Text style={styles.congratsSub}>{isPaid ? 'Your earning has been settled for this job' : 'Share the completion PIN with the customer so they can pay'}</Text>
         </View>
+
+        {/* Completion PIN: the customer enters it to pay, so keep it visible here */}
+        {!isPaid && completionPin ? (
+          <View style={[styles.pricingBox, { alignItems: 'center' }]}>
+            <Text style={styles.priceLabel}>Completion PIN for customer</Text>
+            <Text style={styles.pinText}>{completionPin}</Text>
+          </View>
+        ) : null}
 
         {/* Pricing Summary (0% Partner Commission) */}
         <View style={styles.pricingBox}>
@@ -174,6 +184,13 @@ const createStyles = (theme, isDarkMode, safeTop) => StyleSheet.create({
     fontSize: 12.5,
     color: isDarkMode ? '#94A3B8' : '#64748B',
     textAlign: 'center',
+  },
+  pinText: {
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: 10,
+    color: '#6C47FF',
+    marginTop: 8
   },
   pricingBox: {
     backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF', 
