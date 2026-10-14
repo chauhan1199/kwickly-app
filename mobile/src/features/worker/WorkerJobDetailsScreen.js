@@ -35,7 +35,8 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
   const { user } = useAuth();
   const { job } = route.params || {};
   
-  const [price, setPrice] = useState(job?.budget ? String(job.budget) : '');
+  // Worker types their own price; the customer's budget is only shown as a hint
+  const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
@@ -158,11 +159,27 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
       return Alert.alert('Blocked', 'You must have an approved KYC and at least ₹100 in your wallet to quote.');
     }
 
+    const amount = Number(price);
+    if (!Number.isFinite(amount) || amount < 10) {
+      return Alert.alert('Check your price', 'Quote price must be at least ₹10.');
+    }
+    // Confirm the exact amount so a pre-filled or mistyped price is never sent by accident
+    Alert.alert(
+      'Send this quote?',
+      `Your price: ₹${amount}${job?.budget ? `\nCustomer budget: ₹${job.budget}` : ''}`,
+      [
+        { text: 'Edit', style: 'cancel' },
+        { text: `Send ₹${amount}`, onPress: () => sendQuote(amount) },
+      ]
+    );
+  };
+
+  const sendQuote = async (amount) => {
     setIsSubmitting(true);
     try {
       const res = await jobService.placeQuote({
         jobId: job?._id,
-        amount: Number(price),
+        amount,
         description
       });
       if (res.data?.status === 'success' || res.data?.quote) {
@@ -309,7 +326,7 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
             value={price}
             onChangeText={setPrice}
             keyboardType="numeric"
-            placeholder={job?.budget ? `e.g. ${job.budget}` : "e.g. 450"}
+            placeholder={job?.budget ? `Customer budget ₹${job.budget}` : 'Enter your price'}
             placeholderTextColor={theme.colors.textDim}
             editable={canQuote && !isSubmitting}
           />
