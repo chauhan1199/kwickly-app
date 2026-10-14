@@ -11,7 +11,8 @@ import {
   ActivityIndicator,
   Image,
   Linking,
-  Platform
+  Platform,
+  KeyboardAvoidingView
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -292,8 +293,10 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
 
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView 
         showsVerticalScrollIndicator={false} 
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
       >
         {/* ═══════════════════════════════════════
@@ -643,6 +646,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
         {/* Bottom padding to completely avoid tab bar / On Duty button */}
         <View style={{ height: 130 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };

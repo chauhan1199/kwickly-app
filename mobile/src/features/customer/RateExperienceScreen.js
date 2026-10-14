@@ -3,18 +3,26 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
   TextInput,
-  StatusBar
+  StatusBar,
+  Platform,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView
 } from 'react-native';
-import Button from '../../components/ui/Button';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import api from '../../services/api';
 
+const RATING_LABELS = ['', 'Poor', 'Below average', 'Okay', 'Good', 'Excellent'];
+
 const RateExperienceScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  const androidHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const safeTop = Math.max(insets.top, androidHeight, 12);
 
   const { worker } = route.params || {};
   // Real worker + service from the job; no placeholder person
@@ -25,97 +33,113 @@ const RateExperienceScreen = ({ route, navigation }) => {
     ...(worker || {}),
     cat: worker?.cat || [ratedJob?.category, ratedJob?.subcategory].filter(Boolean).join(' · '),
   };
+  const jobId = ratedJob?._id || route.params?.jobId;
 
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const goHome = () => navigation.navigate('Home');
+
   const handleSubmit = async () => {
-    const jobId = route.params?.job?._id || route.params?.jobId || worker?.jobId || worker?._id;
     if (!jobId) {
-      navigation.navigate('Home');
+      Alert.alert('Rating Unavailable', 'This job could not be found. Please rate it from your job history.');
       return;
     }
     setSubmitting(true);
     try {
-      await api.post(`/jobs/${jobId}/rate`, { score: rating, review });
-      navigation.navigate('Home');
+      await api.post(`/jobs/${jobId}/rate`, { score: rating, review: review.trim() });
+      Alert.alert('Thank you!', `Your ${rating}-star rating for ${w.name || 'the worker'} has been saved.`, [
+        { text: 'Done', onPress: goHome }
+      ]);
     } catch (e) {
-      console.warn('Rating submission error:', e?.response?.data?.message || e.message);
-      navigation.navigate('Home');
+      const status = e?.response?.status;
+      if (status === 409) {
+        Alert.alert('Already Rated', 'You have already rated this job.', [{ text: 'OK', onPress: goHome }]);
+      } else {
+        Alert.alert('Could Not Save Rating', e?.response?.data?.message || 'Please check your connection and try again.');
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const styles = createStyles(theme, isDarkMode);
+  const styles = createStyles(theme, isDarkMode, safeTop, insets.bottom);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      
-      {/* App Bar */}
+    <View style={styles.container}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+
       <View style={styles.appBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Text style={styles.backBtnText}>‹</Text>
         </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.appBarTitle} numberOfLines={1}>Rate your experience</Text>
-        </View>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Text style={{fontSize: 16}}>🔔</Text>
-          <View style={styles.badge} />
-        </TouchableOpacity>
+        <Text style={styles.appBarTitle} numberOfLines={1}>Rate your experience</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
-        <View style={styles.avatarBox}>
-          <Text style={styles.avatarText}>{w.name ? w.name[0] : 'W'}</Text>
-        </View>
-
-        <Text style={styles.workerName}>{w.name || 'Worker'}</Text>
-        {w.cat ? <Text style={styles.workerSub}>{w.cat}</Text> : null}
-        
-        <Text style={styles.successText}>✅ Job Completed Successfully</Text>
-
-        <View style={styles.starsContainer}>
-          {[1, 2, 3, 4, 5].map((star) => (
-            <TouchableOpacity key={star} onPress={() => setRating(star)}>
-              <Text style={[styles.star, star <= rating ? styles.starOn : styles.starOff]}>
-                {star <= rating ? '★' : '☆'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <TextInput 
-          style={styles.reviewInput}
-          placeholder="Write a review (optional)"
-          placeholderTextColor={theme.colors.textDim}
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
-          value={review}
-          onChangeText={setReview}
-        />
-
-        <Button title={submitting ? "Submitting..." : "Submit Rating"} onPress={handleSubmit} disabled={submitting} />
-
-        <TouchableOpacity 
-          style={styles.skipBtn}
-          onPress={() => navigation.navigate('Home')}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.content}
         >
-          <Text style={styles.skipBtnText}>Skip for now</Text>
-        </TouchableOpacity>
+          <View style={styles.avatarBox}>
+            <Text style={styles.avatarText}>{w.name ? w.name[0].toUpperCase() : 'W'}</Text>
+          </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </SafeAreaView>
+          <Text style={styles.workerName} numberOfLines={1}>{w.name || 'Worker'}</Text>
+          {w.cat ? <Text style={styles.workerSub} numberOfLines={2}>{w.cat}</Text> : null}
+          <Text style={styles.successText}>✅ Job Completed Successfully</Text>
+
+          <View style={styles.starsContainer}>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <TouchableOpacity
+                key={star}
+                onPress={() => setRating(star)}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                accessibilityLabel={`${star} star${star > 1 ? 's' : ''}`}
+              >
+                <Text style={[styles.star, star <= rating ? styles.starOn : styles.starOff]}>
+                  {star <= rating ? '★' : '☆'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.ratingLabel}>{RATING_LABELS[rating]}</Text>
+
+          <TextInput
+            style={styles.reviewInput}
+            placeholder="Write a review (optional)"
+            placeholderTextColor={theme.colors.textDim}
+            multiline
+            numberOfLines={3}
+            maxLength={500}
+            textAlignVertical="top"
+            value={review}
+            onChangeText={setReview}
+          />
+
+          <TouchableOpacity
+            style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
+            onPress={handleSubmit}
+            disabled={submitting}
+            activeOpacity={0.85}
+          >
+            {submitting
+              ? <ActivityIndicator color="#FFFFFF" />
+              : <Text style={styles.submitBtnText}>Submit Rating</Text>}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.skipBtn} onPress={goHome} disabled={submitting} activeOpacity={0.7}>
+            <Text style={styles.skipBtnText}>Skip for now</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
-const createStyles = (theme, isDarkMode) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, safeTop, safeBottom) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -123,9 +147,9 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 14,
+    paddingHorizontal: 16,
+    paddingTop: safeTop + 8,
+    paddingBottom: 12,
   },
   backBtn: {
     width: 36,
@@ -141,6 +165,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     lineHeight: 28,
   },
   appBarTitle: {
+    flex: 1,
+    marginLeft: 12,
     fontSize: 17,
     fontWeight: '800',
     color: theme.colors.text,
@@ -164,9 +190,17 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 4,
   },
   content: {
-    paddingHorizontal: 14,
-    paddingTop: 24,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: safeBottom + 110, // clear the bottom tab bar
     alignItems: 'center',
+  },
+  ratingLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#f5b300',
+    marginTop: -12,
+    marginBottom: 20,
   },
   avatarBox: {
     width: 80,
@@ -189,6 +223,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 4,
   },
   workerSub: {
+    textAlign: 'center',
     fontSize: 12,
     color: theme.colors.textDim,
   },
@@ -228,13 +263,15 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   submitBtn: {
     width: '100%',
     backgroundColor: theme.colors.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 15,
+    borderRadius: 14,
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
+    minHeight: 52,
+    marginBottom: 12,
   },
   submitBtnText: {
-    color: '#001016',
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
   },
@@ -243,7 +280,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.primary,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
   },
   skipBtnText: {

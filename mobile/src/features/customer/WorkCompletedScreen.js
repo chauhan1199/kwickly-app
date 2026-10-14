@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -11,7 +11,8 @@ import {
   Image,
   Modal,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  KeyboardAvoidingView
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -84,6 +85,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
   const isInProgress = activeJob?.status === 'IN_PROGRESS';
 
   const [otp, setOtp] = useState('');
+  const scrollRef = useRef(null);
   const [paying, setPaying] = useState(false);
   
   const [promoInput, setPromoInput] = useState('');
@@ -241,13 +243,18 @@ const WorkCompletedScreen = ({ route, navigation }) => {
         <TouchableOpacity 
           style={styles.iconBtn}
           activeOpacity={0.7}
+          onPress={() => navigation.navigate('Notifications')}
         >
           <Bell size={18} color={theme.colors.text} />
-          <View style={styles.badgeDot} />
         </TouchableOpacity>
       </View>
 
+      {/* Android 15+ draws edge-to-edge, so the window no longer shrinks for the keyboard;
+          pad the content instead so the OTP box and pay buttons stay visible */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView 
+        ref={scrollRef}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={styles.content}
         refreshControl={
@@ -489,6 +496,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
                 maxLength={4}
                 value={otp}
                 onChangeText={setOtp}
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
                 editable={!paying}
               />
             </View>
@@ -530,6 +538,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
           </>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* ── IMAGE ZOOM LIGHTBOX MODAL ── */}
       <Modal
