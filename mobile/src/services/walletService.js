@@ -29,7 +29,9 @@ export const walletService = {
       intentStatus: extraObj.intentStatus,
       responseCode: extraObj.responseCode,
       rawResponse: extraObj.rawResponse,
-      txnId: extraObj.txnId
+      txnId: extraObj.txnId,
+      // WalletTxn created by the no-UTR intent call; the UTR is attached to it
+      pendingTxnId: extraObj.pendingTxnId
     }));
   },
 

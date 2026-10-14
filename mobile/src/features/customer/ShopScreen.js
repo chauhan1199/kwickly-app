@@ -25,6 +25,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { MapPin, Star, Store, Clock, RotateCcw, ChevronRight, Sparkles } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
+import { getCurrentCoordinates } from '../../utils/currentLocation';
 
 const haversine = (coords1, coords2) => {
   if (!coords1 || !coords2 || coords1.length !== 2 || coords2.length !== 2) return null;
@@ -56,10 +57,22 @@ const ShopScreen = ({ navigation }) => {
 
   // User location for distance sorting
   const primaryAddress = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
-  const userLng = primaryAddress?.location?.coordinates?.[0] ?? 72.574115;
-  const userLat = primaryAddress?.location?.coordinates?.[1] ?? 23.1222453;
-  // Distances are only shown when measured from the user's real saved address, never the fallback point
-  const hasUserLocation = Array.isArray(primaryAddress?.location?.coordinates) && primaryAddress.location.coordinates.length === 2;
+  const hasSavedLocation = Array.isArray(primaryAddress?.location?.coordinates) && primaryAddress.location.coordinates.length === 2;
+  // No saved address pin: fall back to the device's current location (if the user allows it)
+  const [deviceCoords, setDeviceCoords] = useState(null); // [lng, lat]
+  useEffect(() => {
+    if (hasSavedLocation) return undefined;
+    let cancelled = false;
+    getCurrentCoordinates({ precise: false, offerSettings: false })
+      .then((coords) => { if (!cancelled) setDeviceCoords(coords); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [hasSavedLocation]);
+  const userCoords = hasSavedLocation ? primaryAddress.location.coordinates : deviceCoords;
+  const userLng = userCoords?.[0] ?? 72.574115;
+  const userLat = userCoords?.[1] ?? 23.1222453;
+  // Distances are only shown when measured from a real position (saved address or GPS), never the fallback point
+  const hasUserLocation = Array.isArray(userCoords) && userCoords.length === 2;
 
   // Instant local cache restore
   useEffect(() => {

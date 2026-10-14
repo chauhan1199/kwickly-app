@@ -237,13 +237,19 @@ describe('Money-flow regression fixes', () => {
             expect(refreshed.wallet.balance).toBe(5200);
         });
 
-        it('lets the owning shop approve its own order', async () => {
+        it('refuses the owning shop approving its own order; only an admin can', async () => {
             const order = await createUpiOrder();
-            const res = await request(app)
+            const shopRes = await request(app)
                 .post(`/api/v1/shoporders/${order._id}/verify-payment`)
                 .set('Authorization', `Bearer ${shopToken}`)
                 .send({ action: 'approve' });
+            expect(shopRes.status).toBe(403);
+            expect((await ShopOrder.findById(order._id).lean()).payment.status).toBe('PENDING_VERIFICATION');
 
+            const res = await request(app)
+                .post(`/api/v1/shoporders/${order._id}/verify-payment`)
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send({ action: 'approve' });
             expect(res.status).toBe(200);
             const updated = await ShopOrder.findById(order._id).lean();
             expect(updated.payment.status).toBe('PAID');

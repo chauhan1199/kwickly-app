@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView,
   TouchableOpacity, StatusBar, FlatList, TextInput,
@@ -15,6 +15,8 @@ import AppBar from '../../components/AppBar';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { shopService } from '../../services/shopService';
 import { walletService } from '../../services/walletService';
+import { customerService } from '../../services/customerService';
+import AddressMapModal from '../../components/AddressMapModal';
 import {
   GooglePayIcon, PhonePeIcon, PaytmIcon, BhimIcon, CredIcon
 } from '../../components/ui/UpiBrandIcons';
@@ -34,7 +36,7 @@ const CartScreen = ({ route, navigation }) => {
   const { user, fetchUser } = useAuth();
   const {
     cart, loading, itemCount, subtotal, deliveryCharge, promoDiscount, promoCode,
-    platformFee, gstAmount, total,
+    platformFee, gstAmount, total, promoNotice,
     shopConfig, freeDeliveryAbove, minOrderAmount,
     fetchCart, updateItem, removeItem, clearCart, validatePromo, removePromo
   } = useCart();
@@ -48,6 +50,8 @@ const CartScreen = ({ route, navigation }) => {
   const [slots, setSlots] = useState([]);
   const [showSlotModal, setShowSlotModal] = useState(false);
   const [orderSuccessModal, setOrderSuccessModal] = useState(null);
+  // Address whose map pin must be set before ordering (no coordinates saved)
+  const [pinAddress, setPinAddress] = useState(null);
 
   // CustomAlert Modal State
   const [alertConfig, setAlertConfig] = useState({
@@ -102,6 +106,10 @@ const CartScreen = ({ route, navigation }) => {
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
   const [copiedVpa, setCopiedVpa] = useState(false);
   const [upiTxnId, setUpiTxnId] = useState('');
+  // The order is finalized (success sheet + cart cleared) exactly once per order
+  const finalizedOrderRef = useRef(null);
+  // Last UTR the user submitted for the current order (shown instead of a fake reference)
+  const lastUtrRef = useRef(null);
 
   const [selectedDate, setSelectedDate] = useState(0); // 0 = Today, 1 = Tomorrow, 2 = Day After
 
@@ -288,13 +296,27 @@ const CartScreen = ({ route, navigation }) => {
       });
     }
 
+    // The server needs the real delivery point (it checks the shop's delivery
+    // radius), so an address without a map pin must be pinned first.
+    const rawCoords = defaultAddress.location?.coordinates;
+    const hasCoords = Array.isArray(rawCoords) && rawCoords.length === 2 &&
+      rawCoords.every(c => c !== null && c !== '' && !isNaN(Number(c))) &&
+      !(Number(rawCoords[0]) === 0 && Number(rawCoords[1]) === 0);
+    if (!hasCoords) {
+      return showAlert({
+        type: 'warning',
+        title: 'Pin Your Delivery Location',
+        message: `"${defaultAddress.label || 'Your address'}" has no map location. Please pin it on the map so we can check the shop delivers there.`,
+        confirmText: 'Pin on Map',
+        showCancel: true,
+        cancelText: 'Cancel',
+        onConfirm: () => setPinAddress(defaultAddress)
+      });
+    }
+    const validCoords = [Number(rawCoords[0]), Number(rawCoords[1])];
+
     setIsProcessing(true);
     try {
-      // Extract valid coordinates with fallback
-      const rawCoords = defaultAddress.location?.coordinates;
-      const validCoords = Array.isArray(rawCoords) && rawCoords.length === 2 && !isNaN(Number(rawCoords[0])) && !isNaN(Number(rawCoords[1]))
-        ? [Number(rawCoords[0]), Number(rawCoords[1])]
-        : [72.5714, 23.0225];
 
       const fullAddressStr = `${defaultAddress.label || 'Home'}: ${[defaultAddress.street || defaultAddress.address, defaultAddress.city].filter(Boolean).join(', ')}`.trim();
 
@@ -342,10 +364,22 @@ const CartScreen = ({ route, navigation }) => {
         return;
       }
 
-      // Case 2: If UPI payment -> create payment session first (do NOT place order before payment)
+      // Case 2: UPI -> create the order first (payment PENDING: hidden from the shop
+      // and swept if never paid), then pay against its orderId so the UTR and any
+      // bank-credit match attach to this exact order. The cart is kept until paid.
       setPendingOrderData(orderPayload);
+      finalizedOrderRef.current = null;
+      lastUtrRef.current = null;
+      const orderRes = await shopService.placeOrder({ ...orderPayload, paymentMethod: 'UPI' });
+      if (orderRes.data?.status !== 'success') {
+        throw new Error(orderRes.data?.message || 'Failed to create order');
+      }
+      const pendingOrder = orderRes.data.data;
+      setCurrentOrder(pendingOrder);
+      const payAmount = Number(pendingOrder?.total ?? total);
       const payRes = await walletService.createPaymentOrder({
-        amount: total,
+        amount: payAmount,
+        orderId: pendingOrder?._id,
         purpose: 'shop_order',
         paymentMethod: 'UPI'
       });
@@ -353,7 +387,7 @@ const CartScreen = ({ route, navigation }) => {
       const platformUpi = (payData.upiVpa || '').trim();
       const platformPayee = (payData.payeeName || 'Kwickly Admin').trim().replace(/\s+/g, ' ');
       const paymentOrderId = payData.razorpayOrderId || payData.upiOrderId || `upi_${Date.now()}`;
-      const amtStr = Number(total).toFixed(2);
+      const amtStr = payAmount.toFixed(2);
       const shortTr = `KWIK${String(shopId || Date.now()).slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
 
       if (!platformUpi) {
@@ -366,21 +400,32 @@ const CartScreen = ({ route, navigation }) => {
         upiVpa: platformUpi,
         payeeName: platformPayee,
         upiIntentUri: payData.upiIntentUri || `upi://pay?pa=${platformUpi}&pn=${encodeURIComponent(platformPayee)}&am=${amtStr}&cu=INR&tn=${encodeURIComponent('Order Payment')}&tr=${shortTr}`,
-        amount: total
+        amount: payAmount,
+        orderId: pendingOrder?._id
       });
       setShowUpiModal(true);
 
     } catch (e) {
+      const serverMsg = e?.response?.data?.message || e.message || 'Failed to initiate order checkout. Please check your connection and try again.';
+      const outsideArea = /delivery area|outside.*radius|radius/i.test(serverMsg);
       showAlert({
-        type: 'error',
-        title: 'Order Error',
-        message: e?.response?.data?.message || e.message || 'Failed to initiate order checkout. Please check your connection and try again.'
+        type: outsideArea ? 'warning' : 'error',
+        title: outsideArea ? 'Outside Delivery Area' : 'Order Error',
+        message: serverMsg,
+        ...(outsideArea ? {
+          confirmText: 'Change Address',
+          showCancel: true,
+          cancelText: 'Close',
+          onConfirm: () => navigation.navigate('SavedAddresses')
+        } : {})
       });
     } finally {
       setIsProcessing(false);
     }
   };
 
+  // Explicit cancel: the user did not pay. Cancels the untouched payment intent
+  // and the pending order (stock restored server-side); the cart is kept.
   const handleCancelPayment = async () => {
     setShowUpiModal(false);
     setShowWaitingModal(false);
@@ -392,6 +437,9 @@ const CartScreen = ({ route, navigation }) => {
         });
       } catch (e) {}
     }
+    if (upiOrderData?.orderId && !lastUtrRef.current) {
+      try { await shopService.cancelOrder(upiOrderData.orderId); } catch (e) {}
+    }
     setPendingOrderData(null);
     showAlert({
       type: 'info',
@@ -400,47 +448,35 @@ const CartScreen = ({ route, navigation }) => {
     });
   };
 
-  const finalizePaidUpiOrder = async (utr, paymentData = null) => {
-    try {
-      const payload = {
-        ...(pendingOrderData || {}),
-        paymentMethod: 'UPI',
-        utrNumber: utr,
-        paymentOrderId: upiOrderData?.razorpayOrderId,
-        isPaid: true
-      };
+  // Closing the waiting sheet (or its auto-close after success) never cancels anything.
+  const handleCloseWaiting = () => {
+    setShowWaitingModal(false);
+  };
 
-      const res = await shopService.placeOrder(payload);
-      if (res.data?.status !== 'success') {
-        throw new Error(res.data?.message || 'Failed to place order');
-      }
+  // Shows the result for the current order exactly once. isPaid is true only when
+  // the server matched a bank credit; otherwise the order waits for confirmation.
+  const finalizeUpiOrder = async ({ utr = null, isPaid = false } = {}) => {
+    const order = currentOrder;
+    const key = order?._id || upiOrderData?.orderId;
+    if (!key || finalizedOrderRef.current === key) return;
+    finalizedOrderRef.current = key;
 
-      const order = res.data.data;
-      setCurrentOrder(order);
-      setShowUpiModal(false);
-      setShowWaitingModal(false);
-      setUpiTxnId('');
-      setPendingOrderData(null);
-      await clearCart();
-      if (fetchUser) await fetchUser();
+    setShowUpiModal(false);
+    setShowWaitingModal(false);
+    setUpiTxnId('');
+    setPendingOrderData(null);
+    try { await clearCart(); } catch (e) {}
+    if (fetchUser) { try { await fetchUser(); } catch (e) {} }
 
-      setOrderSuccessModal({
-        orderNumber: order.orderNumber || `#${order._id?.slice(-6).toUpperCase()}`,
-        orderId: order._id,
-        total: Number(total).toFixed(2),
-        method: 'UPI',
-        isPaid: true,
-        utr: utr || 'Auto Verified',
-        slot: selectedSlot ? `${selectedSlot.dateLabel || 'Today'} • ${selectedSlot.label}` : 'Standard Delivery'
-      });
-    } catch (err) {
-      console.error('[CartScreen] Finalize order error:', err);
-      showAlert({
-        type: 'error',
-        title: 'Order Notice',
-        message: err?.response?.data?.message || err.message || `Payment verified (UTR: ${utr}), but order placement encountered an issue. Our support team will assist you.`
-      });
-    }
+    setOrderSuccessModal({
+      orderNumber: order?.orderNumber || `#${String(key).slice(-6).toUpperCase()}`,
+      orderId: key,
+      total: Number(order?.total ?? total).toFixed(2),
+      method: 'UPI',
+      isPaid,
+      utr: utr || null,
+      slot: selectedSlot ? `${selectedSlot.dateLabel || 'Today'} • ${selectedSlot.label}` : 'Standard Delivery'
+    });
   };
 
   const handleManualUtrVerification = async (utr, extraMeta = {}) => {
@@ -452,32 +488,32 @@ const CartScreen = ({ route, navigation }) => {
     setUpiVerifying(true);
     try {
       const verifyRes = await walletService.verifyPayment({
-        razorpayOrderId: upiOrderData?.razorpayOrderId || `upi_${Date.now()}`,
+        razorpayOrderId: upiOrderData?.razorpayOrderId,
+        orderId: upiOrderData?.orderId || currentOrder?._id,
         upiTransactionId: cleanUtr,
         utrNumber: cleanUtr,
-        amount: total,
+        amount: upiOrderData?.amount || total,
         purpose: 'shop_order',
         ...extraMeta
       });
 
-      const isSuccess = verifyRes?.data?.status === 'success' ||
-                        verifyRes?.status === 'success' ||
-                        verifyRes?.data?.data?.status === 'PENDING_VERIFICATION' ||
-                        verifyRes?.data?.data?.status === 'PAID' ||
-                        verifyRes?.data?.data?.status === 'COMPLETED';
-
-      if (isSuccess) {
-        await finalizePaidUpiOrder(cleanUtr, verifyRes?.data?.data || verifyRes?.data);
-        return { verified: true, data: verifyRes?.data?.data || verifyRes?.data };
+      const data = verifyRes?.data?.data || {};
+      if (verifyRes?.data?.status !== 'success') {
+        return verifyRes?.data || verifyRes;
       }
-      return verifyRes?.data || verifyRes;
+      lastUtrRef.current = cleanUtr;
+      // PAID only when the server matched a bank credit; PENDING_VERIFICATION means
+      // "payment received, waiting for confirmation" — the order exists but is not paid.
+      await finalizeUpiOrder({ utr: cleanUtr, isPaid: data.status === 'PAID' });
+      return { handled: true, verified: data.status === 'PAID', data };
     } finally {
       setUpiVerifying(false);
     }
   };
 
-  const handlePaymentSuccess = async (detectedUtr = null) => {
-    await finalizePaidUpiOrder(detectedUtr || 'Auto Verified');
+  // Server confirmed this order's payment (socket ORDER_STATUS PAID for this order)
+  const handlePaymentSuccess = async (data = null) => {
+    await finalizeUpiOrder({ utr: data?.utr || lastUtrRef.current, isPaid: true });
   };
 
   const handleOpenUpiApp = async (appScheme = null) => {
@@ -508,7 +544,7 @@ const CartScreen = ({ route, navigation }) => {
             rawResponse: result?.rawResponse || '',
             txnId: result?.txnId || ''
           });
-          if (verifyData?.verified) return;
+          if (verifyData?.handled || verifyData?.verified) return;
         } catch (e) {
           console.warn('[CartUPI] Direct intent verify error:', e);
         }
@@ -610,7 +646,7 @@ const CartScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       ) : (
-        <>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <FlatList
             data={cart.items}
             keyExtractor={i => i._id}
@@ -710,6 +746,12 @@ const CartScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                   )}
                 </View>
+                {promoNotice ? (
+                  <View style={styles.promoSuccess}>
+                    <X size={14} color="#ef4444" />
+                    <Text style={[styles.promoSuccessText, { color: '#ef4444' }]}>{promoNotice}</Text>
+                  </View>
+                ) : null}
                 {promoCode && (
                   <View style={styles.promoSuccess}>
                     <Check size={14} color="#059669" />
@@ -822,21 +864,21 @@ const CartScreen = ({ route, navigation }) => {
               </Text>
             </TouchableOpacity>
           </View>
-        </>
+        </KeyboardAvoidingView>
       )}
 
       {/* UPI App Selection Modal */}
       <Modal visible={showUpiModal} transparent animationType="slide" onRequestClose={() => setShowUpiModal(false)}>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowUpiModal(false)} />
-          <View style={styles.upiModalContent}>
+          <View style={[styles.upiModalContent, { paddingBottom: 20 + insets.bottom }]}>
             <View style={styles.upiModalHeader}>
               <View style={styles.upiBadge}>
                 <Zap size={22} color="#6C47FF" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.upiModalTitle}>Pay via Direct UPI</Text>
-                <Text style={styles.upiModalSub}>Order #{currentOrder?.orderNumber || ''} • ₹{total}</Text>
+                <Text style={styles.upiModalSub}>Order #{currentOrder?.orderNumber || ''} • ₹{upiOrderData?.amount || total}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowUpiModal(false)} style={styles.modalCloseBtn}>
                 <X size={20} color={theme.colors.textDim} />
@@ -916,10 +958,11 @@ const CartScreen = ({ route, navigation }) => {
       {showWaitingModal && (
         <UpiPaymentWaitingModal
           visible={showWaitingModal}
-          onClose={handleCancelPayment}
-          onSuccess={(data) => handlePaymentSuccess(data?.utr || data?.approvalRefNo)}
-          amount={total}
+          onClose={handleCloseWaiting}
+          onSuccess={handlePaymentSuccess}
+          amount={upiOrderData?.amount || total}
           orderId={upiOrderData?.razorpayOrderId}
+          shopOrderId={upiOrderData?.orderId}
           payeeName={upiOrderData?.payeeName}
           upiVpa={upiOrderData?.upiVpa}
           purpose="shop_order"
@@ -1003,7 +1046,8 @@ const CartScreen = ({ route, navigation }) => {
       {/* Custom Order Placed Success Modal */}
       <Modal visible={Boolean(orderSuccessModal)} transparent animationType="fade" onRequestClose={() => setOrderSuccessModal(null)}>
         <View style={styles.successModalOverlay}>
-          <View style={[styles.successModalCard, { position: 'relative' }]}>
+          <View style={[styles.successModalCard, { position: 'relative', maxHeight: '90%' }]}>
+            <ScrollView style={{ width: '100%' }} contentContainerStyle={{ alignItems: 'center' }} showsVerticalScrollIndicator={false} bounces={false}>
             <TouchableOpacity
               style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, padding: 6 }}
               onPress={() => setOrderSuccessModal(null)}
@@ -1019,9 +1063,13 @@ const CartScreen = ({ route, navigation }) => {
               <Check size={36} color="#FFFFFF" strokeWidth={3} />
             </LinearGradient>
 
-            <Text style={styles.successModalTitle}>Order Placed! 🎉</Text>
+            <Text style={styles.successModalTitle}>{orderSuccessModal?.isPaid ? 'Order Placed! 🎉' : 'Payment Received'}</Text>
             <Text style={styles.successModalSub}>
-              Order <Text style={{ fontWeight: '900', color: theme.colors.text }}>{orderSuccessModal?.orderNumber}</Text> has been created successfully.
+              {orderSuccessModal?.isPaid ? (
+                <>Order <Text style={{ fontWeight: '900', color: theme.colors.text }}>{orderSuccessModal?.orderNumber}</Text> has been created successfully.</>
+              ) : (
+                <>Payment received, waiting for confirmation. Order <Text style={{ fontWeight: '900', color: theme.colors.text }}>{orderSuccessModal?.orderNumber}</Text> is placed and will be confirmed once the payment is verified.</>
+              )}
             </Text>
 
             <View style={styles.successDetailsBox}>
@@ -1051,7 +1099,7 @@ const CartScreen = ({ route, navigation }) => {
                     styles.paymentStatusBadgeText,
                     orderSuccessModal?.isPaid ? styles.statusTextPaid : styles.statusTextPending
                   ]}>
-                    {orderSuccessModal?.isPaid ? '✓ Paid Instantly' : '⏳ Pending Verification'}
+                    {orderSuccessModal?.isPaid ? '✓ Paid' : '⏳ Awaiting Confirmation'}
                   </Text>
                 </View>
               </View>
@@ -1097,9 +1145,31 @@ const CartScreen = ({ route, navigation }) => {
             >
               <Text style={styles.continueShopBtnText}>Continue Shopping</Text>
             </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
+
+      {/* Pin a saved address that has no map location */}
+      {pinAddress && (
+        <AddressMapModal
+          visible={Boolean(pinAddress)}
+          onClose={() => setPinAddress(null)}
+          onSave={async (payload) => {
+            try {
+              await customerService.updateAddress(pinAddress._id, payload);
+              if (fetchUser) await fetchUser();
+              setPinAddress(null);
+              showAlert({ type: 'success', title: 'Location Saved', message: 'Your delivery location is pinned. Tap Pay to place your order.' });
+            } catch (err) {
+              showAlert({ type: 'error', title: 'Could Not Save Address', message: err?.response?.data?.message || err?.message || 'Please try again.' });
+            }
+          }}
+          initialData={pinAddress}
+          theme={theme}
+          isDarkMode={isDarkMode}
+        />
+      )}
 
       {/* Rich CustomAlert Dialog */}
       <CustomAlert

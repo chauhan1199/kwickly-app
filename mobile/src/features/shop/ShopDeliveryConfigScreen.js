@@ -52,7 +52,9 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
         const shop = shopRes.data.data;
         setShopId(shop._id);
         if (shop.deliveryConfig) {
-          setConfig(prev => ({ ...prev, ...shop.deliveryConfig }));
+          // Server enum is 'flat' | 'percent'; older builds saved 'percentage'.
+          const dt = shop.deliveryConfig.discountType === 'percentage' ? 'percent' : shop.deliveryConfig.discountType;
+          setConfig(prev => ({ ...prev, ...shop.deliveryConfig, ...(dt ? { discountType: dt } : {}) }));
         } else if (shop.delivery) {
           setConfig(prev => ({
             ...prev,
@@ -274,10 +276,10 @@ const ShopDeliveryConfigScreen = ({ navigation }) => {
                       <Text style={[styles.typeText, config.discountType === 'flat' && styles.typeTextActive]}>₹ Flat</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.typeBtn, config.discountType === 'percentage' && styles.typeBtnActive]}
-                      onPress={() => update('discountType', 'percentage')}
+                      style={[styles.typeBtn, config.discountType === 'percent' && styles.typeBtnActive]}
+                      onPress={() => update('discountType', 'percent')}
                     >
-                      <Text style={[styles.typeText, config.discountType === 'percentage' && styles.typeTextActive]}>% %</Text>
+                      <Text style={[styles.typeText, config.discountType === 'percent' && styles.typeTextActive]}>% %</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

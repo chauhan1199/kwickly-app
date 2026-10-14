@@ -13,7 +13,7 @@ const { emitToRoom, emitToAll } = require('../../helpers/socket.helper');
 const { delCache } = require('../../helpers/redis.helper');
 const logger = require('../../helpers/logger.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
-const { isValidUtr, findUtrUsage, extractSmsAmount, verifyIntentResponse, isAuthenticBankDebitSms, isAdjacentOrTamperedUtr } = require('../../helpers/upi.helper');
+const { isValidUtr, findUtrUsage, extractSmsAmount, parseBankCreditSms, verifyIntentResponse, isAuthenticBankDebitSms, isAdjacentOrTamperedUtr } = require('../../helpers/upi.helper');
 const { AdminWallet } = require('../adminWallet/adminWallet.model');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
 const {
@@ -337,7 +337,7 @@ exports.verifyPayment = catchAsync(async (req, res) => {
 
         // Wallet top-up flow (purpose: 'wallet_topup')
         if (payment.metadata?.notes?.purpose === 'wallet_topup' || req.body.purpose === 'wallet_topup') {
-            const creditAmount = Number(payment.amount || req.body.amount);
+            let creditAmount = Number(payment.amount || req.body.amount);
 
             // Check if already credited by bank webhook for this order or UTR
             let existingCompletedTxn = await WalletTxn.findOne({
@@ -397,10 +397,19 @@ exports.verifyPayment = catchAsync(async (req, res) => {
                     );
                 }
 
-                existingBankCredit.isClaimed = true;
-                existingBankCredit.claimedBy = req.user._id;
-                existingBankCredit.claimedAt = new Date();
-                await existingBankCredit.save(sessOpts);
+                // Atomic claim: two concurrent submissions can't both credit one UTR
+                const wonClaim = await BankCredit.findOneAndUpdate(
+                    { _id: existingBankCredit._id, isClaimed: false },
+                    { $set: { isClaimed: true, claimedBy: req.user._id, claimedAt: new Date() } },
+                    { returnDocument: 'after', ...sessOpts }
+                );
+                if (!wonClaim) {
+                    if (useTransaction) await session.commitTransaction();
+                    if (useTransaction) session.endSession();
+                    return errorResponse(res, `This UPI Reference (UTR: ${finalPaymentId}) has already been claimed and credited.`, StatusCodes.BAD_REQUEST);
+                }
+                // Credit what the bank actually received, not what the client claimed
+                creditAmount = Number(existingBankCredit.amount);
             } else {
                 // If BankCredit was not pre-recorded in database:
                 const hasValidIntent = verifyIntentResponse({
@@ -715,38 +724,39 @@ exports.handleWebhook = async (req, res) => {
     // ── Step 2.1: Intelligent SMS Parsing for Android SMS Forwarders ──────────
     const smsText = (payload.message || payload.text || payload.sms || payload.smsContent || payload.body || payload.content || '').toString();
     if (smsText) {
-        const amtMatch = smsText.match(/(?:credited\s*(?:by|with)?\s*(?:Rs\.?|INR)?\s*|Rs\.?\s*|INR\s*)([0-9]+(?:\.[0-9]{1,2})?)/i);
-        const utrMatch = smsText.match(/(?:Ref\s*No\.?|UTR|RRN|UPI\s*Ref(?:\s*No)?\.?|Txn(?:\s*Id)?|UPI\/)\s*[:\-]?\s*([0-9]{12})/i) || smsText.match(/\b([0-9]{12})\b/);
-
-        if (amtMatch && !payload.amount) {
-            payload.amount = parseFloat(amtMatch[1]);
+        // Only a bank CREDIT SMS (credited/received/deposited, no debit wording)
+        // may ever be treated as money received. Debit SMS are ignored.
+        const parsed = parseBankCreditSms(smsText);
+        if (!parsed || !parsed.utr) {
+            logger.info('[Webhook] Ignoring SMS that is not a bank credit with a UTR');
+            return res.status(200).json({ received: true, ignored: true });
         }
-        if (utrMatch && !payload.utr) {
-            payload.utr = utrMatch[1];
-        }
-        if (payload.amount && (payload.utr || smsText.toLowerCase().includes('credited'))) {
-            payload.status = 'SUCCESS';
-            payload.isSuccess = true;
-            payload.purpose = payload.purpose || 'wallet_topup';
-            logger.info(`[Webhook] Auto-parsed SMS: Amount=₹${payload.amount}, UTR=${payload.utr}`);
+        // The SMS is the bank's statement: its amount and UTR are authoritative.
+        payload.amount = parsed.amount;
+        payload.utr = parsed.utr;
+        payload.status = 'SUCCESS';
+        payload.isSuccess = true;
+        payload.purpose = payload.purpose || 'wallet_topup';
+        logger.info(`[Webhook] Auto-parsed credit SMS: Amount=₹${payload.amount}, UTR=${payload.utr}`);
 
-            if (payload.utr && payload.amount) {
-                const BankCredit = require('./bankCredit.model');
-                BankCredit.findOneAndUpdate(
-                    { utr: payload.utr },
-                    {
-                        $setOnInsert: {
-                            utr: payload.utr,
-                            amount: Number(payload.amount),
-                            rawMessage: smsText || JSON.stringify(payload),
-                            source: 'BANK_SMS',
-                            receivedAt: new Date(),
-                            isClaimed: false
-                        }
-                    },
-                    { upsert: true }
-                ).catch(err => logger.error(`[Webhook] BankCredit upsert error: ${err.message}`));
-            }
+        const BankCredit = require('./bankCredit.model');
+        try {
+            await BankCredit.findOneAndUpdate(
+                { utr: payload.utr },
+                {
+                    $setOnInsert: {
+                        utr: payload.utr,
+                        amount: Number(payload.amount),
+                        rawMessage: smsText,
+                        source: 'BANK_SMS',
+                        receivedAt: new Date(),
+                        isClaimed: false
+                    }
+                },
+                { upsert: true }
+            );
+        } catch (err) {
+            if (err.code !== 11000) logger.error(`[Webhook] BankCredit upsert error: ${err.message}`);
         }
     }
 
@@ -900,7 +910,11 @@ exports.checkPaymentStatus = catchAsync(async (req, res) => {
     }
     if (!payment) {
         payment = await Payment.findOne({
-            $or: [{ razorpayOrderId: orderRef }, { gatewayOrderId: orderRef }, { orderId: orderRef }]
+            $or: [
+                { razorpayOrderId: orderRef },
+                { gatewayOrderId: orderRef },
+                ...(mongoose.isValidObjectId(orderRef) ? [{ orderId: orderRef }] : [])
+            ]
         }).lean();
     }
 
@@ -971,18 +985,23 @@ exports.cancelPayment = catchAsync(async (req, res) => {
         return errorResponse(res, 'Payment record not found', StatusCodes.NOT_FOUND);
     }
 
-    // If already completed, cannot cancel
-    if (payment.status === 'COMPLETED') {
-        return errorResponse(res, 'Payment has already been completed and verified.', StatusCodes.CONFLICT);
+    // Only an untouched intent can be cancelled. Once a UTR was submitted
+    // (PENDING_VERIFICATION) or the payment completed, the money may be real.
+    const cancelled = await Payment.findOneAndUpdate(
+        { _id: payment._id, status: 'CREATED' },
+        {
+            $set: {
+                status: 'CANCELLED',
+                'metadata.cancelledAt': new Date(),
+                'metadata.cancelledReason': reason || 'Cancelled by user in UPI app'
+            }
+        },
+        { returnDocument: 'after' }
+    );
+    if (!cancelled) {
+        return errorResponse(res, `Payment is already ${payment.status} and cannot be cancelled.`, StatusCodes.CONFLICT);
     }
-
-    payment.status = 'CANCELLED';
-    payment.metadata = {
-        ...(payment.metadata || {}),
-        cancelledAt: new Date(),
-        cancelledReason: reason || 'Cancelled by user in UPI app'
-    };
-    await payment.save();
+    const purpose = payment.metadata?.notes?.purpose || 'wallet_topup';
 
     let currentBalance = 0;
     if (req.user?.role === 'SHOP' || req.user?.role === 'SHOP_OWNER') {
@@ -993,15 +1012,18 @@ exports.cancelPayment = catchAsync(async (req, res) => {
         currentBalance = customer?.wallet?.balance || 0;
     }
 
+    // History row typed by what was being paid for (a shop order is not a top-up).
+    const txnType = purpose === 'shop_order' ? 'ORDER_PAYMENT' : (purpose === 'wallet_topup' ? 'TOPUP' : 'SUBSCRIPTION');
+    const label = purpose === 'shop_order' ? 'Order Payment' : (purpose === 'wallet_topup' ? 'Wallet Top-up' : 'Subscription Payment');
     await WalletTxn.create({
         userId: req.user._id,
-        type: 'TOPUP',
+        type: txnType,
         amount: payment.amount,
         balance: currentBalance,
         status: 'FAILED',
-        razorpayOrderId: orderRef,
+        refId: orderRef,
         verifiedAt: new Date(),
-        description: `Wallet Top-up Cancelled (${reason || 'Not Paid'})`
+        description: `${label} Cancelled (${reason || 'Not Paid'})`
     });
 
     return successResponse(res, {

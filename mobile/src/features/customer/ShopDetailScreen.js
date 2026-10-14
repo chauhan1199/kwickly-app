@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   FlatList, 
   TouchableOpacity,
   StatusBar,
@@ -212,14 +211,14 @@ const ShopDetailScreen = ({ route, navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={isDarkMode ? '#A78BFA' : '#6C47FF'} />
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={isDarkMode ? '#4C1D95' : '#6C47FF'} />
       
       {/* CUSTOM HEADER */}
@@ -344,7 +343,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -12,7 +12,8 @@ import {
   Image, 
   ActivityIndicator,
   Dimensions,
-  RefreshControl
+  RefreshControl,
+  KeyboardAvoidingView
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -525,7 +526,7 @@ const ShopProductsScreen = ({ navigation }) => {
 
         {/* Add/Edit Product Modal */}
         <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={() => setIsModalVisible(false)}>
-          <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               
               <View style={styles.modalHeader}>
@@ -537,7 +538,7 @@ const ShopProductsScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}>
                 
                 {/* Image Picker Box */}
                 <TouchableOpacity style={styles.imagePickerCard} onPress={pickImage} activeOpacity={0.85}>
@@ -700,7 +701,7 @@ const ShopProductsScreen = ({ navigation }) => {
 
               </ScrollView>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
       </View>

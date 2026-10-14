@@ -3,7 +3,7 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
+  ScrollView,
   TouchableOpacity, 
   StatusBar,
   TextInput,
@@ -65,7 +65,7 @@ const WorkerArrivalOTPScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
       <View style={styles.appBar}>
@@ -79,9 +79,14 @@ const WorkerArrivalOTPScreen = ({ route, navigation }) => {
       </View>
 
       <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.content}
+        behavior="padding"
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.centerBox}>
           <Text style={styles.iconLarge}>🔐</Text>
           
@@ -116,8 +121,9 @@ const WorkerArrivalOTPScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -134,13 +140,13 @@ const createStyles = (theme, isDarkMode, safeTop = 16) => StyleSheet.create({
   appBarTitle: { fontSize: 20, fontWeight: '800', color: theme.colors.text },
   appBarSub: { fontSize: 13, color: theme.colors.textDim },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 20,
     justifyContent: 'center',
   },
   centerBox: {
     alignItems: 'center',
-    paddingBottom: 80, // Offset for tab bar
+    paddingVertical: 24,
   },
   iconLarge: {
     fontSize: 70,
@@ -162,11 +168,13 @@ const createStyles = (theme, isDarkMode, safeTop = 16) => StyleSheet.create({
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 16,
+    width: '100%',
+    gap: 12,
     marginBottom: 40,
   },
   otpInput: {
-    width: 60,
+    flex: 1,
+    maxWidth: 60,
     height: 60,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,

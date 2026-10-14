@@ -195,6 +195,7 @@ exports.topupWallet = catchAsync(async (req, res) => {
             }
 
             const utrNumber = rawUtr;
+            const reuseTxnId = req.body.pendingTxnId && mongoose.isValidObjectId(req.body.pendingTxnId) ? req.body.pendingTxnId : null;
 
             // Check if bank webhook already verified and credited this transaction
             const alreadyCompleted = await WalletTxn.findOne({
@@ -263,6 +264,8 @@ exports.topupWallet = catchAsync(async (req, res) => {
                     return errorResponse(res, `This UPI Reference (UTR: ${utrNumber}) has already been used and claimed.`, StatusCodes.BAD_REQUEST);
                 }
                 bankCreditMatched = true;
+                // A plain top-up credits what the bank received (within ₹0.50 of the claim)
+                if (!plan) amount = Number(existingBankCredit.amount);
             } else {
                 const { isAdjacentOrTamperedUtr } = require('../../helpers/upi.helper');
                 const recentCredits = await BankCredit.find({}).sort({ _id: -1 }).limit(50).select('utr').lean();
@@ -365,6 +368,14 @@ exports.topupWallet = catchAsync(async (req, res) => {
                         : `Wallet Top-up via Direct UPI (Verified)`
                 });
 
+                // Close the intent-mode placeholder so it can't be approved again later
+                if (reuseTxnId) {
+                    await WalletTxn.updateOne(
+                        { _id: reuseTxnId, userId: req.user._id, status: 'PENDING', razorpayPaymentId: { $exists: false } },
+                        { $set: { status: 'FAILED', description: `Payment intent closed — verified as UTR ${utrNumber}` } }
+                    );
+                }
+
                 emitToAll('DASHBOARD_UPDATE', {
                     type: plan ? 'SUBSCRIPTION_PURCHASED' : 'WALLET_TOPUP_COMPLETED',
                     userId: req.user._id,
@@ -385,10 +396,19 @@ exports.topupWallet = catchAsync(async (req, res) => {
             }
 
             // Check for existing pending transaction or create one awaiting webhook verification
+            // Reuse only a record that has no UTR yet (never overwrite an earlier
+            // submission): the intent-mode record the client names (txnId), or a
+            // recent same-amount one from this user.
             let txn = await WalletTxn.findOne({
                 userId: req.user._id,
                 status: 'PENDING',
-                $or: [{ razorpayPaymentId: utrNumber }, { amount, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }]
+                type: 'TOPUP',
+                $or: [
+                    { razorpayPaymentId: utrNumber },
+                    reuseTxnId
+                        ? { _id: reuseTxnId, razorpayPaymentId: { $exists: false } }
+                        : { amount, razorpayPaymentId: { $exists: false }, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }
+                ]
             });
 
             if (txn) {
@@ -675,6 +695,7 @@ exports.adminAdjust = catchAsync(async (req, res) => {
     const txn = await WalletTxn.create({
         userId,
         type: 'ADJUSTMENT',
+        direction: debit ? 'DEBIT' : 'CREDIT',
         amount: Math.abs(amount),
         balance: newBalance,
         status: 'COMPLETED',
@@ -730,134 +751,88 @@ exports.getPendingTopups = catchAsync(async (req, res) => {
 });
 
 // ─── POST /api/v1/wallet/pending-topups/:id/approve (Admin) ───
-// Legacy endpoint — kept for manually resolving any PENDING records that
-// pre-date the webhook migration (e.g., UTR-era submissions).
+// Resolves a PENDING top-up / UPI plan purchase after the admin confirmed the
+// money in the bank. The PENDING→COMPLETED flip is the atomic claim, so a
+// double click or a racing bank webhook can never credit twice.
 exports.approvePendingTopup = catchAsync(async (req, res) => {
     const { id } = req.params;
-    const txn = await WalletTxn.findById(id);
-    if (!txn) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
-    if (txn.status !== 'PENDING') return errorResponse(res, `Transaction is already ${txn.status}`, StatusCodes.BAD_REQUEST);
+    if (!mongoose.isValidObjectId(id)) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
 
-    const user = await Customer.findByIdAndUpdate(
-        txn.userId,
-        { $inc: { 'wallet.balance': txn.amount } },
+    const txn = await WalletTxn.findOneAndUpdate(
+        { _id: id, type: 'TOPUP', status: 'PENDING' },
+        { $set: { status: 'COMPLETED', verifiedAt: new Date(), description: 'Verified by admin (manual approval)' } },
         { returnDocument: 'after' }
     );
-    if (!user) return errorResponse(res, 'User not found', StatusCodes.NOT_FOUND);
-
-    // If this pending top-up was a subscription plan purchase, apply the plan.
-    if (txn.planId && user.role === 'WORKER') {
-        const AppSettings = require('../settings/settings.model');
-        const settings = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
-        const plan = (settings?.subscriptionPlans || []).find(p => p.id === txn.planId);
-        const days = plan?.durationDays || 30;
-
-        let baseDate = new Date();
-        if (user.subscription?.expiryDate && new Date(user.subscription.expiryDate) > baseDate) {
-            baseDate = new Date(user.subscription.expiryDate);
-        }
-        const newExpiry = new Date(baseDate.getTime() + days * 86400000);
-
-        const updatedUser = await Customer.findByIdAndUpdate(
-            txn.userId,
-            {
-                'subscription.planId': txn.planId,
-                'subscription.expiryDate': newExpiry,
-                'subscription.isTrial': false,
-                'subscription.isActive': true
-            },
-            { returnDocument: 'after' }
-        );
-
-        txn.status = 'COMPLETED';
-        txn.balance = updatedUser?.wallet?.balance || user.wallet?.balance || 0;
-        txn.description = `Subscription Plan "${txn.planId}" Verified & Activated (manual admin approval)`;
-        await txn.save();
-
-        const adminW = await AdminWallet.findOneAndUpdate(
-            {},
-            { $inc: { balance: txn.amount, totalCollected: txn.amount } },
-            { returnDocument: 'after', upsert: true }
-        );
-        if (adminW) {
-            await AdminWalletTxn.create([{
-                type: 'TOPUP', amount: txn.amount, balance: adminW.balance,
-                refId: String(txn._id),
-                description: `Worker ${updatedUser?.name || 'User'} subscription "${txn.planId}" manually approved`
-            }]);
-        }
-
-        await delCache(`session:${user._id}`);
-        await delCache('admin_dashboard_stats');
-
-        await notifyUser({
-            userId: user._id,
-            title: 'Subscription Activated! 🎉',
-            message: `Your ${plan?.label || txn.planId} plan payment of ₹${txn.amount} was verified and your subscription is now active until ${newExpiry.toDateString()}.`,
-            type: 'WALLET_CREDIT',
-            referenceId: txn._id, referenceModel: 'WalletTxn'
-        });
-
-        emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_APPROVED', txnId: txn._id, userId: user._id });
-        return successResponse(res, { txn, newExpiry }, `Plan "${txn.planId}" verified and activated for ${updatedUser?.name || 'user'}!`);
+    if (!txn) {
+        const existing = await WalletTxn.findById(id).select('status').lean();
+        if (!existing) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
+        return errorResponse(res, `Transaction is already ${existing.status}`, StatusCodes.BAD_REQUEST);
     }
 
-    txn.status = 'COMPLETED';
-    txn.balance = user.wallet?.balance || 0;
-    txn.description = `Wallet Top-up Verified & Credited (manual admin approval)`;
-    await txn.save();
-
-    const adminW = await AdminWallet.findOneAndUpdate(
-        {},
-        { $inc: { balance: txn.amount, totalCollected: txn.amount } },
-        { returnDocument: 'after', upsert: true }
-    );
-    if (adminW) {
-        await AdminWalletTxn.create([{
-            type: 'TOPUP', amount: txn.amount, balance: adminW.balance,
-            refId: String(txn._id),
-            description: `Customer ${user.name || 'User'} wallet top-up manually approved`
-        }]);
+    // The approved UTR is spent: a later bank SMS for it must not fund anything else.
+    if (txn.razorpayPaymentId) {
+        const BankCredit = require('../payment/bankCredit.model');
+        await BankCredit.updateOne(
+            { utr: txn.razorpayPaymentId, isClaimed: false },
+            { $set: { isClaimed: true, claimedBy: txn.userId, claimedAt: new Date() } }
+        );
     }
 
-    await delCache(`session:${user._id}`);
-    await delCache('admin_dashboard_stats');
-
-    await notifyUser({
-        userId: user._id,
-        title: 'Wallet Top-up Approved! 🎉',
-        message: `₹${txn.amount} has been verified and added to your Kwickly Wallet.`,
-        type: 'WALLET_CREDIT',
-        referenceId: txn._id, referenceModel: 'WalletTxn'
+    const { applyConfirmedTopup } = require('../../helpers/webhookHandlers.helper');
+    const { newBalance } = await applyConfirmedTopup({
+        txn,
+        amount: Number(txn.amount),
+        eventId: `admin_${txn._id}`,
+        source: 'admin'
     });
 
-    emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_APPROVED', txnId: txn._id, userId: user._id });
-    return successResponse(res, { txn, newBalance: user.wallet?.balance || 0 }, `Top-up of ₹${txn.amount} approved and credited to ${user.name || 'user'}!`);
+    if (!txn.planId) {
+        await WalletTxn.findByIdAndUpdate(txn._id, { $set: { description: 'Wallet Top-up Verified & Credited (manual admin approval)' } });
+    }
+
+    const fresh = await WalletTxn.findById(txn._id).lean();
+    return successResponse(
+        res,
+        { txn: fresh, newBalance },
+        txn.planId
+            ? `Plan "${txn.planId}" verified and activated!`
+            : `Top-up of ₹${txn.amount} approved and credited!`
+    );
 });
 
 // ─── POST /api/v1/wallet/pending-topups/:id/reject (Admin) ───
-// Legacy endpoint for rejecting UTR-era pending topups.
 exports.rejectPendingTopup = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { reason = 'Payment not found in admin bank account' } = req.body;
-    const txn = await WalletTxn.findById(id);
-    if (!txn) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
-    if (txn.status !== 'PENDING') return errorResponse(res, `Transaction is already ${txn.status}`, StatusCodes.BAD_REQUEST);
+    if (!mongoose.isValidObjectId(id)) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
 
-    txn.status = 'FAILED';
-    txn.description = `Wallet Top-up Rejected (${reason})`;
-    await txn.save();
+    const txn = await WalletTxn.findOneAndUpdate(
+        { _id: id, type: 'TOPUP', status: 'PENDING' },
+        { $set: { status: 'FAILED', description: `Wallet Top-up Rejected (${reason})` } },
+        { returnDocument: 'after' }
+    );
+    if (!txn) {
+        const existing = await WalletTxn.findById(id).select('status').lean();
+        if (!existing) return errorResponse(res, 'Transaction not found', StatusCodes.NOT_FOUND);
+        return errorResponse(res, `Transaction is already ${existing.status}`, StatusCodes.BAD_REQUEST);
+    }
+    if (txn.planId) {
+        txn.description = `Subscription Plan "${txn.planId}" Payment Rejected (${reason})`;
+        await WalletTxn.updateOne({ _id: txn._id }, { $set: { description: txn.description } });
+    }
 
     await delCache(`session:${txn.userId}`);
 
     await notifyUser({
         userId: txn.userId,
-        title: 'Top-up Verification Failed ❌',
-        message: `Your top-up request for ₹${txn.amount} was rejected: ${reason}`,
+        title: txn.planId ? 'Subscription Payment Rejected ❌' : 'Top-up Verification Failed ❌',
+        message: `Your ${txn.planId ? 'plan payment' : 'top-up request'} of ₹${txn.amount} was rejected: ${reason}`,
         type: 'WALLET_REJECTED',
         referenceId: txn._id, referenceModel: 'WalletTxn'
     });
 
+    // Existing per-user event the mobile wallet screens already listen for
+    emitToUser(txn.userId, 'WALLET_UPDATE', { type: 'TOPUP_REJECTED', txnId: txn._id, amount: txn.amount, reason });
     emitToAll('DASHBOARD_UPDATE', { type: 'WALLET_TOPUP_REJECTED', txnId: txn._id, userId: txn.userId });
     return successResponse(res, { txn }, `Top-up request for ₹${txn.amount} rejected.`);
 });

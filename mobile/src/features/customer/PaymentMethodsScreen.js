@@ -526,7 +526,7 @@ export const PaymentMethodsScreen = ({ navigation }) => {
           />
 
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior="padding"
             style={styles.modalContent}
           >
             <ScrollView

@@ -9,7 +9,6 @@ const WalletTxn = require('../wallet/wallet.model');
 const { Promotion, UserPromoUsage } = require('../promotion/promotion.model');
 const Settlement = require('../settlement/settlement.model');
 const AppSettings = require('../settings/settings.model');
-const { AdminWallet, AdminWalletTxn } = require('../adminWallet/adminWallet.model');
 const catchAsync = require('../../helpers/async.helper');
 const logger = require('../../helpers/logger.helper');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
@@ -20,6 +19,40 @@ const { notifyUser } = require('../../helpers/notifyUser.helper');
 const { supportsTransactions } = require('../../helpers/transaction.helper');
 const { OTP_MIN, OTP_MAX, DELIVERY_OTP_TTL } = require('../../constants/business');
 const { registerPaymentIntent } = require('../../services/upiProvider.service');
+
+// Cash and COD are the same thing: the customer pays the shop's rider in cash.
+const isCashMethod = (method) => method === 'CASH' || method === 'COD';
+
+// Gives back the promo use a cancelled order consumed (shop auto-offers use none).
+const restorePromoUsage = async (order) => {
+    if (!order?.promoCode || order.promoCode === 'SHOP_OFFER') return;
+    try {
+        const promo = await Promotion.findOneAndUpdate(
+            { code: order.promoCode, usesCount: { $gt: 0 } },
+            { $inc: { usesCount: -1 } },
+            { returnDocument: 'after' }
+        );
+        const promoId = promo?._id || (await Promotion.findOne({ code: order.promoCode }).select('_id').lean())?._id;
+        if (promoId) await UserPromoUsage.findOneAndDelete({ promoId, userId: order.customerId?._id || order.customerId });
+    } catch (err) {
+        logger.error(`[restorePromoUsage] Failed for order ${order._id}: ${err.message}`);
+    }
+};
+
+// A verified direct-UPI shop order payment (bank-SMS match at checkout, admin
+// approval, or the UPI webhook) books nothing into the AdminWallet by itself: the
+// treasury takes the platform fee as revenue + GST as liability once, at delivery
+// settlement, exactly as for wallet and cash orders. This keeps every path booking
+// the same amounts and stops the order total being counted on top of the fee.
+const recordUpiOrderPayment = (order, how) => {
+    logger.info(`[ShopOrder] UPI payment for #${order.orderNumber || order._id} ${how} (UTR: ${order.payment?.utrNumber || 'UPI'})`);
+};
+
+// Shop owner's user id, for notifications (notifications are keyed by user, not shop).
+const notifyShopOwner = async (shopId, params) => {
+    const owner = await Shop.findById(shopId).select('ownerId').lean();
+    if (owner?.ownerId) notifyUser({ userId: owner.ownerId, entityType: 'ORDER', targetRole: 'SHOP', ...params });
+};
 
 function escapeHtml(str) {
     if (!str) return '';
@@ -51,10 +84,35 @@ exports.placeOrder = catchAsync(async (req, res) => {
         return errorResponse(res, 'Order must contain at least one item', StatusCodes.BAD_REQUEST);
     }
 
+    // One bank transaction (UTR) can pay for exactly one thing on the platform.
+    if (paymentMethod === 'UPI' && utrNumber) {
+        const { findUtrUsage } = require('../../helpers/upi.helper');
+        const utr = String(utrNumber).trim();
+        const [usage, usedByOrder] = await Promise.all([
+            findUtrUsage(utr),
+            ShopOrder.exists({ 'payment.utrNumber': utr, 'payment.status': { $ne: 'FAILED' } })
+        ]);
+        if (usage || usedByOrder) {
+            return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
+        }
+    }
+
     const shop = await Shop.findById(shopId).lean();
     if (!shop || !shop.isOnline) return errorResponse(res, 'Shop is not available', StatusCodes.BAD_REQUEST);
     if (shop.kyc?.status !== 'APPROVED') {
         return errorResponse(res, 'Shop is not approved to receive orders.', StatusCodes.FORBIDDEN);
+    }
+
+    // The shop's own riders deliver, so the address must be inside its delivery radius.
+    const shopCoords = shop.location?.coordinates;
+    const dropCoords = deliveryLocation?.coordinates;
+    if (Array.isArray(shopCoords) && shopCoords.length === 2 && (shopCoords[0] || shopCoords[1]) && Array.isArray(dropCoords)) {
+        const { haversineDistance } = require('../../helpers/geo.helper');
+        const radiusKm = Number(shop.deliveryConfig?.deliveryRadiusKm ?? shop.delivery?.radiusKm ?? 3);
+        const distKm = haversineDistance(shopCoords, dropCoords.map(Number));
+        if (radiusKm > 0 && distKm > radiusKm) {
+            return errorResponse(res, `This address is outside the shop's delivery area (${radiusKm} km). It is ${distKm.toFixed(1)} km away.`, StatusCodes.BAD_REQUEST);
+        }
     }
 
     // P0 FIX: Validate stock and atomically reserve it BEFORE creating the order
@@ -342,13 +400,30 @@ exports.placeOrder = catchAsync(async (req, res) => {
         if (useTransaction) await session.commitTransaction();
         if (session) session.endSession();
 
+        // A UPI order matched to a bank-SMS credit is booked exactly like an
+        // admin-approved or webhook-confirmed one.
+        if (paymentMethod === 'UPI' && paymentStatus === 'PAID') {
+            recordUpiOrderPayment(order, 'matched to bank credit at checkout');
+        }
+
         // ONLY notify shop owner if payment is successful/confirmed (WALLET, verified UPI, or COD)
-        const isOrderConfirmed = paymentStatus === 'PAID' || paymentStatus === 'PENDING_VERIFICATION' || paymentMethod === 'CASH' || paymentMethod === 'COD';
+        const isOrderConfirmed = paymentStatus === 'PAID' || paymentStatus === 'PENDING_VERIFICATION' || isCashMethod(paymentMethod);
 
         if (isOrderConfirmed) {
             // Notify shop owner
             emitToRoom(`shop_${shopId}`, 'NEW_ORDER', { orderId: order._id, total });
             emitToAll('DASHBOARD_UPDATE', { type: 'NEW_SHOP_ORDER', id: order._id });
+            notifyUser({
+                userId: shop.ownerId,
+                title: '🛒 New Order',
+                message: paymentStatus === 'PENDING_VERIFICATION'
+                    ? `New order #${orderNumber} for ₹${total}. UPI payment is awaiting confirmation; don't accept it yet.`
+                    : `New order #${orderNumber} for ₹${total} (${isCashMethod(paymentMethod) ? 'cash on delivery' : 'paid'}).`,
+                action: 'ORDER_PLACED',
+                entityType: 'ORDER',
+                entityId: order._id,
+                targetRole: 'SHOP'
+            });
 
             // Notify customer: order placed
             notifyUser({
@@ -381,7 +456,7 @@ exports.placeOrder = catchAsync(async (req, res) => {
  * GET /api/v1/shoporders/customer
  */
 exports.getCustomerOrders = catchAsync(async (req, res) => {
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 100 } = req.query;
     const baseQuery = {
         customerId: req.user._id,
         $nor: [{ 'payment.method': 'UPI', 'payment.status': 'PENDING' }]
@@ -404,7 +479,7 @@ exports.getShopOrders = catchAsync(async (req, res) => {
     const shop = await Shop.findOne({ ownerId: req.user._id }).select('_id').lean();
     if (!shop) return errorResponse(res, 'Shop not found', StatusCodes.NOT_FOUND);
 
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, page = 1, limit = 100 } = req.query;
     const query = {
         shopId: shop._id,
         $nor: [{ 'payment.method': 'UPI', 'payment.status': 'PENDING' }]
@@ -560,7 +635,10 @@ exports.downloadInvoice = catchAsync(async (req, res) => {
 
             <div class="totals">
                 <div class="total-row"><span>Subtotal</span><span>₹${order.subtotal.toFixed(2)}</span></div>
-                <div class="total-row"><span>Delivery Fee</span><span>₹${order.deliveryFee.toFixed(2)}</span></div>
+                ${(order.discount || 0) > 0 ? `<div class="total-row"><span>Discount${order.promoCode ? ` (${escapeHtml(order.promoCode)})` : ''}</span><span>-₹${Number(order.discount).toFixed(2)}</span></div>` : ''}
+                <div class="total-row"><span>Delivery Fee</span><span>₹${Number(order.deliveryFee || 0).toFixed(2)}</span></div>
+                <div class="total-row"><span>Platform Fee</span><span>₹${Number(order.platformFee || 0).toFixed(2)}</span></div>
+                <div class="total-row"><span>GST (18% on platform fee)</span><span>₹${Number(order.gstAmount || 0).toFixed(2)}</span></div>
                 <div class="total-row grand"><span>Grand Total</span><span>₹${order.total.toFixed(2)}</span></div>
             </div>
         </div>
@@ -635,9 +713,9 @@ exports.cancelOrder = catchAsync(async (req, res) => {
             targetRole: 'CUSTOMER'
         });
     } else {
-        order.payment.status = 'CANCELLED';
-        await order.save();
-
+        // Nothing was collected, so the payment status stays as is (a late UPI
+        // credit on a PENDING/PENDING_VERIFICATION order is then refunded by the
+        // webhook or admin verification).
         notifyUser({
             userId: order.customerId,
             title: '❌ Order Cancelled',
@@ -649,23 +727,18 @@ exports.cancelOrder = catchAsync(async (req, res) => {
         });
     }
 
+    await restorePromoUsage(order);
+
     // Notify shop owner
     emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', { orderId: order._id, status: 'CANCELLED' });
     emitToAll('DASHBOARD_UPDATE', { type: 'ORDER_STATUS_CHANGED', id: order._id });
 
-    const Shop = require('../shop/shop.model');
-    const shop = await Shop.findById(order.shopId).lean();
-    if (shop) {
-        notifyUser({
-            userId: shop.ownerId,
-            title: '❌ Order Cancelled',
-            message: `Order #${order.orderNumber || String(order._id).slice(-6).toUpperCase()} was cancelled by the customer.`,
-            action: 'ORDER_CANCELLED',
-            entityType: 'ORDER',
-            entityId: order._id,
-            targetRole: 'WORKER'
-        });
-    }
+    await notifyShopOwner(order.shopId, {
+        title: '❌ Order Cancelled',
+        message: `Order #${order.orderNumber || String(order._id).slice(-6).toUpperCase()} was cancelled by the customer.`,
+        action: 'ORDER_CANCELLED',
+        entityId: order._id
+    });
 
     return successResponse(res, order, 'Order cancelled successfully and refund processed if applicable');
 });
@@ -707,9 +780,21 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
     if (!allowedNext.includes(status)) {
         return errorResponse(res, `Cannot transition from "${order.status}" to "${status}". Allowed: ${allowedNext.join(', ') || 'none'}`, StatusCodes.BAD_REQUEST);
     }
+    // A delivered order has been settled; only an admin may cancel (reverse) it.
+    if (order.status === 'DELIVERED' && status === 'CANCELLED' && req.user.role !== 'ADMIN') {
+        return errorResponse(res, 'A delivered order can only be cancelled by Kwickly support', StatusCodes.FORBIDDEN);
+    }
 
-    if (status === 'CONFIRMED' && order.payment?.method === 'UPI' && order.payment?.status === 'PENDING') {
-        return errorResponse(res, 'Cannot confirm order before payment is received', StatusCodes.BAD_REQUEST);
+    // A direct-UPI order is paid only once a bank-SMS match or an admin approval
+    // marks it PAID; until then the shop must not accept or progress it.
+    if (status !== 'CANCELLED' && order.payment?.method === 'UPI' && order.payment?.status !== 'PAID') {
+        return errorResponse(res, 'Waiting for payment confirmation', StatusCodes.BAD_REQUEST);
+    }
+
+    // Cash orders charge the platform fee + GST to the shop wallet at delivery;
+    // a shop already at the -₹500 credit limit must top up before taking more.
+    if (status === 'CONFIRMED' && isCashMethod(order.payment?.method) && (shop?.wallet?.balance || 0) <= -500) {
+        return errorResponse(res, 'Your wallet has reached the -₹500 credit limit. Please top up to accept cash orders.', StatusCodes.PAYMENT_REQUIRED);
     }
 
     order.statusHistory.push({ status, timestamp: new Date(), note: note || `Status changed to ${status}` });
@@ -754,11 +839,18 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
 
         // Settle Shop Order via Centralized Idempotent Settlement Engine (100% to shop, 0% commission)
         const { settleShopOrderDelivery } = require('../../helpers/settlementEngine.helper');
-        await settleShopOrderDelivery({ order });
+        try {
+            await settleShopOrderDelivery({ order });
+        } catch (settleErr) {
+            await revertClaim();
+            throw settleErr;
+        }
 
         order.status = 'DELIVERED';
         if (!order.payment) order.payment = {};
-        if (order.payment?.method !== 'CASH') {
+        // Cash is collected at the door, so it is paid now. Wallet orders are already
+        // PAID, and UPI orders can't reach delivery unless verified as PAID.
+        if (isCashMethod(order.payment?.method)) {
             order.payment.status = 'PAID';
         }
         order.payment.escrowStatus = 'SETTLED';
@@ -774,6 +866,12 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
         if (deliveryStaffId) {
             const staff = await DeliveryStaff.findOne({ _id: deliveryStaffId, shopId: order.shopId });
             if (!staff) return errorResponse(res, 'Delivery staff not found for this shop', StatusCodes.NOT_FOUND);
+            if (staff.activeOrderId && String(staff.activeOrderId) !== String(order._id)) {
+                const busyOn = await ShopOrder.findOne({ _id: staff.activeOrderId, status: 'OUT_FOR_DELIVERY' }).select('orderNumber').lean();
+                if (busyOn) {
+                    return errorResponse(res, `${staff.name} is already delivering order #${busyOn.orderNumber || String(busyOn._id).slice(-6)}. Choose another rider.`, StatusCodes.CONFLICT);
+                }
+            }
             order.deliveryStaffId = staff._id;
             order.deliveryStaffName = staff.name;
             order.deliveryStaffPhone = staff.phone || undefined;
@@ -809,7 +907,7 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
                     await settlement.save(sessOpts);
                 }
 
-                if (order.payment) order.payment.escrowStatus = 'REFUNDED';
+                if (order.payment) { order.payment.escrowStatus = 'REFUNDED'; order.payment.status = 'REFUNDED'; }
                 order.status = status;
                 await order.save(sessOpts);
 
@@ -839,6 +937,7 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
                         description: `Refund for cancelled order #${String(order._id).slice(-6)}`
                     }], sessOpts);
                     await delCache(`session:${order.customerId}`);
+                    order.payment.status = 'REFUNDED';
                 }
 
                 order.status = status;
@@ -855,6 +954,11 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
     } else {
         order.status = status;
         await order.save();
+    }
+
+    if (status === 'CANCELLED') {
+        await restorePromoUsage(order);
+        emitToRoom(`shop_${order.shopId}`, 'ORDER_STATUS', { orderId: order._id, status });
     }
 
     if (status === 'CANCELLED' && order.deliveryStaffId) {
@@ -945,9 +1049,10 @@ exports.getAllOrders = catchAsync(async (req, res) => {
     // Platform-wide KPI stats (independent of status/search filters)
     const [statusStats, revenueStats] = await Promise.all([
         ShopOrder.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+        // Only money actually collected: delivered or paid, never cancelled/refunded
         ShopOrder.aggregate([
-            { $match: { status: { $ne: 'CANCELLED' } } },
-            { $group: { _id: null, revenue: { $sum: '$total' } } }
+            { $match: { status: { $ne: 'CANCELLED' }, 'payment.status': { $ne: 'REFUNDED' }, $or: [{ status: 'DELIVERED' }, { 'payment.status': 'PAID' }] } },
+            { $group: { _id: null, revenue: { $sum: '$total' }, platformRevenue: { $sum: { $add: [{ $ifNull: ['$platformFee', 0] }, { $ifNull: ['$gstAmount', 0] }] } } } }
         ])
     ]);
     const byStatus = {};
@@ -958,12 +1063,12 @@ exports.getAllOrders = catchAsync(async (req, res) => {
         total,
         page: Number(page),
         totalPages: Math.ceil(total / limit),
-        stats: { byStatus, total: Object.values(byStatus).reduce((a, b) => a + b, 0), revenue: revenueStats[0]?.revenue || 0 }
+        stats: { byStatus, total: Object.values(byStatus).reduce((a, b) => a + b, 0), revenue: revenueStats[0]?.revenue || 0, platformRevenue: revenueStats[0]?.platformRevenue || 0 }
     }, 'All orders fetched');
 });
 
 /**
- * POST /api/v1/shoporders/:id/verify-payment (Admin / Shop)
+ * POST /api/v1/shoporders/:id/verify-payment (Admin only)
  * Confirms that direct UPI payment (UTR) has arrived in the bank account.
  */
 exports.verifyShopOrderPayment = catchAsync(async (req, res) => {
@@ -972,12 +1077,6 @@ exports.verifyShopOrderPayment = catchAsync(async (req, res) => {
 
     const order = await ShopOrder.findById(id).populate('customerId', 'name phone');
     if (!order) return errorResponse(res, 'Order not found', StatusCodes.NOT_FOUND);
-
-    // A shop may only verify payments for its own orders.
-    if (req.user.role === 'SHOP') {
-        const ownShop = await Shop.findOne({ _id: order.shopId, ownerId: req.user._id }).select('_id').lean();
-        if (!ownShop) return errorResponse(res, 'You can only verify payments for your own orders', StatusCodes.FORBIDDEN);
-    }
 
     // Only a payment still awaiting verification can be approved or rejected, and
     // only once: claim it atomically so a repeat or concurrent call can't credit
@@ -1000,26 +1099,9 @@ exports.verifyShopOrderPayment = catchAsync(async (req, res) => {
         });
         await order.save();
 
-        // Credit Admin Treasury Escrow
+        // Treasury is booked at settlement (fee + GST), same as the checkout bank match and the webhook
         const orderAmount = order.total || 0;
-        if (orderAmount > 0) {
-            const adminW = await AdminWallet.findOneAndUpdate(
-                {},
-                { $inc: { balance: orderAmount, totalCollected: orderAmount } },
-                { returnDocument: 'after', upsert: true }
-            );
-            if (adminW) {
-                await AdminWalletTxn.create([{
-                    type: 'TOPUP',
-                    amount: orderAmount,
-                    balanceAfter: adminW.balance,
-                    description: `Shop Order #${order.orderNumber || order._id} UPI payment verified (UTR: ${order.payment?.utrNumber})`,
-                    referenceId: order._id,
-                    referenceModel: 'ShopOrder',
-                    meta: { userId: order.customerId?._id, orderId: order._id, utr: order.payment?.utrNumber }
-                }]);
-            }
-        }
+        recordUpiOrderPayment(order, 'verified by admin');
 
         // If the order was already CANCELLED (e.g. timed out after 30 mins or cancelled before verification),
         // we automatically refund the verified funds into the customer's Kwickly Wallet!
@@ -1086,6 +1168,7 @@ exports.verifyShopOrderPayment = catchAsync(async (req, res) => {
     } else {
         // Reject fake UTR -> cancel order and restore stock (unless a cancel already restored it)
         const stockAlreadyRestored = order.status === 'CANCELLED';
+        if (!stockAlreadyRestored) await restorePromoUsage(order);
         for (const item of stockAlreadyRestored ? [] : order.items) {
             if (item.productId) {
                 await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty } });

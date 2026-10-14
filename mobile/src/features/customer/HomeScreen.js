@@ -7,7 +7,6 @@ import {
   Text,
   TouchableOpacity,
   StatusBar,
-  Dimensions,
   useWindowDimensions,
   Platform,
   Image,
@@ -34,7 +33,6 @@ import GlassCard from '../../components/ui/GlassCard';
 import { getImageUrl, formatStatus } from '../../utils/helpers';
 
 // ── Purple accent ──
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PURPLE = '#6C47FF';
 const PURPLE_LIGHT = '#EEE8FF';
 const BG = '#fff';
@@ -58,6 +56,9 @@ const DEFAULT_COORDS = [72.574115, 23.1222453];
 const HomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
+  // Card width follows the live window width: 3 per row on phones, 4-5 on >=600dp
+  const cardCols = windowWidth >= 840 ? 5 : windowWidth >= 600 ? 4 : 3;
+  const cardW = Math.floor((Math.min(windowWidth, 800) - 32 - (cardCols - 1) * 12) / cardCols);
   const { theme, isDarkMode } = useTheme();
   const { userToken, user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -657,6 +658,7 @@ const HomeScreen = ({ navigation }) => {
                     index={index} 
                     theme={theme} 
                     isLast={index === arr.length - 1}
+                    style={{ width: cardW }}
                     onPress={(c) => navigation.navigate('SubCategories', c)} 
                   />
                 ))}
@@ -694,7 +696,7 @@ const HomeScreen = ({ navigation }) => {
                     onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id || shop._id, shopData: shop })}
                     activeOpacity={0.88}
                   >
-                    <View style={[styles.serviceCardImgBox, { backgroundColor: theme.colors.card }]}>
+                    <View style={[styles.serviceCardImgBox, { height: cardW * 0.95, backgroundColor: theme.colors.card }]}>
                       {shop.logoUrl ? (
                         <Image 
                           source={{ uri: getImageUrl(shop.logoUrl) }} 
@@ -870,9 +872,6 @@ const TRUST_ITEMS = [
   { icon: '🔒', label: 'Secure\nPayments' },
   { icon: '🎧', label: '24/7 Customer\nSupport' },
 ];
-
-// Calculate width for 3 items: Screen Width - padding (16*2) - gap between 3 items (min 12*2) = Total available space, divide by 3
-const CARD_W = Math.floor((SCREEN_WIDTH - 32 - 24) / 3);
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -1195,7 +1194,6 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   serviceCard: {
-    width: CARD_W,
     marginBottom: 12,
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -1210,7 +1208,6 @@ const styles = StyleSheet.create({
   },
   serviceCardImgBox: {
     width: '100%',
-    height: CARD_W * 0.95,
     backgroundColor: '#fff',
     overflow: 'hidden',
   },

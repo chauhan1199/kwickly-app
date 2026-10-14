@@ -9,6 +9,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
+import useSocket from '../../hooks/useSocket';
 import {
   Check, Package, Truck, Bell,
   ChevronLeft, User, Phone, Plus
@@ -45,6 +46,16 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
   }, [orderId]);
 
   useEffect(() => { fetchOrder(); }, [fetchOrder]);
+
+  // Live updates (payment confirmed, customer cancelled, ...)
+  useSocket({
+    role: 'SHOP',
+    onEvent: (event, data) => {
+      if ((event === 'ORDER_STATUS' || event === 'NEW_ORDER') && (!data?.orderId || String(data.orderId) === String(orderId))) {
+        fetchOrder();
+      }
+    }
+  });
 
   const updateStatus = async (status, otp, note, deliveryStaffId) => {
     try {
@@ -162,6 +173,18 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
 
   const nextAction = getNextAction();
 
+  // Direct-UPI orders can be accepted only after a bank match or admin approval marks them PAID.
+  const payMethod = order?.payment?.method;
+  const payStatus = order?.payment?.status;
+  const isCash = payMethod === 'CASH' || payMethod === 'COD';
+  const upiUnverified = payMethod === 'UPI' && payStatus !== 'PAID';
+  const paymentLabel = payStatus === 'REFUNDED' ? 'Refunded'
+    : payStatus === 'FAILED' ? 'Payment failed'
+    : isCash ? (payStatus === 'PAID' ? 'Cash collected' : 'Cash on delivery')
+    : payStatus === 'PAID' ? 'Paid'
+    : 'Awaiting payment confirmation';
+  const paymentColor = payStatus === 'PAID' ? '#10b981' : isCash ? '#0284C7' : (payStatus === 'FAILED' || payStatus === 'REFUNDED') ? '#EF4444' : '#F59E0B';
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -233,6 +256,24 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
               month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
             })}
           </Text>
+        </View>
+
+        {/* Payment */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Payment</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Method</Text>
+            <Text style={styles.infoValue}>{isCash ? 'Cash on delivery' : payMethod || 'WALLET'}</Text>
+          </View>
+          <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+            <Text style={styles.infoLabel}>Status</Text>
+            <Text style={[styles.infoValue, { color: paymentColor, fontWeight: '800' }]}>{paymentLabel}</Text>
+          </View>
+          {upiUnverified && order.status !== 'CANCELLED' ? (
+            <Text style={[styles.infoLabel, { marginTop: 6 }]}>
+              Waiting for payment confirmation. Kwickly confirms UPI payments from the bank or by admin review; you can accept the order once it shows Paid.
+            </Text>
+          ) : null}
         </View>
 
         {/* Customer Info */}
@@ -375,6 +416,11 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
               <Text style={styles.cancelOrderBtnText}>Reject / Cancel</Text>
             </TouchableOpacity>
           )}
+          {upiUnverified ? (
+            <View style={[styles.actionBtn, { backgroundColor: '#94A3B8', flex: nextAction.allowCancel ? 2 : 1 }]}>
+              <Text style={styles.actionBtnText}>Awaiting payment confirmation</Text>
+            </View>
+          ) : (
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: nextAction.color, flex: nextAction.allowCancel ? 2 : 1 }, updating && { opacity: 0.6 }]}
             disabled={updating}
@@ -389,6 +435,7 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
               </>
             )}
           </TouchableOpacity>
+          )}
         </View>
       )}
 

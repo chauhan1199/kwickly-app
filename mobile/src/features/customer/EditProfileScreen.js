@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   TouchableOpacity, 
   TextInput,
   StatusBar,
@@ -19,12 +18,14 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { customerService } from '../../services/customerService';
 import LinearGradient from 'react-native-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Camera, User, Phone, Mail, Lock, CheckCircle2, ShieldCheck } from 'lucide-react-native';
 import { getImageUrl } from '../../utils/helpers';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 
 const EditProfileScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user, fetchUser } = useAuth();
 
   const [name, setName] = useState(user?.name || '');
@@ -137,12 +138,12 @@ const EditProfileScreen = ({ navigation }) => {
         colors={['#5535d4', '#6C47FF', '#8B6FFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.gradientHeader}
+        style={[styles.gradientHeader, { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 12 }]}
       >
         <View style={styles.ambientShape1} />
         <View style={styles.ambientShape2} />
 
-        <SafeAreaView style={styles.safeHeaderArea}>
+        <View style={styles.safeHeaderArea}>
           <View style={styles.appBar}>
             <TouchableOpacity 
               style={styles.backBtn} 
@@ -156,14 +157,13 @@ const EditProfileScreen = ({ navigation }) => {
 
             <View style={{ width: 38 }} />
           </View>
-        </SafeAreaView>
+        </View>
       </LinearGradient>
 
       {/* Keyboard Avoiding Container */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior="padding"
       >
         <ScrollView
           showsVerticalScrollIndicator={false}

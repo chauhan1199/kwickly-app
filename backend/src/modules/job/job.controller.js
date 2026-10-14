@@ -253,8 +253,8 @@ exports.getJobs = catchAsync(async (req, res) => {
         const searchOr = [
             { category: regex },
             { description: regex },
-            { 'address.city': regex },
-            { 'address.area': regex },
+            { 'addressDetails.city': regex },
+            { 'addressDetails.fullAddress': regex },
             { customerId: { $in: userIds } },
             { workerId: { $in: userIds } }
         ];
@@ -468,6 +468,7 @@ exports.arriveJob = catchAsync(async (req, res) => {
 
     job.status = 'ARRIVING';
     await job.save();
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_STATUS_CHANGED', jobId: job._id, status: job.status });
 
     emitToRoom(`customer_${job.customerId}`, 'JOB_STATUS_CHANGED', {
         jobId: job._id, status: 'ARRIVING', message: 'Your worker is on the way!'
@@ -530,6 +531,7 @@ exports.startJob = catchAsync(async (req, res) => {
     job.startedAt = new Date();
     job.security = { ...job.security, arrivalOtp: undefined };
     await job.save();
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_STATUS_CHANGED', jobId: job._id, status: job.status });
 
     emitToRoom(`customer_${job.customerId}`, 'JOB_STARTED', { jobId: job._id });
     emitToRoom(`worker_${job.workerId}`, 'START_TIMER', { jobId: job._id });
@@ -564,6 +566,7 @@ exports.completeJob = catchAsync(async (req, res) => {
     job.status = 'COMPLETED';
     job.completionDetails = { media: media || [], report: report || '', completedAt: new Date() };
     await job.save();
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_STATUS_CHANGED', jobId: job._id, status: job.status });
 
     await delCache(`job:${job._id}:assigned_worker`);
 
@@ -791,6 +794,7 @@ exports.payJob = catchAsync(async (req, res) => {
 
         await delCache(`session:${job.workerId}`);
         emitToRoom(`worker_${job.workerId}`, 'JOB_PAID', { jobId: job._id });
+        emitToAll('DASHBOARD_UPDATE', { type: 'JOB_STATUS_CHANGED', jobId: job._id, status: job.status });
 
         notifyUser({
             userId: job.workerId,
@@ -838,6 +842,7 @@ exports.rateJob = catchAsync(async (req, res) => {
         job.status = 'CLOSED';
     }
     await job.save();
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_STATUS_CHANGED', jobId: job._id, status: job.status });
 
     if (job.workerId) {
         const worker = await Customer.findById(job.workerId);
@@ -889,6 +894,7 @@ exports.rateCustomer = catchAsync(async (req, res) => {
 
     job.customerRating = { score, review, createdAt: new Date() };
     await job.save();
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_STATUS_CHANGED', jobId: job._id, status: job.status });
 
     const customer = await Customer.findById(job.customerId);
     if (customer) {
@@ -1081,6 +1087,7 @@ exports.reportPartialPayment = catchAsync(async (req, res) => {
         status: 'OPEN'
     };
     await job.save();
+    await delCache('admin_badge_counts');
 
     // Notify admin and customer
     emitToRoom('admin_dashboard', 'DASHBOARD_UPDATE', {

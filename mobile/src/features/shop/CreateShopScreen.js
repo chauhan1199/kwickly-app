@@ -19,6 +19,9 @@ import { Store, MapPin } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
 
+// Initial map centre only (Mumbai); never saved as the shop's location.
+const MAP_CENTER = { lat: 19.0760, lng: 72.8777 };
+
 export default function CreateShopScreen({ navigation }) {
   const { theme, isDarkMode } = useTheme();
   const c = theme.colors;
@@ -26,7 +29,7 @@ export default function CreateShopScreen({ navigation }) {
 
   const [saving, setSaving] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  const [tempLocation, setTempLocation] = useState({ lat: 19.0760, lng: 72.8777 });
+  const [tempLocation, setTempLocation] = useState(null); // pin chosen in the open map, null until moved
 
   const [form, setForm] = useState({
     name: '',
@@ -35,7 +38,7 @@ export default function CreateShopScreen({ navigation }) {
     description: '',
     logo: null,
   });
-  const [location, setLocation] = useState({ lat: 19.0760, lng: 72.8777 });
+  const [location, setLocation] = useState(null); // null until the owner pins the shop on the map
   const [hours, setHours] = useState({ monFri: '9 AM – 10 PM', sat: '9 AM – 10 PM', sun: 'Closed' });
   const [delivery, setDelivery] = useState({ radiusKm: '3', fee: '40', freeAbove: '1000' });
 
@@ -77,6 +80,7 @@ export default function CreateShopScreen({ navigation }) {
     if (!form.category.trim()) return Alert.alert('Error', 'Category is required');
     if (!form.address.trim()) return Alert.alert('Error', 'Address is required');
     if (!form.description.trim()) return Alert.alert('Error', 'Description is required');
+    if (!location) return Alert.alert('Shop location needed', 'Tap "Choose on Map" and place the pin on your shop (or use the GPS button) so customers nearby can find you.');
 
     try {
       setSaving(true);
@@ -163,7 +167,7 @@ export default function CreateShopScreen({ navigation }) {
               <Text style={[s.outlineBtnText, { marginLeft: 8 }]}>Choose on Map</Text>
             </TouchableOpacity>
             <Text style={{ color: c.textDim, fontSize: 12, marginTop: 4, marginBottom: 4 }}>
-              Lat: {location.lat.toFixed(4)}, Lng: {location.lng.toFixed(4)}
+              {location ? `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}` : 'Not set yet: place the pin on your shop'}
             </Text>
 
             {/* Business Hours */}
@@ -214,14 +218,21 @@ export default function CreateShopScreen({ navigation }) {
                   <Text style={{ color: c.primary, fontSize: 16 }}>Cancel</Text>
                 </TouchableOpacity>
                 <Text style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: '#FFF' }}>Select Location</Text>
-                <TouchableOpacity onPress={() => { setLocation(tempLocation); setShowMap(false); }}>
+                <TouchableOpacity onPress={() => {
+                  if (!tempLocation) {
+                    Alert.alert('Place the pin', 'Move the map so the pin sits on your shop, search for it, or tap the GPS button.');
+                    return;
+                  }
+                  setLocation(tempLocation);
+                  setShowMap(false);
+                }}>
                   <Text style={{ color: c.primary, fontSize: 16, fontWeight: 'bold' }}>Done</Text>
                 </TouchableOpacity>
               </View>
               <LeafletMapPicker
                 style={{ flex: 1 }}
-                latitude={tempLocation.lat}
-                longitude={tempLocation.lng}
+                latitude={(tempLocation || MAP_CENTER).lat}
+                longitude={(tempLocation || MAP_CENTER).lng}
                 onLocationSelect={(coords, lng) => {
                   const sLat = typeof coords === 'object' ? (coords.lat ?? coords.latitude) : coords;
                   const sLng = typeof coords === 'object' ? (coords.lng ?? coords.longitude) : lng;

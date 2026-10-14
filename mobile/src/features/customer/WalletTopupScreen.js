@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  StatusBar, Alert, TextInput, ActivityIndicator, Modal, Linking, Platform, KeyboardAvoidingView, AppState
+  StatusBar, Alert, TextInput, ActivityIndicator, Modal, Linking, Platform, KeyboardAvoidingView, AppState, ScrollView
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getSafeBottomInset } from '../../utils/safeInsets';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
@@ -20,8 +18,6 @@ import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
 const PRESETS = [100, 250, 500, 1000, 2000, 5000];
 
 const WalletTopupScreen = ({ navigation }) => {
-  const insets = useSafeAreaInsets();
-  const safeBottomInset = getSafeBottomInset(insets);
   const { theme, isDarkMode } = useTheme();
   const { user, fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
@@ -33,6 +29,8 @@ const WalletTopupScreen = ({ navigation }) => {
   const [upiOrderData, setUpiOrderData] = useState(null);
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
   const [waitingModalVisible, setWaitingModalVisible] = useState(false);
+  // Height of the absolute footer, so the scroll content can clear it
+  const [footerHeight, setFooterHeight] = useState(140);
 
   const handleInitiateTopup = async () => {
     const topupAmount = parseInt(amount);
@@ -176,6 +174,12 @@ const WalletTopupScreen = ({ navigation }) => {
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
       <AppBar title="Top Up Wallet" packageRoute="CustomerShopOrders" showBack={true} />
 
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: footerHeight + 16 }}
+      >
       {/* Current Balance */}
       <View style={styles.balanceCard}>
         <Wallet size={28} color={theme.colors.primary} />
@@ -225,8 +229,10 @@ const WalletTopupScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Topup Button */}
-      <View style={[styles.footer, { paddingBottom: safeBottomInset }]}>
+      </ScrollView>
+
+      {/* Topup Button — the tab bar sits below, so no extra bottom inset */}
+      <View style={styles.footer} onLayout={(e) => setFooterHeight(e.nativeEvent.layout.height)}>
         <View style={styles.footerInner}>
           <TouchableOpacity
             style={[styles.topupBtn, processing && { opacity: 0.6 }]}
@@ -252,10 +258,11 @@ const WalletTopupScreen = ({ navigation }) => {
           </View>
         </View>
       </View>
+      </KeyboardAvoidingView>
 
       {/* UPI Checkout Modal */}
       <Modal visible={upiCheckoutModal} transparent animationType="slide" onRequestClose={() => !processing && setUpiCheckoutModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
+        <KeyboardAvoidingView behavior="padding" style={styles.overlay}>
           <View style={styles.upiSheet}>
             <View style={styles.handle} />
             

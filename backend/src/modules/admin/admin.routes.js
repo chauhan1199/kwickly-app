@@ -101,6 +101,7 @@ router.patch('/shops/:id/extend-subscription',     adminController.extendWorkerS
 // Jobs (specific routes — BEFORE param routes to avoid catch-all conflicts)
 router.get('/jobs/export',             adminController.exportJobs);
 router.get('/jobs/all',                require('../job/job.controller').getJobs);
+router.get('/jobs/disputes',           require('../job/job.controller').getDisputes);
 router.get('/jobs/:id',                adminController.getJobDetail);
 
 // Payments

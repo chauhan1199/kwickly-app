@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
-  SafeAreaView,
   Text,
   TouchableOpacity,
   StatusBar,
@@ -19,6 +18,7 @@ import {
   Dimensions
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { chatService } from '../../services/chatService';
@@ -46,6 +46,7 @@ const uploadImageBase64 = async (imageAsset, apiInstance) => {
 
 const ChatScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const { userToken: token, user } = useAuth();
 
   const {
@@ -230,7 +231,7 @@ const ChatScreen = ({ route, navigation }) => {
     );
   };
 
-  const styles = createStyles(theme, isDarkMode);
+  const styles = createStyles(theme, isDarkMode, insets);
 
   return (
     <View style={styles.container}>
@@ -243,7 +244,7 @@ const ChatScreen = ({ route, navigation }) => {
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        <SafeAreaView style={styles.safeHeaderRow}>
+        <View style={styles.safeHeaderRow}>
           <TouchableOpacity 
             style={styles.backBtn} 
             onPress={() => navigation.goBack()}
@@ -258,14 +259,13 @@ const ChatScreen = ({ route, navigation }) => {
             </View>
             <Text style={styles.headerSub} numberOfLines={1}>{partnerRole}</Text>
           </View>
-        </SafeAreaView>
+        </View>
       </LinearGradient>
 
       {/* Keyboard Avoiding Area */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior="padding"
       >
         {/* Messages */}
         {loading ? (
@@ -362,13 +362,13 @@ const ChatScreen = ({ route, navigation }) => {
   );
 };
 
-const createStyles = (theme, isDarkMode) =>
+const createStyles = (theme, isDarkMode, insets) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
     header: {
       paddingHorizontal: 16,
       paddingBottom: 14,
-      paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 36) + 12 : 12,
+      paddingTop: Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0) + 12,
       borderBottomLeftRadius: 20,
       borderBottomRightRadius: 20,
     },
@@ -435,7 +435,7 @@ const createStyles = (theme, isDarkMode) =>
       borderTopColor: theme.colors.border,
       paddingHorizontal: 12,
       paddingTop: 10,
-      paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+      paddingBottom: insets.bottom + 8,
       elevation: 8,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -2 },

@@ -15,7 +15,8 @@ router.post('/:id/delivery-otp', authMiddleware, authorize('CUSTOMER'), ctrl.reg
 // Shop owner / Admin
 router.get('/shop',         authMiddleware, authorize('SHOP'),     ctrl.getShopOrders);
 router.patch('/:id/status', authMiddleware, authorize('SHOP', 'ADMIN'), validate(updateOrderStatusSchema), ctrl.updateOrderStatus);
-router.post('/:id/verify-payment', authMiddleware, authorize('SHOP', 'ADMIN'), ctrl.verifyShopOrderPayment);
+// Only an admin may approve a direct-UPI payment; a shop must never self-approve.
+router.post('/:id/verify-payment', authMiddleware, authorize('ADMIN'), ctrl.verifyShopOrderPayment);
 
 // Admin
 router.get('/all',          authMiddleware, authorize('ADMIN'),    ctrl.getAllOrders);

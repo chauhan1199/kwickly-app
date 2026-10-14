@@ -6,6 +6,7 @@ import ConfirmModal from '../../components/ConfirmModal'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import Drawer from '../../components/common/Drawer'
+import useAdminRefresh from '../../hooks/useAdminRefresh'
 import { Search, RefreshCw, Eye, Truck, XCircle, Copy, CheckCircle, ShieldAlert, Download } from 'lucide-react'
 
 const PAGE_SIZE = 15
@@ -59,6 +60,7 @@ export default function Orders() {
   }, [page, statusFilter, searchQuery])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
+  useAdminRefresh(fetchOrders)
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
 
@@ -150,7 +152,7 @@ export default function Orders() {
         o.shopId?.name || '—',
         o.items?.length || 0,
         o.total || 0,
-        o.paymentMethod || o.payment?.method || 'UPI',
+        o.payment?.method || 'UPI',
         o.payment?.status || 'PENDING',
         o.payment?.utrNumber || '',
         o.status,
@@ -201,7 +203,7 @@ export default function Orders() {
           { label: 'New', value: kpi.new, color: '#2563EB' },
           { label: 'Packing', value: kpi.packing, color: '#F59E0B' },
           { label: 'Delivering', value: kpi.delivering, color: '#8B5CF6' },
-          { label: 'Revenue (non-cancelled)', value: `₹${kpi.revenue.toLocaleString('en-IN')}`, color: '#10B981' },
+          { label: 'Paid / delivered order value', value: `₹${kpi.revenue.toLocaleString('en-IN')}`, color: '#10B981' },
         ].map(s => (
           <div key={s.label} className="stat-card-simple" style={{ borderTop: `3px solid ${s.color}` }}>
             <div style={{ fontSize: 26, fontWeight: 900, color: s.color }}>{s.value}</div>
@@ -261,7 +263,7 @@ export default function Orders() {
                 <tbody>
                   {paged.map(o => {
                     const next = getNextStatus(o.status)
-                    const isPendingUpi = o.payment?.status === 'PENDING_VERIFICATION' || (o.paymentMethod === 'UPI' && o.payment?.status !== 'PAID')
+                    const isPendingUpi = o.payment?.status === 'PENDING_VERIFICATION' || (o.payment?.method === 'UPI' && o.payment?.status !== 'PAID')
                     return (
                       <tr key={o._id}>
                         <td>
@@ -281,8 +283,8 @@ export default function Orders() {
                         <td><strong>₹{(o.total || 0).toLocaleString('en-IN')}</strong></td>
                         <td>
                           <div>
-                            <span className={`badge badge-${o.payment?.status === 'PAID' || o.paymentMethod === 'WALLET' ? 'success' : isPendingUpi ? 'warning' : 'info'}`}>
-                              {isPendingUpi ? '⏳ UPI Pending' : o.paymentMethod || o.payment?.method || 'UPI'}
+                            <span className={`badge badge-${o.payment?.status === 'PAID' || o.payment?.method === 'WALLET' ? 'success' : isPendingUpi ? 'warning' : 'info'}`}>
+                              {isPendingUpi ? '⏳ UPI Pending' : o.payment?.method || 'UPI'}
                             </span>
                             {o.payment?.utrNumber && (
                               <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--mid)', marginTop: 2 }}>
@@ -354,7 +356,7 @@ export default function Orders() {
               <div className="detail-row">
                 <span>Payment</span>
                 <strong>
-                  {detail.paymentMethod || detail.payment?.method || 'UPI'}
+                  {detail.payment?.method || 'UPI'}
                   <span style={{ marginLeft: 6, fontSize: 11, color: detail.payment?.status === 'PAID' ? '#10B981' : '#F59E0B' }}>
                     ({detail.payment?.status || 'PENDING'})
                   </span>
@@ -366,12 +368,14 @@ export default function Orders() {
                   <strong style={{ fontFamily: 'monospace', color: '#F59E0B' }}>{detail.payment.utrNumber}</strong>
                 </div>
               )}
+              {detail.payment?.escrowStatus && <div className="detail-row"><span>Escrow</span><strong>{detail.payment.escrowStatus}</strong></div>}
               <div className="detail-row"><span>Delivery Address</span><strong>{detail.deliveryAddress || '—'}</strong></div>
+              {(detail.deliveryStaffName || detail.deliveryStaffPhone) && <div className="detail-row"><span>Delivery Staff</span><strong>{detail.deliveryStaffName || '—'}{detail.deliveryStaffPhone ? ` · ${detail.deliveryStaffPhone}` : ''}</strong></div>}
               <div className="detail-row"><span>Date</span><strong>{new Date(detail.createdAt).toLocaleString('en-IN')}</strong></div>
             </div>
 
             {/* Anti-Fraud Pending UTR Alert inside Drawer */}
-            {(detail.payment?.status === 'PENDING_VERIFICATION' || (detail.paymentMethod === 'UPI' && detail.payment?.status !== 'PAID')) && (
+            {(detail.payment?.status === 'PENDING_VERIFICATION' || (detail.payment?.method === 'UPI' && detail.payment?.status !== 'PAID')) && (
               <div style={{
                 background: 'rgba(245, 158, 11, 0.12)',
                 border: '1px solid rgba(245, 158, 11, 0.3)',
@@ -418,11 +422,37 @@ export default function Orders() {
                   <div style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{(item.price * item.qty).toLocaleString('en-IN')}</div>
                 </div>
               ))}
+              {[
+                ['Subtotal', detail.subtotal],
+                ['Delivery fee', detail.deliveryFee],
+                ['Discount', detail.discount ? -detail.discount : 0],
+                ['Promo discount' + (detail.promoCode ? ` (${detail.promoCode})` : ''), detail.promoDiscount ? -detail.promoDiscount : 0],
+                ['Platform fee', detail.platformFee],
+                ['GST', detail.gstAmount],
+              ].filter(([, v]) => v).map(([label, v]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 14px', fontSize: 12, color: 'var(--mid)', borderTop: '1px solid var(--border)' }}>
+                  <span>{label}</span><span>{v < 0 ? '−' : ''}₹{Math.abs(v).toLocaleString('en-IN')}</span>
+                </div>
+              ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 14px', background: 'var(--bg-card)', fontWeight: 800, borderTop: '1px solid var(--border)' }}>
                 <span>Total</span>
                 <span style={{ color: 'var(--primary)' }}>₹{(detail.total || 0).toLocaleString('en-IN')}</span>
               </div>
             </div>
+
+            {(detail.statusHistory || []).length > 0 && (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Status History</div>
+                <div className="detail-grid">
+                  {detail.statusHistory.map((h, i) => (
+                    <div key={i} className="detail-row">
+                      <span>{h.timestamp ? new Date(h.timestamp).toLocaleString('en-IN') : '—'}</span>
+                      <strong>{STATUS_LABEL[h.status] || h.status}{h.note ? ` — ${h.note}` : ''}</strong>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Admin Actions */}
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Admin Actions</div>

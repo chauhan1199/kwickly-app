@@ -270,7 +270,9 @@ exports.subscribe = catchAsync(async (req, res) => {
             let pendingTxn = await WalletTxn.findOne({
                 userId,
                 status: 'PENDING',
-                $or: [{ razorpayPaymentId: utrNumber }, { planId: activePlan.id, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }]
+                type: 'TOPUP',
+                // never overwrite a UTR already submitted on another pending record
+                $or: [{ razorpayPaymentId: utrNumber }, { planId: activePlan.id, razorpayPaymentId: { $exists: false }, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }]
             }).session(session);
 
             if (pendingTxn) {
@@ -331,7 +333,9 @@ exports.subscribe = catchAsync(async (req, res) => {
             let pendingTxn = await WalletTxn.findOne({
                 userId,
                 status: 'PENDING',
-                $or: [{ razorpayPaymentId: utrNumber }, { planId: activePlan.id, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }]
+                type: 'TOPUP',
+                // never overwrite a UTR already submitted on another pending record
+                $or: [{ razorpayPaymentId: utrNumber }, { planId: activePlan.id, razorpayPaymentId: { $exists: false }, createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } }]
             }).session(session);
 
             if (pendingTxn) {
@@ -436,9 +440,35 @@ exports.getPendingSubscriptions = catchAsync(async (req, res) => {
             .sort('-createdAt').lean()
     ]);
 
+    // Direct-UPI plan purchases are queued as PENDING TOPUP WalletTxns with a
+    // planId (wallet.topupWallet / subscribe). Surface the ones with a UTR here
+    // in the same shape; approve/reject below route them to the wallet
+    // controller so the plan is activated exactly once.
+    const planTxns = await WalletTxn.find({ type: 'TOPUP', status: 'PENDING', planId: { $exists: true, $nin: [null, ''] }, razorpayPaymentId: { $exists: true } })
+        .populate('userId', 'name phone role')
+        .sort('-createdAt').lean();
+    const plans = settings => settings?.subscriptionPlans || [];
+    const AppSettings = require('../settings/settings.model');
+    const cfg = planTxns.length ? await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean() : null;
+
     const pending = [
         ...workerSubs.map(s => ({ ...s, targetRole: 'WORKER', userId: s.workerId?._id })),
-        ...shopSubs.map(s => ({ ...s, targetRole: 'SHOP', userId: s.shopId?.ownerId }))
+        ...shopSubs.map(s => ({ ...s, targetRole: 'SHOP', userId: s.shopId?.ownerId })),
+        ...planTxns.map(t => {
+            const isShop = t.userId?.role === 'SHOP';
+            return {
+                _id: t._id,
+                source: 'WALLET_TXN',
+                planId: t.planId,
+                planName: plans(cfg).find(p => p.id === t.planId)?.label || t.planId,
+                amount: t.amount,
+                createdAt: t.createdAt,
+                payment: { status: 'PENDING', method: 'UPI', razorpayPaymentId: t.razorpayPaymentId },
+                targetRole: isShop ? 'SHOP' : 'WORKER',
+                userId: t.userId?._id,
+                ...(isShop ? { shopId: { name: t.userId?.name, ownerId: t.userId?._id } } : { workerId: t.userId })
+            };
+        })
     ];
 
     return successResponse(res, { pending, count: pending.length }, 'Pending subscription verifications fetched');
@@ -448,7 +478,7 @@ exports.getPendingSubscriptions = catchAsync(async (req, res) => {
  * POST /api/v1/subscriptions/pending/:id/approve (Admin)
  * Verifies the UTR hit the platform bank account, then activates the plan.
  */
-exports.approvePendingSubscription = catchAsync(async (req, res) => {
+exports.approvePendingSubscription = catchAsync(async (req, res, next) => {
     const { id } = req.params;
 
     const AppSettings = require('../settings/settings.model');
@@ -477,6 +507,9 @@ exports.approvePendingSubscription = catchAsync(async (req, res) => {
         }
         if (!sub) {
             if (session) session.endSession();
+            // A queued Direct-UPI plan purchase (PENDING TOPUP WalletTxn with planId)
+            const planTxn = mongoose.isValidObjectId(id) ? await WalletTxn.exists({ _id: id, planId: { $exists: true } }) : null;
+            if (planTxn) return require('../wallet/wallet.controller').approvePendingTopup(req, res, next);
             return errorResponse(res, 'Subscription not found', StatusCodes.NOT_FOUND);
         }
         if (sub.payment?.status !== 'PENDING') {
@@ -557,7 +590,7 @@ exports.approvePendingSubscription = catchAsync(async (req, res) => {
  * POST /api/v1/subscriptions/pending/:id/reject (Admin)
  * UTR never arrived — mark FAILED. No money moved, nothing to refund.
  */
-exports.rejectPendingSubscription = catchAsync(async (req, res) => {
+exports.rejectPendingSubscription = catchAsync(async (req, res, next) => {
     const { id } = req.params;
     const { reason = 'Payment not found / invalid UTR in admin bank account' } = req.body;
 
@@ -567,7 +600,11 @@ exports.rejectPendingSubscription = catchAsync(async (req, res) => {
         sub = await ShopSubscription.findById(id);
         isShop = true;
     }
-    if (!sub) return errorResponse(res, 'Subscription not found', StatusCodes.NOT_FOUND);
+    if (!sub) {
+        const planTxn = mongoose.isValidObjectId(id) ? await WalletTxn.exists({ _id: id, planId: { $exists: true } }) : null;
+        if (planTxn) return require('../wallet/wallet.controller').rejectPendingTopup(req, res, next);
+        return errorResponse(res, 'Subscription not found', StatusCodes.NOT_FOUND);
+    }
     if (sub.payment?.status !== 'PENDING') {
         return errorResponse(res, `Subscription payment is already ${sub.payment?.status}`, StatusCodes.BAD_REQUEST);
     }

@@ -7,6 +7,8 @@ import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
+import useAdminRefresh from '../../hooks/useAdminRefresh'
+import { DISPUTE_RESOLUTIONS } from '../../utils/jobDisputes'
 import { AlertTriangle, Search, RefreshCw, Eye, MessageSquare, CheckCircle, Package, Wrench, XCircle, ChevronRight, User, Hash, FileText, Download } from 'lucide-react'
 
 const PAGE_SIZE = 15
@@ -25,7 +27,37 @@ export default function Disputes() {
   const [refundAmount, setRefundAmount] = useState('')
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { fetchDisputes() }, [])
+  // Worker-reported part-payment disputes live on the job (status DISPUTED), not in /admin/disputes
+  const [jobDisputes, setJobDisputes] = useState([])
+  const [jobResolve, setJobResolve] = useState(null)
+  const [jobResolution, setJobResolution] = useState('DEDUCT_FROM_WORKER')
+  const [jobNote, setJobNote] = useState('')
+
+  useEffect(() => { fetchDisputes(); fetchJobDisputes() }, [])
+  useAdminRefresh(() => { fetchDisputes(); fetchJobDisputes() })
+
+  const fetchJobDisputes = async () => {
+    try {
+      const res = await api.get('/admin/jobs/disputes', { params: { limit: 50 } })
+      if (res.data.status === 'success') setJobDisputes(res.data.data?.disputes || [])
+    } catch (err) {
+      if (!isAbortError(err)) showToast(extractErrorMessage(err, 'Failed to load part-payment disputes'), 'error')
+    }
+  }
+
+  const resolveJobDispute = async () => {
+    if (!jobResolve || saving) return
+    setSaving(true)
+    try {
+      await api.patch(`/admin/jobs/${jobResolve._id}/resolve-dispute`, { resolution: jobResolution, adminNote: jobNote })
+      showToast('Part-payment dispute resolved')
+      window.dispatchEvent(new Event('admin-action'))
+      fetchJobDisputes()
+      setJobResolve(null)
+      setJobNote('')
+    } catch (err) { showToast(extractErrorMessage(err, 'Failed to resolve dispute'), 'error') }
+    finally { setSaving(false) }
+  }
 
   useEffect(() => { setPage(1) }, [search, filter])
 
@@ -168,7 +200,7 @@ export default function Disputes() {
           <div className="page-subtitle">Handle customer-worker conflicts and issue refunds</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn-secondary" onClick={fetchDisputes} disabled={loading}><RefreshCw size={16} /> Refresh</button>
+          <button className="btn-secondary" onClick={() => { fetchDisputes(); fetchJobDisputes() }} disabled={loading}><RefreshCw size={16} /> Refresh</button>
           <button className="btn-secondary" onClick={exportCsv} disabled={filtered.length === 0} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Download size={16} /> Export CSV
           </button>
@@ -193,6 +225,51 @@ export default function Disputes() {
           <div style={{ fontSize: 13, color: 'var(--mid)', fontWeight: 600, marginTop: 4 }}>Total Disputes</div>
         </div>
       </div>
+
+      {jobDisputes.length > 0 && (
+        <div className="table-card" style={{ marginBottom: 20 }}>
+          <div style={{ padding: '14px 16px', fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Wrench size={16} /> Worker-reported part-payments ({jobDisputes.length})
+          </div>
+          <Table
+            columns={[
+              { header: 'Job', render: (j) => <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>#{j._id.slice(-6)} · {j.category}</span> },
+              { header: 'Customer', render: (j) => <div><div style={{ fontWeight: 600, fontSize: 13 }}>{j.customerId?.name || '—'}</div><div className="cell-muted" style={{ fontSize: 11 }}>{j.customerId?.phone || ''}</div></div> },
+              { header: 'Worker', render: (j) => <div><div style={{ fontWeight: 600, fontSize: 13 }}>{j.workerId?.name || '—'}</div><div className="cell-muted" style={{ fontSize: 11 }}>{j.workerId?.phone || ''}</div></div> },
+              { header: 'Agreed / Received', render: (j) => <div style={{ fontSize: 13 }}>₹{j.payment?.amount || 0} / <strong>₹{j.dispute?.amountReceived ?? 0}</strong></div> },
+              { header: 'Short', render: (j) => <strong style={{ color: 'var(--danger)' }}>₹{j.dispute?.shortAmount ?? 0}</strong> },
+              { header: 'Reason', render: (j) => <div style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 12, color: 'var(--mid)' }}>{j.dispute?.reason || '—'}</div> },
+              { header: 'Actions', render: (j) => <button className="btn-primary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={(e) => { e.stopPropagation(); setJobResolve(j); setJobResolution('DEDUCT_FROM_WORKER'); setJobNote('') }}>Resolve</button> },
+            ]}
+            data={jobDisputes}
+            emptyMessage="No part-payment disputes"
+          />
+        </div>
+      )}
+
+      <Modal open={!!jobResolve} onClose={() => !saving && setJobResolve(null)} title="Resolve Part-payment Dispute" width="480px">
+        {jobResolve && (
+          <div>
+            <p style={{ fontSize: 13, color: 'var(--mid)', marginBottom: 16 }}>
+              Job <strong>#{jobResolve._id.slice(-6)}</strong>: worker received ₹{jobResolve.dispute?.amountReceived ?? 0} of ₹{jobResolve.payment?.amount || 0}. The job will be closed.
+            </p>
+            <div className="form-group">
+              <label className="form-label">Resolution</label>
+              <select className="form-control" value={jobResolution} onChange={e => setJobResolution(e.target.value)}>
+                {DISPUTE_RESOLUTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Admin note</label>
+              <textarea className="form-control" rows={3} value={jobNote} onChange={e => setJobNote(e.target.value)} placeholder="Optional note for the record" />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setJobResolve(null)} disabled={saving}>Cancel</button>
+              <button className="btn-primary" style={{ flex: 1 }} onClick={resolveJobDispute} disabled={saving}>{saving ? 'Resolving…' : 'Resolve'}</button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <div className="filters-row">
         <div className="search-box"><Search size={16} /><input placeholder="Search issue, customer, or order..." value={search} onChange={e => setSearch(e.target.value)} /></div>

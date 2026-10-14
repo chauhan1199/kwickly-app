@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView,
   TouchableOpacity, 
   StatusBar, 
@@ -189,7 +188,7 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
       <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
@@ -286,7 +285,7 @@ const WorkerMyQuotesScreen = ({ navigation }) => {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 

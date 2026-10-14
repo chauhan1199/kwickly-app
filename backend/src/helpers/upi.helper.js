@@ -104,6 +104,28 @@ const findUtrUsage = async (utr) => {
     return null;
 };
 
+/** "1,500.00" -> 1500 (Indian-format commas stripped). */
+const parseSmsNumber = (raw) => parseFloat(String(raw || '').replace(/,/g, ''));
+
+/**
+ * Parses a bank CREDIT SMS forwarded to the webhook. Returns { amount, utr }
+ * only when the text reads as money received (credited/received/deposited)
+ * and not as a debit (debited/sent/paid to/withdrawn); otherwise null.
+ */
+const parseBankCreditSms = (text) => {
+    if (!text || typeof text !== 'string') return null;
+    const clean = text.trim();
+    if (!/\b(credited|received|deposited)\b/i.test(clean)) return null;
+    if (/\b(debited|sent|withdrawn)\b|\bpaid\s+to\b/i.test(clean)) return null;
+    if (/\b(failed|declined|reversed|unsuccessful)\b/i.test(clean)) return null;
+    const preBal = clean.split(/(?:avl\.?\s*bal|available\s*bal|\bbal(?:ance)?\b)/i)[0];
+    const amtMatch = preBal.match(/(?:credited\s*(?:by|with)?\s*(?:Rs\.?|INR|₹)?\s*|Rs\.?\s*|INR\s*|₹\s*)([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+    const utrMatch = clean.match(/(?:Ref\s*No\.?|UTR|RRN|UPI\s*Ref(?:\s*No)?\.?|Txn(?:\s*Id)?|UPI\/)\s*[:\-]?\s*([0-9]{12})/i) || clean.match(/\b([0-9]{12})\b/);
+    const amount = amtMatch ? parseSmsNumber(amtMatch[1]) : null;
+    if (!amount || isNaN(amount) || amount <= 0) return null;
+    return { amount, utr: utrMatch ? utrMatch[1] : null };
+};
+
 /**
  * Extracts debited transaction amount from bank SMS text, carefully ignoring account balances
  * @param {string} text 
@@ -114,27 +136,27 @@ const extractSmsAmount = (text) => {
     const clean = text.trim();
 
     // 1. Amount before action verb (e.g. "₹282.04 sent to GHANSHYAM", "Rs 282 debited")
-    const amtBeforeRegex = /(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:debited|sent|transferred|paid)/i;
+    const amtBeforeRegex = /(?:Rs\.?|INR|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:debited|sent|transferred|paid)/i;
     const beforeMatch = amtBeforeRegex.exec(clean);
     if (beforeMatch) {
-        const amt = parseFloat(beforeMatch[1]);
+        const amt = parseSmsNumber(beforeMatch[1]);
         if (!isNaN(amt) && amt > 0) return amt;
     }
 
     // 2. Check targeted debit / payment keywords after verb
-    const debitRegex = /(?:debited\s*(?:by|with|for)?|paid\s*(?:to\s*[^,\n\r]+?)?|sent\s*(?:to\s*[^,\n\r]+?)?|transferred\s*|txn\s*(?:of)?)\s*(?:Rs\.?|INR|₹)?\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
+    const debitRegex = /(?:debited\s*(?:by|with|for)?|paid\s*(?:to\s*[^,\n\r]+?)?|sent\s*(?:to\s*[^,\n\r]+?)?|transferred\s*|txn\s*(?:of)?)\s*(?:Rs\.?|INR|₹)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i;
     const debitMatch = debitRegex.exec(clean);
     if (debitMatch) {
-        const amt = parseFloat(debitMatch[1]);
+        const amt = parseSmsNumber(debitMatch[1]);
         if (!isNaN(amt) && amt > 0) return amt;
     }
 
     // 3. Cut off at balance keyword to avoid account balance numbers
     const preBal = clean.split(/(?:bal(?:ance)?|avl\s*bal|total\s*bal)/i)[0];
-    const genRegex = /(?:Rs\.?|INR|₹)\s*([0-9]+(?:\.[0-9]{1,2})?)/i;
+    const genRegex = /(?:Rs\.?|INR|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i;
     const genMatch = genRegex.exec(preBal);
     if (genMatch) {
-        const amt = parseFloat(genMatch[1]);
+        const amt = parseSmsNumber(genMatch[1]);
         if (!isNaN(amt) && amt > 0) return amt;
     }
 
@@ -250,6 +272,8 @@ module.exports = {
     isValidUtr,
     findUtrUsage,
     extractSmsAmount,
+    parseBankCreditSms,
+    parseSmsNumber,
     extractSmsDate,
     verifyIntentResponse,
     isAuthenticBankDebitSms,

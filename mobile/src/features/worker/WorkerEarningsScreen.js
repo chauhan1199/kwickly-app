@@ -80,6 +80,7 @@ import { workerService } from '../../services/workerService';
 import settingsService from '../../services/settingsService';
 import api from '../../services/api';
 import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
+import useSocket from '../../hooks/useSocket';
 
 const TOP_UP_PRESETS = [100, 500, 1000, 2000];
 
@@ -112,6 +113,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
   // Real-time Bank Verification Waiting Modal state
   const [waitingModalVisible, setWaitingModalVisible] = useState(false);
   const [waitingOrderId, setWaitingOrderId] = useState('');
+  // WalletTxn created on the server BEFORE the UPI app opens; the UTR is submitted against it
+  const [pendingTxnId, setPendingTxnId] = useState(null);
 
   // Modals state
   const [planModalVisible, setPlanModalVisible] = useState(false);
@@ -254,6 +257,17 @@ const WorkerEarningsScreen = ({ navigation }) => {
     fetchWalletAndProfile();
   }, [fetchWalletAndProfile]);
 
+  // Live refresh when the server credits / approves / rejects / activates
+  useSocket({
+    role: 'WORKER',
+    userId: user?._id || user?.id,
+    onEvent: (event) => {
+      if (event === 'WALLET_UPDATE' || event === 'WALLET_TOPUP_APPROVED' || event === 'SUBSCRIPTION_ACTIVATED') {
+        fetchWalletAndProfile();
+      }
+    }
+  });
+
   const handlePayViaUpiApp = async (appKey = 'gpay') => {
     setSelectedUpiApp(appKey);
     const upiId = adminUpiConfig?.upiId;
@@ -263,7 +277,25 @@ const WorkerEarningsScreen = ({ navigation }) => {
     const cleanUpi = upiId.trim();
     const cleanPayee = (adminUpiConfig.payeeName || 'Kwickly Admin').trim().replace(/\s+/g, ' ');
     const amtStr = Number(pendingPaymentContext.amount).toFixed(2);
-    const orderId = `worker_${pendingPaymentContext.type?.toLowerCase() || 'topup'}_${Date.now()}`;
+
+    // 1. Create the server record first (intent mode: no UTR) so the payment is
+    //    tracked, then open UPI, then submit the UTR against this record.
+    let createdTxnId = null;
+    try {
+      const intentRes = await walletService.topupWallet(
+        Number(pendingPaymentContext.amount),
+        { method: 'UPI' },
+        pendingPaymentContext.planId || undefined
+      );
+      createdTxnId = intentRes?.data?.data?.txnId || null;
+    } catch (e) {
+      return Alert.alert('Payment Error', e?.response?.data?.message || e?.message || 'Could not start the payment. Please try again.');
+    }
+    if (!createdTxnId) {
+      return Alert.alert('Payment Error', 'Could not start the payment. Please try again.');
+    }
+    setPendingTxnId(createdTxnId);
+    const orderId = String(createdTxnId);
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     const note = `Kwickly ${pendingPaymentContext.type || 'Payment'}`.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 30);
 
@@ -285,6 +317,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
         const subRes = await handleManualUtrSubmission(utr, {
+          pendingTxnId: createdTxnId,
           isIntentVerified: true,
           intentStatus: result?.status || 'SUCCESS',
           responseCode: result?.responseCode || '00',
@@ -327,7 +360,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       planId || undefined,
       utr,
       null,
-      extraMeta
+      { pendingTxnId, ...extraMeta }
     );
     return res?.data?.data;
   };
@@ -672,8 +705,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
           MODAL 1: PLAN SELECTION MODAL
       ═══════════════════════════════════════ */}
       <Modal visible={planModalVisible} transparent animationType="slide" onRequestClose={() => setPlanModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', paddingBottom: 16 + insets.bottom }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
@@ -686,7 +720,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: 340 }} nestedScrollEnabled showsVerticalScrollIndicator={false}>
               {dynamicPlans.map((plan) => {
                 const isSelected = selectedPlan === plan.id;
                 return (
@@ -731,16 +765,18 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 )}
               </LinearGradient>
             </TouchableOpacity>
+          </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════
           MODAL 2: WALLET TOP UP AMOUNT MODAL
       ═══════════════════════════════════════ */}
       <Modal visible={topUpModalVisible} transparent animationType="slide" onRequestClose={() => setTopUpModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', paddingBottom: 16 + insets.bottom }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
@@ -805,16 +841,18 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 )}
               </LinearGradient>
             </TouchableOpacity>
+          </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════
           MODAL 3: UPI PAYMENT CHECKOUT SHEET (6-App Grid)
       ═══════════════════════════════════════ */}
       <Modal visible={upiPaymentModalVisible} transparent animationType="slide" onRequestClose={() => setUpiPaymentModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', paddingBottom: 16 + insets.bottom }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
@@ -881,16 +919,18 @@ const WorkerEarningsScreen = ({ navigation }) => {
               </Text>
               <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
+          </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════
           MODAL 4: WITHDRAWAL MODAL
       ═══════════════════════════════════════ */}
       <Modal visible={withdrawModalVisible} transparent animationType="slide" onRequestClose={() => setWithdrawModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', paddingBottom: 16 + insets.bottom }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
@@ -992,8 +1032,9 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 )}
               </LinearGradient>
             </TouchableOpacity>
+          </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════
@@ -1001,7 +1042,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
       ═══════════════════════════════════════ */}
       <Modal visible={transactionModalVisible} transparent animationType="fade" onRequestClose={() => setTransactionModalVisible(false)}>
         <View style={styles.centerOverlay}>
-          <View style={styles.receiptCard}>
+          <View style={[styles.receiptCard, { maxHeight: '90%' }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             {/* Header with brand logo and verified badge */}
             <View style={styles.receiptTopHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1100,6 +1142,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
                 </View>
               </>
             )}
+          </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1116,6 +1159,8 @@ const WorkerEarningsScreen = ({ navigation }) => {
           }}
           amount={pendingPaymentContext.amount}
           orderId={waitingOrderId}
+          txnId={pendingTxnId}
+          planId={pendingPaymentContext.planId || null}
           payeeName={adminUpiConfig.payeeName}
           upiVpa={adminUpiConfig.upiId}
           purpose={pendingPaymentContext.type === 'PLAN' ? 'subscription' : 'wallet_topup'}
@@ -1518,7 +1563,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingHorizontal: 20,
-    paddingBottom: 36,
+    paddingBottom: 16, // + insets.bottom applied inline (edge-to-edge)
     paddingTop: 16,
   },
   modalHandle: {

@@ -14,7 +14,6 @@ import {
   Image, 
   Switch, 
   Platform, 
-  PermissionsAndroid, 
   Dimensions,
   KeyboardAvoidingView
 } from 'react-native';
@@ -22,7 +21,7 @@ import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMapPicker from '../../components/LeafletMapPicker';
-import Geolocation from '@react-native-community/geolocation';
+import { getCurrentPosition } from '../../utils/currentLocation';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { workerService } from '../../services/workerService';
@@ -365,59 +364,28 @@ const WorkerProfileScreen = ({ navigation }) => {
   const handleUseGps = async () => {
     setGpsLoading(true);
     try {
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'GPS Location Permission',
-            message: 'Kwickly needs access to your GPS location to accurately set your address.',
-            buttonPositive: 'Allow'
-          }
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          setGpsLoading(false);
-          Alert.alert('Permission Denied', 'Please allow GPS location permission to auto-detect location.');
-          return;
-        }
-      }
-
-      Geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setAddrCoordinate({ latitude, longitude });
-          setGpsLoading(false);
-          // Auto reverse geocode
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
-            .then(res => res.json())
-            .then(data => {
-              const a = data.address || {};
-              if (a.road || a.building) setAddrStreet(a.road || a.building);
-              if (a.suburb || a.neighbourhood) setAddrArea(a.suburb || a.neighbourhood);
-              if (a.city || a.town || a.village) setAddrCity(a.city || a.town || a.village);
-              if (a.postcode && /^[1-9][0-9]{5}$/.test(a.postcode)) setAddrPincode(a.postcode);
-            })
-            .catch(() => {});
-          Alert.alert('GPS Location Captured 📍', `Coordinates: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-        },
-        (error) => {
-          // Fallback to network/coarse location
-          Geolocation.getCurrentPosition(
-            (fallbackPos) => {
-              const { latitude, longitude } = fallbackPos.coords;
-              setAddrCoordinate({ latitude, longitude });
-              setGpsLoading(false);
-            },
-            () => {
-              setGpsLoading(false);
-              setAddrCoordinate({ latitude: 23.0225, longitude: 72.5714 });
-              Alert.alert('GPS Notice', 'Could not get direct satellite lock. You can drag and pin your exact location on the map below.');
-            },
-            { enableHighAccuracy: false, timeout: 15000, maximumAge: 15000 }
-          );
-        },
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
-      );
+      // GPS first, then network location; approximate is fine for an address pin
+      const { coordinates: [longitude, latitude] } = await getCurrentPosition({
+        precise: false,
+        reason: 'Please allow location permission to auto-detect your address.',
+      });
+      setAddrCoordinate({ latitude, longitude });
+      // Auto reverse geocode
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+        .then(res => res.json())
+        .then(data => {
+          const a = data.address || {};
+          if (a.road || a.building) setAddrStreet(a.road || a.building);
+          if (a.suburb || a.neighbourhood) setAddrArea(a.suburb || a.neighbourhood);
+          if (a.city || a.town || a.village) setAddrCity(a.city || a.town || a.village);
+          if (a.postcode && /^[1-9][0-9]{5}$/.test(a.postcode)) setAddrPincode(a.postcode);
+        })
+        .catch(() => {});
+      Alert.alert('GPS Location Captured 📍', `Coordinates: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
     } catch (e) {
+      // No default city is set as the pin: the worker drags the map to their location instead
+      Alert.alert('GPS Notice', `${e.message} You can drag and pin your exact location on the map below.`);
+    } finally {
       setGpsLoading(false);
     }
   };
@@ -440,6 +408,10 @@ const WorkerProfileScreen = ({ navigation }) => {
     }
     if (!/^[1-9][0-9]{5}$/.test(addrPincode.trim())) {
       Alert.alert('Invalid Pincode', 'Please enter a valid 6-digit Indian postal pincode.');
+      return;
+    }
+    if (!addrCoordinate) {
+      Alert.alert('Pin your location', 'Drag the map so the pin sits on this address, or tap "Use GPS".');
       return;
     }
 
@@ -1254,7 +1226,9 @@ const WorkerProfileScreen = ({ navigation }) => {
                 </View>
 
                 <LeafletMapPicker
-                  initialCoordinate={addrCoordinate || { latitude: 23.0225, longitude: 72.5714 }}
+                  initialCoordinate={addrCoordinate || { latitude: 23.0225, longitude: 72.5714 }} // centring only
+                  latitude={addrCoordinate?.latitude}
+                  longitude={addrCoordinate?.longitude}
                   onLocationSelect={handleMapLocationSelect}
                   height={220}
                 />

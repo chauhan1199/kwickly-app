@@ -23,6 +23,7 @@ import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
 import { jobService } from '../../services/jobService';
+import { getCurrentCoordinates } from '../../utils/currentLocation';
 import {
   ChevronLeft,
   UploadCloud,
@@ -74,6 +75,17 @@ const getTagColor = (item) => {
   return '#2563EB';
 };
 
+// The saved address's own pin as a GeoJSON Point, or null. Every address switch replaces the
+// job location with this, so a previous address's coordinates are never reused.
+const locationFromAddress = (addr) => {
+  const c = addr?.location?.coordinates || addr?.coordinates;
+  if (!Array.isArray(c) || c.length !== 2) return null;
+  const lng = Number(c[0]);
+  const lat = Number(c[1]);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat) || (lng === 0 && lat === 0)) return null;
+  return { type: 'Point', coordinates: [lng, lat] };
+};
+
 const DescribeJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
 
@@ -117,7 +129,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
         .trim();
       setAddress(fullAddr || primary.address || '');
       setAddressType(primary.label || 'Home');
-      if (primary.location?.coordinates) setLocation(primary.location);
+      setLocation(locationFromAddress(primary));
     }
   }, [user]);
 
@@ -131,11 +143,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
           .trim();
         setAddress(fullAddr || sel.address || '');
         setAddressType(sel.label || 'Other');
-        if (sel.location?.coordinates) {
-          setLocation(sel.location);
-        } else if (sel.coordinates) {
-          setLocation({ type: 'Point', coordinates: sel.coordinates });
-        }
+        setLocation(locationFromAddress(sel));
         setAddressError('');
       }
     });
@@ -153,8 +161,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
           .trim();
         setAddress(fullAddr || sel.address || '');
         setAddressType(sel.label || 'Other');
-        if (sel.location?.coordinates)  setLocation(sel.location);
-        else if (sel.coordinates)        setLocation({ type: 'Point', coordinates: sel.coordinates });
+        setLocation(locationFromAddress(sel));
         setAddressError('');
         navigation.setParams({ selectedAddress: undefined });
       }
@@ -165,7 +172,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
   const switchAddressChip = (type) => {
     setAddressType(type);
     setAddressError('');
-    if (!user?.addresses?.length) return;
+    if (!user?.addresses?.length) { setLocation(null); return; }
     const matched = user.addresses.find(a => (a.label || '').toLowerCase() === type.toLowerCase());
     if (matched) {
       const fullAddr = [matched.street, matched.area, `${matched.city || ''} ${matched.pincode || ''}`]
@@ -173,9 +180,10 @@ const DescribeJobScreen = ({ route, navigation }) => {
         .join(', ')
         .trim();
       setAddress(fullAddr || matched.address || '');
-      if (matched.location?.coordinates) setLocation(matched.location);
-      else if (matched.coordinates) setLocation({ type: 'Point', coordinates: matched.coordinates });
-    } else if (type === 'Other') {
+      setLocation(locationFromAddress(matched));
+    } else {
+      // No saved address for this chip: start empty so neither the text nor the pin of the
+      // previous address carries over
       setAddress('');
       setLocation(null);
     }
@@ -383,11 +391,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
           .trim();
         setAddress(fullAddr || selectedAddr.address || '');
         setAddressType(selectedAddr.label || 'Other');
-        if (selectedAddr.location?.coordinates) {
-          setLocation(selectedAddr.location);
-        } else if (selectedAddr.coordinates) {
-          setLocation({ type: 'Point', coordinates: selectedAddr.coordinates });
-        }
+        setLocation(locationFromAddress(selectedAddr));
         setAddressError('');
       },
     });
@@ -423,47 +427,44 @@ const DescribeJobScreen = ({ route, navigation }) => {
     setSubmitError('');
     if (!validateForm()) return;
 
+    // The job is broadcast to workers around its pin, so it must be a real location:
+    // never the user's last-known position or a default city.
+    if (!locationFromAddress({ location })) {
+      setAddressError('Pin this address on the map, or use your current location.');
+      Alert.alert(
+        'Where is the job?',
+        'This address has no map pin. Pick it on the map, or use your current location if you are there now.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Pick on map', onPress: handlePickMap },
+          {
+            text: 'Use current location',
+            onPress: async () => {
+              try {
+                const coordinates = await getCurrentCoordinates({
+                  precise: false,
+                  reason: 'Location permission is needed to pin the job at your current location.',
+                });
+                setLocation({ type: 'Point', coordinates });
+                setAddressError('');
+              } catch (e) {
+                Alert.alert('Location unavailable', `${e.message} You can pick the address on the map instead.`);
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const categoryName = typeof category === 'string'
         ? category
         : (category?.name || category?.label || 'Service');
 
-      // Fast coordinate resolution: use provided location, user active location, primary address, or fallback
-      let jobLocation = {
-        type: 'Point',
-        coordinates: [72.5714, 23.0225], // Ahmedabad default
-      };
-
-      if (
-        location?.coordinates &&
-        Array.isArray(location.coordinates) &&
-        location.coordinates.length === 2 &&
-        !isNaN(Number(location.coordinates[0])) &&
-        !isNaN(Number(location.coordinates[1]))
-      ) {
-        jobLocation = {
-          type: 'Point',
-          coordinates: [Number(location.coordinates[0]), Number(location.coordinates[1])],
-        };
-      } else if (
-        user?.activeLocation?.coordinates &&
-        Array.isArray(user.activeLocation.coordinates) &&
-        user.activeLocation.coordinates.length === 2
-      ) {
-        jobLocation = {
-          type: 'Point',
-          coordinates: [Number(user.activeLocation.coordinates[0]), Number(user.activeLocation.coordinates[1])],
-        };
-      } else {
-        const primaryAddr = user?.addresses?.find(a => a.isPrimary) || user?.addresses?.[0];
-        if (primaryAddr?.location?.coordinates?.length === 2) {
-          jobLocation = {
-            type: 'Point',
-            coordinates: [Number(primaryAddr.location.coordinates[0]), Number(primaryAddr.location.coordinates[1])],
-          };
-        }
-      }
+      // Checked above: the selected address's own pin (or the user's GPS fix)
+      const jobLocation = locationFromAddress({ location });
 
       // Parallelize media uploads if attached
       const mediaUrls = [];

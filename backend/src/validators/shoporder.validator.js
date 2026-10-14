@@ -11,11 +11,15 @@ const placeOrderSchema = Joi.object({
         }).unknown(true)
     ).min(1).required(),
     deliveryAddress: Joi.string().required(),
-    paymentMethod: Joi.string().valid('WALLET', 'UPI', 'COD').default('WALLET'),
+    paymentMethod: Joi.string().valid('WALLET', 'UPI', 'COD', 'CASH').default('WALLET'),
+    // A real [lng, lat] is required: it is checked against the shop's delivery radius.
     deliveryLocation: Joi.object({
         type: Joi.string().valid('Point').default('Point'),
-        coordinates: Joi.array().items(Joi.number().allow(null)).default([72.5714, 23.0225])
-    }).optional().default({ type: 'Point', coordinates: [72.5714, 23.0225] }),
+        coordinates: Joi.array().ordered(
+            Joi.number().min(-180).max(180).required(),
+            Joi.number().min(-90).max(90).required()
+        ).length(2).required()
+    }).required().messages({ 'any.required': 'Delivery location is required. Please pick your address on the map.' }),
     deliverySlot: Joi.alternatives().try(Joi.string(), Joi.object(), Joi.allow(null, '')).optional(),
     promoCode: Joi.string().optional().allow('', null)
 }).unknown(true);

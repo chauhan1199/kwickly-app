@@ -1,9 +1,8 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   View, 
   StyleSheet, 
   Platform, 
-  PermissionsAndroid, 
   TouchableOpacity, 
   Text, 
   TextInput, 
@@ -12,7 +11,7 @@ import {
   ScrollView 
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Geolocation from '@react-native-community/geolocation';
+import { getCurrentPosition } from '../utils/currentLocation';
 import { Search, MapPin, Crosshair, X, Check } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -29,7 +28,8 @@ export default function LeafletMapPicker({
   const geocodeTimeoutRef = useRef(null);
   const searchTimeoutRef = useRef(null);
 
-  // Normalize initial coordinates
+  // Normalize initial coordinates. The default only centres the map: onLocationSelect is not
+  // called until the user moves the map, picks a search result or uses GPS.
   const initialLat = Number(initialCoordinate?.latitude ?? initialCoordinate?.lat ?? latitude) || 23.0225;
   const initialLng = Number(initialCoordinate?.longitude ?? initialCoordinate?.lng ?? longitude) || 72.5714;
 
@@ -247,50 +247,23 @@ export default function LeafletMapPicker({
     reverseGeocode(sLat, sLng);
   };
 
-  // Device GPS Locate Me
+  // Device GPS Locate Me (GPS, then network fallback; approximate location is accepted here)
   const fetchDeviceGPS = async () => {
     setIsLocatingGPS(true);
     try {
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Location Permission',
-            message: 'Kwickly needs access to your GPS to locate your store precisely.',
-            buttonPositive: 'Allow',
-            buttonNegative: 'Cancel'
-          }
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          setIsLocatingGPS(false);
-          return;
-        }
+      const { coordinates: [curLng, curLat] } = await getCurrentPosition({
+        precise: false,
+        reason: 'Kwickly needs your location to place the pin. You can also drag the map instead.',
+      });
+      setCoords({ lat: curLat, lng: curLng });
+      if (webViewRef.current) {
+        webViewRef.current.injectJavaScript(`if (window.centerToCoords) { window.centerToCoords(${curLat}, ${curLng}); } true;`);
       }
-
-      const applyGPS = (pos) => {
-        const curLat = pos.coords.latitude;
-        const curLng = pos.coords.longitude;
-        setCoords({ lat: curLat, lng: curLng });
-        if (webViewRef.current) {
-          webViewRef.current.injectJavaScript(`if (window.centerToCoords) { window.centerToCoords(${curLat}, ${curLng}); } true;`);
-        }
-        triggerPinBounce();
-        reverseGeocode(curLat, curLng);
-        setIsLocatingGPS(false);
-      };
-
-      Geolocation.getCurrentPosition(
-        applyGPS,
-        () => {
-          Geolocation.getCurrentPosition(
-            applyGPS,
-            () => { setIsLocatingGPS(false); },
-            { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
-          );
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-      );
+      triggerPinBounce();
+      reverseGeocode(curLat, curLng);
     } catch (_) {
+      // Permission denied / no fix: the user can still drag the map or search
+    } finally {
       setIsLocatingGPS(false);
     }
   };
@@ -307,8 +280,9 @@ export default function LeafletMapPicker({
     }
   }, [latitude, longitude]);
 
-  // Leaflet HTML Canvas
-  const leafletHTML = `
+  // Leaflet HTML Canvas: built once from the initial centre. Later moves go through
+  // injectJavaScript (centerToCoords) so dragging never reloads the WebView or resets zoom.
+  const leafletHTML = useMemo(() => `
     <!DOCTYPE html>
     <html>
     <head>
@@ -319,37 +293,26 @@ export default function LeafletMapPicker({
         * { box-sizing: border-box; }
         body { padding: 0; margin: 0; background: #e2e8f0; overflow: hidden; width: 100vw; height: 100vh; }
         #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; z-index: 1; }
-        .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
     <body>
       <div id="map"></div>
       <script>
         var map = L.map('map', { 
-          zoomControl: false, 
-          attributionControl: false 
-        }).setView([${coords.lat}, ${coords.lng}], 16);
+          zoomControl: false
+        }).setView([${initialLat}, ${initialLng}], 16);
         window.map = map;
+        map.attributionControl.setPrefix(false);
 
-        // Primary: OpenStreetMap tiles (CARTO raster tiles now return an "API key required" image)
-        var cartoLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          subdomains: 'abcd'
-        });
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
-        // Fallback: Standard OpenStreetMap
-        var osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19
-        });
-
-        cartoLayer.on('tileerror', function() {
-          if (!map.hasLayer(osmLayer)) {
-            map.removeLayer(cartoLayer);
-            osmLayer.addTo(map);
-          }
-        });
-
-        cartoLayer.addTo(map);
+        // Only report the centre once the user (or RN via centerToCoords) has moved the map,
+        // so the initial/default centre is never reported as a chosen location.
+        var userMoved = false;
+        document.getElementById('map').addEventListener('touchstart', function() { userMoved = true; }, { passive: true });
 
         function fixMapLayout() {
           if (map) { 
@@ -369,7 +332,7 @@ export default function LeafletMapPicker({
 
         map.on('moveend', function() {
           var center = map.getCenter();
-          if (window.ReactNativeWebView) {
+          if (userMoved && window.ReactNativeWebView) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'REGION_CHANGE',
               lat: center.lat,
@@ -379,6 +342,7 @@ export default function LeafletMapPicker({
         });
 
         window.centerToCoords = function(tLat, tLng) {
+          userMoved = true;
           if (map) {
             map.setView([tLat, tLng], 17, { animate: true });
           }
@@ -386,7 +350,7 @@ export default function LeafletMapPicker({
       </script>
     </body>
     </html>
-  `;
+  `, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View style={[styles.container, height && !style?.flex ? { height } : { flex: 1 }, style]}>

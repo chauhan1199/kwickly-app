@@ -3,7 +3,6 @@ import {
   ScrollView, 
   View, 
   StyleSheet, 
-  SafeAreaView, 
   Text, 
   TouchableOpacity,
   StatusBar,
@@ -13,8 +12,10 @@ import {
   TextInput,
   Image,
   RefreshControl,
-  Dimensions
+  Dimensions,
+  KeyboardAvoidingView
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import WorkerHeroHeader from '../../components/WorkerHeroHeader';
@@ -45,6 +46,8 @@ const RADIUS_PRESETS = [5, 10, 15, 25, 50];
 
 const WorkerManageServicesScreen = ({ navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  const sheetBottomPad = Math.max(insets.bottom, 16) + 20;
   const { fetchUser } = useAuth();
   const styles = createStyles(theme, isDarkMode);
 
@@ -309,7 +312,7 @@ const WorkerManageServicesScreen = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       <WorkerHeroHeader searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
@@ -536,8 +539,8 @@ const WorkerManageServicesScreen = ({ navigation }) => {
           MODAL 1: ADD CATEGORY MODAL
       ═══════════════════════════════════════ */}
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { height: '85%' }]}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '85%', paddingBottom: sheetBottomPad }]}>
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
@@ -558,7 +561,7 @@ const WorkerManageServicesScreen = ({ navigation }) => {
               onChangeText={setSearchQuery}
             />
 
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {filteredCategories.length > 0 ? (
                 filteredCategories.map(c => {
                   const isAlreadyAdded = services.some(s => (s.category?._id || s.category) === c._id);
@@ -607,15 +610,15 @@ const WorkerManageServicesScreen = ({ navigation }) => {
               )}
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════
           MODAL 2: PREMIUM SUBCATEGORIES SELECTION MODAL
       ═══════════════════════════════════════ */}
       <Modal visible={subCatModalVisible} transparent animationType="slide" onRequestClose={() => setSubCatModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', paddingBottom: sheetBottomPad }]}>
             <View style={styles.modalHandle} />
 
             {/* Subcategory Modal Header */}
@@ -657,7 +660,7 @@ const WorkerManageServicesScreen = ({ navigation }) => {
             </View>
 
             {/* Subcategories List Cards */}
-            <ScrollView style={styles.subCatsScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView style={[styles.subCatsScroll, { flexShrink: 1 }]} showsVerticalScrollIndicator={false}>
               {fullCategoryDetail?.subcategories?.length > 0 ? (
                 fullCategoryDetail.subcategories.map(sub => {
                   const isChecked = tempSelectedSubCats.includes(sub.name);
@@ -732,15 +735,15 @@ const WorkerManageServicesScreen = ({ navigation }) => {
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════
           MODAL 3: SUGGEST CATEGORY / SUBCATEGORY
       ═══════════════════════════════════════ */}
       <Modal visible={suggestModalVisible} transparent animationType="slide" onRequestClose={() => setSuggestModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', paddingBottom: sheetBottomPad }]}>
             <View style={styles.modalHandle} />
 
             <View style={styles.modalHeader}>
@@ -753,6 +756,7 @@ const WorkerManageServicesScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
             
+            <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={{ marginBottom: 16 }}>
               <Text style={styles.inputSectionLabel}>What would you like to suggest?</Text>
               <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -825,11 +829,12 @@ const WorkerManageServicesScreen = ({ navigation }) => {
                 )}
               </LinearGradient>
             </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -1315,6 +1320,8 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   quickActionBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
     alignItems: 'center',
     backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
     padding: 10,

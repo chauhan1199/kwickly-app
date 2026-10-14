@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
@@ -284,9 +285,11 @@ const CustomAlert = ({
                 {displayTitle}
               </Text>
               {message ? (
-                <Text style={[styles.message, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
-                  {typeof message === 'string' ? message : String(message)}
-                </Text>
+                <ScrollView style={styles.messageScroll} bounces={false} showsVerticalScrollIndicator={false}>
+                  <Text style={[styles.message, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                    {typeof message === 'string' ? message : String(message)}
+                  </Text>
+                </ScrollView>
               ) : null}
 
               {/* Action Buttons */}
@@ -449,6 +452,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     maxWidth: 360,
+    maxHeight: '80%',
     borderRadius: 26,
     paddingHorizontal: 22,
     paddingTop: 28,
@@ -491,6 +495,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
     letterSpacing: -0.3,
+  },
+  messageScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+    width: '100%',
   },
   message: {
     fontSize: 14.5,

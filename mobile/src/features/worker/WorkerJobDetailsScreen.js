@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ScrollView, 
   View, 
@@ -18,6 +18,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import AppBar from '../../components/AppBar';
 import { jobService } from '../../services/jobService';
+import { getCurrentPosition } from '../../utils/currentLocation';
 import { 
   MapPin, 
   Calendar, 
@@ -52,17 +53,29 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
 
   const jobLat = Number(job?.location?.coordinates?.[1]) || 23.0350;
   const jobLng = Number(job?.location?.coordinates?.[0]) || 72.5293;
-  const rawWLat = Number(user?.activeLocation?.coordinates?.[1]);
-  const rawWLng = Number(user?.activeLocation?.coordinates?.[0]);
-  const hasRawCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
-  let initialWorkerLat = rawWLat;
-  let initialWorkerLng = rawWLng;
-  // Unknown location: park the draggable pin beside the job so the worker can drag it to where they are.
-  // No distance/ETA is shown until it is a real position (saved location or a manual drag).
-  if (!hasRawCoords) {
-    initialWorkerLat = jobLat + 0.0072;
-    initialWorkerLng = jobLng + 0.0055;
-  }
+  // The worker pin starts parked beside the job and moves to the device's live GPS fix once it
+  // arrives (the profile's saved activeLocation can be hours old). No distance/ETA is shown until
+  // it is a real position (GPS fix or a manual drag).
+  const hasRawCoords = false;
+  const initialWorkerLat = jobLat + 0.0072;
+  const initialWorkerLng = jobLng + 0.0055;
+  const webViewRef = useRef(null);
+  const gpsFixRef = useRef(null);
+  const pushGpsFix = () => {
+    const fix = gpsFixRef.current;
+    if (fix) webViewRef.current?.injectJavaScript(`window.setWorkerPos && window.setWorkerPos(${fix.lat}, ${fix.lng}); true;`);
+  };
+  useEffect(() => {
+    let cancelled = false;
+    getCurrentPosition({ precise: false, reason: 'Location permission is needed to show how far this job is.' })
+      .then(({ coordinates: [lng, lat] }) => {
+        if (cancelled) return;
+        gpsFixRef.current = { lat, lng };
+        pushGpsFix();
+      })
+      .catch(() => {}); // the worker can still drag the pin
+    return () => { cancelled = true; };
+  }, []);
 
   const [workerLat, setWorkerLat] = useState(initialWorkerLat);
   const [workerLng, setWorkerLng] = useState(initialWorkerLng);
@@ -79,7 +92,6 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
       <style>
         body { padding: 0; margin: 0; }
         html, body, #map { height: 100%; width: 100%; }
-        .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
     <body>
@@ -90,17 +102,13 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
         let wLat = ${initialWorkerLat};
         let wLng = ${initialWorkerLng};
 
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 13);
-        
-        const carto = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          subdomains: 'abcd'
-        }).addTo(map);
+        const map = L.map('map', { zoomControl: false }).setView([lat, lng], 13);
+        map.attributionControl.setPrefix(false);
 
-        carto.on('tileerror', function() {
-          if (window.__osmFallback) return; window.__osmFallback = true;
-          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        });
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
         setTimeout(function() { map.invalidateSize(); }, 200);
 
@@ -134,6 +142,17 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
         if (${hasRawCoords ? 'true' : 'false'}) {
           window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'location_update', lat: wLat, lng: wLng }));
         }
+
+        // Called from React Native with the device's GPS fix
+        window.setWorkerPos = function (newLat, newLng) {
+            wLat = newLat;
+            wLng = newLng;
+            workerMarker.setLatLng([wLat, wLng]);
+            workerMarker.setPopupContent("<b>Your Location</b> (Drag to adjust)");
+            routeLine.setLatLngs([[wLat, wLng], [lat, lng]]);
+            map.fitBounds(L.latLngBounds([[lat, lng], [wLat, wLng]]), { padding: [40, 40], maxZoom: 16 });
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'location_update', lat: wLat, lng: wLng }));
+        };
 
         workerMarker.on('dragend', function (e) {
             const position = workerMarker.getLatLng();
@@ -276,8 +295,10 @@ const WorkerJobDetailsScreen = ({ route, navigation }) => {
           <View style={styles.mapArea}>
             <WebView 
               key={`${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${initialWorkerLat.toFixed(4)}_${initialWorkerLng.toFixed(4)}`}
+              ref={webViewRef}
               source={{ html: mapHTML, baseUrl: 'https://kwickly.app/' }}
               style={{ flex: 1, backgroundColor: 'transparent' }}
+              onLoadEnd={pushGpsFix}
               onMessage={(event) => {
                 const data = JSON.parse(event.nativeEvent.data);
                 if (data.type === 'location_update') {

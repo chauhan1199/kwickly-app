@@ -670,7 +670,7 @@ describe('2. Shop order flow', () => {
     test('2.9 an order delivered 30 min after placement can still be completed with the customer OTP', async () => {
         const items = [{ productId: S.productId, name: 'Basmati Rice 5kg', price: PRICE, qty: 1 }];
         const r = await api().post('/api/v1/shoporders').set(auth(A.customerToken)).send({
-            shopId: String(A.shop._id), items, deliveryAddress: '12 MG Road, Mumbai', paymentMethod: 'WALLET'
+            shopId: String(A.shop._id), items, deliveryAddress: '12 MG Road, Mumbai', paymentMethod: 'WALLET', deliveryLocation: { type: 'Point', coordinates: JOB_COORDS }
         });
         expect(r.status).toBe(201);
         const orderId = r.body.data._id;
@@ -698,7 +698,7 @@ describe('2. Shop order flow', () => {
     test('2.11 customer can issue a new delivery OTP after wrong attempts lock it; shop cannot', async () => {
         const items = [{ productId: S.productId, name: 'Basmati Rice 5kg', price: PRICE, qty: 1 }];
         const r = await api().post('/api/v1/shoporders').set(auth(A.customerToken)).send({
-            shopId: String(A.shop._id), items, deliveryAddress: '12 MG Road, Mumbai', paymentMethod: 'WALLET'
+            shopId: String(A.shop._id), items, deliveryAddress: '12 MG Road, Mumbai', paymentMethod: 'WALLET', deliveryLocation: { type: 'Point', coordinates: JOB_COORDS }
         });
         const orderId = r.body.data._id;
         for (const status of ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY']) {
@@ -722,7 +722,7 @@ describe('2. Shop order flow', () => {
     test('2.12 a staff member from another shop cannot be assigned', async () => {
         const items = [{ productId: S.productId, name: 'Basmati Rice 5kg', price: PRICE, qty: 1 }];
         const r = await api().post('/api/v1/shoporders').set(auth(A.customerToken)).send({
-            shopId: String(A.shop._id), items, deliveryAddress: '12 MG Road, Mumbai', paymentMethod: 'WALLET'
+            shopId: String(A.shop._id), items, deliveryAddress: '12 MG Road, Mumbai', paymentMethod: 'WALLET', deliveryLocation: { type: 'Point', coordinates: JOB_COORDS }
         });
         const orderId = r.body.data._id;
         for (const status of ['CONFIRMED', 'PACKING']) {

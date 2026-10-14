@@ -27,6 +27,9 @@ const WalletTxnSchema = new mongoose.Schema({
     amount:  { type: Number, required: true },   // always positive; credit/debit determined by type
     balance: { type: Number, required: true },   // wallet balance after this txn
 
+    // Explicit direction for types whose sign isn't implied (e.g. ADJUSTMENT). Optional; older rows omit it.
+    direction: { type: String, enum: ['CREDIT', 'DEBIT'] },
+
     status: {
         type: String,
         enum: ['PENDING', 'COMPLETED', 'FAILED'],

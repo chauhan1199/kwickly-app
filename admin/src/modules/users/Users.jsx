@@ -11,6 +11,7 @@ import WalletAdjuster from '../../components/common/WalletAdjuster'
 import { TextInput, validators } from '../../components/FormInput'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
+import useAdminRefresh from '../../hooks/useAdminRefresh'
 import MapPicker from '../../components/MapPicker'
 import { Search, Plus, RefreshCw, Eye, Edit3, Trash2, Ban, CheckCircle, Copy, MapPin, Upload, DollarSign, Briefcase, ShoppingBag, User, Home, CreditCard, AlertCircle } from 'lucide-react'
 
@@ -87,6 +88,7 @@ export default function Users() {
   const paged = customers;
 
   useEffect(() => { setPage(1) }, [search, filter])
+  useAdminRefresh(refresh)
 
   const validateForm = () => {
     const errors = {}
@@ -501,6 +503,7 @@ export default function Users() {
                     <div className="detail-row"><span>Status</span><strong>{detail.isVerified ? 'Active' : 'Inactive'}</strong></div>
                     <div className="detail-row"><span>Online</span><strong>{detail.isOnline ? 'Yes' : 'No'}</strong></div>
                     <div className="detail-row"><span>Wallet Balance</span><strong>₹{(detail.wallet?.balance || 0).toLocaleString('en-IN')}</strong></div>
+                    <div className="detail-row"><span>Rating from workers</span><strong>{detail.customerRating?.count ? `${Number(detail.customerRating.average || 0).toFixed(1)}★ (${detail.customerRating.count} rating${detail.customerRating.count !== 1 ? 's' : ''})` : 'No ratings yet'}</strong></div>
                     <div className="detail-row"><span>KYC Status</span><strong>{detail.kyc?.status || 'PENDING'}</strong></div>
                   </div>
 
@@ -585,12 +588,14 @@ export default function Users() {
                       {customerJobs.map(job => (
                         <div key={job._id} style={{ padding: 12, background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700 }}>{job.title || job.category?.name || 'Job'}</div>
-                            <span className={`badge badge-${job.status === 'COMPLETED' ? 'success' : job.status === 'CANCELLED' ? 'danger' : job.status === 'IN_PROGRESS' ? 'primary' : 'gray'}`}>{job.status || 'UNKNOWN'}</span>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{job.title || job.category || 'Job'}{job.subcategory ? ` · ${job.subcategory}` : ''}</div>
+                            <span className={`badge badge-${['COMPLETED', 'PAID', 'CLOSED'].includes(job.status) ? 'success' : job.status === 'CANCELLED' ? 'danger' : job.status === 'IN_PROGRESS' ? 'primary' : 'gray'}`}>{job.status || 'UNKNOWN'}</span>
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--mid)' }}>
-                            {job.category?.name && <span>Category: {job.category.name}</span>}
+                            {job.category && <span>Category: {job.category}</span>}
                             {job.payment?.amount != null && <span> · ₹{job.payment.amount}</span>}
+                            {job.rating?.score && <span> · Gave worker {job.rating.score}★</span>}
+                            {job.customerRating?.score && <span> · Rated {job.customerRating.score}★ by worker</span>}
                             {job.createdAt && <span> · {new Date(job.createdAt).toLocaleDateString('en-IN')}</span>}
                           </div>
                         </div>
@@ -616,11 +621,11 @@ export default function Users() {
                       {customerOrders.map(order => (
                         <div key={order._id} style={{ padding: 12, background: 'var(--input-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700 }}>Order #{order._id?.slice(-6) || '—'}</div>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>Order #{order.orderNumber || order._id?.slice(-6) || '—'}{order.shopId?.name ? ` · ${order.shopId.name}` : ''}</div>
                             <span className={`badge badge-${order.status === 'DELIVERED' ? 'success' : order.status === 'CANCELLED' ? 'danger' : order.status === 'IN_PROGRESS' ? 'primary' : 'gray'}`}>{order.status || 'UNKNOWN'}</span>
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--mid)' }}>
-                            {order.totalAmount != null && <span>Total: ₹{order.totalAmount}</span>}
+                            {order.total != null && <span>Total: ₹{order.total}</span>}
                             {order.items?.length != null && <span> · {order.items.length} item{order.items.length !== 1 ? 's' : ''}</span>}
                             {order.createdAt && <span> · {new Date(order.createdAt).toLocaleDateString('en-IN')}</span>}
                           </div>

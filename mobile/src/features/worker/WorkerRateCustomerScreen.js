@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   View, 
   StyleSheet, 
-  SafeAreaView, 
+  ScrollView,
   Text, 
   TouchableOpacity,
   StatusBar,
@@ -57,7 +57,7 @@ const WorkerRateCustomerScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
       <View style={styles.appBar}>
@@ -70,9 +70,14 @@ const WorkerRateCustomerScreen = ({ route, navigation }) => {
       </View>
 
       <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
         style={styles.content}
       >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.centerBox}>
             
@@ -80,7 +85,7 @@ const WorkerRateCustomerScreen = ({ route, navigation }) => {
               <Text style={styles.avatarText}>{customerName ? customerName[0] : 'C'}</Text>
             </View>
 
-            <Text style={styles.customerName}>{customerName || 'Customer'}</Text>
+            <Text style={styles.customerName} numberOfLines={1}>{customerName || 'Customer'}</Text>
             <Text style={styles.subText}>How was the customer?</Text>
 
             <View style={styles.starsContainer}>
@@ -110,11 +115,12 @@ const WorkerRateCustomerScreen = ({ route, navigation }) => {
 
           </View>
         </TouchableWithoutFeedback>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       
 
-    </SafeAreaView>
+    </View>
   );
 };
 

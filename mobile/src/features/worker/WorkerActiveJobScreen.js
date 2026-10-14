@@ -1133,11 +1133,12 @@ const createStyles = (theme, isDarkMode, safeTop) => StyleSheet.create({
   },
   otpBoxesContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     marginBottom: 14,
   },
   otpDigitBox: {
     width: 54,
+    flexShrink: 1,
     height: 58,
     borderRadius: 14,
     backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',

@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Search, Download, RefreshCw, CheckCircle, AlertTriangle, ShieldCheck, FileSpreadsheet } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import EmptyState from '../../components/EmptyState'
 import Toast from '../../components/Toast'
 import { isAbortError } from '../../utils/errorUtils'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
+import useAdminRefresh from '../../hooks/useAdminRefresh'
+import Pagination from '../../components/Pagination'
+
+const PAGE_SIZE = 25
 
 export default function Ledger() {
   const api = useAbortableRequest();
@@ -19,6 +23,17 @@ export default function Ledger() {
   const [search, setSearch] = useState('');
   const [typeFilter, setType] = useState('ALL');
   const [gstPct, setGstPct] = useState(18);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Debounce search; search + type filters run server-side so they cover every page
+  useEffect(() => {
+    const t = setTimeout(() => { setSearchQuery(search); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+  useEffect(() => { setPage(1); }, [typeFilter]);
 
   useEffect(() => {
     // Fetch platform settings so tax labels reflect the configured GST rate
@@ -33,16 +48,19 @@ export default function Ledger() {
 
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, page, typeFilter, searchQuery]);
+  useAdminRefresh(() => fetchData());
 
   const fetchData = async () => {
     setLoading(true);
     setFetchError(false);
     try {
       if (activeTab === 'ledger') {
-        const res = await api.get('/ledger');
+        const res = await api.get('/ledger', { params: { page, limit: PAGE_SIZE, entityType: typeFilter, search: searchQuery || undefined } });
         if (res.data.status === 'success') {
           setEntries(res.data.data?.entries || []);
+          setTotal(res.data.data?.total || 0);
+          setTotalPages(res.data.data?.totalPages || 1);
         } else setFetchError(true);
       } else if (activeTab === 'reconciliation') {
         const res = await api.get('/ledger/reconciliation');
@@ -68,16 +86,8 @@ export default function Ledger() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const filtered = useMemo(() => entries.filter(e => {
-    const txn = e.transactionId || '';
-    const ref = e.referenceNumber || '';
-    const desc = e.description || '';
-    const matchSearch = txn.toLowerCase().includes(search.toLowerCase()) ||
-                        ref.toLowerCase().includes(search.toLowerCase()) ||
-                        desc.toLowerCase().includes(search.toLowerCase());
-    const matchType = typeFilter === 'ALL' || e.entityType === typeFilter;
-    return matchSearch && matchType;
-  }), [entries, search, typeFilter]);
+  // Entries are already filtered + paged by the server
+  const filtered = entries;
 
   const exportCSV = () => {
     const headers = ['Txn ID', 'Type', 'Reference', 'Gross Paid', 'Partner 100%', 'Platform Fee', `GST (${gstPct}%)`, 'Delivery Fee', 'Status', 'Date'];
@@ -240,6 +250,7 @@ export default function Ledger() {
                 </tbody>
               </table>
             </div>
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </div>
         </>
       )}
@@ -289,6 +300,31 @@ export default function Ledger() {
               </div>
             </div>
           </div>
+
+          {treasury && (
+            <>
+              <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>🏦 Treasury & Liabilities</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
+                {[
+                  { label: 'Total Platform Revenue', value: treasury.treasury?.totalPlatformRevenue, color: '#8B5CF6' },
+                  { label: 'Marketplace Fee Revenue', value: treasury.treasury?.marketplaceFeeRevenue, color: '#8B5CF6' },
+                  { label: 'Subscription Revenue', value: treasury.treasury?.saasSubscriptionRevenue, color: '#3B82F6' },
+                  { label: 'Admin Wallet Balance', value: treasury.treasury?.adminWalletBalance, color: '#10B981' },
+                  { label: 'GST Liability', value: treasury.taxLiability?.gstLiability, color: '#F59E0B' },
+                  { label: 'Worker Wallet Liability', value: treasury.partnerLiabilities?.workerWalletLiability, color: '#EF4444' },
+                  { label: 'Shop Wallet Liability', value: treasury.partnerLiabilities?.shopWalletLiability, color: '#EF4444' },
+                  { label: 'Customer Wallet Liability', value: treasury.partnerLiabilities?.customerWalletLiability, color: '#EF4444' },
+                  { label: 'Total Partner Liability', value: treasury.partnerLiabilities?.totalPartnerLiability, color: '#DC2626' },
+                ].map(c => (
+                  <div key={c.label} className="card" style={{ padding: 18, borderLeft: `4px solid ${c.color}` }}>
+                    <div style={{ fontSize: 12, color: 'var(--mid)', fontWeight: 600 }}>{c.label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: c.color, marginTop: 4 }}>₹{Number(c.value || 0).toLocaleString('en-IN')}</div>
+                  </div>
+                ))}
+              </div>
+              {treasury.taxLiability?.gstNote && <div style={{ fontSize: 11, color: 'var(--mid)' }}>{treasury.taxLiability.gstNote}</div>}
+            </>
+          )}
         </div>
         )
       })()}

@@ -101,9 +101,11 @@ exports.validatePromoCode = catchAsync(async (req, res) => {
     if (promo.type === 'FLAT_DISCOUNT') {
         discount = promo.value;
     } else if (promo.type === 'PERCENTAGE_DISCOUNT') {
-        discount = (orderAmount * promo.value) / 100;
+        discount = Math.round((orderAmount * promo.value) / 100);
         if (promo.maxDiscountCap) discount = Math.min(discount, promo.maxDiscountCap);
     }
+    // Same rounding and cap as order placement, so the app shows what the server charges.
+    discount = Math.max(0, Math.min(discount, Number(orderAmount) || 0));
 
     // Track per-user usage — moved to actual order placement (shoporder controller)
     // to prevent consuming usage when user validates but doesn't complete order.

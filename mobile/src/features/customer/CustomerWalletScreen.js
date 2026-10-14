@@ -20,6 +20,7 @@ import { walletService } from '../../services/walletService';
 import { useAuth } from '../../context/AuthContext';
 import { nativeUpiService } from '../../services/nativeUpiService';
 import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
+import useSocket from '../../hooks/useSocket';
 
 const QUICK_AMOUNTS = ['100', '200', '500', '1000'];
 
@@ -101,6 +102,17 @@ const CustomerWalletScreen = ({ navigation }) => {
   useEffect(() => {
     upiOrderDataRef.current = upiOrderData;
   }, [upiOrderData]);
+
+  // Live refresh when a top-up is credited / approved / rejected (fetchWallet is defined below; events arrive after render)
+  useSocket({
+    role: 'CUSTOMER',
+    userId: user?._id || user?.id,
+    onEvent: (event) => {
+      if (event === 'WALLET_UPDATE' || event === 'WALLET_TOPUP_APPROVED') {
+        fetchWallet();
+      }
+    }
+  });
 
   const fetchWallet = async (isManual = false) => {
     try {
@@ -500,11 +512,12 @@ const CustomerWalletScreen = ({ navigation }) => {
 
       {/* Add Money Modal */}
       <Modal visible={addMoneyModal} transparent animationType="slide" onRequestClose={() => setAddMoneyModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
+        <KeyboardAvoidingView behavior="padding" style={styles.overlay}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setAddMoneyModal(false)}>
             <View style={{ flex: 1, justifyContent: 'flex-end' }}>
               <TouchableWithoutFeedback>
-                <View style={styles.sheet}>
+                <View style={[styles.sheet, { maxHeight: '90%' }]}>
+                  <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
                   <View style={styles.handle} />
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <Text style={styles.sheetTitle}>Add Money</Text>
@@ -547,6 +560,7 @@ const CustomerWalletScreen = ({ navigation }) => {
                       <Text style={styles.payBtnText}>Proceed to Pay</Text>
                     )}
                   </TouchableOpacity>
+                  </ScrollView>
                 </View>
               </TouchableWithoutFeedback>
             </View>
@@ -558,8 +572,9 @@ const CustomerWalletScreen = ({ navigation }) => {
 
       {/* ── UPI Checkout Modal ── */}
       <Modal visible={upiCheckoutModal} transparent animationType="slide" onRequestClose={() => !isVerifying && setUpiCheckoutModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
-          <View style={styles.upiSheet}>
+        <KeyboardAvoidingView behavior="padding" style={styles.overlay}>
+          <View style={[styles.upiSheet, { maxHeight: '90%' }]}>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.handle} />
             
             <View style={styles.upiHeaderRow}>
@@ -625,6 +640,7 @@ const CustomerWalletScreen = ({ navigation }) => {
               </Text>
               <ArrowRight size={18} color="#fff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -633,7 +649,8 @@ const CustomerWalletScreen = ({ navigation }) => {
       <Modal visible={txnModal} transparent animationType="fade" onRequestClose={() => setTxnModal(false)}>
         <TouchableOpacity style={styles.centerOverlay} activeOpacity={1} onPress={() => setTxnModal(false)}>
           <TouchableWithoutFeedback>
-            <View style={styles.receiptCard}>
+            <View style={[styles.receiptCard, { maxHeight: '90%' }]}>
+              <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
               {selectedTxn && (
                 <>
                   {/* Top Receipt Header */}
@@ -740,6 +757,7 @@ const CustomerWalletScreen = ({ navigation }) => {
                   </View>
                 </>
               )}
+              </ScrollView>
             </View>
           </TouchableWithoutFeedback>
         </TouchableOpacity>

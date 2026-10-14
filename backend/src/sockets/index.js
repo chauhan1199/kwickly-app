@@ -51,7 +51,12 @@ const initSocketHandlers = () => {
 
             try {
                 // Verify this worker is actually assigned to this job via Redis cache
-                const assignedWorkerId = await getCache(`job:${jobId}:assigned_worker`);
+                let assignedWorkerId = await getCache(`job:${jobId}:assigned_worker`);
+                // The cache entry expires after 2h (scheduled jobs start later): confirm from the DB
+                if (!assignedWorkerId) {
+                    const active = await Job.exists({ _id: jobId, workerId: socket.userId, status: { $in: ['ALLOCATED', 'ARRIVING', 'IN_PROGRESS'] } });
+                    if (active) assignedWorkerId = socket.userId;
+                }
                 if (!assignedWorkerId || String(assignedWorkerId) !== String(socket.userId)) {
                     logger.warn(`[Socket] Location spoofing blocked: worker ${socket.userId} tried to broadcast for job ${jobId}`);
                     return;

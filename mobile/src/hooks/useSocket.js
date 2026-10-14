@@ -5,6 +5,23 @@ import { AppState } from 'react-native';
 import { SOCKET_URL } from '../config/env';
 
 /**
+ * Set by WorkerNavigateJobScreen while the worker is heading to a job. The worker
+ * usually switches to Google Maps, so the socket must not drop when the app goes to
+ * the background; on foreground / reconnect the last location is sent again.
+ * NOTE: this only keeps the socket open; JS timers and GPS callbacks may still be
+ * throttled by Android in the background. True background tracking needs a
+ * foreground service, which is not implemented.
+ */
+export const activeJobTracking = { active: false, lastLocation: null };
+
+const resendLastLocation = (socket) => {
+  const last = activeJobTracking.lastLocation;
+  if (activeJobTracking.active && last && socket?.connected) {
+    socket.emit('WORKER_LOCATION_UPDATE', last);
+  }
+};
+
+/**
  * useSocket — establishes a socket.io connection and returns helper methods.
  *
  * @param {object} [options={}]
@@ -35,6 +52,9 @@ const useSocket = (options = {}) => {
       return socketRef.current;
     }
 
+    // A socket kept alive in the background may still be reconnecting: replace it, don't leak it
+    socketRef.current?.disconnect();
+
     const token = await AsyncStorage.getItem('userToken');
 
     const socket = io(SOCKET_URL, {
@@ -55,6 +75,7 @@ const useSocket = (options = {}) => {
       // connection from the JWT in `auth.token` — nothing to request here.
       setIsConnected(true);
       setSocketInstance(socket);
+      resendLastLocation(socket);
     });
 
     // Forward all events to the consumer
@@ -93,9 +114,10 @@ const useSocket = (options = {}) => {
     // Handle AppState changes (background/foreground) to prevent Ghost Workers
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        getOrCreate();
+        getOrCreate().then(resendLastLocation).catch(() => {});
       } else if (nextAppState.match(/inactive|background/)) {
-        if (socketRef.current) {
+        // Keep the socket while a worker is navigating to an active job (see activeJobTracking)
+        if (socketRef.current && !activeJobTracking.active) {
           socketRef.current.disconnect();
           socketRef.current = null;
           setSocketInstance(null);

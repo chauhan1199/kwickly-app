@@ -36,7 +36,9 @@ export function useKeyboardBottomInset(extraPadding = 24) {
   return {
     keyboardVisible,
     keyboardHeight,
-    bottomInset: Platform.OS === 'ios' && keyboardVisible ? keyboardHeight + extraPadding : 0,
+    // Android 15+ (targetSdk 35+) enforces edge-to-edge, so adjustResize no longer
+    // shrinks the window: report the keyboard height on both platforms.
+    bottomInset: keyboardVisible ? keyboardHeight + extraPadding : 0,
   };
 }
 

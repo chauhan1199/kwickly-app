@@ -3,7 +3,6 @@ import {
   ScrollView, 
   View, 
   StyleSheet, 
-  SafeAreaView, 
   Text, 
   TouchableOpacity, 
   StatusBar,
@@ -22,7 +21,7 @@ const WorkerJobCanceledScreen = ({ route, navigation }) => {
   const { cancellationReason } = route.params || {};
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
       
       <View style={styles.appBar}>
@@ -63,7 +62,7 @@ const WorkerJobCanceledScreen = ({ route, navigation }) => {
 
       
 
-    </SafeAreaView>
+    </View>
   );
 };
 

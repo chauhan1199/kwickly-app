@@ -7,6 +7,7 @@ import Drawer from '../../components/common/Drawer'
 import EmptyState from '../../components/EmptyState'
 import Modal from '../../components/Modal'
 import Toast from '../../components/Toast'
+import useAdminRefresh from '../../hooks/useAdminRefresh'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const statusColor = { pending:'badge-warning', approved:'badge-primary', transferred:'badge-success', rejected:'badge-danger' }
 
@@ -39,13 +40,19 @@ export default function Payouts() {
     fetchPayouts()
     fetchLedger()
   }, [filter])
+  useAdminRefresh(() => { fetchPayouts(); fetchLedger() })
 
   const fetchLedger = async () => {
     try {
         const resp = await api.get('/admin/ledger')
         if (resp.data.status === 'success') {
             const mapped = resp.data.data.transactions.map(t => {
-                const isCredit = ['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'ADJUSTMENT', 'REFUND', 'ORDER_CREDIT'].includes(t.type);
+                // Prefer the explicit direction; legacy ADJUSTMENT rows fall back to the description
+                const isCredit = t.direction
+                    ? t.direction === 'CREDIT'
+                    : t.type === 'ADJUSTMENT'
+                        ? !(t.description || '').toLowerCase().includes('debit')
+                        : ['JOB_CREDIT', 'TOPUP', 'REFERRAL_BONUS', 'REFUND', 'ORDER_CREDIT', 'TRANSFER_RECEIVED'].includes(t.type);
                 
                 let displayType = 'earning';
                 if (t.type === 'SUBSCRIPTION') displayType = 'subscription';

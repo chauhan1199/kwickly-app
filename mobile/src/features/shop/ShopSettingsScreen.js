@@ -121,6 +121,9 @@ const KYC_PRESETS = [
 /* ═════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ═════════════════════════════════════════════════════════════ */
+// Initial map centre only (Delhi); never saved as the store location.
+const MAP_CENTER = { lat: 28.6139, lng: 77.2090 };
+
 const ShopSettingsScreen = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { signOut } = useAuth();
@@ -143,8 +146,9 @@ const ShopSettingsScreen = ({ navigation }) => {
   const [editDetails, setEditDetails] = useState({ name: '', description: '', phone: '' });
   const [editAddress, setEditAddress] = useState('');
   const [editLogo, setEditLogo] = useState(null);
-  const [editLocation, setEditLocation] = useState({ lat: 28.6139, lng: 77.2090 });
-  const [tempLocation, setTempLocation] = useState({ lat: 28.6139, lng: 77.2090 });
+  // null = no real pin yet. MAP_CENTER (Delhi) only centres the picker and is never saved.
+  const [editLocation, setEditLocation] = useState(null);
+  const [tempLocation, setTempLocation] = useState(null);
   const [showMap, setShowMap] = useState(false);
 
   const [editHours, setEditHours] = useState({
@@ -191,7 +195,7 @@ const ShopSettingsScreen = ({ navigation }) => {
         if (s.location?.coordinates?.length === 2 && (s.location.coordinates[0] !== 0 || s.location.coordinates[1] !== 0)) {
           setEditLocation({ lng: s.location.coordinates[0], lat: s.location.coordinates[1] });
         } else {
-          setEditLocation({ lat: 28.6139, lng: 77.2090 });
+          setEditLocation(null);
         }
         setEditHours({
           monFri: s.businessHours?.monFri || '9:00 AM – 10:00 PM',
@@ -348,7 +352,8 @@ const ShopSettingsScreen = ({ navigation }) => {
         name: editDetails.name.trim(),
         description: editDetails.description.trim(),
         address: editAddress.trim(),
-        location: { type: 'Point', coordinates: [editLocation.lng, editLocation.lat] },
+        // Only a pin the owner actually placed is saved; without one the stored location is left as is
+        ...(editLocation ? { location: { type: 'Point', coordinates: [editLocation.lng, editLocation.lat] } } : {}),
       };
       if (editLogo?.base64) payload.logoBase64 = `data:${editLogo.type || 'image/jpeg'};base64,${editLogo.base64}`;
       await shopService.updateMyShop(payload);
@@ -804,16 +809,14 @@ const ShopSettingsScreen = ({ navigation }) => {
           <TouchableOpacity 
             style={[s.outlineBtn, { marginBottom: 8 }]} 
             onPress={() => { 
-              const initLat = (editLocation.lat && editLocation.lat !== 0) ? editLocation.lat : 28.6139;
-              const initLng = (editLocation.lng && editLocation.lng !== 0) ? editLocation.lng : 77.2090;
-              setTempLocation({ lat: initLat, lng: initLng }); 
+              setTempLocation(editLocation);
               setShowMap(true); 
             }}
           >
             <Text style={s.outlineBtnText}>📍 Pin Exact Store Location on Map</Text>
           </TouchableOpacity>
           <Text style={{ color: c.textDim, fontSize: 12, marginBottom: 16 }}>
-            Coordinates: {editLocation.lat.toFixed(4)}, {editLocation.lng.toFixed(4)}
+            {editLocation ? `Coordinates: ${editLocation.lat.toFixed(4)}, ${editLocation.lng.toFixed(4)}` : 'Location not set: pin your store so nearby customers can find it'}
           </Text>
 
           <TouchableOpacity style={s.primaryBtn} onPress={saveDetails} disabled={saving}>
@@ -1236,14 +1239,24 @@ const ShopSettingsScreen = ({ navigation }) => {
                 <Text style={{ color: '#6C47FF', fontSize: 15, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
               <Text style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '800', color: c.text }}>Select Store Location</Text>
-              <TouchableOpacity onPress={() => { setEditLocation(tempLocation); setShowMap(false); }} style={{ padding: 4 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!tempLocation) {
+                    Alert.alert('Place the pin', 'Move the map so the pin sits on your store, search for it, or tap the GPS button.');
+                    return;
+                  }
+                  setEditLocation(tempLocation);
+                  setShowMap(false);
+                }}
+                style={{ padding: 4 }}
+              >
                 <Text style={{ color: '#6C47FF', fontSize: 15, fontWeight: '800' }}>Done</Text>
               </TouchableOpacity>
             </View>
             <LeafletMapPicker
               style={{ flex: 1 }}
-              latitude={tempLocation.lat}
-              longitude={tempLocation.lng}
+              latitude={(tempLocation || MAP_CENTER).lat}
+              longitude={(tempLocation || MAP_CENTER).lng}
               onLocationSelect={(coords, lng) => {
                 const sLat = typeof coords === 'object' ? (coords.lat ?? coords.latitude) : coords;
                 const sLng = typeof coords === 'object' ? (coords.lng ?? coords.longitude) : lng;

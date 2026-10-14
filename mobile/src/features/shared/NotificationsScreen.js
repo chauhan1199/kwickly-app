@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, FlatList,
+  View, Text, StyleSheet, FlatList,
   TouchableOpacity, StatusBar, RefreshControl, Alert,
   Animated,
 } from 'react-native';
@@ -309,7 +309,7 @@ const cleanNotificationText = (str) => {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
       <LinearGradient
@@ -399,7 +399,7 @@ const cleanNotificationText = (str) => {
           />
         }
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

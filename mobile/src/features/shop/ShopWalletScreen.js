@@ -66,6 +66,7 @@ import { utrValidationError, isValidUtr } from '../../utils/upiValidation';
 import { walletService } from '../../services/walletService';
 import LinearGradient from 'react-native-linear-gradient';
 import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
+import useSocket from '../../hooks/useSocket';
 import { KwicklyIcon } from '../../components/ui/KwicklyBrand';
 
 const TOP_UP_PRESETS = [100, 200, 500, 1000];
@@ -281,6 +282,31 @@ const ShopWalletScreen = ({ navigation }) => {
     setUpiPaymentModalVisible(true);
   };
 
+  // Live refresh when the server credits / approves / rejects / activates
+  useSocket({
+    role: 'SHOP',
+    userId: user?._id || user?.id,
+    onEvent: (event) => {
+      if (event === 'WALLET_UPDATE' || event === 'WALLET_TOPUP_APPROVED' || event === 'SUBSCRIPTION_ACTIVATED') {
+        fetchWallet();
+      }
+    }
+  });
+
+  // Creates the PENDING server record (intent mode, no UTR) BEFORE the UPI app
+  // opens, so every payment is tracked; the UTR is later submitted against it.
+  const createPendingIntent = async (amount, planId) => {
+    try {
+      const res = await walletService.topupWallet(Number(amount), { method: 'UPI' }, planId || undefined);
+      const id = res?.data?.data?.txnId || null;
+      if (!id) Alert.alert('Payment Error', 'Could not start the payment. Please try again.');
+      return id;
+    } catch (e) {
+      Alert.alert('Payment Error', e?.response?.data?.message || e?.message || 'Could not start the payment. Please try again.');
+      return null;
+    }
+  };
+
   const handlePayViaUpiApp = async (appKey = 'gpay') => {
     setSelectedUpiApp(appKey);
     const upiId = adminUpiConfig?.upiId;
@@ -289,7 +315,9 @@ const ShopWalletScreen = ({ navigation }) => {
     }
     const amt = parseFloat(topUpAmount) || 100;
     const payee = adminUpiConfig?.payeeName || 'Kwickly Admin';
-    const orderId = `shop_topup_${Date.now()}`;
+    const pendingTxnId = await createPendingIntent(amt, null);
+    if (!pendingTxnId) return;
+    const orderId = String(pendingTxnId);
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     
     // Close modal & open real-time waiting modal
@@ -297,6 +325,8 @@ const ShopWalletScreen = ({ navigation }) => {
     setWaitingContext({
       amount: amt,
       orderId,
+      txnId: pendingTxnId,
+      planId: null,
       purpose: 'wallet_topup',
       planTitle: '',
       payeeName: payee,
@@ -317,6 +347,7 @@ const ShopWalletScreen = ({ navigation }) => {
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
         const subRes = await handleManualUtrSubmission(utr, {
+          pendingTxnId,
           isIntentVerified: true,
           intentStatus: result?.status || 'SUCCESS',
           responseCode: result?.responseCode || '00',
@@ -357,7 +388,7 @@ const ShopWalletScreen = ({ navigation }) => {
         null,
         utr,
         null,
-        extraMeta
+        { pendingTxnId: waitingContext.txnId, ...extraMeta }
       );
       return res?.data?.data;
     }
@@ -589,7 +620,10 @@ const ShopWalletScreen = ({ navigation }) => {
     const planConfig = dynamicPlans.find(p => p.id === selectedPlan);
     const amt = planConfig?.priceNum || 0;
     const payee = adminUpiConfig?.payeeName || 'Kwickly Admin';
-    const orderId = `shop_sub_${Date.now()}`;
+    // Pending plan-purchase record first; subscribe() later attaches the UTR to it
+    const pendingTxnId = await createPendingIntent(amt, selectedPlan);
+    if (!pendingTxnId) return;
+    const orderId = String(pendingTxnId);
     const shortTr = `KWIK${Date.now().toString().slice(-6)}${Math.random().toString(36).slice(-4)}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 30);
     
     // Close subscription modal & open real-time waiting modal
@@ -598,6 +632,8 @@ const ShopWalletScreen = ({ navigation }) => {
     setWaitingContext({
       amount: amt,
       orderId,
+      txnId: pendingTxnId,
+      planId: selectedPlan,
       purpose: 'subscription',
       planTitle: planConfig?.title || 'Shop Subscription',
       payeeName: payee,
@@ -618,6 +654,7 @@ const ShopWalletScreen = ({ navigation }) => {
       const utr = (result?.approvalRefNo || result?.txnId || '').trim();
       if (utr && /^\d{12}$/.test(utr)) {
         const subRes = await handleManualUtrSubmission(utr, {
+          pendingTxnId,
           isIntentVerified: true,
           intentStatus: result?.status || 'SUCCESS',
           responseCode: result?.responseCode || '00',
@@ -705,7 +742,7 @@ const ShopWalletScreen = ({ navigation }) => {
               </View>
             </View>
 
-            <Text style={styles.heroBalance}>₹{numBalance.toFixed(2)}</Text>
+            <Text style={styles.heroBalance} numberOfLines={1} adjustsFontSizeToFit>₹{numBalance.toFixed(2)}</Text>
 
             {/* Reserve breakdown */}
             <View style={styles.heroBreakdown}>
@@ -861,8 +898,9 @@ const ShopWalletScreen = ({ navigation }) => {
           MODAL 1: ADD MONEY (TOP UP AMOUNT)
       ═══════════════════════════════════════════ */}
       <Modal visible={topUpModalVisible} transparent animationType="slide" onRequestClose={() => setTopUpModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', paddingBottom: 16 + insets.bottom }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View>
@@ -908,16 +946,18 @@ const ShopWalletScreen = ({ navigation }) => {
             <TouchableOpacity style={styles.primaryBtn} onPress={handleTopUpProceed}>
               <Text style={styles.primaryBtnText}>Proceed to Pay via UPI →</Text>
             </TouchableOpacity>
+          </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════════
           MODAL 2: UPI PAYMENT CHECKOUT
       ═══════════════════════════════════════════ */}
       <Modal visible={upiPaymentModalVisible} transparent animationType="slide" onRequestClose={() => setUpiPaymentModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', paddingBottom: 16 + insets.bottom }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View>
@@ -981,16 +1021,18 @@ const ShopWalletScreen = ({ navigation }) => {
               </Text>
               <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
+          </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════════
           MODAL 3: WITHDRAW FUNDS
       ═══════════════════════════════════════════ */}
       <Modal visible={withdrawModalVisible} transparent animationType="slide" onRequestClose={() => setWithdrawModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '92%' }]}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '92%', paddingBottom: 16 + insets.bottom }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View>
@@ -1023,7 +1065,7 @@ const ShopWalletScreen = ({ navigation }) => {
 
             {/* Destination Selection */}
             <Text style={styles.fieldSectionLabel}>Select Destination Account</Text>
-            <ScrollView style={{ maxHeight: 150, marginBottom: 14 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: 150, marginBottom: 14 }} nestedScrollEnabled showsVerticalScrollIndicator={false}>
               {accounts.map(acc => (
                 <TouchableOpacity
                   key={acc.id}
@@ -1080,16 +1122,18 @@ const ShopWalletScreen = ({ navigation }) => {
                 <Text style={styles.primaryBtnText}>Confirm Withdrawal →</Text>
               )}
             </TouchableOpacity>
+          </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════════
           MODAL 4: ADD PAYOUT ACCOUNT (BANK/UPI)
       ═══════════════════════════════════════════ */}
       <Modal visible={addAccountModalVisible} transparent animationType="slide" onRequestClose={() => setAddAccountModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%', paddingBottom: 16 + insets.bottom }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View>
@@ -1173,8 +1217,9 @@ const ShopWalletScreen = ({ navigation }) => {
                 <Text style={styles.primaryBtnText}>Save Account ✅</Text>
               )}
             </TouchableOpacity>
+          </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ═══════════════════════════════════════════
@@ -1182,7 +1227,7 @@ const ShopWalletScreen = ({ navigation }) => {
       ═══════════════════════════════════════════ */}
       <Modal visible={subscriptionModalVisible} transparent animationType="slide" onRequestClose={() => { setSubPaymentStep(false); setSubscriptionModalVisible(false); }}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '88%' }]}>
+          <View style={[styles.modalContent, { maxHeight: '88%', paddingBottom: 16 + insets.bottom }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View>
@@ -1296,7 +1341,8 @@ const ShopWalletScreen = ({ navigation }) => {
       ═══════════════════════════════════════════ */}
       <Modal visible={transactionModalVisible} transparent animationType="fade" onRequestClose={() => setTransactionModalVisible(false)}>
         <View style={styles.centerOverlay}>
-          <View style={styles.receiptCard}>
+          <View style={[styles.receiptCard, { maxHeight: '90%' }]}>
+<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             {/* Header with brand logo and verified badge */}
             <View style={styles.receiptTopHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1395,6 +1441,7 @@ const ShopWalletScreen = ({ navigation }) => {
                 </View>
               </>
             )}
+          </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1410,6 +1457,8 @@ const ShopWalletScreen = ({ navigation }) => {
           }}
           amount={waitingContext.amount}
           orderId={waitingContext.orderId}
+          txnId={waitingContext.txnId}
+          planId={waitingContext.planId}
           payeeName={waitingContext.payeeName}
           upiVpa={waitingContext.upiVpa}
           purpose={waitingContext.purpose}
@@ -1833,7 +1882,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 22,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    paddingBottom: 16, // + insets.bottom applied inline (edge-to-edge)
   },
   modalHandle: {
     width: 40,

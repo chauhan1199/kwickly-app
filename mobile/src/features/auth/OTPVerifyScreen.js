@@ -61,6 +61,9 @@ const OTPVerifyScreen = ({ navigation, route }) => {
   const inputs = useRef([]);
   const timerRef = useRef(null);
   const scrollRef = useRef(null);
+  // Measured offsets so focusing the code boxes scrolls the form card into view
+  const topSectionYRef = useRef(0);
+  const cardYRef = useRef(0);
 
   useEffect(() => {
     const t = setTimeout(() => { if (inputs.current[0]) inputs.current[0].focus(); }, 350);
@@ -217,7 +220,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
           overScrollMode="never"
           scrollEnabled={true}
         >
-          <View style={styles.topSection}>
+          <View style={styles.topSection} onLayout={(e) => { topSectionYRef.current = e.nativeEvent.layout.y; }}>
             {/* Top Brand Header */}
             <View style={[styles.headerBlock, isSmallScreen && { marginBottom: 4 }, isTallScreen && { marginBottom: 18 }]}>
               <View style={[styles.logoRow, isSmallScreen && { marginBottom: 3 }]}>
@@ -250,7 +253,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             </View>
 
             {/* Floating Form Card */}
-            <View style={[
+            <View onLayout={(e) => { cardYRef.current = e.nativeEvent.layout.y; }} style={[
               styles.card,
               { backgroundColor: cardBg, borderColor: cardBorder },
               isSmallScreen && { paddingVertical: 12, paddingHorizontal: 14 },
@@ -291,7 +294,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
                         onKeyPress={(e) => handleKeyPress(e, index)}
                         onFocus={() => {
                           setFocusedIndex(index);
-                          setTimeout(() => scrollRef.current?.scrollTo({ y: 70, animated: true }), 100);
+                          setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, topSectionYRef.current + cardYRef.current - 12), animated: true }), 300);
                         }}
                         onBlur={() => setFocusedIndex(null)}
                         selectTextOnFocus

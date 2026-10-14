@@ -3,10 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  StatusBar,
   Dimensions,
   Image,
   Modal,
@@ -15,8 +13,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   DeviceEventEmitter,
-  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../services/api';
 import { jobService } from '../../services/jobService';
 import { useTheme } from '../../context/ThemeContext';
@@ -87,6 +86,7 @@ const SubCategoryCardItem = React.memo(({ sub, index, category, displayIcon, fin
 
 const SubCategoriesScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
   
   const [modalVisible, setModalVisible] = useState(false);
   const [suggestionName, setSuggestionName] = useState('');
@@ -154,10 +154,10 @@ const SubCategoriesScreen = ({ route, navigation }) => {
     });
   }, [localSubs]);
 
-  const styles = createStyles(theme, isDarkMode);
+  const styles = createStyles(theme, isDarkMode, insets);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* ── Hero Header ── */}
       <LinearGradient
         colors={['#6C47FF', '#8B6FFF']}
@@ -243,7 +243,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.colors.card, position: 'relative' }]}>
             <TouchableOpacity
               style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, padding: 6 }}
@@ -252,6 +252,7 @@ const SubCategoriesScreen = ({ route, navigation }) => {
             >
               <X size={20} color={theme.colors.textDim} />
             </TouchableOpacity>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={[styles.modalTitle, { color: theme.colors.text, paddingRight: 28 }]}>Suggest a Subcategory</Text>
             <Text style={[styles.modalDesc, { color: theme.colors.textDim }]}>
               Don't see what you're looking for under {name}? Suggest it!
@@ -312,14 +313,15 @@ const SubCategoriesScreen = ({ route, navigation }) => {
                 {isSubmitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.submitBtnText}>Submit</Text>}
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (theme, isDarkMode) =>
+const createStyles = (theme, isDarkMode, insets) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -328,7 +330,7 @@ const createStyles = (theme, isDarkMode) =>
 
     // ── Hero ──
     hero: {
-      paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 14 : 36,
+      paddingTop: insets.top + 14,
       paddingBottom: 40,
       paddingHorizontal: 16,
       borderBottomLeftRadius: 30,
@@ -542,7 +544,8 @@ const createStyles = (theme, isDarkMode) =>
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       padding: 24,
-      paddingBottom: 40,
+      paddingBottom: Math.max(insets.bottom, 16) + 24,
+      maxHeight: '90%',
     },
     modalTitle: {
       fontWeight: '700',

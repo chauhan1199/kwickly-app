@@ -172,7 +172,8 @@ const OrderTrackingScreen = ({ route, navigation }) => {
         )}
 
         {/* Delivery OTP */}
-        {order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && order.deliveryOtp && (
+        {/* The OTP is the handover proof: show it only once the order is on its way */}
+        {order.status === 'OUT_FOR_DELIVERY' && order.deliveryOtp && (
           <View style={styles.otpCard}>
             <View style={styles.otpHeader}>
               <Text style={styles.otpTitle}>Delivery Handover OTP</Text>
@@ -242,6 +243,8 @@ const OrderTrackingScreen = ({ route, navigation }) => {
             ['Items Total', `₹${order.subtotal}`],
             ['Delivery Fee', order.deliveryFee === 0 ? 'FREE' : `₹${order.deliveryFee}`],
             (order.discount > 0 || order.promoDiscount > 0) ? ['Discount Applied', `-₹${order.discount || order.promoDiscount}`] : null,
+            order.platformFee > 0 ? ['Platform Fee', `₹${Number(order.platformFee).toFixed(2)}`] : null,
+            order.gstAmount > 0 ? ['GST on Fee (18%)', `₹${Number(order.gstAmount).toFixed(2)}`] : null,
           ].filter(Boolean).map(([k, v]) => (
             <View key={k} style={styles.billRow}>
               <Text style={styles.billKey}>{k}</Text>
@@ -249,12 +252,17 @@ const OrderTrackingScreen = ({ route, navigation }) => {
             </View>
           ))}
           <View style={[styles.billRow, styles.billTotalRow]}>
-            <Text style={styles.billTotalKey}>Total Paid</Text>
+            <Text style={styles.billTotalKey}>{order.payment?.status === 'PAID' ? 'Total Paid' : 'Total'}</Text>
             <Text style={styles.billTotalVal}>₹{order.total}</Text>
           </View>
           <View style={styles.paymentBadge}>
             <Text style={styles.paymentText}>
-              💳 {order.payment?.method || 'WALLET'} · {order.payment?.status === 'PAID' ? 'Paid' : 'Pending'}
+              💳 {(order.payment?.method === 'CASH' || order.payment?.method === 'COD') ? 'Cash on Delivery' : (order.payment?.method || 'WALLET')} · {({
+                PAID: 'Paid',
+                REFUNDED: 'Refunded',
+                PENDING_VERIFICATION: 'Awaiting payment confirmation',
+                FAILED: 'Payment failed',
+              })[order.payment?.status] || ((order.payment?.method === 'CASH' || order.payment?.method === 'COD') ? 'Pay on delivery' : 'Pending')}
             </Text>
           </View>
         </View>

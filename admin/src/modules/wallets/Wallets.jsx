@@ -7,6 +7,7 @@ import ConfirmModal from '../../components/ConfirmModal'
 import Toast from '../../components/Toast'
 import EmptyState from '../../components/EmptyState'
 import Drawer from '../../components/common/Drawer'
+import useAdminRefresh from '../../hooks/useAdminRefresh'
 
 const ROLE_COLORS = { CUSTOMER: '#00B4D8', WORKER: '#8B5CF6', SHOP: '#10B981' }
 
@@ -27,10 +28,12 @@ const TYPE_VARIANT = {
   ORDER_DEBIT: 'danger', JOB_DEBIT: 'danger', ADJUSTMENT: 'info', TOPUP: 'success', COMMISSION: 'danger', ORDER_PAYMENT: 'warning'
 }
 
-const CREDIT_TYPES = ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP']
+const CREDIT_TYPES = ['JOB_CREDIT', 'ORDER_CREDIT', 'REFUND', 'REFERRAL_BONUS', 'TOPUP', 'TRANSFER_RECEIVED']
 
 const isCreditTxn = (t) => {
+  if (t.direction) return t.direction === 'CREDIT'
   if (CREDIT_TYPES.includes(t.type)) return true
+  // Legacy ADJUSTMENT rows have no direction: fall back to the description heuristic
   if (t.type === 'ADJUSTMENT') return !(t.description || '').toLowerCase().includes('debit')
   return false
 }
@@ -72,6 +75,12 @@ export default function Wallets() {
     fetchAll()
     fetchPendingTopups()
   }, [])
+
+  useAdminRefresh(() => {
+    fetchAll()
+    fetchPendingTopups()
+    if (tab === 'transactions') fetchAllTxns()
+  })
 
   useEffect(() => {
     if (tab === 'pending') fetchPendingTopups()
@@ -236,8 +245,10 @@ export default function Wallets() {
   }), [allTxns, txnSearch, txnTypeFilter, txnRoleFilter])
 
   const totalBalance = users.reduce((s, u) => s + (u.wallet?.balance || 0), 0)
-  const totalCredit = allTxns.filter(t => isCreditTxn(t)).reduce((s, t) => s + (t.amount || 0), 0)
-  const totalDebit = allTxns.filter(t => !isCreditTxn(t)).reduce((s, t) => s + (t.amount || 0), 0)
+  // Only settled rows count towards totals (PENDING / FAILED never moved money)
+  const completedTxns = allTxns.filter(t => (t.status || 'COMPLETED') === 'COMPLETED')
+  const totalCredit = completedTxns.filter(t => isCreditTxn(t)).reduce((s, t) => s + (t.amount || 0), 0)
+  const totalDebit = completedTxns.filter(t => !isCreditTxn(t)).reduce((s, t) => s + (t.amount || 0), 0)
 
   const openDetail = async (user) => {
     setSelected(user)

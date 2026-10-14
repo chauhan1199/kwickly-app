@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { shopService } from '../../services/shopService';
+import useSocket from '../../hooks/useSocket';
 import { getImageUrl, formatStatus } from '../../utils/helpers';
 import LinearGradient from 'react-native-linear-gradient';
 import {
@@ -177,6 +178,14 @@ const ShopDashboardScreen = ({ navigation }) => {
       fetchDashboardData(hasLoadedOnceRef.current);
     }, [fetchDashboardData])
   );
+
+  // Live updates: new orders and status/payment changes refresh the dashboard
+  useSocket({
+    role: 'SHOP',
+    onEvent: (event) => {
+      if (event === 'NEW_ORDER' || event === 'ORDER_STATUS') fetchDashboardData(true);
+    }
+  });
 
   const s = createStyles(theme, isDarkMode);
 

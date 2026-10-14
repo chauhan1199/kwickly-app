@@ -34,15 +34,18 @@ exports.getBadgeCounts = catchAsync(async (req, res) => {
     const cached = await getCache(cacheKey);
     if (cached) return successResponse(res, cached, 'Badges fetched');
 
-    const [kyc, payouts, disputes, suggestions, shopKyc] = await Promise.all([
+    const [kyc, payouts, ticketDisputes, jobDisputes, suggestions, shopKyc] = await Promise.all([
         Customer.countDocuments({ role: 'WORKER', 'kyc.status': 'PENDING' }),
         Payout.countDocuments({ status: 'PENDING' }),
         Dispute.countDocuments({ status: 'OPEN' }),
+        // Worker-reported part-payment disputes live on the job itself (status DISPUTED)
+        Job.countDocuments({ status: 'DISPUTED' }),
         Suggestion.countDocuments({ status: 'PENDING' }),
         Shop.countDocuments({ 'kyc.status': 'PENDING' })
     ]);
 
-    const data = { kyc, payouts, disputes, suggestions, shopKyc };
+    const disputes = ticketDisputes + jobDisputes;
+    const data = { kyc, payouts, disputes, jobDisputes, suggestions, shopKyc };
     await setCache(cacheKey, data, BADGE_COUNTS_TTL); // 1 min TTL for real-time feel
     return successResponse(res, data, 'Badges fetched');
 });
@@ -67,41 +70,83 @@ exports.getStats = catchAsync(async (req, res) => {
 
     const matchDate = rangeStart();
 
-    const [totalCustomers, totalWorkers, totalShops, activeJobsCount, revenueData] = await Promise.all([
+    // Platform revenue = what the platform keeps (fee + GST) on settled money only.
+    const JOB_PLATFORM_CUT = { $add: [{ $ifNull: ['$payment.platformFee', 0] }, { $ifNull: ['$payment.gst', { $ifNull: ['$payment.gstAmount', 0] }] }] };
+    const ORDER_PLATFORM_CUT = { $add: [{ $ifNull: ['$platformFee', 0] }, { $ifNull: ['$gstAmount', 0] }] };
+    const paidOrderMatch = (from) => ({
+        createdAt: { $gte: from },
+        status: { $ne: 'CANCELLED' },
+        'payment.status': { $ne: 'REFUNDED' },
+        $or: [{ status: 'DELIVERED' }, { 'payment.status': 'PAID' }]
+    });
+
+    const [totalCustomers, totalWorkers, totalShops, activeJobsCount, revenueData, jobPlatformData, orderPlatformData] = await Promise.all([
         Customer.countDocuments({ role: 'CUSTOMER' }),
         Customer.countDocuments({ role: 'WORKER' }),
         Shop.countDocuments(),
-        Job.countDocuments({ status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS'] } }),
+        Job.countDocuments({ status: { $in: ['BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'DISPUTED'] } }),
+        // Gross booked value (customer payable on all non-cancelled jobs) — kept as totalRevenue for compatibility
         Job.aggregate([
             { $match: { createdAt: { $gte: matchDate }, status: { $ne: 'CANCELLED' } } },
             { $group: { _id: null, total: { $sum: '$payment.amount' } } }
+        ]),
+        Job.aggregate([
+            { $match: { createdAt: { $gte: matchDate }, 'payment.status': 'PAID' } },
+            { $group: { _id: null, total: { $sum: JOB_PLATFORM_CUT } } }
+        ]),
+        ShopOrder.aggregate([
+            { $match: paidOrderMatch(matchDate) },
+            { $group: { _id: null, total: { $sum: ORDER_PLATFORM_CUT } } }
         ])
     ]);
 
     const totalRevenue = revenueData[0]?.total || 0;
+    const jobPlatformRevenue = jobPlatformData[0]?.total || 0;
+    const shopPlatformRevenue = orderPlatformData[0]?.total || 0;
+    const platformRevenue = jobPlatformRevenue + shopPlatformRevenue;
 
-    const last7Days = [...Array(7)].map((_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (6 - i));
-        d.setHours(0, 0, 0, 0);
-        return d;
-    });
+    // Chart buckets follow the selected range: daily for today/week/month, monthly otherwise
+    // ('all' shows the last 12 months).
+    const monthly = ['quarter', 'year', 'all'].includes(range);
+    const now = new Date();
+    let chartStart;
+    if (range === 'all') { chartStart = new Date(now.getFullYear(), now.getMonth() - 11, 1); }
+    else if (monthly) { chartStart = new Date(matchDate.getFullYear(), matchDate.getMonth(), 1); }
+    else { chartStart = new Date(matchDate); }
+    const buckets = [];
+    for (const d = new Date(chartStart); d <= now; monthly ? d.setMonth(d.getMonth() + 1) : d.setDate(d.getDate() + 1)) {
+        buckets.push(new Date(d));
+    }
+    const pad = (n) => String(n).padStart(2, '0');
+    const bucketKey = (d) => monthly ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}` : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const groupId = { $dateToString: { format: monthly ? '%Y-%m' : '%Y-%m-%d', date: '$createdAt', timezone } };
 
-    const chartDataRaw = await Job.aggregate([
-        { $match: { createdAt: { $gte: last7Days[0] }, status: { $ne: 'CANCELLED' } } },
-        { $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-            jobs: { $sum: 1 },
-            revenue: { $sum: '$payment.amount' }
-        }}
+    const [chartJobsRaw, chartOrdersRaw] = await Promise.all([
+        Job.aggregate([
+            { $match: { createdAt: { $gte: chartStart } } },
+            { $group: {
+                _id: groupId,
+                jobs: { $sum: { $cond: [{ $ne: ['$status', 'CANCELLED'] }, 1, 0] } },
+                revenue: { $sum: { $cond: [{ $eq: ['$payment.status', 'PAID'] }, JOB_PLATFORM_CUT, 0] } }
+            }}
+        ]),
+        ShopOrder.aggregate([
+            { $match: paidOrderMatch(chartStart) },
+            { $group: { _id: groupId, revenue: { $sum: ORDER_PLATFORM_CUT } } }
+        ])
     ]);
 
-    const chartData = last7Days.map(date => {
-        const dateStr = date.toISOString().split('T')[0];
-        const dayStr = date.toLocaleDateString('en-US', { weekday: 'short' });
-        const record = chartDataRaw.find(r => r._id === dateStr);
-        return { day: dayStr, jobs: record?.jobs || 0, revenue: record?.revenue || 0 };
+    const chartData = buckets.map(date => {
+        const key = bucketKey(date);
+        const jobRec = chartJobsRaw.find(r => r._id === key);
+        const orderRec = chartOrdersRaw.find(r => r._id === key);
+        const day = monthly
+            ? date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+            : buckets.length <= 7 ? date.toLocaleDateString('en-US', { weekday: 'short' }) : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return { day, date: key, jobs: jobRec?.jobs || 0, revenue: (jobRec?.revenue || 0) + (orderRec?.revenue || 0) };
     });
+    const chartRangeLabel = range === 'all' ? 'Last 12 months' : null;
 
     const recentJobs = await Job.find()
         .populate('customerId', 'name')
@@ -110,14 +155,14 @@ exports.getStats = catchAsync(async (req, res) => {
         .lean();
 
     const activities = recentJobs.map(job => ({
-        color: job.status === 'COMPLETED' || job.status === 'PAID' ? 'green' : job.status === 'CANCELLED' ? 'red' : 'blue',
+        color: ['COMPLETED', 'PAID', 'CLOSED'].includes(job.status) ? 'green' : job.status === 'CANCELLED' ? 'red' : 'blue',
         text: `Job #${job._id.toString().slice(-6)} — ${job.category} [${job.status}]${job.customerId?.name ? ' by ' + job.customerId.name : ''}`,
         time: job.createdAt
     }));
 
     const topWorkersRaw = await Job.aggregate([
-        { $match: { status: { $in: ['COMPLETED', 'PAID'] } } },
-        { $group: { _id: '$workerId', totalJobs: { $sum: 1 }, totalEarnings: { $sum: '$payment.workerPayout' } } },
+        { $match: { status: { $in: ['COMPLETED', 'PAID', 'CLOSED'] }, workerId: { $ne: null } } },
+        { $group: { _id: '$workerId', totalJobs: { $sum: 1 }, totalEarnings: { $sum: '$payment.workerPayout' }, jobCategory: { $first: '$category' } } },
         { $sort: { totalJobs: -1 } },
         { $limit: 5 },
         { $lookup: { from: 'customers', localField: '_id', foreignField: '_id', as: 'worker' } },
@@ -126,7 +171,7 @@ exports.getStats = catchAsync(async (req, res) => {
 
     const topWorkers = topWorkersRaw.map(row => ({
         name:     row.worker.name || 'Unknown',
-        category: (row.worker.services?.[0]?.category) || 'Service',
+        category: row.worker.services?.[0]?.categoryName || row.jobCategory || 'Service',
         jobs:     row.totalJobs,
         rating:   row.worker.rating?.average?.toFixed(1) || '0.0',
         earned:   `₹${(row.totalEarnings || 0).toFixed(0)}`,
@@ -141,8 +186,9 @@ exports.getStats = catchAsync(async (req, res) => {
 
     const responseData = {
         totalCustomers, totalWorkers, totalShops,
-        activeJobs: activeJobsCount, totalRevenue,
-        connectedClients, activities, topWorkers, chartData
+        activeJobs: activeJobsCount, totalRevenue, grossValue: totalRevenue,
+        platformRevenue, jobPlatformRevenue, shopPlatformRevenue,
+        connectedClients, activities, topWorkers, chartData, chartRangeLabel
     };
 
     await setCache(cacheKey, responseData, DASHBOARD_STATS_TTL);
@@ -243,7 +289,7 @@ exports.getPendingKYC = catchAsync(async (req, res) => {
         ...(shops || []).filter(Boolean).map(s => ({ ...s, _id: s._id?.toString() || s._id, kycType: 'SHOP', name: s.name, phone: s.ownerId?.phone }))
     ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    const total = workerTotal + shopTotal;
+    const total = kycType === 'SHOP' ? shopTotal : kycType === 'WORKER' ? workerTotal : workerTotal + shopTotal;
     const paged = items.slice((pageNum - 1) * pageSize, pageNum * pageSize);
 
     return successResponse(res, {
@@ -1246,7 +1292,7 @@ exports.getCustomerOrders = catchAsync(async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const orders = await ShopOrder.find({ customerId: id })
         .populate('shopId', 'name')
-        .populate('items.product', 'name price imageUrl')
+        .populate('items.productId', 'name price imageUrl')
         .sort('-createdAt')
         .limit(Number(limit))
         .skip((Number(page) - 1) * Number(limit))
@@ -1581,34 +1627,31 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { status, txnId, rejectReason } = req.body;
 
-    const payout = await Payout.findById(id);
-    if (!payout) return errorResponse(res, 'Payout not found', StatusCodes.NOT_FOUND);
+    // Only forward transitions are allowed; claim the payout atomically on its current status
+    // so a repeated or concurrent request can't refund twice or debit the treasury again.
+    const ALLOWED_FROM = { APPROVED: ['PENDING'], TRANSFERRED: ['PENDING', 'APPROVED'], REJECTED: ['PENDING', 'APPROVED'] };
+    if (!ALLOWED_FROM[status]) return errorResponse(res, 'Invalid payout status', StatusCodes.BAD_REQUEST);
 
-    const isRejecting = payout.status !== 'REJECTED' && status === 'REJECTED';
-    
-    payout.status = status;
-    if (txnId) payout.txnId = txnId;
-    if (rejectReason) payout.rejectReason = rejectReason;
-    payout.processedAt = new Date();
-    await payout.save();
+    const existing = await Payout.findById(id).select('status').lean();
+    if (!existing) return errorResponse(res, 'Payout not found', StatusCodes.NOT_FOUND);
 
-    if (isRejecting) {
-        // Refund the deducted amount
-        const Customer = require('../customer/customer.model');
-        const Shop = require('../shop/shop.model');
-        
-        if (payout.shopId) {
-            await Shop.findByIdAndUpdate(payout.shopId, { $inc: { 'wallet.balance': payout.amount } });
-        } else if (payout.workerId) {
-            await Customer.findByIdAndUpdate(payout.workerId, { $inc: { 'wallet.balance': payout.amount } });
-        }
+    const update = { status, processedAt: new Date() };
+    if (txnId) update.txnId = txnId;
+    if (rejectReason) update.rejectReason = rejectReason;
+    const payout = await Payout.findOneAndUpdate(
+        { _id: id, status: { $in: ALLOWED_FROM[status] } },
+        { $set: update },
+        { returnDocument: 'after' }
+    );
+    if (!payout) {
+        return errorResponse(res, `Payout is already ${existing.status} and cannot be changed to ${status}`, StatusCodes.CONFLICT);
     }
 
-    // Update corresponding WalletTxn if available
-    const mappedStatus = status === 'TRANSFERRED' ? 'COMPLETED' : (status === 'APPROVED' ? 'PENDING' : status);
+    // Update corresponding withdrawal WalletTxn (enum: PENDING | COMPLETED | FAILED)
+    const mappedStatus = status === 'TRANSFERRED' ? 'COMPLETED' : status === 'REJECTED' ? 'FAILED' : 'PENDING';
     const entityId = payout.workerId || payout.shopId;
-    
-    // In Kwickly Shop logic, WalletTxn userId is the owner's userId, but for shop it might be different. 
+
+    // In Kwickly Shop logic, WalletTxn userId is the owner's userId, but for shop it might be different.
     // Usually Shop Owner ID created it, so we fallback to finding by amount if walletTxnId is missing.
     let wTxn;
     if (payout.walletTxnId) {
@@ -1617,10 +1660,28 @@ exports.updatePayoutStatus = catchAsync(async (req, res) => {
         // Fallback for existing payouts
         wTxn = await WalletTxn.findOneAndUpdate({
             amount: payout.amount,
-            status: { $in: ['PENDING', 'APPROVED'] },
+            status: 'PENDING',
             type: 'WITHDRAWAL',
             ...(payout.workerId ? { userId: payout.workerId } : {})
         }, { status: mappedStatus }, { returnDocument: 'after' });
+    }
+
+    if (status === 'REJECTED') {
+        // Refund the deducted amount and record it as a REFUND transaction
+        const refundNote = `Refund for rejected payout: ${rejectReason || 'Admin rejected'}`;
+        if (payout.shopId) {
+            const shop = await Shop.findByIdAndUpdate(payout.shopId, { $inc: { 'wallet.balance': payout.amount } }, { returnDocument: 'after' });
+            const ownerId = shop?.ownerId || wTxn?.userId;
+            if (shop && ownerId) {
+                await WalletTxn.create({ userId: ownerId, type: 'REFUND', amount: payout.amount, balance: shop.wallet?.balance || 0, refId: payout._id.toString(), status: 'COMPLETED', description: refundNote });
+            }
+        } else if (payout.workerId) {
+            const worker = await Customer.findByIdAndUpdate(payout.workerId, { $inc: { 'wallet.balance': payout.amount } }, { returnDocument: 'after' });
+            if (worker) {
+                await WalletTxn.create({ userId: worker._id, type: 'REFUND', amount: payout.amount, balance: worker.wallet?.balance || 0, refId: payout._id.toString(), status: 'COMPLETED', description: refundNote });
+            }
+            await delCache(`session:${payout.workerId}`);
+        }
     }
 
     // Send Notification

@@ -34,9 +34,9 @@ const calculateCart = (cart, shop) => {
         }
     }
 
-    if (!cart.discount || cart.discount < autoDiscount) {
-        cart.discount = autoDiscount;
-    }
+    // Recomputed every time (never kept from an earlier, larger subtotal), capped
+    // at the subtotal exactly as placeOrder does.
+    cart.discount = Math.min(autoDiscount, cart.subtotal);
 
     cart.totalAmount = Math.max(0, cart.subtotal + cart.deliveryCharge - (cart.discount || 0));
     return cart;
@@ -51,6 +51,13 @@ exports.getCart = catchAsync(async (req, res) => {
     if (cart.expiresAt < new Date()) {
         await Cart.deleteOne({ _id: cart._id });
         return successResponse(res, null, 'Cart has expired');
+    }
+
+    // Refresh prices from the DB (placeOrder charges the DB price), so the cart
+    // total the app shows matches what the server will charge.
+    for (const item of cart.items) {
+        const p = item.productId;
+        if (p && typeof p === 'object' && typeof p.price === 'number') item.price = p.price;
     }
 
     calculateCart(cart, cart.shopId);

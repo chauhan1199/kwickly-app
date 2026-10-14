@@ -278,9 +278,11 @@ describe('Concurrency & Race Conditions', () => {
             const shopAfterDelivery = await Shop.findById(shopId);
             expect(shopAfterDelivery.wallet.balance).toBe(1240);
 
-            // Cancel after delivery → reversal
+            // Cancel after delivery → reversal (only an admin may cancel a delivered order)
+            const admin = await createTestUser({ role: 'ADMIN', email: 'conc-admin@test.com', phone: '9844000099' });
+            const adminToken = generateToken(admin);
             const cancel = await request(app).patch(`/api/v1/shoporders/${order._id}/status`)
-                .set('Authorization', `Bearer ${shopToken}`).send({ status: 'CANCELLED', note: 'Customer returned goods' });
+                .set('Authorization', `Bearer ${adminToken}`).send({ status: 'CANCELLED', note: 'Customer returned goods' });
             expect(cancel.status).toBe(200);
 
             // Whole shop payout (products 200 + delivery 40) clawed back: 1240 - 240 = 1000
@@ -300,7 +302,7 @@ describe('Concurrency & Race Conditions', () => {
 
             // Double-cancel must NOT double-refund
             const cancel2 = await request(app).patch(`/api/v1/shoporders/${order._id}/status`)
-                .set('Authorization', `Bearer ${shopToken}`).send({ status: 'CANCELLED', note: 'again' });
+                .set('Authorization', `Bearer ${adminToken}`).send({ status: 'CANCELLED', note: 'again' });
             // CANCELLED → no transitions allowed
             expect([400, 409]).toContain(cancel2.status);
 

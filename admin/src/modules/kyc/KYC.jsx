@@ -4,6 +4,7 @@ import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import { getImageUrl } from '../../services/api'
 import { Eye, CheckCircle, XCircle, Store, User, Search, Download, RefreshCw, AlertTriangle, ExternalLink } from 'lucide-react'
 import Toast from '../../components/Toast'
+import useAdminRefresh from '../../hooks/useAdminRefresh'
 import ConfirmModal from '../../components/ConfirmModal'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -74,6 +75,7 @@ export default function KYC() {
   useEffect(() => {
     fetchPendingKYC()
   }, [fetchPendingKYC])
+  useAdminRefresh(fetchPendingKYC)
 
   const showToast = (msg, type = 'success') => setToast({ message: msg, type })
 

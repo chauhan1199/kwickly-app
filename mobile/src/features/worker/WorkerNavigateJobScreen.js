@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   ScrollView,
   View,
@@ -18,6 +18,8 @@ import { useAuth } from '../../context/AuthContext';
 import { Phone, MessageCircle, Navigation } from 'lucide-react-native';
 import { jobService } from '../../services/jobService';
 import { distanceKm, estimateEtaMinutes, formatDistance } from '../../utils/geo';
+import { getCurrentPosition, requestLocationPermission, watchCurrentPosition } from '../../utils/currentLocation';
+import useSocket, { activeJobTracking } from '../../hooks/useSocket';
 
 const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -45,17 +47,67 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
   const commission = 0;
   const earning = amount;
 
-  const jobLat = Number(job?.location?.coordinates?.[1]) || 23.0350;
-  const jobLng = Number(job?.location?.coordinates?.[0]) || 72.5293;
-  const rawWLat = Number(user?.activeLocation?.coordinates?.[1]);
-  const rawWLng = Number(user?.activeLocation?.coordinates?.[0]);
-  const hasRawCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
-  // Real position only: when the worker's location is unknown we draw no worker pin and no ETA
-  const wLat = hasRawCoords ? rawWLat : null;
-  const wLng = hasRawCoords ? rawWLng : null;
-  const routeKm = hasRawCoords ? distanceKm({ lat: wLat, lng: wLng }, { lat: jobLat, lng: jobLng }) : null;
+  // No invented fallback: without the job's own pin we show no map and block navigation
+  const rawJobLat = Number(job?.location?.coordinates?.[1]);
+  const rawJobLng = Number(job?.location?.coordinates?.[0]);
+  const hasJobCoords = Number.isFinite(rawJobLat) && Number.isFinite(rawJobLng) && (rawJobLat !== 0 || rawJobLng !== 0);
+  const jobLat = hasJobCoords ? rawJobLat : null;
+  const jobLng = hasJobCoords ? rawJobLng : null;
+
+  // The worker's own live GPS position (not the profile's saved activeLocation)
+  const [myPos, setMyPos] = useState(null); // { lat, lng }
+  const hasRawCoords = !!myPos;
+  const wLat = myPos?.lat ?? null;
+  const wLng = myPos?.lng ?? null;
+  const routeKm = hasRawCoords && hasJobCoords ? distanceKm({ lat: wLat, lng: wLng }, { lat: jobLat, lng: jobLng }) : null;
   const eta = estimateEtaMinutes(routeKm);
   const distance = formatDistance(routeKm);
+
+  const { emit } = useSocket({
+    role: 'WORKER',
+    userId: user?._id || user?.id,
+    onEvent: (event, data) => {
+      // Cancelled / reassigned while navigating: refresh so the live tracking below stops
+      if (event === 'JOB_STATUS_CHANGED' && String(data?.jobId) === String(targetJobId)) {
+        jobService.getJobById(targetJobId).then(res => {
+          if (res.data?.data) setCurrentJob(res.data.data);
+        }).catch(() => {});
+      }
+    },
+  });
+  const emitRef = useRef(emit);
+  emitRef.current = emit;
+
+  // P0: stream the worker's live location to the customer while en route.
+  // Payload matches the backend WORKER_LOCATION_UPDATE handler: { jobId, coords: { lat, lng } }.
+  const isEnRoute = job?.status === 'ALLOCATED' || job?.status === 'ARRIVING';
+  useEffect(() => {
+    if (!targetJobId || !isEnRoute) return undefined;
+    let stop = null;
+    let cancelled = false;
+    const onPosition = ({ coordinates: [lng, lat] }) => {
+      if (cancelled) return;
+      setMyPos({ lat, lng });
+      const payload = { jobId: String(targetJobId), coords: { lat, lng } };
+      activeJobTracking.lastLocation = payload;
+      emitRef.current('WORKER_LOCATION_UPDATE', payload);
+    };
+    activeJobTracking.active = true;
+    requestLocationPermission({ reason: 'Location permission is needed to share your live location with the customer.' })
+      .then(() => {
+        if (cancelled) return;
+        // Quick first fix (GPS, then network), then keep watching
+        getCurrentPosition({ precise: false }).then(onPosition).catch(() => {});
+        stop = watchCurrentPosition(onPosition, (err) => console.log('[WorkerNavigate] location watch error:', err?.message));
+      })
+      .catch((err) => { if (!cancelled) Alert.alert('Location needed', err.message); });
+    return () => {
+      cancelled = true;
+      stop?.();
+      activeJobTracking.active = false;
+      activeJobTracking.lastLocation = null;
+    };
+  }, [targetJobId, isEnRoute]);
 
   // Already started (arrival OTP verified): the work screen is the right place
   useEffect(() => {
@@ -73,7 +125,8 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
     }
   }, [targetJobId, job?.status]);
 
-  const mapHTML = `
+  // Built once per job pin; the worker pin is moved via window.setWorker so updates don't reload the map
+  const mapHTML = useMemo(() => !hasJobCoords ? null : `
     <!DOCTYPE html>
     <html>
     <head>
@@ -83,23 +136,18 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
       <style>
         body { padding: 0; margin: 0; }
         html, body, #map { height: 100%; width: 100%; }
-        .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
     <body>
       <div id="map"></div>
       <script>
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${jobLat}, ${jobLng}], 14);
+        const map = L.map('map', { zoomControl: false }).setView([${jobLat}, ${jobLng}], 14);
+        map.attributionControl.setPrefix(false);
 
-        const carto = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          subdomains: 'abcd'
+          attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
-
-        carto.on('tileerror', function() {
-          if (window.__osmFallback) return; window.__osmFallback = true;
-          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        });
 
         setTimeout(function() { map.invalidateSize(); }, 200);
 
@@ -113,27 +161,36 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
         });
 
         const jobMarker = L.marker([${jobLat}, ${jobLng}], {icon: jobIcon}).addTo(map).bindPopup("<b>Customer Address</b>");
+        jobMarker.openPopup();
 
-        if (${hasRawCoords ? 'true' : 'false'}) {
-          L.marker([${wLat}, ${wLng}], {icon: workerIcon}).addTo(map).bindPopup("<b>Your Location</b>").openPopup();
-
-          // Polyline route
-          L.polyline([[${wLat}, ${wLng}], [${jobLat}, ${jobLng}]], {
+        let workerMarker = null;
+        let routeLine = null;
+        window.setWorker = function(wLat, wLng) {
+          if (workerMarker) {
+            workerMarker.setLatLng([wLat, wLng]);
+            routeLine.setLatLngs([[wLat, wLng], [${jobLat}, ${jobLng}]]);
+            return;
+          }
+          workerMarker = L.marker([wLat, wLng], {icon: workerIcon}).addTo(map).bindPopup("<b>Your Location</b>").openPopup();
+          routeLine = L.polyline([[wLat, wLng], [${jobLat}, ${jobLng}]], {
             color: '#6C47FF',
             weight: 4,
             opacity: 0.85,
             dashArray: '6, 8'
           }).addTo(map);
-
-          const bounds = L.latLngBounds([[${jobLat}, ${jobLng}], [${wLat}, ${wLng}]]);
-          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-        } else {
-          jobMarker.openPopup();
-        }
+          map.fitBounds(L.latLngBounds([[${jobLat}, ${jobLng}], [wLat, wLng]]), { padding: [40, 40], maxZoom: 16 });
+        };
       </script>
     </body>
     </html>
-  `;
+  `, [hasJobCoords, jobLat, jobLng]);
+
+  const webViewRef = useRef(null);
+  const pushWorkerToMap = useCallback(() => {
+    if (!hasRawCoords) return;
+    webViewRef.current?.injectJavaScript(`window.setWorker && window.setWorker(${wLat}, ${wLng}); true;`);
+  }, [hasRawCoords, wLat, wLng]);
+  useEffect(() => { pushWorkerToMap(); }, [pushWorkerToMap]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -153,13 +210,20 @@ const WorkerNavigateJobScreen = ({ route, navigation }) => {
         
         {/* Map */}
         <View style={styles.mapContainer}>
-          <WebView 
-            key={`${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${hasRawCoords ? `${wLat.toFixed(4)}_${wLng.toFixed(4)}` : 'nopos'}`}
-            source={{ html: mapHTML, baseUrl: 'https://kwickly.app/' }}
-            style={{ flex: 1, backgroundColor: 'transparent' }}
-          />
+          {mapHTML ? (
+            <WebView
+              ref={webViewRef}
+              source={{ html: mapHTML, baseUrl: 'https://kwickly.app/' }}
+              style={{ flex: 1, backgroundColor: 'transparent' }}
+              onLoadEnd={pushWorkerToMap}
+            />
+          ) : (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={styles.etaText}>Customer location is not available</Text>
+            </View>
+          )}
           <View style={styles.etaBadge}>
-            <Text style={styles.etaText}>{eta ? `🚗 ${eta} min - ${distance}` : '📍 Your location is not available yet'}</Text>
+            <Text style={styles.etaText}>{eta ? `🚗 ${eta} min - ${distance}` : (hasJobCoords ? '📍 Getting your location…' : '📍 Destination unavailable')}</Text>
           </View>
         </View>
 

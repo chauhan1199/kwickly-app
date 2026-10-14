@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -30,7 +30,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
   const [liveWorkerCoords, setLiveWorkerCoords] = useState(null);
   const targetJobId = currentJob?._id || initialJob?._id || jobId;
 
-  // Poll backend every 3.5 seconds to keep screen synchronized with worker status changes
+  // Socket events drive updates; this poll is only a slow backup and stops once the job is over
   const fetchJobStatus = useCallback(async () => {
     if (!targetJobId) return;
     try {
@@ -43,17 +43,19 @@ const LiveTrackingScreen = ({ route, navigation }) => {
     }
   }, [targetJobId]);
 
+  const isTerminalStatus = ['PAID', 'CLOSED', 'CANCELLED'].includes(currentJob?.status);
   useEffect(() => {
     fetchJobStatus();
-    const interval = setInterval(fetchJobStatus, 3500);
+    if (isTerminalStatus) return undefined;
+    const interval = setInterval(fetchJobStatus, 15000);
     return () => clearInterval(interval);
-  }, [fetchJobStatus]);
+  }, [fetchJobStatus, isTerminalStatus]);
 
   useSocket({
     role: user?.role || 'CUSTOMER',
     userId: user?._id || user?.id,
     onEvent: (event, data) => {
-      if (event === 'WORKER_LOCATION' && (data?.jobId === targetJobId || !data?.jobId)) {
+      if (event === 'WORKER_LOCATION' && (String(data?.jobId) === String(targetJobId) || !data?.jobId)) {
         const cLat = data?.coords?.latitude ?? data?.coords?.lat ?? data?.coords?.[1];
         const cLng = data?.coords?.longitude ?? data?.coords?.lng ?? data?.coords?.[0];
         if (cLat && cLng) {
@@ -73,23 +75,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
   const w = { ...(workerObj || {}), ...(routeWorker || {}) };
   const workerName = w.name || (typeof job?.workerName === 'string' ? job.workerName : 'Technician');
 
-  if (!w || (!w.name && !w._id && !job?.workerId)) {
-    return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: theme.colors.textDim }}>Waiting for worker assignment...</Text>
-        <Button title="Go Back" onPress={() => navigation.goBack()} style={{ marginTop: 20 }} />
-      </SafeAreaView>
-    );
-  }
-
-  const isEnRoute = status === 'ALLOCATED' || status === 'ARRIVING';
-  const isInProgress = status === 'IN_PROGRESS';
-  const isCompleted = status === 'COMPLETED';
-  const isSettled = status === 'PAID' || status === 'CLOSED';
-
-  const otp = job?.security?.arrivalOtp || null;
-
-  // Job coordinates: prefer job location coordinates, fallback to Ahmedabad Vastrapur
+  // Job coordinates: the job's own pin. The fallback only centres the map, it is never used for distance.
   const jobLat = Number(job?.location?.coordinates?.[1]) || 23.0350;
   const jobLng = Number(job?.location?.coordinates?.[0]) || 72.5293;
 
@@ -100,6 +86,21 @@ const LiveTrackingScreen = ({ route, navigation }) => {
   const hasWorkerCoords = !isNaN(rawWLat) && !isNaN(rawWLng) && (rawWLat !== 0 || rawWLng !== 0);
   const workerLat = hasWorkerCoords ? rawWLat : null;
   const workerLng = hasWorkerCoords ? rawWLng : null;
+
+  // Moves the worker pin inside the already-loaded map instead of reloading the WebView.
+  const webViewRef = useRef(null);
+  const pushWorkerToMap = useCallback(() => {
+    if (!hasWorkerCoords) return;
+    webViewRef.current?.injectJavaScript(`window.setWorker && window.setWorker(${workerLat}, ${workerLng}); true;`);
+  }, [hasWorkerCoords, workerLat, workerLng]);
+  useEffect(() => { pushWorkerToMap(); }, [pushWorkerToMap]);
+
+  const isEnRoute = status === 'ALLOCATED' || status === 'ARRIVING';
+  const isInProgress = status === 'IN_PROGRESS';
+  const isCompleted = status === 'COMPLETED';
+  const isSettled = status === 'PAID' || status === 'CLOSED';
+
+  const otp = job?.security?.arrivalOtp || null;
 
   const hasJobCoords = Array.isArray(job?.location?.coordinates) && job.location.coordinates.length === 2;
   const liveDistanceKm = hasWorkerCoords && hasJobCoords
@@ -128,8 +129,9 @@ const LiveTrackingScreen = ({ route, navigation }) => {
     mapPillText = '✓ Completed & Paid';
   }
 
-  // Generate Flow-Aware Leaflet Map HTML
-  const mapHTML = `
+  // Generate Flow-Aware Leaflet Map HTML. Built once per status / job pin; the worker pin
+  // is moved later through window.setWorker so live updates don't reload the map.
+  const mapHTML = useMemo(() => `
     <!DOCTYPE html>
     <html>
     <head>
@@ -147,7 +149,6 @@ const LiveTrackingScreen = ({ route, navigation }) => {
         .pulse-beacon {
           animation: pulse 2s infinite ease-in-out;
         }
-        .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
     <body>
@@ -155,23 +156,17 @@ const LiveTrackingScreen = ({ route, navigation }) => {
       <script>
         const lat = ${jobLat};
         const lng = ${jobLng};
-        const hasWorker = ${hasWorkerCoords ? 'true' : 'false'};
-        const wLat = ${hasWorkerCoords ? workerLat : 'null'};
-        const wLng = ${hasWorkerCoords ? workerLng : 'null'};
-        const status = "${status}";
+        const status = ${JSON.stringify(status)};
+        const workerName = ${JSON.stringify(String(workerName))};
+        const esc = function(t) { return String(t).replace(/[&<>"']/g, function(c) { return '&#' + c.charCodeAt(0) + ';'; }); };
 
-        const map = L.map('map', { zoomControl: false, attributionControl: false });
+        const map = L.map('map', { zoomControl: false });
+        map.attributionControl.setPrefix(false);
 
-        // OpenStreetMap tiles (CARTO raster tiles now return an "API key required" image)
-        const carto = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            subdomains: 'abcd'
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
-
-        carto.on('tileerror', function() {
-            if (window.__osmFallback) return; window.__osmFallback = true;
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        });
 
         setTimeout(function() { map.invalidateSize(); }, 200);
 
@@ -188,7 +183,7 @@ const LiveTrackingScreen = ({ route, navigation }) => {
             iconSize: [48, 48],
             iconAnchor: [24, 24]
           });
-          L.marker([lat, lng], {icon: inProgressIcon}).addTo(map).bindPopup("<b>Service In Progress</b><br/>${workerName} is at your location").openPopup();
+          L.marker([lat, lng], {icon: inProgressIcon}).addTo(map).bindPopup("<b>Service In Progress</b><br/>" + esc(workerName) + " is at your location").openPopup();
 
         } else if (status === 'COMPLETED') {
           // Completed: Centered on job location with completion checkmark
@@ -226,18 +221,25 @@ const LiveTrackingScreen = ({ route, navigation }) => {
           });
           L.marker([lat, lng], {icon: jobIcon}).addTo(map).bindPopup("<b>Your Location</b>");
 
-          // Worker pin + route only once we know where the worker really is
-          if (hasWorker) {
+          // Worker pin + route only once we know where the worker really is (pushed via setWorker)
+          let workerMarker = null;
+          let routeLine = null;
+          window.setWorker = function(wLat, wLng) {
+            if (workerMarker) {
+              workerMarker.setLatLng([wLat, wLng]);
+              routeLine.setLatLngs([[wLat, wLng], [lat, lng]]);
+              return;
+            }
             const workerIcon = L.divIcon({
               html: '<div style="background-color: #10B981; width: 26px; height: 26px; border-radius: 13px; border: 3px solid white; box-shadow: 0 3px 8px rgba(16,185,129,0.45); display: flex; align-items: center; justify-content: center; font-size: 13px;">🛵</div>',
               className: '',
               iconSize: [26, 26],
               iconAnchor: [13, 13]
             });
-            L.marker([wLat, wLng], {icon: workerIcon}).addTo(map).bindPopup("<b>${workerName} (${status === 'ARRIVING' ? 'En Route' : 'Assigned'})</b>").openPopup();
+            workerMarker = L.marker([wLat, wLng], {icon: workerIcon}).addTo(map).bindPopup("<b>" + esc(workerName) + " (" + (status === 'ARRIVING' ? 'En Route' : 'Assigned') + ")</b>").openPopup();
 
             // Connect with route path
-            L.polyline([[wLat, wLng], [lat, lng]], {
+            routeLine = L.polyline([[wLat, wLng], [lat, lng]], {
               color: '#6C47FF',
               weight: 4,
               opacity: 0.85,
@@ -246,12 +248,12 @@ const LiveTrackingScreen = ({ route, navigation }) => {
 
             const bounds = L.latLngBounds([[lat, lng], [wLat, wLng]]);
             map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 });
-          }
+          };
         }
       </script>
     </body>
     </html>
-  `;
+  `, [status, jobLat, jobLng, workerName]);
 
   const handleCancelJob = () => {
     Alert.alert(
@@ -300,6 +302,16 @@ const LiveTrackingScreen = ({ route, navigation }) => {
 
   const styles = createStyles(theme, isDarkMode);
 
+  // Checked after all hooks so the hook order never changes between renders
+  if (!w || (!w.name && !w._id && !job?.workerId)) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: theme.colors.textDim }}>Waiting for worker assignment...</Text>
+        <Button title="Go Back" onPress={() => navigation.goBack()} style={{ marginTop: 20 }} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
@@ -323,8 +335,9 @@ const LiveTrackingScreen = ({ route, navigation }) => {
         {/* Leaflet Map Area */}
         <View style={styles.mapArea}>
           <WebView 
-            key={`${status}_${jobLat.toFixed(4)}_${jobLng.toFixed(4)}_${hasWorkerCoords ? `${workerLat.toFixed(4)}_${workerLng.toFixed(4)}` : 'nopos'}`}
+            ref={webViewRef}
             source={{ html: mapHTML, baseUrl: 'https://kwickly.app/' }}
+            onLoadEnd={pushWorkerToMap}
             style={{ flex: 1, backgroundColor: 'transparent' }}
             scrollEnabled={false}
             showsVerticalScrollIndicator={false}

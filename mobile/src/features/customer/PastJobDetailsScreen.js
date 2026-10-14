@@ -3,16 +3,15 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
   StatusBar,
   Share,
   Alert,
   ActivityIndicator,
-  Image,
-  Platform
+  Image
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { jobService } from '../../services/jobService';
 import { getRealRating } from '../../utils/geo';
@@ -36,6 +35,7 @@ import {
 
 const PastJobDetailsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const { jobId, job } = route.params || {};
   const resolvedJobId = jobId || (typeof job === 'object' ? job?._id : job);
@@ -70,11 +70,11 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  const styles = createStyles(theme, isDarkMode);
+  const styles = createStyles(theme, isDarkMode, insets);
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
         <View style={styles.appBar}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -86,13 +86,13 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
           <ActivityIndicator size="large" color="#6C47FF" />
           <Text style={styles.loadingText}>Loading booking details...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error || !jobData) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
         <View style={styles.appBar}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -108,7 +108,7 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
             <Text style={styles.retryBtnText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -173,7 +173,7 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
   const taxesFees = jobData.payment?.platformFee ? (jobData.payment.platformFee + (jobData.payment.gst ?? jobData.payment.gstAmount ?? 0)) : 0;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
       
       {/* App Bar */}
@@ -449,11 +449,11 @@ const PastJobDetailsScreen = ({ route, navigation }) => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (theme, isDarkMode) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -502,7 +502,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 8 : 12,
+    paddingTop: insets.top + 8,
     paddingBottom: 12,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,

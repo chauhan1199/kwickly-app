@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
   ActivityIndicator, TextInput, Animated, Easing, Platform,
-  KeyboardAvoidingView, Alert, Linking, AppState
+  KeyboardAvoidingView, Alert, Linking, AppState, ScrollView
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from '../context/ThemeContext';
@@ -41,7 +41,11 @@ const UpiPaymentWaitingModal = ({
   purpose = 'wallet_topup', // 'wallet_topup' | 'subscription' | 'shop_order'
   planTitle = '',
   initialStep = 'CONFIRM_PAID', // 'CONFIRM_PAID' | 'ENTER_UTR'
-  onSubmitManualUtr
+  onSubmitManualUtr,
+  // Identifiers of THIS payment, used to ignore socket events for other payments
+  txnId = null,        // WalletTxn id (wallet top-up / plan purchase)
+  shopOrderId = null,  // ShopOrder id (shop_order)
+  planId = null
 }) => {
   const { theme, isDarkMode } = useTheme();
 
@@ -51,6 +55,22 @@ const UpiPaymentWaitingModal = ({
   const [statusNote, setStatusNote] = useState('');
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  // UTRs submitted for this payment; a socket event carrying one of them is ours
+  const submittedUtrsRef = useRef(new Set());
+  const utrInputRef = useRef('');
+  useEffect(() => { utrInputRef.current = utrInput; }, [utrInput]);
+
+  // Auto-detected UTRs (clipboard / SMS) are only PREFILLED: the user must
+  // confirm with the Verify button. Never prefills a UTR already submitted.
+  const prefillDetectedUtr = useCallback((candidate, note) => {
+    const clean = (candidate || '').toString().trim();
+    if (!clean || deviceUsedUtrs.has(clean) || submittedUtrsRef.current.has(clean)) return false;
+    if (utrInputRef.current && utrInputRef.current !== clean) return false; // don't overwrite user typing
+    setUtrInput(clean);
+    setStep('ENTER_UTR');
+    setStatusNote(note || `Detected UPI Ref ${clean}. Check it and tap Verify.`);
+    return true;
+  }, []);
 
   // Reset state whenever modal opens
   useEffect(() => {
@@ -59,6 +79,7 @@ const UpiPaymentWaitingModal = ({
     setUtrInput('');
     setSubmittingUtr(false);
     setStatusNote('');
+    submittedUtrsRef.current = new Set();
 
     const pulse = Animated.loop(
       Animated.sequence([
@@ -95,22 +116,26 @@ const UpiPaymentWaitingModal = ({
   const handleSocketEvent = useCallback((event, payload) => {
     if (!visible || step === 'SUCCESS') return;
 
-    if (event === 'WALLET_UPDATE') {
-      if (payload?.type === 'TOPUP' && (Number(payload?.amount) === Number(amount) || !amount)) {
+    // Only events that reference THIS payment (its txn id or a UTR submitted here) count
+    const isOurTxn = (p) =>
+      (txnId && p?.txnId && String(p.txnId) === String(txnId)) ||
+      (p?.utr && submittedUtrsRef.current.has(String(p.utr)));
+
+    if (event === 'WALLET_UPDATE' || event === 'WALLET_TOPUP_APPROVED') {
+      const okType = event === 'WALLET_TOPUP_APPROVED' || payload?.type === 'TOPUP' || payload?.type === 'SUBSCRIPTION';
+      if (okType && purpose !== 'shop_order' && isOurTxn(payload)) {
         handleTriggerSuccess(payload);
       }
-    } else if (event === 'WALLET_TOPUP_APPROVED') {
-      handleTriggerSuccess(payload);
     } else if (event === 'SUBSCRIPTION_ACTIVATED') {
-      if (purpose === 'subscription') {
+      if (purpose === 'subscription' && planId && payload?.planId === planId && submittedUtrsRef.current.size > 0) {
         handleTriggerSuccess(payload);
       }
     } else if (event === 'ORDER_STATUS') {
-      if (payload?.paymentStatus === 'PAID') {
+      if (purpose === 'shop_order' && shopOrderId && String(payload?.orderId) === String(shopOrderId) && payload?.paymentStatus === 'PAID') {
         handleTriggerSuccess(payload);
       }
     }
-  }, [visible, step, amount, purpose, handleTriggerSuccess]);
+  }, [visible, step, purpose, txnId, shopOrderId, planId, handleTriggerSuccess]);
 
   resolveUseSocket({ onEvent: handleSocketEvent });
 
@@ -141,11 +166,14 @@ const UpiPaymentWaitingModal = ({
     }
 
     deviceUsedUtrs.add(clean);
+    submittedUtrsRef.current.add(clean);
     setSubmittingUtr(true);
     setStatusNote(`Verifying UTR ${clean} with bank...`);
     try {
       if (onSubmitManualUtr) {
         const res = await onSubmitManualUtr(clean, extraMeta);
+        // Parent fully handled the outcome (e.g. order placed, pending confirmation)
+        if (res?.handled) return;
         const isSuccess = res?.verified === true || res?.status === 'COMPLETED' || res?.data?.status === 'COMPLETED' || res?.data?.verified === true;
         if (isSuccess) {
           handleTriggerSuccess(res?.data || res);
@@ -160,17 +188,20 @@ const UpiPaymentWaitingModal = ({
         }
       }
       Alert.alert(
-        'Verification In Progress',
-        `UTR ${clean} submitted. Your wallet will update once bank confirmation is received.`
+        'Payment Received — Awaiting Confirmation',
+        purpose === 'shop_order'
+          ? `UTR ${clean} submitted. Your order will be confirmed once the payment is verified.`
+          : `UTR ${clean} submitted. ${purpose === 'subscription' ? 'Your plan activates' : 'Your wallet updates'} once the bank confirmation is received.`
       );
       if (onClose) onClose();
     } catch (err) {
       deviceUsedUtrs.delete(clean);
+      submittedUtrsRef.current.delete(clean);
       Alert.alert('Verification Failed', err?.response?.data?.message || err?.message || 'Could not verify UTR. Please check the number and try again.');
     } finally {
       setSubmittingUtr(false);
     }
-  }, [utrInput, onSubmitManualUtr, orderId, handleTriggerSuccess, onClose]);
+  }, [utrInput, onSubmitManualUtr, orderId, purpose, handleTriggerSuccess, onClose]);
 
   // ─── Automated Bank SMS & Background Detection (Zero Manual Entry!) ───
   const scanCountRef = useRef(0);
@@ -182,31 +213,18 @@ const UpiPaymentWaitingModal = ({
 
     // Case 1: Validate as SMS / notification text
     const validation = validateSmsPayment({ text: clean, expectedAmount: amount });
-    if (validation.isValid && !deviceUsedUtrs.has(validation.utr)) {
-      console.log('[AutoUPI] Auto-detected valid UTR from message/clipboard:', validation.utr);
-      setStatusNote('Payment reference detected! Verifying...');
-      setUtrInput(validation.utr);
-      await executeVerifyUtr(validation.utr, {
-        rawMessage: validation.rawText,
-        detectedAmount: validation.amount,
-        dateStr: validation.dateStr,
-        ...extraMeta
-      });
-      return true;
+    if (validation.isValid) {
+      return prefillDetectedUtr(validation.utr, 'Payment reference found in your bank message. Check it and tap Verify.');
     }
 
-    // Case 2: Standalone 12-digit UTR
+    // Case 2: Standalone 12-digit UTR (prefill only — a random copied number must not be submitted)
     const raw12 = clean.replace(/\D/g, '');
-    if (raw12.length === 12 && isValidUtr(raw12) && !deviceUsedUtrs.has(raw12)) {
-      console.log('[AutoUPI] Auto-detected pure 12-digit UTR:', raw12);
-      setStatusNote('Payment reference detected! Verifying...');
-      setUtrInput(raw12);
-      await executeVerifyUtr(raw12, extraMeta);
-      return true;
+    if (raw12.length === 12 && isValidUtr(raw12)) {
+      return prefillDetectedUtr(raw12, `Found ${raw12} on your clipboard. Confirm it is your UPI Ref and tap Verify.`);
     }
 
     return false;
-  }, [amount, executeVerifyUtr]);
+  }, [amount, prefillDetectedUtr]);
 
   const triggerImmediateScan = useCallback(async () => {
     if (!visible || step === 'SUCCESS' || submittingUtr) return;
@@ -221,14 +239,7 @@ const UpiPaymentWaitingModal = ({
         if (smsAmt && amount && diff > 1.01 && !roundedMatch) {
           console.log('[AutoUPI] Ignoring SMS UTR due to amount mismatch:', smsAmt, 'expected:', amount);
         } else {
-          const detected = smsRes.utr.trim();
-          if (!deviceUsedUtrs.has(detected)) {
-            console.log('[AutoUPI] Auto-detected UTR from bank SMS:', detected);
-            setStatusNote('Bank SMS detected! Verifying payment...');
-            setUtrInput(detected);
-            await executeVerifyUtr(detected, { rawMessage: smsRes.body || '', detectedAmount: smsAmt });
-            return;
-          }
+          if (prefillDetectedUtr(smsRes.utr, 'Bank SMS detected! Check the UPI Ref and tap Verify.')) return;
         }
       }
 
@@ -259,7 +270,7 @@ const UpiPaymentWaitingModal = ({
     } catch (err) {
       console.warn('[AutoUPI] Instant scan error:', err?.message);
     }
-  }, [visible, step, submittingUtr, amount, orderId, executeVerifyUtr, checkAndVerifyCandidate, handleTriggerSuccess]);
+  }, [visible, step, submittingUtr, amount, orderId, prefillDetectedUtr, checkAndVerifyCandidate, handleTriggerSuccess]);
 
   // Restart auto-scanning immediately whenever app returns to foreground (user finishes in GPay / SMS)
   useEffect(() => {
@@ -300,7 +311,7 @@ const UpiPaymentWaitingModal = ({
     let timer = setTimeout(performAutoScan, 800);
 
     const unsubscribeSms = nativeUpiService.subscribeToBankSms(async (event) => {
-      if (event?.utr && isValidUtr(event.utr) && !deviceUsedUtrs.has(event.utr.trim())) {
+      if (event?.utr && isValidUtr(event.utr)) {
         const eventAmt = event.amount ? parseFloat(event.amount) : null;
         const diff = eventAmt && amount ? Math.abs(eventAmt - Number(amount)) : 0;
         const roundedMatch = eventAmt && amount ? Math.round(eventAmt) === Math.round(Number(amount)) : true;
@@ -308,10 +319,7 @@ const UpiPaymentWaitingModal = ({
           console.log('[AutoUPI] Real-time SMS ignored due to amount mismatch:', eventAmt, 'expected:', amount);
           return;
         }
-        console.log('[AutoUPI] Real-time SMS broadcast received:', event.utr);
-        setStatusNote('Bank SMS received! Verifying...');
-        setUtrInput(event.utr.trim());
-        await executeVerifyUtr(event.utr.trim(), { rawMessage: event.body || '', detectedAmount: eventAmt });
+        prefillDetectedUtr(event.utr, 'Bank SMS received! Check the UPI Ref and tap Verify.');
       }
     });
 
@@ -320,7 +328,7 @@ const UpiPaymentWaitingModal = ({
       clearTimeout(timer);
       if (unsubscribeSms) unsubscribeSms();
     };
-  }, [visible, step, submittingUtr, triggerImmediateScan, amount, executeVerifyUtr]);
+  }, [visible, step, submittingUtr, triggerImmediateScan, amount, prefillDetectedUtr]);
 
   const handleUserConfirmedPaid = useCallback(async () => {
     setStatusNote('Detecting bank confirmation...');
@@ -332,11 +340,7 @@ const UpiPaymentWaitingModal = ({
         const diff = smsAmt && amount ? Math.abs(smsAmt - Number(amount)) : 0;
         const roundedMatch = smsAmt && amount ? Math.round(smsAmt) === Math.round(Number(amount)) : true;
         if (!smsAmt || !amount || diff <= 1.01 || roundedMatch) {
-          if (!deviceUsedUtrs.has(smsRes.utr.trim())) {
-            setUtrInput(smsRes.utr.trim());
-            await executeVerifyUtr(smsRes.utr.trim(), { rawMessage: smsRes.body || '', detectedAmount: smsAmt });
-            return;
-          }
+          if (prefillDetectedUtr(smsRes.utr, 'Bank SMS detected! Check the UPI Ref and tap Verify.')) return;
         }
       }
 
@@ -353,7 +357,7 @@ const UpiPaymentWaitingModal = ({
       console.warn('[AutoUPI] handleUserConfirmedPaid check error:', e);
     }
     setStep('ENTER_UTR');
-  }, [amount, executeVerifyUtr, checkAndVerifyCandidate]);
+  }, [amount, prefillDetectedUtr, checkAndVerifyCandidate]);
 
   // One-tap Auto-Paste & Verify handler
   const handlePasteAndVerify = useCallback(async () => {
@@ -469,10 +473,15 @@ const UpiPaymentWaitingModal = ({
       onRequestClose={handleDismissModal}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.overlay}
       >
         <View style={styles.card}>
+          <ScrollView
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           {/* Card Top Header */}
           <View style={styles.cardHeader}>
             <View style={styles.secureBadge}>
@@ -542,6 +551,10 @@ const UpiPaymentWaitingModal = ({
               <Text style={styles.stepSub}>
                 Enter the 12-digit UPI Reference (UTR) from your bank SMS to credit <Text style={{ fontWeight: '800', color: '#10B981' }}>₹{amount}</Text> to your wallet.
               </Text>
+
+              {statusNote ? (
+                <Text style={[styles.stepSub, { color: '#6C47FF', fontWeight: '700' }]}>{statusNote}</Text>
+              ) : null}
 
               {/* UTR INPUT BOX */}
               <View style={styles.manualUtrBox}>
@@ -676,6 +689,7 @@ const UpiPaymentWaitingModal = ({
               </Text>
             </View>
           )}
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>

@@ -117,7 +117,7 @@ const HelpSupportScreen = ({ navigation }) => {
         }
       >
         
-        <Text style={styles.headerTitle}>Hi {user?.name ? user.name.split(' ')[0] : 'User'},</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Hi {user?.name ? user.name.split(' ')[0] : 'User'},</Text>
         <Text style={styles.headerSub}>How can we help you today?</Text>
 
         <View style={styles.contactRow}>

@@ -268,9 +268,9 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             }
         }
 
-        // If activity returned RESULT_OK but status was empty, treat as SUCCESS
+        // RESULT_OK with no status proves nothing: treat it as PENDING (ask for the UTR)
         if (status.isEmpty() && isResultOk) {
-            status = "SUCCESS"
+            status = "PENDING"
         }
 
         resultMap.putString("status", status.uppercase())
@@ -278,13 +278,14 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
         resultMap.putString("txnId", txnId)
         resultMap.putString("responseCode", responseCode)
 
-        if (status.equals("SUCCESS", ignoreCase = true) || (isResultOk && !status.equals("FAILURE", ignoreCase = true) && !status.equals("FAILED", ignoreCase = true))) {
+        if (status.equals("SUBMITTED", ignoreCase = true) || status.equals("PENDING", ignoreCase = true)) {
+            resultMap.putBoolean("isSuccessful", false)
+            resultMap.putString("status", "PENDING")
+            resultMap.putString("message", "Payment submitted and pending bank settlement.")
+            promise.resolve(resultMap)
+        } else if (status.equals("SUCCESS", ignoreCase = true)) {
             resultMap.putBoolean("isSuccessful", true)
             resultMap.putString("status", "SUCCESS")
-            promise.resolve(resultMap)
-        } else if (status.equals("SUBMITTED", ignoreCase = true)) {
-            resultMap.putBoolean("isSuccessful", false)
-            resultMap.putString("message", "Payment submitted and pending bank settlement.")
             promise.resolve(resultMap)
         } else if (status.equals("FAILURE", ignoreCase = true) || status.equals("FAILED", ignoreCase = true)) {
             resultMap.putBoolean("isSuccessful", false)

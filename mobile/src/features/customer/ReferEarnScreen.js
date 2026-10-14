@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
   StatusBar,
@@ -49,7 +48,7 @@ const ReferEarnScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#6C47FF" />
       
       {/* Unified App Bar inside a purple gradient */}
@@ -106,7 +105,7 @@ const ReferEarnScreen = ({ navigation }) => {
         </View>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   ScrollView, 
   TouchableOpacity, 
   StatusBar, 
@@ -15,6 +14,7 @@ import {
   Image,
   Modal
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -28,6 +28,7 @@ import { Bell, ChevronLeft, Radio, MapPin, Calendar, Clock, Image as ImageIcon, 
 
 const LiveBidsScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const routeParams = route.params || {};
   const jobId = routeParams.jobId || (typeof routeParams.job === 'object' ? routeParams.job?._id : routeParams.job);
@@ -280,7 +281,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
     );
   };
 
-  const styles = createStyles(theme, isDarkMode);
+  const styles = createStyles(theme, isDarkMode, insets);
 
   const displayCategory = jobData?.category || (typeof routeParams.category === 'object' ? routeParams.category?.name : routeParams.category) || 'Service';
   const displaySubcategory = jobData?.subcategory || routeParams.subcategory || 'General';
@@ -292,7 +293,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
   const displayMedia = jobData?.media || [];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#6C47FF" translucent={true} />
       
       <LinearGradient colors={['#6C47FF', '#8B6FFF']} style={styles.headerGradient}>
@@ -524,11 +525,11 @@ const LiveBidsScreen = ({ route, navigation }) => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (theme, isDarkMode) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -540,7 +541,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 8 : 12,
+    paddingTop: insets.top + 8,
     paddingBottom: 10,
     width: '100%',
     maxWidth: 720,

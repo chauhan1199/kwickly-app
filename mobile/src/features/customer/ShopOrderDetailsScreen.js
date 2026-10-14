@@ -10,14 +10,13 @@ import {
   StatusBar, 
   ActivityIndicator, 
   Alert, 
-  Linking 
+  Share 
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import useSocket from '../../hooks/useSocket';
 import { shopService } from '../../services/shopService';
-import { API_BASE_URL } from '../../config/env';
 import LinearGradient from 'react-native-linear-gradient';
 import AppBar from '../../components/AppBar';
 import { distanceKm, estimateEtaMinutes, formatDistance } from '../../utils/geo';
@@ -485,7 +484,8 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {isActive && order.deliveryOtp && !isCancelled && (
+        {/* The OTP is the handover proof: show it only once the order is on its way */}
+        {isOutForDelivery && order.deliveryOtp && (
           <View style={styles.card}>
             <Text style={styles.sectionHeader}>Delivery OTP</Text>
             <Text style={{ fontSize: 32, fontWeight: '900', color: theme.colors.primary, letterSpacing: 10, textAlign: 'center', marginTop: 16 }}>
@@ -555,7 +555,7 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
             <View style={[styles.invoiceRow, { marginTop: 4 }]}>
               <Text style={styles.paymentMethodLabel}>Payment Method</Text>
               <Text style={[styles.paymentMethodVal, { color: isWalletPaid ? '#10B981' : '#6C47FF' }]}>
-                {order.payment?.method === 'WALLET' ? 'Kwickly Wallet' : 'Direct UPI'}
+                {order.payment?.method === 'WALLET' ? 'Kwickly Wallet' : (order.payment?.method === 'CASH' || order.payment?.method === 'COD') ? 'Cash on Delivery' : 'Direct UPI'}
               </Text>
             </View>
           </View>
@@ -600,9 +600,27 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
         <TouchableOpacity 
           style={styles.secondaryBtn} 
           onPress={() => {
-            const url = `${API_BASE_URL.replace('/api/v1', '')}/api/v1/shoporders/${orderId}/invoice`;
-            Linking.openURL(url).catch(() => {
-              Alert.alert('Error', 'Unable to open invoice.');
+            // Built from the order already fetched through the authenticated API
+            // (opening the invoice URL in a browser carries no auth token).
+            const money = (n) => `₹${Number(n || 0).toFixed(2)}`;
+            const discount = Number(order.discount || order.promoDiscount || 0);
+            const lines = [
+              `Kwickly Invoice — Order ${o.id}`,
+              `${o.shop}`,
+              new Date(order.createdAt).toLocaleString('en-IN'),
+              '',
+              ...items.map(i => `${i.name} × ${i.qty}  ${money(i.price * i.qty)}`),
+              '',
+              `Item Total: ${money(subtotal)}`,
+              ...(discount > 0 ? [`Discount${order.promoCode ? ` (${order.promoCode})` : ''}: -${money(discount)}`] : []),
+              `Delivery Fee: ${money(deliveryFee)}`,
+              `Platform Fee: ${money(platformFee)}`,
+              `GST on Fee (18%): ${money(gstAmount)}`,
+              `Grand Total: ${money(priceNum)}`,
+              `Payment: ${order.payment?.method || 'WALLET'} (${order.payment?.status || 'PENDING'})`,
+            ];
+            Share.share({ title: `Invoice ${o.id}`, message: lines.join('\n') }).catch(() => {
+              Alert.alert('Error', 'Unable to share invoice.');
             });
           }}
         >

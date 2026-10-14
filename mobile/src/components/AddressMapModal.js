@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  PermissionsAndroid,
   Dimensions,
   Animated,
   KeyboardAvoidingView,
@@ -19,7 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-import Geolocation from '@react-native-community/geolocation';
+import { getCurrentPosition } from '../utils/currentLocation';
 import CustomAlert from './ui/CustomAlert';
 import {
   MapPin,
@@ -35,7 +34,8 @@ import {
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
-// Default initial location: Ahmedabad / Mumbai
+// Initial map centre only (Ahmedabad). It is never saved: the user must place the pin
+// (drag the map, pick a search result or use GPS) before an address can be saved.
 const DEFAULT_LAT = 23.0225;
 const DEFAULT_LNG = 72.5714;
 const DEFAULT_DELTA = 0.006;
@@ -119,10 +119,14 @@ export const AddressMapModal = ({
   };
 
   const geocodeTimeoutRef = useRef(null);
+  // True once the centre is a real location (saved coords, a map drag, a search result or a GPS fix)
+  const [pinPlaced, setPinPlaced] = useState(false);
 
   // Initialize or reset form when opened
   useEffect(() => {
     if (visible) {
+      setPinPlaced(Array.isArray(initialData?.location?.coordinates) && initialData.location.coordinates.length === 2
+        && (Number(initialData.location.coordinates[0]) !== 0 || Number(initialData.location.coordinates[1]) !== 0));
       if (initialData) {
         const initLabel = initialData.label || 'Home';
         if (['Home', 'Office', 'Work'].includes(initLabel)) {
@@ -373,7 +377,9 @@ export const AddressMapModal = ({
   };
 
   // Generate Interactive Leaflet Map HTML
-  const leafletMapHTML = `
+  // Built once from the initial centre; later moves are injected (map.setView) so dragging
+  // the map never reloads the WebView or resets the zoom.
+  const leafletMapHTML = useMemo(() => `
     <!DOCTYPE html>
     <html>
     <head>
@@ -383,23 +389,23 @@ export const AddressMapModal = ({
       <style>
         body { padding: 0; margin: 0; background: #e2e8f0; }
         html, body, #map { height: 100%; width: 100%; }
-        .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
       <div id="map"></div>
       <script>
-        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${region.latitude}, ${region.longitude}], 16);
+        var map = L.map('map', { zoomControl: false }).setView([${region.latitude}, ${region.longitude}], 16);
         window.map = map;
-        
-        var carto = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        map.attributionControl.setPrefix(false);
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          subdomains: 'abcd'
+          attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        carto.on('tileerror', function() {
-          if (window.__osmFallback) return; window.__osmFallback = true;
-          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        });
+        // Only report the centre after the user has touched the map, so the default
+        // centre is never reported as a chosen location.
+        var userMoved = false;
+        document.getElementById('map').addEventListener('touchstart', function() { userMoved = true; }, { passive: true });
 
         setTimeout(function() { if (window.map) map.invalidateSize(); }, 200);
 
@@ -411,7 +417,7 @@ export const AddressMapModal = ({
 
         map.on('moveend', function() {
           var center = map.getCenter();
-          if (window.ReactNativeWebView) {
+          if (userMoved && window.ReactNativeWebView) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'REGION_CHANGE',
               lat: center.lat,
@@ -432,7 +438,7 @@ export const AddressMapModal = ({
       </script>
     </body>
     </html>
-  `;
+  `, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleWebViewMessage = (event) => {
     try {
@@ -442,6 +448,7 @@ export const AddressMapModal = ({
       } else if (data.type === 'REGION_CHANGE' || data.type === 'GPS_FOUND') {
         const lat = data.lat;
         const lng = data.lng;
+        setPinPlaced(true);
         setRegion({
           latitude: lat,
           longitude: lng,
@@ -474,6 +481,7 @@ export const AddressMapModal = ({
     };
 
     setRegion(newReg);
+    setPinPlaced(true);
     webviewRef.current?.injectJavaScript(`if (window.map) { map.setView([${lat}, ${lon}], 17, { animate: true }); } true;`);
     setSearchQuery(item.title || item.name || item.display_name.split(',')[0]);
     setShowSearchResults(false);
@@ -497,48 +505,15 @@ export const AddressMapModal = ({
     triggerPinBounce();
   };
 
-  // Request Android location permission
-  const requestLocationPermission = async () => {
-    if (Platform.OS === 'ios') return true;
-    try {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        {
-          title: 'Location Permission',
-          message: 'Kwickly needs GPS location to pinpoint your address accurately on the map.',
-          buttonPositive: 'Allow',
-          buttonNegative: 'Cancel'
-        }
-      );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
-    } catch (err) {
-      return false;
-    }
-  };
-
-  // Fetch live GPS location with multi-tier fallback
+  // Fetch live GPS location (GPS, then network fallback; approximate location is accepted here)
   const fetchGPSLocation = async (manualClick = false) => {
     setIsLocatingGPS(true);
-    const hasPermission = await requestLocationPermission();
-    if (!hasPermission && Platform.OS === 'android') {
-      setIsLocatingGPS(false);
-      if (manualClick) {
-        showAlert({
-          type: 'warning',
-          title: 'Location Permission Required',
-          message: 'Please grant location permission to detect your current position on the map.',
-          confirmText: 'OK'
-        });
-      }
-      return;
-    }
-
-    // Also trigger HTML5 map locate in WebView
-    webviewRef.current?.injectJavaScript(`if (window.map) { map.locate({ setView: true, maxZoom: 17, enableHighAccuracy: true }); } true;`);
-
-    const onLocationSuccess = (pos) => {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
+    try {
+      const { coordinates: [lon, lat] } = await getCurrentPosition({
+        precise: false,
+        offerSettings: manualClick,
+        reason: 'Please grant location permission to detect your current position on the map.',
+      });
       const newReg = {
         latitude: lat,
         longitude: lon,
@@ -546,36 +521,22 @@ export const AddressMapModal = ({
         longitudeDelta: DEFAULT_DELTA
       };
       setRegion(newReg);
+      setPinPlaced(true);
       webviewRef.current?.injectJavaScript(`if (window.map) { map.setView([${lat}, ${lon}], 17, { animate: true }); } true;`);
       triggerPinBounce();
       performReverseGeocode(lat, lon);
+    } catch (err) {
+      if (manualClick) {
+        showAlert({
+          type: 'info',
+          title: 'Location Notice',
+          message: `${err.message} You can also search your society / landmark above or move the map pin.`,
+          confirmText: 'OK'
+        });
+      }
+    } finally {
       setIsLocatingGPS(false);
-    };
-
-    const onLocationError = (err) => {
-      // Tier 2: Fallback to network provider
-      Geolocation.getCurrentPosition(
-        onLocationSuccess,
-        (err2) => {
-          setIsLocatingGPS(false);
-          if (manualClick) {
-            showAlert({
-              type: 'info',
-              title: 'Location Notice',
-              message: 'Please ensure GPS is enabled in device settings. You can also search your society / landmark above or move the map pin.',
-              confirmText: 'OK'
-            });
-          }
-        },
-        { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
-      );
-    };
-
-    Geolocation.getCurrentPosition(
-      onLocationSuccess,
-      onLocationError,
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
-    );
+    }
   };
 
   // Validate and submit address
@@ -615,10 +576,18 @@ export const AddressMapModal = ({
       });
     }
 
+    const finalLat = Number(region.latitude);
+    const finalLng = Number(region.longitude);
+    if (!pinPlaced || !Number.isFinite(finalLat) || !Number.isFinite(finalLng)) {
+      return showAlert({
+        type: 'warning',
+        title: 'Pin your location',
+        message: 'Move the map to put the pin on your door, search your society / landmark, or tap the GPS button.'
+      });
+    }
+
     const streetCombined = finalFlat;
     const areaCombined = finalArea;
-    const finalLat = Number(region.latitude) || DEFAULT_LAT;
-    const finalLng = Number(region.longitude) || DEFAULT_LNG;
 
     setIsSaving(true);
     try {

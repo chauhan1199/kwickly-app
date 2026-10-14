@@ -10,18 +10,22 @@ import EmptyState from '../../components/EmptyState'
 import { TextInput, FormRow } from '../../components/FormInput'
 import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
+import useAdminRefresh from '../../hooks/useAdminRefresh'
+import { DISPUTE_RESOLUTIONS } from '../../utils/jobDisputes'
 import { Search, RefreshCw, Eye, Ban, Users, Copy, FileText, Download } from 'lucide-react'
 
 const PAGE_SIZE = 15
+const CREDIT_TXN_TYPES = ['JOB_CREDIT', 'REFUND', 'ORDER_CREDIT', 'REFERRAL_BONUS', 'TOPUP', 'TRANSFER_RECEIVED']
+const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-IN') : '—'
 const STATUS_VARIANT = {
   BROADCASTING: 'info', QUOTES_RECEIVED: 'warning', ALLOCATED: 'primary',
   ARRIVING: 'purple', IN_PROGRESS: 'warning', COMPLETED: 'success',
-  PAID: 'success', CLOSED: 'gray', CANCELLED: 'danger'
+  PAID: 'success', CLOSED: 'gray', CANCELLED: 'danger', DISPUTED: 'danger'
 }
 const STATUS_LABEL = {
   BROADCASTING: 'Broadcasting', QUOTES_RECEIVED: 'Quotes Received', ALLOCATED: 'Allocated',
   ARRIVING: 'Arriving', IN_PROGRESS: 'In Progress', COMPLETED: 'Completed',
-  PAID: 'Paid', CLOSED: 'Closed', CANCELLED: 'Cancelled'
+  PAID: 'Paid', CLOSED: 'Closed', CANCELLED: 'Cancelled', DISPUTED: 'Disputed'
 }
 
 export default function Jobs() {
@@ -40,6 +44,11 @@ export default function Jobs() {
   const [confirm, setConfirm] = useState(null)
   const [detail, setDetail] = useState(null)
   const [detailQuotes, setDetailQuotes] = useState([])
+  const [detailTxns, setDetailTxns] = useState([])
+  const [resolveModal, setResolveModal] = useState(null)
+  const [resolution, setResolution] = useState('DEDUCT_FROM_WORKER')
+  const [resolveNote, setResolveNote] = useState('')
+  const [resolving, setResolving] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [reassignModal, setReassignModal] = useState(null)
   const [selectedWorker, setSelectedWorker] = useState('')
@@ -74,18 +83,18 @@ export default function Jobs() {
 
   // KPI counts computed server-side (a tiny limit=1 request per status returns the matching total)
   const fetchStats = useCallback(async () => {
-    const statuses = ['all', 'BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'IN_PROGRESS', 'COMPLETED', 'PAID', 'CANCELLED']
+    const statuses = ['all', 'BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'DISPUTED', 'COMPLETED', 'PAID', 'CLOSED', 'CANCELLED']
     try {
       const results = await Promise.all(statuses.map(status =>
         api.get('/admin/jobs/all', { params: { page: 1, limit: 1, status, search: searchQuery } })
           .then(r => r.data?.data?.totalJobs || 0)
           .catch(() => 0)
       ))
-      const [all, broadcasting, quotes, allocated, inProgress, completed, paid, cancelled] = results
+      const [all, broadcasting, quotes, allocated, arriving, inProgress, disputed, completed, paid, closed, cancelled] = results
       setStats({
         total: all,
-        active: broadcasting + quotes + allocated + inProgress,
-        completed: completed + paid,
+        active: broadcasting + quotes + allocated + arriving + inProgress + disputed,
+        completed: completed + paid + closed,
         cancelled,
       })
     } catch { /* keep previous stats */ }
@@ -94,6 +103,7 @@ export default function Jobs() {
   useEffect(() => { fetchJobs() }, [fetchJobs])
   useEffect(() => { fetchStats() }, [fetchStats])
   useEffect(() => { fetchWorkers() }, [])
+  useAdminRefresh(() => { fetchJobs(); fetchStats() })
 
   const fetchWorkers = async () => {
     try {
@@ -105,17 +115,39 @@ export default function Jobs() {
   const fetchJobDetail = async (job) => {
     setLoadingDetail(true)
     setDetail(job)
+    setDetailQuotes([])
+    setDetailTxns([])
     setImpersonateToken(null)
     try {
       const res = await api.get(`/admin/jobs/${job._id}`)
       if (res.data.status === 'success') {
+        if (res.data.data.job) setDetail(res.data.data.job)
         setDetailQuotes(res.data.data.quotes || [])
+        setDetailTxns(res.data.data.walletTxns || [])
       }
     } catch { /* use existing data */ }
     finally { setLoadingDetail(false) }
   }
 
   const showToast = (msg, type = 'success') => setToast({ msg, type })
+
+  const resolveDispute = async () => {
+    if (!resolveModal || resolving) return
+    setResolving(true)
+    try {
+      const res = await api.patch(`/admin/jobs/${resolveModal._id}/resolve-dispute`, { resolution, adminNote: resolveNote })
+      const updated = res.data?.data
+      setJobs(prev => prev.map(j => j._id === resolveModal._id ? { ...j, status: updated?.status || 'CLOSED' } : j))
+      if (detail?._id === resolveModal._id) fetchJobDetail(detail)
+      showToast('Dispute resolved')
+      fetchStats()
+      window.dispatchEvent(new Event('admin-action'))
+      setResolveModal(null)
+      setResolveNote('')
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to resolve dispute'), 'error')
+    } finally { setResolving(false) }
+  }
 
   const cancelJob = async (id) => {
     if (actionId) return
@@ -275,6 +307,14 @@ export default function Jobs() {
     d.fee = `₹${j.payment?.platformFee || 0}`
     d.workerPayout = `₹${j.payment?.workerPayout || 0}`
     d.paymentStatus = j.payment?.status || 'PENDING'
+    d.gst = `₹${j.payment?.gst ?? j.payment?.gstAmount ?? 0}`
+    d.paymentMethod = j.payment?.method || '—'
+    d.startedAt = fmtDateTime(j.startedAt)
+    d.completedAt = fmtDateTime(j.completionDetails?.completedAt)
+    d.cancelReason = j.cancelReason || ''
+    d.workerRating = j.rating?.score ? `${j.rating.score}★${j.rating.review ? ` — ${j.rating.review}` : ''}` : '—'
+    d.customerRating = j.customerRating?.score ? `${j.customerRating.score}★${j.customerRating.review ? ` — ${j.customerRating.review}` : ''}` : '—'
+    d.dispute = j.dispute?.reportedAt ? j.dispute : null
     d.timeSlot = j.timeSlot || '—'
     d.preferredDate = j.preferredDate ? new Date(j.preferredDate).toLocaleDateString('en-IN') : '—'
     d.media = j.media || []
@@ -319,7 +359,7 @@ export default function Jobs() {
           <input placeholder="Search job ID, customer, worker, category..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="filter-tabs">
-          {['all', 'BROADCASTING', 'ALLOCATED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map(f => (
+          {['all', 'BROADCASTING', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED', 'DISPUTED', 'CANCELLED'].map(f => (
             <button key={f} className={`filter-tab ${statusFilter === f ? 'active' : ''}`} onClick={() => setStatusFilter(f)}>
               {f === 'all' ? 'All' : STATUS_LABEL[f] || f}
             </button>
@@ -386,7 +426,14 @@ export default function Jobs() {
                   <div className="detail-row"><span>Amount</span><strong>{fd.amount}</strong></div>
                   <div className="detail-row"><span>Platform Fee</span><strong style={{ color: 'var(--success)' }}>{fd.fee}</strong></div>
                   <div className="detail-row"><span>Worker Payout</span><strong>{fd.workerPayout}</strong></div>
+                  <div className="detail-row"><span>GST</span><strong>{fd.gst}</strong></div>
                   <div className="detail-row"><span>Payment Status</span><strong>{fd.paymentStatus}</strong></div>
+                  <div className="detail-row"><span>Payment Method</span><strong>{fd.paymentMethod}</strong></div>
+                  <div className="detail-row"><span>Started At</span><strong>{fd.startedAt}</strong></div>
+                  <div className="detail-row"><span>Completed At</span><strong>{fd.completedAt}</strong></div>
+                  {fd.cancelReason && <div className="detail-row"><span>Cancel Reason</span><strong>{fd.cancelReason}</strong></div>}
+                  <div className="detail-row"><span>Customer → Worker Rating</span><strong>{fd.workerRating}</strong></div>
+                  <div className="detail-row"><span>Worker → Customer Rating</span><strong>{fd.customerRating}</strong></div>
                   {fd.arrivalOtp !== '—' && <div className="detail-row"><span>Arrival OTP</span><strong>{fd.arrivalOtp}</strong></div>}
                   {fd.completionOtp !== '—' && <div className="detail-row"><span>Completion OTP</span><strong>{fd.completionOtp}</strong></div>}
                 </div>
@@ -429,6 +476,39 @@ export default function Jobs() {
                   </>
                 )}
 
+                {fd.dispute && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 16, marginBottom: 8 }}>Dispute</div>
+                    <div className="detail-grid">
+                      <div className="detail-row"><span>Reported By</span><strong>{fd.dispute.reportedBy || '—'}</strong></div>
+                      <div className="detail-row"><span>Amount Received</span><strong>₹{fd.dispute.amountReceived ?? 0}</strong></div>
+                      <div className="detail-row"><span>Short Amount</span><strong style={{ color: 'var(--danger)' }}>₹{fd.dispute.shortAmount ?? 0}</strong></div>
+                      <div className="detail-row"><span>Reason</span><strong>{fd.dispute.reason || '—'}</strong></div>
+                      <div className="detail-row"><span>Reported At</span><strong>{fmtDateTime(fd.dispute.reportedAt)}</strong></div>
+                      <div className="detail-row"><span>Dispute Status</span><strong>{fd.dispute.status || 'OPEN'}</strong></div>
+                      {fd.dispute.resolution && <div className="detail-row"><span>Resolution</span><strong>{fd.dispute.resolution}{fd.dispute.adminNote ? ` — ${fd.dispute.adminNote}` : ''}</strong></div>}
+                    </div>
+                  </>
+                )}
+
+                {detailTxns.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mid)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 20, marginBottom: 12 }}>Wallet Transactions ({detailTxns.length})</div>
+                    {detailTxns.map(t => {
+                      const credit = t.direction ? t.direction === 'CREDIT' : CREDIT_TXN_TYPES.includes(t.type)
+                      return (
+                        <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-dark)', borderRadius: 10, border: '1px solid var(--border)', padding: '10px 14px', marginBottom: 6 }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 12 }}>{t.type}{t.status && t.status !== 'COMPLETED' ? ` · ${t.status}` : ''}</div>
+                            <div style={{ fontSize: 11, color: 'var(--mid)' }}>{t.description || '—'} · {fmtDateTime(t.createdAt)}</div>
+                          </div>
+                          <strong style={{ color: credit ? 'var(--success)' : 'var(--danger)', whiteSpace: 'nowrap' }}>{credit ? '+' : '−'}₹{t.amount}</strong>
+                        </div>
+                      )
+                    })}
+                  </>
+                )}
+
                 {/* Quotes */}
                 {detailQuotes.length > 0 && (
                   <>
@@ -453,6 +533,11 @@ export default function Jobs() {
                   {fd.worker !== '—' && ['ALLOCATED', 'IN_PROGRESS'].includes(fd.status) && (
                     <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { setReassignModal(fd); setSelectedWorker(''); setDetail(null) }}>
                       <Users size={14} /> Reassign
+                    </button>
+                  )}
+                  {fd.status === 'DISPUTED' && (
+                    <button className="btn-primary" style={{ flex: 1 }} onClick={() => { setResolveModal(fd); setResolution('DEDUCT_FROM_WORKER'); setResolveNote('') }}>
+                      Resolve Dispute
                     </button>
                   )}
                   {['COMPLETED', 'PAID', 'CLOSED'].includes(fd.status) && (
@@ -507,6 +592,31 @@ export default function Jobs() {
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { setReassignModal(null); setSelectedWorker(''); }} disabled={reassigning}>Cancel</button>
               <button className="btn-primary" style={{ flex: 1 }} disabled={!selectedWorker || reassigning} onClick={reassignWorker}>{reassigning ? 'Reassigning…' : 'Reassign'}</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Resolve Dispute Modal */}
+      <Modal open={!!resolveModal} onClose={() => !resolving && setResolveModal(null)} title="Resolve Dispute" width="480px">
+        {resolveModal && (
+          <div>
+            <p style={{ fontSize: 13, color: 'var(--mid)', fontFamily: 'var(--font-body)', marginBottom: 16 }}>
+              Resolve the part-payment dispute on job <strong>#{resolveModal.id}</strong>. The job will be closed.
+            </p>
+            <div className="form-group">
+              <label className="form-label">Resolution</label>
+              <select className="form-control" value={resolution} onChange={e => setResolution(e.target.value)}>
+                {DISPUTE_RESOLUTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Admin note</label>
+              <textarea className="form-control" rows={3} value={resolveNote} onChange={e => setResolveNote(e.target.value)} placeholder="Optional note for the record" />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setResolveModal(null)} disabled={resolving}>Cancel</button>
+              <button className="btn-primary" style={{ flex: 1 }} disabled={resolving} onClick={resolveDispute}>{resolving ? 'Resolving…' : 'Resolve'}</button>
             </div>
           </div>
         )}

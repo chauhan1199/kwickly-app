@@ -51,7 +51,7 @@ const WorkerBalanceCard = ({ balance = 0, onTopUp, onWithdraw, showTopUpOnly = f
 
         {/* Balance Display */}
         <View style={styles.balanceContainer}>
-          <Text style={[styles.balance, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]}>
+          <Text style={[styles.balance, { color: isDarkMode ? '#F8FAFC' : '#0F172A' }]} numberOfLines={1} adjustsFontSizeToFit>
             {showBalance ? `₹${formattedBalance}` : '••••••••'}
           </Text>
           <View style={styles.zeroCommissionBadge}>

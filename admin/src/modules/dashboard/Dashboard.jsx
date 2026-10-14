@@ -82,7 +82,8 @@ export default function Dashboard() {
 
   const kpis = [
     { label: 'Active Jobs', value: s.activeJobs, icon: '📋', color: '#2EF7F0', route: '/jobs' },
-    { label: 'Revenue', value: `₹${(s.totalRevenue || 0).toLocaleString('en-IN')}`, icon: '💰', color: '#10B981', route: '/payouts' },
+    { label: 'Platform revenue (fee + GST)', value: `₹${(s.platformRevenue || 0).toLocaleString('en-IN')}`, icon: '💰', color: '#10B981', route: '/ledger' },
+    { label: 'Gross value (non-cancelled jobs)', value: `₹${(s.grossValue ?? s.totalRevenue ?? 0).toLocaleString('en-IN')}`, icon: '🧾', color: '#0EA5E9', route: '/jobs' },
     { label: 'Workers', value: s.totalWorkers, icon: '🔧', color: '#F59E0B', route: '/workers' },
     { label: 'Customers', value: s.totalCustomers, icon: '👤', color: '#8B5CF6', route: '/users' },
     { label: 'Shops', value: s.totalShops, icon: '🏪', color: '#EF4444', route: '/shops' },
@@ -162,7 +163,7 @@ export default function Dashboard() {
         {/* Chart */}
         <div className="card">
           <div className="card-header">
-            <div className="card-title">📈 Performance · {RANGE_LABELS[range]}</div>
+            <div className="card-title">📈 Performance · {s.chartRangeLabel || RANGE_LABELS[range]}</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {Object.keys(RANGE_LABELS).map(r => (
                 <button key={r} className={`btn btn-sm ${range === r ? 'btn-primary' : 'btn-outline'}`}
@@ -172,7 +173,7 @@ export default function Dashboard() {
               ))}
               <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px' }} />
               <button className={`btn btn-sm ${chartMode === 'jobs' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setChartMode('jobs')}>Jobs</button>
-              <button className={`btn btn-sm ${chartMode === 'revenue' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setChartMode('revenue')}>Revenue</button>
+              <button className={`btn btn-sm ${chartMode === 'revenue' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setChartMode('revenue')}>Platform revenue</button>
             </div>
           </div>
           <div className="card-body">
@@ -183,7 +184,7 @@ export default function Dashboard() {
                 const pct = max > 0 ? (val / max) * 100 : 0
                 return (
                   <div key={i} className="chart-bar" style={{ height: `${pct}%` }}
-                    title={chartMode === 'jobs' ? `${d.jobs} jobs` : `₹${d.revenue.toLocaleString('en-IN')}`} />
+                    title={chartMode === 'jobs' ? `${d.jobs} jobs` : `₹${(d.revenue || 0).toLocaleString('en-IN')} platform revenue`} />
                 )
               })}
             </div>

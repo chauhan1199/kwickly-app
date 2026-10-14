@@ -4,6 +4,7 @@ import Badge from '../../components/common/Badge'
 import useAbortableRequest from '../../hooks/useAbortableRequest'
 import { isAbortError, extractErrorMessage } from '../../utils/errorUtils'
 import Toast from '../../components/Toast'
+import useAdminRefresh from '../../hooks/useAdminRefresh'
 import EmptyState from '../../components/EmptyState'
 import Modal from '../../components/Modal'
 
@@ -86,6 +87,7 @@ export default function AdminWallet() {
   const creditDebitRef = useRef(null)
 
   useEffect(() => { fetchWallet(); fetchTxns() }, [])
+  useAdminRefresh(() => { fetchWallet(); fetchTxns() })
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type })

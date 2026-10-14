@@ -29,6 +29,7 @@ import {
   X
 } from 'lucide-react-native';
 import { shopService } from '../../services/shopService';
+import useSocket from '../../hooks/useSocket';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -129,6 +130,14 @@ const ShopOrdersScreen = ({ navigation }) => {
       hasLoaded.current = true;
     }, [fetchOrders])
   );
+
+  // Live updates: a new order or any status/payment change refreshes the list
+  useSocket({
+    role: 'SHOP',
+    onEvent: (event) => {
+      if (event === 'NEW_ORDER' || event === 'ORDER_STATUS') fetchOrders(true);
+    }
+  });
 
   const getFilterCount = (filter) => {
     if (filter === 'All') return orders.length;

@@ -5,7 +5,6 @@ import {
   ScrollView, 
   View, 
   StyleSheet, 
-  SafeAreaView, 
   Text, 
   TouchableOpacity,
   StatusBar,
@@ -254,7 +253,7 @@ const WorkerDashboard = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#5830E0" />
       
       <WorkerHeroHeader />
@@ -558,7 +557,7 @@ const WorkerDashboard = ({ navigation }) => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
