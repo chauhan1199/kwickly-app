@@ -84,6 +84,11 @@ const CustomerSchema = new mongoose.Schema({
         average: { type: Number, default: 0 },
         count: { type: Number, default: 0 }
     },
+    // How workers rated this person as a customer (rating above is their rating as a worker)
+    customerRating: {
+        average: { type: Number, default: 0 },
+        count: { type: Number, default: 0 }
+    },
     notificationPreferences: {
         jobUpdates: { type: Boolean, default: true },
         promotions: { type: Boolean, default: true }

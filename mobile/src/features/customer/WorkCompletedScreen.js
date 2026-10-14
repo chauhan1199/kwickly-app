@@ -512,7 +512,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
 
                 <TouchableOpacity 
                   style={styles.onlineBtnWrap}
-                  onPress={() => handlePayment('ONLINE')}
+                  onPress={() => handlePayment('WALLET')}
                   activeOpacity={0.85}
                 >
                   <LinearGradient
@@ -522,7 +522,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
                     style={styles.onlineBtnGradient}
                   >
                     <CreditCard size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={styles.onlineBtnText} numberOfLines={1}>Pay Online ₹{formattedButtonAmount}</Text>
+                    <Text style={styles.onlineBtnText} numberOfLines={1}>Pay from Wallet ₹{formattedButtonAmount}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>

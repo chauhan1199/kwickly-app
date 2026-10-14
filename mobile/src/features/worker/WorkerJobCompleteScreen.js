@@ -108,7 +108,10 @@ const WorkerJobCompleteScreen = ({ route, navigation }) => {
           
           <TouchableOpacity 
             style={styles.rateBtn}
-            onPress={() => navigation.navigate('WorkerRateCustomer', { job, quoteAmount })}
+            onPress={() => navigation.navigate('WorkerRateCustomer', {
+              jobId: job?._id,
+              customerName: job?.customerId?.name
+            })}
             activeOpacity={0.8}
           >
             <Star size={18} color="#6C47FF" style={{ marginRight: 8 }} />

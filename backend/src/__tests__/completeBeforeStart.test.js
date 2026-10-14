@@ -44,3 +44,24 @@ describe('Worker cannot skip the arrival OTP', () => {
         expect((await Job.findById(job._id)).status).toBe('ALLOCATED');
     });
 });
+
+describe('Worker rates the customer', () => {
+    it('saves the rating once and updates the customer average', async () => {
+        const Customer = require('../modules/customer/customer.model');
+        const customer = await createTestUser({ role: 'CUSTOMER', email: 'rc-c@test.com', phone: '3333333333' });
+        const worker = await createTestUser({ role: 'WORKER', email: 'rc-w@test.com', phone: '4444444444' });
+        const token = generateToken(worker);
+        const job = await Job.create({
+            customerId: customer._id, workerId: worker._id, category: 'Plumbing',
+            status: 'COMPLETED', location: { type: 'Point', coordinates: [72.58, 23.05] }
+        });
+        const rate = () => request(app).post(`/api/v1/jobs/${job._id}/rate-customer`)
+            .set('Authorization', `Bearer ${token}`).send({ score: 4, review: 'Friendly' });
+
+        const res = await rate();
+        expect(res.status).toBe(200);
+        expect((await Job.findById(job._id)).customerRating.score).toBe(4);
+        expect((await Customer.findById(customer._id)).customerRating.count).toBe(1);
+        expect((await rate()).status).toBe(409);
+    });
+});

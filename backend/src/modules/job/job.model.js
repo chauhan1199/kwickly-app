@@ -71,6 +71,13 @@ const JobSchema = new mongoose.Schema({
         createdAt: { type: Date }
     },
 
+    // The worker's rating of the customer (POST /jobs/:id/rate-customer)
+    customerRating: {
+        score: { type: Number, min: 1, max: 5 },
+        review: { type: String },
+        createdAt: { type: Date }
+    },
+
     // Dispute tracking (Loophole #9 fix)
     dispute: {
         reportedBy: { type: String, enum: ['WORKER', 'CUSTOMER'] },
