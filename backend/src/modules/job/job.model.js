@@ -57,6 +57,8 @@ const JobSchema = new mongoose.Schema({
         completionOtp: { type: String }
     },
 
+    startedAt: { type: Date },   // set when the arrival OTP is verified (IN_PROGRESS)
+
     completionDetails: {
         media: [{ type: String }],
         report: { type: String },

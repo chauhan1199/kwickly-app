@@ -521,6 +521,7 @@ exports.startJob = catchAsync(async (req, res) => {
     }
 
     job.status = 'IN_PROGRESS';
+    job.startedAt = new Date();
     job.security = { ...job.security, arrivalOtp: undefined };
     await job.save();
 

@@ -434,6 +434,9 @@ describe('E2E Worker Flow', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.data.status).toBe('IN_PROGRESS');
+            // The worker's session timer counts from this moment
+            const started = new Date(res.body.data.startedAt).getTime();
+            expect(Date.now() - started).toBeLessThan(60000);
         });
 
         it('19. Worker completes job — COMPLETED', async () => {

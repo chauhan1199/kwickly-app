@@ -59,7 +59,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
   
   const [job, setJob] = useState(initialJob || null);
   const [loadingJob, setLoadingJob] = useState(!initialJob);
-  const [seconds, setSeconds] = useState(1458); 
+  const [seconds, setSeconds] = useState(0);
   const [completing, setCompleting] = useState(false);
   const [report, setReport] = useState('');
   const [uploadingSlot, setUploadingSlot] = useState(null);
@@ -97,13 +97,16 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
     return () => { isMounted = false; };
   }, [jobId]);
 
-  // Elapsed Session Timer
+  // Elapsed Session Timer: real time since the arrival OTP was verified (job.startedAt),
+  // or since this screen opened for older jobs that have no startedAt
+  const startedAtMs = job?.startedAt ? new Date(job.startedAt).getTime() : null;
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSeconds(s => s + 1);
-    }, 1000);
+    const base = startedAtMs || Date.now();
+    const tick = () => setSeconds(Math.max(0, Math.floor((Date.now() - base) / 1000)));
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [startedAtMs]);
 
   const hours = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
