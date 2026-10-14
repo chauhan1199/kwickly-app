@@ -651,7 +651,6 @@ exports.payJob = catchAsync(async (req, res) => {
         }
     }
 
-    const adminTotalRevenue = (platformFee + gst) - promoDiscount;
 
     let session = null;
     let useTransaction = false;
@@ -667,7 +666,7 @@ exports.payJob = catchAsync(async (req, res) => {
     }
     try {
         const WalletTxn = require('../wallet/wallet.model');
-        const { collectPlatformFee, recordPromoCost } = require('../adminWallet/adminWallet.service');
+        const { recordPromoCost } = require('../adminWallet/adminWallet.service');
         const worker = await Customer.findById(job.workerId).session(session);
 
         if (worker) {
@@ -715,12 +714,15 @@ exports.payJob = catchAsync(async (req, res) => {
                         }], { session });
                     }
                 }
-                // Cash never passes through the settlement engine, so the fee the
-                // worker just paid is booked to the treasury here (inside the transaction).
-                if (adminTotalRevenue > 0) {
-                    await collectPlatformFee(
-                        adminTotalRevenue,
-                        `Platform fee + GST ${promoDiscount > 0 ? `(less ₹${promoDiscount} promo discount)` : ''} from job #${job._id.toString().slice(-6)} (CASH)`,
+                // Book the fee as revenue and the GST as a liability, with a ledger entry,
+                // exactly like online jobs (the worker paid it from their wallet above).
+                const { settleCashJob } = require('../../helpers/settlementEngine.helper');
+                await settleCashJob({ job, session });
+                // The worker was charged fee + GST less the promo, so the platform funds the promo.
+                if (promoDiscount > 0) {
+                    await recordPromoCost(
+                        promoDiscount,
+                        `Promo ${job.promoCode} discount on cash job #${job._id.toString().slice(-6)}`,
                         job._id,
                         'Job',
                         { workerId: job.workerId, customerId: job.customerId, method },
@@ -779,6 +781,7 @@ exports.payJob = catchAsync(async (req, res) => {
         job.status = 'PAID';
         if (!job.payment) job.payment = {};
         job.payment.status = 'PAID';
+        job.payment.method = method === 'CASH' ? 'CASH' : 'WALLET';
         job.payment.escrowStatus = 'SETTLED';
         job.security = { ...job.security, completionOtp: undefined };
         await job.save({ session });

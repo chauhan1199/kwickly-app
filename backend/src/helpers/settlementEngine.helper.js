@@ -125,6 +125,69 @@ const settleJobCompletion = async ({ job, session = null }) => {
 };
 
 /**
+ * Books a CASH service job. The customer handed the full amount to the worker, and
+ * the worker's wallet has already been charged the platform fee + GST, so here we
+ * only record the fee as revenue and the GST as a liability, the same way online
+ * jobs are booked, plus the ledger entry the admin reports read.
+ */
+const settleCashJob = async ({ job, session = null }) => {
+    const idempotencyKey = `settle_job_${job._id.toString()}`;
+    const existing = await PlatformLedger.findOne({ idempotencyKey }).session(session);
+    if (existing) return existing;
+
+    const workerQuote = Number(job.payment?.workerPayout || job.payment?.quotedAmount || 0);
+    const platformFee = Number(job.payment?.platformFee || 0);
+    const gstAmount = Number(job.payment?.gst || job.payment?.gstAmount || 0);
+    const customerTotal = Number(job.payment?.amount || (workerQuote + platformFee + gstAmount));
+    const settlementId = `STL_JOB_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+    await Customer.findByIdAndUpdate(
+        job.workerId,
+        { $inc: { 'workerProfile.totalJobs': 1, 'workerProfile.totalEarned': workerQuote } },
+        { session }
+    );
+
+    const adminW = await AdminWallet.findOneAndUpdate(
+        {},
+        { $inc: { balance: platformFee, totalCommission: platformFee, platformFeeRevenue: platformFee, gstLiability: gstAmount } },
+        { returnDocument: 'after', upsert: true, session }
+    );
+    await AdminWalletTxn.create([{
+        type: 'PLATFORM_FEE_COLLECTED',
+        amount: platformFee,
+        balanceAfter: adminW?.balance || platformFee,
+        description: `Customer Platform Fee on cash Job #${job._id.toString().slice(-6)} (Gross: ₹${customerTotal})`,
+        referenceId: job._id,
+        referenceModel: 'Job',
+        meta: { workerQuote, platformFee, gstAmount, customerTotal, settlementId, method: 'CASH' }
+    }], { session });
+
+    const [entry] = await PlatformLedger.create([{
+        transactionId: `TXN_JOB_${job._id.toString().slice(-6)}_${Date.now()}`,
+        settlementId,
+        idempotencyKey,
+        entityType: 'SERVICE_JOB',
+        entityId: job._id,
+        referenceNumber: `JOB-${job._id.toString().slice(-6).toUpperCase()}`,
+        grossAmount: customerTotal,
+        partnerAmount: workerQuote,
+        platformFee,
+        gstAmount,
+        partnerCommissionPercent: 0,
+        fromAccount: { accountType: 'WORKER_WALLET', userId: job.workerId },
+        toAccount: { accountType: 'KWICKLY_TREASURY' },
+        paymentMethod: 'CASH',
+        paymentStatus: 'PAID',
+        settlementStatus: 'SETTLED',
+        description: `Cash Job: customer paid worker ₹${customerTotal} in cash; fee ₹${platformFee} + GST ₹${gstAmount} taken from worker wallet`,
+        configSnapshot: { appliedAt: new Date(), rule: '0% Partner Commission, Customer Paid Fee' }
+    }], { session });
+
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_SETTLED', jobId: job._id, platformFee, gstAmount });
+    return entry;
+};
+
+/**
  * Idempotent Settlement Engine for Shop Orders
  * Ensures funds are disbursed exactly once upon Delivery OTP verification
  */
@@ -398,6 +461,7 @@ const reverseShopOrderDelivery = async ({ order, session = null }) => {
 
 module.exports = {
     settleJobCompletion,
+    settleCashJob,
     settleShopOrderDelivery,
     reverseShopOrderDelivery
 };

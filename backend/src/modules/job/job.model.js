@@ -57,6 +57,9 @@ const JobSchema = new mongoose.Schema({
         completionOtp: { type: String }
     },
 
+    promoCode: { type: String },
+    promoDiscount: { type: Number },
+
     startedAt: { type: Date },   // set when the arrival OTP is verified (IN_PROGRESS)
 
     completionDetails: {
