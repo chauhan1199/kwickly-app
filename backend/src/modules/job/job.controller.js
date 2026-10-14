@@ -379,9 +379,10 @@ exports.getAvailableJobs = catchAsync(async (req, res) => {
 
     const workerRadiusRadians = workerRadiusKm / 6371;
 
-    // ─── Exclude jobs this worker has already quoted on ──────────────────────────
+    // ─── Exclude jobs this worker has a live quote on ────────────────────────────
+    // A withdrawn quote frees the job again so the worker can re-quote (placeQuote allows it)
     const Quote = require('../quote/quote.model');
-    const quotedJobIds = await Quote.distinct('jobId', { workerId: req.user._id });
+    const quotedJobIds = await Quote.distinct('jobId', { workerId: req.user._id, status: { $ne: 'WITHDRAWN' } });
 
     // ─── Fetch active jobs matching worker's categories within their radius ──────
     const query = {
