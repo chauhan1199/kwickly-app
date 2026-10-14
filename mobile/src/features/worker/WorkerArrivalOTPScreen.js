@@ -13,7 +13,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { jobService } from '../../services/jobService';
-import Geolocation from '@react-native-community/geolocation';
+import { getCurrentCoordinates } from '../../utils/currentLocation';
 
 const WorkerArrivalOTPScreen = ({ route, navigation }) => {
   const { theme, isDarkMode } = useTheme();
@@ -52,13 +52,7 @@ const WorkerArrivalOTPScreen = ({ route, navigation }) => {
     
     setLoading(true);
     try {
-      const currentCoordinates = await new Promise((resolve, reject) => {
-        Geolocation.getCurrentPosition(
-          (position) => resolve([position.coords.longitude, position.coords.latitude]),
-          (error) => reject(new Error(error.message)),
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-        );
-      });
+      const currentCoordinates = await getCurrentCoordinates();
       const res = await jobService.startJob(jobId, { arrivalOtp: fullOtp, currentCoordinates });
       if (res.data.status === 'success') {
         navigation.replace('WorkerActiveJob', { jobId, job: res.data.data });
