@@ -303,7 +303,7 @@ const WorkerActiveJobScreen = ({ route, navigation }) => {
           <View style={styles.contextHeader}>
             <View style={styles.categoryBadge}>
               <Briefcase size={13} color="#6C47FF" style={{ marginRight: 4 }} />
-              <Text style={styles.categoryBadgeText}>
+              <Text style={styles.categoryBadgeText} numberOfLines={2}>
                 {serviceCategory}{subcategory ? ` • ${subcategory}` : ''}
               </Text>
             </View>
@@ -738,8 +738,8 @@ const createStyles = (theme, isDarkMode, safeTop) => StyleSheet.create({
   },
   contextHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
   categoryBadge: {
@@ -749,14 +749,18 @@ const createStyles = (theme, isDarkMode, safeTop) => StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 8,
+    flexShrink: 1,
+    marginRight: 10,
   },
   categoryBadgeText: {
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: '800',
     color: '#6C47FF',
   },
   payoutBadge: {
     alignItems: 'flex-end',
+    flexShrink: 0,
   },
   payoutBadgeLabel: {
     fontSize: 10,
