@@ -304,7 +304,7 @@ const ShopDetailScreen = ({ route, navigation }) => {
         <View style={styles.cartBannerContainer}>
           <View style={styles.cartBanner}>
             <View>
-              <Text style={styles.cartItemsText}>{totalItems} items</Text>
+              <Text style={styles.cartItemsText}>{totalItems} {totalItems === 1 ? 'item' : 'items'}</Text>
               <Text style={styles.cartSubText}>In cart</Text>
             </View>
             <TouchableOpacity 

@@ -39,7 +39,12 @@ const RateExperienceScreen = ({ route, navigation }) => {
   const [review, setReview] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const goHome = () => navigation.navigate('Home');
+  // navigate('Home') alone only switches tabs: inside the Home stack it left this
+  // screen on top, so clear the job flow first, then land on the Home tab's root.
+  const goHome = () => {
+    if (navigation.canGoBack()) navigation.popToTop();
+    navigation.navigate('Home', { screen: 'HomeMain' });
+  };
 
   const handleSubmit = async () => {
     if (!jobId) {

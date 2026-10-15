@@ -630,7 +630,7 @@ const CartScreen = ({ route, navigation }) => {
         <AppBar 
           showBack={true} 
           title="My Cart" 
-          subtitle={`${itemCount} items`} 
+          subtitle={`${itemCount} ${itemCount === 1 ? 'item' : 'items'}`} 
           transparent={true} 
           showLogo={false} 
         />
