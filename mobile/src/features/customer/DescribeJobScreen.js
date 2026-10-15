@@ -501,7 +501,7 @@ const DescribeJobScreen = ({ route, navigation }) => {
         budget:         budget.trim() ? Number(budget.trim()) : undefined,
         media:          mediaUrls.filter(Boolean),
         preferredDate:  preferredDate.toISOString(),
-        timeSlot:       timeSlot || 'urgent',
+        timeSlot:       (timeSlots.find(t => t.id === timeSlot && !isSlotOver(t)) ? timeSlot : 'urgent'),
         location:       jobLocation,
         addressDetails: address.trim(),
         preferredWorkerId: selectedWorker?._id || selectedWorker?.id || undefined,
@@ -530,10 +530,17 @@ const DescribeJobScreen = ({ route, navigation }) => {
 
   const timeSlots = [
     { id: 'urgent',    icon: '⚡', label: 'Urgent / ASAP', sub: 'Within 1-2 hrs' },
-    { id: 'morning',   icon: '🌅', label: 'Morning',       sub: '8 AM – 12 PM'  },
-    { id: 'afternoon', icon: '☀️',  label: 'Afternoon',     sub: '12 PM – 4 PM'  },
-    { id: 'evening',   icon: '🌆', label: 'Evening',        sub: '4 PM – 8 PM'   },
+    { id: 'morning',   icon: '🌅', label: 'Morning',       sub: '8 AM – 12 PM', endHour: 12 },
+    { id: 'afternoon', icon: '☀️',  label: 'Afternoon',     sub: '12 PM – 4 PM', endHour: 16 },
+    { id: 'evening',   icon: '🌆', label: 'Evening',        sub: '4 PM – 8 PM',  endHour: 20 },
   ];
+
+  // A slot that has already ended today can't be booked for today
+  const isSlotOver = (slot, date = preferredDate) => {
+    if (!slot.endHour) return false;
+    const now = new Date();
+    return date.toDateString() === now.toDateString() && now.getHours() >= slot.endHour;
+  };
 
   const getNext7Days = () => {
     return Array.from({ length: 7 }, (_, i) => {
@@ -805,12 +812,14 @@ const DescribeJobScreen = ({ route, navigation }) => {
         <Text style={[styles.label, { marginTop: 14 }]}>Time slot</Text>
         <View style={styles.timeGrid}>
           {timeSlots.map(slot => {
-            const active = timeSlot === slot.id;
+            const over = isSlotOver(slot);
+            const active = timeSlot === slot.id && !over;
             return (
               <TouchableOpacity
                 key={slot.id}
-                style={[styles.timeCard, active && styles.timeCardActive]}
+                style={[styles.timeCard, active && styles.timeCardActive, over && { opacity: 0.4 }]}
                 onPress={() => setTimeSlot(slot.id)}
+                disabled={over}
                 activeOpacity={0.8}
               >
                 <Text style={{ fontSize: 22 }}>{slot.icon}</Text>
@@ -1004,7 +1013,13 @@ const DescribeJobScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     key={idx}
                     style={[styles.dateCard, isSelected && styles.dateCardActive]}
-                    onPress={() => { setPreferredDate(date); setShowDatePicker(false); }}
+                    onPress={() => {
+                      setPreferredDate(date);
+                      // Picking today after the chosen slot has ended falls back to ASAP
+                      const chosen = timeSlots.find(t => t.id === timeSlot);
+                      if (chosen && isSlotOver(chosen, date)) setTimeSlot('urgent');
+                      setShowDatePicker(false);
+                    }}
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.dateCardDay, isSelected && { color: PURPLE }]}>
