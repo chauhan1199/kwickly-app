@@ -12,7 +12,8 @@ import {
   Modal,
   ActivityIndicator,
   RefreshControl,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  AppState
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -99,6 +100,21 @@ const WorkCompletedScreen = ({ route, navigation }) => {
     if (event === 'JOB_PAID' || event === 'JOB_STATUS_CHANGED') fetchLatestJob();
   }, [currentJob?._id, job?._id, fetchLatestJob]);
   useSocket({ onEvent: handleSocketEvent });
+
+  // Socket events can be missed (app was in the UPI app, network switch), so while
+  // the UPI payment awaits verification also re-check the job every few seconds
+  // and whenever the app comes back to the foreground.
+  useEffect(() => {
+    if (!isPendingVerification) return undefined;
+    const timer = setInterval(fetchLatestJob, 8000);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') fetchLatestJob();
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [isPendingVerification, fetchLatestJob]);
 
   const [otp, setOtp] = useState('');
   const scrollRef = useRef(null);
