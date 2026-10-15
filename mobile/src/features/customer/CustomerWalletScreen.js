@@ -42,7 +42,7 @@ const CustomerWalletScreen = ({ navigation }) => {
   const [waitingModalVisible, setWaitingModalVisible] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [upiOrderData, setUpiOrderData] = useState(null);
-  const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
+  const [selectedUpiApp, setSelectedUpiApp] = useState('generic');
   const [upiTxnId, setUpiTxnId] = useState('');
   const [txnModal, setTxnModal] = useState(false);
   const [selectedTxn, setSelectedTxn] = useState(null);
@@ -193,7 +193,7 @@ const CustomerWalletScreen = ({ navigation }) => {
       };
 
       setUpiOrderData(orderPayload);
-      setSelectedUpiApp('gpay');
+      setSelectedUpiApp('generic');
       setUpiTxnId('');
       setAddMoneyModal(false);
       setUpiCheckoutModal(true);
@@ -210,7 +210,7 @@ const CustomerWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handleOpenUpiApp = async (appKey = 'gpay') => {
+  const handleOpenUpiApp = async (appKey = 'generic') => {
     if (!upiOrderData) return;
     setSelectedUpiApp(appKey);
 
@@ -631,12 +631,12 @@ const CustomerWalletScreen = ({ navigation }) => {
             {/* Pay via App Button */}
             <TouchableOpacity
               style={styles.confirmPayBtn}
-              onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
+              onPress={() => handleOpenUpiApp(selectedUpiApp || 'generic')}
               activeOpacity={0.85}
             >
               <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.confirmPayBtnText}>
-                Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'any UPI app'}
               </Text>
               <ArrowRight size={18} color="#fff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>

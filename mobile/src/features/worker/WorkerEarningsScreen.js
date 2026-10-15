@@ -134,7 +134,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
   const [showManualUtr, setShowManualUtr] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [pendingPaymentContext, setPendingPaymentContext] = useState({ amount: 100, type: 'WALLET', planId: null });
-  const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
+  const [selectedUpiApp, setSelectedUpiApp] = useState('generic');
   const [sharingReceipt, setSharingReceipt] = useState(false);
 
 
@@ -268,7 +268,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
   });
 
-  const handlePayViaUpiApp = async (appKey = 'gpay') => {
+  const handlePayViaUpiApp = async (appKey = 'generic') => {
     setSelectedUpiApp(appKey);
     const upiId = adminUpiConfig?.upiId;
     if (!upiId) {
@@ -395,7 +395,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       type: context,
       planId: extraData?.planId || null
     });
-    setSelectedUpiApp('gpay');
+    setSelectedUpiApp('generic');
     setUpiPaymentModalVisible(true);
   };
 
@@ -407,7 +407,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
     const plan = dynamicPlans.find(p => p.id === selectedPlan);
     const amt = plan ? (plan.rawPrice || parseFloat(plan.price.replace('₹',''))) : 0;
     setPlanModalVisible(false);
-    setSelectedUpiApp('gpay');
+    setSelectedUpiApp('generic');
     setPendingPaymentContext({ amount: amt, type: 'PLAN', planId: selectedPlan });
     setUpiPaymentModalVisible(true);
   };
@@ -419,7 +419,7 @@ const WorkerEarningsScreen = ({ navigation }) => {
       return;
     }
     setTopUpModalVisible(false);
-    setSelectedUpiApp('gpay');
+    setSelectedUpiApp('generic');
     setPendingPaymentContext({ amount: amt, type: 'WALLET', planId: null });
     setUpiPaymentModalVisible(true);
   };
@@ -910,12 +910,12 @@ const WorkerEarningsScreen = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.confirmPayBtn}
-              onPress={() => handlePayViaUpiApp(selectedUpiApp || 'gpay')}
+              onPress={() => handlePayViaUpiApp(selectedUpiApp || 'generic')}
               activeOpacity={0.85}
             >
               <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.confirmPayBtnText}>
-                Pay ₹{pendingPaymentContext.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                Pay ₹{pendingPaymentContext.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'any UPI app'}
               </Text>
               <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>

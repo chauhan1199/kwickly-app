@@ -102,8 +102,8 @@ const ShopWalletScreen = ({ navigation }) => {
   const [addAccountModalVisible, setAddAccountModalVisible] = useState(false);
 
   // UPI App Selection state
-  const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
-  const [selectedSubUpiApp, setSelectedSubUpiApp] = useState('gpay');
+  const [selectedUpiApp, setSelectedUpiApp] = useState('generic');
+  const [selectedSubUpiApp, setSelectedSubUpiApp] = useState('generic');
   const [sharingReceipt, setSharingReceipt] = useState(false);
 
   // Data state
@@ -268,7 +268,7 @@ const ShopWalletScreen = ({ navigation }) => {
   // ═══════════════════════════════════════════
   const handleOpenTopUp = () => {
     setTopUpAmount('500');
-    setSelectedUpiApp('gpay');
+    setSelectedUpiApp('generic');
     setTopUpModalVisible(true);
   };
 
@@ -307,7 +307,7 @@ const ShopWalletScreen = ({ navigation }) => {
     }
   };
 
-  const handlePayViaUpiApp = async (appKey = 'gpay') => {
+  const handlePayViaUpiApp = async (appKey = 'generic') => {
     setSelectedUpiApp(appKey);
     const upiId = adminUpiConfig?.upiId;
     if (!upiId) {
@@ -607,11 +607,11 @@ const ShopWalletScreen = ({ navigation }) => {
       return;
     }
     setSubUtr('');
-    setSelectedSubUpiApp('gpay');
+    setSelectedSubUpiApp('generic');
     setSubPaymentStep(true);
   };
 
-  const handlePaySubscriptionUpi = async (appKey = 'gpay') => {
+  const handlePaySubscriptionUpi = async (appKey = 'generic') => {
     setSelectedSubUpiApp(appKey);
     const upiId = adminUpiConfig?.upiId;
     if (!upiId) {
@@ -1012,12 +1012,12 @@ const ShopWalletScreen = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.confirmPayBtn}
-              onPress={() => handlePayViaUpiApp(selectedUpiApp || 'gpay')}
+              onPress={() => handlePayViaUpiApp(selectedUpiApp || 'generic')}
               activeOpacity={0.85}
             >
               <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.confirmPayBtnText}>
-                Pay ₹{topUpAmount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                Pay ₹{topUpAmount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'any UPI app'}
               </Text>
               <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
@@ -1284,12 +1284,12 @@ const ShopWalletScreen = ({ navigation }) => {
 
                 <TouchableOpacity
                   style={styles.confirmPayBtn}
-                  onPress={() => handlePaySubscriptionUpi(selectedSubUpiApp || 'gpay')}
+                  onPress={() => handlePaySubscriptionUpi(selectedSubUpiApp || 'generic')}
                   activeOpacity={0.85}
                 >
                   <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
                   <Text style={styles.confirmPayBtnText}>
-                    Pay ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} via {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                    Pay ₹{dynamicPlans.find(p => p.id === selectedPlan)?.priceNum || 0} via {selectedSubUpiApp === 'gpay' ? 'Google Pay' : selectedSubUpiApp === 'phonepe' ? 'PhonePe' : selectedSubUpiApp === 'paytm' ? 'Paytm' : selectedSubUpiApp === 'cred' ? 'CRED' : selectedSubUpiApp === 'bhim' ? 'BHIM' : 'any UPI app'}
                   </Text>
                   <ChevronRight size={18} color="#fff" style={{ marginLeft: 6 }} />
                 </TouchableOpacity>

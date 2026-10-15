@@ -17,7 +17,7 @@ export const nativeUpiService = {
    * Starts a native UPI Payment intent using Android startActivityForResult
    * Automatically captures the official NPCI response (Status, ApprovalRefNo/UTR, txnId)
    */
-  async startUpiPayment({ vpa, name, amount, txnRef, note, appKey = 'gpay' }) {
+  async startUpiPayment({ vpa, name, amount, txnRef, note, appKey = 'generic' }) {
     const appPackage = UPI_APP_PACKAGES[appKey] || null;
 
     if (Platform.OS === 'android' && NativeUpiPayment) {

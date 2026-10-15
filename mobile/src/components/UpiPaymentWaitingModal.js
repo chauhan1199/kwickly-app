@@ -518,7 +518,7 @@ const UpiPaymentWaitingModal = ({
 
               <View style={styles.amountPill}>
                 <View>
-                  <Text style={styles.amountPillLabel}>Top-up Amount</Text>
+                  <Text style={styles.amountPillLabel}>{purpose === 'wallet_topup' ? 'Top-up Amount' : 'Amount'}</Text>
                   <Text style={styles.amountPillValue}>₹{amount}</Text>
                 </View>
                 {payeeName ? (
@@ -556,7 +556,7 @@ const UpiPaymentWaitingModal = ({
             <View style={styles.enterUtrContainer}>
               <Text style={styles.stepTitle}>Confirm UPI Reference</Text>
               <Text style={styles.stepSub}>
-                Enter the 12-digit UPI Reference (UTR) from your bank SMS to credit <Text style={{ fontWeight: '800', color: '#10B981' }}>₹{amount}</Text> to your wallet.
+                Enter the 12-digit UPI Reference (UTR) from your bank SMS to confirm <Text style={{ fontWeight: '800', color: '#10B981' }}>₹{amount}</Text> {purpose === 'wallet_topup' ? 'to your wallet' : purpose === 'subscription' ? 'for your plan' : purpose === 'job_payment' ? 'for this job' : 'for your order'}.
               </Text>
 
               {statusNote ? (

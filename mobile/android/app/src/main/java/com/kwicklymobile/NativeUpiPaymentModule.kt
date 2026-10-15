@@ -193,13 +193,16 @@ class NativeUpiPaymentModule(private val reactCtx: ReactApplicationContext) :
             val uri = uriBuilder.build()
             val intent = Intent(Intent.ACTION_VIEW, uri)
 
-            if (!appPackage.isNullOrEmpty() && appPackage != "generic") {
+            val hasPackage = !appPackage.isNullOrEmpty() && appPackage != "generic"
+            if (hasPackage) {
                 intent.setPackage(appPackage)
             }
 
             pendingPromise = promise
             try {
-                activity.startActivityForResult(intent, UPI_PAYMENT_REQUEST_CODE)
+                // No app picked: always show every installed UPI app (CRED, PhonePe, GPay, BHIM...)
+                val launch = if (hasPackage) intent else Intent.createChooser(intent, "Pay via UPI")
+                activity.startActivityForResult(launch, UPI_PAYMENT_REQUEST_CODE)
             } catch (e: Exception) {
                 // If package-specific launch failed (e.g. app not installed), fallback to system chooser
                 try {

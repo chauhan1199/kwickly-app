@@ -103,7 +103,7 @@ const CartScreen = ({ route, navigation }) => {
   const [upiOrderData, setUpiOrderData] = useState(null);
   const [customUpiId, setCustomUpiId] = useState('');
   const [upiVerifying, setUpiVerifying] = useState(false);
-  const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
+  const [selectedUpiApp, setSelectedUpiApp] = useState('generic');
   const [copiedVpa, setCopiedVpa] = useState(false);
   const [upiTxnId, setUpiTxnId] = useState('');
   // The order is finalized (success sheet + cart cleared) exactly once per order
@@ -520,7 +520,7 @@ const CartScreen = ({ route, navigation }) => {
   };
 
   const handleOpenUpiApp = async (appScheme = null) => {
-    const chosen = appScheme || selectedUpiApp || 'gpay';
+    const chosen = appScheme || selectedUpiApp || 'generic';
     setSelectedUpiApp(chosen);
     setShowUpiModal(false);
 
@@ -940,12 +940,12 @@ const CartScreen = ({ route, navigation }) => {
             {/* Primary Action Button */}
             <TouchableOpacity
               style={styles.openAppPrimaryBtn}
-              onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
+              onPress={() => handleOpenUpiApp(selectedUpiApp || 'generic')}
               activeOpacity={0.85}
             >
               <Zap size={18} color="#001016" />
               <Text style={styles.openAppPrimaryText}>
-                Pay ₹{total} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : 'UPI App'}
+                Pay ₹{total} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'any UPI app'}
               </Text>
               <ArrowRight size={18} color="#001016" />
             </TouchableOpacity>

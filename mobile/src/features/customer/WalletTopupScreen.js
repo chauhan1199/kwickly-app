@@ -27,7 +27,7 @@ const WalletTopupScreen = ({ navigation }) => {
   const [upiCheckoutModal, setUpiCheckoutModal] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [upiOrderData, setUpiOrderData] = useState(null);
-  const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
+  const [selectedUpiApp, setSelectedUpiApp] = useState('generic');
   const [waitingModalVisible, setWaitingModalVisible] = useState(false);
   // Height of the absolute footer, so the scroll content can clear it
   const [footerHeight, setFooterHeight] = useState(140);
@@ -68,7 +68,7 @@ const WalletTopupScreen = ({ navigation }) => {
       };
 
       setUpiOrderData(orderPayload);
-      setSelectedUpiApp('gpay');
+      setSelectedUpiApp('generic');
       setUpiCheckoutModal(true);
     } catch (e) {
       const errMsg = e?.response?.data?.message || e?.message || 'Failed to initialize topup';
@@ -78,7 +78,7 @@ const WalletTopupScreen = ({ navigation }) => {
     }
   };
 
-  const handleOpenUpiApp = async (appKey = 'gpay') => {
+  const handleOpenUpiApp = async (appKey = 'generic') => {
     if (!upiOrderData) return;
     setSelectedUpiApp(appKey);
 
@@ -320,12 +320,12 @@ const WalletTopupScreen = ({ navigation }) => {
             {/* Pay via App Button */}
             <TouchableOpacity
               style={styles.confirmPayBtn}
-              onPress={() => handleOpenUpiApp(selectedUpiApp || 'gpay')}
+              onPress={() => handleOpenUpiApp(selectedUpiApp || 'generic')}
               activeOpacity={0.85}
             >
               <Zap size={18} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.confirmPayBtnText}>
-                Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'UPI App'}
+                Pay ₹{upiOrderData?.amount || 0} via {selectedUpiApp === 'gpay' ? 'Google Pay' : selectedUpiApp === 'phonepe' ? 'PhonePe' : selectedUpiApp === 'paytm' ? 'Paytm' : selectedUpiApp === 'cred' ? 'CRED' : selectedUpiApp === 'bhim' ? 'BHIM' : 'any UPI app'}
               </Text>
               <ArrowRight size={18} color="#fff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
