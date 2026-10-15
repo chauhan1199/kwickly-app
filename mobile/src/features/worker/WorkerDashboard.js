@@ -500,7 +500,7 @@ const WorkerDashboard = ({ navigation }) => {
                   <View style={styles.newBadge}>
                     <Text style={styles.newBadgeText}>NEW JOB</Text>
                   </View>
-                  <Text style={styles.jobTimeText}>Today • {job.timeSlot || 'Flexible'}</Text>
+                  <Text style={styles.jobTimeText}>{formatJobDay(job.preferredDate)} • {job.timeSlot || 'Flexible'}</Text>
                 </View>
                 
                 <Text style={styles.jobTitle} numberOfLines={1}>{job.category}</Text>
