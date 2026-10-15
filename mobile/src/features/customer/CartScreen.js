@@ -207,6 +207,9 @@ const CartScreen = ({ route, navigation }) => {
   }, [cart?.shopId, isSlotPassed]);
 
   useEffect(() => { fetchCart(); }, [fetchCart]);
+  // The wallet balance shown here comes from the auth profile, which other screens
+  // (job payment, refunds) don't refresh, so reload it when the cart opens.
+  useEffect(() => { if (fetchUser) fetchUser().catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (cart?.shopId) {
