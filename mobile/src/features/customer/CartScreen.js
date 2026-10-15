@@ -785,7 +785,7 @@ const CartScreen = ({ route, navigation }) => {
                   </View>
                   {platformFee > 0 && (
                     <View style={styles.billRow}>
-                      <Text style={styles.billKey}>Kwickly Platform Fee (5%)</Text>
+                      <Text style={styles.billKey}>Kwickly Platform Fee</Text>
                       <Text style={styles.billVal}>₹{platformFee.toFixed(2)}</Text>
                     </View>
                   )}

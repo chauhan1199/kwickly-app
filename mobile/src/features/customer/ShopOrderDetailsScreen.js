@@ -534,7 +534,7 @@ const ShopOrderDetailsScreen = ({ route, navigation }) => {
             )}
             {platformFee > 0 && (
               <View style={styles.invoiceRow}>
-                <Text style={styles.invoiceMuted}>Platform Fee (5%)</Text>
+                <Text style={styles.invoiceMuted}>Platform Fee</Text>
                 <Text style={styles.invoiceMuted}>₹{platformFee.toFixed(2)}</Text>
               </View>
             )}
