@@ -390,6 +390,9 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
                 <View style={[styles.historyDot, idx === order.statusHistory.length - 1 && styles.historyDotActive]} />
                 <View style={styles.historyContent}>
                   <Text style={styles.historyStatus}>{formatStatus(h.status)}</Text>
+                  {h.note && !/^Status changed to/i.test(h.note) ? (
+                    <Text style={styles.historyTime}>{h.note}</Text>
+                  ) : null}
                   <Text style={styles.historyTime}>
                     {new Date(h.timestamp).toLocaleString('en-IN', {
                       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
