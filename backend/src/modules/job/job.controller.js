@@ -242,6 +242,8 @@ exports.getJobs = catchAsync(async (req, res) => {
     const { status, search, limit = 20, page = 1 } = req.query;
     const query = {};
     if (status && status !== 'all') query.status = status.toUpperCase();
+    // e.g. ?paymentStatus=PENDING_VERIFICATION for UPI payments awaiting approval
+    if (req.query.paymentStatus) query['payment.status'] = String(req.query.paymentStatus).toUpperCase();
 
     if (search && search.trim()) {
         const regex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -585,6 +587,242 @@ exports.completeJob = catchAsync(async (req, res) => {
     return successResponse(res, hideOtpsFor(job, req.user.role), 'Job completed successfully');
 });
 
+// Validates a promo code for a job payment and claims one use of it. Returns
+// { discount, claimed } or { error }. `claimed` means a use was recorded and must be
+// given back (restorePromoUsage) if the payment does not go through.
+const claimJobPromo = async ({ job, promoCode, userId }) => {
+    const { Promotion, UserPromoUsage } = require('../promotion/promotion.model');
+    const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), isActive: true }).lean();
+    if (promo && promo.maxUsesPerUser) {
+        const usedByMe = await UserPromoUsage.countDocuments({ promoId: promo._id, userId });
+        if (usedByMe >= promo.maxUsesPerUser) {
+            return { error: 'You have reached the usage limit for this promo code' };
+        }
+    }
+    let promoDiscount = 0;
+    if (promo && (!promo.endAt || new Date(promo.endAt) > new Date())) {
+        const amount = job.payment?.amount || 0;
+        if (amount >= (promo.minOrderAmount || 0)) {
+            if (promo.type === 'FLAT_DISCOUNT') promoDiscount = promo.value;
+            if (promo.type === 'PERCENTAGE_DISCOUNT') promoDiscount = Math.round((amount * promo.value) / 100);
+            if (promo.maxDiscountCap && promoDiscount > promo.maxDiscountCap) promoDiscount = promo.maxDiscountCap;
+            if (promoDiscount > amount) promoDiscount = amount;
+
+            // Track usage atomically with conditional check to prevent race condition
+            const incremented = await Promotion.findOneAndUpdate(
+                { _id: promo._id, isActive: true, $or: [{ maxUsesTotal: { $exists: false } }, { maxUsesTotal: null }, { $expr: { $lt: ['$usesCount', '$maxUsesTotal'] } }] },
+                { $inc: { usesCount: 1 } },
+                { returnDocument: 'after' }
+            );
+            if (!incremented) {
+                return { error: 'This promo code has reached its usage limit' };
+            }
+
+            await UserPromoUsage.create({ promoId: promo._id, userId });
+            // Save promo info on job
+            job.promoCode = promoCode;
+            job.promoDiscount = promoDiscount;
+            return { discount: promoDiscount, claimed: true };
+        }
+    }
+    return { discount: promoDiscount, claimed: false };
+};
+
+// Gives back a promo use taken for a job payment that did not go through.
+const releaseJobPromo = async (job) => {
+    if (!job?.promoCode) return;
+    const { restorePromoUsage } = require('../shoporder/shoporder.controller');
+    await restorePromoUsage({ _id: job._id, promoCode: String(job.promoCode).toUpperCase(), customerId: job.customerId });
+};
+
+/**
+ * Confirms a direct-UPI job payment that is waiting in PENDING_VERIFICATION, once
+ * the money is known to have arrived (bank-SMS match at submission, the bank-SMS
+ * webhook, or an admin approval). The customer paid the platform's UPI ID directly,
+ * so nothing is taken from their wallet: the worker is credited 100% of the quote,
+ * the fee goes to the treasury and the GST to the liability (settleJobCompletion).
+ *
+ * Idempotent: only the caller that flips COMPLETED → PAID settles; any repeat call
+ * returns { confirmed: false } without touching money.
+ */
+const confirmJobUpiPayment = async ({ jobId, how = 'admin' }) => {
+    const claimed = await Job.findOneAndUpdate(
+        { _id: jobId, status: 'COMPLETED', 'payment.status': 'PENDING_VERIFICATION', 'payment.method': 'UPI' },
+        { $set: { status: 'PAID' } },
+        { returnDocument: 'after' }
+    );
+    if (!claimed) {
+        const current = await Job.findById(jobId).lean();
+        return { confirmed: false, job: current };
+    }
+
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
+    const job = claimed;
+    try {
+        const { settleJobCompletion } = require('../../helpers/settlementEngine.helper');
+        const { recordPromoCost } = require('../adminWallet/adminWallet.service');
+        await settleJobCompletion({ job, session });
+
+        // The worker is paid the full quote, so a promo discount is funded by the platform.
+        const promoDiscount = Number(job.promoDiscount || 0);
+        if (promoDiscount > 0) {
+            await recordPromoCost(
+                promoDiscount,
+                `Promo ${job.promoCode} discount on UPI job #${job._id.toString().slice(-6)}`,
+                job._id,
+                'Job',
+                { workerId: job.workerId, customerId: job.customerId, method: 'UPI' },
+                { session }
+            );
+        }
+
+        job.payment.status = 'PAID';
+        job.payment.method = 'UPI';
+        job.payment.escrowStatus = 'SETTLED';
+        job.set('security.completionOtp', undefined);
+        await job.save({ session });
+
+        if (useTransaction) await session.commitTransaction();
+        if (session) session.endSession();
+    } catch (error) {
+        if (useTransaction && session) await session.abortTransaction();
+        if (session) session.endSession();
+        // Put the job back so the payment can be confirmed again
+        try { await Job.findOneAndUpdate({ _id: job._id, status: 'PAID', 'payment.status': 'PENDING_VERIFICATION' }, { status: 'COMPLETED' }); } catch (e) { /* best-effort revert */ }
+        throw error;
+    }
+
+    logger.info(`[Job] UPI payment for job #${job._id} confirmed (${how}, UTR: ${job.payment?.utrNumber})`);
+
+    await delCache(`session:${job.workerId}`);
+    await delCache(`session:${job.customerId}`);
+    emitToRoom(`worker_${job.workerId}`, 'JOB_PAID', { jobId: job._id });
+    emitToRoom(`customer_${job.customerId}`, 'JOB_PAID', { jobId: job._id, paymentStatus: 'PAID', utr: job.payment?.utrNumber });
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_STATUS_CHANGED', jobId: job._id, status: job.status });
+
+    notifyUser({
+        userId: job.workerId,
+        title: 'Payment Received',
+        message: `You have received payment for job #${String(job._id).slice(-6)}.`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'WORKER'
+    });
+    notifyUser({
+        userId: job.customerId,
+        title: 'Payment Confirmed',
+        message: `Your UPI payment of ₹${job.payment?.upiAmount ?? job.payment?.amount} for job #${String(job._id).slice(-6)} has been confirmed.`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'CUSTOMER'
+    });
+
+    return { confirmed: true, job };
+};
+exports.confirmJobUpiPayment = confirmJobUpiPayment;
+
+// Customer submitted a UTR for a direct-UPI payment of a COMPLETED job (completion
+// OTP already checked). The job waits in payment PENDING_VERIFICATION until a bank
+// credit with this UTR and amount is found, or an admin approves it.
+const submitUpiJobPayment = async (req, res, job) => {
+    const { promoCode } = req.body;
+    const { isValidUtr, findUtrUsage } = require('../../helpers/upi.helper');
+    const ShopOrder = require('../shoporder/shoporder.model');
+    const BankCredit = require('../payment/bankCredit.model');
+
+    const utr = String(req.body.utrNumber || '').trim();
+    if (!isValidUtr(utr)) {
+        return errorResponse(res, 'Please enter the valid 12-digit UPI Reference (UTR) number.', StatusCodes.BAD_REQUEST);
+    }
+    // One bank transaction (UTR) can pay for exactly one thing on the platform.
+    const [usage, usedByOrder, claimedCredit] = await Promise.all([
+        findUtrUsage(utr),
+        ShopOrder.exists({ 'payment.utrNumber': utr, 'payment.status': { $ne: 'FAILED' } }),
+        BankCredit.exists({ utr, isClaimed: true })
+    ]);
+    if (usage || usedByOrder || claimedCredit) {
+        return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
+    }
+
+    // Same payable as a wallet payment: amount − promo discount
+    let promoDiscount = 0;
+    let promoClaimed = false;
+    if (promoCode) {
+        const promoResult = await claimJobPromo({ job, promoCode, userId: req.user._id });
+        if (promoResult.error) return errorResponse(res, promoResult.error, StatusCodes.BAD_REQUEST);
+        promoDiscount = promoResult.discount;
+        promoClaimed = promoResult.claimed;
+    }
+    const upiAmount = Math.round(Math.max(0, Number(job.payment?.amount || 0) - promoDiscount) * 100) / 100;
+
+    let pending = null;
+    try {
+        if (upiAmount <= 0) {
+            throw Object.assign(new Error('Nothing is left to pay by UPI for this job. Please pay from your wallet.'), { statusCode: StatusCodes.BAD_REQUEST });
+        }
+        pending = await Job.findOneAndUpdate(
+            { _id: job._id, status: 'COMPLETED', 'payment.status': { $nin: ['PAID', 'PENDING_VERIFICATION'] } },
+            promoClaimed
+                ? { $set: { 'payment.status': 'PENDING_VERIFICATION', 'payment.method': 'UPI', 'payment.utrNumber': utr, 'payment.upiAmount': upiAmount, promoCode: job.promoCode, promoDiscount } }
+                : { $set: { 'payment.status': 'PENDING_VERIFICATION', 'payment.method': 'UPI', 'payment.utrNumber': utr, 'payment.upiAmount': upiAmount }, $unset: { promoCode: 1, promoDiscount: 1 } },
+            { returnDocument: 'after' }
+        );
+        if (!pending) {
+            throw Object.assign(new Error('Payment is already being processed or has already been completed for this job'), { statusCode: StatusCodes.CONFLICT });
+        }
+    } catch (error) {
+        if (promoClaimed) await releaseJobPromo(job);
+        if (error.code === 11000) {
+            return errorResponse(res, 'This UPI Reference / Transaction ID has already been redeemed on the platform.', StatusCodes.CONFLICT);
+        }
+        if (error.statusCode) return errorResponse(res, error.message, error.statusCode);
+        throw error;
+    }
+
+    // The bank SMS may already be here: claim the matching credit and settle now.
+    const bankCredit = await BankCredit.findOneAndUpdate(
+        { utr, isClaimed: false, amount: { $gte: upiAmount - 0.5, $lte: upiAmount + 0.5 } },
+        { $set: { isClaimed: true, claimedBy: req.user._id, claimedAt: new Date() } },
+        { returnDocument: 'after' }
+    );
+    if (bankCredit) {
+        try {
+            const result = await confirmJobUpiPayment({ jobId: job._id, how: 'matched to bank credit at submission' });
+            if (result.confirmed) {
+                return successResponse(res, hideOtpsFor(result.job, req.user.role), 'Payment completed successfully');
+            }
+        } catch (err) {
+            // The credit stays claimed for this job's UTR; an admin can still approve it
+            logger.error(`[payJob:UPI] Settling job ${job._id} after bank match failed: ${err.message}`);
+        }
+    }
+
+    emitToRoom(`customer_${job.customerId}`, 'JOB_STATUS_CHANGED', { jobId: job._id, status: pending.status, paymentStatus: 'PENDING_VERIFICATION' });
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_UPI_PENDING_VERIFICATION', jobId: job._id, amount: upiAmount });
+    const { logAdminActivity } = require('../../helpers/adminActivity.helper');
+    logAdminActivity(
+        'JOB_UPDATED', 'JOB', job._id,
+        'Job UPI payment awaiting verification',
+        `Job #${String(job._id).slice(-6)}: ₹${upiAmount} paid by UPI (UTR ${utr}). Approve or reject it in Jobs.`,
+        req.user._id
+    );
+
+    return successResponse(res, hideOtpsFor(pending, req.user.role), 'UPI payment submitted. It will be confirmed once the bank credit is verified.');
+};
+
 // ─── PATCH /api/v1/jobs/:id/pay ───────────────────────────────────────────────
 exports.payJob = catchAsync(async (req, res) => {
     const { id } = req.params;
@@ -593,15 +831,20 @@ exports.payJob = catchAsync(async (req, res) => {
     const job = await Job.findOne({ _id: id, customerId: req.user._id });
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
     if (job.status !== 'COMPLETED') return errorResponse(res, 'Job is not completed yet', StatusCodes.BAD_REQUEST);
+    if (job.payment?.status === 'PENDING_VERIFICATION') {
+        return errorResponse(res, 'Your UPI payment for this job is being verified. Please wait for the confirmation.', StatusCodes.CONFLICT);
+    }
     if (job.security?.completionOtp && !timingSafeEqual(job.security.completionOtp, completionOtp)) {
         return errorResponse(res, 'Invalid Completion OTP', StatusCodes.BAD_REQUEST);
     }
+
+    if (method === 'UPI') return submitUpiJobPayment(req, res, job);
 
     // P0 FIX: Atomic claim — exactly ONE concurrent payment wins.
     // Without this, two parallel requests both read status COMPLETED and both settle
     // (worker credited twice, ledger duplicated).
     const claimed = await Job.findOneAndUpdate(
-        { _id: job._id, status: 'COMPLETED' },
+        { _id: job._id, status: 'COMPLETED', 'payment.status': { $ne: 'PENDING_VERIFICATION' } },
         { status: 'PAID' },
         { returnDocument: 'after' }
     );
@@ -617,41 +860,13 @@ exports.payJob = catchAsync(async (req, res) => {
 
     // Validate and apply promo code
     if (promoCode) {
-        const { Promotion, UserPromoUsage } = require('../promotion/promotion.model');
-        const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), isActive: true }).lean();
-        if (promo && promo.maxUsesPerUser) {
-            const usedByMe = await UserPromoUsage.countDocuments({ promoId: promo._id, userId: req.user._id });
-            if (usedByMe >= promo.maxUsesPerUser) {
-                await Job.findOneAndUpdate({ _id: job._id, status: 'PAID' }, { status: 'COMPLETED' });
-                return errorResponse(res, 'You have reached the usage limit for this promo code', StatusCodes.BAD_REQUEST);
-            }
+        const promoResult = await claimJobPromo({ job, promoCode, userId: req.user._id });
+        if (promoResult.error) {
+            // Release the PAID claim taken above so the customer can retry without the code
+            await Job.findOneAndUpdate({ _id: job._id, status: 'PAID' }, { status: 'COMPLETED' });
+            return errorResponse(res, promoResult.error, StatusCodes.BAD_REQUEST);
         }
-        if (promo && (!promo.endAt || new Date(promo.endAt) > new Date())) {
-            const amount = job.payment?.amount || 0;
-            if (amount >= (promo.minOrderAmount || 0)) {
-                if (promo.type === 'FLAT_DISCOUNT') promoDiscount = promo.value;
-                if (promo.type === 'PERCENTAGE_DISCOUNT') promoDiscount = Math.round((amount * promo.value) / 100);
-                if (promo.maxDiscountCap && promoDiscount > promo.maxDiscountCap) promoDiscount = promo.maxDiscountCap;
-                if (promoDiscount > amount) promoDiscount = amount;
-
-                // Track usage atomically with conditional check to prevent race condition
-                const incremented = await Promotion.findOneAndUpdate(
-                    { _id: promo._id, isActive: true, $or: [{ maxUsesTotal: { $exists: false } }, { maxUsesTotal: null }, { $expr: { $lt: ['$usesCount', '$maxUsesTotal'] } }] },
-                    { $inc: { usesCount: 1 } },
-                    { returnDocument: 'after' }
-                );
-                if (!incremented) {
-                    // Release the PAID claim taken above so the customer can retry without the code
-                    await Job.findOneAndUpdate({ _id: job._id, status: 'PAID' }, { status: 'COMPLETED' });
-                    return errorResponse(res, 'This promo code has reached its usage limit', StatusCodes.BAD_REQUEST);
-                }
-
-                await UserPromoUsage.create({ promoId: promo._id, userId: req.user._id });
-                // Save promo info on job
-                job.promoCode = promoCode;
-                job.promoDiscount = promoDiscount;
-            }
-        }
+        promoDiscount = promoResult.discount;
     }
 
 
@@ -816,6 +1031,53 @@ exports.payJob = catchAsync(async (req, res) => {
         }
         throw error;
     }
+});
+
+// ─── POST /api/v1/jobs/:id/verify-payment (Admin) ────────────────────────────
+// Admin confirms that a job's direct-UPI payment (UTR) reached the bank account.
+exports.verifyJobPayment = catchAsync(async (req, res) => {
+    const exists = await Job.exists({ _id: req.params.id });
+    if (!exists) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+
+    const result = await confirmJobUpiPayment({ jobId: req.params.id, how: `approved by admin ${req.user._id}` });
+    if (!result.confirmed) {
+        return errorResponse(res, `This payment is not awaiting verification (current status: ${result.job?.payment?.status || 'unknown'})`, StatusCodes.CONFLICT);
+    }
+    return successResponse(res, result.job, 'UPI payment approved and job settled');
+});
+
+// ─── POST /api/v1/jobs/:id/reject-payment (Admin) ────────────────────────────
+// The UTR could not be verified: the job stays COMPLETED with payment PENDING so
+// the customer can pay again, and any promo use taken for it is given back.
+exports.rejectJobPayment = catchAsync(async (req, res) => {
+    const reason = String(req.body?.reason || 'The UPI payment could not be verified').trim().slice(0, 200);
+
+    const before = await Job.findOneAndUpdate(
+        { _id: req.params.id, status: 'COMPLETED', 'payment.status': 'PENDING_VERIFICATION' },
+        { $set: { 'payment.status': 'PENDING' }, $unset: { 'payment.utrNumber': 1, 'payment.upiAmount': 1, promoCode: 1, promoDiscount: 1 } },
+        { returnDocument: 'before' }
+    );
+    if (!before) {
+        const current = await Job.findById(req.params.id).select('payment.status').lean();
+        if (!current) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+        return errorResponse(res, `This payment is not awaiting verification (current status: ${current.payment?.status || 'unknown'})`, StatusCodes.CONFLICT);
+    }
+    await releaseJobPromo(before);
+
+    emitToRoom(`customer_${before.customerId}`, 'JOB_STATUS_CHANGED', { jobId: before._id, status: 'COMPLETED', paymentStatus: 'PENDING' });
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_PAYMENT_REJECTED', jobId: before._id });
+    notifyUser({
+        userId: before.customerId,
+        title: 'UPI Payment Not Verified',
+        message: `Your UPI payment for job #${String(before._id).slice(-6)} (UTR ${before.payment?.utrNumber || '-'}) could not be verified: ${reason}. Please pay again.`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: before._id,
+        targetRole: 'CUSTOMER'
+    });
+
+    const job = await Job.findById(before._id).lean();
+    return successResponse(res, job, `Payment rejected (${reason})`);
 });
 
 // ─── POST /api/v1/jobs/:id/rate ─────────────────────────────────────────────
@@ -1067,6 +1329,7 @@ exports.reportPartialPayment = catchAsync(async (req, res) => {
     if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
     if (job.status !== 'COMPLETED') return errorResponse(res, 'Only completed jobs can be reported as partial payment', StatusCodes.BAD_REQUEST);
     if (job.payment?.status === 'PAID') return errorResponse(res, 'Job has already been paid', StatusCodes.BAD_REQUEST);
+    if (job.payment?.status === 'PENDING_VERIFICATION') return errorResponse(res, "The customer's UPI payment for this job is being verified", StatusCodes.BAD_REQUEST);
 
     const agreedAmount = job.payment?.amount || 0;
     const shortAmount = agreedAmount - amountReceived;

@@ -38,13 +38,14 @@ const UpiPaymentWaitingModal = ({
   orderId,
   payeeName = 'Kwickly Admin',
   upiVpa = '',
-  purpose = 'wallet_topup', // 'wallet_topup' | 'subscription' | 'shop_order'
+  purpose = 'wallet_topup', // 'wallet_topup' | 'subscription' | 'shop_order' | 'job_payment'
   planTitle = '',
   initialStep = 'CONFIRM_PAID', // 'CONFIRM_PAID' | 'ENTER_UTR'
   onSubmitManualUtr,
   // Identifiers of THIS payment, used to ignore socket events for other payments
   txnId = null,        // WalletTxn id (wallet top-up / plan purchase)
   shopOrderId = null,  // ShopOrder id (shop_order)
+  jobId = null,        // Job id (job_payment)
   planId = null
 }) => {
   const { theme, isDarkMode } = useTheme();
@@ -123,7 +124,7 @@ const UpiPaymentWaitingModal = ({
 
     if (event === 'WALLET_UPDATE' || event === 'WALLET_TOPUP_APPROVED') {
       const okType = event === 'WALLET_TOPUP_APPROVED' || payload?.type === 'TOPUP' || payload?.type === 'SUBSCRIPTION';
-      if (okType && purpose !== 'shop_order' && isOurTxn(payload)) {
+      if (okType && purpose !== 'shop_order' && purpose !== 'job_payment' && isOurTxn(payload)) {
         handleTriggerSuccess(payload);
       }
     } else if (event === 'SUBSCRIPTION_ACTIVATED') {
@@ -134,8 +135,12 @@ const UpiPaymentWaitingModal = ({
       if (purpose === 'shop_order' && shopOrderId && String(payload?.orderId) === String(shopOrderId) && payload?.paymentStatus === 'PAID') {
         handleTriggerSuccess(payload);
       }
+    } else if (event === 'JOB_PAID') {
+      if (purpose === 'job_payment' && jobId && String(payload?.jobId) === String(jobId)) {
+        handleTriggerSuccess(payload);
+      }
     }
-  }, [visible, step, purpose, txnId, shopOrderId, planId, handleTriggerSuccess]);
+  }, [visible, step, purpose, txnId, shopOrderId, jobId, planId, handleTriggerSuccess]);
 
   resolveUseSocket({ onEvent: handleSocketEvent });
 
@@ -191,6 +196,8 @@ const UpiPaymentWaitingModal = ({
         'Payment Received — Awaiting Confirmation',
         purpose === 'shop_order'
           ? `UTR ${clean} submitted. Your order will be confirmed once the payment is verified.`
+          : purpose === 'job_payment'
+          ? `UTR ${clean} submitted. The job will be marked paid once the payment is verified.`
           : `UTR ${clean} submitted. ${purpose === 'subscription' ? 'Your plan activates' : 'Your wallet updates'} once the bank confirmation is received.`
       );
       if (onClose) onClose();
@@ -685,6 +692,8 @@ const UpiPaymentWaitingModal = ({
                   ? `₹${amount} has been successfully added to your Kwickly Wallet.`
                   : purpose === 'subscription'
                   ? `Your ${planTitle || 'membership'} subscription is now active!`
+                  : purpose === 'job_payment'
+                  ? `Your payment of ₹${amount} for this job was received!`
                   : `Your order payment of ₹${amount} was received!`}
               </Text>
             </View>

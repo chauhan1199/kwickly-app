@@ -12,11 +12,15 @@ import Table from '../../components/common/Table'
 import Badge from '../../components/common/Badge'
 import useAdminRefresh from '../../hooks/useAdminRefresh'
 import { DISPUTE_RESOLUTIONS } from '../../utils/jobDisputes'
-import { Search, RefreshCw, Eye, Ban, Users, Copy, FileText, Download } from 'lucide-react'
+import { Search, RefreshCw, Eye, Ban, Users, Copy, FileText, Download, CheckCircle, XCircle, ShieldAlert } from 'lucide-react'
 
 const PAGE_SIZE = 15
 const CREDIT_TXN_TYPES = ['JOB_CREDIT', 'REFUND', 'ORDER_CREDIT', 'REFERRAL_BONUS', 'TOPUP', 'TRANSFER_RECEIVED']
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-IN') : '—'
+// Filter tab for direct-UPI job payments waiting for the admin to confirm the bank credit
+const UPI_PENDING = 'UPI_PENDING'
+const filterParams = (f) => f === UPI_PENDING ? { status: 'COMPLETED', paymentStatus: 'PENDING_VERIFICATION' } : { status: f }
+const isUpiPending = (j) => j?.payment?.status === 'PENDING_VERIFICATION'
 const STATUS_VARIANT = {
   BROADCASTING: 'info', QUOTES_RECEIVED: 'warning', ALLOCATED: 'primary',
   ARRIVING: 'purple', IN_PROGRESS: 'warning', COMPLETED: 'success',
@@ -54,7 +58,7 @@ export default function Jobs() {
   const [selectedWorker, setSelectedWorker] = useState('')
   const [impersonateToken, setImpersonateToken] = useState(null)
   const [total, setTotal] = useState(0)
-  const [stats, setStats] = useState({ total: 0, active: 0, completed: 0, cancelled: 0 })
+  const [stats, setStats] = useState({ total: 0, active: 0, completed: 0, cancelled: 0, upiPending: 0 })
   const [searchQuery, setSearchQuery] = useState('')
   const [exporting, setExporting] = useState(false)
 
@@ -68,7 +72,7 @@ export default function Jobs() {
     setLoading(true)
     setFetchError(false)
     try {
-      const res = await api.get('/admin/jobs/all', { params: { page, limit: PAGE_SIZE, status: statusFilter, search: searchQuery } })
+      const res = await api.get('/admin/jobs/all', { params: { page, limit: PAGE_SIZE, ...filterParams(statusFilter), search: searchQuery } })
       if (res.data.status === 'success') {
         setJobs(res.data.data.jobs || [])
         if (typeof res.data.data.totalJobs === 'number') setTotal(res.data.data.totalJobs)
@@ -85,17 +89,18 @@ export default function Jobs() {
   const fetchStats = useCallback(async () => {
     const statuses = ['all', 'BROADCASTING', 'QUOTES_RECEIVED', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'DISPUTED', 'COMPLETED', 'PAID', 'CLOSED', 'CANCELLED']
     try {
-      const results = await Promise.all(statuses.map(status =>
-        api.get('/admin/jobs/all', { params: { page: 1, limit: 1, status, search: searchQuery } })
+      const results = await Promise.all([...statuses, UPI_PENDING].map(status =>
+        api.get('/admin/jobs/all', { params: { page: 1, limit: 1, ...filterParams(status), search: searchQuery } })
           .then(r => r.data?.data?.totalJobs || 0)
           .catch(() => 0)
       ))
-      const [all, broadcasting, quotes, allocated, arriving, inProgress, disputed, completed, paid, closed, cancelled] = results
+      const [all, broadcasting, quotes, allocated, arriving, inProgress, disputed, completed, paid, closed, cancelled, upiPending] = results
       setStats({
         total: all,
         active: broadcasting + quotes + allocated + arriving + inProgress + disputed,
         completed: completed + paid + closed,
         cancelled,
+        upiPending,
       })
     } catch { /* keep previous stats */ }
   }, [searchQuery])
@@ -165,6 +170,30 @@ export default function Jobs() {
     }
   }
 
+  // Approve → the job is settled (worker credited); reject → the customer can pay again
+  const verifyJobPayment = async (id, action, reason = 'UTR not found in the bank account') => {
+    if (actionId) return
+    setActionId(id)
+    try {
+      const res = action === 'approve'
+        ? await api.post(`/admin/jobs/${id}/verify-payment`)
+        : await api.post(`/admin/jobs/${id}/reject-payment`, { reason })
+      const updated = res.data?.data
+      if (updated) {
+        setJobs(prev => prev.map(j => j._id === id ? { ...j, status: updated.status, payment: updated.payment } : j))
+        if (detail?._id === id) setDetail(prev => ({ ...prev, status: updated.status, payment: updated.payment }))
+      }
+      showToast(action === 'approve' ? 'Payment approved — job settled' : 'Payment rejected — customer asked to pay again', action === 'approve' ? 'success' : 'info')
+      fetchStats()
+      window.dispatchEvent(new Event('admin-action'))
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to verify payment'), 'error')
+      fetchJobs()
+    } finally {
+      setActionId(null)
+    }
+  }
+
   const reassignWorker = async () => {
     if (!selectedWorker || !reassignModal || reassigning) return
     setReassigning(true)
@@ -212,7 +241,7 @@ export default function Jobs() {
       let p = 1
       const CHUNK = 100
       while (p <= 50) { // hard cap of 5000 rows
-        const res = await api.get('/admin/jobs/all', { params: { page: p, limit: CHUNK, status: statusFilter, search: searchQuery } })
+        const res = await api.get('/admin/jobs/all', { params: { page: p, limit: CHUNK, ...filterParams(statusFilter), search: searchQuery } })
         const batch = res.data?.data?.jobs || []
         all.push(...batch)
         if (batch.length < CHUNK) break
@@ -264,7 +293,19 @@ export default function Jobs() {
     { header: 'Fee', render: (j) => <strong style={{ color: 'var(--success)' }}>{formatJob(j).fee}</strong> },
     { header: 'Status', render: (j) => {
         const fj = formatJob(j);
-        return <Badge label={STATUS_LABEL[fj.status] || fj.status} variant={STATUS_VARIANT[fj.status] ? STATUS_VARIANT[fj.status].toLowerCase() : 'neutral'} />;
+        return (
+          <div>
+            <Badge label={STATUS_LABEL[fj.status] || fj.status} variant={STATUS_VARIANT[fj.status] ? STATUS_VARIANT[fj.status].toLowerCase() : 'neutral'} />
+            {isUpiPending(j) && (
+              <div style={{ marginTop: 4 }}>
+                <Badge label="⏳ UPI to verify" variant="warning" />
+                <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--mid)', marginTop: 2 }}>
+                  UTR: {j.payment?.utrNumber || '—'} · ₹{j.payment?.upiAmount ?? j.payment?.amount ?? 0}
+                </div>
+              </div>
+            )}
+          </div>
+        );
     }},
     { header: 'Date', render: (j) => <div style={{ fontSize: 12, color: 'var(--mid)' }}>{formatJob(j).date}</div> },
     { header: 'Actions', render: (j) => {
@@ -272,6 +313,12 @@ export default function Jobs() {
         return (
           <div className="action-btns" onClick={(e) => e.stopPropagation()}>
             <button className="btn-icon" title="View Details" onClick={() => fetchJobDetail(j)}><Eye size={15} /></button>
+            {isUpiPending(j) && (
+              <>
+                <button className="btn-icon" title="Approve UPI payment" disabled={actionId === j._id} onClick={() => verifyJobPayment(j._id, 'approve')}><CheckCircle size={15} /></button>
+                <button className="btn-icon danger" title="Reject UPI payment" disabled={actionId === j._id} onClick={() => verifyJobPayment(j._id, 'reject')}><XCircle size={15} /></button>
+              </>
+            )}
             {j.workerId && ['ALLOCATED', 'IN_PROGRESS', 'ARRIVING'].includes(j.status) && (
                 <button className="btn-icon" title="Reassign Worker" onClick={() => { setReassignModal(fj); setSelectedWorker(''); }}><Users size={15} /></button>
             )}
@@ -359,9 +406,9 @@ export default function Jobs() {
           <input placeholder="Search job ID, customer, worker, category..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="filter-tabs">
-          {['all', 'BROADCASTING', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED', 'DISPUTED', 'CANCELLED'].map(f => (
+          {['all', 'BROADCASTING', 'ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED', UPI_PENDING, 'DISPUTED', 'CANCELLED'].map(f => (
             <button key={f} className={`filter-tab ${statusFilter === f ? 'active' : ''}`} onClick={() => setStatusFilter(f)}>
-              {f === 'all' ? 'All' : STATUS_LABEL[f] || f}
+              {f === 'all' ? 'All' : f === UPI_PENDING ? `UPI to Verify${stats.upiPending ? ` (${stats.upiPending})` : ''}` : STATUS_LABEL[f] || f}
             </button>
           ))}
         </div>
@@ -429,6 +476,7 @@ export default function Jobs() {
                   <div className="detail-row"><span>GST</span><strong>{fd.gst}</strong></div>
                   <div className="detail-row"><span>Payment Status</span><strong>{fd.paymentStatus}</strong></div>
                   <div className="detail-row"><span>Payment Method</span><strong>{fd.paymentMethod}</strong></div>
+                  {detail.payment?.utrNumber && <div className="detail-row"><span>UPI UTR</span><strong style={{ fontFamily: 'monospace' }}>{detail.payment.utrNumber}</strong></div>}
                   <div className="detail-row"><span>Started At</span><strong>{fd.startedAt}</strong></div>
                   <div className="detail-row"><span>Completed At</span><strong>{fd.completedAt}</strong></div>
                   {fd.cancelReason && <div className="detail-row"><span>Cancel Reason</span><strong>{fd.cancelReason}</strong></div>}
@@ -437,6 +485,27 @@ export default function Jobs() {
                   {fd.arrivalOtp !== '—' && <div className="detail-row"><span>Arrival OTP</span><strong>{fd.arrivalOtp}</strong></div>}
                   {fd.completionOtp !== '—' && <div className="detail-row"><span>Completion OTP</span><strong>{fd.completionOtp}</strong></div>}
                 </div>
+
+                {/* Direct-UPI payment waiting for the admin to confirm the bank credit */}
+                {isUpiPending(detail) && (
+                  <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 10, padding: 14, marginTop: 16 }}>
+                    <div style={{ fontWeight: 800, color: '#F59E0B', fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <ShieldAlert size={16} /> Direct UPI Payment Verification Required
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--mid)', marginBottom: 12 }}>
+                      Customer submitted UTR <strong style={{ fontFamily: 'monospace' }}>{detail.payment?.utrNumber || '—'}</strong> for <strong>₹{detail.payment?.upiAmount ?? detail.payment?.amount ?? 0}</strong>
+                      {detail.promoCode ? ` (promo ${detail.promoCode} −₹${detail.promoDiscount || 0})` : ''}. Check your bank account before approving.
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-success btn-sm" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }} disabled={actionId === detail._id} onClick={() => verifyJobPayment(detail._id, 'approve')}>
+                        <CheckCircle size={14} /> {actionId === detail._id ? 'Working…' : 'Confirm Bank Credit'}
+                      </button>
+                      <button className="btn btn-danger btn-sm" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }} disabled={actionId === detail._id} onClick={() => verifyJobPayment(detail._id, 'reject')}>
+                        <XCircle size={14} /> {actionId === detail._id ? 'Working…' : 'Reject (Not Received)'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {fd.description && (
                   <>

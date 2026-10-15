@@ -39,14 +39,8 @@ import {
   Calendar
 } from 'lucide-react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { isWorkerCurrentJob, workerCurrentJobHint } from '../../utils/jobStatus';
 
-const CURRENT_JOB_STATUSES = ['ALLOCATED', 'ARRIVING', 'IN_PROGRESS', 'COMPLETED'];
-const CURRENT_JOB_HINT = {
-  ALLOCATED: 'HIRED · Go to customer and enter arrival OTP',
-  ARRIVING: 'ON THE WAY · Enter arrival OTP at the door',
-  IN_PROGRESS: 'IN PROGRESS · Finish and mark complete',
-  COMPLETED: 'DONE · Waiting for customer payment'
-};
 
 const WorkerDashboard = ({ navigation }) => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -99,7 +93,7 @@ const WorkerDashboard = ({ navigation }) => {
         // The job the customer hired this worker for, until it is paid
         const quotes = quotesRes.value.data.data || [];
         setCurrentJobQuote(quotes.find(q =>
-          q.status === 'ACCEPTED' && CURRENT_JOB_STATUSES.includes(q.jobId?.status)
+          q.status === 'ACCEPTED' && isWorkerCurrentJob(q.jobId)
         ) || null);
       }
 
@@ -465,7 +459,7 @@ const WorkerDashboard = ({ navigation }) => {
             })}
           >
             <View style={{ flex: 1 }}>
-              <Text style={styles.currentJobLabel}>{CURRENT_JOB_HINT[currentJobQuote.jobId.status]}</Text>
+              <Text style={styles.currentJobLabel}>{workerCurrentJobHint(currentJobQuote.jobId)}</Text>
               <Text style={styles.currentJobTitle} numberOfLines={1}>
                 {currentJobQuote.jobId.category} · {currentJobQuote.jobId.customerId?.name || 'Customer'}
               </Text>

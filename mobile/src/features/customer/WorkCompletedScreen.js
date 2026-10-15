@@ -18,6 +18,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import { jobService } from '../../services/jobService';
+import { walletService } from '../../services/walletService';
+import { nativeUpiService } from '../../services/nativeUpiService';
+import UpiPaymentWaitingModal from '../../components/UpiPaymentWaitingModal';
+import useSocket from '../../hooks/useSocket';
+import { isValidUtr } from '../../utils/upiValidation';
 import api from '../../services/api';
 import CustomAlert from '../../components/ui/CustomAlert';
 import { getImageUrl } from '../../utils/helpers';
@@ -32,7 +37,8 @@ import {
   CreditCard,
   Banknote,
   ImageIcon,
-  X
+  X,
+  Zap
 } from 'lucide-react-native';
 import { calculateJobFee } from '../../utils/fees';
 
@@ -84,9 +90,21 @@ const WorkCompletedScreen = ({ route, navigation }) => {
   const isPendingVerification = activeJob?.payment?.status === 'PENDING_VERIFICATION';
   const isInProgress = activeJob?.status === 'IN_PROGRESS';
 
+  // Live refresh: the job turns PAID when its UPI payment is matched or approved
+  const paidAlertShownRef = useRef(false);
+  const upiSubmittedRef = useRef(false);
+  const handleSocketEvent = useCallback((event, data) => {
+    const targetId = currentJob?._id || job?._id;
+    if (!targetId || String(data?.jobId) !== String(targetId)) return;
+    if (event === 'JOB_PAID' || event === 'JOB_STATUS_CHANGED') fetchLatestJob();
+  }, [currentJob?._id, job?._id, fetchLatestJob]);
+  useSocket({ onEvent: handleSocketEvent });
+
   const [otp, setOtp] = useState('');
   const scrollRef = useRef(null);
   const [paying, setPaying] = useState(false);
+  const [upiConfig, setUpiConfig] = useState(null);
+  const [showUpiWaiting, setShowUpiWaiting] = useState(false);
   
   const [promoInput, setPromoInput] = useState('');
   const [promoCode, setPromoCode] = useState(null);
@@ -164,14 +182,123 @@ const WorkCompletedScreen = ({ route, navigation }) => {
     setPromoInput('');
   };
 
-  const handlePayment = async (method) => {
-    if (!otp || otp.trim().length !== 4) {
-      return showAlert({
-        type: 'warning',
-        title: 'Completion OTP Required',
-        message: `Please enter the 4-digit Completion OTP shared by ${workerName} to authorize fund release.`
+  const showPaidAlert = (paidJob) => {
+    if (paidAlertShownRef.current) return;
+    paidAlertShownRef.current = true;
+    showAlert({
+      type: 'success',
+      title: 'Payment Successful! 🎉',
+      message: `Payment of ₹${Math.max(0, totalAmount - promoDiscount)} authorized. ₹${workerEarning} credited directly to ${workerName}'s wallet.`,
+      confirmText: 'Rate Experience ⭐',
+      onConfirm: () => navigation.navigate('RateExperience', { 
+        worker: { name: workerName }, 
+        job: paidJob || activeJob, 
+        jobId: activeJob?._id 
+      })
+    });
+  };
+
+  // A UPI payment submitted from this screen was confirmed later (bank SMS / admin)
+  useEffect(() => {
+    if (isPendingVerification) upiSubmittedRef.current = true;
+    if (upiSubmittedRef.current && isPaidOrClosed) {
+      setShowUpiWaiting(false);
+      showPaidAlert(activeJob);
+    }
+    // Runs only when the payment state changes, not on every re-render of the job
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPaidOrClosed, isPendingVerification]);
+
+  const requireOtp = () => {
+    if (otp && otp.trim().length === 4) return true;
+    showAlert({
+      type: 'warning',
+      title: 'Completion OTP Required',
+      message: `Please enter the 4-digit Completion OTP shared by ${workerName} to authorize fund release.`
+    });
+    return false;
+  };
+
+  // Sends the UTR of a direct-UPI payment. The job is PAID at once only if the bank
+  // credit is already recorded; otherwise it waits for verification.
+  const submitUpiUtr = async (utr) => {
+    const res = await jobService.payForJob(activeJob?._id, {
+      method: 'UPI',
+      completionOtp: otp.trim(),
+      promoCode,
+      utrNumber: utr
+    });
+    if (res?.data?.status !== 'success') {
+      throw new Error(res?.data?.message || 'Could not submit the UPI reference. Please try again.');
+    }
+    upiSubmittedRef.current = true;
+    const updated = res.data.data;
+    if (updated) setCurrentJob(updated);
+    setShowUpiWaiting(false);
+    if (updated?.status === 'PAID' || updated?.payment?.status === 'PAID') {
+      showPaidAlert(updated);
+    } else {
+      showAlert({
+        type: 'info',
+        title: 'Payment Submitted',
+        message: `UTR ${utr} received. The job will be marked paid as soon as the payment is verified.`
       });
     }
+    return { handled: true };
+  };
+
+  const handleUpiPayment = async () => {
+    if (!requireOtp()) return;
+    setPaying(true);
+    let vpa = '';
+    let payee = 'Kwickly';
+    try {
+      const cfgRes = await walletService.getAdminUpiConfig();
+      const cfg = cfgRes?.data?.data || {};
+      vpa = (cfg.upiId || '').trim();
+      payee = (cfg.payeeName || payee).trim().replace(/\s+/g, ' ');
+    } catch (e) {
+      console.log('[WorkCompleted] UPI config error:', e.message);
+    }
+    if (!vpa) {
+      setPaying(false);
+      return showAlert({
+        type: 'error',
+        title: 'UPI Unavailable',
+        message: 'UPI payments are not available right now. Please pay from your wallet or in cash.'
+      });
+    }
+    setUpiConfig({ vpa, payee });
+
+    try {
+      const result = await nativeUpiService.startUpiPayment({
+        vpa,
+        name: payee,
+        amount: finalPayable.toFixed(2),
+        txnRef: `KWIKJOB${String(activeJob?._id || '').slice(-8)}${Date.now().toString().slice(-4)}`,
+        note: 'Job Payment'
+      });
+      // The UPI app returned the bank reference directly
+      const utr = (result?.approvalRefNo || '').trim();
+      if (/^\d{12}$/.test(utr) && isValidUtr(utr)) {
+        try {
+          await submitUpiUtr(utr);
+          return;
+        } catch (e) {
+          console.warn('[WorkCompleted] UPI submit error:', e?.message);
+        }
+      }
+    } catch (err) {
+      console.warn('[WorkCompleted] UPI launch notice:', err?.message);
+    } finally {
+      setPaying(false);
+    }
+    // Otherwise detect the UTR from the bank SMS / clipboard, or let the customer type it
+    setShowUpiWaiting(true);
+  };
+
+  const handlePayment = async (method) => {
+    if (!requireOtp()) return;
 
     setPaying(true);
     try {
@@ -181,17 +308,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
         promoCode 
       });
       if (res.data.status === 'success') {
-        showAlert({
-          type: 'success',
-          title: 'Payment Successful! 🎉',
-          message: `Payment of ₹${Math.max(0, totalAmount - promoDiscount)} authorized. ₹${workerEarning} credited directly to ${workerName}'s wallet.`,
-          confirmText: 'Rate Experience ⭐',
-          onConfirm: () => navigation.navigate('RateExperience', { 
-            worker: { name: workerName }, 
-            job: res.data.data || activeJob, 
-            jobId: activeJob?._id 
-          })
-        });
+        showPaidAlert(res.data.data);
       }
     } catch (e) {
       showAlert({
@@ -535,6 +652,23 @@ const WorkCompletedScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               </View>
             )}
+            {!paying && (
+              <TouchableOpacity
+                style={[styles.onlineBtnWrap, styles.upiBtnWrap]}
+                onPress={handleUpiPayment}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={['#0E9F6E', '#10B981']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.onlineBtnGradient}
+                >
+                  <Zap size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.onlineBtnText} numberOfLines={1}>Pay via UPI ₹{formattedButtonAmount}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
           </>
         )}
       </ScrollView>
@@ -563,6 +697,21 @@ const WorkCompletedScreen = ({ route, navigation }) => {
           ) : null}
         </View>
       </Modal>
+
+      {/* ── DIRECT UPI: UTR detection / manual entry ── */}
+      {showUpiWaiting && (
+        <UpiPaymentWaitingModal
+          visible={showUpiWaiting}
+          onClose={() => setShowUpiWaiting(false)}
+          onSuccess={() => { upiSubmittedRef.current = true; fetchLatestJob(); }}
+          amount={finalPayable}
+          payeeName={upiConfig?.payee}
+          upiVpa={upiConfig?.vpa}
+          purpose="job_payment"
+          jobId={activeJob?._id}
+          onSubmitManualUtr={(utr) => submitUpiUtr(utr)}
+        />
+      )}
 
       {/* ── RICH CUSTOM ALERT MODAL ── */}
       <CustomAlert
@@ -912,6 +1061,12 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 4,
+  },
+  upiBtnWrap: {
+    flex: 0,
+    width: '100%',
+    marginTop: 10,
+    shadowColor: '#10B981',
   },
   onlineBtnGradient: {
     flexDirection: 'row',

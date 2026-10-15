@@ -45,11 +45,14 @@ const JobSchema = new mongoose.Schema({
         gstAmount: { type: Number },
         workerPayout: { type: Number }, // Exact amount worker quoted
         quotedAmount: { type: Number },
-        status: { type: String, enum: ['PENDING', 'PAID', 'REFUNDED'], default: 'PENDING' },
+        // PENDING_VERIFICATION: a direct-UPI payment (UTR) is waiting for a bank-SMS match or admin approval
+        status: { type: String, enum: ['PENDING', 'PENDING_VERIFICATION', 'PAID', 'REFUNDED'], default: 'PENDING' },
         escrowStatus: { type: String, enum: ['UNLOCKED', 'LOCKED', 'SETTLED', 'REFUNDED'], default: 'UNLOCKED' },
         method: { type: String, default: 'UPI' },
         razorpayOrderId: { type: String },
-        razorpayPaymentId: { type: String }
+        razorpayPaymentId: { type: String },
+        utrNumber: { type: String },   // UTR the customer submitted for a direct-UPI payment
+        upiAmount: { type: Number }    // amount the bank credit must match (amount − promo)
     },
 
     security: {
@@ -102,6 +105,7 @@ JobSchema.index({ customerId: 1, createdAt: -1 });
 JobSchema.index({ workerId: 1, createdAt: -1 });
 JobSchema.index({ status: 1, createdAt: -1 });          // Admin filter + broadcasting
 JobSchema.index({ 'payment.status': 1 });               // Revenue aggregation
+JobSchema.index({ 'payment.utrNumber': 1 }, { unique: true, sparse: true }); // one job per UTR + bank-SMS match
 JobSchema.index({ status: 1, 'broadcast.lastAttemptAt': 1 }); // Cron broadcast sweep
 JobSchema.index({ status: 1, updatedAt: 1 });           // Cron ghost-quote sweep
 

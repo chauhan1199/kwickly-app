@@ -89,18 +89,21 @@ const findUtrUsage = async (utr) => {
     const subModels = require('../modules/subscription/subscription.model');
     const WorkerSubscription = subModels.WorkerSubscription;
     const ShopSubscription = subModels.ShopSubscription;
+    const Job = require('../modules/job/job.model');
 
-    const [topup, payment, workerSub, shopSub] = await Promise.all([
+    const [topup, payment, workerSub, shopSub, job] = await Promise.all([
         WalletTxn.findOne({ razorpayPaymentId: utr }).lean(),
         Payment.findOne({ razorpayPaymentId: utr }).lean(),
         WorkerSubscription ? WorkerSubscription.findOne({ 'payment.razorpayPaymentId': utr }).lean() : null,
-        ShopSubscription ? ShopSubscription.findOne({ 'payment.razorpayPaymentId': utr }).lean() : null
+        ShopSubscription ? ShopSubscription.findOne({ 'payment.razorpayPaymentId': utr }).lean() : null,
+        Job.findOne({ 'payment.utrNumber': utr }).select('_id').lean()
     ]);
 
     if (topup) return { flow: 'WALLET_TOPUP', ref: topup };
     if (payment) return { flow: 'PAYMENT', ref: payment };
     if (workerSub) return { flow: 'WORKER_SUBSCRIPTION', ref: workerSub };
     if (shopSub) return { flow: 'SHOP_SUBSCRIPTION', ref: shopSub };
+    if (job) return { flow: 'JOB_PAYMENT', ref: job };
     return null;
 };
 

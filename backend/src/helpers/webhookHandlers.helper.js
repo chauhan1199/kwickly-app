@@ -310,6 +310,28 @@ const handleWalletTopupWebhook = async (payload, eventId) => {
             }
         }
 
+        // 4. Bank SMS arrives after the customer submitted this UTR for a UPI job payment
+        if (!claimed && utr) {
+            const Job = require('../modules/job/job.model');
+            const job = await Job.findOne({
+                'payment.utrNumber': utr,
+                'payment.method': 'UPI',
+                'payment.status': 'PENDING_VERIFICATION'
+            }).select('_id customerId payment.upiAmount payment.amount').lean();
+            if (job) {
+                const expected = job.payment?.upiAmount ?? job.payment?.amount;
+                if (!amountMatches(expected, bankAmount)) {
+                    logger.warn(`[WebhookHandlers:WalletTopup] Amount mismatch for job ${job._id}: ₹${expected} vs bank ₹${bankAmount} — held for admin`);
+                    return;
+                }
+                if (!(await claimBankCredit(utr, bankAmount || expected, job.customerId))) return;
+                const { confirmJobUpiPayment } = require('../modules/job/job.controller');
+                const result = await confirmJobUpiPayment({ jobId: job._id, how: 'matched to bank SMS' });
+                if (!result.confirmed) logger.info(`[WebhookHandlers:WalletTopup] Job ${job._id} was already confirmed — skipping`);
+                return;
+            }
+        }
+
         if (!claimed) {
             logger.info(`[WebhookHandlers:WalletTopup] No matching record (already processed or not found) — internalId=${internalId}, utr=${utr}, eventId=${eventId}`);
             return;

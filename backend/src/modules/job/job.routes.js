@@ -39,6 +39,9 @@ router.patch('/:id/cancel', authorize('ADMIN', 'CUSTOMER'), jobController.cancel
 router.patch('/:id/reassign', authorize('ADMIN'), jobController.reassignWorker);
 // Admin dispute resolution
 router.patch('/:id/resolve-dispute', authorize('ADMIN'), jobController.resolveDispute);
+// Admin approves / rejects a direct-UPI job payment awaiting verification
+router.post('/:id/verify-payment', authorize('ADMIN'), jobController.verifyJobPayment);
+router.post('/:id/reject-payment', authorize('ADMIN'), jobController.rejectJobPayment);
 
 // -- SHARED ROUTES --
 router.get('/:id/receipt', authorize('CUSTOMER', 'WORKER', 'ADMIN'), jobController.getJobReceipt);

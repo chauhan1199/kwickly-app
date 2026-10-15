@@ -38,6 +38,7 @@ const restorePromoUsage = async (order) => {
         logger.error(`[restorePromoUsage] Failed for order ${order._id}: ${err.message}`);
     }
 };
+exports.restorePromoUsage = restorePromoUsage; // also used when a job's UPI payment is rejected
 
 // A verified direct-UPI shop order payment (bank-SMS match at checkout, admin
 // approval, or the UPI webhook) books nothing into the AdminWallet by itself: the

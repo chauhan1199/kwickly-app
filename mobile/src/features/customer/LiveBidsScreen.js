@@ -43,6 +43,8 @@ const LiveBidsScreen = ({ route, navigation }) => {
   const [cancelReason, setCancelReason] = useState(routeParams.job?.cancelReason || '');
   const [currentRadius, setCurrentRadius] = useState(routeParams.job?.broadcast?.radiusKm || 25);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  // Quotes can only be accepted while the job is still looking for a worker
+  const isHired = !['BROADCASTING', 'QUOTES_RECEIVED'].includes(jobStatus);
 
   const handleSocketEvent = useCallback((event, data) => {
     if (!data) return;
@@ -79,6 +81,15 @@ const LiveBidsScreen = ({ route, navigation }) => {
       jobService.getJobById(jobId).then(res => {
         const fetchedJob = res?.data?.data || res?.data;
         if (fetchedJob) {
+          // A worker is already hired: this screen has nothing left to accept
+          if (['ALLOCATED', 'ARRIVING', 'IN_PROGRESS'].includes(fetchedJob.status)) {
+            navigation.replace('LiveTracking', {
+              job: fetchedJob,
+              jobId: fetchedJob._id,
+              worker: typeof fetchedJob.workerId === 'object' && fetchedJob.workerId ? fetchedJob.workerId : undefined
+            });
+            return;
+          }
           setJobData(fetchedJob);
           setJobStatus(fetchedJob.status || 'BROADCASTING');
           if (fetchedJob.cancelReason) setCancelReason(fetchedJob.cancelReason);
@@ -92,7 +103,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
           setBids(res.data.data);
         }
       }).catch(() => {});
-    }, [jobId])
+    }, [jobId, navigation])
   );
 
   const [anims] = useState(() => [
@@ -243,7 +254,9 @@ const LiveBidsScreen = ({ route, navigation }) => {
       const res = await jobService.acceptQuote(bid._id);
       if (res.data?.status === 'success') {
         const { job, quote } = res.data.data;
-        navigation.navigate('LiveTracking', { 
+        setJobStatus(job?.status || 'ALLOCATED');
+        // replace, not navigate: going back must not land on Live Bids with an Accept button
+        navigation.replace('LiveTracking', { 
           job, 
           worker: bid.workerId, 
           amount: quote.amount 
@@ -498,6 +511,11 @@ const LiveBidsScreen = ({ route, navigation }) => {
                       incl. ₹{bid.platformFee} fee + GST
                     </Text>
                   )}
+                  {isHired ? (
+                    <View style={[styles.acceptBtn, { opacity: 0.55 }]}>
+                      <Text style={styles.acceptBtnText}>{bid.status === 'ACCEPTED' ? 'Hired' : 'Closed'}</Text>
+                    </View>
+                  ) : (
                   <TouchableOpacity 
                     style={styles.acceptBtn}
                     onPress={() => handleAccept(bid)}
@@ -505,6 +523,7 @@ const LiveBidsScreen = ({ route, navigation }) => {
                   >
                     {isAccepting ? <ActivityIndicator color="#001016" size="small" /> : <Text style={styles.acceptBtnText}>Accept</Text>}
                   </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </View>

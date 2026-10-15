@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchBar } from '../../components/ui/SearchBar';
 import GlassCard from '../../components/ui/GlassCard';
 import { getImageUrl, formatStatus } from '../../utils/helpers';
+import { activeJobPillLabel } from '../../utils/jobStatus';
 
 // ── Purple accent ──
 const PURPLE = '#6C47FF';
@@ -824,10 +825,7 @@ const ActiveJobCard = ({ job, navigation, theme, categories = [] }) => {
             </Text>
             <View style={[styles.statusPill, { backgroundColor: accentColor + '18' }]}>
               <Text style={[styles.statusPillText, { color: accentColor }]}>
-                {job.status === 'BROADCASTING' ? '📡 LIVE RADAR' :
-                 job.hasQuotes ? '💬 QUOTES' :
-                 job.isIP ? '⚡ IN PROGRESS' :
-                 job.isCompleted ? 'PAY NOW' : 'ACTIVE'}
+                {activeJobPillLabel(job.rawJob || job)}
               </Text>
             </View>
           </View>
@@ -836,7 +834,7 @@ const ActiveJobCard = ({ job, navigation, theme, categories = [] }) => {
             {job.status === 'BROADCASTING' ? '⚡ Searching for nearby workers...' :
              job.hasQuotes ? 'Quotes received — tap to accept!' :
              job.isIP ? `Worker: ${job.worker || 'On the way'}` :
-             job.isCompleted ? 'Work finished · payment due' : 'Pending assignment'}
+             job.isCompleted ? (job.rawJob?.payment?.status === 'PENDING_VERIFICATION' ? 'UPI payment being verified' : 'Work finished · payment due') : 'Pending assignment'}
           </Text>
         </View>
       </View>
