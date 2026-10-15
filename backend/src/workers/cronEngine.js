@@ -86,6 +86,9 @@ const startCronEngine = () => {
     });
 };
 
+// How long a posted job stays open for quotes after the radius search finishes
+const BROADCAST_SEARCH_WINDOW_MS = 30 * 60 * 1000;
+
 const sweepBroadcastingJobs = async () => {
     // Process jobs that have been in BROADCASTING and last attempt was >= 1 min ago
     const oneMinAgo = new Date(Date.now() - 60 * 1000);
@@ -107,6 +110,16 @@ const sweepBroadcastingJobs = async () => {
         const nextRound = (job.broadcast.round || 1) + 1;
 
         if (nextRound > 3) {
+            // All 3 radius rounds are done. Keep the job open for workers who come
+            // online later: cancel only after the search window (or, for a job booked
+            // for a later date, once that date has passed). Cancelling straight after
+            // round 3 killed every job ~3 minutes after posting.
+            const searchUntil = Math.max(
+                new Date(job.createdAt).getTime() + BROADCAST_SEARCH_WINDOW_MS,
+                job.preferredDate ? new Date(job.preferredDate).getTime() : 0
+            );
+            if (Date.now() < searchUntil) continue;
+
             // Auto cancel after 3 rounds (75km radius search completed with 0 bids/workers)
             logger.info(`[Cron] Auto-cancelling job ${job._id} after 3 search rounds (No workers found)`);
             job.status = 'CANCELLED';

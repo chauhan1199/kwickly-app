@@ -92,6 +92,8 @@ describe('Cron Engine — sweepBroadcastingJobs', () => {
             broadcast: { round: 3, lastAttemptAt: oldAttempt, radiusKm: 45 },
             payment: { amount: 800, status: 'PENDING' }
         });
+        // Past the 30-minute search window
+        await Job.collection.updateOne({ _id: job._id }, { $set: { createdAt: new Date(Date.now() - 31 * 60 * 1000) } });
 
         findEligibleWorkers.mockResolvedValue([]);
 
@@ -107,6 +109,26 @@ describe('Cron Engine — sweepBroadcastingJobs', () => {
         expect(notifyUser).toHaveBeenCalledWith(
             expect.objectContaining({ action: 'JOB_CANCELLED' })
         );
+    });
+
+    it('keeps a fresh job open after 3 rounds until the 30-minute search window ends', async () => {
+        const job = await Job.create({
+            customerId: customer._id,
+            category: 'Plumber',
+            description: 'Tap leaking badly',
+            location: { type: 'Point', coordinates: [77.5946, 12.9716] },
+            addressDetails: { city: 'Bangalore', fullAddress: '1 Test St' },
+            status: 'BROADCASTING',
+            broadcast: { round: 3, lastAttemptAt: new Date(Date.now() - 2 * 60 * 1000), radiusKm: 45 },
+            payment: { amount: 300, status: 'PENDING' }
+        });
+
+        findEligibleWorkers.mockResolvedValue([]);
+        await sweepBroadcastingJobs();
+
+        const updated = await Job.findById(job._id);
+        expect(updated.status).toBe('BROADCASTING');
+        expect(notifyUser).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'JOB_CANCELLED' }));
     });
 
     it('should not cancel scheduled job after 3 rounds, just delay', async () => {
