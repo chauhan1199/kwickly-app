@@ -590,7 +590,7 @@ exports.getEarningsChart = catchAsync(async (req, res) => {
     const chartData = await WalletTxn.aggregate([
         { $match: { userId: req.user._id, type: { $in: ['JOB_CREDIT', 'ORDER_CREDIT'] }, createdAt: { $gte: startDate } } },
         { $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Asia/Kolkata' } },
             amount: { $sum: '$amount' },
             count: { $sum: 1 }
         }},

@@ -214,9 +214,27 @@ const WorkerEarningsScreen = ({ navigation }) => {
       }
 
       if (chartRes.status === 'fulfilled' && chartRes.value?.data?.status === 'success') {
-        const cData = chartRes.value.data.data;
-        setChartData(cData.labels || []);
-        setWeeklyEarnings(cData.total || 0);
+        // The API returns one row per day: [{ _id: 'YYYY-MM-DD', amount }]. Keep this
+        // week's days (Mon–today) and label them Mon..Sun for the bar chart.
+        const rows = Array.isArray(chartRes.value.data.data) ? chartRes.value.data.data : [];
+        const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const weekStart = new Date();
+        weekStart.setHours(0, 0, 0, 0);
+        weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+        const byDay = {};
+        let total = 0;
+        rows.forEach(r => {
+          const [y, m, d] = String(r._id || '').split('-').map(Number);
+          if (!y || !m || !d) return;
+          const day = new Date(y, m - 1, d);
+          if (day < weekStart) return;
+          const label = dayNames[(day.getDay() + 6) % 7];
+          const amt = Number(r.amount) || 0;
+          byDay[label] = (byDay[label] || 0) + amt;
+          total += amt;
+        });
+        setChartData(Object.keys(byDay).map(label => ({ label, value: byDay[label] })));
+        setWeeklyEarnings(total);
       }
 
       if (profileRes.status === 'fulfilled' && profileRes.value?.data?.status === 'success') {
