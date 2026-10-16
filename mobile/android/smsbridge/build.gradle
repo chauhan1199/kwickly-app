@@ -1,0 +1,34 @@
+// Kwickly SMS Bridge: runs on the phone that receives the payee bank's SMS and
+// forwards bank CREDIT messages to the backend so UPI payments confirm without an admin.
+// Build: gradlew :smsbridge:assembleDebug -PsmsBridgeSecret=<UPI_PROVIDER_WEBHOOK_SECRET>
+apply plugin: "com.android.application"
+
+def bridgeSecret = (project.findProperty("smsBridgeSecret") ?: "").toString()
+def bridgeUrl = (project.findProperty("smsBridgeUrl") ?: "https://kwickly-backend-r6zb.onrender.com/api/v1/payments/free-upi-webhook").toString()
+
+android {
+    namespace "com.kwickly.smsbridge"
+    compileSdk rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+
+    defaultConfig {
+        applicationId "com.kwickly.smsbridge"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        buildConfigField "String", "WEBHOOK_URL", "\"${bridgeUrl}\""
+        buildConfigField "String", "WEBHOOK_SECRET", "\"${bridgeSecret}\""
+    }
+    buildFeatures {
+        buildConfig true
+    }
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
