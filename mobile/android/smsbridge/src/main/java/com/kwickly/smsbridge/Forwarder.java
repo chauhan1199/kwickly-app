@@ -48,6 +48,11 @@ final class Forwarder {
 
     /** Posts one message. Returns the HTTP status, or -1 when the server could not be reached. */
     static int post(String message) {
+        // The free Render server can take about a minute to wake up.
+        return post(message, 90_000);
+    }
+
+    static int post(String message, int timeoutMs) {
         HttpURLConnection conn = null;
         try {
             JSONObject json = new JSONObject();
@@ -57,9 +62,8 @@ final class Forwarder {
 
             conn = (HttpURLConnection) new URL(BuildConfig.WEBHOOK_URL).openConnection();
             conn.setRequestMethod("POST");
-            // The free Render server can take about a minute to wake up.
-            conn.setConnectTimeout(90_000);
-            conn.setReadTimeout(90_000);
+            conn.setConnectTimeout(timeoutMs);
+            conn.setReadTimeout(timeoutMs);
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/json");
             try (OutputStream out = conn.getOutputStream()) {

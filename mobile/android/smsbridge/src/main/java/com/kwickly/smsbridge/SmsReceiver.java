@@ -6,7 +6,9 @@ import android.content.Intent;
 import android.provider.Telephony;
 import android.telephony.SmsMessage;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Receives every incoming SMS and queues bank credit messages for forwarding. */
@@ -29,9 +31,27 @@ public class SmsReceiver extends BroadcastReceiver {
             }
             body.append(part.getMessageBody());
         }
+        List<String> credits = new ArrayList<>();
         for (StringBuilder body : bySender.values()) {
             String text = body.toString();
-            if (Forwarder.isBankCredit(text)) Forwarder.enqueue(context, text);
+            if (Forwarder.isBankCredit(text)) credits.add(text);
         }
+        if (credits.isEmpty()) return;
+
+        // Send right away when the server is awake; the phone may hold queued jobs back for minutes.
+        // Anything not delivered within the receiver's time budget goes to the retry queue.
+        PendingResult pending = goAsync();
+        new Thread(() -> {
+            try {
+                for (String text : credits) {
+                    int code = Forwarder.post(text, 8_000);
+                    if (code >= 200 && code < 300) Forwarder.record(context, "Sent OK: " + Forwarder.preview(text));
+                    else if (code == 401) Forwarder.record(context, "REJECTED (wrong secret): " + Forwarder.preview(text));
+                    else Forwarder.enqueue(context, text);
+                }
+            } finally {
+                pending.finish();
+            }
+        }).start();
     }
 }
