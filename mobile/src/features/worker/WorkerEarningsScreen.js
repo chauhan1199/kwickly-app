@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { getSubscriptionState } from '../../utils/subscription';
 import { 
   ScrollView, 
@@ -271,9 +272,12 @@ const WorkerEarningsScreen = ({ navigation }) => {
     }
   }, [selectedPlan, selectedPayout]);
 
-  useEffect(() => {
-    fetchWalletAndProfile();
-  }, [fetchWalletAndProfile]);
+  // Tab screens stay mounted, so reload each time the Earnings tab is opened
+  useFocusEffect(
+    useCallback(() => {
+      fetchWalletAndProfile();
+    }, [fetchWalletAndProfile])
+  );
 
   // Live refresh when the server credits / approves / rejects / activates
   useSocket({
