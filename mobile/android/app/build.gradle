@@ -82,8 +82,8 @@ android {
         applicationId "com.kwicklymobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 100
-        versionName "1.9.16"
+        versionCode 101
+        versionName "1.9.17"
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a"
         }
