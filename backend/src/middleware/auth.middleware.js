@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const { StatusCodes } = require('http-status-codes');
 const Customer = require('../modules/customer/customer.model');
 const catchAsync = require('../helpers/async.helper');
@@ -45,6 +46,11 @@ const authMiddleware = catchAsync(async (req, res, next) => {
     let user;
     if (cachedSession) {
         user = typeof cachedSession === 'string' ? JSON.parse(cachedSession) : cachedSession;
+        // JSON turns ObjectIds into strings; aggregate $match does not cast, so
+        // restore _id or every per-user aggregation (earnings, stats) matches nothing.
+        if (user._id && mongoose.Types.ObjectId.isValid(user._id)) {
+            user._id = new mongoose.Types.ObjectId(String(user._id));
+        }
         // Always check isDeleted even for cached sessions
         if (user.isDeleted) {
             await delCache(SESSION_KEY);
