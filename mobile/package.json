@@ -1,6 +1,6 @@
 {
   "name": "KwicklyMobile",
-  "version": "0.0.1",
+  "version": "1.9.19",
   "private": true,
   "scripts": {
     "android": "react-native run-android",

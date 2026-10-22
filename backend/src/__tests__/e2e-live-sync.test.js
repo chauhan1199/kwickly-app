@@ -98,7 +98,12 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const request = require('supertest');
 const { MongoMemoryServer } = require('mongodb-memory-server');
-const { io: ioClient } = require('socket.io-client');
+let ioClient;
+try {
+    ioClient = require('socket.io-client').io;
+} catch (e) {
+    ioClient = require('../../../admin/node_modules/socket.io-client').io;
+}
 
 const app = require('../app');
 const { initSocket, getIO } = require('../helpers/socket.helper');
