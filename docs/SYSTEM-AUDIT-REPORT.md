@@ -246,6 +246,39 @@ Directly on the live production engine (`https://kwickly-backend-r6zb.onrender.c
   8. **Delivery Handover & Atomic Settlement (`DELIVERED`)**: Shop Owner enters OTP `1585` via `PATCH /shoporders/:id/status`. Server verifies OTP, marks order `DELIVERED`, and settles escrow (`escrowStatus: 'SETTLED'`). Shop wallet credited with ₹525 Net Product Sales (`ORDER_CREDIT`).
   9. **Customer Delivery UI & Inventory Verification**: Customer tracking screen reflects completed green checkmark "Order delivered! Thank you!" (`step2_42_delivered.png`, `step2_43_history_refreshed.png`). Product stocks verified: Fortune Sunflower Oil: 59 → 57, Tata Tea Gold: 30 → 29.
 
+### 10.3 Flow 3: Worker Lifecycle & Operational Gate Verification (W-1 to W-4) — 100% Verified
+- **Worker Account**: Vikram Singh (`9822334455`), Category: Plumbing Service, Subscribed: Free Trial Active (14 Days remaining), KYC Status: `APPROVED`.
+- **Verified Milestones & Visual Proof Artifacts**:
+  1. **Worker Dashboard (`WorkerTabs`)**: Live landing view with Vikram Singh profile greeting, ₹150 wallet pill, Ahmedabad location header, duty status indicator, 4-item stats grid (`0 Today`, `0 Completed`, `0 In Progress`, `0 Cancelled`), Free Trial active card, and Active Categories card showing Plumbing Service (`docs/ui-screenshots/worker_05_dashboard.png`).
+  2. **Duty Status Real-Time Toggle**: Toggled duty status to active duty. State transitions to `🟢 ONLINE • READY FOR JOBS`, switch thumb changes to green active position, card border glows green, and subtext updates to "Receiving real-time job alerts from nearby customers" (`docs/ui-screenshots/worker_06_online_duty.png`).
+  3. **Worker Profile & KYC Compliance**: Loaded Worker Profile tab verifying `Free Trial` and `KYC Verified ✓` green badge, Bank Account & UPI configured (`vikram@okaxis`), Manage Addresses, Professional Services (1 active category), and KYC Verification (`docs/ui-screenshots/worker_07_profile_kyc.png`).
+  4. **Worker Earnings & Wallet**: Real-time balance ₹150.00 (`0% Commission • 100% Payout`), Safety Reserve ₹100, Free Trial validity extension action, and Recent Transactions card displaying the recorded withdrawal to UPI (`-₹150.00 PENDING`) (`docs/ui-screenshots/worker_08_earnings_wallet.png`).
+
+### 10.4 Flow 4: Shop Owner Lifecycle & Catalog Verification (S-1 to S-4) — 100% Verified
+- **Shop Account**: Ramesh Patel (`9820112233`), Shop: "FreshMart Supermarket & Groceries", KYC: `APPROVED`.
+- **Verified Milestones & Visual Proof Artifacts**:
+  1. **Shop Dashboard (`ShopTabs`)**: Live dashboard showing "FreshMart Supermarket & Groceries", `🟢 Store Accepting Orders`, `🟢 ONLINE` button, Wallet balance ₹5,321, 14 Total Catalog Products, and quick actions (`+ Add Item`, `Orders`, `Withdraw`, `Settings`) (`docs/ui-screenshots/shop_01_dashboard.png`).
+  2. **Store Catalog & Stock Indicators**: Products catalog displaying 14 listed items with dynamic category pills ("All", "Gourmet", "Groceries", "Beverages"), stock badges ("15 in stock" green badge vs "Out of stock" red badge), prices, unit tags, and edit/delete actions (`docs/ui-screenshots/shop_02_products_catalog.png`).
+  3. **Shop Wallet & Instant Settlement**: Balance ₹5,321.00 with "Instant UPI" badge, safety reserve ₹100.00, maximum withdrawable ₹5,221.00, primary payout destination `ganshyam.tech@okicici`, and full order payout transaction ledger (`docs/ui-screenshots/shop_03_wallet.png`).
+  4. **Shop Settings & Compliance**: Store visibility toggle (`🟢 Online`), store details & address (`Shop 12, Chandkheda Main Road, Ahmedabad`), business hours (6:00 AM - 10:00 PM), delivery configuration, payout bank & UPI, and KYC & Documents status `APPROVED (3 uploaded)` (`docs/ui-screenshots/shop_04_settings.png`).
+
+### 10.5 Master Automated Regression & Security Test Verification
+- **Master Coverage Suite (`test-master-coverage-suite.js`)**: **38 / 38 PASSED (100%)** across 6 domains:
+  - Domain 1: Multi-Viewport Matrix (Small Mobile, Standard Mobile, Tablet, Desktop, Full HD, 4K).
+  - Domain 2: Customer Journey & Cart Multi-Item Checkout Flow.
+  - Domain 3: Service Job Booking, Quoting, Arrival OTP, Completion OTP & Escrow Settlement.
+  - Domain 4: Notification & Activity Tracking Matrix (Order and Job events).
+  - Domain 5: Navigation & Tab Segregation.
+  - Domain 6: Edge Cases & Concurrency Integrity (Concurrent race condition on inventory stock, negative stock defense, duplicate settlement idempotent skip).
+- **Automated Scenario & Security Suite (`e2e-complete-scenarios.js`)**: **7 / 7 PASSED (100%)**:
+  - Scenario 1: Fake Direct UPI UTR rejected from auto-credit (`PENDING_VERIFICATION`).
+  - Scenario 2: Live Admin Panel Puppeteer Browser Automation on Vercel (`https://kwickly-app.vercel.app`).
+  - Scenario 3: Admin Rejection of Fake UTR with automatic stock restoration (`$inc: { stock: +qty }`).
+  - Scenario 4 & 5: Customer Fake Top-up verification & safe Admin bank approval.
+  - Scenario 6: Customer In-App Wallet Checkout.
+  - Scenario 7: Shop Order Lifecycle & 4-Digit Delivery OTP Handover.
+
+
 
 
 
