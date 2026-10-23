@@ -17,7 +17,7 @@
 | **Master Test Suite** | 6 Domains: UI Responsiveness, Orders, Jobs, Push/Notifications, Navigation, Edge Cases | 38/38 Assertions Passed (0 failed) | 🟢 100% Passing |
 | **Financial Audit Suite** | Double-entry ledger, 0% commission, escrow, idempotency | 5/5 Financial Precision Tests Passed (0 discrepancy) | 🟢 100% Passing |
 | **Bugfix Matrix** | Fee calculations, UTR checks, UPI topups, timing-safe OTP | 7/7 Verification Tests Passed | 🟢 100% Passing |
-| **Release APK** | Android Universal Release build | 27.6 MB signed APK (`kwickly-1.9.18.apk`) | 🟢 Ready for Testing |
+| **Release APK** | Android Universal Release build | 27.6 MB signed APK (`kwickly-1.9.20.apk`) | 🟢 Ready for Testing |
 
 ---
 
@@ -87,8 +87,8 @@
 ## 4. APK & Build Status
 
 - **Tested Production Release APK**:
-  - File: `kwickly-1.9.18.apk` (in project root)
-  - Size: 27,661,325 bytes (~27.6 MB)
+  - File: `kwickly-1.9.20.apk` (in project root)
+  - Size: 27,661,329 bytes (~27.6 MB)
   - Build Path: `mobile/android/app/build/outputs/apk/release/app-release.apk`
   - Target: Universal Android architecture (arm64-v8a, armeabi-v7a, x86, x86_64)
 
@@ -213,6 +213,39 @@ The complete production system was accessed and exercised end-to-end against liv
 | 6 | **Zero Flow Breakage Guarantee** | 🟢 **PASS** | All 4 roles function cleanly without collision or session corruption |
 
 **Conclusion**: The Kwickly production stack (Backend on Render, Admin on Vercel, MongoDB Atlas, and Release APK on Android) is **100% PRODUCTION READY** with zero pending bugs or broken flows.
+
+---
+
+## 10. End-to-End Live System Flow & Side-by-Side UI Execution Suite (October 2026)
+
+Directly on the live production engine (`https://kwickly-backend-r6zb.onrender.com`), MongoDB Atlas, and Android device (`com.kwicklymobile`), two complete end-to-end cycles were executed and verified side-by-side with zero business logic breakage:
+
+### 10.1 Flow 1: Service Job Cycle (Customer ↔ Worker ↔ Admin) — 100% Verified
+- **Participants**: Customer Aarav Patel (`9900112233`), Verified Worker (`9811111111`), Platform Admin.
+- **State Machine**: `BROADCASTING → QUOTES_RECEIVED → ALLOCATED → ARRIVING → IN_PROGRESS → COMPLETED → PAID → CLOSED`.
+- **Step-by-Step Milestones & Visual Proof**:
+  1. **Customer Auth & MPIN**: Live phone login with OTP auto-verify and 4-digit MPIN `8520` (`docs/ui-screenshots/step1_01_customer_otp.png`, `step1_02_customer_home.png`).
+  2. **Job Definition & Posting**: Category selection and description input on `DescribeJobScreen.js`. Posted job transitioned to `BROADCASTING` with live radar sweep (`step1_03` to `step1_10`).
+  3. **Live Job Radar & Worker Alert**: Worker receives `NEW_JOB_ALERT` WebSocket event, submits competitive bid quote of ₹350. Customer UI updates to `QUOTES_RECEIVED` displaying worker bid card on radar and quotes list (`step1_11` to `step1_21`).
+  4. **Quote Acceptance**: Customer accepts quote, transitioning job to `ALLOCATED` (`step1_22`, `step1_23`).
+  5. **Worker Transit & Service Execution**: Worker moves `ARRIVING` → `IN_PROGRESS` → `COMPLETED` (`step1_24` to `step1_27`).
+  6. **Timing-Safe OTP Verification & Escrow Settlement**: Customer enters 4-digit completion OTP `1928` verified with `crypto.timingSafeEqual`. Customer wallet debited, escrow settled, net earnings credited to worker wallet (`step1_28` to `step1_33`).
+  7. **Customer Rating & Active Job Clearance**: 5-star rating submitted, job marked `CLOSED`, active card cleanly dismissed from customer Home (`step1_34` to `step1_39`).
+
+### 10.2 Flow 2: Shop Order Cycle (Customer ↔ Shop Owner ↔ Admin) — 100% Verified
+- **Participants**: Customer Aarav Patel (`9900112233`), Shop Owner Kwickly Super Mart (`9000000002`), Platform Admin.
+- **State Machine**: `NEW → CONFIRMED → PACKING → OUT_FOR_DELIVERY → DELIVERED` (Atomic Escrow Settlement).
+- **Step-by-Step Milestones & Visual Proof**:
+  1. **Shop Discovery & Catalog**: Customer browses verified store "Kwickly Super Mart" (`step2_01` to `step2_06`).
+  2. **Cart Building**: Added 2 × Fortune Sunlite Sunflower Oil (1L) + 1 × Tata Tea Gold (500g) with live sticky cart bar updates (`step2_07` to `step2_12`).
+  3. **Delivery Address Pinning**: Resolved delivery location using native OpenStreetMap reverse geocoding to `Ashram Road, Ambawadi, Navrangpura (380006)` (`step2_13` to `step2_27`).
+  4. **Order Placement (`NEW`)**: Order `ORD-20261023-74QD` (Total ₹555.97) paid via Customer Wallet (balance debited from ₹1076.40 to ₹520.43). Stock atomically decremented (`step2_28` to `step2_36`).
+  5. **Order Confirmation (`CONFIRMED`)**: Shop Owner confirms order. Customer tracking screen reflects purple checkmark on "Confirmed" (`step2_37`, `step2_38_tracking_confirmed.png`).
+  6. **Preparation (`PACKING`)**: Shop Owner sets order to `PACKING`. Customer tracking screen reflects purple checkmark on "Being Prepared" (`step2_39_tracking_packing.png`).
+  7. **Dispatch & Delivery OTP Generation (`OUT_FOR_DELIVERY`)**: Shop Owner dispatches order. Server generates Delivery Handover OTP `1585`. Customer tracking screen displays dedicated OTP card with Copy action (`step2_40_tracking_out_for_delivery.png`, `step2_41_tracking_otp.png`).
+  8. **Delivery Handover & Atomic Settlement (`DELIVERED`)**: Shop Owner enters OTP `1585` via `PATCH /shoporders/:id/status`. Server verifies OTP, marks order `DELIVERED`, and settles escrow (`escrowStatus: 'SETTLED'`). Shop wallet credited with ₹525 Net Product Sales (`ORDER_CREDIT`).
+  9. **Customer Delivery UI & Inventory Verification**: Customer tracking screen reflects completed green checkmark "Order delivered! Thank you!" (`step2_42_delivered.png`, `step2_43_history_refreshed.png`). Product stocks verified: Fortune Sunflower Oil: 59 → 57, Tata Tea Gold: 30 → 29.
+
 
 
 
