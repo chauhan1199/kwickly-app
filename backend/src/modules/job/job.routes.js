@@ -17,6 +17,8 @@ router.post('/', authorize('CUSTOMER'), validate(createJobSchema), jobController
 router.get('/', authorize('CUSTOMER'), jobController.getMyJobs);
 router.get('/my', authorize('CUSTOMER'), jobController.getMyJobs);
 router.post('/:id/pay', authorize('CUSTOMER'), jobController.payJob);
+router.post('/:id/request-cash-payment', authorize('CUSTOMER'), jobController.requestCashPayment);
+router.post('/:id/cancel-cash-payment', authorize('CUSTOMER'), jobController.cancelCashPayment);
 router.post('/:id/rate', authorize('CUSTOMER'), jobController.rateJob);
 
 // -- WORKER ROUTES --
@@ -26,6 +28,8 @@ router.get('/worker', authorize('WORKER'), jobController.getWorkerJobs);
 router.post('/:id/arrive', authorize('WORKER'), jobController.arriveJob);
 router.post('/:id/start', authorize('WORKER'), validate(startJobSchema), jobController.startJob);
 router.post('/:id/complete', authorize('WORKER'), jobController.completeJob);
+// Two-Way Cash Handshake: Worker confirms physical cash collected
+router.post('/:id/confirm-cash-payment', authorize('WORKER'), jobController.confirmCashPayment);
 // M2 FIX: Worker can rate the customer after job completion
 router.post('/:id/rate-customer', authorize('WORKER'), jobController.rateCustomer);
 

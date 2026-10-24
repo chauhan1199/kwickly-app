@@ -3,16 +3,19 @@ import { formatStatus } from '../../utils/helpers';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, StatusBar, ActivityIndicator, Alert, TextInput, Modal,
-  KeyboardAvoidingView, Platform
+  KeyboardAvoidingView, Platform, Image
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { shopService } from '../../services/shopService';
+import { walletService } from '../../services/walletService';
 import useSocket from '../../hooks/useSocket';
 import {
   Check, Package, Truck, Bell,
-  ChevronLeft, User, Phone, Plus
+  ChevronLeft, User, Phone, Plus,
+  QrCode, Banknote, Copy, X
 } from 'lucide-react-native';
 
 const ShopOrderDetailScreen = ({ route, navigation }) => {
@@ -33,6 +36,11 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffPhone, setNewStaffPhone] = useState('');
   const [addingStaff, setAddingStaff] = useState(false);
+
+  // Digital COD UPI QR
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [adminUpiConfig, setAdminUpiConfig] = useState(null);
+  const [copiedUpi, setCopiedUpi] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -128,6 +136,29 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  const loadUpiConfig = async () => {
+    try {
+      const res = await walletService.getAdminUpiConfig();
+      if (res?.data?.status === 'success') {
+        setAdminUpiConfig(res.data.data);
+      }
+    } catch (e) {
+      console.warn('[ShopOrderDetail] upi config error:', e?.message);
+    }
+  };
+
+  const openQrModal = () => {
+    loadUpiConfig();
+    setShowQrModal(true);
+  };
+
+  const handleCopyUpi = (vpa) => {
+    if (!vpa) return;
+    Clipboard.setString(vpa);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
+  };
+
   const getNextAction = () => {
     if (!order) return null;
     switch (order.status) {
@@ -184,6 +215,12 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
     : payStatus === 'PAID' ? 'Paid'
     : 'Awaiting payment confirmation';
   const paymentColor = payStatus === 'PAID' ? '#10b981' : isCash ? '#0284C7' : (payStatus === 'FAILED' || payStatus === 'REFUNDED') ? '#EF4444' : '#F59E0B';
+
+  const platformVpa = (adminUpiConfig?.upiId || 'kwickly@upi').trim();
+  const platformPayee = (adminUpiConfig?.payeeName || order?.shopId?.name || 'Kwickly PVT LTD').trim();
+  const shortOrderNum = String(order?.orderNumber || order?._id || '').slice(-6).toUpperCase();
+  const shopUpiIntentUri = `upi://pay?pa=${platformVpa}&pn=${encodeURIComponent(platformPayee)}&am=${Number(order?.total || 0).toFixed(2)}&cu=INR&tn=${encodeURIComponent('Order #' + shortOrderNum)}&tr=ORD${shortOrderNum}${Date.now().toString().slice(-4)}`;
+  const shopQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=12&data=${encodeURIComponent(shopUpiIntentUri)}`;
 
   if (loading) {
     return (
@@ -273,6 +310,24 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
             <Text style={[styles.infoLabel, { marginTop: 6 }]}>
               Waiting for payment confirmation. Kwickly confirms UPI payments from the bank or by admin review; you can accept the order once it shows Paid.
             </Text>
+          ) : null}
+          {isCash && order.status === 'OUT_FOR_DELIVERY' ? (
+            <TouchableOpacity 
+              style={styles.digitalCodCard} 
+              onPress={openQrModal}
+              activeOpacity={0.8}
+            >
+              <View style={styles.digitalCodIconWrap}>
+                <QrCode size={18} color="#6C47FF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.digitalCodTitle}>Customer paying via UPI?</Text>
+                <Text style={styles.digitalCodSubtitle}>Show dynamic QR code to collect ₹{order.total}</Text>
+              </View>
+              <View style={styles.digitalCodBadge}>
+                <Text style={styles.digitalCodBadgeText}>Show QR</Text>
+              </View>
+            </TouchableOpacity>
           ) : null}
         </View>
 
@@ -564,6 +619,76 @@ const ShopOrderDetailScreen = ({ route, navigation }) => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Digital COD UPI QR Modal */}
+      <Modal visible={showQrModal} transparent animationType="fade" onRequestClose={() => setShowQrModal(false)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowQrModal(false)} />
+          <View style={[styles.modalContent, { alignItems: 'center' }]}>
+            <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={styles.modalTitle}>Digital COD Payment</Text>
+              <TouchableOpacity onPress={() => setShowQrModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <X size={20} color={theme.colors.textDim} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalDesc}>
+              Ask customer to scan with Google Pay, PhonePe, Paytm, or BHIM
+            </Text>
+
+            <View style={styles.qrCard}>
+              <Image 
+                source={{ uri: shopQrImageUrl }}
+                style={styles.qrImage}
+                resizeMode="contain"
+              />
+              <View style={styles.amountPill}>
+                <Text style={styles.amountPillLabel}>Total to Collect</Text>
+                <Text style={styles.amountPillValue}>₹{order?.total}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.upiCopyRow} 
+              onPress={() => handleCopyUpi(platformVpa)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.upiIdText} numberOfLines={1}>UPI: {platformVpa}</Text>
+              <View style={styles.copyBtnBadge}>
+                {copiedUpi ? (
+                  <Check size={14} color="#10B981" />
+                ) : (
+                  <Copy size={14} color="#6C47FF" />
+                )}
+                <Text style={[styles.copyBtnText, copiedUpi && { color: '#10B981' }]}>
+                  {copiedUpi ? 'Copied' : 'Copy'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.qrNotice}>
+              <Text style={styles.qrNoticeText}>
+                💡 Once customer pays or gives cash, ask for their 4-digit Delivery OTP to complete delivery.
+              </Text>
+            </View>
+
+            <View style={[styles.modalActions, { width: '100%' }]}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowQrModal(false)}>
+                <Text style={styles.modalCancelText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={() => {
+                  setShowQrModal(false);
+                  setShowOtpModal(true);
+                }}
+              >
+                <Text style={styles.modalConfirmText}>Enter OTP</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
       </View>
     </View>
   );
@@ -688,6 +813,134 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   modalCancelText:{ fontSize: 14, fontWeight: '700', color: theme.colors.textDim },
   modalConfirmBtn:{ flex: 1, padding: 14, minHeight: 48, justifyContent: 'center', borderRadius: 12, backgroundColor: '#10b981', alignItems: 'center' },
   modalConfirmText:{ fontSize: 14, fontWeight: '800', color: '#fff' },
+
+  // Digital COD Styles
+  digitalCodCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? '#1E1B4B' : '#EEF2FF',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#4338CA' : '#C7D2FE',
+  },
+  digitalCodIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#6C47FF20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  digitalCodTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  digitalCodSubtitle: {
+    fontSize: 11,
+    color: theme.colors.textDim,
+    marginTop: 2,
+  },
+  digitalCodBadge: {
+    backgroundColor: '#6C47FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  digitalCodBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  qrCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    alignItems: 'center',
+    marginVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  qrImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 8,
+  },
+  amountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginTop: 10,
+    width: 190,
+  },
+  amountPillLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  amountPillValue: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  upiCopyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: 10,
+  },
+  upiIdText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text,
+    flex: 1,
+  },
+  copyBtnBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#6C47FF15',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  copyBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6C47FF',
+  },
+  qrNotice: {
+    backgroundColor: isDarkMode ? '#312E8140' : '#EEF2FF',
+    borderRadius: 10,
+    padding: 10,
+    width: '100%',
+    marginBottom: 6,
+  },
+  qrNoticeText: {
+    fontSize: 11,
+    color: isDarkMode ? '#A5B4FC' : '#4338CA',
+    lineHeight: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });
 
 export default ShopOrderDetailScreen;

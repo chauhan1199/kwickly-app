@@ -264,6 +264,13 @@ exports.placeOrder = catchAsync(async (req, res) => {
         const gstAmount = feeCalc.gstAmount;
         const total = feeCalc.customerTotal;
 
+        // Anti-Fraud COD Safeguard: cap COD orders at ₹1,500
+        if (isCashMethod(paymentMethod) && total > 1500) {
+            if (useTransaction && session) await session.abortTransaction();
+            if (session) session.endSession();
+            return errorResponse(res, 'Cash on Delivery is available for orders up to ₹1,500 only. Please select UPI or Wallet for higher amounts.', StatusCodes.BAD_REQUEST);
+        }
+
         // Handle wallet payment atomically
         let paymentStatus = 'PENDING';
         if (paymentMethod === 'WALLET') {

@@ -1558,3 +1558,237 @@ exports.uploadMedia = catchAsync(async (req, res) => {
     const result = await uploadImage(req.file.buffer, 'kwickly/jobs');
     return successResponse(res, { url: result.url }, 'Media uploaded');
 });
+
+// ─── POST /api/v1/jobs/:id/request-cash-payment (Customer) ────────────────────
+// Customer initiates Cash Payment handshake by submitting the 4-digit completion OTP.
+// Job enters payment.status = 'PENDING_CONFIRMATION', notifying the worker to verify & confirm receipt.
+exports.requestCashPayment = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { completionOtp, promoCode } = req.body;
+
+    const job = await Job.findOne({ _id: id, customerId: req.user._id });
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+    if (job.status !== 'COMPLETED') return errorResponse(res, 'Job is not completed yet', StatusCodes.BAD_REQUEST);
+    if (job.payment?.status === 'PAID') return errorResponse(res, 'Job has already been paid', StatusCodes.CONFLICT);
+    if (job.payment?.status === 'PENDING_VERIFICATION') {
+        return errorResponse(res, 'Your UPI payment for this job is currently being verified.', StatusCodes.CONFLICT);
+    }
+    if (job.security?.completionOtp && !timingSafeEqual(job.security.completionOtp, completionOtp)) {
+        return errorResponse(res, 'Invalid Completion OTP', StatusCodes.BAD_REQUEST);
+    }
+
+    // Verify worker credit limit: worker cannot accept cash if balance <= -500
+    const worker = await Customer.findById(job.workerId).select('wallet isOnline name').lean();
+    if (!worker || (worker.wallet?.balance || 0) <= -500) {
+        return errorResponse(res, 'This worker has reached their credit limit and cannot accept cash. Please pay from your Kwickly wallet or UPI.', StatusCodes.PAYMENT_REQUIRED);
+    }
+
+    let promoDiscount = 0;
+    if (promoCode) {
+        const promoResult = await claimJobPromo({ job, promoCode, userId: req.user._id });
+        if (promoResult.error) return errorResponse(res, promoResult.error, StatusCodes.BAD_REQUEST);
+        promoDiscount = promoResult.discount;
+    }
+
+    const customerTotal = Math.max(0, (job.payment?.amount || 0) - promoDiscount);
+
+    job.payment.status = 'PENDING_CONFIRMATION';
+    job.payment.method = 'CASH';
+    job.payment.cashPending = true;
+    job.payment.cashRequestedAt = new Date();
+    if (promoDiscount > 0) {
+        job.promoCode = promoCode;
+        job.promoDiscount = promoDiscount;
+    }
+    await job.save();
+
+    emitToRoom(`worker_${job.workerId}`, 'CASH_PAYMENT_PENDING', {
+        jobId: job._id,
+        amount: customerTotal,
+        customerName: req.user.name || 'Customer'
+    });
+    emitToRoom(`customer_${job.customerId}`, 'JOB_STATUS_CHANGED', {
+        jobId: job._id,
+        status: 'COMPLETED',
+        paymentStatus: 'PENDING_CONFIRMATION',
+        method: 'CASH'
+    });
+    emitToAll('DASHBOARD_UPDATE', { type: 'JOB_CASH_PENDING', jobId: job._id, amount: customerTotal });
+
+    notifyUser({
+        userId: job.workerId,
+        title: '💵 Cash Payment Handshake',
+        message: `Customer requested to pay ₹${customerTotal} in cash for job #${String(job._id).slice(-6)}. Please collect physical cash and tap 'Confirm Cash Received'.`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: job._id,
+        targetRole: 'WORKER'
+    });
+
+    return successResponse(res, hideOtpsFor(job, req.user.role), `Cash payment requested. Please hand ₹${customerTotal} to your technician.`);
+});
+
+// ─── POST /api/v1/jobs/:id/confirm-cash-payment (Worker) ──────────────────────
+// Worker confirms physical cash received in hand. Platform fee + GST debited from worker wallet,
+// job marked PAID, and settled in PlatformLedger.
+exports.confirmCashPayment = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { completionOtp } = req.body;
+
+    const job = await Job.findOne({ _id: id, workerId: req.user._id });
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+    if (job.status !== 'COMPLETED') return errorResponse(res, 'Only completed jobs can be settled', StatusCodes.BAD_REQUEST);
+    if (job.payment?.status === 'PAID') return errorResponse(res, 'Job has already been paid', StatusCodes.CONFLICT);
+
+    // If customer hadn't initiated handshake with OTP, worker must supply the 4-digit completionOtp
+    if (!job.payment?.cashPending) {
+        if (!completionOtp || !job.security?.completionOtp || !timingSafeEqual(job.security.completionOtp, completionOtp)) {
+            return errorResponse(res, 'Invalid Completion OTP or cash payment was not initiated', StatusCodes.BAD_REQUEST);
+        }
+    }
+
+    // Atomic status transition claim
+    const claimed = await Job.findOneAndUpdate(
+        { _id: job._id, status: 'COMPLETED', 'payment.status': { $ne: 'PAID' } },
+        { status: 'PAID' },
+        { returnDocument: 'after' }
+    );
+    if (!claimed) {
+        return errorResponse(res, 'Payment is already being processed or completed for this job', StatusCodes.CONFLICT);
+    }
+
+    const platformFee = job.payment?.platformFee || 0;
+    const gst = job.payment?.gst || 0;
+    const promoDiscount = job.promoDiscount || 0;
+    const feeToDeduct = (platformFee + gst) - promoDiscount;
+
+    let session = null;
+    let useTransaction = false;
+    if (supportsTransactions()) {
+        try {
+            session = await mongoose.startSession();
+            session.startTransaction();
+            useTransaction = true;
+        } catch (e) {
+            session = null;
+            useTransaction = false;
+        }
+    }
+
+    try {
+        const WalletTxn = require('../wallet/wallet.model');
+        const { recordPromoCost } = require('../adminWallet/adminWallet.service');
+        const worker = await Customer.findById(job.workerId).session(session);
+
+        if (feeToDeduct > 0 && worker) {
+            const updated = await Customer.findOneAndUpdate(
+                { _id: worker._id, 'wallet.balance': { $gte: feeToDeduct } },
+                { $inc: { 'wallet.balance': -feeToDeduct } },
+                { returnDocument: 'after', session }
+            );
+            if (!updated) {
+                const debtUpdated = await Customer.findOneAndUpdate(
+                    { _id: worker._id, 'wallet.balance': { $gt: -500 } },
+                    { $inc: { 'wallet.balance': -feeToDeduct } },
+                    { returnDocument: 'after', session }
+                );
+                if (!debtUpdated) {
+                    if (useTransaction && session) await session.abortTransaction();
+                    if (session) session.endSession();
+                    await Job.findByIdAndUpdate(job._id, { status: 'COMPLETED' });
+                    return errorResponse(res, 'Your wallet has reached the -₹500 credit limit. Please top up to confirm cash jobs.', StatusCodes.PAYMENT_REQUIRED);
+                }
+                if (debtUpdated.wallet?.balance < 0) {
+                    await Customer.findByIdAndUpdate(worker._id, { isOnline: false }, { session });
+                    emitToRoom(`worker_${worker._id}`, 'FORCED_OFFLINE', {
+                        reason: 'Negative wallet balance from cash job fee. Please top-up to continue receiving jobs.',
+                        walletBalance: debtUpdated.wallet.balance
+                    });
+                }
+                await WalletTxn.create([{
+                    userId: worker._id, type: 'JOB_DEBIT', amount: feeToDeduct,
+                    balance: debtUpdated.wallet.balance,
+                    refId: job._id.toString(), status: 'COMPLETED',
+                    description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
+                }], { session });
+            } else {
+                await WalletTxn.create([{
+                    userId: worker._id, type: 'JOB_DEBIT', amount: feeToDeduct,
+                    balance: updated.wallet.balance,
+                    refId: job._id.toString(), status: 'COMPLETED',
+                    description: `Platform fee + GST for cash job #${job._id.toString().slice(-6)}`
+                }], { session });
+            }
+        }
+
+        const { settleCashJob } = require('../../helpers/settlementEngine.helper');
+        await settleCashJob({ job, session });
+
+        if (promoDiscount > 0) {
+            await recordPromoCost(
+                promoDiscount,
+                `Promo ${job.promoCode} discount on cash job #${job._id.toString().slice(-6)}`,
+                job._id,
+                'Job',
+                { workerId: job.workerId, customerId: job.customerId, method: 'CASH' },
+                { session }
+            );
+        }
+
+        job.status = 'PAID';
+        if (!job.payment) job.payment = {};
+        job.payment.status = 'PAID';
+        job.payment.method = 'CASH';
+        job.payment.cashPending = false;
+        job.payment.cashConfirmedAt = new Date();
+        job.payment.escrowStatus = 'SETTLED';
+        job.security = { ...job.security, completionOtp: undefined };
+        await job.save({ session });
+
+        if (useTransaction) await session.commitTransaction();
+        if (session) session.endSession();
+
+        await delCache(`session:${job.workerId}`);
+        emitToRoom(`customer_${job.customerId}`, 'JOB_PAID', { jobId: job._id, method: 'CASH', paymentStatus: 'PAID' });
+        emitToRoom(`worker_${job.workerId}`, 'JOB_PAID', { jobId: job._id, method: 'CASH', paymentStatus: 'PAID' });
+        emitToAll('DASHBOARD_UPDATE', { type: 'JOB_SETTLED', jobId: job._id, status: 'PAID' });
+
+        notifyUser({
+            userId: job.customerId,
+            title: '✅ Payment Confirmed',
+            message: `Your technician has confirmed cash payment for job #${String(job._id).slice(-6)}. Thank you!`,
+            action: 'JOB_UPDATED',
+            entityType: 'JOB',
+            entityId: job._id,
+            targetRole: 'CUSTOMER'
+        });
+
+        return successResponse(res, hideOtpsFor(job, req.user.role), 'Cash payment confirmed and job settled successfully');
+    } catch (err) {
+        if (useTransaction && session) await session.abortTransaction();
+        if (session) session.endSession();
+        await Job.findByIdAndUpdate(job._id, { status: 'COMPLETED' });
+        throw err;
+    }
+});
+
+// ─── POST /api/v1/jobs/:id/cancel-cash-payment (Customer) ────────────────────
+// Customer cancels pending cash payment request to switch to UPI or Wallet.
+exports.cancelCashPayment = catchAsync(async (req, res) => {
+    const { id } = req.params;
+
+    const job = await Job.findOne({ _id: id, customerId: req.user._id });
+    if (!job) return errorResponse(res, 'Job not found', StatusCodes.NOT_FOUND);
+    if (job.status !== 'COMPLETED') return errorResponse(res, 'Job is not completed', StatusCodes.BAD_REQUEST);
+    if (job.payment?.status === 'PAID') return errorResponse(res, 'Job is already paid', StatusCodes.CONFLICT);
+
+    job.payment.cashPending = false;
+    job.payment.status = 'PENDING';
+    job.payment.method = 'UPI';
+    await job.save();
+
+    emitToRoom(`worker_${job.workerId}`, 'JOB_STATUS_CHANGED', { jobId: job._id, status: 'COMPLETED', paymentStatus: 'PENDING' });
+    emitToRoom(`customer_${job.customerId}`, 'JOB_STATUS_CHANGED', { jobId: job._id, status: 'COMPLETED', paymentStatus: 'PENDING' });
+
+    return successResponse(res, hideOtpsFor(job, req.user.role), 'Cash payment request cancelled. You can now pay via UPI or Wallet.');
+});

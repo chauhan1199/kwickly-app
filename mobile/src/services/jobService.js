@@ -35,6 +35,15 @@ export const jobService = {
   payForJob: (id, data) =>
     withErrorHandling(() => api.post(`/jobs/${id}/pay`, data)),
 
+  requestCashPayment: (id, data) =>
+    withErrorHandling(() => api.post(`/jobs/${id}/request-cash-payment`, data)),
+
+  confirmCashPayment: (id, data) =>
+    withErrorHandling(() => api.post(`/jobs/${id}/confirm-cash-payment`, data)),
+
+  cancelCashPayment: (id) =>
+    withErrorHandling(() => api.post(`/jobs/${id}/cancel-cash-payment`)),
+
   getJobReceipt: (id) =>
     withErrorHandling(() => api.get(`/customers/jobs/${id}/receipt`)),
 

@@ -89,9 +89,10 @@ const WorkCompletedScreen = ({ route, navigation }) => {
 
   const isPaidOrClosed = activeJob?.status === 'PAID' || activeJob?.status === 'CLOSED' || activeJob?.payment?.status === 'PAID';
   const isPendingVerification = activeJob?.payment?.status === 'PENDING_VERIFICATION';
+  const isCashPending = activeJob?.payment?.cashPending === true || activeJob?.payment?.status === 'PENDING_CONFIRMATION';
   const isInProgress = activeJob?.status === 'IN_PROGRESS';
 
-  // Live refresh: the job turns PAID when its UPI payment is matched or approved
+  // Live refresh: the job turns PAID when its UPI payment is matched or cash is confirmed
   const paidAlertShownRef = useRef(false);
   const upiSubmittedRef = useRef(false);
   const handleSocketEvent = useCallback((event, data) => {
@@ -101,12 +102,10 @@ const WorkCompletedScreen = ({ route, navigation }) => {
   }, [currentJob?._id, job?._id, fetchLatestJob]);
   useSocket({ onEvent: handleSocketEvent });
 
-  // Socket events can be missed (app was in the UPI app, network switch), so while
-  // the UPI payment awaits verification also re-check the job every few seconds
-  // and whenever the app comes back to the foreground.
+  // While payment awaits UPI verification or worker cash confirmation, poll periodically
   useEffect(() => {
-    if (!isPendingVerification) return undefined;
-    const timer = setInterval(fetchLatestJob, 8000);
+    if (!isPendingVerification && !isCashPending) return undefined;
+    const timer = setInterval(fetchLatestJob, 5000);
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') fetchLatestJob();
     });
@@ -114,7 +113,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
       clearInterval(timer);
       sub.remove();
     };
-  }, [isPendingVerification, fetchLatestJob]);
+  }, [isPendingVerification, isCashPending, fetchLatestJob]);
 
   const [otp, setOtp] = useState('');
   const scrollRef = useRef(null);
@@ -316,6 +315,33 @@ const WorkCompletedScreen = ({ route, navigation }) => {
   const handlePayment = async (method) => {
     if (!requireOtp()) return;
 
+    if (method === 'CASH') {
+      setPaying(true);
+      try {
+        const res = await jobService.requestCashPayment(activeJob?._id, {
+          completionOtp: otp.trim(),
+          promoCode
+        });
+        if (res.data?.status === 'success') {
+          if (res.data.data) setCurrentJob(res.data.data);
+          showAlert({
+            type: 'info',
+            title: 'Cash Payment Requested 💵',
+            message: `Please hand ₹${finalPayable.toFixed(2)} in physical cash to ${workerName}. Once received, they will confirm on their app.`
+          });
+        }
+      } catch (e) {
+        showAlert({
+          type: 'error',
+          title: 'Cash Payment Unavailable',
+          message: e.response?.data?.message || 'Failed to request cash payment. Please try paying with UPI or Wallet.'
+        });
+      } finally {
+        setPaying(false);
+      }
+      return;
+    }
+
     setPaying(true);
     try {
       const res = await jobService.payForJob(activeJob?._id, { 
@@ -331,6 +357,29 @@ const WorkCompletedScreen = ({ route, navigation }) => {
         type: 'error',
         title: 'Payment Authorization Failed',
         message: e.response?.data?.message || 'Invalid Completion OTP or payment authorization error. Please recheck the OTP.'
+      });
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const handleCancelCash = async () => {
+    try {
+      setPaying(true);
+      const res = await jobService.cancelCashPayment(activeJob?._id);
+      if (res.data?.status === 'success') {
+        if (res.data.data) setCurrentJob(res.data.data);
+        showAlert({
+          type: 'info',
+          title: 'Cash Request Cancelled',
+          message: 'You can now select another payment method (UPI or Wallet).'
+        });
+      }
+    } catch (e) {
+      showAlert({
+        type: 'error',
+        title: 'Could Not Cancel',
+        message: e.response?.data?.message || 'Failed to cancel cash request.'
       });
     } finally {
       setPaying(false);
@@ -506,7 +555,7 @@ const WorkCompletedScreen = ({ route, navigation }) => {
         </View>
 
         {/* ── 3. PROMO CODE SECTION (only while the bill is still payable) ── */}
-        {!isPaidOrClosed && !isPendingVerification && (
+        {!isPaidOrClosed && !isPendingVerification && !isCashPending && (
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <View style={[styles.sectionIconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
@@ -593,6 +642,28 @@ const WorkCompletedScreen = ({ route, navigation }) => {
             <Text style={[styles.cardSub, { color: isDarkMode ? '#FDE68A' : '#78350F' }]}>
               Your payment is currently being verified by admin. The status will automatically update once verified.
             </Text>
+          </View>
+        ) : isCashPending ? (
+          <View style={[styles.card, { borderColor: '#F59E0B40', backgroundColor: isDarkMode ? '#2A1F0C' : '#FEF3C7' }]}>
+            <View style={styles.cardHeaderRow}>
+              <View style={[styles.sectionIconWrap, { backgroundColor: '#F59E0B20' }]}>
+                <Text style={{ fontSize: 20 }}>💵</Text>
+              </View>
+              <Text style={[styles.cardTitle, { color: '#B45309' }]}>Awaiting Cash Confirmation</Text>
+            </View>
+            <Text style={[styles.cardSub, { color: isDarkMode ? '#FDE68A' : '#78350F', marginBottom: 14 }]}>
+              Please hand ₹{formattedButtonAmount} in physical cash to {workerName}. Once received, they will tap "Confirm Cash Received" on their app to complete your payment.
+            </Text>
+            <TouchableOpacity 
+              style={[styles.onlineBtnWrap, { width: '100%', borderColor: '#B45309', borderWidth: 1.2, borderRadius: 14, overflow: 'hidden' }]}
+              onPress={handleCancelCash}
+              disabled={paying}
+              activeOpacity={0.8}
+            >
+              <View style={{ paddingVertical: 12, alignItems: 'center', backgroundColor: isDarkMode ? '#1E1B15' : '#FFFFFF' }}>
+                <Text style={{ color: '#B45309', fontWeight: '800', fontSize: 13 }}>Cancel & Pay via UPI / Wallet</Text>
+              </View>
+            </TouchableOpacity>
           </View>
         ) : isInProgress ? (
           <View style={[styles.card, { borderColor: '#3B82F640', backgroundColor: isDarkMode ? '#1E293B' : '#EFF6FF' }]}>

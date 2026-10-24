@@ -45,14 +45,18 @@ const JobSchema = new mongoose.Schema({
         gstAmount: { type: Number },
         workerPayout: { type: Number }, // Exact amount worker quoted
         quotedAmount: { type: Number },
-        // PENDING_VERIFICATION: a direct-UPI payment (UTR) is waiting for a bank-SMS match or admin approval
-        status: { type: String, enum: ['PENDING', 'PENDING_VERIFICATION', 'PAID', 'REFUNDED'], default: 'PENDING' },
+        // PENDING_VERIFICATION: direct-UPI payment (UTR) awaiting bank/admin approval
+        // PENDING_CONFIRMATION: customer requested cash payment, awaiting worker cash collection confirmation
+        status: { type: String, enum: ['PENDING', 'PENDING_VERIFICATION', 'PENDING_CONFIRMATION', 'PAID', 'REFUNDED'], default: 'PENDING' },
         escrowStatus: { type: String, enum: ['UNLOCKED', 'LOCKED', 'SETTLED', 'REFUNDED'], default: 'UNLOCKED' },
         method: { type: String, default: 'UPI' },
         razorpayOrderId: { type: String },
         razorpayPaymentId: { type: String },
         utrNumber: { type: String },   // UTR the customer submitted for a direct-UPI payment
-        upiAmount: { type: Number }    // amount the bank credit must match (amount − promo)
+        upiAmount: { type: Number },   // amount the bank credit must match (amount − promo)
+        cashPending: { type: Boolean, default: false },
+        cashRequestedAt: { type: Date },
+        cashConfirmedAt: { type: Date }
     },
 
     security: {

@@ -367,6 +367,37 @@ const CartScreen = ({ route, navigation }) => {
         return;
       }
 
+      // Case 2: Cash on Delivery (COD) -> verify cap and place order directly
+      if (paymentMethod === 'COD') {
+        if (total > 1500) {
+          showAlert({
+            type: 'warning',
+            title: 'COD Limit Exceeded',
+            message: 'Cash on Delivery is available for orders up to ₹1,500 only. Please choose UPI or Wallet.'
+          });
+          return;
+        }
+        const res = await shopService.placeOrder({ ...orderPayload, paymentMethod: 'COD' });
+        if (res.data?.status !== 'success') {
+          throw new Error(res.data?.message || 'Failed to place order');
+        }
+
+        const order = res.data.data;
+        setCurrentOrder(order);
+        await clearCart();
+        if (fetchUser) await fetchUser();
+        setOrderSuccessModal({
+          orderNumber: order.orderNumber || `#${order._id?.slice(-6).toUpperCase()}`,
+          orderId: order._id,
+          total: Number(total).toFixed(2),
+          method: 'Cash on Delivery',
+          isPaid: false,
+          utr: null,
+          slot: selectedSlot ? `${selectedSlot.dateLabel || 'Today'} • ${selectedSlot.label}` : 'Standard Delivery'
+        });
+        return;
+      }
+
       // Case 2: UPI -> create the order first (payment PENDING: hidden from the shop
       // and swept if never paid), then pay against its orderId so the UTR and any
       // bank-credit match attach to this exact order. The cart is kept until paid.
@@ -834,19 +865,38 @@ const CartScreen = ({ route, navigation }) => {
             <Text style={styles.paymentTitle}>Select Payment Method</Text>
             <View style={styles.paymentRow}>
               {[
-                { key: 'UPI', icon: '⚡', label: 'UPI Payment', sub: 'GPay, PhonePe, Paytm, BHIM' },
-                { key: 'WALLET', icon: '💳', label: 'Wallet', sub: `Balance: ₹${Number(user?.wallet?.balance || 0).toFixed(2)}` },
-              ].map(m => (
-                <TouchableOpacity
-                  key={m.key}
-                  style={[styles.methodCard, paymentMethod === m.key && styles.methodCardActive]}
-                  onPress={() => setPaymentMethod(m.key)}
-                >
-                  <Text style={{ fontSize: 22, marginBottom: 4 }}>{m.icon}</Text>
-                  <Text style={styles.methodLabel}>{m.label}</Text>
-                  <Text style={styles.methodSub} numberOfLines={1}>{m.sub}</Text>
-                </TouchableOpacity>
-              ))}
+                { key: 'UPI', icon: '⚡', label: 'UPI Payment', sub: 'GPay, PhonePe, Paytm' },
+                { key: 'WALLET', icon: '💳', label: 'Wallet', sub: `₹${Number(user?.wallet?.balance || 0).toFixed(2)}` },
+                { key: 'COD', icon: '💵', label: 'Cash on Delivery', sub: total > 1500 ? 'Max ₹1.5k' : 'Pay at door' },
+              ].map(m => {
+                const isCodBlocked = m.key === 'COD' && total > 1500;
+                return (
+                  <TouchableOpacity
+                    key={m.key}
+                    style={[
+                      styles.methodCard,
+                      paymentMethod === m.key && styles.methodCardActive,
+                      isCodBlocked && { opacity: 0.45 }
+                    ]}
+                    onPress={() => {
+                      if (isCodBlocked) {
+                        showAlert({
+                          type: 'info',
+                          title: 'COD Limit',
+                          message: 'Cash on Delivery is available for orders up to ₹1,500 only. For higher values, please pay via UPI or Wallet.'
+                        });
+                        return;
+                      }
+                      setPaymentMethod(m.key);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ fontSize: 20, marginBottom: 4 }}>{m.icon}</Text>
+                    <Text style={styles.methodLabel} numberOfLines={1}>{m.label}</Text>
+                    <Text style={[styles.methodSub, isCodBlocked && { color: '#EF4444' }]} numberOfLines={1}>{m.sub}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
