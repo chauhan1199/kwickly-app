@@ -1,6 +1,6 @@
 {
   "name": "Kwickly",
-  "version": "1.9.22",
+  "version": "1.9.23",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
