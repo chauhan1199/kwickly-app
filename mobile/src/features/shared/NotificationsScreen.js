@@ -184,6 +184,12 @@ const cleanNotificationText = (str) => {
         }
       } else if (item.entityType === 'KYC') {
         navigation.navigate('EditProfile');
+      } else if (item.entityType === 'SUBSCRIPTION' || item.action === 'SUBSCRIPTION_EXPIRING' || item.action === 'SUBSCRIPTION_EXPIRED') {
+        if (isShop) {
+          navigation.navigate('ShopWallet');
+        } else if (isWorker) {
+          navigation.navigate('WorkerEarnings');
+        }
       }
     } catch (err) {
       console.warn('[NotificationPress] Navigation error:', err.message);

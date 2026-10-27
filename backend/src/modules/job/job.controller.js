@@ -1020,6 +1020,15 @@ exports.payJob = catchAsync(async (req, res) => {
             entityId: job._id,
             targetRole: 'WORKER'
         });
+        notifyUser({
+            userId: job.customerId,
+            title: 'Payment Successful',
+            message: `Your payment of ₹${job.payment?.amount || 0} for job #${String(job._id).slice(-6)} was successful.`,
+            action: 'JOB_UPDATED',
+            entityType: 'JOB',
+            entityId: job._id,
+            targetRole: 'CUSTOMER'
+        });
 
         return successResponse(res, hideOtpsFor(job, req.user.role), 'Payment completed successfully');
     } catch (error) {
