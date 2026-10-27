@@ -142,7 +142,7 @@ exports.updateMyShop = catchAsync(async (req, res) => {
         action: 'UPDATE',
         entityType: 'SHOP',
         entityId: shop._id,
-        targetRole: 'SHOP_OWNER'
+        targetRole: 'SHOP'
     });
 
     return successResponse(res, shop, 'Shop updated');
@@ -443,6 +443,15 @@ exports.addPayoutMethod = catchAsync(async (req, res) => {
     shop.payoutMethods.push(newMethod);
     await shop.save();
 
+    notifyUser({
+        userId: shop.ownerId,
+        title: 'Payout Method Added',
+        message: `Payout method '${newMethod.label}' has been added successfully.`,
+        action: 'WALLET_UPDATE',
+        entityType: 'WALLET',
+        targetRole: 'SHOP'
+    });
+
     return successResponse(res, shop.payoutMethods, 'Payout method added successfully', StatusCodes.CREATED);
 });
 
@@ -491,6 +500,16 @@ exports.deletePayoutMethod = catchAsync(async (req, res) => {
     }
 
     await shop.save();
+
+    notifyUser({
+        userId: shop.ownerId,
+        title: 'Payout Method Removed',
+        message: 'Payout method has been removed from your shop account.',
+        action: 'WALLET_UPDATE',
+        entityType: 'WALLET',
+        targetRole: 'SHOP'
+    });
+
     return successResponse(res, shop.payoutMethods, 'Payout method removed');
 });
 

@@ -83,14 +83,15 @@ const cleanMojibake = (str) => {
 exports.getMyNotifications = catchAsync(async (req, res) => {
     const userId = req.user._id;
     const role   = req.user.role;   // CUSTOMER | WORKER | SHOP | ADMIN
+    const roleTargets = ['ALL', role, ...(role === 'SHOP' ? ['SHOP_OWNER'] : role === 'SHOP_OWNER' ? ['SHOP'] : [])];
 
     const query = {
         deletedBy: { $ne: userId },
         $or: [
             { type: 'DIRECT',    userId },
-            { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
+            { type: 'BROADCAST', targetRole: { $in: roleTargets } },
             { type: 'SYSTEM',    userId },
-            { type: 'SYSTEM',    userId: null, targetRole: { $in: ['ALL', role] } }
+            { type: 'SYSTEM',    userId: null, targetRole: { $in: roleTargets } }
         ]
     };
 
@@ -121,8 +122,9 @@ exports.markAsRead = catchAsync(async (req, res) => {
     // Ownership check — only mark if notification belongs to user or is broadcast for their role
     const userId = req.user._id;
     const role = req.user.role;
+    const roleTargets = ['ALL', role, ...(role === 'SHOP' ? ['SHOP_OWNER'] : role === 'SHOP_OWNER' ? ['SHOP'] : [])];
     const isOwner = notification.userId?.toString() === userId.toString();
-    const isBroadcast = ['BROADCAST', 'SYSTEM'].includes(notification.type) && ['ALL', role].includes(notification.targetRole);
+    const isBroadcast = ['BROADCAST', 'SYSTEM'].includes(notification.type) && roleTargets.includes(notification.targetRole);
     if (!isOwner && !isBroadcast && req.user.role !== 'ADMIN') {
         return errorResponse(res, 'Not authorized to modify this notification', StatusCodes.FORBIDDEN);
     }
@@ -150,14 +152,15 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
     if (role === 'ADMIN') {
         query = { readBy: { $ne: userId } }; // Admin marks all unread notifications as read
     } else {
+        const roleTargets = ['ALL', role, ...(role === 'SHOP' ? ['SHOP_OWNER'] : role === 'SHOP_OWNER' ? ['SHOP'] : [])];
         query = {
             deletedBy: { $ne: userId },
             readBy:    { $ne: userId },
             $or: [
                 { type: 'DIRECT',    userId },
-                { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
+                { type: 'BROADCAST', targetRole: { $in: roleTargets } },
                 { type: 'SYSTEM',    userId },
-                { type: 'SYSTEM',    userId: null, targetRole: { $in: ['ALL', role] } }
+                { type: 'SYSTEM',    userId: null, targetRole: { $in: roleTargets } }
             ]
         };
     }
@@ -174,8 +177,9 @@ exports.deleteNotification = catchAsync(async (req, res) => {
 
     // Ownership check
     const userId = req.user._id;
+    const roleTargets = ['ALL', req.user.role, ...(req.user.role === 'SHOP' ? ['SHOP_OWNER'] : req.user.role === 'SHOP_OWNER' ? ['SHOP'] : [])];
     const isOwner = notification.userId?.toString() === userId.toString();
-    const isBroadcast = ['BROADCAST', 'SYSTEM'].includes(notification.type) && ['ALL', req.user.role].includes(notification.targetRole);
+    const isBroadcast = ['BROADCAST', 'SYSTEM'].includes(notification.type) && roleTargets.includes(notification.targetRole);
     if (!isOwner && !isBroadcast && req.user.role !== 'ADMIN') {
         return errorResponse(res, 'Not authorized to delete this notification', StatusCodes.FORBIDDEN);
     }
@@ -198,15 +202,16 @@ exports.deleteNotification = catchAsync(async (req, res) => {
 exports.getUnreadCount = catchAsync(async (req, res) => {
     const userId = req.user._id;
     const role   = req.user.role;
+    const roleTargets = ['ALL', role, ...(role === 'SHOP' ? ['SHOP_OWNER'] : role === 'SHOP_OWNER' ? ['SHOP'] : [])];
 
     const query = {
         deletedBy: { $ne: userId },
         readBy:    { $ne: userId },
         $or: [
             { type: 'DIRECT',    userId },
-            { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
+            { type: 'BROADCAST', targetRole: { $in: roleTargets } },
             { type: 'SYSTEM',    userId },
-            { type: 'SYSTEM',    userId: null, targetRole: { $in: ['ALL', role] } }
+            { type: 'SYSTEM',    userId: null, targetRole: { $in: roleTargets } }
         ]
     };
 

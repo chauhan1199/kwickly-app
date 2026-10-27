@@ -197,6 +197,16 @@ exports.updateBank = catchAsync(async (req, res) => {
         const acct = String(wallet.bankDetails.accountNumber);
         wallet.bankDetails.accountNumber = '****' + acct.slice(-4);
     }
+
+    notifyUser({
+        userId: req.user._id,
+        title: 'Bank Details Updated',
+        message: 'Your payout bank details / UPI ID have been updated.',
+        action: 'WALLET_UPDATE',
+        entityType: 'WALLET',
+        targetRole: 'WORKER'
+    });
+
     return successResponse(res, wallet, 'Bank details updated successfully');
 });
 
@@ -230,6 +240,17 @@ exports.updateServices = catchAsync(async (req, res) => {
     await delCache(`session:${req.user._id}`);
     await delCache('top_pros_list');
     triggerDashboardUpdate();
+
+    notifyUser({
+        userId: req.user._id,
+        title: 'Services Updated',
+        message: `Your services have been updated successfully (${normalizedServices.length} categories).`,
+        action: 'UPDATE',
+        entityType: 'WORKER',
+        entityId: user._id,
+        targetRole: 'WORKER'
+    });
+
     return successResponse(res, user.services, 'Services updated successfully');
 });
 
@@ -258,6 +279,16 @@ exports.updateLocation = catchAsync(async (req, res) => {
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
     triggerDashboardUpdate();
+
+    notifyUser({
+        userId: req.user._id,
+        title: 'Location Updated',
+        message: 'Service area and location updated successfully.',
+        action: 'UPDATE',
+        entityType: 'WORKER',
+        entityId: user._id,
+        targetRole: 'WORKER'
+    });
     
     return successResponse(res, { 
         serviceRadius: user.serviceRadius, 
@@ -420,6 +451,16 @@ exports.addAddress = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+
+    notifyUser({
+        userId: req.user._id,
+        title: 'Address Added',
+        message: `Address '${newAddress.label || 'Work'}' has been saved.`,
+        action: 'SYSTEM',
+        entityType: 'OTHER',
+        targetRole: 'WORKER'
+    });
+
     return successResponse(res, user.addresses, 'Address added successfully');
 });
 
@@ -448,6 +489,16 @@ exports.updateAddress = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+
+    notifyUser({
+        userId: req.user._id,
+        title: 'Address Updated',
+        message: `Address '${address.label}' has been updated.`,
+        action: 'SYSTEM',
+        entityType: 'OTHER',
+        targetRole: 'WORKER'
+    });
+
     return successResponse(res, user.addresses, 'Address updated successfully');
 });
 
@@ -471,6 +522,16 @@ exports.deleteAddress = catchAsync(async (req, res) => {
     
     const { delCache } = require('../../helpers/redis.helper');
     await delCache(`session:${req.user._id}`);
+
+    notifyUser({
+        userId: req.user._id,
+        title: 'Address Deleted',
+        message: 'Address has been removed successfully.',
+        action: 'SYSTEM',
+        entityType: 'OTHER',
+        targetRole: 'WORKER'
+    });
+
     return successResponse(res, user.addresses, 'Address deleted successfully');
 });
 
