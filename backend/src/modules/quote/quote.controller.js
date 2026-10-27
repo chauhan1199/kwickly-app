@@ -334,10 +334,13 @@ exports.acceptQuote = catchAsync(async (req, res) => {
             const Notification = require('../notification/notification.model');
             const notificationsToInsert = rejectedQuotes.map(rq => ({
                 userId: rq.workerId,
-                title: 'Quote Rejected',
+                title: 'Quote Not Selected',
                 message: `Your quote for job #${String(job._id).slice(-6)} was not selected. The job has been allocated to another worker.`,
                 type: 'DIRECT',
-                action: 'OTHER'
+                action: 'JOB_UPDATED',
+                entityType: 'JOB',
+                entityId: job._id,
+                targetRole: 'WORKER'
             }));
             await Notification.insertMany(notificationsToInsert, { session });
         }
@@ -354,11 +357,22 @@ exports.acceptQuote = catchAsync(async (req, res) => {
     // Cache job→worker assignment for socket location verification (TTL: 2 hours)
     await setCache(`job:${updatedJob._id}:assigned_worker`, String(quote.workerId), 7200);
 
-    // Notify assigned worker
+    // Notify assigned worker via real-time socket
     emitToRoom(`worker_${quote.workerId}`, 'QUOTE_ACCEPTED', {
         jobId:      updatedJob._id,
         amount:     quote.amount,
         address:    updatedJob.addressDetails
+    });
+
+    // Notify assigned worker via persistent in-app & push notification
+    notifyUser({
+        userId: quote.workerId,
+        title: '🎉 Quote Accepted!',
+        message: `Your quote of ₹${quote.amount} for ${job.category} was accepted! Please head to the customer location.`,
+        action: 'JOB_UPDATED',
+        entityType: 'JOB',
+        entityId: updatedJob._id,
+        targetRole: 'WORKER'
     });
 
     // Notify other workers in the job room (for UI state update)
@@ -375,8 +389,12 @@ exports.acceptQuote = catchAsync(async (req, res) => {
     if (rejectedQuotes && rejectedQuotes.length > 0) {
         rejectedQuotes.forEach(rq => {
             emitToRoom(`worker_${rq.workerId}`, 'NEW_NOTIFICATION', {
-                title: 'Quote Rejected',
-                message: `Your quote for job #${String(job._id).slice(-6)} was not selected.`
+                title: 'Quote Not Selected',
+                message: `Your quote for job #${String(job._id).slice(-6)} was not selected.`,
+                action: 'JOB_UPDATED',
+                entityType: 'JOB',
+                entityId: job._id,
+                targetRole: 'WORKER'
             });
         });
     }

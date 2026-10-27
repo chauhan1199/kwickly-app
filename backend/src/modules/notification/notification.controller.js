@@ -122,7 +122,7 @@ exports.markAsRead = catchAsync(async (req, res) => {
     const userId = req.user._id;
     const role = req.user.role;
     const isOwner = notification.userId?.toString() === userId.toString();
-    const isBroadcast = notification.type === 'BROADCAST' && ['ALL', role].includes(notification.targetRole);
+    const isBroadcast = ['BROADCAST', 'SYSTEM'].includes(notification.type) && ['ALL', role].includes(notification.targetRole);
     if (!isOwner && !isBroadcast && req.user.role !== 'ADMIN') {
         return errorResponse(res, 'Not authorized to modify this notification', StatusCodes.FORBIDDEN);
     }
@@ -148,10 +148,11 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
 
     let query;
     if (role === 'ADMIN') {
-        query = {}; // Admin marks EVERYTHING they see as read
+        query = { readBy: { $ne: userId } }; // Admin marks all unread notifications as read
     } else {
         query = {
             deletedBy: { $ne: userId },
+            readBy:    { $ne: userId },
             $or: [
                 { type: 'DIRECT',    userId },
                 { type: 'BROADCAST', targetRole: { $in: ['ALL', role] } },
@@ -174,7 +175,7 @@ exports.deleteNotification = catchAsync(async (req, res) => {
     // Ownership check
     const userId = req.user._id;
     const isOwner = notification.userId?.toString() === userId.toString();
-    const isBroadcast = notification.type === 'BROADCAST' && ['ALL', req.user.role].includes(notification.targetRole);
+    const isBroadcast = ['BROADCAST', 'SYSTEM'].includes(notification.type) && ['ALL', req.user.role].includes(notification.targetRole);
     if (!isOwner && !isBroadcast && req.user.role !== 'ADMIN') {
         return errorResponse(res, 'Not authorized to delete this notification', StatusCodes.FORBIDDEN);
     }

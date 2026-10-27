@@ -839,7 +839,7 @@ exports.rejectPendingTopup = catchAsync(async (req, res) => {
 
 // ─── POST /api/v1/wallet/lookup-recipient ─────────────────────────────────────
 exports.lookupRecipient = catchAsync(async (req, res) => {
-    const { phone } = req.body;
+    const { phone, role: targetRole } = req.body;
     if (!phone || typeof phone !== 'string') {
         return errorResponse(res, 'Valid phone number is required', StatusCodes.BAD_REQUEST);
     }
@@ -852,9 +852,10 @@ exports.lookupRecipient = catchAsync(async (req, res) => {
         return errorResponse(res, 'You cannot transfer money to yourself', StatusCodes.BAD_REQUEST);
     }
 
-    const recipient = await Customer.findOne({
-        phone: new RegExp(cleanPhone + '$')
-    }).select('name phone role profileImage').lean();
+    const query = { phone: new RegExp(cleanPhone + '$') };
+    if (targetRole) query.role = targetRole.toUpperCase();
+
+    const recipient = await Customer.findOne(query).select('name phone role profileImage').lean();
 
     if (!recipient) {
         return errorResponse(res, 'No registered Kwickly user found with this mobile number', StatusCodes.NOT_FOUND);
@@ -875,7 +876,7 @@ exports.lookupRecipient = catchAsync(async (req, res) => {
 
 // ─── POST /api/v1/wallet/transfer (P2P Wallet Transfer) ──────────────────────
 exports.transferWallet = catchAsync(async (req, res) => {
-    const { recipientPhone, amount, note } = req.body;
+    const { recipientPhone, amount, note, recipientRole } = req.body;
 
     const amountNum = Math.round(Number(amount) * 100) / 100;
     if (isNaN(amountNum) || amountNum <= 0) {
@@ -900,9 +901,10 @@ exports.transferWallet = catchAsync(async (req, res) => {
     }
 
     // Recipient details
-    const recipient = await Customer.findOne({
-        phone: new RegExp(cleanPhone + '$')
-    }).select('name phone role wallet');
+    const recipientQuery = { phone: new RegExp(cleanPhone + '$') };
+    if (recipientRole) recipientQuery.role = recipientRole.toUpperCase();
+
+    const recipient = await Customer.findOne(recipientQuery).select('name phone role wallet');
 
     if (!recipient) {
         return errorResponse(res, 'Recipient user not found with this mobile number', StatusCodes.NOT_FOUND);
@@ -969,7 +971,8 @@ exports.transferWallet = catchAsync(async (req, res) => {
             message: `₹${amountNum} received from ${sender.name} in your Kwickly Wallet.`,
             type: 'WALLET_CREDIT',
             referenceId: recipientTxn._id,
-            referenceModel: 'WalletTxn'
+            referenceModel: 'WalletTxn',
+            targetRole: recipient.role || 'CUSTOMER'
         });
     } catch (notifErr) {
         logger.warn(`[WalletTransfer] Notification failed: ${notifErr.message}`);

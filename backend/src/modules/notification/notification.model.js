@@ -61,5 +61,6 @@ NotificationSchema.index({ type: 1, targetRole: 1, createdAt: -1 });
 NotificationSchema.index({ type: 1, action: 1, createdAt: -1 });
 NotificationSchema.index({ userId: 1, createdAt: -1 });
 NotificationSchema.index({ userId: 1, type: 1, deletedBy: 1, createdAt: -1 });
+NotificationSchema.index({ userId: 1, readBy: 1, deletedBy: 1 });
 
 module.exports = mongoose.model('Notification', NotificationSchema);
