@@ -284,7 +284,7 @@ async function main() {
                 productId: productDoc._id.toString(),
                 name: productDoc.name,
                 price: productDoc.price,
-                qty: 1
+                qty: 2
             }],
             deliveryAddress: 'Chandkheda, Ahmedabad, Gujarat 382424',
             deliveryLocation: {
