@@ -31,7 +31,6 @@ const pageTitles = {
   '/admin-wallet':   'Admin Platform Wallet',
   '/ledger':        'Ledger',
   '/disputes':      'Disputes',
-  '/suggestions':   'Category Suggestions',
   '/notifications': 'Push Notifications',
   '/support-chats': 'Support Chats',
   '/reports':       'Reports & Analytics',

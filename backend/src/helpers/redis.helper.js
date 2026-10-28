@@ -62,16 +62,23 @@ const getRedis = () => {
     return redis;
 };
 
+// In-memory cache fallback when Redis is offline or unreachable
+const memoryCache = new Map();
+
 /**
  * @desc Set data in cache with TTL
  */
 const setCache = async (key, value, ttlInSeconds = 3600) => {
     const client = getRedis();
-    if (!isClientReady(client)) return null;
+    if (!isClientReady(client)) {
+        memoryCache.set(key, { value, expiresAt: Date.now() + (ttlInSeconds * 1000) });
+        return;
+    }
     try {
         await client.set(key, JSON.stringify(value), 'EX', ttlInSeconds);
     } catch (error) {
         logger.error(`Redis setCache error: ${error.message}`);
+        memoryCache.set(key, { value, expiresAt: Date.now() + (ttlInSeconds * 1000) });
     }
 };
 
@@ -80,7 +87,15 @@ const setCache = async (key, value, ttlInSeconds = 3600) => {
  */
 const getCache = async (key) => {
     const client = getRedis();
-    if (!isClientReady(client)) return null;
+    if (!isClientReady(client)) {
+        const item = memoryCache.get(key);
+        if (!item) return null;
+        if (item.expiresAt && item.expiresAt < Date.now()) {
+            memoryCache.delete(key);
+            return null;
+        }
+        return item.value;
+    }
     try {
         const data = await client.get(key);
         if (!data) return null;
@@ -91,6 +106,8 @@ const getCache = async (key) => {
         return parsed;
     } catch (error) {
         logger.error(`Redis getCache error: ${error.message}`);
+        const item = memoryCache.get(key);
+        if (item && (!item.expiresAt || item.expiresAt >= Date.now())) return item.value;
         return null;
     }
 };
@@ -99,6 +116,15 @@ const getCache = async (key) => {
  * @desc Delete data from cache
  */
 const delCache = async (key) => {
+    // Delete from memoryCache fallback
+    memoryCache.delete(key);
+    if (key === 'admin_dashboard_stats') {
+        const ranges = ['today', 'week', 'month', 'quarter', 'year', 'all'];
+        for (const r of ranges) {
+            memoryCache.delete(`admin_dashboard_stats_${r}`);
+        }
+    }
+
     const client = getRedis();
     if (!isClientReady(client)) return null;
     try {
@@ -119,6 +145,12 @@ const delCache = async (key) => {
  * @desc Delete keys matching pattern without blocking using SCAN
  */
 const delCacheByPattern = async (pattern) => {
+    // Also clear matching keys from memoryCache
+    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    for (const k of memoryCache.keys()) {
+        if (regex.test(k)) memoryCache.delete(k);
+    }
+
     const client = getRedis();
     if (!isClientReady(client)) return;
     try {
