@@ -36,7 +36,13 @@
 -dontwarn okhttp3.**
 -dontwarn javax.annotation.**
 -dontwarn org.conscrypt.**
+-dontwarn io.socket.**
+-keep class io.socket.** { *; }
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+
+# Internal modules & safe area
+-keep class com.kwickly.smsbridge.** { *; }
+-keep class com.th3rdwave.safeareacontext.** { *; }
 
 # Kotlin
 -dontwarn kotlin.**
