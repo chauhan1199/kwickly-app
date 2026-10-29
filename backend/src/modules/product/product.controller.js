@@ -68,7 +68,7 @@ exports.getProducts = catchAsync(async (req, res) => {
     }
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
-    const products = await Product.find(query).sort('-createdAt').lean();
+    const products = await Product.find(query).select('shopId name price imageUrl category brand unit description stock minQty attributes isActive').sort('-createdAt').lean();
     await setCache(cacheKey, products, 300); // cache for 5 min
     return successResponse(res, products, 'Products fetched');
 });

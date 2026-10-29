@@ -156,7 +156,13 @@ exports.getAllShops = catchAsync(async (req, res) => {
     const { kycStatus, search, category, page = 1, limit = 50, isOnline, lat, lng } = req.query;
     const isAdmin = req.user?.role === 'ADMIN';
 
-    const cacheKey = `${SHOP_CACHE_PREFIX}_${isAdmin ? 'admin' : 'customer'}_${kycStatus || 'all'}_${category || 'all'}_${search || ''}_${lat || ''}_${lng || ''}_${page}_${limit}`;
+    const userLat = parseFloat(lat);
+    const userLng = parseFloat(lng);
+    const hasUserLocation = !isNaN(userLat) && !isNaN(userLng);
+    const gridLat = hasUserLocation ? userLat.toFixed(2) : '';
+    const gridLng = hasUserLocation ? userLng.toFixed(2) : '';
+
+    const cacheKey = `${SHOP_CACHE_PREFIX}_${isAdmin ? 'admin' : 'customer'}_${kycStatus || 'all'}_${category || 'all'}_${search || ''}_${gridLat}_${gridLng}_${page}_${limit}`;
     const cachedData = await getCache(cacheKey);
     if (cachedData) return successResponse(res, cachedData, 'Shops fetched from cache');
 
@@ -202,15 +208,15 @@ exports.getAllShops = catchAsync(async (req, res) => {
     }
 
     const total = await Shop.countDocuments(query);
-    let shops = await Shop.find(query)
-        .populate('ownerId', 'name phone email')
-        .lean();
+    let shopQuery = Shop.find(query);
+    if (isAdmin) {
+        shopQuery = shopQuery.populate('ownerId', 'name phone email');
+    } else {
+        shopQuery = shopQuery.select('name category description address location deliveryConfig logoUrl rating totalOrders isOnline createdAt');
+    }
+    let shops = await shopQuery.lean();
 
     // Distance calculation & Sorting from near to high
-    const userLat = parseFloat(lat);
-    const userLng = parseFloat(lng);
-    const hasUserLocation = !isNaN(userLat) && !isNaN(userLng);
-
     const { haversineDistance } = require('../../helpers/geo.helper');
 
     shops = shops.map(shop => {
@@ -258,7 +264,7 @@ exports.getAllShops = catchAsync(async (req, res) => {
         ? { shops: paginatedShops, total, page, totalPages: Math.ceil(total / limit) }
         : paginatedShops;
 
-    await setCache(cacheKey, result, 120);
+    await setCache(cacheKey, result, 300);
 
     return successResponse(res, result, 'Shops fetched');
 });

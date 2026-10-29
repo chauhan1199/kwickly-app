@@ -129,24 +129,42 @@ exports.getCategories = catchAsync(async (req, res) => {
         const rawCategories = await Category.find().lean();
         let jobCountsMap = {};
         let subCountsMap = {};
-        // Real customer ratings per job category: { [category]: { sum, count } }
         let ratingMap = {};
         try {
             const Job = require('../job/job.model');
-            const jobs = await Job.find({}).select('category subcategory rating.score').lean();
-            jobs.forEach(j => {
-                if (j.category) {
-                    jobCountsMap[j.category] = (jobCountsMap[j.category] || 0) + 1;
-                    const score = Number(j.rating?.score);
-                    if (score > 0) {
-                        const r = ratingMap[j.category] || { sum: 0, count: 0 };
-                        r.sum += score;
-                        r.count += 1;
-                        ratingMap[j.category] = r;
+            // High-performance MongoDB aggregation instead of full table scan
+            const [catAgg, subAgg] = await Promise.all([
+                Job.aggregate([
+                    { $match: { category: { $exists: true, $ne: null } } },
+                    {
+                        $group: {
+                            _id: "$category",
+                            count: { $sum: 1 },
+                            ratingSum: { $sum: { $ifNull: ["$rating.score", 0] } },
+                            ratingCount: {
+                                $sum: { $cond: [{ $and: [{ $ne: ["$rating.score", null] }, { $gt: ["$rating.score", 0] }] }, 1, 0] }
+                            }
+                        }
+                    }
+                ]),
+                Job.aggregate([
+                    { $match: { subcategory: { $exists: true, $ne: null } } },
+                    { $group: { _id: "$subcategory", count: { $sum: 1 } } }
+                ])
+            ]);
+
+            catAgg.forEach(item => {
+                if (item._id) {
+                    jobCountsMap[item._id] = item.count;
+                    if (item.ratingCount > 0) {
+                        ratingMap[item._id] = { sum: item.ratingSum, count: item.ratingCount };
                     }
                 }
-                if (j.subcategory) {
-                    subCountsMap[j.subcategory] = (subCountsMap[j.subcategory] || 0) + 1;
+            });
+
+            subAgg.forEach(item => {
+                if (item._id) {
+                    subCountsMap[item._id] = item.count;
                 }
             });
         } catch (_) {}
@@ -157,7 +175,6 @@ exports.getCategories = catchAsync(async (req, res) => {
             }, c.bookingCount || 0);
             const frequencyScore = getCategoryFrequencyScore(c.name, jobCountsMap);
             const ratingAgg = Object.entries(ratingMap).reduce((acc, [k, v]) => {
-                // Exact (case-insensitive) match so one category never borrows another's reviews
                 if ((c.name || '').trim().toLowerCase() !== (k || '').trim().toLowerCase()) return acc;
                 return { sum: acc.sum + v.sum, count: acc.count + v.count };
             }, { sum: 0, count: 0 });
@@ -209,18 +226,34 @@ exports.getCategories = catchAsync(async (req, res) => {
             return (a.name || '').localeCompare(b.name || '');
         });
 
-        await setCache(CACHE_KEY, categories, 3600);
+        await setCache(CACHE_KEY, categories, 86400); // 24-hour cache
     }
 
     if (!isAdmin) {
-        // Deep copy to avoid mutating cached object
-        const categoriesCopy = JSON.parse(JSON.stringify(categories));
-        const activeCategories = categoriesCopy.filter(c => c.active !== false).map(c => {
-            if (c.subcategories) {
-                c.subcategories = c.subcategories.filter(s => s.active !== false);
-            }
-            return c;
-        });
+        // Streamlined mobile projection for sub-second network delivery & parse
+        const activeCategories = categories
+            .filter(c => c.active !== false)
+            .map(c => ({
+                _id: c._id,
+                name: c.name,
+                icon: c.icon,
+                color: c.color,
+                imageUrl: c.imageUrl,
+                bookingCount: c.bookingCount || 0,
+                frequencyScore: c.frequencyScore || 0,
+                rating: c.rating,
+                subcategories: (c.subcategories || [])
+                    .filter(s => s.active !== false)
+                    .map(s => ({
+                        _id: s._id,
+                        name: s.name,
+                        imageUrl: s.imageUrl,
+                        minPrice: s.minPrice,
+                        platformFee: s.platformFee,
+                        bookingCount: s.bookingCount || 0,
+                        frequencyScore: s.frequencyScore || 0
+                    }))
+            }));
         return successResponse(res, activeCategories, 'Categories fetched successfully');
     }
 

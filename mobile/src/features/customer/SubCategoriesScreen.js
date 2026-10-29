@@ -116,6 +116,15 @@ const SubCategoriesScreen = ({ route, navigation }) => {
 
   const loadSubs = useCallback(async () => {
     try {
+      if (id) {
+        const res = await jobService.getCategoryById(id);
+        if (res.data?.status === 'success' && res.data.data) {
+          const cat = res.data.data;
+          if (cat.subcategories?.length) setLocalSubs(cat.subcategories);
+          if (cat.imageUrl) setCategoryImageUrl(cat.imageUrl);
+          return;
+        }
+      }
       const res = await jobService.getCategories();
       if (res.data?.status === 'success') {
         const cat = res.data.data.find(c => (id && c._id === id) || c.name === name);
@@ -137,12 +146,13 @@ const SubCategoriesScreen = ({ route, navigation }) => {
   React.useEffect(() => {
     if (route.params?.subs?.length) {
       setLocalSubs(route.params.subs);
+    } else {
+      loadSubs();
     }
-    loadSubs();
-    const sub = DeviceEventEmitter.addListener('NEW_NOTIFICATION', () => {
+    const subEvt = DeviceEventEmitter.addListener('NEW_NOTIFICATION', () => {
       loadSubs();
     });
-    return () => sub.remove();
+    return () => subEvt.remove();
   }, [route.params, loadSubs]);
 
   const sortedSubs = React.useMemo(() => {

@@ -44,7 +44,6 @@ const ShopDetailScreen = ({ route, navigation }) => {
   const fetchShopAndProducts = useCallback(async () => {
     if (!shopId) return;
     try {
-      if (!shop) setLoading(true);
       const [shopRes, productsRes] = await Promise.allSettled([
         shopService.getShopById(shopId),
         shopService.getProducts(shopId)
@@ -59,18 +58,16 @@ const ShopDetailScreen = ({ route, navigation }) => {
         setProducts(Array.isArray(prodData) ? prodData : (prodData?.products || []));
       }
     } catch (e) {
-      if (!shop && !shopData) {
-        Alert.alert('Error', 'Failed to load shop details. Please try again.');
-      }
+      // Handled gracefully
     } finally {
       setLoading(false);
     }
-  }, [shopId, shop, shopData]);
+  }, [shopId]);
 
   useEffect(() => {
     fetchShopAndProducts();
     if (fetchCart) fetchCart();
-  }, [shopId, fetchShopAndProducts, fetchCart]);
+  }, [shopId]);
 
   const handleBack = () => {
     navigation.goBack();

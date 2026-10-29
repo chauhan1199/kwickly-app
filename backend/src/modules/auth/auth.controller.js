@@ -6,7 +6,7 @@ const catchAsync = require('../../helpers/async.helper');
 const { AUTH, COMMON } = require('../../constants/messages');
 const { OTP_TTL, OTP_BLOCK_TTL, SESSION_TTL } = require('../../constants/business');
 const { successResponse, errorResponse } = require('../../helpers/response.helper');
-const { setCache, getCache, delCache, getRedis } = require('../../helpers/redis.helper');
+const { setCache, getCache, delCache, incrCache, delCacheByPattern } = require('../../helpers/redis.helper');
 
 const getJwtSecret = () => process.env.JWT_SECRET; // Read at call time (server.js startup check or test setup)
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
@@ -28,17 +28,11 @@ const checkOtpAttempts = async (phone) => {
 };
 
 const incrementOtpAttempts = async (phone) => {
-    const redis = getRedis();
-    if (!redis) return;
     const key = `otp_attempts:${phone}`;
     try {
-        const current = await redis.incr(key);
-        if (current === 1) {
-            // Set TTL only on first attempt
-            await redis.expire(key, OTP_BLOCK_TTL);
-        }
+        await incrCache(key, OTP_BLOCK_TTL);
     } catch (e) {
-        // Redis unavailable — skip rate limiting attempts instead of failing the request
+        // Skip rate limiting attempts instead of failing
     }
 };
 
@@ -50,6 +44,11 @@ const resetOtpAttempts = async (phone) => {
 
 exports.checkStatus = catchAsync(async (req, res) => {
     const { phone, role } = req.body;
+    const cacheKey = `auth_status:${phone}_${role ? role.toUpperCase() : 'all'}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+        return successResponse(res, cached, COMMON.SUCCESS);
+    }
     
     // Find all accounts associated with this mobile number
     const query = { phone };
@@ -60,12 +59,14 @@ exports.checkStatus = catchAsync(async (req, res) => {
     const accounts = await Customer.find(query).select('role name password isVerified email').lean();
 
     if (!accounts || accounts.length === 0) {
-        return successResponse(res, {
+        const notFoundData = {
             exists: false,
             hasPassword: false,
             hasMpin: false,
             accounts: []
-        }, COMMON.SUCCESS);
+        };
+        await setCache(cacheKey, notFoundData, 15);
+        return successResponse(res, notFoundData, COMMON.SUCCESS);
     }
 
     // Determine default/primary account
@@ -85,7 +86,7 @@ exports.checkStatus = catchAsync(async (req, res) => {
         isVerified: !!a.isVerified
     }));
 
-    return successResponse(res, {
+    const resultData = {
         exists: true,
         role: primaryUser.role,
         name: primaryUser.name || 'User',
@@ -93,7 +94,10 @@ exports.checkStatus = catchAsync(async (req, res) => {
         hasMpin: !!primaryUser.password,
         accounts: accountList,
         singleAccount: accounts.length === 1
-    }, COMMON.SUCCESS);
+    };
+
+    await setCache(cacheKey, resultData, 30);
+    return successResponse(res, resultData, COMMON.SUCCESS);
 });
 
 exports.sendOTP = catchAsync(async (req, res) => {

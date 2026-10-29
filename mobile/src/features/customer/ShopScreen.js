@@ -176,7 +176,7 @@ const ShopScreen = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userLng, userLat, hasUserLocation, shops.length]);
+  }, [userLng, userLat, hasUserLocation]);
 
   useEffect(() => {
     fetchShops();

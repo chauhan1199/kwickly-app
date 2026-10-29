@@ -5,6 +5,44 @@ let redis = null;
 let connectionAttempts = 0;
 const MAX_LOG_ATTEMPTS = 3;
 
+// ─── Circuit Breaker for Redis Latency & Quota Failures ──────────────────────
+let isCircuitOpen = false;
+let circuitResetAt = 0;
+let circuitReason = '';
+
+const tripCircuit = (reason, cooldownSeconds = 60) => {
+    isCircuitOpen = true;
+    circuitResetAt = Date.now() + (cooldownSeconds * 1000);
+    if (circuitReason !== reason) {
+        circuitReason = reason;
+        logger.warn(`[Redis Circuit Breaker] Tripped: ${reason}. Bypassing remote Redis and serving from in-memory cache for ${cooldownSeconds}s.`);
+    }
+};
+
+const checkCircuit = () => {
+    if (!isCircuitOpen) return false;
+    if (Date.now() > circuitResetAt) {
+        // Probe period: allow one attempt to test if Redis is restored
+        isCircuitOpen = false;
+        circuitReason = '';
+        logger.info('[Redis Circuit Breaker] Resetting circuit breaker. Testing Redis connectivity.');
+        return false;
+    }
+    return true; // Circuit remains open
+};
+
+const handleRedisError = (error) => {
+    const msg = error?.message || '';
+    const code = error?.code || '';
+    if (msg.includes('max requests limit exceeded')) {
+        tripCircuit('Upstash quota exceeded (500k monthly limit reached)', 600); // 10 min
+    } else if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ETIMEDOUT') {
+        tripCircuit(`Connection failure (${code})`, 60);
+    } else {
+        tripCircuit(msg || 'Redis command error', 30);
+    }
+};
+
 /**
  * @desc Initialize Redis connection with graceful retry strategy
  */
@@ -13,27 +51,31 @@ const initRedis = () => {
         const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
         
         redis = new Redis(redisUrl, {
-            maxRetriesPerRequest: 3,
+            maxRetriesPerRequest: 1,
+            connectTimeout: 2000,
             enableOfflineQueue: false,
             retryStrategy(times) {
                 connectionAttempts++;
-                if (times > 5) {
+                if (times > 3) {
                     if (connectionAttempts === MAX_LOG_ATTEMPTS + 1) {
-                        logger.warn('Redis connection failed after multiple attempts. Will keep retrying with longer delays.');
+                        logger.warn('Redis connection failed after multiple attempts. Operating in in-memory fallback.');
                     }
-                    // Keep retrying at longer intervals instead of stopping permanently
+                    tripCircuit('Persistent connection failure', 60);
                     return Math.min(times * 5000, 60000);
                 }
-                return Math.min(times * 50, 2000);
+                return Math.min(times * 100, 1000);
             }
         });
 
         redis.on('connect', () => {
             connectionAttempts = 0;
+            isCircuitOpen = false;
+            circuitReason = '';
             logger.info('Successfully connected to Redis');
         });
 
         redis.on('error', (error) => {
+            handleRedisError(error);
             if (connectionAttempts === 1) {
                 logger.warn(`Redis unavailable (${error?.code || error?.message || 'ECONNREFUSED'}). Operating with in-memory fallback.`);
             }
@@ -42,14 +84,16 @@ const initRedis = () => {
         return redis;
     } catch (error) {
         logger.error('Failed to initialize Redis:', error);
+        handleRedisError(error);
         return null;
     }
 };
 
 const isClientReady = (client) => {
+    if (checkCircuit()) return false;
     if (!client) return false;
     if (client.status === undefined) return true; // Allows mocked redis in unit tests
-    return client.status === 'ready' || client.status === 'connect';
+    return client.status === 'ready';
 };
 
 /**
@@ -77,7 +121,7 @@ const setCache = async (key, value, ttlInSeconds = 3600) => {
     try {
         await client.set(key, JSON.stringify(value), 'EX', ttlInSeconds);
     } catch (error) {
-        logger.error(`Redis setCache error: ${error.message}`);
+        handleRedisError(error);
         memoryCache.set(key, { value, expiresAt: Date.now() + (ttlInSeconds * 1000) });
     }
 };
@@ -105,10 +149,38 @@ const getCache = async (key) => {
         }
         return parsed;
     } catch (error) {
-        logger.error(`Redis getCache error: ${error.message}`);
+        handleRedisError(error);
         const item = memoryCache.get(key);
         if (item && (!item.expiresAt || item.expiresAt >= Date.now())) return item.value;
         return null;
+    }
+};
+
+/**
+ * @desc Atomic increment in cache with TTL
+ */
+const incrCache = async (key, ttlInSeconds = 3600) => {
+    const client = getRedis();
+    if (!isClientReady(client)) {
+        const item = memoryCache.get(key);
+        const current = (item && (!item.expiresAt || item.expiresAt >= Date.now())) ? Number(item.value) || 0 : 0;
+        const next = current + 1;
+        memoryCache.set(key, { value: next, expiresAt: Date.now() + (ttlInSeconds * 1000) });
+        return next;
+    }
+    try {
+        const val = await client.incr(key);
+        if (val === 1 && ttlInSeconds) {
+            await client.expire(key, ttlInSeconds);
+        }
+        return val;
+    } catch (error) {
+        handleRedisError(error);
+        const item = memoryCache.get(key);
+        const current = (item && (!item.expiresAt || item.expiresAt >= Date.now())) ? Number(item.value) || 0 : 0;
+        const next = current + 1;
+        memoryCache.set(key, { value: next, expiresAt: Date.now() + (ttlInSeconds * 1000) });
+        return next;
     }
 };
 
@@ -137,7 +209,7 @@ const delCache = async (key) => {
         }
         await client.del(key);
     } catch (error) {
-        logger.error(`Redis delCache error: ${error.message}`);
+        handleRedisError(error);
     }
 };
 
@@ -164,7 +236,7 @@ const delCacheByPattern = async (pattern) => {
             }
         } while (cursor !== '0');
     } catch (error) {
-        logger.error(`Redis delCacheByPattern error: ${error.message}`);
+        handleRedisError(error);
     }
 };
 
@@ -189,7 +261,8 @@ const fetchWithCache = async (key, ttlInSeconds, fetcher) => {
                 }
             }
         } catch (e) {
-            // Redis unavailable — skip locking and fetch directly
+            handleRedisError(e);
+            // Skip locking and fetch directly
         }
     }
     
@@ -218,7 +291,8 @@ const acquireLock = async (lockKey, ttlInSeconds = 50) => {
             const acquired = await client.set(`lock:${lockKey}`, holderId, 'NX', 'EX', ttlInSeconds);
             return acquired ? holderId : false;
         } catch (e) {
-            // Redis error during command — fallback to in-memory lock
+            handleRedisError(e);
+            // Fallback to in-memory lock below
         }
     }
 
@@ -245,7 +319,9 @@ const releaseLock = async (lockKey, holderId) => {
             } else {
                 await client.del(`lock:${lockKey}`);
             }
-        } catch (e) {}
+        } catch (e) {
+            handleRedisError(e);
+        }
     }
 
     // In-memory fallback release
@@ -262,6 +338,7 @@ module.exports = {
     getRedis,
     setCache,
     getCache,
+    incrCache,
     delCache,
     delCacheByPattern,
     fetchWithCache,

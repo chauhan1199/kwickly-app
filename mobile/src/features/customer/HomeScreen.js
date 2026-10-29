@@ -104,16 +104,23 @@ const HomeScreen = ({ navigation }) => {
   useEffect(() => {
     AsyncStorage.multiGet(['kwickly_cache_categories', 'kwickly_cache_shops', 'kwickly_cache_promos', 'kwickly_cache_home_banners'])
       .then(([[, catJson], [, shopJson], [, promoJson], [, bannerJson]]) => {
+        let hasCache = false;
         if (catJson) {
           try {
             const parsed = JSON.parse(catJson);
-            if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setCategories(parsed);
+              hasCache = true;
+            }
           } catch (_) {}
         }
         if (shopJson) {
           try {
             const parsedS = JSON.parse(shopJson);
-            if (Array.isArray(parsedS) && parsedS.length > 0) setShops(parsedS);
+            if (Array.isArray(parsedS) && parsedS.length > 0) {
+              setShops(parsedS);
+              hasCache = true;
+            }
           } catch (_) {}
         }
         if (promoJson) {
@@ -128,6 +135,9 @@ const HomeScreen = ({ navigation }) => {
             if (Array.isArray(parsedB) && parsedB.length > 0) setHomeBanners(parsedB);
           } catch (_) {}
         }
+        if (hasCache) {
+          setInitialLoading(false);
+        }
       })
       .catch(() => {});
   }, []);
@@ -137,7 +147,7 @@ const HomeScreen = ({ navigation }) => {
       if (isManual) {
         setRefreshing(true);
       }
-      setInitialLoading((prev) => prev || true);
+      setInitialLoading((prev) => (categories.length === 0 && shops.length === 0 ? true : false));
 
       const params = hasUserLocation ? { limit: 10, lng: userLng, lat: userLat } : { limit: 10 };
 
@@ -323,16 +333,7 @@ const HomeScreen = ({ navigation }) => {
 
   const firstName = user?.name?.split(' ')[0] || 'there';
 
-  // While the very first load is in flight and nothing is cached to show,
-  // render a spinner instead of an empty/blank home screen.
-  if (initialLoading && categories.length === 0 && shops.length === 0) {
-    return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
+
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
