@@ -406,7 +406,7 @@ export default function Settings() {
           </div>
         )}
 
-        {/* RADIUS */}
+                {/* RADIUS */}
         {activeTab === 'radius' && (
           <div>
             <div className="settings-section-title">Expanding Radius Broadcast Configuration</div>
@@ -420,8 +420,51 @@ export default function Settings() {
                 <div className="settings-hint">If no worker found within this radius, customer is notified</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="number" className="form-control" style={{ width: 80 }} value={settings.maxRadius} onChange={e => set('maxRadius', e.target.value)} />
+                <input type="number" className="form-control" style={{ width: 80 }} value={settings.maxRadius} onChange={e => setLocal('maxRadius', e.target.value)} onBlur={e => save('maxRadius', Number(e.target.value))} />
                 <span style={{ fontSize: 12, color: 'var(--mid)' }}>km</span>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">Round Expansion Wait Time</div>
+                <div className="settings-hint">Minutes to wait before expanding to the next radius round if no quotes are received</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="30" 
+                  className="form-control" 
+                  style={{ width: 80 }} 
+                  value={settings.expansionIntervalMinutes || 1} 
+                  onChange={e => setLocal('expansionIntervalMinutes', e.target.value)} 
+                  onBlur={e => save('expansionIntervalMinutes', Number(e.target.value))} 
+                />
+                <span style={{ fontSize: 12, color: 'var(--mid)' }}>min</span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 20, padding: 16, background: 'var(--input-bg, rgba(255,255,255,0.02))', borderRadius: 12, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>
+                📡 Live Multi-Round Broadcast Simulation:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, fontSize: 12 }}>
+                <div style={{ padding: 10, background: 'var(--card-bg, rgba(255,255,255,0.03))', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ color: 'var(--primary, #6366f1)', fontWeight: 600 }}>🟢 Round 1 (Immediate)</div>
+                  <div>Search Radius: <strong>{Number(settings.maxRadius || 25)} km</strong></div>
+                  <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 2 }}>Initial broadcast to local workers</div>
+                </div>
+                <div style={{ padding: 10, background: 'var(--card-bg, rgba(255,255,255,0.03))', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ color: '#0ea5e9', fontWeight: 600 }}>🟡 Round 2 (+{Number(settings.expansionIntervalMinutes || 1)} min)</div>
+                  <div>Search Radius: <strong>{Number(settings.maxRadius || 25) * 2} km</strong></div>
+                  <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 2 }}>Expands if 0 quotes received</div>
+                </div>
+                <div style={{ padding: 10, background: 'var(--card-bg, rgba(255,255,255,0.03))', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ color: '#f59e0b', fontWeight: 600 }}>🟠 Round 3 (+{Number(settings.expansionIntervalMinutes || 1) * 2} min)</div>
+                  <div>Search Radius: <strong>{Number(settings.maxRadius || 25) * 3} km</strong></div>
+                  <div style={{ fontSize: 11, color: 'var(--mid)', marginTop: 2 }}>Final expansion across region</div>
+                </div>
               </div>
             </div>
 

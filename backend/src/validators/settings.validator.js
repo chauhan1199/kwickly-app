@@ -16,6 +16,7 @@ const updateSettingsSchema = Joi.object({
     freeTrialDays: Joi.number().min(0).max(365),
     trialDays: Joi.number().min(0),
     maxRadius: Joi.number().min(1).max(100),
+    expansionIntervalMinutes: Joi.number().min(1).max(60),
     radiusRound1Wait: Joi.number().min(1),
     radiusRound2Wait: Joi.number().min(1),
     otpValidity: Joi.number().min(1),

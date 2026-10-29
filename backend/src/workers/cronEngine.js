@@ -33,7 +33,7 @@ const startCronEngine = () => {
     cron.schedule('* * * * *', async () => {
         const holderId = await acquireLock('cron:job_sweep', 50);
         if (!holderId) return; // Another node is handling this
-        
+
         try {
             await sweepGhostQuotes();
         } catch (err) {
@@ -47,7 +47,7 @@ const startCronEngine = () => {
     cron.schedule('*/5 * * * *', async () => {
         const holderId = await acquireLock('cron:order_sweep', 290);
         if (!holderId) return;
-        
+
         try {
             await sweepGhostOrders();
         } catch (err) {
@@ -61,7 +61,7 @@ const startCronEngine = () => {
     cron.schedule('*/10 * * * *', async () => {
         const holderId = await acquireLock('cron:worker_sweep', 590);
         if (!holderId) return;
-        
+
         try {
             await sweepExpiredSubscriptions();
         } catch (err) {
@@ -90,103 +90,103 @@ const startCronEngine = () => {
 const BROADCAST_SEARCH_WINDOW_MS = 30 * 60 * 1000;
 
 const sweepBroadcastingJobs = async () => {
-    // Process jobs that have been in BROADCASTING and last attempt was >= 1 min ago
-    const oneMinAgo = new Date(Date.now() - 60 * 1000);
-    const broadcastingJobs = await Job.find({ 
-        status: 'BROADCASTING', 
-        'broadcast.lastAttemptAt': { $lt: oneMinAgo } 
+    const SettingsService = require('../modules/settings/settings.service');
+
+    const settings = await SettingsService.getAppSettings();
+    const maxRadius = settings?.radius?.maxKm || 25;
+    const expansionIntervalMinutes = Math.max(1, Number(settings?.radius?.expansionIntervalMinutes) || 1);
+    const intervalThreshold = new Date(Date.now() - (expansionIntervalMinutes * 60 * 1000));
+    const minBalance = settings?.wallet?.minimumBalance || 100;
+    const broadcastingJobs = await Job.find({
+        status: 'BROADCASTING',
+        'broadcast.lastAttemptAt': { $lt: intervalThreshold }
     }).populate('customerId', 'name phone profileImage');
 
     if (broadcastingJobs.length === 0) return;
 
-    // Load settings once for the sweep
-    const SettingsService = require('../modules/settings/settings.service');
-    const settings = await SettingsService.getAppSettings();
-    const maxRadius = settings?.radius?.maxKm || 25;
-    const minBalance = settings?.wallet?.minimumBalance || 100;
-
     for (const job of broadcastingJobs) {
         try {
-        const nextRound = (job.broadcast.round || 1) + 1;
+            const nextRound = (job.broadcast.round || 1) + 1;
 
-        if (nextRound > 3) {
-            // All 3 radius rounds are done. Keep the job open for workers who come
-            // online later: cancel only after the search window (or, for a job booked
-            // for a later date, once that date has passed). Cancelling straight after
-            // round 3 killed every job ~3 minutes after posting.
-            const searchUntil = Math.max(
-                new Date(job.createdAt).getTime() + BROADCAST_SEARCH_WINDOW_MS,
-                job.preferredDate ? new Date(job.preferredDate).getTime() : 0
-            );
-            if (Date.now() < searchUntil) continue;
+            if (nextRound > 3) {
+                // All 3 radius rounds are done. Keep the job open for workers who come
+                // online later: cancel only after the search window (or, for a job booked
+                // for a later date, once that date has passed). Cancelling straight after
+                // round 3 killed every job ~3 minutes after posting.
+                const searchUntil = Math.max(
+                    new Date(job.createdAt).getTime() + BROADCAST_SEARCH_WINDOW_MS,
+                    job.preferredDate ? new Date(job.preferredDate).getTime() : 0
+                );
+                if (Date.now() < searchUntil) continue;
 
-            // Auto cancel after 3 rounds (75km radius search completed with 0 bids/workers)
-            logger.info(`[Cron] Auto-cancelling job ${job._id} after 3 search rounds (No workers found)`);
-            job.status = 'CANCELLED';
-            job.cancelReason = 'No workers found nearby after searching up to 75 km.';
-            job.broadcast.round = 3;
+                // Auto cancel after 3 rounds (75km radius search completed with 0 bids/workers)
+                logger.info(`[Cron] Auto-cancelling job ${job._id} after 3 search rounds (No workers found)`);
+                job.status = 'CANCELLED';
+                const maxSearchedRadius = job.broadcast?.radiusKm || (3 * maxRadius);
+                job.cancelReason = `No workers found nearby after searching up to ${maxSearchedRadius} km.`;
+                job.broadcast.round = 3;
+                await job.save();
+
+                emitToRoom(`customer_${job.customerId?._id || job.customerId}`, 'JOB_STATUS_CHANGED', {
+                    jobId: job._id,
+                    status: 'CANCELLED',
+                    reason: `No workers found nearby after searching in 3 rounds up to ${maxSearchedRadius} km.`
+                });
+
+                notifyUser({
+                    userId: job.customerId?._id || job.customerId,
+                    title: 'Job Request Cancelled',
+                    message: `We searched in 3 rounds up to ${job.broadcast?.radiusKm || (3 * maxRadius)} km, but could not find available workers for your "${job.category}${job.subcategory ? ' - ' + job.subcategory : ''}" request. Please feel free to re-post anytime.`,
+                    action: 'JOB_CANCELLED',
+                    entityType: 'JOB',
+                    entityId: job._id,
+                    targetRole: 'CUSTOMER'
+                });
+                continue;
+            }
+
+            // Expand radius
+            const newRadiusKm = nextRound * maxRadius;
+            job.broadcast.round = nextRound;
+            job.broadcast.radiusKm = newRadiusKm;
+            job.broadcast.lastAttemptAt = new Date();
             await job.save();
-            
-            emitToRoom(`customer_${job.customerId?._id || job.customerId}`, 'JOB_STATUS_CHANGED', { 
-                jobId: job._id, 
-                status: 'CANCELLED', 
-                reason: 'No workers found nearby after searching in 3 rounds up to 75 km.' 
-            });
 
-            notifyUser({
-                userId: job.customerId?._id || job.customerId,
-                title: 'Job Request Cancelled',
-                message: `We searched in 3 rounds up to ${job.broadcast?.radiusKm || (3 * maxRadius)} km, but could not find available workers for your "${job.category}${job.subcategory ? ' - ' + job.subcategory : ''}" request. Please feel free to re-post anytime.`,
-                action: 'JOB_CANCELLED',
-                entityType: 'JOB',
-                entityId: job._id,
-                targetRole: 'CUSTOMER'
-            });
-            continue;
-        }
+            logger.info(`[Cron] Job ${job._id} expanding to round ${nextRound} (Radius: ${newRadiusKm}km)`);
 
-        // Expand radius
-        const newRadiusKm = nextRound * maxRadius;
-        job.broadcast.round = nextRound;
-        job.broadcast.radiusKm = newRadiusKm;
-        job.broadcast.lastAttemptAt = new Date();
-        await job.save();
-
-        logger.info(`[Cron] Job ${job._id} expanding to round ${nextRound} (Radius: ${newRadiusKm}km)`);
-
-        // Notify customer of expansion
-        emitToRoom(`customer_${job.customerId?._id || job.customerId}`, 'JOB_RADIUS_EXPANDED', { 
-            jobId: job._id, 
-            radiusKm: newRadiusKm,
-            round: nextRound
-        });
-
-        // Find workers
-        const eligibleWorkerIds = await findEligibleWorkers(job, newRadiusKm, minBalance);
-
-        if (eligibleWorkerIds.length > 0) {
-            const customer = job.customerId;
-            const alertPayload = {
+            // Notify customer of expansion
+            emitToRoom(`customer_${job.customerId?._id || job.customerId}`, 'JOB_RADIUS_EXPANDED', {
                 jobId: job._id,
-                category: job.category,
-                subcategory: job.subcategory,
-                description: job.description,
-                location: job.location,
-                addressDetails: job.addressDetails,
-                timeSlot: job.timeSlot,
-                preferredDate: job.preferredDate,
-                notifiedWorkers: eligibleWorkerIds.length,
-                customer: {
-                    _id: customer?._id,
-                    name: customer?.name,
-                    profileImage: customer?.profileImage
-                }
-            };
-
-            eligibleWorkerIds.forEach(workerId => {
-                emitToRoom(`worker_${workerId}`, 'NEW_JOB_ALERT', alertPayload);
+                radiusKm: newRadiusKm,
+                round: nextRound
             });
-        }
+
+            // Find workers
+            const eligibleWorkerIds = await findEligibleWorkers(job, newRadiusKm, minBalance);
+
+            if (eligibleWorkerIds.length > 0) {
+                const customer = job.customerId;
+                const alertPayload = {
+                    jobId: job._id,
+                    category: job.category,
+                    subcategory: job.subcategory,
+                    description: job.description,
+                    location: job.location,
+                    addressDetails: job.addressDetails,
+                    timeSlot: job.timeSlot,
+                    preferredDate: job.preferredDate,
+                    notifiedWorkers: eligibleWorkerIds.length,
+                    customer: {
+                        _id: customer?._id,
+                        name: customer?.name,
+                        profileImage: customer?.profileImage
+                    }
+                };
+
+                eligibleWorkerIds.forEach(workerId => {
+                    emitToRoom(`worker_${workerId}`, 'NEW_JOB_ALERT', alertPayload);
+                });
+            }
         } catch (jobErr) {
             logger.error(`[Cron] Error processing job ${job._id}: ${jobErr.message}`);
         }
@@ -197,7 +197,7 @@ const sweepGhostQuotes = async () => {
     // S4 FIX: Cancel QUOTES_RECEIVED jobs created > 2 hours ago that were never accepted
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
     const ghostJobs = await Job.find({ status: 'QUOTES_RECEIVED', createdAt: { $lt: twoHoursAgo } });
-    
+
     for (const job of ghostJobs) {
         const isScheduled = job.preferredDate && new Date(job.preferredDate) > new Date();
         if (isScheduled) {
@@ -269,7 +269,7 @@ const sweepGhostOrders = async () => {
         logger.info(`[Cron] Cancelling ghost shop order ${order._id}`);
         order.status = 'CANCELLED';
         order.statusHistory.push({ status: 'CANCELLED', timestamp: new Date(), note: 'Auto-cancelled due to shop inactivity' });
-        
+
         let session = null;
         let useTransaction = false;
         if (supportsTransactions()) {
@@ -311,7 +311,7 @@ const sweepGhostOrders = async () => {
                 const refundedCustomer = await Customer.findByIdAndUpdate(order.customerId, {
                     $inc: { 'wallet.balance': order.total }
                 }, { returnDocument: 'after', session });
-                
+
                 await WalletTxn.create([{
                     userId: order.customerId,
                     type: 'REFUND',
@@ -351,7 +351,7 @@ const sweepGhostOrders = async () => {
                 });
             }
             await order.save({ session });
-            
+
             if (useTransaction) await session.commitTransaction();
             if (useTransaction) session.endSession();
         } catch (error) {
@@ -368,7 +368,7 @@ const sweepGhostOrders = async () => {
 
 const sweepExpiredSubscriptions = async () => {
     const now = new Date();
-    
+
     // Find workers/shops online whose paid plan or free trial has expired
     const expiredUsers = await Customer.find({
         role: { $in: ['WORKER', 'SHOP'] },

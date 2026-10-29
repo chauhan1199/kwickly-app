@@ -83,7 +83,8 @@ const flattenSettings = (s) => ({
     gstPercentage: s.fees?.gstPercentage || 18,
     walletMinimum: s.wallet?.minimumBalance || 100,
     topupPresets: (s.wallet?.topupPresets || [50, 100, 200, 500]).join(','),
-    maxRadius: s.radius?.maxKm || 15,
+    maxRadius: s.radius?.maxKm || 25,
+    expansionIntervalMinutes: s.radius?.expansionIntervalMinutes || 1,
     maintenanceMode: s.maintenance?.mode || false,
     maintenanceMsg: s.maintenance?.message || '',
     appName: s.branding?.appName || 'Kwickly',
@@ -114,6 +115,7 @@ const mapFlatToNested = (body) => {
         walletMinimum: 'wallet.minimumBalance',
         topupPresets: 'wallet.topupPresets',
         maxRadius: 'radius.maxKm',
+        expansionIntervalMinutes: 'radius.expansionIntervalMinutes',
         maintenanceMode: 'maintenance.mode',
         maintenanceMsg: 'maintenance.message',
         appName: 'branding.appName',
@@ -129,7 +131,7 @@ const mapFlatToNested = (body) => {
 
     const numericFields = [
         'feeAmount', 'feeMinAmount', 'feeThreshold', 'feePercentage', 'gstPercentage', 'walletMinimum',
-        'monthlyPlan', 'semiPlan', 'annualPlan', 'maxRadius', 'freeTrialDays'
+        'monthlyPlan', 'semiPlan', 'annualPlan', 'maxRadius', 'freeTrialDays', 'expansionIntervalMinutes'
     ];
     const booleanFields = ['maintenanceMode'];
 
@@ -218,6 +220,7 @@ const buildPublicSettings = (settings) => ({
     iconUrl: settings.branding?.iconUrl || '',
     maxRadius: settings.radius?.maxKm || 25,
     searchRadius: settings.radius?.maxKm || 25,
+    expansionIntervalMinutes: settings.radius?.expansionIntervalMinutes || 1,
     freeTrialDays: settings.subscription?.freeTrialDays || 14,
     // Fee rules, so app-side totals match what the server will charge
     serviceJobFee: {
@@ -335,6 +338,21 @@ exports.updateSettings = catchAsync(async (req, res) => {
     // Explicitly pass through complex arrays that shouldn't be flattened
     if (req.body.subscriptionPlans) {
         updatePaths.subscriptionPlans = req.body.subscriptionPlans;
+    } else if (req.body.freeTrialDays !== undefined) {
+        const days = Number(req.body.freeTrialDays) || 14;
+        const current = await AppSettings.findOne({ isSingleton: 'CONFIG' }).lean();
+        if (current?.subscriptionPlans?.length) {
+            updatePaths.subscriptionPlans = current.subscriptionPlans.map(p => {
+                if (p.id === 'worker_trial' || p.name === 'Free Trial' || p.label === 'Free Trial') {
+                    return {
+                        ...p,
+                        durationDays: days,
+                        features: [`${days} Days Free Platform Access`, 'Receive Service Requests', 'Standard Support']
+                    };
+                }
+                return p;
+            });
+        }
     }
     if (req.body.faqs) {
         updatePaths.faqs = req.body.faqs;

@@ -55,7 +55,8 @@ const AppSettingsSchema = new mongoose.Schema({
         targetRole: { type: String, enum: ['WORKER', 'SHOP'], default: 'WORKER' }
     }],
     radius: {
-        maxKm: { type: Number, default: 15 }
+        maxKm: { type: Number, default: 25 },
+        expansionIntervalMinutes: { type: Number, default: 1 }
     },
     maintenance: {
         mode: { type: Boolean, default: false },
